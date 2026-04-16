@@ -1,4 +1,32 @@
 # Peach 1UP Era Configuration
 # Era to backend mapping and defaults
 
-# TODO: Define era mappings and default configurations
+dos:
+  backend: dosbox
+  memory_limit_mb: 256
+  supported_media: ['.iso', '.img', '.cue']
+  mount_type: hdd
+
+win31:
+  backend: dosbox
+  memory_limit_mb: 256
+  supported_media: ['.iso', '.img', '.cue']
+  mount_type: hdd
+
+win95:
+  backend: 86box
+  memory_limit_mb: 512
+  supported_media: ['.iso', '.img', '.cue']
+  mount_type: cdrom
+
+win98:
+  backend: 86box
+  memory_limit_mb: 512
+  supported_media: ['.iso', '.img', '.cue']
+  mount_type: cdrom
+
+winxp:
+  backend: 86box
+  memory_limit_mb: 1024
+  supported_media: ['.iso', '.img', '.cue']
+  mount_type: cdrom
