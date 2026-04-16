@@ -123,5 +123,5 @@ class GamePickerScreen(Screen):
         if selected_item.name:  # Only proceed if item has a file path
             file_path = selected_item.name
 
-            from .stub import StubScreen
-            self.app.switch_screen(StubScreen(f"Launch Flow — coming in P0-7 (Era: {self.era.value}, File: {Path(file_path).name})"))
+            from .launch import LaunchScreen
+            self.app.switch_screen(LaunchScreen(era=self.era, media_path=Path(file_path)))
