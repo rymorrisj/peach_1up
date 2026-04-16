@@ -6,14 +6,14 @@
 
 - [P0-1] Project scaffold — folders, empty files, .env template, .gitignore
 - [P0-2] Windows Job Objects wrapper — isolate emulator process, enforce resource limits, restrict filesystem access, block network
+- [P0-3] DOSBox-X backend — locate binary via DOSBOX_PATH, mount media read-only, launch under Job Objects
 
 ### CURRENT
 
-- [P0-3] DOSBox-X backend — locate binary via DOSBOX_PATH, mount media read-only, launch under Job Objects
+- [P0-4] TUI skeleton — Textual app, keyboard navigation, main menu
 
 ### NEXT
 
-- [P0-4] TUI skeleton — Textual app, keyboard navigation, main menu
 - [P0-5] Era selector screen — DOS / Win 3.1 / Win 95 / Win 98 / Win XP
 - [P0-6] Media picker screen — browse filesystem for .iso / .img / .cue files
 - [P0-7] Launch flow — era + media → correct backend → Job Objects → emulator running
