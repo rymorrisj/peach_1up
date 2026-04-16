@@ -20,10 +20,10 @@ Python and a keyboard-driven TUI.
 
 - Python 3.11
 - Textual (TUI framework, keyboard-driven, no mouse required at P0)
-- Docker Desktop (Linux containers, networking disabled by default)
-- VcXsrv (X server for GUI display forwarding from container to Windows host)
-- DOSBox-X (DOS and Windows 3.1 era — no ROM required)
-- 86Box (Windows 95, 98, XP era — user supplies ROM pack)
+- Docker Engine via Docker Desktop daemon (orchestration only — no emulator containers, all operations via CLI)
+- DOSBox-X (DOS and Windows 3.1 era — runs natively on Windows host, no ROM required)
+- 86Box (Windows 95, 98, XP era — runs natively on Windows host, user supplies ROM pack)
+- Windows Job Objects (process isolation, resource limits, filesystem restriction for emulator processes)
 - PyYAML (game profiles and configuration)
 - python-dotenv (environment configuration)
 
@@ -75,7 +75,8 @@ peach-1up/
 - Do not jump ahead to NEXT tasks without confirmation
 - If completing CURRENT requires touching NEXT, flag it and ask before proceeding
 - Never edit CONTEXT.md, CLAUDE.md, or DECISIONS.md — managed by user only
-- CRITICAL: Docker networking must be disabled by default on every container launch
+- CRITICAL: Emulators run natively on Windows under Job Objects — never inside containers
+- CRITICAL: Network access must be blocked at the Job Objects level for every emulator launch
 - CRITICAL: Never attempt to write to or overwrite a mounted image — always read-only
 - CRITICAL: Any file delete, overwrite, git operation, or destructive action requires
   explicit user confirmation before proceeding — no exceptions
@@ -114,23 +115,20 @@ Awaiting your decision.
 
 ## Known Gotchas
 
-- VcXsrv must be running on the host before any container with a GUI is launched.
-  If DISPLAY is not set or VcXsrv is not detected, fail with a clear install message.
-- 86Box requires a ROM pack to function. If ROMs are missing, fail gracefully with
-  the official ROM pack link, do not attempt to launch with missing ROMs.
-- Docker Desktop on Windows Home requires WSL2 to be enabled. Check for this on
-  startup and surface a clear error if it is not present.
-- Linux containers on Windows cannot access the host display natively.
-  DISPLAY must be set to host.docker.internal:0.0 for VcXsrv forwarding.
-- DOSBox-X and 86Box behave differently inside containers vs native.
-  Always test container behaviour, not just binary behaviour.
+- 86Box requires a ROM pack to function. If ROMs are missing, fail gracefully
+  with the official ROM pack link, do not attempt to launch with missing ROMs.
+- Docker Desktop on Windows Home requires WSL2 to be enabled. Check for this
+  on startup and surface a clear error if it is not present.
 - game profile .yaml files are user-editable — validate them on load and fail
   clearly if required fields are missing or malformed.
+- Emulators run natively on Windows host under Job Objects isolation.
+  Never attempt to run emulators inside containers.
+- Read-only mount must be explicitly enforced for every media file passed to
+  an emulator. Never pass a writable path.
 
 ## Official Download Links
 
 - Docker Desktop: https://www.docker.com/products/docker-desktop
-- VcXsrv: https://sourceforge.net/projects/vcxsrv
 - DOSBox-X: https://dosbox-x.com
 - 86Box: https://86box.net
 - 86Box ROM pack: https://github.com/86Box/roms
@@ -138,9 +136,10 @@ Awaiting your decision.
 
 ## Environment Variables (.env)
 
-- DISPLAY=host.docker.internal:0.0
-- DOSBOX_IMAGE=peach1up/dosbox-x:latest
-- BOX86_IMAGE=peach1up/86box:latest
+## Environment Variables (.env)
+
+- DOSBOX_PATH=C:\Program Files\DOSBox-X\dosbox-x.exe
+- BOX86_PATH=C:\Program Files\86Box\86Box.exe
 - ROM_PATH=./images/roms
 - PROFILES_PATH=./profiles
 
