@@ -4,6 +4,7 @@
 !.env.template
 
 # User-supplied content (never commit)
+images/
 images/*.iso
 images/*.img
 images/*.cue
