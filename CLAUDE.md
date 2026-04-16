@@ -89,6 +89,29 @@ peach-1up/
 - Memory and file operations must always err toward doing nothing over doing something wrong
 - All mounts inside containers are read-only unless explicitly approved
 
+## Error Handling
+
+When an error occurs:
+
+1. **Stop immediately** — do not attempt auto-fixes, retries, or workarounds on your own
+2. **Explain the issue concisely** — what failed, why it failed, and what the options are
+3. **Wait for direction** — do not continue until I confirm how to proceed
+
+Format error reports like this:
+❌ Error: [brief description]
+Cause: [what went wrong]
+Options:
+A) [option 1]
+B) [option 2]
+Awaiting your decision.
+
+## Agent & Parallelism Rules
+
+- Do **not** spawn parallel sub-agents or run concurrent tasks
+- Execute all tasks sequentially, one step at a time
+- If a task seems parallelizable, still run it sequentially to avoid race conditions or conflicting state
+- Do not use multi-agent workflows unless explicitly requested
+
 ## Known Gotchas
 
 - VcXsrv must be running on the host before any container with a GUI is launched.

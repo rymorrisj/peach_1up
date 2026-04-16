@@ -2,13 +2,16 @@
 
 ## P0 — Bare Minimum Working Launcher
 
-### CURRENT
+### DONE
 
 - [P0-1] Project scaffold — folders, empty files, .env template, .gitignore
 
-### NEXT
+### CURRENT
 
 - [P0-2] Docker setup — Dockerfile for DOSBox-X, verify container builds and runs
+
+### NEXT
+
 - [P0-3] VcXsrv detection — check DISPLAY on launch, fail clearly if not found
 - [P0-4] DOSBox-X backend — mount .iso/.img/.cue read-only, launch in container
 - [P0-5] TUI skeleton — Textual app, keyboard navigation, main menu
