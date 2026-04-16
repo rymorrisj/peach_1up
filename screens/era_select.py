@@ -107,4 +107,4 @@ class EraSelectScreen(Screen):
         era_key = selected_item.name
 
         from .stub import StubScreen
-        self.app.switch_screen(StubScreen(f"Media Picker — coming in P0-6 (Era: {era_key})"))
+        self.app.switch_screen(StubScreen(f"Game Picker — coming in P0-6 (Era: {era_key})"))
