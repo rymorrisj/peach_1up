@@ -9,6 +9,7 @@ from textual.widgets import Static, ListView, ListItem, Label
 from textual.containers import Container
 
 from utils.rom_check import is_rom_pack_present
+from utils.constants import Era
 
 
 def _create_era_item(era_name: str, era_key: str, requires_rom_warning: bool) -> ListItem:
@@ -106,5 +107,6 @@ class EraSelectScreen(Screen):
         selected_item = event.item
         era_key = selected_item.name
 
-        from screens.stub import StubScreen
-        self.app.switch_screen(StubScreen(f"Game Picker — coming in P0-6 (Era: {era_key})"))
+        from screens.game_picker import GamePickerScreen
+        era = Era(era_key)
+        self.app.switch_screen(GamePickerScreen(era=era))

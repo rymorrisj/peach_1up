@@ -67,6 +67,10 @@ class LaunchScreen(Screen):
         elif self._state == "running":
             yield self._create_running_layout()
 
+    def on_mount(self) -> None:
+        """Set focus when screen loads for keyboard navigation."""
+        self.focus()
+
     def action_launch(self) -> None:
         """Launch emulator with selected era and media file."""
         if self._state != "confirm":
