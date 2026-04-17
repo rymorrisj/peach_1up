@@ -60,12 +60,12 @@ class MainMenuScreen(Screen):
 
     def action_launch(self) -> None:
         """Navigate to era selector."""
-        from .era_select import EraSelectScreen
+        from screens.era_select import EraSelectScreen
         self.app.switch_screen(EraSelectScreen())
 
     def action_about(self) -> None:
         """Navigate to about screen."""
-        from .about import AboutScreen
+        from screens.about import AboutScreen
         self.app.switch_screen(AboutScreen())
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

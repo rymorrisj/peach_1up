@@ -8,7 +8,7 @@ from textual.screen import Screen
 from textual.widgets import Static, ListView, ListItem, Label
 from textual.containers import Container
 
-from ..utils.rom_check import is_rom_pack_present
+from utils.rom_check import is_rom_pack_present
 
 
 def _create_era_item(era_name: str, era_key: str, requires_rom_warning: bool) -> ListItem:
@@ -88,7 +88,7 @@ class EraSelectScreen(Screen):
 
     def action_back(self) -> None:
         """Navigate back to main menu."""
-        from .main_menu import MainMenuScreen
+        from screens.main_menu import MainMenuScreen
         self.app.switch_screen(MainMenuScreen())
 
     def action_cursor_down(self) -> None:
@@ -106,5 +106,5 @@ class EraSelectScreen(Screen):
         selected_item = event.item
         era_key = selected_item.name
 
-        from .stub import StubScreen
+        from screens.stub import StubScreen
         self.app.switch_screen(StubScreen(f"Game Picker — coming in P0-6 (Era: {era_key})"))

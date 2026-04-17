@@ -53,10 +53,10 @@ def get_launch_fn(era: Era) -> Optional[Callable]:
 
         # Route to appropriate backend
         if backend_name == 'dosbox':
-            from ..backends.dosbox import launch
+            from backends.dosbox import launch
             return launch
         elif backend_name == '86box':
-            from ..backends.box86 import launch
+            from backends.box86 import launch
             return launch
         else:
             return None

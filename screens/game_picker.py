@@ -11,8 +11,8 @@ from textual.screen import Screen
 from textual.widgets import Static, ListView, ListItem, Label
 from textual.containers import Container
 
-from ..utils.constants import Era
-from ..utils.media_detect import get_compatible_media
+from utils.constants import Era
+from utils.media_detect import get_compatible_media
 
 
 def _get_search_path(images_path: str) -> str:
@@ -104,7 +104,7 @@ class GamePickerScreen(Screen):
 
     def action_back(self) -> None:
         """Navigate back to era selector screen."""
-        from .era_select import EraSelectScreen
+        from screens.era_select import EraSelectScreen
         self.app.switch_screen(EraSelectScreen())
 
     def action_cursor_down(self) -> None:
@@ -123,5 +123,5 @@ class GamePickerScreen(Screen):
         if selected_item.name:  # Only proceed if item has a file path
             file_path = selected_item.name
 
-            from .launch import LaunchScreen
+            from screens.launch import LaunchScreen
             self.app.switch_screen(LaunchScreen(era=self.era, media_path=Path(file_path)))

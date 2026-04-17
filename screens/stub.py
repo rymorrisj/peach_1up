@@ -49,5 +49,5 @@ class StubScreen(Screen):
 
     def action_back(self) -> None:
         """Navigate back to main menu."""
-        from .main_menu import MainMenuScreen
+        from screens.main_menu import MainMenuScreen
         self.app.switch_screen(MainMenuScreen())

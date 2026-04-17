@@ -13,10 +13,10 @@ from textual.screen import Screen
 from textual.widgets import Static
 from textual.containers import Container
 
-from ..utils.constants import Era
-from ..utils.backend_router import get_launch_fn, get_backend_name
-from ..utils.job_objects import WindowsJobObject
-from .error import ErrorScreen
+from utils.constants import Era
+from utils.backend_router import get_launch_fn, get_backend_name
+from utils.job_objects import WindowsJobObject
+from screens.error import ErrorScreen
 
 
 class LaunchScreen(Screen):
@@ -114,7 +114,7 @@ class LaunchScreen(Screen):
     def action_back(self) -> None:
         """Navigate back to game picker (only from confirm state)."""
         if self._state == "confirm":
-            from .game_picker import GamePickerScreen
+            from screens.game_picker import GamePickerScreen
             self.app.switch_screen(GamePickerScreen(era=self.era))
 
     def action_force_stop(self) -> None:

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List, Tuple
 from subprocess import Popen
 
-from ..utils.job_objects import launch_under_job_object, WindowsJobObject
+from utils.job_objects import launch_under_job_object, WindowsJobObject
 
 
 # Supported file extensions for DOSBox-X backend

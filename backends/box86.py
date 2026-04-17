@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import List, Tuple
 from subprocess import Popen
 
-from ..utils.job_objects import launch_under_job_object, WindowsJobObject
-from ..utils.rom_check import is_rom_pack_present
+from utils.job_objects import launch_under_job_object, WindowsJobObject
+from utils.rom_check import is_rom_pack_present
 
 
 # Supported file extensions for 86Box backend
