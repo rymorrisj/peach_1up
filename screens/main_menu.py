@@ -49,14 +49,19 @@ class MainMenuScreen(Screen):
             classes="main-container"
         )
 
+    def on_mount(self) -> None:
+        """Set focus to the first button when screen loads."""
+        launch_button = self.query_one("#launch", Button)
+        launch_button.focus()
+
     def action_quit(self) -> None:
         """Exit the application."""
         self.app.exit()
 
     def action_launch(self) -> None:
-        """Navigate to era selector (stub for P0-5)."""
-        from .stub import StubScreen
-        self.app.switch_screen(StubScreen("Era Selector — coming in P0-5"))
+        """Navigate to era selector."""
+        from .era_select import EraSelectScreen
+        self.app.switch_screen(EraSelectScreen())
 
     def action_about(self) -> None:
         """Navigate to about screen."""

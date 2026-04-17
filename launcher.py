@@ -24,6 +24,11 @@ class Peach1UPApp(App):
 
     TITLE = "Peach 1UP - Retro Game Launcher"
 
+    # Enable keyboard focus for navigation
+    def on_ready(self) -> None:
+        """Configure app for keyboard navigation when ready."""
+        self.set_focus(None)
+
     def on_mount(self) -> None:
         """Initialize application and show main menu."""
         self.push_screen(MainMenuScreen())
