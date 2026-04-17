@@ -14,7 +14,7 @@ from textual.widgets import Static
 from textual.containers import Container
 
 from ..utils.constants import Era
-from ..utils.backend_router import get_launch_fn
+from ..utils.backend_router import get_launch_fn, get_backend_name
 from ..utils.job_objects import WindowsJobObject
 from .error import ErrorScreen
 
@@ -74,27 +74,28 @@ class LaunchScreen(Screen):
 
         launch_fn = get_launch_fn(self.era)
         if launch_fn is None:
-            # 86Box not implemented yet
+            # Backend not implemented
             return
 
         try:
-            # Get DOSBox path from env
-            dosbox_path = os.getenv('DOSBOX_PATH', '')
-            if not dosbox_path:
+            # Get appropriate emulator path based on era
+            executable_path, emulator_env_var = get_executable_path(self.era)
+
+            if not executable_path:
                 self.app.push_screen(
                     ErrorScreen(
                         "Environment Configuration Error",
-                        "DOSBOX_PATH environment variable not set",
+                        f"{emulator_env_var} environment variable not set",
                         on_dismiss=lambda: self.app.pop_screen()
                     )
                 )
                 return
 
-            # Launch emulator under Job Objects
+            # Launch emulator under Job Objects - unified interface
             self._process, self._job = launch_fn(
                 media_path=self.media_path,
                 era=self.era.value,
-                dosbox_path=dosbox_path
+                executable_path=executable_path
             )
 
             # Transition to running state
@@ -147,13 +148,12 @@ class LaunchScreen(Screen):
         """
         launch_fn = get_launch_fn(self.era)
         backend_available = launch_fn is not None
+        backend_name = get_backend_name(self.era)
 
         if backend_available:
-            backend_name = "DOSBox-X"
             launch_text = "Press Enter to launch"
         else:
-            backend_name = "86Box"
-            launch_text = "86Box support coming in P0-9"
+            launch_text = f"{backend_name} backend not implemented"
 
         widgets = [
             Static("🚀 Launch Game", classes="title"),
@@ -176,11 +176,7 @@ class LaunchScreen(Screen):
         Returns:
             Container with running status and force stop instructions
         """
-        # Determine backend name from era
-        if self.era.value in ['dos', 'win31']:
-            backend_name = "DOSBox-X"
-        else:  # win95, win98, winxp
-            backend_name = "86Box"
+        backend_name = get_backend_name(self.era)
 
         widgets = [
             Static("🎮 Emulator Running", classes="title"),

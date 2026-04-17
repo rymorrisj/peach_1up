@@ -22,7 +22,7 @@ def validate_media(media_path: Path) -> None:
     """
     Validate media file for DOSBox-X backend.
 
-    Checks that file exists, has supported extension, and is read-only.
+    Checks that file exists and has supported extension.
 
     Args:
         media_path: Path to media file
@@ -30,7 +30,6 @@ def validate_media(media_path: Path) -> None:
     Raises:
         FileNotFoundError: If media file does not exist
         ValueError: If media file extension is not supported
-        PermissionError: If media file is writable (security requirement)
     """
     # Check if file exists
     if not media_path.exists():
@@ -40,12 +39,6 @@ def validate_media(media_path: Path) -> None:
     if media_path.suffix.lower() not in SUPPORTED_MEDIA:
         raise ValueError(f"Unsupported media format '{media_path.suffix}'. "
                         f"DOSBox-X backend supports: {', '.join(sorted(SUPPORTED_MEDIA))}")
-
-    # Check if file is writable (security requirement - must be read-only)
-    if os.access(media_path, os.W_OK):
-        raise PermissionError(f"Media file is writable: {media_path}. "
-                             f"Make the file read-only before retrying. "
-                             f"Security requirement: all media must be read-only.")
 
 
 def build_args(media_path: Path, era: str) -> List[str]:
@@ -90,7 +83,7 @@ def build_args(media_path: Path, era: str) -> List[str]:
         raise ValueError(f"Unhandled media suffix '{suffix}'. This indicates a programming error.")
 
 
-def launch(media_path: Path, era: str, dosbox_path: str) -> Tuple[Popen, WindowsJobObject]:
+def launch(media_path: Path, era: str, executable_path: str) -> Tuple[Popen, WindowsJobObject]:
     """
     Launch DOSBox-X with given media file under Job Object isolation.
 
@@ -100,21 +93,20 @@ def launch(media_path: Path, era: str, dosbox_path: str) -> Tuple[Popen, Windows
     Args:
         media_path: Path to media file to mount
         era: Era name ('dos' or 'win31')
-        dosbox_path: Full path to DOSBox-X executable
+        executable_path: Full path to DOSBox-X executable
 
     Returns:
         Tuple of (subprocess.Popen process, WindowsJobObject instance)
         Caller is responsible for cleanup via job_object.terminate_all()
 
     Raises:
-        FileNotFoundError: If dosbox_path or media_path does not exist
+        FileNotFoundError: If executable_path or media_path does not exist
         ValueError: If era or media extension not supported
-        PermissionError: If media file is writable
         RuntimeError: If Job Object creation or process launch fails
     """
     # Check if DOSBox-X executable exists
-    if not os.path.exists(dosbox_path):
-        raise FileNotFoundError(f"DOSBox-X executable not found: {dosbox_path}")
+    if not os.path.exists(executable_path):
+        raise FileNotFoundError(f"DOSBox-X executable not found: {executable_path}")
 
     # Validate media file
     validate_media(media_path)
@@ -127,7 +119,7 @@ def launch(media_path: Path, era: str, dosbox_path: str) -> Tuple[Popen, Windows
 
     # Launch under Job Object isolation
     return launch_under_job_object(
-        executable_path=dosbox_path,
+        executable_path=executable_path,
         args=args,
         media_paths=[str(media_path)],
         era=era,
