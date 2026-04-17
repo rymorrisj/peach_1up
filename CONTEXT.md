@@ -12,18 +12,18 @@
 - [P0-6] Game picker screen — browse filesystem for .iso / .img / .cue files
 - [P0-7] Launch flow — era + media → correct backend → Job Objects → emulator running
 - [P0-8] Error handling layer — all failures surface to TUI with message, no silent crashes
+- [P0-9] 86Box backend — locate binary via BOX86_PATH, validate ROM path, launch under Job Objects
 
 ### CURRENT
 
-- [P0-9] 86Box backend — locate binary via BOX86_PATH, validate ROM path, launch under Job Objects
+- [P0-10] P0 committed and pushed to main
 
 ### NEXT
 
-- [P0-10] P0 committed and pushed to main
+- [P1-1] Game profile system — save/load per-game YAML (era, media path, backend, notes)
 
 ## P1 — Core Usability
 
-- [P1-1] Game profile system — save/load per-game YAML (era, media path, backend, notes)
 - [P1-2] Profile screen in TUI — create, edit, launch from saved profile
 - [P1-3] Media auto-detection — sniff .iso/.img/.cue and suggest era (best effort)
 - [P1-4] Network block verification — confirm Job Objects network restriction is enforced on every launch
@@ -59,3 +59,4 @@
 - Controller remapping UI
 - Plugin system for additional emulator backends
 - Auto-update for Docker images
+- Bundle DOSBox-X and 86Box binaries — eliminates manual install and env var setup, nice to have but not required for functionality
