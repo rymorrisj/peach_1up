@@ -245,7 +245,12 @@ class WindowsJobObject:
             raise RuntimeError(f"Failed to create firewall rules for {self.process_name}_{pid}. Error: {str(e)}")
 
     def _cleanup_partial_firewall_rules(self) -> None:
-        """Helper to clean up partially created firewall rules on failure."""
+        """
+        Helper to clean up partially created firewall rules on failure.
+
+        Raises:
+            RuntimeError: If any cleanup operations fail
+        """
         cleanup_errors = []
 
         try:
@@ -260,20 +265,20 @@ class WindowsJobObject:
         except Exception as e:
             cleanup_errors.append(f"Failed to initialize firewall policy for cleanup: {str(e)}")
 
-        # Surface cleanup warnings if any occurred
+        # Raise combined error if any cleanup operations failed
         if cleanup_errors:
-            import warnings
-            # TODO P0-8: Route warnings through TUI error handler instead of
-            # Python warnings system once error handling layer is built
-            warnings.warn(f"Firewall rule cleanup errors: {'; '.join(cleanup_errors)}")
+            raise RuntimeError(f"Firewall rule cleanup errors: {'; '.join(cleanup_errors)}")
 
     def cleanup_firewall_rule(self, process_name: str, pid: int) -> None:
         """
-        Delete firewall rules on clean process exit. Warn if cleanup fails but don't crash.
+        Delete firewall rules on clean process exit.
 
         Args:
             process_name: Process name for rule identification (legacy parameter - uses self.firewall_rules)
             pid: Process ID for rule identification (legacy parameter - uses self.firewall_rules)
+
+        Raises:
+            RuntimeError: If cleanup operations fail
         """
         if not self.firewall_rules:
             return  # No rules to clean up
@@ -297,20 +302,20 @@ class WindowsJobObject:
             cleanup_errors.append(f"Failed to initialize firewall policy for cleanup: {str(e)}")
             failed_rules.extend(self.firewall_rules)  # All rules failed due to policy init failure
 
-        # Surface cleanup warnings if any occurred (never crash the launcher)
+        # Raise combined error if any cleanup operations failed
         if cleanup_errors:
-            import warnings
-            # TODO P0-8: Route warnings through TUI error handler instead of
-            # Python warnings system once error handling layer is built
-            warnings.warn(f"⚠️ Warning: Firewall rule cleanup failed for {self.process_name}_{self.pid}. "
-                         f"Manual cleanup required in Windows Firewall Advanced Security. "
-                         f"Failed rules: {', '.join(failed_rules)}. "
-                         f"Errors: {'; '.join(cleanup_errors)}")
+            raise RuntimeError(f"Firewall rule cleanup failed for {self.process_name}_{self.pid}. "
+                             f"Manual cleanup required in Windows Firewall Advanced Security. "
+                             f"Failed rules: {', '.join(failed_rules)}. "
+                             f"Errors: {'; '.join(cleanup_errors)}")
 
     def terminate_all(self) -> None:
         """
         Terminate all processes in the job object and clean up resources.
-        Never crashes the launcher - surfaces errors clearly via warnings.
+        Collects all errors and raises combined RuntimeError at the end if any occur.
+
+        Raises:
+            RuntimeError: If any termination or cleanup operations fail
         """
         termination_errors = []
 
@@ -345,14 +350,11 @@ class WindowsJobObject:
         # Step 4: Always reset job handle to None regardless of success/failure
         self.job_handle = None
 
-        # Step 5: Surface any errors via warnings (never crash launcher)
+        # Step 5: Raise combined error if any operations failed
         if termination_errors:
-            import warnings
-            # TODO P0-8: Route warnings through TUI error handler instead of
-            # Python warnings system once error handling layer is built
-            warnings.warn(f"⚠️ Warning: Job object termination encountered errors for {self.name}. "
-                         f"Some resources may require manual cleanup. "
-                         f"Errors: {'; '.join(termination_errors)}")
+            raise RuntimeError(f"Job object termination encountered errors for {self.name}. "
+                             f"Some resources may require manual cleanup. "
+                             f"Errors: {'; '.join(termination_errors)}")
 
     def is_active(self) -> bool:
         """
@@ -518,9 +520,9 @@ def launch_under_job_object(
             except Exception as cleanup_e:
                 cleanup_errors.append(f"Job object cleanup failed: {str(cleanup_e)}")
 
-        # Surface cleanup errors as warnings but still raise the original error
+        # Raise original error with cleanup errors included in message if any occurred
+        error_message = f"Failed to launch {executable_path} under job object: {str(e)}"
         if cleanup_errors:
-            import warnings
-            warnings.warn(f"⚠️ Warning: Cleanup errors during launch failure: {'; '.join(cleanup_errors)}")
+            error_message += f" (Cleanup errors: {'; '.join(cleanup_errors)})"
 
-        raise RuntimeError(f"Failed to launch {executable_path} under job object: {str(e)}")
+        raise RuntimeError(error_message)

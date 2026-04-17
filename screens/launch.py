@@ -16,6 +16,7 @@ from textual.containers import Container
 from ..utils.constants import Era
 from ..utils.backend_router import get_launch_fn
 from ..utils.job_objects import WindowsJobObject
+from .error import ErrorScreen
 
 
 class LaunchScreen(Screen):
@@ -58,7 +59,6 @@ class LaunchScreen(Screen):
         self._state = "confirm"
         self._process: Optional[Popen] = None
         self._job: Optional[WindowsJobObject] = None
-        self._error_message: Optional[str] = None
 
     def compose(self) -> ComposeResult:
         """Compose the launch screen layout based on current state."""
@@ -72,9 +72,6 @@ class LaunchScreen(Screen):
         if self._state != "confirm":
             return
 
-        # Clear any previous error
-        self._error_message = None
-
         launch_fn = get_launch_fn(self.era)
         if launch_fn is None:
             # 86Box not implemented yet
@@ -84,8 +81,13 @@ class LaunchScreen(Screen):
             # Get DOSBox path from env
             dosbox_path = os.getenv('DOSBOX_PATH', '')
             if not dosbox_path:
-                self._error_message = "DOSBOX_PATH environment variable not set"
-                self.refresh()
+                self.app.push_screen(
+                    ErrorScreen(
+                        "Environment Configuration Error",
+                        "DOSBOX_PATH environment variable not set",
+                        on_dismiss=lambda: self.app.pop_screen()
+                    )
+                )
                 return
 
             # Launch emulator under Job Objects
@@ -100,8 +102,13 @@ class LaunchScreen(Screen):
             self.refresh()
 
         except Exception as e:
-            self._error_message = f"Launch failed: {str(e)}"
-            self.refresh()
+            self.app.push_screen(
+                ErrorScreen(
+                    "Launch Failed",
+                    str(e),
+                    on_dismiss=lambda: self.app.pop_screen()
+                )
+            )
 
     def action_back(self) -> None:
         """Navigate back to game picker (only from confirm state)."""
@@ -114,14 +121,22 @@ class LaunchScreen(Screen):
         if self._state == "running" and self._job:
             try:
                 self._job.terminate_all()
-                self._error_message = None  # Clear any previous error on successful stop
-            except Exception as e:
-                self._error_message = f"Force stop failed: {str(e)}"
-            finally:
+                # On successful stop, return to confirm state
                 self._process = None
                 self._job = None
                 self._state = "confirm"
                 self.refresh()
+            except Exception as e:
+                self._process = None
+                self._job = None
+                self._state = "confirm"
+                self.app.push_screen(
+                    ErrorScreen(
+                        "Force Stop Failed",
+                        str(e),
+                        on_dismiss=lambda: self.app.pop_screen()
+                    )
+                )
 
     def _create_confirm_layout(self) -> Container:
         """
@@ -147,20 +162,10 @@ class LaunchScreen(Screen):
             Static(f"File: {self.media_path.name}", classes="info"),
             Static(f"Backend: {backend_name}", classes="info"),
             Static(""),
-        ]
-
-        # Show error message if present
-        if self._error_message:
-            widgets.extend([
-                Static(f"❌ {self._error_message}", classes="error"),
-                Static(""),
-            ])
-
-        widgets.extend([
             Static(launch_text, classes="launch-status"),
             Static(""),
             Static("Enter: Launch • b/Esc: Back", classes="help"),
-        ])
+        ]
 
         return Container(*widgets, classes="launch-confirm-container")
 
@@ -186,17 +191,7 @@ class LaunchScreen(Screen):
             Static(""),
             Static("Emulator is running in isolated environment", classes="status"),
             Static(""),
-        ]
-
-        # Show error message if present
-        if self._error_message:
-            widgets.extend([
-                Static(f"❌ {self._error_message}", classes="error"),
-                Static(""),
-            ])
-
-        widgets.extend([
             Static("q/F9: Force Stop", classes="help"),
-        ])
+        ]
 
         return Container(*widgets, classes="launch-running-container")
