@@ -11,14 +11,14 @@
 - [P0-5] Era selector screen — DOS / Win 3.1 / Win 95 / Win 98 / Win XP
 - [P0-6] Game picker screen — browse filesystem for .iso / .img / .cue files
 - [P0-7] Launch flow — era + media → correct backend → Job Objects → emulator running
+- [P0-8] Error handling layer — all failures surface to TUI with message, no silent crashes
 
 ### CURRENT
 
-- [P0-8] Error handling layer — all failures surface to TUI with message, no silent crashes
+- [P0-9] 86Box backend — locate binary via BOX86_PATH, validate ROM path, launch under Job Objects
 
 ### NEXT
 
-- [P0-9] 86Box backend — locate binary via BOX86_PATH, validate ROM path, launch under Job Objects
 - [P0-10] P0 committed and pushed to main
 
 ## P1 — Core Usability
