@@ -23,14 +23,18 @@ def _get_search_path(images_path: str) -> str:
         images_path: Directory path from constructor
 
     Returns:
-        Directory path from parameter or IMAGES_PATH env var.
+        Absolute directory path from parameter or IMAGES_PATH env var.
         Returns empty string if both are unavailable.
     """
-    if images_path:
-        return images_path
+    path_to_resolve = images_path or os.getenv('IMAGES_PATH')
+    if not path_to_resolve:
+        return ""
 
-    env_path = os.getenv('IMAGES_PATH')
-    return env_path if env_path else ""
+    # Convert relative paths to absolute paths based on project root
+    # launcher.py is run from project root, so __file__ points to screens/game_picker.py
+    project_root = Path(__file__).parent.parent
+    resolved_path = project_root / path_to_resolve
+    return str(resolved_path.resolve())
 
 
 def _create_file_list(files: List[Path]) -> ListView:
