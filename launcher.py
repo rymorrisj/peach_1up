@@ -4,6 +4,7 @@ Textual-based TUI launcher for retro game emulation.
 """
 
 from textual.app import App
+from dotenv import load_dotenv
 
 from screens.main_menu import MainMenuScreen
 
@@ -36,6 +37,7 @@ class Peach1UPApp(App):
 
 def main() -> None:
     """Entry point for the Peach 1UP application."""
+    load_dotenv()
     app = Peach1UPApp()
     app.run()
 

@@ -7,6 +7,7 @@ import subprocess
 import ctypes
 import ctypes.wintypes
 import win32com.client
+import win32process
 from typing import List, Tuple, Optional
 import os
 import yaml
@@ -499,7 +500,7 @@ def launch_under_job_object(
         process = subprocess.Popen(
             args=[executable_path] + args,
             cwd=os.path.dirname(executable_path),
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_SUSPENDED
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | win32process.CREATE_SUSPENDED
         )
 
         # Step 4: Add process to job object (includes firewall rule creation)

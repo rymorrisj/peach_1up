@@ -14,7 +14,7 @@ from textual.widgets import Static
 from textual.containers import Container
 
 from utils.constants import Era
-from utils.backend_router import get_launch_fn, get_backend_name
+from utils.backend_router import get_launch_fn, get_backend_name, get_executable_path
 from utils.job_objects import WindowsJobObject
 from screens.error import ErrorScreen
 
@@ -59,6 +59,7 @@ class LaunchScreen(Screen):
         self._state = "confirm"
         self._process: Optional[Popen] = None
         self._job: Optional[WindowsJobObject] = None
+        self._monitor_timer = None
 
     def compose(self) -> ComposeResult:
         """Compose the launch screen layout based on current state."""
@@ -102,8 +103,9 @@ class LaunchScreen(Screen):
                 executable_path=executable_path
             )
 
-            # Transition to running state
+            # Transition to running state and start monitoring
             self._state = "running"
+            self._start_process_monitoring()
             self.refresh()
 
         except Exception as e:
@@ -124,6 +126,7 @@ class LaunchScreen(Screen):
     def action_force_stop(self) -> None:
         """Force stop running emulator and return to confirm state."""
         if self._state == "running" and self._job:
+            self._stop_process_monitoring()
             try:
                 self._job.terminate_all()
                 # On successful stop, return to confirm state
@@ -142,6 +145,45 @@ class LaunchScreen(Screen):
                         on_dismiss=lambda: self.app.pop_screen()
                     )
                 )
+
+    def _start_process_monitoring(self) -> None:
+        """Start monitoring the emulator process for natural exit."""
+        if self._monitor_timer is None:
+            self._monitor_timer = self.set_interval(1.0, self._check_process_status)
+
+    def _stop_process_monitoring(self) -> None:
+        """Stop monitoring the emulator process."""
+        if self._monitor_timer is not None:
+            self._monitor_timer.stop()
+            self._monitor_timer = None
+
+    def _check_process_status(self) -> None:
+        """Check if emulator process is still running."""
+        if self._state != "running" or not self._process or not self._job:
+            self._stop_process_monitoring()
+            return
+
+        # Check if process has exited naturally
+        if self._process.poll() is not None or not self._job.is_active():
+            self._handle_natural_process_exit()
+
+    def _handle_natural_process_exit(self) -> None:
+        """Handle emulator process exiting naturally."""
+        self._stop_process_monitoring()
+
+        # Clean up job object if still active
+        if self._job and self._job.is_active():
+            try:
+                self._job.terminate_all()
+            except Exception:
+                # Ignore cleanup errors on natural exit
+                pass
+
+        # Reset state and return to confirm
+        self._process = None
+        self._job = None
+        self._state = "confirm"
+        self.refresh()
 
     def _create_confirm_layout(self) -> Container:
         """
