@@ -136,8 +136,6 @@ Awaiting your decision.
 
 ## Environment Variables (.env)
 
-## Environment Variables (.env)
-
 - DOSBOX_PATH=C:\Program Files\DOSBox-X\dosbox-x.exe
 - BOX86_PATH=C:\Program Files\86Box\86Box.exe
 - ROM_PATH=./images/roms

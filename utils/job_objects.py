@@ -8,7 +8,7 @@ import ctypes
 import ctypes.wintypes
 import win32com.client
 import win32process
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 import os
 import yaml
 

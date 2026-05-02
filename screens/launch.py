@@ -77,9 +77,16 @@ class LaunchScreen(Screen):
         if self._state != "confirm":
             return
 
-        launch_fn = get_launch_fn(self.era)
-        if launch_fn is None:
-            # Backend not implemented
+        try:
+            launch_fn = get_launch_fn(self.era)
+        except (ValueError, RuntimeError) as e:
+            self.app.push_screen(
+                ErrorScreen(
+                    "Backend Error",
+                    str(e),
+                    on_dismiss=lambda: self.app.pop_screen()
+                )
+            )
             return
 
         try:
@@ -192,14 +199,22 @@ class LaunchScreen(Screen):
         Returns:
             Container with era, file, backend info and launch confirmation
         """
-        launch_fn = get_launch_fn(self.era)
-        backend_available = launch_fn is not None
+        backend_error = None
+        try:
+            launch_fn = get_launch_fn(self.era)
+            backend_available = True
+        except (ValueError, RuntimeError) as e:
+            backend_available = False
+            backend_error = str(e)
         backend_name = get_backend_name(self.era)
 
         if backend_available:
             launch_text = "Press Enter to launch"
         else:
-            launch_text = f"{backend_name} backend not implemented"
+            if backend_error:
+                launch_text = f"Backend error: {backend_error}"
+            else:
+                launch_text = f"{backend_name} backend not implemented"
 
         widgets = [
             Static("🚀 Launch Game", classes="title"),

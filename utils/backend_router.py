@@ -5,7 +5,7 @@ Maps eras to their corresponding backend launch functions.
 
 import yaml
 import os
-from typing import Optional, Callable, Dict, Any
+from typing import Callable, Dict, Any
 
 from .constants import Era
 
@@ -25,7 +25,7 @@ def _load_eras_config() -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
-def get_launch_fn(era: Era) -> Optional[Callable]:
+def get_launch_fn(era: Era) -> Callable:
     """
     Get the launch function for the specified era's backend.
 
@@ -45,11 +45,11 @@ def get_launch_fn(era: Era) -> Optional[Callable]:
 
         era_config = eras_config.get(era.value)
         if not era_config:
-            return None
+            raise ValueError(f"Era '{era.value}' not found in eras.yaml")
 
         backend_name = era_config.get('backend')
         if not backend_name:
-            return None
+            raise ValueError(f"Backend not configured for era '{era.value}' in eras.yaml")
 
         # Route to appropriate backend
         if backend_name == 'dosbox':
@@ -59,11 +59,10 @@ def get_launch_fn(era: Era) -> Optional[Callable]:
             from backends.box86 import launch
             return launch
         else:
-            return None
+            raise ValueError(f"Unknown backend '{backend_name}' for era '{era.value}'")
 
-    except Exception:
-        # If any error loading config, return None
-        return None
+    except Exception as e:
+        raise RuntimeError(f"Failed to load eras.yaml configuration: {str(e)}")
 
 
 def get_backend_name(era: Era) -> str:
