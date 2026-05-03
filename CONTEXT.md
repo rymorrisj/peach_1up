@@ -24,23 +24,22 @@ A user drops in a DOS game ISO, picks it from the launcher, and the game runs. N
 ### DONE
 
 - [P1-1] Game profile system — save/load per-game YAML (era, media path, backend, dosbox conf path, hdd image path, executable path, notes)
-
-### CURRENT
-
 - [P1-2] DOSBox-X config generation — generate .conf per game profile with correct cpu cycles, memory, sound defaults tuned per era
 - [P1-3] Virtual hard drive management — auto-create and persist .img per game profile, reused on subsequent launches
 - [P1-4] Game installation flow — detect installer ISOs, run install once, save executable path to profile
 - [P1-5] Direct launch — boot straight to game executable, no DOS prompt shown to user
-
-### NEXT
-
 - [P1-6] Profile screen in TUI — create, edit, launch from saved profile
 - [P1-7] Media auto-detection — sniff .iso/.img/.cue and suggest era (best effort)
 - [P1-8] Auto-elevation — UAC manifest so launcher requests admin on startup, no manual run as admin required
 - [P1-9] Missing emulator guidance — detect missing binaries, show official links in TUI
+
+### CURRENT
+
 - [P1-10] Settings screen — paths, display config, ROM path, editable in TUI
 - [P1-11] Refactor is_rom_pack_present() — replace empty string sentinel with explicit Optional[str] parameter signature
 - [P1-12] P1 committed and pushed to main
+
+### NEXT
 
 ## P2 — Meaningful Expansion
 
