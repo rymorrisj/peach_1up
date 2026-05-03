@@ -199,6 +199,14 @@ docs(decisions): log Docker over VirtualBox decision
 - If a commit touches CONTEXT.md task steps, reference the step:
   feat(tui): add main menu skeleton [P0-5]
 
+### Output Rules
+
+- Report findings as concise summaries only. Skip internal reasoning and intermediate steps.
+- Confirm each change in one line: what file, what was done.
+- Do not output diffs or show file contents after changes.
+- Only show code if flagging something complex, critical, or a potential issue.
+- Flag anything that could pose security, safety, or systems issues such as memory leaks, unsafe code, or resource handling problems.
+
 ## Build Phases
 
 - P0 — Bare minimum working launcher (see CONTEXT.md)

@@ -17,45 +17,53 @@
 
 ## P1 — Core Usability (DOS proof of concept)
 
-### Goal
-
-A user drops in a DOS game ISO, picks it from the launcher, and the game runs. No emulator interaction required. Win95/98/XP shows a clear "not yet supported for direct launch" message.
-
 ### DONE
 
-- [P1-1] Game profile system — save/load per-game YAML (era, media path, backend, dosbox conf path, hdd image path, executable path, notes)
+- [P1-1] Game profile system — save/load per-game YAML (era, media path, backend, dosbox conf path, hdd image path, notes)
 - [P1-2] DOSBox-X config generation — generate .conf per game profile with correct cpu cycles, memory, sound defaults tuned per era
 - [P1-3] Virtual hard drive management — auto-create and persist .img per game profile, reused on subsequent launches
-- [P1-4] Game installation flow — detect installer ISOs, run install once, save executable path to profile
-- [P1-5] Direct launch — boot straight to game executable, no DOS prompt shown to user
+- [P1-4] Game installation flow — detect installer ISOs, run install once, save installed flag to profile
+- [P1-5] Direct launch — on subsequent launches boot straight to DOS prompt with drives mounted, no reinstall
 - [P1-6] Profile screen in TUI — create, edit, launch from saved profile
 - [P1-7] Media auto-detection — sniff .iso/.img/.cue and suggest era (best effort)
 - [P1-8] Auto-elevation — UAC manifest so launcher requests admin on startup, no manual run as admin required
 - [P1-9] Missing emulator guidance — detect missing binaries, show official links in TUI
-
-### CURRENT
-
 - [P1-10] Settings screen — paths, display config, ROM path, editable in TUI
 - [P1-11] Refactor is_rom_pack_present() — replace empty string sentinel with explicit Optional[str] parameter signature
 - [P1-12] P1 committed and pushed to main
 
-### NEXT
-
-## P2 — Meaningful Expansion
+## P1.5 — Polish, Documentation, and Complete Core Experience
 
 ### Goal
 
-Expand beyond DOS to console platforms. Win95/98/XP direct launch. Physical media support.
+The project is clean, documented, and understandable before complexity increases in P2. A new user can drop in a DOS ISO, run the launcher, create a profile, install once, and return to the game on subsequent launches without touching a config file or command line outside of DOSBox. The README covers prerequisites, installation, and project objectives.
 
-- [P2-1] Console backends — DuckStation (PS1), PCSX2 (PS2), Project64 (N64), mGBA (GB/GBC/GBA), Snes9x (SNES), BlastEm (Genesis)
-- [P2-2] Era/platform selector expansion — add console platforms to era selector
-- [P2-3] Win95/98/XP direct launch — pre-built base OS images, game installation into image, 86Box config generation
-- [P2-4] 86Box hardware profiles — pre-configured per era (95, 98, XP)
+### CURRENT
+
+- [P1.5-1] Documentation pass — module docstrings, inline comments for complex/esoteric code, Google-style docstrings for classes and non-trivial functions. Priority files: vhd.py, job_objects.py, dosbox_config.py, profile.py, backend_router.py. Functional code should remain self-documenting via clear naming. Flag any misleading or incorrect names without changing them.
+- [P1.5-2] README update — project objective, prerequisites (Python 3.11, DOSBox-X, 86Box, ROM pack), installation steps, how to run
+- [P1.5-3] Dead code sweep — remove any remaining stale comments, unused imports, or leftover scaffolding from P0/P1 bug fixes
+- [P1.5-4] Launcher wizard flow audit — walk the full create → install → launch path and confirm there are no confusing prompts, dead ends, or missing feedback messages
+- [P1.5-5] P1.5 committed and pushed to main
+
+### NEXT
+
+## P2 — Win95/98/XP Direct Launch
+
+### Goal
+
+A user can launch a Win95, Win98, or XP game from a pre-built base OS image via 86Box with correct hardware profile and config generation. The PC era is fully covered end to end.
+
+### NEXT
+
+- [P2-1] 86Box config generation — generate per-game hardware config per era (95, 98, XP)
+- [P2-2] 86Box hardware profiles — pre-configured machine, CPU, RAM, sound, video per era
+- [P2-3] Win95/98/XP launch flow — base OS image selection, game installation into image, direct launch via 86Box
+- [P2-4] Base OS image guidance — detect images folder, show setup instructions and links if empty
 - [P2-5] Physical drive support — CD-ROM and floppy hardware passthrough
 - [P2-6] dgVoodoo2 injection — 3D-era games, injected into 86Box config
-- [P2-7] Base OS image guidance — detect images folder, show setup links if empty
-- [P2-8] Expanded file format support — .chd, .pbp per platform as scope expands
-- [P2-9] P2 committed and pushed to main
+- [P2-7] Expanded file format support — .chd, .pbp per platform as scope expands
+- [P2-8] P2 committed and pushed to main
 
 ## P3 — Maturity
 
@@ -67,10 +75,22 @@ Expand beyond DOS to console platforms. Win95/98/XP direct launch. Physical medi
 - [P3-6] Container hardening revisit — evaluate isolation improvements based on beta feedback
 - [P3-7] P3 committed and pushed to main
 
+## P4 — Console Backends
+
+### Goal
+
+Expand beyond PC to console platforms using the same profile and launch architecture.
+
+- [P4-1] Console backends — DuckStation (PS1), PCSX2 (PS2), Project64 (N64), mGBA (GB/GBC/GBA), Snes9x (SNES), BlastEm (Genesis)
+- [P4-2] Era/platform selector expansion — add console platforms to era selector
+- [P4-3] Expanded file format support — .chd, .pbp, .pkg, .xiso, .god, .xex per platform
+- [P4-4] P4 committed and pushed to main
+
 ## PX — Nice to Haves (no timeline)
 
 - Mouse support in TUI
-- Full graphical UI replacing TUI
+- Full graphical GUI replacing TUI — drag and drop media and profiles
+- Host-side .exe scanner — scan mounted HDD image for executables, present as file browser for auto-launch
 - Multiplayer / networking toggle per profile
 - Cloud sync for game profiles
 - Controller remapping UI
