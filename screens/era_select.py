@@ -3,6 +3,8 @@ Era selector screen for Peach 1UP.
 Allows user to choose between DOS, Windows 3.1, Windows 95, Windows 98, and Windows XP.
 """
 
+import os
+
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Static, ListView, ListItem, Label
@@ -68,8 +70,7 @@ class EraSelectScreen(Screen):
 
     def compose(self) -> ComposeResult:
         """Compose the era selection layout with ROM warnings."""
-        # Check ROM pack presence once
-        rom_present = is_rom_pack_present("")
+        rom_present = is_rom_pack_present(os.getenv("ROM_PATH"))
 
         yield Container(
             Static("🕹️ Select Era", classes="title"),

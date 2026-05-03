@@ -30,6 +30,7 @@ class MainMenuScreen(Screen):
         ("q", "quit", "Quit"),
         ("l", "launch", "Launch"),
         ("p", "profiles", "Profiles"),
+        ("s", "settings", "Settings"),
         ("a", "about", "About"),
     ]
 
@@ -42,6 +43,7 @@ class MainMenuScreen(Screen):
             Vertical(
                 Button("Launch", id="launch", variant="primary"),
                 Button("Profiles", id="profiles"),
+                Button("Settings", id="settings"),
                 Button("About", id="about"),
                 Button("Quit", id="quit"),
                 classes="menu-buttons"
@@ -70,6 +72,11 @@ class MainMenuScreen(Screen):
         from screens.profile import ProfileScreen
         self.app.switch_screen(ProfileScreen())
 
+    def action_settings(self) -> None:
+        """Navigate to settings screen."""
+        from screens.settings import SettingsScreen
+        self.app.switch_screen(SettingsScreen())
+
     def action_about(self) -> None:
         """Navigate to about screen."""
         from screens.about import AboutScreen
@@ -81,6 +88,8 @@ class MainMenuScreen(Screen):
             self.action_launch()
         elif event.button.id == "profiles":
             self.action_profiles()
+        elif event.button.id == "settings":
+            self.action_settings()
         elif event.button.id == "about":
             self.action_about()
         elif event.button.id == "quit":
