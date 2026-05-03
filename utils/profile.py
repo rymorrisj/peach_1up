@@ -11,7 +11,7 @@ from utils.constants import Era
 
 _REQUIRED_FIELDS = frozenset({
     "name", "era", "media_path", "backend",
-    "dosbox_conf_path", "hdd_image_path", "executable_path", "notes",
+    "dosbox_conf_path", "hdd_image_path", "notes",
 })
 
 
@@ -23,7 +23,7 @@ class Profile:
     backend: str
     dosbox_conf_path: Path
     hdd_image_path: Path
-    executable_path: Path
+    installed: bool
     notes: str
 
 
@@ -36,7 +36,7 @@ def save(profile: Profile, profiles_dir: Path) -> None:
         "backend": profile.backend,
         "dosbox_conf_path": str(profile.dosbox_conf_path),
         "hdd_image_path": str(profile.hdd_image_path),
-        "executable_path": str(profile.executable_path),
+        "installed": profile.installed,
         "notes": profile.notes,
     }
     dest = profiles_dir / f"{profile.name}.yaml"
@@ -77,7 +77,7 @@ def load(profile_path: Path) -> Profile:
             backend=str(raw["backend"]),
             dosbox_conf_path=Path(raw["dosbox_conf_path"]),
             hdd_image_path=Path(raw["hdd_image_path"]),
-            executable_path=Path(raw["executable_path"]),
+            installed=bool(raw.get("installed", False)),
             notes=str(raw["notes"]),
         )
     except (TypeError, ValueError) as exc:

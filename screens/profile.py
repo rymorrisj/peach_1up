@@ -35,16 +35,6 @@ def _hdd_dir() -> Path:
     return Path("images") / "hdd"
 
 
-def _validate_exe_path(path_str: str) -> str:
-    """Return an error message if invalid, empty string if valid."""
-    if not path_str:
-        return "Path cannot be empty."
-    if len(path_str) >= 2 and path_str[1] == ':':
-        return "Path must be relative to C: — remove the drive letter (e.g. DOOM\\DOOM.EXE)."
-    if path_str.startswith('/') or path_str.startswith('\\'):
-        return "Path must be relative — remove the leading backslash."
-    return ""
-
 
 class InputModal(ModalScreen):
     """Generic single-line text input modal."""
@@ -137,7 +127,6 @@ class ProfileScreen(Screen):
         self._process: Optional[Popen] = None
         self._job: Optional[WindowsJobObject] = None
         self._monitor_timer = None
-        self._exe_error: str = ""
 
     # --- Compose ---
 
@@ -146,8 +135,6 @@ class ProfileScreen(Screen):
             yield from self._compose_list()
         elif self._state == "install_running":
             yield from self._compose_running("Installing")
-        elif self._state == "exe_input":
-            yield from self._compose_exe_input()
         elif self._state == "game_running":
             yield from self._compose_running("Running")
 
@@ -180,23 +167,6 @@ class ProfileScreen(Screen):
             classes="profile-running-container",
         )
 
-    def _compose_exe_input(self) -> ComposeResult:
-        widgets: list = [
-            Static("✅ Installation complete", classes="title"),
-            Static(""),
-            Static(
-                "Enter the path to the game executable relative to C:",
-                classes="info",
-            ),
-            Static("Example:  DOOM\\DOOM.EXE", classes="info"),
-            Static(""),
-            Input(placeholder="GAME\\GAME.EXE", id="exe_input"),
-        ]
-        if self._exe_error:
-            widgets += [Static(""), Static(self._exe_error, classes="error-message")]
-        widgets += [Static(""), Static("Enter: Confirm", classes="help")]
-        yield Container(*widgets, classes="profile-exe-container")
-
     # --- Lifecycle ---
 
     def on_mount(self) -> None:
@@ -205,12 +175,6 @@ class ProfileScreen(Screen):
     def _focus_list(self) -> None:
         try:
             self.query_one("#profile_list", ListView).focus()
-        except Exception:
-            self.focus()
-
-    def _focus_exe_input(self) -> None:
-        try:
-            self.query_one("#exe_input", Input).focus()
         except Exception:
             self.focus()
 
@@ -248,7 +212,6 @@ class ProfileScreen(Screen):
     def action_force_stop(self) -> None:
         if self._state not in ("install_running", "game_running"):
             return
-        was_install = self._state == "install_running"
         self._stop_monitoring()
         if self._job:
             try:
@@ -259,13 +222,9 @@ class ProfileScreen(Screen):
                 )
         self._process = None
         self._job = None
-        if was_install:
-            self._exe_error = ""
-            self._state = "exe_input"
-        else:
-            self._state = "list"
+        self._state = "list"
         self.refresh(recompose=True)
-        self.call_after_refresh(self._post_recompose_focus)
+        self.call_after_refresh(self._focus_list)
 
     # --- Create flow ---
 
@@ -319,7 +278,7 @@ class ProfileScreen(Screen):
             backend=backend,
             dosbox_conf_path=Path(""),
             hdd_image_path=Path(""),
-            executable_path=Path(""),
+            installed=False,
             notes="",
         )
         try:
@@ -357,7 +316,7 @@ class ProfileScreen(Screen):
                 )
             )
             return
-        if profile.executable_path == Path(""):
+        if not profile.installed:
             self._run_install(profile, dosbox_executable)
         else:
             self._run_game(profile, dosbox_executable)
@@ -419,50 +378,20 @@ class ProfileScreen(Screen):
                 job_error = str(exc)
         self._process = None
         self._job = None
-        if was_install:
-            self._exe_error = ""
-            self._state = "exe_input"
-            self.refresh(recompose=True)
-            self.call_after_refresh(self._focus_exe_input)
-        else:
-            self._state = "list"
-            self.refresh(recompose=True)
-            self.call_after_refresh(self._focus_list)
+        if was_install and self._active_profile is not None:
+            self._active_profile.installed = True
+            try:
+                save(self._active_profile, _profiles_dir())
+            except Exception as exc:
+                self.app.push_screen(
+                    ErrorScreen("Failed to save profile", str(exc), on_dismiss=lambda: None)
+                )
+        self._active_profile = None
+        self._state = "list"
+        self.refresh(recompose=True)
+        self.call_after_refresh(self._focus_list)
         if job_error:
             self.app.push_screen(
                 ErrorScreen("Job cleanup error", job_error, on_dismiss=lambda: None)
             )
 
-    # --- Exe input state ---
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        if self._state != "exe_input":
-            return
-        path_str = event.value.strip()
-        error = _validate_exe_path(path_str)
-        if error:
-            self._exe_error = error
-            self.refresh(recompose=True)
-            self.call_after_refresh(self._focus_exe_input)
-            return
-        if self._active_profile is None:
-            return
-        self._active_profile.executable_path = Path(path_str)
-        try:
-            save(self._active_profile, _profiles_dir())
-        except Exception as exc:
-            self._exe_error = f"Failed to save profile: {exc}"
-            self.refresh(recompose=True)
-            self.call_after_refresh(self._focus_exe_input)
-            return
-        self._active_profile = None
-        self._exe_error = ""
-        self._state = "list"
-        self.refresh(recompose=True)
-        self.call_after_refresh(self._focus_list)
-
-    def _post_recompose_focus(self) -> None:
-        if self._state == "exe_input":
-            self._focus_exe_input()
-        else:
-            self._focus_list()

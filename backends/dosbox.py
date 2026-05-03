@@ -10,7 +10,7 @@ from subprocess import Popen
 
 from utils.job_objects import launch_under_job_object, WindowsJobObject
 from utils.constants import Era
-from utils.profile import Profile, save
+from utils.profile import Profile
 from utils.dosbox_config import regenerate_conf
 from utils.vhd import hdd_size_param
 
@@ -201,10 +201,6 @@ def launch_game(
         raise ValueError(
             f"Profile '{profile.name}' has no hdd_image_path set. Run ensure_hdd first."
         )
-    if profile.executable_path == Path(""):
-        raise ValueError(
-            f"Profile '{profile.name}' has no executable_path set. Run install first."
-        )
 
     media_str = str(profile.media_path.resolve())
     hdd_str = str(profile.hdd_image_path.resolve())
@@ -220,8 +216,6 @@ def launch_game(
         f'imgmount C "{hdd_str}" -t hdd -fs fat {hdd_size_param(profile.era)}',
         media_mount_cmd,
         "C:",
-        # executable_path must be relative to C: (e.g. GAME\GAME.EXE) — enforced by P1-6 input handling
-        str(profile.executable_path),
     ]
     regenerate_conf(profile, autoexec_lines)
 
