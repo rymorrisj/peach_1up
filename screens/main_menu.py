@@ -29,6 +29,7 @@ class MainMenuScreen(Screen):
     BINDINGS = [
         ("q", "quit", "Quit"),
         ("l", "launch", "Launch"),
+        ("p", "profiles", "Profiles"),
         ("a", "about", "About"),
     ]
 
@@ -40,6 +41,7 @@ class MainMenuScreen(Screen):
             Static(""),
             Vertical(
                 Button("Launch", id="launch", variant="primary"),
+                Button("Profiles", id="profiles"),
                 Button("About", id="about"),
                 Button("Quit", id="quit"),
                 classes="menu-buttons"
@@ -63,6 +65,11 @@ class MainMenuScreen(Screen):
         from screens.era_select import EraSelectScreen
         self.app.switch_screen(EraSelectScreen())
 
+    def action_profiles(self) -> None:
+        """Navigate to profiles screen."""
+        from screens.profile import ProfileScreen
+        self.app.switch_screen(ProfileScreen())
+
     def action_about(self) -> None:
         """Navigate to about screen."""
         from screens.about import AboutScreen
@@ -72,6 +79,8 @@ class MainMenuScreen(Screen):
         """Handle button press events."""
         if event.button.id == "launch":
             self.action_launch()
+        elif event.button.id == "profiles":
+            self.action_profiles()
         elif event.button.id == "about":
             self.action_about()
         elif event.button.id == "quit":

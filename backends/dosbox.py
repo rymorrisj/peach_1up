@@ -132,8 +132,7 @@ def launch(media_path: Path, era: str, executable_path: str) -> Tuple[Popen, Win
 def launch_install(
     profile: Profile,
     dosbox_executable: str,
-    profiles_dir: Path,
-) -> None:
+) -> Tuple[Popen, WindowsJobObject]:
     if not os.path.exists(dosbox_executable):
         raise FileNotFoundError(f"DOSBox-X executable not found: {dosbox_executable}")
 
@@ -177,10 +176,7 @@ def launch_install(
         job_name=job_name,
     )
 
-    process.wait()
-    job.terminate_all()
-
-    raise NotImplementedError("executable path prompt requires P1-6 TUI screen")
+    return process, job
 
 
 def launch_game(
