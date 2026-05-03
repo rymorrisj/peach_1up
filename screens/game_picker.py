@@ -5,7 +5,7 @@ Displays compatible media files for the selected gaming era.
 
 import os
 from pathlib import Path
-from typing import List
+from typing import Callable, List, Optional
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Static, ListView, ListItem, Label
@@ -80,17 +80,25 @@ class GamePickerScreen(Screen):
         ("k", "cursor_up", "Up"),
     ]
 
-    def __init__(self, era: Era, images_path: str = ""):
+    def __init__(
+        self,
+        era: Era,
+        images_path: str = "",
+        on_select: Optional[Callable[[Path], None]] = None,
+    ):
         """
         Initialize game picker screen for specified era.
 
         Args:
             era: Gaming era to filter media files for
             images_path: Directory path to search. If empty, reads from IMAGES_PATH env var.
+            on_select: If provided, called with the selected Path and screen is popped.
+                       If None, navigates to LaunchScreen (standard launch flow).
         """
         super().__init__()
         self.era = era
         self.images_path = images_path
+        self._on_select = on_select
 
     def compose(self) -> ComposeResult:
         """Compose the game picker layout with media file list."""
@@ -107,9 +115,12 @@ class GamePickerScreen(Screen):
         )
 
     def action_back(self) -> None:
-        """Navigate back to era selector screen."""
-        from screens.era_select import EraSelectScreen
-        self.app.switch_screen(EraSelectScreen())
+        """Navigate back to era selector, or pop if used as a picker."""
+        if self._on_select is not None:
+            self.app.pop_screen()
+        else:
+            from screens.era_select import EraSelectScreen
+            self.app.switch_screen(EraSelectScreen())
 
     def action_cursor_down(self) -> None:
         """Move cursor down in the list (proxy for j key)."""
@@ -122,10 +133,13 @@ class GamePickerScreen(Screen):
         file_list.action_cursor_up()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        """Handle file selection and navigate to launch flow."""
-        selected_item = event.item
-        if selected_item.name:  # Only proceed if item has a file path
-            file_path = selected_item.name
-
+        """Handle file selection — call picker callback or navigate to launch flow."""
+        if not event.item.name:
+            return
+        file_path = Path(event.item.name)
+        if self._on_select is not None:
+            self._on_select(file_path)
+            self.app.pop_screen()
+        else:
             from screens.launch import LaunchScreen
-            self.app.switch_screen(LaunchScreen(era=self.era, media_path=Path(file_path)))
+            self.app.switch_screen(LaunchScreen(era=self.era, media_path=file_path))

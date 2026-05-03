@@ -292,40 +292,23 @@ class ProfileScreen(Screen):
         self.app.push_screen(EraSelectModal(), on_era)
 
     def _start_create_media(self, name: str, era: Era) -> None:
-        def on_media(value: Optional[str]) -> None:
-            if value is None:
-                return
-            value = value.strip()
-            media_path = Path(value)
-            if not media_path.exists():
-                self.app.push_screen(
-                    ErrorScreen(
-                        "Media file not found.",
-                        str(media_path),
-                        on_dismiss=lambda: self._start_create_media(name, era),
-                    )
-                )
-                return
-            if media_path.suffix.lower() not in {".iso", ".img", ".cue"}:
-                self.app.push_screen(
-                    ErrorScreen(
-                        f"Unsupported file type: {media_path.suffix}",
-                        "Accepted: .iso  .img  .cue",
-                        on_dismiss=lambda: self._start_create_media(name, era),
-                    )
-                )
-                return
+        from screens.game_picker import GamePickerScreen
+
+        def on_media(media_path: Path) -> None:
             self._finish_create(name, era, media_path)
 
-        self.app.push_screen(
-            InputModal(
-                "Full path to media file (.iso / .img / .cue):",
-                r"C:\path\to\game.iso",
-            ),
-            on_media,
-        )
+        self.app.push_screen(GamePickerScreen(era=era, on_select=on_media))
 
     def _finish_create(self, name: str, era: Era, media_path: Path) -> None:
+        if not media_path.exists():
+            self.app.push_screen(
+                ErrorScreen(
+                    f"Media file not found: {media_path}",
+                    on_dismiss=lambda: None,
+                )
+            )
+            return
+
         suggested = detect_era(media_path)
 
         backend = "dosbox" if era.value in ("dos", "win31") else "86box"

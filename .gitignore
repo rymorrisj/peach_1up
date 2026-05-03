@@ -69,6 +69,17 @@ desktop.ini
 # Logs
 *.log
 logs/
+debug.log
+
+# Game profiles (user data)
+profiles/*.yaml
+profiles/conf/
+
+# HDD images (generated)
+images/hdd/
+
+# Local test artifacts
+local_test/
 
 # Temporary files
 *.tmp

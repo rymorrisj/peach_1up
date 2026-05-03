@@ -31,10 +31,10 @@ _SOUND_DEFAULTS = {
 }
 
 
-def _build_conf_content(era: Era) -> str:
+def _build_conf_content(era: Era, autoexec_lines: list[str] | None = None) -> str:
     d = _ERA_DEFAULTS[era]
     s = _SOUND_DEFAULTS
-    return (
+    body = (
         f"[dosbox]\n"
         f"memsize={d['memsize']}\n"
         f"machine={d['machine']}\n"
@@ -56,8 +56,30 @@ def _build_conf_content(era: Era) -> str:
         f"oplmode={s['oplmode']}\n"
         f"oplrate={s['oplrate']}\n"
         f"\n"
+        f"[dos]\n"
+        f"automount=false\n"
+        f"mountwarning=false\n"
+        f"\n"
         f"[autoexec]\n"
     )
+    if autoexec_lines:
+        body += "\n".join(autoexec_lines) + "\n"
+    return body
+
+
+def regenerate_conf(
+    profile: Profile,
+    autoexec_lines: list[str] | None = None,
+) -> None:
+    """Rewrite the conf file at profile.dosbox_conf_path with current settings."""
+    if profile.era not in _ERA_DEFAULTS:
+        raise ValueError(
+            f"Era '{profile.era.value}' is not supported by DOSBox-X config generation. "
+            f"Supported: {', '.join(e.value for e in _ERA_DEFAULTS)}"
+        )
+    dest = profile.dosbox_conf_path
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(_build_conf_content(profile.era, autoexec_lines), encoding="utf-8")
 
 
 def generate_conf(profile: Profile, conf_dir: Path, profiles_dir: Path) -> Path:

@@ -11,6 +11,8 @@ from subprocess import Popen
 from utils.job_objects import launch_under_job_object, WindowsJobObject
 from utils.constants import Era
 from utils.profile import Profile, save
+from utils.dosbox_config import regenerate_conf
+from utils.vhd import hdd_size_param
 
 
 # Supported file extensions for DOSBox-X backend
@@ -73,13 +75,14 @@ def build_args(media_path: Path, era: str) -> List[str]:
 
     # Build arguments based on media type
     media_str = str(media_path)
+    suppress = ['-set', 'dos:automount=false', '-set', 'dos:mountwarning=false']
 
     if suffix == '.img':
-        # Mount IMG as hard disk
-        return ['-c', f'imgmount C "{media_str}" -t hdd', '-c', 'C:']
+        # Mount IMG as hard disk — writable, no -ro
+        return suppress + ['-c', f'imgmount C "{media_str}" -t hdd', '-c', 'C:']
     elif suffix in {'.iso', '.cue'}:
-        # Mount ISO/CUE as optical disc
-        return ['-c', f'imgmount D "{media_str}" -t iso', '-c', 'D:']
+        # Mount ISO/CUE as optical disc — read-only
+        return suppress + ['-c', f'imgmount D "{media_str}" -t iso -ro', '-c', 'D:']
     else:
         # This should never be reached due to validation above
         raise ValueError(f"Unhandled media suffix '{suffix}'. This indicates a programming error.")
@@ -147,9 +150,9 @@ def launch_install(
             f"Profile '{profile.name}' has no hdd_image_path set. Run ensure_hdd first."
         )
 
-    media_str = str(profile.media_path)
-    hdd_str = str(profile.hdd_image_path)
-    conf_str = str(profile.dosbox_conf_path)
+    media_str = str(profile.media_path.resolve())
+    hdd_str = str(profile.hdd_image_path.resolve())
+    conf_str = str(profile.dosbox_conf_path.resolve())
     suffix = profile.media_path.suffix.lower()
 
     if suffix in {".iso", ".cue"}:
@@ -159,13 +162,15 @@ def launch_install(
         media_mount_cmd = f'imgmount A "{media_str}" -t floppy -ro'
         switch_drive = "A:"
 
-    args = [
-        "-conf", conf_str,
-        "-c", f'imgmount C "{hdd_str}" -t hdd -fs fat',
-        "-c", media_mount_cmd,
-        "-c", "C:",
-        "-c", switch_drive,
+    autoexec_lines = [
+        f'imgmount C "{hdd_str}" -t hdd -fs fat {hdd_size_param(profile.era)}',
+        media_mount_cmd,
+        "C:",
+        switch_drive,
     ]
+    regenerate_conf(profile, autoexec_lines)
+
+    args = ["-conf", conf_str]
 
     job_name = f"peach1up_install_{profile.name}"
     process, job = launch_under_job_object(
@@ -201,9 +206,9 @@ def launch_game(
             f"Profile '{profile.name}' has no executable_path set. Run install first."
         )
 
-    media_str = str(profile.media_path)
-    hdd_str = str(profile.hdd_image_path)
-    conf_str = str(profile.dosbox_conf_path)
+    media_str = str(profile.media_path.resolve())
+    hdd_str = str(profile.hdd_image_path.resolve())
+    conf_str = str(profile.dosbox_conf_path.resolve())
     suffix = profile.media_path.suffix.lower()
 
     if suffix in {".iso", ".cue"}:
@@ -211,14 +216,16 @@ def launch_game(
     else:  # .img — treat as floppy
         media_mount_cmd = f'imgmount A "{media_str}" -t floppy -ro'
 
-    args = [
-        "-conf", conf_str,
-        "-c", f'imgmount C "{hdd_str}" -t hdd -fs fat',
-        "-c", media_mount_cmd,
-        "-c", "C:",
+    autoexec_lines = [
+        f'imgmount C "{hdd_str}" -t hdd -fs fat {hdd_size_param(profile.era)}',
+        media_mount_cmd,
+        "C:",
         # executable_path must be relative to C: (e.g. GAME\GAME.EXE) — enforced by P1-6 input handling
-        "-c", str(profile.executable_path),
+        str(profile.executable_path),
     ]
+    regenerate_conf(profile, autoexec_lines)
+
+    args = ["-conf", conf_str]
 
     job_name = f"peach1up_game_{profile.name}"
     return launch_under_job_object(
