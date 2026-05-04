@@ -1,0 +1,42 @@
+# Peach 1UP — Known Titles Database
+#
+# Community-curated list of titles known to require 86Box accuracy mode or
+# that have specific hardware and renderer notes.
+#
+# PURPOSE
+# This database is the authoritative signal for accuracy mode routing.
+# When a title appears here with requires_86box: true, the launcher routes
+# it to 86Box regardless of the user's default backend preference.
+# Automated heuristics (file scanning, Glide DLL detection, etc.) are
+# intentionally not used — only entries in this file trigger accuracy mode.
+#
+# CONTRIBUTING
+# Add entries via pull request. One entry per title. Use the schema below.
+# Do not add titles that work correctly under VirtualBox — only titles with
+# confirmed hardware-specific requirements that VirtualBox cannot satisfy.
+#
+# SCHEMA
+#   name:            Title name (string, required)
+#   era:             One of: win95, win98 (string, required)
+#   requires_86box:  true if this title requires 86Box accuracy mode (bool, required)
+#   hardware_notes:  Free text describing hardware requirements (string, optional)
+#   renderer_notes:  Free text describing renderer requirements (string, optional)
+
+titles:
+  - name: Example Title 1
+    era: win95
+    requires_86box: true
+    hardware_notes: "Requires SoundBlaster hardware timing not reproducible in VirtualBox."
+    renderer_notes: ""
+
+  - name: Example Title 2
+    era: win98
+    requires_86box: true
+    hardware_notes: "Depends on specific PCI bus behaviour present only in 86Box."
+    renderer_notes: "Ships multiple renderers — software renderer works, Glide renderer requires Voodoo hardware."
+
+  - name: Example Title 3
+    era: win98
+    requires_86box: false
+    hardware_notes: ""
+    renderer_notes: "Runs correctly under VirtualBox. Listed for reference only."
