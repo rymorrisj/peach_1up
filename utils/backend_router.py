@@ -9,6 +9,7 @@ import yaml
 from typing import Callable, Dict, Any
 
 from utils.constants import Era
+from utils.settings import get_binary_path
 
 
 def _load_eras_config() -> Dict[str, Any]:
@@ -150,9 +151,12 @@ def get_executable_path(era: Era, accuracy_mode: bool = False) -> tuple[str, str
 
     if backend_name == 'virtualbox':
         env_var = 'VIRTUALBOX_PATH'
+        emulator_key = 'virtualbox'
     elif backend_name == '86box':
         env_var = 'BOX86_PATH'
+        emulator_key = 'box86'
     else:
         env_var = 'DOSBOX_PATH'
+        emulator_key = 'dosbox'
 
-    return os.getenv(env_var, ''), env_var
+    return get_binary_path(emulator_key), env_var

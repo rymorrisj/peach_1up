@@ -4,9 +4,9 @@ Textual-based TUI launcher for retro game emulation.
 """
 
 from textual.app import App
-from dotenv import load_dotenv
 
 from screens.main_menu import MainMenuScreen
+from utils import settings
 from utils.system_check import is_elevated, check_missing_binaries
 
 
@@ -32,6 +32,8 @@ class Peach1UPApp(App):
 
     def on_mount(self) -> None:
         """Check elevation and binary availability, then show main menu."""
+        settings.init()
+
         if not is_elevated():
             from screens.error import ErrorScreen
             self.push_screen(
@@ -55,7 +57,6 @@ class Peach1UPApp(App):
 
 def main() -> None:
     """Entry point for the Peach 1UP application."""
-    load_dotenv()
     app = Peach1UPApp()
     app.run()
 

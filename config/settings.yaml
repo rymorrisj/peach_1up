@@ -1,4 +1,4 @@
-# Peach 1UP Settings
-# Paths to binaries, images, and display configuration
-
-# TODO: Define settings structure
+first_run_complete: false
+dosbox_path_override: ""
+virtualbox_path_override: ""
+box86_path_override: ""

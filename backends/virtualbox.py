@@ -8,7 +8,6 @@ Job Objects.
 
 from __future__ import annotations
 
-import os
 import subprocess
 from pathlib import Path
 from subprocess import Popen
@@ -19,6 +18,7 @@ import yaml
 from utils.job_objects import launch_under_job_object, WindowsJobObject
 from utils.media_attach import build_virtualbox_attachment
 from utils.platform import OSPlatform
+from utils.settings import get_binary_path
 
 
 SUPPORTED_ERAS = {"win95", "win98", "winxp"}
@@ -27,17 +27,17 @@ _TEMPLATE_DIR = Path("config") / "templates"
 
 
 def _vboxmanage_path() -> str:
-    """Return the VBoxManage.exe path from VIRTUALBOX_PATH env var.
+    """Return the VBoxManage.exe path, checking settings override then .env.
 
     Raises:
-        RuntimeError: If VIRTUALBOX_PATH is not set.
+        RuntimeError: If no path is configured.
         FileNotFoundError: If the path does not exist on disk.
     """
-    path = os.getenv("VIRTUALBOX_PATH", "")
+    path = get_binary_path("virtualbox")
     if not path:
         raise RuntimeError(
-            "VIRTUALBOX_PATH is not set. "
-            "Add it to your .env file pointing to VBoxManage.exe."
+            "VirtualBox binary path is not configured. "
+            "Set VIRTUALBOX_PATH in your .env file or add an override in Settings."
         )
     if not Path(path).exists():
         raise FileNotFoundError(

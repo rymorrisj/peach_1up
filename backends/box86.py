@@ -17,6 +17,7 @@ import yaml
 from utils.job_objects import launch_under_job_object
 from utils.media_attach import build_86box_attachment
 from utils.platform import OSPlatform
+from utils.settings import get_binary_path
 
 
 SUPPORTED_ERAS = {"win95", "win98"}
@@ -183,11 +184,11 @@ def launch(platform: OSPlatform, media_path: Optional[Path] = None) -> None:
 
     load_template(platform.era)
 
-    box86_path = os.getenv("BOX86_PATH", "")
+    box86_path = get_binary_path("box86")
     if not box86_path:
         raise RuntimeError(
-            "BOX86_PATH environment variable is not set. "
-            "Set it to the full path of the 86Box executable in your .env file."
+            "86Box binary path is not configured. "
+            "Set BOX86_PATH in your .env file or add an override in Settings."
         )
     if not Path(box86_path).exists():
         raise FileNotFoundError(f"86Box executable not found: {box86_path}")
