@@ -84,7 +84,7 @@ platform, and presents the user at the desktop with the disc attached. User comp
 the installer manually. We detect autorun.inf and surface the correct entry point
 where possible.
 
-### CURRENT
+### DONE
 
 - [P2-1] OSPlatform data model — new OSPlatform dataclass with name, era, emulator
   backend, config path, base image path, working image path, notes, and status.
@@ -135,7 +135,7 @@ where possible.
 
 The launcher is stable, well-tested, and handles failure gracefully across all supported eras.
 
-### NEXT
+### CURRENT
 
 - [P3-1] First-run setup wizard — detect missing binaries and platforms, guide through setup
 - [P3-2] Game library scanner — scan a directory, auto-build profiles from found media
