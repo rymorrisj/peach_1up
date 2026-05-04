@@ -69,8 +69,8 @@ class GamePickerScreen(Screen):
     - Help text at bottom
 
     Navigation:
-    - File selection → StubScreen("Launch Flow — coming in P0-7")
-    - Back → EraSelectScreen
+    - File selection → LaunchScreen (standard flow) or on_select callback (picker mode)
+    - Back → EraSelectScreen (standard flow) or pop_screen (picker mode)
     """
 
     BINDINGS = [

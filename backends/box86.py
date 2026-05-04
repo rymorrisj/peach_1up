@@ -32,11 +32,9 @@ def validate_media(media_path: Path) -> None:
         FileNotFoundError: If media file does not exist
         ValueError: If media file extension is not supported
     """
-    # Check if file exists
     if not media_path.exists():
         raise FileNotFoundError(f"Media file not found: {media_path}")
 
-    # Check if file extension is supported
     if media_path.suffix.lower() not in SUPPORTED_MEDIA:
         raise ValueError(f"Unsupported media format '{media_path.suffix}'. "
                         f"86Box backend supports: {', '.join(sorted(SUPPORTED_MEDIA))}")
@@ -78,12 +76,11 @@ def build_args(era: str, rom_path: str) -> List[str]:
         Hardware profiles and media mounting are config-file driven in 86Box.
         This function only sets ROM path via CLI. Hardware config deferred to P2.
     """
-    # Validate era
     if era not in SUPPORTED_ERAS:
         raise ValueError(f"Era '{era}' not supported by 86Box backend. "
                         f"Supported: {', '.join(sorted(SUPPORTED_ERAS))}")
 
-    # Only ROM path via CLI - hardware profiles are config-file driven
+    # Only ROM path via CLI — hardware profiles are config-file driven
     return ['--rom-path', rom_path]
 
 
@@ -107,35 +104,24 @@ def launch(media_path: Path, era: str, executable_path: str) -> Tuple[Popen, Win
         FileNotFoundError: If executable_path or media_path does not exist
         ValueError: If era or media extension not supported
         RuntimeError: If ROM pack missing or Job Object creation/process launch fails
-
-    Notes:
-        Media mounting and hardware profiles are handled via config files in P2.
-        This P0 implementation only validates and launches with ROM path.
     """
-    # Check if 86Box executable exists
     if not os.path.exists(executable_path):
         raise FileNotFoundError(f"86Box executable not found: {executable_path}")
 
-    # Validate media file
     validate_media(media_path)
 
-    # Get ROM path from environment
     rom_path = os.getenv('ROM_PATH', '')
     if not rom_path:
         raise RuntimeError("ROM_PATH environment variable not set. "
                           "86Box requires ROM files to function. "
                           "Set ROM_PATH to the directory containing 86Box ROM pack.")
 
-    # Validate ROM pack is present
     validate_rom_pack(rom_path)
 
-    # Build command line arguments
     args = build_args(era, rom_path)
 
-    # Generate unique job name
     job_name = f"peach1up_86box_{era}_{media_path.stem}"
 
-    # Launch under Job Object isolation
     return launch_under_job_object(
         executable_path=executable_path,
         args=args,

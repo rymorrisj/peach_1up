@@ -22,7 +22,7 @@ class MainMenuScreen(Screen):
 
     Layout:
     - Title at top
-    - Three centered buttons: Launch, About, Quit
+    - Five centered buttons: Launch, Profiles, Settings, About, Quit
     - Version 0.1.0 at bottom
     """
 

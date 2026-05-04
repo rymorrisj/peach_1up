@@ -35,11 +35,9 @@ def validate_media(media_path: Path) -> None:
         FileNotFoundError: If media file does not exist
         ValueError: If media file extension is not supported
     """
-    # Check if file exists
     if not media_path.exists():
         raise FileNotFoundError(f"Media file not found: {media_path}")
 
-    # Check if file extension is supported
     if media_path.suffix.lower() not in SUPPORTED_MEDIA:
         raise ValueError(f"Unsupported media format '{media_path.suffix}'. "
                         f"DOSBox-X backend supports: {', '.join(sorted(SUPPORTED_MEDIA))}")
@@ -62,18 +60,15 @@ def build_args(media_path: Path, era: str) -> List[str]:
         ValueError: If era is not in supported set {'dos', 'win31'}
         ValueError: If media suffix is not in supported set {'.iso', '.img', '.cue'}
     """
-    # Validate era
     if era not in SUPPORTED_ERAS:
         raise ValueError(f"Era '{era}' not supported by DOSBox-X backend. "
                         f"Supported: {', '.join(sorted(SUPPORTED_ERAS))}")
 
-    # Validate media suffix
     suffix = media_path.suffix.lower()
     if suffix not in SUPPORTED_MEDIA:
         raise ValueError(f"Media suffix '{suffix}' not supported by DOSBox-X backend. "
                         f"Supported: {', '.join(sorted(SUPPORTED_MEDIA))}")
 
-    # Build arguments based on media type
     media_str = str(media_path)
     suppress = ['-set', 'dos:automount=false', '-set', 'dos:mountwarning=false']
 
@@ -109,20 +104,15 @@ def launch(media_path: Path, era: str, executable_path: str) -> Tuple[Popen, Win
         ValueError: If era or media extension not supported
         RuntimeError: If Job Object creation or process launch fails
     """
-    # Check if DOSBox-X executable exists
     if not os.path.exists(executable_path):
         raise FileNotFoundError(f"DOSBox-X executable not found: {executable_path}")
 
-    # Validate media file
     validate_media(media_path)
 
-    # Build command line arguments
     args = build_args(media_path, era)
 
-    # Generate unique job name
     job_name = f"peach1up_dosbox_{era}_{media_path.stem}"
 
-    # Launch under Job Object isolation
     return launch_under_job_object(
         executable_path=executable_path,
         args=args,
