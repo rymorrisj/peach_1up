@@ -1,0 +1,10 @@
+# Template — do not add user-specific paths or values.
+# Keys map directly to VBoxManage modifyvm parameter names.
+# Consumed by the VirtualBox backend at launch time.
+
+ostype: WindowsXP
+memory_mb: 256
+chipset: piix3
+audio_controller: ac97
+graphics_controller: vboxvga
+vram_mb: 32

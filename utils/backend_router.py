@@ -26,7 +26,7 @@ def _load_eras_config() -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
-def _resolve_backend_name(era: Era, accuracy_mode: bool) -> str:
+def resolve_backend_name(era: Era, accuracy_mode: bool) -> str:
     """Resolve the backend name string for an era and accuracy flag.
 
     Args:
@@ -84,7 +84,7 @@ def get_launch_fn(era: Era, accuracy_mode: bool = False) -> Callable:
             configured, or the backend module cannot be imported.
     """
     try:
-        backend_name = _resolve_backend_name(era, accuracy_mode)
+        backend_name = resolve_backend_name(era, accuracy_mode)
     except (ValueError, RuntimeError) as e:
         raise RuntimeError(f"Failed to resolve backend for era '{era.value}': {e}")
 
@@ -118,7 +118,7 @@ def get_backend_name(era: Era, accuracy_mode: bool = False) -> str:
         Display name string, or ``"Unknown"`` if the era is not configured.
     """
     try:
-        backend_name = _resolve_backend_name(era, accuracy_mode)
+        backend_name = resolve_backend_name(era, accuracy_mode)
         return {
             'dosbox': 'DOSBox-X',
             '86box': '86Box',
@@ -144,7 +144,7 @@ def get_executable_path(era: Era, accuracy_mode: bool = False) -> tuple[str, str
         current value, or an empty string if the variable is not set.
     """
     try:
-        backend_name = _resolve_backend_name(era, accuracy_mode)
+        backend_name = resolve_backend_name(era, accuracy_mode)
     except Exception:
         backend_name = 'dosbox'
 

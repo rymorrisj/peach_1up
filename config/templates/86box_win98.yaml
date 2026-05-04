@@ -1,0 +1,20 @@
+# Template — do not add user-specific paths or values.
+# Consumed by the 86Box backend at launch time and merged with runtime values.
+#
+# IMPORTANT: All hardware identifiers below must match exactly what your installed
+# version of 86Box accepts. Identifiers vary between 86Box releases.
+# Reference: https://86box.net
+#
+# Leave no field empty — the backend will reject blank values at launch.
+
+Machine:
+  machine: p2b            # verify against your 86Box version
+  cpu_family: Intel Pentium II (Deschutes)  # verify against your 86Box version
+  cpu_speed: 350
+  mem_size: 65536         # kilobytes
+
+Video:
+  gfxcard: S3 ViRGE/DX   # verify against your 86Box version
+
+Sound:
+  sndcard: Sound Blaster AWE32  # verify against your 86Box version

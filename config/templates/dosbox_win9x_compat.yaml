@@ -1,0 +1,24 @@
+# Template — do not add user-specific paths or values.
+# Consumed by the DOSBox-X backend at launch time and merged with runtime values.
+# Compatibility fallback for DOS applications running under a Win9x shell.
+# Not intended for native Win32 software — use VirtualBox or 86Box for that.
+
+dosbox:
+  machine: svga_s3
+  memsize: 64
+
+cpu:
+  cputype: pentium_slow
+  cycles: auto
+  cyclemax: 100000
+
+sblaster:
+  sbtype: sb16
+  sbbase: 220
+  irq: 7
+  dma: 1
+  hdma: 5
+  oplmode: auto
+
+render:
+  frameskip: 0

@@ -1,0 +1,22 @@
+# Template — do not add user-specific paths or values.
+# Consumed by the DOSBox-X backend at launch time and merged with runtime values.
+
+dosbox:
+  machine: svga_s3
+  memsize: 16
+
+cpu:
+  cputype: 486_slow
+  cycles: auto
+  cyclemax: 60000
+
+sblaster:
+  sbtype: sb16
+  sbbase: 220
+  irq: 7
+  dma: 1
+  hdma: 5
+  oplmode: auto
+
+render:
+  frameskip: 0
