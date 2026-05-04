@@ -144,7 +144,7 @@ class ProfileScreen(Screen):
             items = [ListItem(Label("No profiles found — press 'n' to create one."))]
         else:
             items = [
-                ListItem(Label(f"{p.name}  [{p.era.value}]"), name=p.name)
+                ListItem(Label(f"{p.name}  [{p.era.value}]  {'✓' if p.installed else '○'}"), name=p.name)
                 for p in profiles
             ]
         yield Container(
@@ -158,14 +158,19 @@ class ProfileScreen(Screen):
 
     def _compose_running(self, verb: str) -> ComposeResult:
         name = self._active_profile.name if self._active_profile else ""
-        yield Container(
+        widgets: list = [
             Static(f"🎮 {verb}: {name}", classes="title"),
             Static(""),
             Static("Emulator is running in isolated environment.", classes="status"),
             Static(""),
-            Static("q/F9: Force Stop", classes="help"),
-            classes="profile-running-container",
-        )
+        ]
+        if verb == "Installing":
+            widgets += [
+                Static("Run the installer inside DOSBox, then close the window when done.", classes="info"),
+                Static(""),
+            ]
+        widgets.append(Static("q/F9: Force Stop", classes="help"))
+        yield Container(*widgets, classes="profile-running-container")
 
     # --- Lifecycle ---
 
@@ -183,8 +188,12 @@ class ProfileScreen(Screen):
         for path in list_profiles(_profiles_dir()):
             try:
                 result.append(load(path))
-            except ValueError:
-                pass
+            except ValueError as exc:
+                self.notify(
+                    f"Could not load '{path.name}': {exc}",
+                    severity="warning",
+                    timeout=8,
+                )
         return result
 
     # --- List actions ---
@@ -294,6 +303,8 @@ class ProfileScreen(Screen):
         self.refresh(recompose=True)
         self.call_after_refresh(self._focus_list)
 
+        self.notify(f"Profile '{name}' created. Press Enter to launch.", timeout=5)
+
         if suggested is not None and suggested != era:
             self.notify(
                 f"Note: auto-detection suggested era '{suggested.value}'. "
@@ -379,9 +390,14 @@ class ProfileScreen(Screen):
         self._process = None
         self._job = None
         if was_install and self._active_profile is not None:
+            profile_name = self._active_profile.name
             self._active_profile.installed = True
             try:
                 save(self._active_profile, _profiles_dir())
+                self.notify(
+                    f"'{profile_name}' installed and ready to launch.",
+                    timeout=6,
+                )
             except Exception as exc:
                 self.app.push_screen(
                     ErrorScreen("Failed to save profile", str(exc), on_dismiss=lambda: None)

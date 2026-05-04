@@ -37,12 +37,13 @@ def _get_search_path(images_path: str) -> str:
     return str(resolved_path.resolve())
 
 
-def _create_file_list(files: List[Path]) -> ListView:
+def _create_file_list(files: List[Path], search_path: str) -> ListView:
     """Create ListView with files or empty state message."""
     if not files:
+        path_hint = search_path if search_path else "(IMAGES_PATH not set in .env)"
         return ListView(
             ListItem(Label("No compatible game files found.")),
-            ListItem(Label("Add .iso, .img, or .cue files to images/games/ to get started.")),
+            ListItem(Label(f"Add .iso, .img, or .cue files to: {path_hint}")),
             id="file_list"
         )
 
@@ -108,7 +109,7 @@ class GamePickerScreen(Screen):
         yield Container(
             Static(f"🎮 {self.era.value.upper()} Games", classes="title"),
             Static(""),
-            _create_file_list(compatible_files),
+            _create_file_list(compatible_files, search_path),
             Static(""),
             Static("↑↓/jk: Navigate • Enter: Select • b/Esc: Back", classes="help"),
             classes="game-picker-container"

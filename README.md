@@ -56,7 +56,7 @@ pip install -r requirements.txt
 Copy the template and fill in paths for your machine:
 
 ```terminal
-cp .env.example .env
+cp .env.template .env
 ```
 
 Required variables:
@@ -65,6 +65,7 @@ Required variables:
 DOSBOX_PATH=C:\Program Files\DOSBox-X\dosbox-x.exe
 BOX86_PATH=C:\Program Files\86Box\86Box.exe
 ROM_PATH=C:\path\to\86box-roms
+IMAGES_PATH=.\images\games
 PROFILES_PATH=.\profiles
 ```
 
