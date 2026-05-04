@@ -20,22 +20,22 @@ Python and a keyboard-driven TUI.
 
 - Python 3.11
 - Textual (TUI framework, keyboard-driven, no mouse required at P0)
-- Docker Engine via Docker Desktop daemon (orchestration only — no emulator containers, all operations via CLI)
 - DOSBox-X (DOS and Windows 3.1 era — runs natively on Windows host, no ROM required)
-- 86Box (Windows 95, 98, XP era — runs natively on Windows host, user supplies ROM pack)
+- VirtualBox (Windows 95, 98, XP — primary virtualization layer, runs natively on Windows host, Python API)
+- 86Box (Windows 95, 98 accuracy mode — runs natively on Windows host, user supplies ROM pack)
 - Windows Job Objects (process isolation, resource limits, filesystem restriction for emulator processes)
 - PyYAML (game profiles and configuration)
 - python-dotenv (environment configuration)
 
 ## Era → Backend Mapping
 
-| Era         | Backend  | ROM Required |
-| ----------- | -------- | ------------ |
-| DOS         | DOSBox-X | No           |
-| Windows 3.1 | DOSBox-X | No           |
-| Windows 95  | 86Box    | Yes          |
-| Windows 98  | 86Box    | Yes          |
-| Windows XP  | 86Box    | Yes          |
+| Era         | Primary    | Fallback                              | ROM Required |
+| ----------- | ---------- | ------------------------------------- | ------------ |
+| DOS         | DOSBox-X   | —                                     | No           |
+| Windows 3.1 | DOSBox-X   | —                                     | No           |
+| Windows 95  | VirtualBox | DOSBox-X (compat), 86Box (accuracy)   | 86Box only   |
+| Windows 98  | VirtualBox | DOSBox-X (compat), 86Box (accuracy)   | 86Box only   |
+| Windows XP  | VirtualBox | —                                     | No           |
 
 ## Folder Structure
 
@@ -48,11 +48,14 @@ peach-1up/
 ├── .env # never committed
 ├── config/
 │ ├── settings.yaml # paths to binaries, images, display config
-│ └── eras.yaml # era → backend mapping and defaults
+│ ├── eras.yaml # era → backend mapping and defaults
+│ ├── platforms.yaml # registered OS platforms
+│ └── known_titles.yaml # community database of titles with hardware requirements
 ├── profiles/ # one .yaml per game
 ├── backends/
 │ ├── dosbox.py # DOSBox-X container logic
-│ └── box86.py # 86Box container logic
+│ ├── box86.py # 86Box container logic
+│ └── virtualbox.py # VirtualBox backend
 ├── docker/
 │ ├── dosbox/
 │ │ └── Dockerfile
@@ -62,7 +65,16 @@ peach-1up/
 │ ├── media_detect.py # sniff .iso/.img/.cue to suggest era
 │ └── profile_builder.py # create/edit game profiles
 ├── images/ # user-supplied OS base images (never committed)
-│ └── README.md # guidance and official links
+│ ├── README.md # guidance and official links
+│ ├── os/ # OS platform images (base and working copies)
+│ │ ├── dos/
+│ │ ├── win31/
+│ │ ├── win95/
+│ │ ├── win98/
+│ │ └── winxp/
+│ ├── hdd/ # DOS per-game HDD images
+│ └── roms/
+│ └── 86box/ # 86Box ROM pack
 └── tests/
 
 ## Key Rules
@@ -125,6 +137,9 @@ Awaiting your decision.
   Never attempt to run emulators inside containers.
 - Read-only mount must be explicitly enforced for every media file passed to
   an emulator. Never pass a writable path.
+- DOS profiles remain standalone with per-game HDD images. Win95/98/XP use the
+  OSPlatform model with a locked base image and a working copy — two image copies
+  per platform will be stored on disk.
 
 ## Official Download Links
 
@@ -138,7 +153,8 @@ Awaiting your decision.
 
 - DOSBOX_PATH=C:\Program Files\DOSBox-X\dosbox-x.exe
 - BOX86_PATH=C:\Program Files\86Box\86Box.exe
-- ROM_PATH=./images/roms
+- VIRTUALBOX_PATH=C:\Program Files\Oracle\VirtualBox\VBoxManage.exe
+- ROM_PATH=./images/roms/86box
 - PROFILES_PATH=./profiles
 
 ## Git & Version Control

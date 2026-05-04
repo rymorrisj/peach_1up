@@ -1,39 +1,65 @@
 # Images Directory
 
-This directory is for user-supplied ROM files and game media.
+This directory holds user-supplied OS platform images, per-game hard drive images,
+and emulator ROM files. **Never commit any files in this directory to version control.**
 
-**⚠️ IMPORTANT: Never commit any files in this directory to version control.**
+---
 
 ## Directory Structure
 
-- `./images/roms/` - 86Box ROM pack (required for Windows 95/98/XP)
-- `./images/games/` - Game media files (.iso, .img, .cue)
+```
+images/
+├── os/          # OS platform images — base and working copies
+│   ├── dos/
+│   ├── win31/
+│   ├── win95/
+│   ├── win98/
+│   └── winxp/
+├── hdd/         # DOS per-game HDD images (.img, auto-created by launcher)
+└── roms/
+    └── 86box/   # 86Box ROM pack (required for accuracy mode)
+```
 
-## ROM Pack Setup (Windows 95, 98, XP era)
+---
 
-86Box requires system ROM files to function. These are copyrighted but required for 86Box to work.
+## OS Platform Images (`os/`)
 
-**Option 1 — Automatic (recommended)**
-Open Peach 1UP, go to Settings, and select "Download ROM pack". The launcher will clone the official ROM pack automatically.
+Win95, Win98, and XP use an **OSPlatform** model. When you register a platform image,
+the launcher locks your original as the **base image** and creates a separate
+**working copy** that all launches use. The base is never modified.
 
-**Option 2 — Manual**
-Clone or download the ROM pack yourself from https://github.com/86Box/roms and place the files in `./images/roms/`
+**Disk usage warning:** Registering a platform stores two copies of the image.
+Working copies and any snapshots will accumulate over time. Plan for at least 2×
+the size of each image you register.
 
-## File Types Supported
+Supported formats: `.img`, `.vhd`, `.iso`
 
-- **.iso** - CD-ROM image files
-- **.img** - Disk image files
-- **.cue** - Cue sheet files (with accompanying .bin)
+Source images from your own disc media or community archives such as WinWorldPC.
+Peach 1UP does not automate any downloads. Ensure you have the right to use any
+image you register.
 
-## Emulators
+---
 
-Emulators run natively on Windows under Job Objects isolation — not inside containers.
+## DOS Per-Game HDD Images (`hdd/`)
 
-- **DOSBox-X** (DOS, Windows 3.1): https://dosbox-x.com
-- **86Box** (Windows 95, 98, XP): https://86box.net
+DOS profiles use standalone per-game HDD images rather than a shared OS platform.
+The launcher auto-creates a `.img` file here on first install and reuses it on
+subsequent launches. No manual setup required.
 
-## Safety Notes
+---
 
-- All media files are mounted read-only
-- No modifications are made to your original files
-- Network access is blocked for every emulator launch via Windows Firewall
+## 86Box ROM Pack (`roms/86box/`)
+
+86Box requires system ROM files to function. These are used only when a Win95 or
+Win98 profile has hardware accuracy mode enabled.
+
+Clone the official ROM pack into `roms/86box/`:
+
+```terminal
+git clone https://github.com/86Box/roms images\roms\86box
+```
+
+Then set `ROM_PATH` in your `.env` to point at that directory.
+
+If the ROM pack is absent, accuracy mode will be unavailable and a warning will
+appear next to the affected eras in the era selector.

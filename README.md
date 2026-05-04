@@ -18,7 +18,8 @@ process isolation and network blocking.
 | Windows 10/11 (Home edition supported) | WSL2 must be enabled                                                                    |
 | Python 3.11                            | [python.org](https://www.python.org/downloads/)                                         |
 | DOSBox-X                               | Required for DOS and Windows 3.1 — [dosbox-x.com](https://dosbox-x.com)                 |
-| 86Box                                  | Required for Windows 95, 98, XP — [86box.net](https://86box.net)                        |
+| VirtualBox                             | Required for Windows 95, 98, XP — [virtualbox.org](https://www.virtualbox.org)          |
+| 86Box                                  | Required for Win95/98 accuracy mode — [86box.net](https://86box.net)                    |
 | 86Box ROM pack                         | Required for 86Box to function — [github.com/86Box/roms](https://github.com/86Box/roms) |
 
 ### ROM pack setup
@@ -64,6 +65,7 @@ Required variables:
 ```py
 DOSBOX_PATH=C:\Program Files\DOSBox-X\dosbox-x.exe
 BOX86_PATH=C:\Program Files\86Box\86Box.exe
+VIRTUALBOX_PATH=C:\Program Files\Oracle\VirtualBox\VBoxManage.exe
 ROM_PATH=C:\path\to\86box-roms
 IMAGES_PATH=.\images\games
 PROFILES_PATH=.\profiles
