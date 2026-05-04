@@ -1,7 +1,7 @@
 # Peach 1UP — Known Titles Database
 #
-# Community-curated list of titles known to require 86Box accuracy mode or
-# that have specific hardware and renderer notes.
+# Community-curated list of titles with confirmed hardware requirements,
+# renderer notes, or VirtualBox compatibility information.
 #
 # PURPOSE
 # This database is the authoritative signal for accuracy mode routing.
@@ -11,32 +11,63 @@
 # intentionally not used — only entries in this file trigger accuracy mode.
 #
 # CONTRIBUTING
-# Add entries via pull request. One entry per title. Use the schema below.
-# Do not add titles that work correctly under VirtualBox — only titles with
-# confirmed hardware-specific requirements that VirtualBox cannot satisfy.
+# Add entries via pull request. One entry per title.
+#
+# requires_86box: false entries are welcome and valuable. Knowing that a
+# title runs correctly under VirtualBox is useful community knowledge —
+# it prevents unnecessary routing to 86Box and helps other users choose
+# the right backend without trial and error.
+#
+# Before submitting an entry:
+#   - Verify the behaviour on your own hardware before submitting.
+#   - hardware_notes should describe the specific requirement in plain terms,
+#     not just restate "needs 86Box". Example: "Requires SoundBlaster IRQ
+#     timing not reproducible under VirtualBox AC97 emulation" is useful.
+#     "Needs 86Box" is not.
+#   - renderer_notes should explain which renderer was tested and why it
+#     does or does not require accuracy mode — especially for titles that
+#     ship multiple renderers (software, Glide, Direct3D).
+#
+# This file ships with the project and is community-extensible via pull
+# request at: https://github.com/rymorrisj/peach_1up
 #
 # SCHEMA
 #   name:            Title name (string, required)
 #   era:             One of: win95, win98 (string, required)
+#                    winxp is always VirtualBox — no 86Box path exists for it.
 #   requires_86box:  true if this title requires 86Box accuracy mode (bool, required)
-#   hardware_notes:  Free text describing hardware requirements (string, optional)
-#   renderer_notes:  Free text describing renderer requirements (string, optional)
+#   hardware_notes:  Specific hardware requirement, e.g. IRQ timing, DMA
+#                    behaviour, PCI bus quirk (string, optional)
+#   renderer_notes:  Renderer tested and outcome, especially for titles
+#                    shipping multiple renderers (string, optional)
 
 titles:
-  - name: Example Title 1
+  - name: Example Win95 Sound Title
     era: win95
     requires_86box: true
-    hardware_notes: "Requires SoundBlaster hardware timing not reproducible in VirtualBox."
+    hardware_notes: "Requires SoundBlaster IRQ timing that VirtualBox SB16 emulation does not reproduce. Audio stutters and locks up under VirtualBox."
     renderer_notes: ""
 
-  - name: Example Title 2
+  - name: Example Win98 PCI Title
     era: win98
     requires_86box: true
-    hardware_notes: "Depends on specific PCI bus behaviour present only in 86Box."
-    renderer_notes: "Ships multiple renderers — software renderer works, Glide renderer requires Voodoo hardware."
+    hardware_notes: "Depends on specific PCI bus arbitration behaviour present only under 86Box. Hangs at loading screen under VirtualBox."
+    renderer_notes: ""
 
-  - name: Example Title 3
+  - name: Example Win98 Glide Title
     era: win98
     requires_86box: false
     hardware_notes: ""
-    renderer_notes: "Runs correctly under VirtualBox. Listed for reference only."
+    renderer_notes: "Ships both a Glide renderer and a software renderer. Glide renderer requires Voodoo hardware not present in VirtualBox. Software renderer runs correctly under VirtualBox — select it from the in-game options menu."
+
+  - name: Example Win95 Confirmed Title
+    era: win95
+    requires_86box: false
+    hardware_notes: "Confirmed working under VirtualBox with default Win95 hardware template. No accuracy mode required."
+    renderer_notes: ""
+
+  - name: Example Win98 Full Notes Title
+    era: win98
+    requires_86box: true
+    hardware_notes: "Relies on memory-mapped I/O timing for its copy protection check. Fails the check and exits under VirtualBox regardless of hardware settings."
+    renderer_notes: "Software renderer is broken in this version — only the Glide path produces correct output. Requires 86Box with a Voodoo card configured in the hardware template."
