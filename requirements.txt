@@ -2,4 +2,4 @@ textual>=0.80.0
 pywin32>=306
 PyYAML>=6.0
 python-dotenv>=1.0
-pycdlib>=3.0.0
+pycdlib>=1.14.0
