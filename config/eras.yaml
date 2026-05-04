@@ -14,19 +14,23 @@ win31:
   mount_type: hdd
 
 win95:
-  backend: 86box
+  primary: virtualbox
+  compat: dosbox
+  accuracy: 86box
   memory_limit_mb: 512
   supported_media: ['.iso', '.img', '.cue']
   mount_type: cdrom
 
 win98:
-  backend: 86box
+  primary: virtualbox
+  compat: dosbox
+  accuracy: 86box
   memory_limit_mb: 512
   supported_media: ['.iso', '.img', '.cue']
   mount_type: cdrom
 
 winxp:
-  backend: 86box
+  primary: virtualbox
   memory_limit_mb: 1024
   supported_media: ['.iso', '.img', '.cue']
   mount_type: cdrom

@@ -279,15 +279,10 @@ class ProfileScreen(Screen):
 
         suggested = detect_era(media_path)
 
-        backend = "dosbox" if era.value in ("dos", "win31") else "86box"
         profile = Profile(
             name=name,
             era=era,
             media_path=media_path,
-            backend=backend,
-            dosbox_conf_path=Path(""),
-            hdd_image_path=Path(""),
-            installed=False,
             notes="",
         )
         try:

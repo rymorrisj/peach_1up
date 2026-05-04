@@ -16,7 +16,7 @@ from utils.rom_check import is_rom_pack_present
 SUPPORTED_MEDIA = {'.iso', '.img', '.cue'}
 
 # Supported eras for 86Box backend
-SUPPORTED_ERAS = {'win95', 'win98', 'winxp'}
+SUPPORTED_ERAS = {'win95', 'win98'}
 
 
 def validate_media(media_path: Path) -> None:

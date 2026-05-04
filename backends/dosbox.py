@@ -131,11 +131,11 @@ def launch_install(
 
     validate_media(profile.media_path)
 
-    if profile.dosbox_conf_path == Path(""):
+    if not profile.dosbox_conf_path:
         raise ValueError(
             f"Profile '{profile.name}' has no dosbox_conf_path set. Run generate_conf first."
         )
-    if profile.hdd_image_path == Path(""):
+    if not profile.hdd_image_path:
         raise ValueError(
             f"Profile '{profile.name}' has no hdd_image_path set. Run ensure_hdd first."
         )
@@ -183,11 +183,11 @@ def launch_game(
 
     validate_media(profile.media_path)
 
-    if profile.dosbox_conf_path == Path(""):
+    if not profile.dosbox_conf_path:
         raise ValueError(
             f"Profile '{profile.name}' has no dosbox_conf_path set. Run generate_conf first."
         )
-    if profile.hdd_image_path == Path(""):
+    if not profile.hdd_image_path:
         raise ValueError(
             f"Profile '{profile.name}' has no hdd_image_path set. Run ensure_hdd first."
         )
