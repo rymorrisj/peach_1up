@@ -9,6 +9,8 @@ from typing import Any, Optional
 
 import yaml
 
+from utils.image_manager import create_working_copy as _img_create_working_copy
+
 
 _VALID_ERAS = frozenset({"win95", "win98", "winxp"})
 _VALID_MEDIA_PATH_TYPES = frozenset({"preinstalled", "installer"})
@@ -46,6 +48,32 @@ class OSPlatform:
     media_path_type: str = "installer"
     notes: str = ""
     status: str = "unknown"
+
+    def create_working_copy(self, base_image_path: Path) -> Path:
+        """Create a working copy of the base image for this platform.
+
+        Delegates to ``image_manager.create_working_copy`` using this platform's
+        ``era`` and ``platform_id``. Sets ``self.working_image_path`` on success.
+
+        The caller must call ``save()`` explicitly after this method — no
+        auto-save is performed here.
+
+        Args:
+            base_image_path: Path to the base image to copy.
+
+        Returns:
+            Path to the newly created working copy.
+
+        Raises:
+            FileNotFoundError: If ``base_image_path`` does not exist.
+            FileExistsError: If a working copy already exists at the target path.
+            OSError: If the copy or rename fails.
+        """
+        working_path = _img_create_working_copy(
+            base_image_path, self.era, self.platform_id
+        )
+        self.working_image_path = working_path
+        return working_path
 
 
 def _validate_platform(data: dict[str, Any], source: str) -> OSPlatform:
