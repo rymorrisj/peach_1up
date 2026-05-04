@@ -11,14 +11,14 @@ from .constants import Era
 
 
 def _load_eras_config() -> Dict[str, Any]:
-    """
-    Load and parse eras.yaml configuration file.
+    """Load and parse ``config/eras.yaml``.
 
     Returns:
-        Dictionary containing eras configuration data
+        Dictionary mapping era keys to their configuration values.
 
     Raises:
-        Exception: If file not found or YAML parsing fails
+        FileNotFoundError: If ``eras.yaml`` cannot be found.
+        yaml.YAMLError: If the file exists but is not valid YAML.
     """
     config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'eras.yaml')
     with open(config_path, 'r') as f:
@@ -26,23 +26,28 @@ def _load_eras_config() -> Dict[str, Any]:
 
 
 def get_launch_fn(era: Era) -> Callable:
-    """
-    Get the launch function for the specified era's backend.
+    """Return the ``launch`` callable for the backend that handles ``era``.
+
+    Reads the backend name from ``eras.yaml``, imports the matching backend
+    module, and returns its ``launch`` function.
 
     Args:
-        era: Gaming era to get launch function for
+        era: The gaming era to resolve.
 
     Returns:
-        Launch function callable for era's backend, or None if backend not implemented.
+        The ``launch`` function from ``backends.dosbox`` or ``backends.box86``.
 
-    Notes:
-        - Returns backends.dosbox.launch for dos and win31 eras
-        - Returns backends.box86.launch for win95, win98, winxp eras
-        - Reads backend name from eras.yaml configuration
+    Raises:
+        RuntimeError: If ``eras.yaml`` cannot be loaded, the era is not
+            configured, the backend name is unknown, or the backend module
+            cannot be imported.
     """
     try:
         eras_config = _load_eras_config()
+    except (FileNotFoundError, yaml.YAMLError) as e:
+        raise RuntimeError(f"Failed to load eras.yaml configuration: {e}")
 
+    try:
         era_config = eras_config.get(era.value)
         if not era_config:
             raise ValueError(f"Era '{era.value}' not found in eras.yaml")
@@ -51,7 +56,6 @@ def get_launch_fn(era: Era) -> Callable:
         if not backend_name:
             raise ValueError(f"Backend not configured for era '{era.value}' in eras.yaml")
 
-        # Route to appropriate backend
         if backend_name == 'dosbox':
             from backends.dosbox import launch
             return launch
@@ -62,24 +66,21 @@ def get_launch_fn(era: Era) -> Callable:
             raise ValueError(f"Unknown backend '{backend_name}' for era '{era.value}'")
 
     except Exception as e:
-        raise RuntimeError(f"Failed to load eras.yaml configuration: {str(e)}")
+        raise RuntimeError(f"Failed to resolve backend for era '{era.value}': {e}")
 
 
 def get_backend_name(era: Era) -> str:
-    """
-    Get the display name of the backend for the specified era.
+    """Return a human-readable display name for the backend handling ``era``.
+
+    Pure display function for the UI layer — does not validate that the
+    backend is installed or functional.
 
     Args:
-        era: Gaming era to get backend name for
+        era: The gaming era to look up.
 
     Returns:
-        Human-readable backend name (e.g., "DOSBox-X", "86Box")
-        Returns "Unknown" if era not found in configuration
-
-    Notes:
-        - Pure display function for UI layer
-        - Does not validate backend implementation status
-        - Maps backend config names to display names
+        Display name string (``"DOSBox-X"``, ``"86Box"``), or ``"Unknown"``
+        if the era is not in the configuration or an error occurs.
     """
     try:
         eras_config = _load_eras_config()
@@ -92,7 +93,6 @@ def get_backend_name(era: Era) -> str:
         if not backend_name:
             return "Unknown"
 
-        # Map config names to display names
         if backend_name == 'dosbox':
             return "DOSBox-X"
         elif backend_name == '86box':
@@ -101,16 +101,23 @@ def get_backend_name(era: Era) -> str:
             return "Unknown"
 
     except Exception:
-        # If any error loading config, return fallback
         return "Unknown"
 
 
+# NAMING: get_executable_path returns a tuple (path, env_var_name) — the second
+# element is the name of the environment variable that supplied the path, not
+# another path.  The function name does not signal the two-value return.
 def get_executable_path(era: Era) -> tuple[str, str]:
-    """
-    Get the executable path and env var name for the specified era's backend.
-    
+    """Return the emulator executable path and the env var that provides it.
+
+    Args:
+        era: The gaming era to look up.
+
     Returns:
-        Tuple of (executable_path, env_var_name)
+        A tuple of ``(executable_path, env_var_name)`` where ``env_var_name``
+        is the environment variable consulted (``"DOSBOX_PATH"`` or
+        ``"BOX86_PATH"``) and ``executable_path`` is its current value, or
+        an empty string if the variable is not set.
     """
     if era.value in ('win95', 'win98', 'winxp'):
         env_var = 'BOX86_PATH'
