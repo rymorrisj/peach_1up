@@ -70,9 +70,33 @@ def init() -> None:
     _env: dict[str, str] = {}
     for _emulator, (env_var, _override) in _ENV_BINARY_VARS.items():
         _env[env_var] = os.getenv(env_var, "")
+    _env["ROM_PATH"] = os.getenv("ROM_PATH", "")
     state["_env"] = _env
 
     _state = state
+
+
+def get_env_var(key: str) -> str:
+    """Return an env var value from the snapshot captured at init() time.
+
+    Args:
+        key: The environment variable name (e.g. ``'ROM_PATH'``).
+
+    Returns:
+        The value captured at init() time, or an empty string if unset.
+
+    Raises:
+        RuntimeError: If init() has not been called.
+        KeyError: If ``key`` was not included in the snapshot.
+    """
+    state = _require_init()
+    env = state["_env"]
+    if key not in env:
+        raise KeyError(
+            f"'{key}' was not captured in the settings snapshot. "
+            "Only env vars snapshotted during init() are accessible via get_env_var()."
+        )
+    return env[key]
 
 
 def _require_init() -> dict:
