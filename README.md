@@ -41,7 +41,7 @@ the era selector. The warning clears automatically once the pack is in place.
 1. Clone the repo
 
 ```terminal
-git clone https://github.com/<your-org>/peach_1up
+git clone https://github.com/rymorrisj/peach_1up
 cd peach_1up
 ```
 
