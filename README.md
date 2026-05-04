@@ -1,31 +1,87 @@
 # Peach 1UP
 
-Retro game launcher and VM manager for DOS through Windows XP era games.
+Retro game launcher for DOS through Windows XP era games. Point it at a disk
+image, pick an era, and it spins up the correct emulator with the media
+mounted and sensible defaults applied — no manual emulator configuration
+required. Currently a keyboard-driven TUI; a GUI is planned for a later phase.
 
-## Quick Start
+Covers DOS, Windows 3.1 (via DOSBox-X) and Windows 95, 98, XP (via 86Box).
+Emulators run natively on the Windows host under Windows Job Objects for
+process isolation and network blocking.
 
-TODO: Setup and usage instructions will be added as features are implemented.
+---
 
-## Requirements
+## Prerequisites
 
-- Python 3.11+
-- Docker Desktop (with WSL2 on Windows Home)
-- VcXsrv X Server
+| Requirement                            | Notes                                                                                   |
+| -------------------------------------- | --------------------------------------------------------------------------------------- |
+| Windows 10/11 (Home edition supported) | WSL2 must be enabled                                                                    |
+| Python 3.11                            | [python.org](https://www.python.org/downloads/)                                         |
+| DOSBox-X                               | Required for DOS and Windows 3.1 — [dosbox-x.com](https://dosbox-x.com)                 |
+| 86Box                                  | Required for Windows 95, 98, XP — [86box.net](https://86box.net)                        |
+| 86Box ROM pack                         | Required for 86Box to function — [github.com/86Box/roms](https://github.com/86Box/roms) |
 
-### ROM Pack Setup (Windows 95, 98, XP)
+### ROM pack setup
 
-Games from the Windows 95, 98, and XP era require the 86Box emulator and a ROM pack to function. These are copyrighted but required for 86Box to work.
+Clone the ROM pack into a local directory:
 
-**Option 1 — Automatic (recommended)**
-Open Peach 1UP, go to Settings, and select "Download ROM pack". The launcher will clone the official ROM pack from https://github.com/86Box/roms into your configured ROM_PATH automatically.
+```terminal
+git clone https://github.com/86Box/roms C:\path\to\roms
+```
 
-**Option 2 — Manual**
-Clone or download the ROM pack yourself from https://github.com/86Box/roms and place the files in the path set by ROM_PATH in your .env file.
+Then set `ROM_PATH` in your `.env` file to that directory (see below).
 
-If the ROM pack is not detected, a warning will appear next to Windows 95, 98, and XP in the era selector. The warning disappears automatically once the pack is in place.
+If the ROM pack is absent, a warning will appear next to Windows 95/98/XP in
+the era selector. The warning clears automatically once the pack is in place.
+
+---
+
+## Installation
+
+1. Clone the repo
+
+```terminal
+git clone https://github.com/<your-org>/peach_1up
+cd peach_1up
+```
+
+2. Install dependencies
+
+```terminal
+pip install -r requirements.txt
+```
+
+3. Create your `.env` file
+
+Copy the template and fill in paths for your machine:
+
+```terminal
+cp .env.example .env
+```
+
+Required variables:
+
+```py
+DOSBOX_PATH=C:\Program Files\DOSBox-X\dosbox-x.exe
+BOX86_PATH=C:\Program Files\86Box\86Box.exe
+ROM_PATH=C:\path\to\86box-roms
+PROFILES_PATH=.\profiles
+```
+
+4. Run the launcher
+
+```py
+python launcher.py
+```
+
+The launcher requests administrator privileges on startup (required for
+Windows Job Objects and Firewall rule management). A UAC prompt will appear
+on first run.
+
+---
 
 ## Documentation
 
-- [CLAUDE.md](CLAUDE.md) - Project overview and technical details
-- [CONTEXT.md](CONTEXT.md) - Current development roadmap
-- [DECISIONS.md](DECISIONS.md) - Design decision log
+- [CONTEXT.md](CONTEXT.md) — Development roadmap and current task
+- [DECISIONS.md](DECISIONS.md) — Design decision log
+- [CLAUDE.md](CLAUDE.md) — Project technical reference
