@@ -199,10 +199,9 @@ class WindowsJobObject:
             self.process_name = os.path.basename(executable_path).replace('.exe', '')
         else:
             self.process_name = f"process_{self.pid}"
-
-        # TODO P2: Reduce PROCESS_ALL_ACCESS to the minimal required access mask for hardening
+        # Perviously was using 0x001F0FFF which requests every possible permission on the process. Updated to use minimal permissions
         process_handle = ctypes.windll.kernel32.OpenProcess(
-            0x001F0FFF,  # PROCESS_ALL_ACCESS
+            0x0201,  # PROCESS_SET_QUOTA | PROCESS_TERMINATE — minimum for AssignProcessToJobObject
             False,
             process.pid
         )
@@ -260,6 +259,7 @@ class WindowsJobObject:
             fw_rule_out.Profiles = 0x7FFFFFFF  # all network profiles (domain, private, public)
             fw_policy.Rules.Add(fw_rule_out)
             self.firewall_rule_names.append(rule_name_out)
+            self._verify_firewall_rule(fw_policy, rule_name_out, "outbound")
 
             # Inbound block rule
             fw_rule_in = win32com.client.Dispatch("HNetCfg.FWRule")
@@ -272,11 +272,59 @@ class WindowsJobObject:
             fw_rule_in.Profiles = 0x7FFFFFFF  # all network profiles (domain, private, public)
             fw_policy.Rules.Add(fw_rule_in)
             self.firewall_rule_names.append(rule_name_in)
+            self._verify_firewall_rule(fw_policy, rule_name_in, "inbound")
 
+        except RuntimeError:
+            if self.firewall_rule_names:
+                self._cleanup_partial_firewall_rules()
+            raise
         except Exception as e:
             if self.firewall_rule_names:
                 self._cleanup_partial_firewall_rules()
             raise RuntimeError(f"Failed to create firewall rules for {self.process_name}_{pid}. Error: {str(e)}")
+
+    def _verify_firewall_rule(self, fw_policy, rule_name: str, direction: str) -> None:
+        """Verify that a Windows Firewall rule is active immediately after creation.
+
+        Queries ``fw_policy.Rules.Item()`` to confirm the rule exists and is
+        enabled.  Called after each ``Rules.Add()`` in ``block_network_access``
+        before the emulator process is resumed.
+
+        Args:
+            fw_policy: The ``HNetCfg.FwPolicy2`` COM dispatch object.
+            rule_name: Name of the rule to verify.
+            direction: ``"inbound"`` or ``"outbound"`` — used in the error message only.
+
+        Raises:
+            RuntimeError: If the rule cannot be retrieved or is not enabled,
+                formatted for display via the TUI error screen.
+        """
+        _options = (
+            "Options:\n"
+            "A) Open Windows Firewall Advanced Security (wf.msc), search for Peach1UP "
+            "rules, remove any orphaned entries manually, then retry.\n"
+            "B) Confirm Peach 1UP is running as Administrator — firewall rule creation "
+            "requires elevated privileges.\n"
+            "Awaiting your decision."
+        )
+
+        try:
+            verified = fw_policy.Rules.Item(rule_name)
+        except Exception as e:
+            raise RuntimeError(
+                f"❌ Error: Firewall rule verification failed\n"
+                f"Cause: {direction.capitalize()} block rule '{rule_name}' was added but could not be "
+                f"confirmed active — Windows Firewall did not return it on query: {e}\n"
+                f"{_options}"
+            )
+
+        if not verified or not getattr(verified, 'Enabled', False):
+            raise RuntimeError(
+                f"❌ Error: Firewall rule verification failed\n"
+                f"Cause: {direction.capitalize()} block rule '{rule_name}' was returned by Windows Firewall "
+                f"but is not marked as enabled.\n"
+                f"{_options}"
+            )
 
     def _cleanup_partial_firewall_rules(self) -> None:
         """Remove any firewall rules already added to ``self.firewall_rule_names``.
