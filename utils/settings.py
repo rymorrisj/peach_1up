@@ -23,6 +23,7 @@ _DEFAULTS: dict = {
     "dosbox_path_override": "",
     "virtualbox_path_override": "",
     "box86_path_override": "",
+    "suppress_confirmations": [],
 }
 
 # Maps emulator key → (env_var_name, settings_override_key)
@@ -71,6 +72,7 @@ def init() -> None:
     for _emulator, (env_var, _override) in _ENV_BINARY_VARS.items():
         _env[env_var] = os.getenv(env_var, "")
     _env["ROM_PATH"] = os.getenv("ROM_PATH", "")
+    _env["PROFILES_PATH"] = os.getenv("PROFILES_PATH", "profiles")
     state["_env"] = _env
 
     _state = state
@@ -161,6 +163,35 @@ def mark_first_run_complete() -> None:
     state = _require_init()
     state["first_run_complete"] = True
     _save()
+
+
+def add_suppression(suppression_id: str) -> None:
+    """Add a confirmation suppression ID and persist to settings.yaml.
+
+    Idempotent — adding an ID that already exists is a no-op.
+
+    Args:
+        suppression_id: Identifier for the confirmation to suppress
+            (e.g. ``'library_scan_import'``).
+
+    Raises:
+        RuntimeError: If init() has not been called.
+    """
+    state = _require_init()
+    suppressions: list = list(state.get("suppress_confirmations", []))
+    if suppression_id not in suppressions:
+        suppressions.append(suppression_id)
+    state["suppress_confirmations"] = suppressions
+    _save()
+
+
+def is_suppressed(suppression_id: str) -> bool:
+    """Return True if the given confirmation ID has been suppressed.
+
+    Raises:
+        RuntimeError: If init() has not been called.
+    """
+    return suppression_id in _require_init().get("suppress_confirmations", [])
 
 
 def set_override_path(emulator: str, path: str) -> None:

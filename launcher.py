@@ -60,6 +60,12 @@ class Peach1UPApp(App):
                 from screens.system_warning import MissingBinaryScreen
                 self.push_screen(MissingBinaryScreen(missing))
 
+            from utils.platform import run_health_checks
+            from screens.platform_guidance import PlatformHealthModal
+            health = run_health_checks(Path("config") / "platforms.yaml")
+            if any(not r.is_healthy for r in health):
+                self.push_screen(PlatformHealthModal(health))
+
     def _wizard_needed(self) -> bool:
         """Return True if the first-run setup wizard should be shown."""
         from utils.platform import load_all

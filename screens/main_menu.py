@@ -30,8 +30,10 @@ class MainMenuScreen(Screen):
         ("q", "quit", "Quit"),
         ("l", "launch", "Launch"),
         ("p", "profiles", "Profiles"),
+        ("n", "scan_library", "Scan Library"),
         ("s", "settings", "Settings"),
         ("a", "about", "About"),
+        ("h", "platform_health", "Platform Health"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -43,6 +45,7 @@ class MainMenuScreen(Screen):
             Vertical(
                 Button("Launch", id="launch", variant="primary"),
                 Button("Profiles", id="profiles"),
+                Button("Scan Library", id="scan_library"),
                 Button("Settings", id="settings"),
                 Button("About", id="about"),
                 Button("Quit", id="quit"),
@@ -82,12 +85,27 @@ class MainMenuScreen(Screen):
         from screens.about import AboutScreen
         self.app.switch_screen(AboutScreen())
 
+    def action_scan_library(self) -> None:
+        """Navigate to library scanner screen."""
+        from screens.library_scan import LibraryScanScreen
+        self.app.switch_screen(LibraryScanScreen())
+
+    def action_platform_health(self) -> None:
+        """Run platform health checks and show results."""
+        from pathlib import Path
+        from utils.platform import run_health_checks
+        from screens.platform_guidance import PlatformHealthModal
+        results = run_health_checks(Path("config") / "platforms.yaml")
+        self.app.push_screen(PlatformHealthModal(results))
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press events."""
         if event.button.id == "launch":
             self.action_launch()
         elif event.button.id == "profiles":
             self.action_profiles()
+        elif event.button.id == "scan_library":
+            self.action_scan_library()
         elif event.button.id == "settings":
             self.action_settings()
         elif event.button.id == "about":

@@ -9,8 +9,8 @@ from __future__ import annotations
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.screen import Screen
-from textual.widgets import Button, Label
+from textual.screen import Screen, ModalScreen
+from textual.widgets import Button, Label, Static
 from textual.containers import Horizontal, VerticalScroll
 
 
@@ -114,3 +114,121 @@ class PlatformGuidanceScreen(Screen):
     def _on_register_pressed(self) -> None:
         from screens.platform_registration import PlatformRegistrationScreen
         self.app.push_screen(PlatformRegistrationScreen())
+
+
+class PlatformHealthModal(ModalScreen):
+    """Health check results for all registered platforms.
+
+    Shows one line per platform with pass/fail status. For degraded platforms,
+    lists each failing check and offers two recovery actions:
+    R — re-register via PlatformRegistrationScreen
+    S — restore working image from the most recent snapshot (if available)
+    """
+
+    DEFAULT_CSS = """
+    PlatformHealthModal { align: center middle; }
+    #health-panel {
+        width: 74;
+        height: auto;
+        max-height: 88vh;
+        border: round $primary;
+        padding: 1 2;
+    }
+    .health-ok     { color: $success; }
+    .health-fail   { color: $error; text-style: bold; }
+    .health-issue  { margin-left: 4; color: $warning; }
+    """
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+        Binding("q", "dismiss", "Close"),
+        Binding("r", "re_register", "Re-register"),
+        Binding("s", "restore_snapshot", "Restore snapshot"),
+    ]
+
+    def __init__(self, results: list) -> None:
+        super().__init__()
+        self._results = results
+
+    def compose(self) -> ComposeResult:
+        rows: list = [
+            Static("Platform Health Check", classes="title"),
+            Static(""),
+        ]
+
+        if not self._results:
+            rows.append(Static("No platforms registered."))
+        else:
+            healthy   = [r for r in self._results if r.is_healthy]
+            degraded  = [r for r in self._results if not r.is_healthy]
+
+            for r in healthy:
+                rows.append(Static(
+                    f"  ✓  {r.platform.name}  ({r.platform.era})",
+                    classes="health-ok",
+                ))
+
+            if degraded:
+                if healthy:
+                    rows.append(Static(""))
+                rows.append(Static("Degraded — action required:", classes="health-fail"))
+                for r in degraded:
+                    rows.append(Static(
+                        f"  ✗  {r.platform.name}  ({r.platform.era})",
+                        classes="health-fail",
+                    ))
+                    for issue in r.issues:
+                        rows.append(Static(f"      {issue}", classes="health-issue"))
+
+        rows += [
+            Static(""),
+            Static(
+                "R: Re-register platform  •  S: Restore from snapshot  •  Esc/q: Close",
+                classes="help",
+            ),
+        ]
+        yield VerticalScroll(*rows, id="health-panel")
+
+    def action_re_register(self) -> None:
+        from screens.platform_registration import PlatformRegistrationScreen
+        self.app.push_screen(PlatformRegistrationScreen())
+
+    def action_restore_snapshot(self) -> None:
+        degraded = [r for r in self._results if not r.is_healthy]
+        if not degraded:
+            return
+
+        for result in degraded:
+            p = result.platform
+            if p.working_image_path is None:
+                continue
+            from utils.image_manager import list_snapshots, restore_snapshot
+            snapshots = list_snapshots(p.working_image_path)
+            if not snapshots:
+                continue
+            most_recent = snapshots[-1]
+            try:
+                restore_snapshot(most_recent, p.working_image_path)
+                from screens.error import ErrorScreen
+                self.app.push_screen(ErrorScreen(
+                    "Snapshot restored",
+                    f"Platform '{p.name}' restored from {most_recent.name}.\n"
+                    "Dismiss to close the health check.",
+                    on_dismiss=self.dismiss,
+                ))
+            except Exception as exc:
+                from screens.error import ErrorScreen
+                self.app.push_screen(ErrorScreen(
+                    "Restore failed",
+                    str(exc),
+                    on_dismiss=lambda: None,
+                ))
+            return
+
+        from screens.error import ErrorScreen
+        self.app.push_screen(ErrorScreen(
+            "No snapshots available",
+            "No snapshots were found for any degraded platform.\n"
+            "Use R to re-register the platform instead.",
+            on_dismiss=lambda: None,
+        ))

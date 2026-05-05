@@ -5,7 +5,7 @@ import tempfile
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 import yaml
 
@@ -222,6 +222,67 @@ def save(platform: OSPlatform, platforms_path: Path) -> None:
         except OSError:
             pass
         raise
+
+
+@dataclass
+class HealthResult:
+    """Result of a health check for a single registered OSPlatform.
+
+    Attributes:
+        platform: The platform that was checked.
+        issues: List of human-readable failure descriptions. Empty means healthy.
+    """
+    platform: OSPlatform
+    issues: List[str]
+
+    @property
+    def is_healthy(self) -> bool:
+        """Return True if no issues were found."""
+        return not self.issues
+
+
+def run_health_checks(platforms_path: Path) -> List[HealthResult]:
+    """Run health checks against every registered platform.
+
+    Checks each platform's ``base_image_path`` and ``working_image_path``:
+    both must be set, exist on disk, and be files (not directories).
+
+    Errors loading the platform file are caught and return an empty list so
+    health checks never block startup.
+
+    Args:
+        platforms_path: Path to ``platforms.yaml``.
+
+    Returns:
+        One ``HealthResult`` per registered platform. Empty if no platforms
+        are registered or the file cannot be read.
+    """
+    try:
+        platforms = load_all(platforms_path)
+    except Exception:
+        return []
+
+    results: List[HealthResult] = []
+    for platform in platforms:
+        issues: List[str] = []
+
+        if platform.base_image_path is None:
+            issues.append("Base image path is not set")
+        elif not platform.base_image_path.exists():
+            issues.append(f"Base image not found: {platform.base_image_path.name}")
+        elif not platform.base_image_path.is_file():
+            issues.append("Base image path points to a directory, not a file")
+
+        if platform.working_image_path is None:
+            issues.append("Working image path is not set")
+        elif not platform.working_image_path.exists():
+            issues.append(f"Working image not found: {platform.working_image_path.name}")
+        elif not platform.working_image_path.is_file():
+            issues.append("Working image path points to a directory, not a file")
+
+        results.append(HealthResult(platform=platform, issues=issues))
+
+    return results
 
 
 def find_by_id(platforms_path: Path, platform_id: str) -> Optional[OSPlatform]:

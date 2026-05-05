@@ -10,13 +10,14 @@ from typing import Optional
 from textual.app import ComposeResult
 from textual.screen import Screen, ModalScreen
 from textual.widgets import Static, ListView, ListItem, Label, Input
-from textual.containers import Container
+from textual.containers import Container, VerticalScroll
 
 from utils.constants import Era
-from utils.profile import Profile, load, list_profiles, save
+from utils.profile import Profile, load, list_profiles, save, append_history, load_history
 from utils.dosbox_config import generate_conf
 from utils.vhd import ensure_hdd
 from utils.media_detect import detect_era
+from utils import settings
 from utils.backend_router import get_executable_path
 from utils.job_objects import WindowsJobObject
 from backends.dosbox import launch_install, launch_game
@@ -24,7 +25,7 @@ from screens.error import ErrorScreen
 
 
 def _profiles_dir() -> Path:
-    return Path(os.getenv("PROFILES_PATH", "profiles"))
+    return Path(settings.get_env_var("PROFILES_PATH"))
 
 
 def _conf_dir() -> Path:
@@ -109,6 +110,56 @@ class EraSelectModal(ModalScreen):
         self.query_one(ListView).action_cursor_up()
 
 
+class HistoryModal(ModalScreen):
+    """Read-only view of a profile's save history, newest entry first."""
+
+    DEFAULT_CSS = """
+    HistoryModal { align: center middle; }
+    #history-panel {
+        width: 72;
+        height: auto;
+        max-height: 88vh;
+        border: round $primary;
+        padding: 1 2;
+    }
+    .history-ts { text-style: bold; margin-top: 1; }
+    .history-change { margin-left: 2; }
+    """
+
+    BINDINGS = [
+        ("escape", "dismiss", "Close"),
+        ("q", "dismiss", "Close"),
+    ]
+
+    def __init__(self, profile: Profile) -> None:
+        super().__init__()
+        self._profile = profile
+
+    def compose(self) -> ComposeResult:
+        entries = load_history(self._profile, _profiles_dir())
+        rows: list = [
+            Static(f"History — {self._profile.name}", classes="title"),
+            Static(""),
+        ]
+        if not entries:
+            rows.append(Static("No history recorded yet."))
+        else:
+            for entry in entries:
+                ts  = entry.get("timestamp", "?")
+                src = entry.get("source", "?")
+                rows.append(Static(f"[{ts}]  source: {src}", classes="history-ts"))
+                for ch in entry.get("changes", []):
+                    field_name = ch.get("field", "?")
+                    old = ch.get("old")
+                    new = ch.get("new")
+                    rows.append(Static(
+                        f"  {field_name}:  {old!r} → {new!r}",
+                        classes="history-change",
+                    ))
+        rows += [Static(""), Static("Esc/q: Close", classes="help")]
+        yield VerticalScroll(*rows, id="history-panel")
+
+
 class ProfileScreen(Screen):
     """List, create, and launch saved game profiles."""
 
@@ -116,6 +167,7 @@ class ProfileScreen(Screen):
         ("b", "back", "Back"),
         ("escape", "back", "Back"),
         ("n", "new_profile", "New"),
+        ("h", "view_history", "History"),
         ("q", "force_stop", "Force Stop"),
         ("f9", "force_stop", "Force Stop"),
     ]
@@ -212,6 +264,22 @@ class ProfileScreen(Screen):
         if self._state == "list":
             self._start_create_name()
 
+    def action_view_history(self) -> None:
+        if self._state != "list":
+            return
+        try:
+            lv = self.query_one("#profile_list", ListView)
+            item = lv.highlighted_child
+            if item is None or not item.name:
+                return
+            profiles = self._load_profiles()
+            profile = next((p for p in profiles if p.name == item.name), None)
+            if profile is None:
+                return
+            self.app.push_screen(HistoryModal(profile))
+        except Exception:
+            pass
+
     def action_back(self) -> None:
         if self._state in ("install_running", "game_running"):
             return
@@ -293,6 +361,17 @@ class ProfileScreen(Screen):
                 ErrorScreen("Profile creation failed", str(exc), on_dismiss=lambda: None)
             )
             return
+
+        append_history(
+            profile,
+            _profiles_dir(),
+            "user",
+            [
+                {"field": "name",       "old": None, "new": name},
+                {"field": "era",        "old": None, "new": era.value},
+                {"field": "media_path", "old": None, "new": str(media_path)},
+            ],
+        )
 
         self._state = "list"
         self.refresh(recompose=True)
@@ -389,6 +468,12 @@ class ProfileScreen(Screen):
             self._active_profile.installed = True
             try:
                 save(self._active_profile, _profiles_dir())
+                append_history(
+                    self._active_profile,
+                    _profiles_dir(),
+                    "user",
+                    [{"field": "installed", "old": False, "new": True}],
+                )
                 self.notify(
                     f"'{profile_name}' installed and ready to launch.",
                     timeout=6,

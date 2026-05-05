@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
@@ -166,3 +167,70 @@ def list_profiles(profiles_dir: Path) -> list[Path]:
     if not profiles_dir.exists():
         return []
     return sorted(profiles_dir.glob("*.yaml"))
+
+
+def append_history(
+    profile: Profile,
+    profiles_dir: Path,
+    source: str,
+    changes: list[dict],
+) -> None:
+    """Append a history entry to the profile's sidecar history file.
+
+    The sidecar is written at ``<profiles_dir>/<profile.name>.history.yaml``
+    and is append-only — entries are never rewritten or truncated.
+
+    This function never raises. Any I/O or serialisation error is silently
+    swallowed so that history writes never block a profile save.
+
+    Args:
+        profile: The profile being saved.
+        profiles_dir: Directory containing profile YAML files.
+        source: Short label for the caller — ``'user'``, ``'scanner'``, or
+            ``'wizard'``.
+        changes: List of change dicts, each with keys ``'field'``, ``'old'``,
+            and ``'new'``.
+    """
+    try:
+        hist_path = profiles_dir / f"{profile.name}.history.yaml"
+        entry = {
+            "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
+            "source": source,
+            "changes": changes,
+        }
+        existing: list = []
+        if hist_path.exists():
+            with hist_path.open("r", encoding="utf-8") as fh:
+                loaded = yaml.safe_load(fh) or []
+            if isinstance(loaded, list):
+                existing = loaded
+        existing.append(entry)
+        profiles_dir.mkdir(parents=True, exist_ok=True)
+        with hist_path.open("w", encoding="utf-8") as fh:
+            yaml.safe_dump(existing, fh, allow_unicode=True)
+    except Exception:
+        pass
+
+
+def load_history(profile: Profile, profiles_dir: Path) -> list[dict]:
+    """Load the history for a profile, newest entry first.
+
+    Args:
+        profile: The profile whose history to load.
+        profiles_dir: Directory containing profile YAML files.
+
+    Returns:
+        List of history entry dicts in reverse chronological order, or an
+        empty list if no history exists or any error occurs.
+    """
+    try:
+        hist_path = profiles_dir / f"{profile.name}.history.yaml"
+        if not hist_path.exists():
+            return []
+        with hist_path.open("r", encoding="utf-8") as fh:
+            data = yaml.safe_load(fh) or []
+        if isinstance(data, list):
+            return list(reversed(data))
+        return []
+    except Exception:
+        return []
