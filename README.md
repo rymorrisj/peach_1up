@@ -5,9 +5,8 @@ image, pick an era, and it spins up the correct emulator with the media
 mounted and sensible defaults applied — no manual emulator configuration
 required. Currently a keyboard-driven TUI; a GUI is planned for a later phase.
 
-Covers DOS, Windows 3.1 (via DOSBox-X) and Windows 95, 98, XP (via 86Box).
-Emulators run natively on the Windows host under Windows Job Objects for
-process isolation and network blocking.
+Covers DOS and Windows 3.1 via DOSBox-X, and Windows 95, 98, and XP via VirtualBox.
+86Box is available as an opt-in accuracy mode for Windows 95 and 98.
 
 ---
 

@@ -13,8 +13,7 @@
 Retro game launcher and VM manager. Point at a disk image, select an era,
 and a pre-configured isolated container spins up with the correct emulator,
 media mounted, and sensible defaults applied. Covers DOS through Windows XP.
-Runs on Windows (Home edition). Docker is the isolation layer. Built with
-Python and a keyboard-driven TUI.
+Runs on Windows (Home edition)
 
 ## Stack
 
@@ -29,13 +28,13 @@ Python and a keyboard-driven TUI.
 
 ## Era → Backend Mapping
 
-| Era         | Primary    | Fallback                              | ROM Required |
-| ----------- | ---------- | ------------------------------------- | ------------ |
-| DOS         | DOSBox-X   | —                                     | No           |
-| Windows 3.1 | DOSBox-X   | —                                     | No           |
-| Windows 95  | VirtualBox | DOSBox-X (compat), 86Box (accuracy)   | 86Box only   |
-| Windows 98  | VirtualBox | DOSBox-X (compat), 86Box (accuracy)   | 86Box only   |
-| Windows XP  | VirtualBox | —                                     | No           |
+| Era         | Primary    | Fallback                            | ROM Required |
+| ----------- | ---------- | ----------------------------------- | ------------ |
+| DOS         | DOSBox-X   | —                                   | No           |
+| Windows 3.1 | DOSBox-X   | —                                   | No           |
+| Windows 95  | VirtualBox | DOSBox-X (compat), 86Box (accuracy) | 86Box only   |
+| Windows 98  | VirtualBox | DOSBox-X (compat), 86Box (accuracy) | 86Box only   |
+| Windows XP  | VirtualBox | —                                   | No           |
 
 ## Folder Structure
 
@@ -56,11 +55,6 @@ peach-1up/
 │ ├── dosbox.py # DOSBox-X container logic
 │ ├── box86.py # 86Box container logic
 │ └── virtualbox.py # VirtualBox backend
-├── docker/
-│ ├── dosbox/
-│ │ └── Dockerfile
-│ └── 86box/
-│ └── Dockerfile
 ├── utils/
 │ ├── media_detect.py # sniff .iso/.img/.cue to suggest era
 │ └── profile_builder.py # create/edit game profiles
@@ -129,8 +123,6 @@ Awaiting your decision.
 
 - 86Box requires a ROM pack to function. If ROMs are missing, fail gracefully
   with the official ROM pack link, do not attempt to launch with missing ROMs.
-- Docker Desktop on Windows Home requires WSL2 to be enabled. Check for this
-  on startup and surface a clear error if it is not present.
 - game profile .yaml files are user-editable — validate them on load and fail
   clearly if required fields are missing or malformed.
 - Emulators run natively on Windows host under Job Objects isolation.
@@ -143,7 +135,6 @@ Awaiting your decision.
 
 ## Official Download Links
 
-- Docker Desktop: https://www.docker.com/products/docker-desktop
 - DOSBox-X: https://dosbox-x.com
 - 86Box: https://86box.net
 - 86Box ROM pack: https://github.com/86Box/roms
@@ -190,7 +181,6 @@ Use the area of the project being changed:
 - tui — Textual interface
 - dosbox — DOSBox-X backend
 - 86box — 86Box backend
-- docker — Dockerfiles or container config
 - profiles — game profile system
 - detection — media or system detection logic
 - config — settings, .env, yaml files
@@ -199,12 +189,12 @@ Use the area of the project being changed:
 
 ### Examples
 
-chore(docker): add initial Dockerfile for DOSBox-X container
+chore(emulator): adding a new extension to bundle with the application
 feat(tui): add era selector screen with keyboard navigation
 fix(86box): fail gracefully when ROM path is missing
 safety(launcher): abort on DISPLAY not found, show VcXsrv link
 feat(profiles): add YAML save and load for game profiles
-docs(decisions): log Docker over VirtualBox decision
+docs(decisions): log over VirtualBox decision
 
 ### Rules
 
