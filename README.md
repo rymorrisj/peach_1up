@@ -11,14 +11,6 @@ Covers PC platforms from DOS through Windows XP and first-generation consoles
 
 ## Prerequisites
 
-### Primary install (Docker Compose)
-
-| Requirement         | Notes                                                                                      |
-| ------------------- | ------------------------------------------------------------------------------------------ |
-| Docker Engine       | Linux: [docs.docker.com](https://docs.docker.com/engine/install/). Windows: via WSL2.     |
-| WSL2 (Windows only) | Enable via `wsl --install` in an elevated PowerShell prompt.                               |
-| Docker Compose      | Included with Docker Engine.                                                               |
-
 ### Emulators (installed on the host OS)
 
 | Emulator   | Era               | Notes                                                                              |
@@ -36,7 +28,7 @@ Covers PC platforms from DOS through Windows XP and first-generation consoles
 Emulators marked "requires BIOS" need a BIOS image sourced from your own
 hardware. Peach 1UP does not provide BIOS files.
 
-### Python fallback (no Docker)
+### Python
 
 | Requirement | Notes                                                  |
 | ----------- | ------------------------------------------------------ |
@@ -44,37 +36,22 @@ hardware. Peach 1UP does not provide BIOS files.
 
 ---
 
-## Quick Start
+## Development
 
-### Docker (recommended)
-
-```terminal
-git clone https://github.com/rymorrisj/peach_1up
-cd peach_1up
-./docker-start.sh    # Linux
-docker-start.bat     # Windows
-```
-
-Then open `http://localhost:8080`.
-
-**Windows:** requires Docker Engine running under WSL2. Run
-`wsl --install` in an elevated PowerShell prompt if WSL2 is not yet enabled.
-
-### Without Docker (Linux/Mac)
-
-```terminal
+```bash
+# Backend
 pip install -r backend/requirements.txt
-./start.sh
+./start.sh    # Linux
+start.bat     # Windows
+
+# Frontend (separate terminal)
 cd frontend && npm run dev
 ```
 
-### Without Docker (Windows)
+## Production (coming in P4.5)
 
-```terminal
-pip install -r backend/requirements.txt
-start.bat
-cd frontend && npm run dev
-```
+- **Windows:** download and run `Peach1UP-Setup-Windows-x64.exe`
+- **Linux:** download `peach1up-linux-x64.deb` or `.AppImage`
 
 ---
 

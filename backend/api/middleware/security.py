@@ -70,7 +70,8 @@ class FirstRunGuardMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         global _first_run_done_cache
 
-        if _first_run_done_cache or request.url.path in _FIRST_RUN_EXEMPT_PATHS:
+        is_emulator_path = request.url.path.startswith("/api/v1/emulators")
+        if _first_run_done_cache or request.url.path in _FIRST_RUN_EXEMPT_PATHS or is_emulator_path:
             return await call_next(request)
 
         first_run_done = False

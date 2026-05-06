@@ -8,20 +8,13 @@ as an open source project.
 
 ## Infrastructure
 
-**Docker Engine (headless) via WSL2 on Windows, native on Linux. Docker Compose for orchestration.**
-
-The homelab and self-hosted audience is familiar with compose stacks, and it
-eliminates per-OS dependency management entirely. Docker Desktop is not
-required or recommended — Docker Engine headless is the target.
+PyInstaller compiles the Python backend to a standalone executable. React builds to static files served by FastAPI. pystray provides a system tray icon. Windows installer via NSIS/WiX, Linux via deb/AppImage. GitHub Actions handles release builds. Deferred to P4.5.
 
 ## Platform
 
 **Linux-first.**
 
-Application containers run identically on Linux servers, Linux desktops, and
-Windows via WSL2. Emulators run natively on the host OS regardless of
-platform. This keeps a single clean codebase without Windows-specific
-application code paths.
+The application runs natively on Linux and Windows. Emulators run natively on the host OS regardless of platform. This keeps a single clean codebase without platform-specific application code paths.
 
 ## Database
 

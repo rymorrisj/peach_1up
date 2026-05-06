@@ -15,52 +15,57 @@ correct emulator launches with media mounted and sensible defaults applied —
 no manual emulator configuration required. Covers PC platforms from DOS
 through Windows XP and first-generation consoles (PS1, PS2, Xbox OG, NES,
 N64). Process isolation uses cgroups and namespaces on Linux, and Windows Job
-Objects on Windows. Primary install is Docker Compose; start.bat provided as
-a fallback for Windows users who cannot run Docker.
+Objects on Windows.
 
 ## Stack
 
 **Backend / API**
+
 - Python 3.11
 - FastAPI (REST API, OpenAPI spec auto-generated)
 - Pydantic (validation), PyYAML (profiles and config), python-dotenv (env vars)
 - SQLite via SQLAlchemy ORM with Alembic migrations
 
 **Frontend**
+
 - React, TypeScript, Vite
 - TanStack Query (data fetching), Zustand (state), React Router
 - Tailwind CSS, shadcn/ui
 
 **Documentation**
+
 - Docusaurus
 
 **PC Emulators**
+
 - DOSBox-X (DOS and Windows 3.1 — no ROM required)
 - VirtualBox (Windows 95, 98, XP — primary virtualization layer)
 - 86Box (Windows 95, 98 accuracy mode — user supplies ROM pack)
 
 **Console Emulators**
+
 - DuckStation (PS1), PCSX2 (PS2), xemu (Xbox OG)
 - Mesen (NES), Project64 (N64)
 
 **Process Isolation**
+
 - cgroups and network namespaces (Linux)
 - Windows Job Objects (Windows host fallback)
 
 ## Era → Backend Mapping
 
-| Era         | Primary    | Fallback                            | ROM Required |
-| ----------- | ---------- | ----------------------------------- | ------------ |
-| DOS         | DOSBox-X   | —                                   | No           |
-| Windows 3.1 | DOSBox-X   | —                                   | No           |
-| Windows 95  | VirtualBox | DOSBox-X (compat), 86Box (accuracy) | 86Box only   |
-| Windows 98  | VirtualBox | DOSBox-X (compat), 86Box (accuracy) | 86Box only   |
-| Windows XP  | VirtualBox | —                                   | No           |
-| PS1         | DuckStation | —                                  | Yes (PS1 BIOS) |
-| PS2         | PCSX2       | —                                  | Yes (PS2 BIOS) |
-| Xbox OG     | xemu        | —                                  | Yes (Xbox BIOS) |
-| NES         | Mesen       | —                                  | No             |
-| N64         | Project64   | —                                  | No             |
+| Era         | Primary     | Fallback                            | ROM Required    |
+| ----------- | ----------- | ----------------------------------- | --------------- |
+| DOS         | DOSBox-X    | —                                   | No              |
+| Windows 3.1 | DOSBox-X    | —                                   | No              |
+| Windows 95  | VirtualBox  | DOSBox-X (compat), 86Box (accuracy) | 86Box only      |
+| Windows 98  | VirtualBox  | DOSBox-X (compat), 86Box (accuracy) | 86Box only      |
+| Windows XP  | VirtualBox  | —                                   | No              |
+| PS1         | DuckStation | —                                   | Yes (PS1 BIOS)  |
+| PS2         | PCSX2       | —                                   | Yes (PS2 BIOS)  |
+| Xbox OG     | xemu        | —                                   | Yes (Xbox BIOS) |
+| NES         | Mesen       | —                                   | No              |
+| N64         | Project64   | —                                   | No              |
 
 ## Folder Structure
 
@@ -181,6 +186,7 @@ precedence over `settings.yaml` but are not required for a standard install.
 be committed.
 
 Supported legacy overrides (also accepted in settings.yaml):
+
 - DOSBOX_PATH — path to dosbox-x.exe
 - BOX86_PATH — path to 86Box.exe
 - VIRTUALBOX_PATH — path to VBoxManage.exe
@@ -261,6 +267,7 @@ docs(decisions): log over VirtualBox decision
 - P1 — Core usability
 - P2 — Meaningful expansion
 - P3 — Maturity and automation
-- P3.5 — Web UI replacing TUI, FastAPI backend, React frontend, Docker Compose primary install
+- P3.5 — Web UI replacing TUI, FastAPI backend, React frontend
 - P4 — Console backends (PS1, PS2, Xbox OG, NES, N64)
+- P4.5 - Package app as a native installer
 - PX — Nice to haves, no timeline

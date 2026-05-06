@@ -1,0 +1,73 @@
+emulators:
+  - slug: dosbox-x
+    name: DOSBox-X
+    version: "PLACEHOLDER"
+    description: DOS and Windows 3.1 emulation
+    required: false
+    linux_url: "PLACEHOLDER_DOSBOX_X_LINUX_URL"
+    binary_name: dosbox-x
+    license: GPL-2.0
+
+  - slug: 86box
+    name: 86Box
+    version: "PLACEHOLDER"
+    description: Windows 95/98 accuracy mode
+    required: false
+    linux_url: "PLACEHOLDER_86BOX_LINUX_URL"
+    binary_name: 86Box
+    license: GPL-2.0
+
+  - slug: duckstation
+    name: DuckStation
+    version: "PLACEHOLDER"
+    description: PlayStation 1 emulation
+    required: false
+    linux_url: "PLACEHOLDER_DUCKSTATION_LINUX_URL"
+    binary_name: duckstation-qt
+    license: GPL-3.0
+
+  - slug: pcsx2
+    name: PCSX2
+    version: "PLACEHOLDER"
+    description: PlayStation 2 emulation
+    required: false
+    linux_url: "PLACEHOLDER_PCSX2_LINUX_URL"
+    binary_name: pcsx2-qt
+    license: GPL-3.0
+
+  - slug: xemu
+    name: xemu
+    version: "PLACEHOLDER"
+    description: Original Xbox emulation
+    required: false
+    linux_url: "PLACEHOLDER_XEMU_LINUX_URL"
+    binary_name: xemu
+    license: GPL-2.0
+
+  - slug: mesen
+    name: Mesen
+    version: "PLACEHOLDER"
+    description: NES emulation
+    required: false
+    linux_url: "PLACEHOLDER_MESEN_LINUX_URL"
+    binary_name: Mesen
+    license: GPL-3.0
+
+  - slug: project64
+    name: Project64
+    version: "PLACEHOLDER"
+    description: Nintendo 64 emulation
+    required: false
+    linux_url: "PLACEHOLDER_PROJECT64_LINUX_URL"
+    binary_name: project64
+    license: GPL-2.0
+
+  - slug: virtualbox
+    name: VirtualBox
+    version: "PLACEHOLDER"
+    description: Windows 95/98/XP virtualization
+    required: false
+    linux_url: "PLACEHOLDER_VIRTUALBOX_LINUX_URL"
+    binary_name: VBoxManage
+    license: GPL-2.0
+    install_note: "VirtualBox requires system-level installation. Download and run the official installer from virtualbox.org."

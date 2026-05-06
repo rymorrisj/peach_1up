@@ -181,7 +181,7 @@ def complete_first_run(db: Session = Depends(get_db)):
     try:
         svc.mark_first_run_complete()
     except OSError:
-        # Config dir is read-only (Docker bind mount with :ro).
+        # Config dir is read-only (e.g. read-only mount).
         # In-memory state was already updated before the file write failed.
         pass
 

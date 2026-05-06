@@ -1,54 +1,93 @@
-from pathlib import Path
+import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
-from backend.core.settings import get_settings
+from backend.core import install_registry
+from backend.service.utils.emulator_catalog import get_all_statuses, get_emulator
+from backend.service.utils.emulator_installer import download_emulator, remove_emulator
 
 router = APIRouter(prefix="/api/v1/emulators", tags=["emulators"])
-
-_EMULATOR_REGISTRY = {
-    "dosbox-x":   {"name": "DOSBox-X",   "settings_key": "DOSBOX_PATH",      "eras": ["dos", "win31"]},
-    "86box":      {"name": "86Box",       "settings_key": "BOX86_PATH",        "eras": ["win95", "win98"]},
-    "virtualbox": {"name": "VirtualBox",  "settings_key": "VIRTUALBOX_PATH",   "eras": ["win95", "win98", "winxp"]},
-    "duckstation":{"name": "DuckStation", "settings_key": "DUCKSTATION_PATH",  "eras": ["ps1"]},
-    "pcsx2":      {"name": "PCSX2",       "settings_key": "PCSX2_PATH",        "eras": ["ps2"]},
-    "xemu":       {"name": "xemu",        "settings_key": "XEMU_PATH",         "eras": ["xbox"]},
-    "mesen":      {"name": "Mesen",       "settings_key": "MESEN_PATH",        "eras": ["nes"]},
-    "project64":  {"name": "Project64",   "settings_key": "PROJECT64_PATH",    "eras": ["n64"]},
-}
+logger = logging.getLogger(__name__)
 
 
-class EmulatorDetail(BaseModel):
-    slug: str
-    name: str
-    eras: list[str]
-    binary_path: str
-    available: bool
+class DeleteRequest(BaseModel):
+    confirmation_token: str
 
 
-def _resolve(slug: str) -> EmulatorDetail:
-    info = _EMULATOR_REGISTRY[slug]
-    svc = get_settings()
-    path = svc.get(info["settings_key"], "") or ""
-    available = bool(path) and Path(path).is_file()
-    return EmulatorDetail(slug=slug, name=info["name"], eras=info["eras"], binary_path=path, available=available)
-
-
-@router.get("", response_model=list[EmulatorDetail])
+@router.get("")
 def list_emulators():
-    return [_resolve(slug) for slug in _EMULATOR_REGISTRY]
+    return get_all_statuses()
 
 
-@router.get("/{slug}", response_model=EmulatorDetail)
-def get_emulator(slug: str):
-    if slug not in _EMULATOR_REGISTRY:
+@router.post("/{slug}/install")
+async def install_emulator(slug: str, background_tasks: BackgroundTasks):
+    try:
+        entry = get_emulator(slug)
+    except ValueError:
         raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
-    return _resolve(slug)
+
+    url = entry.get("linux_url", "")
+    if not url or url.startswith("PLACEHOLDER"):
+        raise HTTPException(
+            status_code=501,
+            detail=f"Download URL not yet configured for '{slug}' — update config/emulators.yaml",
+        )
+
+    current = install_registry.get_status(slug)
+    if current["status"] == "downloading":
+        raise HTTPException(status_code=409, detail=f"Install already in progress for '{slug}'.")
+
+    install_registry.set_status(slug, "downloading")
+    background_tasks.add_task(_run_install, slug)
+    return {"status": "downloading", "slug": slug}
 
 
-@router.post("/{slug}/check", response_model=EmulatorDetail)
-def check_emulator(slug: str):
-    if slug not in _EMULATOR_REGISTRY:
+async def _run_install(slug: str) -> None:
+    try:
+        path = await download_emulator(slug)
+        install_registry.set_status(slug, "complete", install_path=str(path))
+    except NotImplementedError as exc:
+        install_registry.set_status(slug, "error", error=str(exc))
+        logger.error("Install %s failed (not implemented): %s", slug, exc)
+    except Exception as exc:
+        install_registry.set_status(slug, "error", error=str(exc))
+        logger.error("Install %s failed: %s", slug, exc)
+
+
+@router.get("/{slug}/install/status")
+def get_install_status(slug: str):
+    try:
+        get_emulator(slug)
+    except ValueError:
         raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
-    return _resolve(slug)
+    return install_registry.get_status(slug)
+
+
+@router.get("/{slug}/confirm-token")
+def get_confirm_token(slug: str):
+    try:
+        get_emulator(slug)
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
+    token = install_registry.generate_confirm_token(slug)
+    return {"token": token}
+
+
+@router.delete("/{slug}")
+def delete_emulator(slug: str, body: DeleteRequest):
+    try:
+        get_emulator(slug)
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
+
+    if not install_registry.consume_confirm_token(slug, body.confirmation_token):
+        raise HTTPException(status_code=403, detail="Invalid or expired confirmation token.")
+
+    try:
+        remove_emulator(slug)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    install_registry.set_status(slug, "idle")
+    return {"slug": slug, "status": "removed"}

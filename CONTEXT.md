@@ -171,14 +171,16 @@ method. start.bat provided as a fallback for Windows users who cannot run Docker
   FastAPI backend and serves the React build directly.
 - [P3.5-6] First-run wizard (web) — replace the TUI wizard with a web-based
   guided setup flow for binary detection, platform registration, and first launch.
-
-### NEXT
-
 - [P3.5-7] One-click emulator install — wizard downloads and places small
   emulators (DOSBox-X, 86Box, DuckStation, Mesen, Project64, xemu, PCSX2)
   directly into peach_1up/emulators/{slug}/. VirtualBox triggers the official
   Oracle installer. Existing installations can be used via manual override.
   Backend auto-detects binaries in the project emulators/ directory on startup.
+- [P3.5-8] Remove Docker artifacts — delete docker-compose.yml,
+  backend/Dockerfile, frontend/Dockerfile, frontend/nginx.conf,
+  docker-start.sh, docker-start.bat. Update README.md, TECH.md, and CLAUDE.md
+  to remove all Docker references. Update .gitignore. start.sh and start.bat
+  retained for development only.
 
 ## P4 — Console Backends
 
@@ -193,6 +195,31 @@ Expand beyond PC to first-generation console platforms using the same profile an
 - [P4-3] Cartridge imaging guide — in-app guide for users to dump cartridge media per platform (NES, N64, Game Boy etc.) with recommended hardware
 - [P4-4] Expanded file format support — .chd, .xiso per platform
 - [P4-5] P4 committed and pushed to main
+
+## P4.5 — Native Installer and Distribution
+
+### Goal
+
+Package Peach 1UP as a native installer for Windows and Linux. No runtime
+dependencies required for end users.
+
+### NEXT
+
+- [P4.5-1] PyInstaller backend compilation — compile FastAPI backend and all
+  dependencies into a standalone executable. Python runtime embedded. Tested
+  on Windows and Linux.
+- [P4.5-2] pystray tray icon — system tray icon with Open, Restart, and Quit
+  options. Pure Python. Auto-opens browser on first launch.
+- [P4.5-3] Windows installer — NSIS or WiX packages the compiled backend,
+  React static build, emulators directory, and SQLite data path into a signed
+  .exe installer. Registers Peach1UP as a Windows service. UAC prompt on
+  install only.
+- [P4.5-4] Linux packages — fpm produces .deb and AppImage. Registers systemd
+  service on deb install. AppImage runs standalone.
+- [P4.5-5] GitHub Actions release pipeline — on version tag: build Windows and
+  Linux installers, sign with OSS certificate via ossign.org, attach to GitHub
+  release automatically.
+- [P4.5-6] P4.5 committed and pushed to main.
 
 ## PX — Nice to Haves
 

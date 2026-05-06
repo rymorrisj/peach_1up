@@ -1,36 +1,24 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
-import type { FirstRunStatus, CatalogEntry, EmulatorInstallStatus } from './types'
-
-interface Step2EmulatorsProps {
-  status: FirstRunStatus
-  onNext: () => void
-}
+import type { CatalogEntry, EmulatorInstallStatus } from '@/pages/FirstRun/types'
 
 interface EmulatorRowProps {
-  slug: string
-  name: string
-  required: boolean
-  initialPath: string
-  catalogEntry: CatalogEntry | undefined
+  entry: CatalogEntry
 }
 
-function EmulatorRow({ slug, name, required, initialPath, catalogEntry }: EmulatorRowProps) {
-  const [inputPath, setInputPath] = useState(initialPath)
-  const [available, setAvailable] = useState(!!initialPath)
+function EmulatorRow({ entry }: EmulatorRowProps) {
+  const [inputPath, setInputPath] = useState(entry.install_path ?? '')
+  const [available, setAvailable] = useState(entry.is_installed)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [isInstalling, setIsInstalling] = useState(false)
   const [installError, setInstallError] = useState<string | null>(null)
 
-  const isPlaceholder = catalogEntry?.is_placeholder ?? true
-  const installNote = catalogEntry?.install_note
-
   const { data: installStatus } = useQuery<EmulatorInstallStatus>({
-    queryKey: ['emulator-install-status', slug],
+    queryKey: ['emulator-install-status', entry.slug],
     queryFn: () =>
-      apiFetch<EmulatorInstallStatus>(`/api/v1/emulators/${slug}/install/status`),
+      apiFetch<EmulatorInstallStatus>(`/api/v1/emulators/${entry.slug}/install/status`),
     refetchInterval: isInstalling ? 2000 : false,
     enabled: isInstalling,
   })
@@ -50,18 +38,11 @@ function EmulatorRow({ slug, name, required, initialPath, catalogEntry }: Emulat
     }
   }, [installStatus])
 
-  useEffect(() => {
-    if (catalogEntry?.is_installed && catalogEntry.install_path && !inputPath) {
-      setInputPath(catalogEntry.install_path)
-      setAvailable(true)
-    }
-  }, [catalogEntry?.is_installed, catalogEntry?.install_path])
-
   async function handleInstall() {
     setIsInstalling(true)
     setInstallError(null)
     try {
-      await apiFetch(`/api/v1/emulators/${slug}/install`, { method: 'POST' })
+      await apiFetch(`/api/v1/emulators/${entry.slug}/install`, { method: 'POST' })
     } catch (err) {
       setIsInstalling(false)
       const message = err instanceof ApiError ? err.detail : 'Failed to start install.'
@@ -76,7 +57,7 @@ function EmulatorRow({ slug, name, required, initialPath, catalogEntry }: Emulat
     try {
       const result = await apiFetch<{ slug: string; path: string; available: boolean }>(
         '/api/v1/settings/emulator-path',
-        { method: 'POST', body: JSON.stringify({ slug, path: inputPath.trim() }) },
+        { method: 'POST', body: JSON.stringify({ slug: entry.slug, path: inputPath.trim() }) },
       )
       setAvailable(result.available)
     } catch (err) {
@@ -87,17 +68,15 @@ function EmulatorRow({ slug, name, required, initialPath, catalogEntry }: Emulat
     }
   }
 
-  const inputId = `emulator-path-${slug}`
-  const errorId = `emulator-error-${slug}`
+  const inputId = `emulator-path-${entry.slug}`
+  const errorId = `emulator-error-${entry.slug}`
   const hasError = saveError !== null || installError !== null
 
   return (
     <li className="py-4">
-      <div className="mb-2 flex items-center gap-2">
-        <span className="font-medium text-neutral-900 dark:text-neutral-100">{name}</span>
-        <span className="text-xs text-neutral-400 dark:text-neutral-500">
-          {required ? 'recommended' : 'optional'}
-        </span>
+      <div className="mb-1 flex items-center gap-2">
+        <span className="font-medium text-neutral-900 dark:text-neutral-100">{entry.name}</span>
+        <span className="text-xs text-neutral-400 dark:text-neutral-500">{entry.license}</span>
         <span
           className={
             available
@@ -106,13 +85,14 @@ function EmulatorRow({ slug, name, required, initialPath, catalogEntry }: Emulat
           }
         >
           <span aria-hidden="true">{available ? '✓' : '✗'}</span>
-          <span className="sr-only">{available ? 'Available' : 'Not configured'}</span>
+          <span className="sr-only">{available ? 'Installed' : 'Not configured'}</span>
         </span>
       </div>
+      <p className="mb-2 text-xs text-neutral-400 dark:text-neutral-500">{entry.description}</p>
 
-      {installNote ? (
+      {entry.install_note ? (
         <p className="text-sm text-neutral-500 dark:text-neutral-400">
-          {installNote}{' '}
+          {entry.install_note}{' '}
           <a
             href="https://www.virtualbox.org"
             target="_blank"
@@ -125,7 +105,7 @@ function EmulatorRow({ slug, name, required, initialPath, catalogEntry }: Emulat
       ) : (
         <div className="flex gap-2">
           <label htmlFor={inputId} className="sr-only">
-            {name} binary path
+            {entry.name} binary path
           </label>
           <input
             id={inputId}
@@ -135,7 +115,7 @@ function EmulatorRow({ slug, name, required, initialPath, catalogEntry }: Emulat
               setInputPath(e.target.value)
               setSaveError(null)
             }}
-            placeholder={`Path to ${name} binary`}
+            placeholder={`Path to ${entry.name} binary`}
             aria-describedby={hasError ? errorId : undefined}
             aria-invalid={hasError ? true : undefined}
             className="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100 dark:placeholder:text-neutral-600"
@@ -148,7 +128,7 @@ function EmulatorRow({ slug, name, required, initialPath, catalogEntry }: Emulat
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
-          {isPlaceholder ? (
+          {entry.is_placeholder ? (
             <span className="rounded-md bg-neutral-200 px-4 py-2 text-sm font-medium text-neutral-500 dark:bg-surface-700 dark:text-neutral-500">
               Not yet available
             </span>
@@ -157,7 +137,6 @@ function EmulatorRow({ slug, name, required, initialPath, catalogEntry }: Emulat
               type="button"
               onClick={handleInstall}
               disabled={isInstalling}
-              aria-label={isInstalling ? `Installing ${name}` : `Install ${name}`}
               className="rounded-md bg-[#ff8a5c] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {isInstalling ? 'Installing…' : 'Install'}
@@ -175,46 +154,31 @@ function EmulatorRow({ slug, name, required, initialPath, catalogEntry }: Emulat
   )
 }
 
-export default function Step2Emulators({ status, onNext }: Step2EmulatorsProps) {
-  const { data: catalog } = useQuery<CatalogEntry[]>({
+export default function EmulatorsSettings() {
+  const { data: catalog, isLoading } = useQuery<CatalogEntry[]>({
     queryKey: ['emulators-catalog'],
     queryFn: () => apiFetch<CatalogEntry[]>('/api/v1/emulators'),
   })
 
-  const catalogBySlug = Object.fromEntries((catalog ?? []).map((e) => [e.slug, e]))
-
   return (
-    <section>
-      <h2 className="mb-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-        Configure Emulators
-      </h2>
+    <>
+      <h1 className="mb-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+        Emulators
+      </h1>
       <p className="mb-6 text-sm text-neutral-500 dark:text-neutral-400">
-        Install or point to each emulator binary. DOSBox-X is recommended for DOS
-        and Windows 3.1. All others are optional.
+        Install or configure each emulator. All emulators are optional — install only what you
+        need for your library.
       </p>
 
-      <ul role="list" className="divide-y divide-neutral-200 dark:divide-neutral-800">
-        {status.emulators.map((emulator) => (
-          <EmulatorRow
-            key={emulator.slug}
-            slug={emulator.slug}
-            name={emulator.name}
-            required={emulator.required}
-            initialPath={emulator.path ?? catalogBySlug[emulator.slug]?.install_path ?? ''}
-            catalogEntry={catalogBySlug[emulator.slug]}
-          />
-        ))}
-      </ul>
-
-      <div className="mt-8 flex justify-end">
-        <button
-          type="button"
-          onClick={onNext}
-          className="rounded-md bg-[#ff8a5c] px-6 py-2.5 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff8a5c]"
-        >
-          Continue
-        </button>
-      </div>
-    </section>
+      {isLoading ? (
+        <p className="text-sm text-neutral-400">Loading…</p>
+      ) : (
+        <ul role="list" className="divide-y divide-neutral-200 dark:divide-neutral-800">
+          {(catalog ?? []).map((entry) => (
+            <EmulatorRow key={entry.slug} entry={entry} />
+          ))}
+        </ul>
+      )}
+    </>
   )
 }
