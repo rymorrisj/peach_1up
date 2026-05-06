@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
 import AppShell from '@/components/layout/AppShell'
 import Library from '@/pages/Library'
@@ -11,6 +11,9 @@ import Profiles from '@/pages/Profiles'
 import Settings from '@/pages/Settings'
 import FirstRun from '@/pages/FirstRun'
 import NotFound from '@/pages/NotFound'
+import LoadingSpinner from '@/components/common/LoadingSpinner'
+import { apiFetch } from '@/api/client'
+import type { FirstRunStatus } from '@/pages/FirstRun/types'
 import '@/styles/global.css'
 
 const queryClient = new QueryClient({
@@ -22,21 +25,44 @@ const queryClient = new QueryClient({
   },
 })
 
+function FirstRunGuard() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['first-run-status'],
+    queryFn: () => apiFetch<FirstRunStatus>('/api/v1/settings/first-run-status'),
+  })
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-white dark:bg-surface-950">
+        <LoadingSpinner label="Checking setup status…" />
+      </main>
+    )
+  }
+
+  if (data && !data.first_run_complete) {
+    return <Navigate to="/first-run" replace />
+  }
+
+  return <Outlet />
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <AppProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Navigate to="/library" replace />} />
-            <Route element={<AppShell />}>
-              <Route path="/library" element={<Library />} />
-              <Route path="/library/:id" element={<Detail />} />
-              <Route path="/platforms" element={<Platforms />} />
-              <Route path="/profiles" element={<Profiles />} />
-              <Route path="/settings" element={<Settings />} />
-            </Route>
             <Route path="/first-run" element={<FirstRun />} />
+            <Route element={<FirstRunGuard />}>
+              <Route path="/" element={<Navigate to="/library" replace />} />
+              <Route element={<AppShell />}>
+                <Route path="/library" element={<Library />} />
+                <Route path="/library/:id" element={<Detail />} />
+                <Route path="/platforms" element={<Platforms />} />
+                <Route path="/profiles" element={<Profiles />} />
+                <Route path="/settings" element={<Settings />} />
+              </Route>
+            </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

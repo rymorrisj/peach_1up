@@ -15,6 +15,35 @@ class PinRequest(BaseModel):
     pin: str | None = None
 
 
+class OwnerProfileCreate(BaseModel):
+    name: str
+    pin: str | None = None
+
+
+@router.post("/owner", response_model=UserProfileRead, status_code=201)
+def create_owner_profile(body: OwnerProfileCreate, db: Session = Depends(get_db)):
+    existing = db.query(UserProfile).filter(UserProfile.is_owner.is_(True)).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Owner profile already exists.")
+
+    import bcrypt as _bcrypt
+    pin_hash = (
+        _bcrypt.hashpw(body.pin.encode("utf-8"), _bcrypt.gensalt(12)).decode("utf-8")
+        if body.pin
+        else None
+    )
+
+    profile = UserProfile(name=body.name, pin_hash=pin_hash, is_owner=True)
+    db.add(profile)
+    db.flush()
+
+    perms = ProfilePermissions(profile_id=profile.id, is_admin=True)
+    db.add(perms)
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+
 @router.get("", response_model=list[UserProfileRead])
 def list_user_profiles(db: Session = Depends(get_db)):
     return db.query(UserProfile).all()

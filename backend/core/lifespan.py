@@ -7,6 +7,20 @@ from backend.core.database import create_tables, init_db
 from backend.core.settings import init_settings
 
 
+def _sync_first_run_from_db(db) -> None:
+    """Seed first_run_complete into in-memory settings from DB on startup.
+
+    Handles the Docker case where config/ is read-only so settings.yaml
+    can't be written, but the DB can record completion across restarts.
+    """
+    from backend.models.settings import Settings as SettingsModel
+    from backend.service.utils import settings as _settings_mod
+    row = db.get(SettingsModel, "first_run_complete")
+    if row and row.value == "true":
+        state = _settings_mod._require_init()
+        state["first_run_complete"] = True
+
+
 def _seed_bundled_profiles(db) -> None:
     from backend.models import Profile
     if db.query(Profile).count() == 0:
@@ -24,6 +38,7 @@ async def lifespan(app: FastAPI):
     session_factory = sessionmaker(bind=get_engine())
     with session_factory() as db:
         _seed_bundled_profiles(db)
+        _sync_first_run_from_db(db)
         db.commit()
 
     yield

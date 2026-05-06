@@ -26,14 +26,24 @@ _DEFAULTS: dict = {
     "ROM_PATH": "",
     "IMAGES_PATH": "",
     "PROFILES_PATH": "",
+    "DUCKSTATION_PATH": "",
+    "PCSX2_PATH": "",
+    "XEMU_PATH": "",
+    "MESEN_PATH": "",
+    "PROJECT64_PATH": "",
     "suppress_confirmations": [],
 }
 
 # Maps emulator key → (env_var_name, settings_yaml_key)
 _ENV_BINARY_VARS: dict[str, tuple[str, str]] = {
-    "dosbox":      ("DOSBOX_PATH",      "DOSBOX_PATH"),
-    "virtualbox":  ("VIRTUALBOX_PATH",  "VIRTUALBOX_PATH"),
-    "box86":       ("BOX86_PATH",       "BOX86_PATH"),
+    "dosbox":       ("DOSBOX_PATH",       "DOSBOX_PATH"),
+    "virtualbox":   ("VIRTUALBOX_PATH",   "VIRTUALBOX_PATH"),
+    "box86":        ("BOX86_PATH",        "BOX86_PATH"),
+    "duckstation":  ("DUCKSTATION_PATH",  "DUCKSTATION_PATH"),
+    "pcsx2":        ("PCSX2_PATH",        "PCSX2_PATH"),
+    "xemu":         ("XEMU_PATH",         "XEMU_PATH"),
+    "mesen":        ("MESEN_PATH",        "MESEN_PATH"),
+    "project64":    ("PROJECT64_PATH",    "PROJECT64_PATH"),
 }
 
 # Path keys whose values are normalised to forward slashes on save.
@@ -44,7 +54,24 @@ _PATH_KEYS: frozenset[str] = frozenset({
     "ROM_PATH",
     "IMAGES_PATH",
     "PROFILES_PATH",
+    "DUCKSTATION_PATH",
+    "PCSX2_PATH",
+    "XEMU_PATH",
+    "MESEN_PATH",
+    "PROJECT64_PATH",
 })
+
+# Ordered emulator catalog used by compute_setup_status().
+_EMULATOR_CATALOG: list[tuple[str, str, bool, str]] = [
+    ("dosbox-x",    "DOSBox-X",   True,  "DOSBOX_PATH"),
+    ("86box",       "86Box",      False, "BOX86_PATH"),
+    ("virtualbox",  "VirtualBox", False, "VIRTUALBOX_PATH"),
+    ("duckstation", "DuckStation",False, "DUCKSTATION_PATH"),
+    ("pcsx2",       "PCSX2",      False, "PCSX2_PATH"),
+    ("xemu",        "xemu",       False, "XEMU_PATH"),
+    ("mesen",       "Mesen",      False, "MESEN_PATH"),
+    ("project64",   "Project64",  False, "PROJECT64_PATH"),
+]
 
 # Bundled emulator executables checked as a last-resort fallback in get_binary_path().
 # Checked after the settings.yaml override and the .env var, so users can always
@@ -283,6 +310,25 @@ def set_path(key: str, value: str) -> None:
         )
     state[key] = value
     _save()
+
+
+def compute_setup_status() -> list[dict]:
+    """Return availability status for every emulator in the catalog."""
+    state = _require_init()
+    result = []
+    for slug, name, required, key in _EMULATOR_CATALOG:
+        env_val = state["_env"].get(key, "") or ""
+        yaml_val = state.get(key, "") or ""
+        path = env_val or yaml_val or ""
+        available = bool(path and Path(path).is_file())
+        result.append({
+            "slug": slug,
+            "name": name,
+            "required": required,
+            "available": available,
+            "path": path or None,
+        })
+    return result
 
 
 def _save() -> None:

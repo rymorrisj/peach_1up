@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from backend.api.middleware.security import SecurityMiddleware, configure_cors
+from backend.api.middleware.security import FirstRunGuardMiddleware, SecurityMiddleware, configure_cors
 from backend.api.routes import emulators, health, launches, library, platforms, profiles, settings, user_profiles
 from backend.core.lifespan import lifespan
 
@@ -16,6 +16,7 @@ app = FastAPI(
 
 configure_cors(app)
 app.add_middleware(SecurityMiddleware)
+app.add_middleware(FirstRunGuardMiddleware)
 
 app.include_router(health.router)
 app.include_router(settings.router)

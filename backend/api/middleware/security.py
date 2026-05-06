@@ -1,4 +1,5 @@
 import ipaddress
+import json
 import uuid
 
 from fastapi import Request, Response
@@ -46,6 +47,50 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         # Inject request ID on every response for traceability
         response.headers["X-Request-ID"] = str(uuid.uuid4())
         return response
+
+
+_first_run_done_cache: bool = False
+
+_FIRST_RUN_EXEMPT_PATHS: frozenset[str] = frozenset({
+    "/api/v1/health",
+    "/api/v1/settings/first-run-status",
+    "/api/v1/settings/emulator-path",
+    "/api/v1/settings/library-path",
+    "/api/v1/settings/complete-first-run",
+    "/api/v1/profiles/users/owner",
+    "/api/docs",
+    "/api/redoc",
+    "/api/openapi.json",
+})
+
+
+class FirstRunGuardMiddleware(BaseHTTPMiddleware):
+    """Redirect non-wizard requests to /first-run when setup is incomplete."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        global _first_run_done_cache
+
+        if _first_run_done_cache or request.url.path in _FIRST_RUN_EXEMPT_PATHS:
+            return await call_next(request)
+
+        first_run_done = False
+        try:
+            from backend.core.settings import get_settings
+            svc = get_settings()
+            first_run_done = not svc.is_first_run()
+        except RuntimeError:
+            pass
+
+        if first_run_done:
+            _first_run_done_cache = True
+            return await call_next(request)
+
+        return Response(
+            content=json.dumps({"redirect": "/first-run"}),
+            status_code=302,
+            media_type="application/json",
+            headers={"Location": "/first-run"},
+        )
 
 
 def get_cors_origins() -> list[str]:

@@ -161,9 +161,6 @@ method. start.bat provided as a fallback for Windows users who cannot run Docker
   into settings.yaml as top-level keys. settings.py reads them from there. Keep .env
   as a legacy override — values present in .env take precedence over settings.yaml.
   .env.template updated to reflect secrets-only purpose going forward.
-
-### NEXT
-
 - [P3.5-2] FastAPI backend service — REST API, OpenAPI spec auto-generated,
   Pydantic models, SQLite database via SQLAlchemy, Alembic migrations
 - [P3.5-3] React/TypeScript frontend — Vite build, TanStack Query, Zustand,
@@ -174,8 +171,14 @@ method. start.bat provided as a fallback for Windows users who cannot run Docker
   FastAPI backend and serves the React build directly.
 - [P3.5-6] First-run wizard (web) — replace the TUI wizard with a web-based
   guided setup flow for binary detection, platform registration, and first launch.
-- [P3.5-7] Docusaurus documentation site — technical docs, user guide,
-  contributor guide. Versioned, MDX, full-text search.
+
+### NEXT
+
+- [P3.5-7] One-click emulator install — wizard downloads and places small
+  emulators (DOSBox-X, 86Box, DuckStation, Mesen, Project64, xemu, PCSX2)
+  directly into peach_1up/emulators/{slug}/. VirtualBox triggers the official
+  Oracle installer. Existing installations can be used via manual override.
+  Backend auto-detects binaries in the project emulators/ directory on startup.
 
 ## P4 — Console Backends
 
@@ -193,7 +196,9 @@ Expand beyond PC to first-generation console platforms using the same profile an
 
 ## PX — Nice to Haves
 
-- Windows ME support via DOSBox-X
+- Docusaurus documentation site — technical docs, user guide,
+  contributor guide. Versioned, MDX, full-text search.
+  Windows ME support via DOSBox-X
 - Multiplayer / networking toggle per profile
 - Cloud sync for game profiles
 - Controller remapping UI
