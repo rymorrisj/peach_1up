@@ -14,7 +14,7 @@ from textual.widgets import Static
 from textual.containers import Container
 
 from utils.constants import Era
-from utils.backend_router import get_launch_fn, get_backend_name, get_executable_path
+from utils.backend_router import get_backend_name, get_executable_path, launch_media
 from utils.job_objects import WindowsJobObject
 from screens.error import ErrorScreen
 
@@ -76,45 +76,11 @@ class LaunchScreen(Screen):
         """Launch emulator with selected era and media file."""
         if self._state != "confirm":
             return
-
         try:
-            launch_fn = get_launch_fn(self.era)
-        except (ValueError, RuntimeError) as e:
-            self.app.push_screen(
-                ErrorScreen(
-                    "Backend Error",
-                    str(e),
-                    on_dismiss=lambda: self.app.pop_screen()
-                )
-            )
-            return
-
-        try:
-            # Get appropriate emulator path based on era
-            executable_path, emulator_env_var = get_executable_path(self.era)
-
-            if not executable_path:
-                self.app.push_screen(
-                    ErrorScreen(
-                        "Environment Configuration Error",
-                        f"{emulator_env_var} environment variable not set",
-                        on_dismiss=lambda: self.app.pop_screen()
-                    )
-                )
-                return
-
-            # Launch emulator under Job Objects - unified interface
-            self._process, self._job = launch_fn(
-                media_path=self.media_path,
-                era=self.era.value,
-                executable_path=executable_path
-            )
-
-            # Transition to running state and start monitoring
+            self._process, self._job = launch_media(self.era, self.media_path)
             self._state = "running"
             self._start_process_monitoring()
             self.refresh()
-
         except Exception as e:
             self.app.push_screen(
                 ErrorScreen(
@@ -201,8 +167,12 @@ class LaunchScreen(Screen):
         """
         backend_error = None
         try:
-            launch_fn = get_launch_fn(self.era)
-            backend_available = True
+            executable_path, env_var = get_executable_path(self.era)
+            if not executable_path:
+                backend_available = False
+                backend_error = f"{env_var} is not configured."
+            else:
+                backend_available = True
         except (ValueError, RuntimeError) as e:
             backend_available = False
             backend_error = str(e)
@@ -211,10 +181,7 @@ class LaunchScreen(Screen):
         if backend_available:
             launch_text = "Press Enter to launch"
         else:
-            if backend_error:
-                launch_text = f"Backend error: {backend_error}"
-            else:
-                launch_text = f"{backend_name} backend not implemented"
+            launch_text = f"Cannot launch: {backend_error}" if backend_error else f"{backend_name} backend not configured"
 
         widgets = [
             Static("🚀 Launch Game", classes="title"),

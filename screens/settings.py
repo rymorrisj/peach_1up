@@ -1,11 +1,10 @@
-"""Settings screen for Peach 1UP — edit .env path settings in the TUI."""
+"""Settings screen for Peach 1UP — edit path settings stored in settings.yaml."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
 
-from dotenv import set_key, dotenv_values
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Static, ListView, ListItem, Label
@@ -15,37 +14,23 @@ from screens.profile import InputModal
 from utils import settings
 
 
-_ENV_PATH = Path(".env")
-
-# (env_var_or_settings_key, display_label, field_type)
-# field_type: "env" → saved to .env via dotenv
-#             "override" → saved to settings.yaml via settings.set_override_path()
-_FIELDS: list[tuple[str, str, str]] = [
-    ("DOSBOX_PATH",              "DOSBox-X Executable",          "env"),
-    ("BOX86_PATH",               "86Box Executable",             "env"),
-    ("VIRTUALBOX_PATH",          "VirtualBox (VBoxManage.exe)",  "env"),
-    ("ROM_PATH",                 "ROM Pack Directory",           "env"),
-    ("PROFILES_PATH",            "Profiles Directory",           "env"),
-    ("dosbox_path_override",     "DOSBox-X Path Override",       "override"),
-    ("box86_path_override",      "86Box Path Override",          "override"),
-    ("virtualbox_path_override", "VirtualBox Path Override",     "override"),
+# (settings_key, display_label)
+# All keys are top-level entries in settings.yaml (see utils/settings.py _PATH_KEYS).
+# .env values take precedence over settings.yaml at runtime.
+_FIELDS: list[tuple[str, str]] = [
+    ("DOSBOX_PATH",     "DOSBox-X Executable"),
+    ("BOX86_PATH",      "86Box Executable"),
+    ("VIRTUALBOX_PATH", "VirtualBox (VBoxManage.exe)"),
+    ("ROM_PATH",        "ROM Pack Directory"),
+    ("IMAGES_PATH",     "Images Directory"),
+    ("PROFILES_PATH",   "Profiles Directory"),
 ]
-
-_OVERRIDE_EMULATORS: dict[str, str] = {
-    "dosbox_path_override":     "dosbox",
-    "box86_path_override":      "box86",
-    "virtualbox_path_override": "virtualbox",
-}
 
 
 def _load_values() -> dict[str, str]:
-    stored = dotenv_values(_ENV_PATH) if _ENV_PATH.exists() else {}
     result: dict[str, str] = {}
-    for key, _, field_type in _FIELDS:
-        if field_type == "env":
-            result[key] = stored.get(key) or ""
-        else:
-            result[key] = settings.get(key, "") or ""
+    for key, _ in _FIELDS:
+        result[key] = settings.get_env_var(key)
     return result
 
 
@@ -70,7 +55,7 @@ class SettingsScreen(Screen):
                 Label(f"{label}:  {self._values.get(key, '')}"),
                 name=key,
             )
-            for key, label, _ in _FIELDS
+            for key, label in _FIELDS
         ]
         help_text = (
             "Saved — restart Peach 1UP to apply changes."
@@ -99,34 +84,24 @@ class SettingsScreen(Screen):
         key = event.item.name
         if not key:
             return
-        field_def = next(((k, lbl, t) for k, lbl, t in _FIELDS if k == key), None)
+        field_def = next(((k, lbl) for k, lbl in _FIELDS if k == key), None)
         if not field_def:
             return
-        _, label, field_type = field_def
+        _, label = field_def
         current = self._values.get(key, "")
 
         def on_value(value: Optional[str]) -> None:
             if value is None:
                 return
             value = value.strip()
-            if field_type == "override":
-                try:
-                    settings.set_override_path(_OVERRIDE_EMULATORS[key], value)
-                except Exception as exc:
-                    from screens.error import ErrorScreen
-                    self.app.push_screen(
-                        ErrorScreen("Failed to save override", str(exc), on_dismiss=lambda: None)
-                    )
-                    return
-            else:
-                try:
-                    set_key(str(_ENV_PATH), key, value)
-                except Exception as exc:
-                    from screens.error import ErrorScreen
-                    self.app.push_screen(
-                        ErrorScreen("Failed to save setting", str(exc), on_dismiss=lambda: None)
-                    )
-                    return
+            try:
+                settings.set_path(key, value)
+            except Exception as exc:
+                from screens.error import ErrorScreen
+                self.app.push_screen(
+                    ErrorScreen("Failed to save setting", str(exc), on_dismiss=lambda: None)
+                )
+                return
             self._values[key] = value
             self._saved = True
             self.refresh(recompose=True)

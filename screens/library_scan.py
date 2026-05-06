@@ -6,8 +6,6 @@ runs era detection on each, and bulk-imports them as game profiles.
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -18,17 +16,9 @@ from textual.widgets import Static, ListView, ListItem, Label, Checkbox
 from textual.containers import Container
 
 from utils.constants import Era
-from utils.dosbox_config import generate_conf
-from utils.media_detect import detect_era
-from utils.profile import save as save_profile, append_history
-from utils.profile_builder import build_profile
-from utils.vhd import ensure_hdd
+from utils.profile_builder import ScanEntry, scan_directory, import_profiles
 from utils import settings
 
-
-_SCAN_EXTENSIONS: frozenset[str] = frozenset({".iso", ".img", ".cue"})
-
-_DOSBOX_ERAS: frozenset[Era] = frozenset({Era.DOS, Era.WIN31})
 
 _ERA_LABELS: dict[str, str] = {
     "dos":   "DOS",
@@ -41,21 +31,6 @@ _ERA_LABELS: dict[str, str] = {
 
 def _profiles_dir() -> Path:
     return Path(settings.get_env_var("PROFILES_PATH"))
-
-
-def _sanitize_name(stem: str) -> str:
-    """Produce a safe profile name from a filename stem."""
-    name = re.sub(r"[^\w\s\-]", "", stem).strip()
-    name = re.sub(r"[\s\-]+", "_", name)
-    return name[:50] or "unnamed"
-
-
-@dataclass
-class _ScanEntry:
-    path: Path
-    era: Optional[Era]
-    name: str
-    selected: bool = True
 
 
 class _ImportConfirmModal(ModalScreen):
@@ -113,7 +88,7 @@ class LibraryScanScreen(Screen):
 
     def __init__(self) -> None:
         super().__init__()
-        self._entries: list[_ScanEntry] = []
+        self._entries: list[ScanEntry] = []
         self._scanned = False
         self._scan_dir: Optional[Path] = None
 
@@ -140,27 +115,10 @@ class LibraryScanScreen(Screen):
             ))
             return
         self._scan_dir = scan_dir
-        self._entries = self._run_scan(scan_dir)
+        self._entries = scan_directory(scan_dir)
         self._scanned = True
         self.refresh(recompose=True)
         self.call_after_refresh(self._focus_list)
-
-    def _run_scan(self, base: Path) -> list[_ScanEntry]:
-        found: list[Path] = []
-        try:
-            for p in base.rglob("*"):
-                try:
-                    if p.is_file() and p.suffix.lower() in _SCAN_EXTENSIONS:
-                        found.append(p)
-                except (OSError, PermissionError):
-                    continue
-        except (OSError, PermissionError):
-            pass
-        found.sort()
-        return [
-            _ScanEntry(path=p, era=detect_era(p), name=_sanitize_name(p.stem))
-            for p in found
-        ]
 
     # --- Compose ---
 
@@ -204,7 +162,7 @@ class LibraryScanScreen(Screen):
             classes="profile-list-container",
         )
 
-    def _entry_label(self, entry: _ScanEntry) -> str:
+    def _entry_label(self, entry: ScanEntry) -> str:
         mark = "✓" if entry.selected else "○"
         era_str = _ERA_LABELS.get(entry.era.value, entry.era.value) if entry.era else "?"
         return f"  {mark}  {entry.name}  [{era_str}]  {entry.path.name}"
@@ -288,36 +246,11 @@ class LibraryScanScreen(Screen):
 
         self.app.push_screen(_ImportConfirmModal(len(selected)), on_confirmed)
 
-    def _do_import(self, entries: list[_ScanEntry]) -> None:
+    def _do_import(self, entries: list[ScanEntry]) -> None:
         profiles_dir = _profiles_dir()
         conf_dir = profiles_dir / "conf"
         images_dir = Path("images") / "hdd"
-        saved = 0
-        failed = 0
-        for entry in entries:
-            try:
-                era = entry.era if entry.era is not None else Era.DOS
-                media_path = entry.path.resolve()
-                profile = build_profile(media_path, era, entry.name)
-                if era in _DOSBOX_ERAS:
-                    generate_conf(profile, conf_dir, profiles_dir)
-                    ensure_hdd(profile, images_dir, profiles_dir)
-                else:
-                    save_profile(profile, profiles_dir)
-                append_history(
-                    profile,
-                    profiles_dir,
-                    "scanner",
-                    [
-                        {"field": "name",       "old": None, "new": entry.name},
-                        {"field": "era",        "old": None, "new": era.value},
-                        {"field": "media_path", "old": None, "new": str(media_path)},
-                    ],
-                )
-                saved += 1
-            except Exception:
-                failed += 1
-
+        saved, failed = import_profiles(entries, profiles_dir, conf_dir, images_dir)
         msg = f"Imported {saved} profile(s)."
         if failed:
             msg += f"  {failed} could not be saved."

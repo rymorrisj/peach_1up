@@ -8,7 +8,6 @@ configuration and links to platform registration.
 from __future__ import annotations
 
 import shutil
-import subprocess
 import threading
 import webbrowser
 from pathlib import Path
@@ -21,6 +20,7 @@ from textual.widgets import Static, ListView, ListItem, Label
 from textual.containers import VerticalScroll
 
 from utils import settings
+from utils.system_check import compute_setup_status, clone_rom_pack
 
 
 # (key, display_name, required, download_url_or_none)
@@ -91,22 +91,7 @@ class FirstRunWizardScreen(Screen):
         self._status = self._compute_status()
 
     def _compute_status(self) -> dict[str, str]:
-        result: dict[str, str] = {}
-
-        for key in ("dosbox", "virtualbox", "box86"):
-            p = settings.get_binary_path(key)
-            result[key] = "ok" if (p and Path(p).is_file()) else "missing"
-
-        rom = settings.get_env_var("ROM_PATH")
-        result["roms"] = "ok" if (rom and Path(rom).is_dir()) else "missing"
-
-        try:
-            from utils.platform import load_all
-            result["platforms"] = "ok" if load_all(Path("config") / "platforms.yaml") else "missing"
-        except Exception:
-            result["platforms"] = "missing"
-
-        return result
+        return compute_setup_status(Path("config") / "platforms.yaml")
 
     def _all_required_ok(self) -> bool:
         return all(
@@ -204,9 +189,8 @@ class FirstRunWizardScreen(Screen):
     def _show_rom_guidance(self) -> None:
         rom_url = "https://github.com/86Box/roms"
         rom_dir = Path("images") / "roms" / "86box"
-        git_bin = shutil.which("git")
 
-        if not git_bin:
+        if not shutil.which("git"):
             webbrowser.open(rom_url)
             return
 
@@ -217,20 +201,12 @@ class FirstRunWizardScreen(Screen):
         self.notify("Cloning 86Box ROM pack — this may take a moment...", timeout=30)
 
         def _clone() -> None:
-            try:
-                result = subprocess.run(
-                    [git_bin, "clone", rom_url, str(rom_dir)],
-                    capture_output=True,
-                    timeout=300,
-                )
-                if result.returncode == 0:
-                    self.call_from_thread(self.notify, "ROM pack cloned to images/roms/86box.", timeout=5)
-                    self.call_from_thread(self._recompose)
-                else:
-                    err = result.stderr.decode(errors="replace").strip()[:120]
-                    self.call_from_thread(self.notify, f"Clone failed: {err}", timeout=10)
-            except Exception as exc:
-                self.call_from_thread(self.notify, f"Clone error: {exc}", timeout=10)
+            success, msg = clone_rom_pack(rom_dir)
+            if success:
+                self.call_from_thread(self.notify, msg, timeout=5)
+                self.call_from_thread(self._recompose)
+            else:
+                self.call_from_thread(self.notify, msg, timeout=10)
 
         threading.Thread(target=_clone, daemon=True).start()
 

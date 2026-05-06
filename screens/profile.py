@@ -14,9 +14,8 @@ from textual.containers import Container, VerticalScroll
 
 from utils.constants import Era
 from utils.profile import Profile, load, list_profiles, save, append_history, load_history
-from utils.dosbox_config import generate_conf
-from utils.vhd import ensure_hdd
 from utils.media_detect import detect_era
+from utils.profile_builder import create_dos_profile
 from utils import settings
 from utils.job_objects import WindowsJobObject
 from backends.dosbox import launch_install, launch_game
@@ -348,15 +347,10 @@ class ProfileScreen(Screen):
 
         suggested = detect_era(media_path)
 
-        profile = Profile(
-            name=name,
-            era=era,
-            media_path=media_path,
-            notes="",
-        )
         try:
-            generate_conf(profile, _conf_dir(), _profiles_dir())
-            ensure_hdd(profile, _hdd_dir(), _profiles_dir())
+            profile = create_dos_profile(
+                name, era, media_path, _conf_dir(), _profiles_dir(), _hdd_dir()
+            )
             self.notify(str(profile.hdd_image_path))
         except Exception as exc:
             self.notify(str(exc), severity="error", timeout=10)

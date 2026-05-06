@@ -259,6 +259,32 @@ def set_override_path(emulator: str, path: str) -> None:
     _save()
 
 
+def set_path(key: str, value: str) -> None:
+    """Write a path value to settings.yaml and update state.
+
+    Covers all keys in ``_PATH_KEYS``: ``DOSBOX_PATH``, ``BOX86_PATH``,
+    ``VIRTUALBOX_PATH``, ``ROM_PATH``, ``IMAGES_PATH``, ``PROFILES_PATH``.
+    For emulator binary paths, ``set_override_path()`` accepts a short
+    emulator key (``'dosbox'``) as an alternative.
+
+    Args:
+        key: The settings key to update. Must be one of the path keys.
+        value: New path value.
+
+    Raises:
+        RuntimeError: If init() has not been called.
+        ValueError: If key is not a recognised path key.
+    """
+    state = _require_init()
+    if key not in _PATH_KEYS:
+        raise ValueError(
+            f"'{key}' is not a recognised path key. "
+            f"Valid path keys: {', '.join(sorted(_PATH_KEYS))}"
+        )
+    state[key] = value
+    _save()
+
+
 def _save() -> None:
     """Persist the current settings state to settings.yaml atomically.
 

@@ -160,3 +160,33 @@ def get_executable_path(era: Era, accuracy_mode: bool = False) -> tuple[str, str
         emulator_key = 'dosbox'
 
     return get_binary_path(emulator_key), env_var
+
+
+def launch_media(era: Era, media_path):
+    """Resolve backend, validate executable, and launch media.
+
+    Single entry point for FastAPI route handlers and the TUI launch flow.
+    Resolves the backend for the era, validates that the executable is
+    configured and present, then calls the backend ``launch`` function.
+
+    Args:
+        era: Gaming era to launch.
+        media_path: ``Path`` to the media file to mount.
+
+    Returns:
+        ``(process, job_object)`` from the backend launch call.
+
+    Raises:
+        RuntimeError: If the executable path is not configured.
+        FileNotFoundError: If the configured executable does not exist on disk.
+        ValueError: If the era has no resolvable backend.
+        Any exception raised by the backend launch function.
+    """
+    executable_path, env_var = get_executable_path(era)
+    if not executable_path:
+        raise RuntimeError(
+            f"{env_var} is not configured. "
+            "Set the path in config/settings.yaml or via Settings."
+        )
+    launch_fn = get_launch_fn(era)
+    return launch_fn(media_path=media_path, era=era.value, executable_path=executable_path)
