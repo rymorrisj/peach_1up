@@ -1,10 +1,11 @@
+import os
 from pathlib import Path
 from typing import Generator
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
-_DB_PATH = Path("peach1up.db")
+_DB_PATH = Path(os.environ.get("PEACH_DB_PATH", "peach1up.db"))
 _ENGINE = None
 _SESSION_FACTORY = None
 

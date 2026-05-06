@@ -232,6 +232,10 @@ enforced. This is a known Windows 11 behaviour and is logged in
 [DECISIONS.md](DECISIONS.md) (2026-05-05, "Job Objects bypassed via launch_direct for
 DOS launches"). The issue is tracked for revisit once the web UI replaces the TUI.
 
+**Docker bridge allowlist in security middleware**
+
+Docker bridge allowlist (172.16.0.0/12) in security middleware is safe while backend port 8000 is bound to 127.0.0.1 only. If port binding is changed to 0.0.0.0, re-evaluate the bridge allowlist.
+
 ---
 
 ## Reporting Security Issues

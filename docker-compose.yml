@@ -1,3 +1,45 @@
-# Docker Compose configuration — populated in P3.5-4
-version: "3.9"
-services: {}
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    volumes:
+      - ./config:/app/config:ro
+      - ./profiles:/app/profiles
+      - ./images:/app/images:ro
+      - peach_data:/app/data
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      PEACH_ENV: production
+      ALLOW_NETWORK_ACCESS: "false"
+      PEACH_DB_PATH: /app/data/peach1up.db
+    restart: unless-stopped
+    networks:
+      - peach_net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - peach_net
+
+volumes:
+  peach_data:
+
+networks:
+  peach_net:
+    driver: bridge

@@ -1,3 +1,4 @@
+import ipaddress
 import uuid
 
 from fastapi import Request, Response
@@ -5,6 +6,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 _LOCALHOST_ORIGINS = {"127.0.0.1", "::1", "localhost"}
+
+# RFC-1918 private ranges used by Docker bridge networks (172.16.0.0/12 covers 172.16–172.31)
+_DOCKER_BRIDGE_NETWORKS = [
+    ipaddress.ip_network("172.16.0.0/12"),
+]
+
+
+def _is_docker_bridge(host: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(host)
+        return any(addr in net for net in _DOCKER_BRIDGE_NETWORKS)
+    except ValueError:
+        return False
 
 
 class SecurityMiddleware(BaseHTTPMiddleware):
@@ -20,7 +34,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             allow_network = False
 
         client_host = request.client.host if request.client else "unknown"
-        if not allow_network and client_host not in _LOCALHOST_ORIGINS:
+        is_local = client_host in _LOCALHOST_ORIGINS or _is_docker_bridge(client_host)
+        if not allow_network and not is_local:
             return Response(
                 content="Remote access is disabled.",
                 status_code=403,

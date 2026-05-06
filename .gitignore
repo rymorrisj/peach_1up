@@ -65,6 +65,15 @@ desktop.ini
 
 # Docker
 .dockerignore
+.env.docker
+
+# SQLite database directory
+data/
+
+# Frontend build output and dependencies
+frontend/dist/
+frontend/node_modules/
+frontend/src/api/generated/
 
 # Logs
 *.log
@@ -88,4 +97,3 @@ emulators/
 *.tmp
 *.temp
 .cache/
-launch.bat

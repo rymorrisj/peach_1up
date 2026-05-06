@@ -44,43 +44,36 @@ hardware. Peach 1UP does not provide BIOS files.
 
 ---
 
-## Installation
+## Quick Start
 
-### Option 1 — Docker Compose (recommended)
+### Docker (recommended)
 
 ```terminal
 git clone https://github.com/rymorrisj/peach_1up
 cd peach_1up
-docker compose up
+./docker-start.sh    # Linux
+docker-start.bat     # Windows
 ```
 
-Open `http://localhost:3000` in your browser. On first run, the setup wizard
-will detect installed emulators and guide you through initial configuration.
-Binary paths are auto-detected or set via `config/settings.yaml`.
+Then open `http://localhost:8080`.
 
 **Windows:** requires Docker Engine running under WSL2. Run
 `wsl --install` in an elevated PowerShell prompt if WSL2 is not yet enabled.
 
-### Option 2 — start.bat (Windows fallback)
-
-For Windows users who cannot run Docker:
+### Without Docker (Linux/Mac)
 
 ```terminal
-git clone https://github.com/rymorrisj/peach_1up
-cd peach_1up
-start.bat
+pip install -r backend/requirements.txt
+./start.sh
+cd frontend && npm run dev
 ```
 
-`start.bat` installs dependencies, starts the FastAPI backend, and opens the
-frontend in your default browser.
-
-### Option 3 — Python direct
+### Without Docker (Windows)
 
 ```terminal
-git clone https://github.com/rymorrisj/peach_1up
-cd peach_1up
-pip install -r requirements.txt
-python launcher.py
+pip install -r backend/requirements.txt
+start.bat
+cd frontend && npm run dev
 ```
 
 ---
