@@ -20,24 +20,30 @@ _SETTINGS_PATH = Path("config") / "settings.yaml"
 
 _DEFAULTS: dict = {
     "first_run_complete": False,
-    "dosbox_path_override": "",
-    "virtualbox_path_override": "",
-    "box86_path_override": "",
+    "DOSBOX_PATH": "",
+    "BOX86_PATH": "",
+    "VIRTUALBOX_PATH": "",
+    "ROM_PATH": "",
+    "IMAGES_PATH": "",
+    "PROFILES_PATH": "",
     "suppress_confirmations": [],
 }
 
-# Maps emulator key → (env_var_name, settings_override_key)
+# Maps emulator key → (env_var_name, settings_yaml_key)
 _ENV_BINARY_VARS: dict[str, tuple[str, str]] = {
-    "dosbox":      ("DOSBOX_PATH",      "dosbox_path_override"),
-    "virtualbox":  ("VIRTUALBOX_PATH",  "virtualbox_path_override"),
-    "box86":       ("BOX86_PATH",       "box86_path_override"),
+    "dosbox":      ("DOSBOX_PATH",      "DOSBOX_PATH"),
+    "virtualbox":  ("VIRTUALBOX_PATH",  "VIRTUALBOX_PATH"),
+    "box86":       ("BOX86_PATH",       "BOX86_PATH"),
 }
 
-# Path override keys whose values are normalised to forward slashes on save.
+# Path keys whose values are normalised to forward slashes on save.
 _PATH_KEYS: frozenset[str] = frozenset({
-    "dosbox_path_override",
-    "virtualbox_path_override",
-    "box86_path_override",
+    "DOSBOX_PATH",
+    "BOX86_PATH",
+    "VIRTUALBOX_PATH",
+    "ROM_PATH",
+    "IMAGES_PATH",
+    "PROFILES_PATH",
 })
 
 # Bundled emulator executables checked as a last-resort fallback in get_binary_path().
@@ -83,17 +89,15 @@ def init() -> None:
         if isinstance(loaded, dict):
             state.update(loaded)
 
-    # Snapshot binary env vars after load_dotenv() so get_binary_path()
-    # never needs to call os.getenv() at call time.
+    # Snapshot .env values after load_dotenv() so path resolution never calls
+    # os.getenv() at call time. settings.yaml values are already in state;
+    # these .env values take precedence when non-empty.
     _env: dict[str, str] = {}
-    for _emulator, (env_var, _override) in _ENV_BINARY_VARS.items():
+    for _emulator, (env_var, _yaml_key) in _ENV_BINARY_VARS.items():
         _env[env_var] = os.getenv(env_var, "")
     _env["ROM_PATH"] = os.getenv("ROM_PATH", "")
-    _env["PROFILES_PATH"] = os.getenv("PROFILES_PATH", "profiles")
-    _env["IMAGES_PATH"] = os.getenv(
-        "IMAGES_PATH",
-        str((_PROJECT_ROOT / "images" / "games").resolve()),
-    )
+    _env["PROFILES_PATH"] = os.getenv("PROFILES_PATH", "")
+    _env["IMAGES_PATH"] = os.getenv("IMAGES_PATH", "")
     state["_env"] = _env
 
     _state = state
@@ -119,7 +123,17 @@ def get_env_var(key: str) -> str:
             f"'{key}' was not captured in the settings snapshot. "
             "Only env vars snapshotted during init() are accessible via get_env_var()."
         )
-    return env[key]
+    env_val = env[key]
+    if env_val:
+        return env_val
+    yaml_val = state.get(key, "") or ""
+    if yaml_val:
+        return str(yaml_val)
+    if key == "PROFILES_PATH":
+        return "profiles"
+    if key == "IMAGES_PATH":
+        return str((_PROJECT_ROOT / "images" / "games").resolve())
+    return ""
 
 
 def _require_init() -> dict:
@@ -158,13 +172,13 @@ def get_binary_path(emulator: str) -> str:
             f"Valid values: {', '.join(sorted(_ENV_BINARY_VARS))}"
         )
 
-    env_var, override_key = _ENV_BINARY_VARS[emulator]
-    override = state.get(override_key, "") or ""
-    if override:
-        return override
-    env_val = state["_env"].get(env_var, "")
+    env_var, yaml_key = _ENV_BINARY_VARS[emulator]
+    env_val = state["_env"].get(env_var, "") or ""
     if env_val:
         return env_val
+    yaml_val = state.get(yaml_key, "") or ""
+    if yaml_val:
+        return yaml_val
     bundled = _BUNDLED.get(emulator)
     if bundled and bundled.is_file():
         return str(bundled)
@@ -240,8 +254,8 @@ def set_override_path(emulator: str, path: str) -> None:
             f"Valid values: {', '.join(sorted(_ENV_BINARY_VARS))}"
         )
 
-    _, override_key = _ENV_BINARY_VARS[emulator]
-    state[override_key] = path
+    _, yaml_key = _ENV_BINARY_VARS[emulator]
+    state[yaml_key] = path
     _save()
 
 

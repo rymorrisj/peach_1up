@@ -1,0 +1,13 @@
+# Peach 1UP — primary configuration
+# Set binary paths and storage locations here.
+# Values in .env take precedence over these as a legacy override.
+
+# Emulator binary paths
+DOSBOX_PATH: ""
+BOX86_PATH: ""
+VIRTUALBOX_PATH: ""
+
+# Storage paths
+ROM_PATH: ""
+IMAGES_PATH: ""
+PROFILES_PATH: ""
