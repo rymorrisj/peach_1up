@@ -3,9 +3,8 @@ Game picker screen for Peach 1UP.
 Displays compatible media files for the selected gaming era.
 """
 
-import os
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import List, Optional
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Static, ListView, ListItem, Label
@@ -13,6 +12,7 @@ from textual.containers import Container
 
 from utils.constants import Era
 from utils.media_detect import get_compatible_media
+from utils import settings
 
 
 def _get_search_path(images_path: str) -> str:
@@ -26,14 +26,13 @@ def _get_search_path(images_path: str) -> str:
         Absolute directory path from parameter or IMAGES_PATH env var.
         Returns empty string if both are unavailable.
     """
-    path_to_resolve = images_path or os.getenv('IMAGES_PATH')
+    path_to_resolve = images_path or settings.get_env_var("IMAGES_PATH")
     if not path_to_resolve:
         return ""
 
-    # Convert relative paths to absolute paths based on project root
-    # launcher.py is run from project root, so __file__ points to screens/game_picker.py
-    project_root = Path(__file__).parent.parent
-    resolved_path = project_root / path_to_resolve
+    resolved_path = Path(path_to_resolve)
+    if not resolved_path.is_absolute():
+        resolved_path = Path(__file__).resolve().parent.parent / resolved_path
     return str(resolved_path.resolve())
 
 
@@ -85,7 +84,7 @@ class GamePickerScreen(Screen):
         self,
         era: Era,
         images_path: str = "",
-        on_select: Optional[Callable[[Path], None]] = None,
+        picker_mode: bool = False,
     ):
         """
         Initialize game picker screen for specified era.
@@ -93,13 +92,13 @@ class GamePickerScreen(Screen):
         Args:
             era: Gaming era to filter media files for
             images_path: Directory path to search. If empty, reads from IMAGES_PATH env var.
-            on_select: If provided, called with the selected Path and screen is popped.
-                       If None, navigates to LaunchScreen (standard launch flow).
+            picker_mode: If True, dismiss with the selected Path (profile create flow).
+                         If False, navigate to LaunchScreen (standard launch flow).
         """
         super().__init__()
         self.era = era
         self.images_path = images_path
-        self._on_select = on_select
+        self._picker_mode = picker_mode
 
     def compose(self) -> ComposeResult:
         """Compose the game picker layout with media file list."""
@@ -116,9 +115,9 @@ class GamePickerScreen(Screen):
         )
 
     def action_back(self) -> None:
-        """Navigate back to era selector, or pop if used as a picker."""
-        if self._on_select is not None:
-            self.app.pop_screen()
+        """Navigate back to era selector, or dismiss if used as a picker."""
+        if self._picker_mode:
+            self.dismiss(None)
         else:
             from screens.era_select import EraSelectScreen
             self.app.switch_screen(EraSelectScreen())
@@ -134,13 +133,12 @@ class GamePickerScreen(Screen):
         file_list.action_cursor_up()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        """Handle file selection — call picker callback or navigate to launch flow."""
+        """Handle file selection — dismiss with path (picker) or navigate to launch flow."""
         if not event.item.name:
             return
-        file_path = Path(event.item.name)
-        if self._on_select is not None:
-            self._on_select(file_path)
-            self.app.pop_screen()
+        file_path = Path(event.item.name).resolve()
+        if self._picker_mode:
+            self.dismiss(file_path)
         else:
             from screens.launch import LaunchScreen
             self.app.switch_screen(LaunchScreen(era=self.era, media_path=file_path))

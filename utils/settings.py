@@ -33,6 +33,23 @@ _ENV_BINARY_VARS: dict[str, tuple[str, str]] = {
     "box86":       ("BOX86_PATH",       "box86_path_override"),
 }
 
+# Path override keys whose values are normalised to forward slashes on save.
+_PATH_KEYS: frozenset[str] = frozenset({
+    "dosbox_path_override",
+    "virtualbox_path_override",
+    "box86_path_override",
+})
+
+# Bundled emulator executables checked as a last-resort fallback in get_binary_path().
+# Checked after the settings.yaml override and the .env var, so users can always
+# override by setting either of those.
+_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
+
+_BUNDLED: dict[str, Path] = {
+    "dosbox": _PROJECT_ROOT / "emulators" / "dosbox-x" / "dosbox-x.exe",
+    "box86":  _PROJECT_ROOT / "emulators" / "86box" / "86Box.exe",
+}
+
 # None until init() is called; dict thereafter
 _state: Optional[dict] = None
 
@@ -56,7 +73,7 @@ def init() -> None:
             "It may only be called once per process."
         )
 
-    load_dotenv()
+    load_dotenv(_PROJECT_ROOT / ".env")
 
     state: dict = dict(_DEFAULTS)
 
@@ -73,6 +90,10 @@ def init() -> None:
         _env[env_var] = os.getenv(env_var, "")
     _env["ROM_PATH"] = os.getenv("ROM_PATH", "")
     _env["PROFILES_PATH"] = os.getenv("PROFILES_PATH", "profiles")
+    _env["IMAGES_PATH"] = os.getenv(
+        "IMAGES_PATH",
+        str((_PROJECT_ROOT / "images" / "games").resolve()),
+    )
     state["_env"] = _env
 
     _state = state
@@ -141,7 +162,13 @@ def get_binary_path(emulator: str) -> str:
     override = state.get(override_key, "") or ""
     if override:
         return override
-    return state["_env"].get(env_var, "")
+    env_val = state["_env"].get(env_var, "")
+    if env_val:
+        return env_val
+    bundled = _BUNDLED.get(emulator)
+    if bundled and bundled.is_file():
+        return str(bundled)
+    return ""
 
 
 def get(key: str, default=None):
@@ -227,6 +254,10 @@ def _save() -> None:
     """
     state = _require_init()
     payload = {k: v for k, v in state.items() if not k.startswith("_")}
+
+    for key in _PATH_KEYS:
+        if key in payload and payload[key]:
+            payload[key] = Path(payload[key]).as_posix()
 
     _SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(_SETTINGS_PATH.parent), suffix=".yaml.tmp")

@@ -7,6 +7,10 @@ configuration and links to platform registration.
 
 from __future__ import annotations
 
+import shutil
+import subprocess
+import threading
+import webbrowser
 from pathlib import Path
 from typing import Optional
 
@@ -69,6 +73,7 @@ class FirstRunWizardScreen(Screen):
     BINDINGS = [
         Binding("s", "skip", "Skip setup"),
         Binding("c", "confirm", "Continue"),
+        Binding("d", "open_download", "Open download page"),
     ]
 
     def __init__(self) -> None:
@@ -78,6 +83,7 @@ class FirstRunWizardScreen(Screen):
     def on_mount(self) -> None:
         self._refresh_status()
         self.call_after_refresh(self._focus_list)
+        self.call_after_refresh(self._recompose)
 
     # --- Status computation ---
 
@@ -139,7 +145,7 @@ class FirstRunWizardScreen(Screen):
             ),
             ListView(*items, id="wizard-list"),
             Static(
-                f"Enter: Configure  •  {continue_hint}  •  S: Skip",
+                f"Enter: Configure  •  D: Download page  •  {continue_hint}  •  S: Skip",
                 id="wizard-help",
                 classes="help",
             ),
@@ -160,6 +166,11 @@ class FirstRunWizardScreen(Screen):
 
     def _prompt_binary(self, emulator: str) -> None:
         current = settings.get_binary_path(emulator)
+
+        if emulator == "virtualbox" and not current:
+            vbox_default = Path(r"C:\Program Files\Oracle\VirtualBox\VBoxManage.exe")
+            if vbox_default.is_file():
+                current = str(vbox_default)
 
         def on_path(value: Optional[str]) -> None:
             if not value:
@@ -191,14 +202,37 @@ class FirstRunWizardScreen(Screen):
         self.app.push_screen(InputModal(_BINARY_PROMPTS[emulator], current), on_path)
 
     def _show_rom_guidance(self) -> None:
-        from screens.error import ErrorScreen
-        self.app.push_screen(ErrorScreen(
-            "86Box ROM Pack",
-            "Set ROM_PATH in your .env file to the directory containing 86Box ROM files.\n"
-            "Download:  https://github.com/86Box/roms\n\n"
-            "ROM pack is optional — 86Box accuracy mode will not work without it.",
-            on_dismiss=lambda: None,
-        ))
+        rom_url = "https://github.com/86Box/roms"
+        rom_dir = Path("images") / "roms" / "86box"
+        git_bin = shutil.which("git")
+
+        if not git_bin:
+            webbrowser.open(rom_url)
+            return
+
+        if rom_dir.exists():
+            self.notify("86Box ROM directory already exists at images/roms/86box.", timeout=5)
+            return
+
+        self.notify("Cloning 86Box ROM pack — this may take a moment...", timeout=30)
+
+        def _clone() -> None:
+            try:
+                result = subprocess.run(
+                    [git_bin, "clone", rom_url, str(rom_dir)],
+                    capture_output=True,
+                    timeout=300,
+                )
+                if result.returncode == 0:
+                    self.call_from_thread(self.notify, "ROM pack cloned to images/roms/86box.", timeout=5)
+                    self.call_from_thread(self._recompose)
+                else:
+                    err = result.stderr.decode(errors="replace").strip()[:120]
+                    self.call_from_thread(self.notify, f"Clone failed: {err}", timeout=10)
+            except Exception as exc:
+                self.call_from_thread(self.notify, f"Clone error: {exc}", timeout=10)
+
+        threading.Thread(target=_clone, daemon=True).start()
 
     def _recompose(self) -> None:
         self._refresh_status()
@@ -213,7 +247,24 @@ class FirstRunWizardScreen(Screen):
 
     # --- Actions ---
 
+    def action_open_download(self) -> None:
+        """Open the download page for the currently highlighted wizard item."""
+        try:
+            lv = self.query_one("#wizard-list", ListView)
+            if lv.highlighted_child is None:
+                return
+            key = lv.highlighted_child.name
+            url = next((u for k, _, _, u in _CHECKS if k == key and u), None)
+            if not url:
+                return
+            if key == "virtualbox":
+                url = "https://www.virtualbox.org/wiki/Downloads"
+            webbrowser.open(url)
+        except Exception:
+            pass
+
     def action_skip(self) -> None:
+        settings.mark_first_run_complete()
         from screens.error import ErrorScreen
         self.app.push_screen(ErrorScreen(
             "Setup incomplete",
@@ -224,6 +275,7 @@ class FirstRunWizardScreen(Screen):
         ))
 
     def action_confirm(self) -> None:
+        settings.mark_first_run_complete()
         if not self._all_required_ok():
             from screens.error import ErrorScreen
             self.app.push_screen(ErrorScreen(
@@ -233,5 +285,4 @@ class FirstRunWizardScreen(Screen):
                 on_dismiss=lambda: None,
             ))
             return
-        settings.mark_first_run_complete()
         self.dismiss()

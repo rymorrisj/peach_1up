@@ -17,7 +17,7 @@ import yaml
 from utils.job_objects import launch_under_job_object
 from utils.media_attach import build_86box_attachment
 from utils.platform import OSPlatform
-from utils.settings import get_binary_path
+from utils.settings import get_binary_path, get_env_var
 
 
 SUPPORTED_ERAS = {"win95", "win98"}
@@ -193,7 +193,7 @@ def launch(platform: OSPlatform, media_path: Optional[Path] = None) -> None:
     if not Path(box86_path).exists():
         raise FileNotFoundError(f"86Box executable not found: {box86_path}")
 
-    rom_path_str = os.getenv("ROM_PATH", "")
+    rom_path_str = get_env_var("ROM_PATH")
     if not rom_path_str:
         raise RuntimeError(
             "ROM_PATH environment variable is not set. "

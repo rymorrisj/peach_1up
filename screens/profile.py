@@ -18,7 +18,6 @@ from utils.dosbox_config import generate_conf
 from utils.vhd import ensure_hdd
 from utils.media_detect import detect_era
 from utils import settings
-from utils.backend_router import get_executable_path
 from utils.job_objects import WindowsJobObject
 from backends.dosbox import launch_install, launch_game
 from screens.error import ErrorScreen
@@ -213,7 +212,7 @@ class ProfileScreen(Screen):
         widgets: list = [
             Static(f"🎮 {verb}: {name}", classes="title"),
             Static(""),
-            Static("Emulator is running in isolated environment.", classes="status"),
+            Static("Emulator is running.", classes="status"),
             Static(""),
         ]
         if verb == "Installing":
@@ -330,10 +329,12 @@ class ProfileScreen(Screen):
     def _start_create_media(self, name: str, era: Era) -> None:
         from screens.game_picker import GamePickerScreen
 
-        def on_media(media_path: Path) -> None:
+        def on_media(media_path: Optional[Path]) -> None:
+            if media_path is None:
+                return
             self._finish_create(name, era, media_path)
 
-        self.app.push_screen(GamePickerScreen(era=era, on_select=on_media))
+        self.app.push_screen(GamePickerScreen(era=era, picker_mode=True), on_media)
 
     def _finish_create(self, name: str, era: Era, media_path: Path) -> None:
         if not media_path.exists():
@@ -356,7 +357,9 @@ class ProfileScreen(Screen):
         try:
             generate_conf(profile, _conf_dir(), _profiles_dir())
             ensure_hdd(profile, _hdd_dir(), _profiles_dir())
+            self.notify(str(profile.hdd_image_path))
         except Exception as exc:
+            self.notify(str(exc), severity="error", timeout=10)
             self.app.push_screen(
                 ErrorScreen("Profile creation failed", str(exc), on_dismiss=lambda: None)
             )
@@ -391,12 +394,13 @@ class ProfileScreen(Screen):
 
     def _launch_profile(self, profile: Profile) -> None:
         self._active_profile = profile
-        dosbox_executable, env_var = get_executable_path(profile.era)
+        dosbox_executable = settings.get_binary_path("dosbox")
         if not dosbox_executable:
             self.app.push_screen(
                 ErrorScreen(
-                    "Emulator not configured",
-                    f"{env_var} is not set in .env",
+                    "DOSBox-X not found",
+                    "Set DOSBOX_PATH in .env, add an override in Settings, "
+                    "or drop dosbox-x.exe into emulators/dosbox-x/.",
                     on_dismiss=lambda: None,
                 )
             )
@@ -409,30 +413,52 @@ class ProfileScreen(Screen):
     def _run_install(self, profile: Profile, dosbox_executable: str) -> None:
         try:
             process, job = launch_install(profile, dosbox_executable)
+            self._process = process
+            self._job = job
+            self._state = "install_running"
+            self.refresh(recompose=True)
+            self._start_monitoring()
+            if not job.job_handle:
+                self.notify(
+                    "Process isolation unavailable — running without Job Objects. "
+                    "Network firewall is active.",
+                    severity="warning",
+                    timeout=8,
+                )
         except Exception as exc:
+            def _reset_install() -> None:
+                def _do() -> None:
+                    self._state = "list"
+                    self.refresh(recompose=True)
+                self.call_after_refresh(_do)
             self.app.push_screen(
-                ErrorScreen("Install launch failed", str(exc), on_dismiss=lambda: None)
+                ErrorScreen("Install launch failed", str(exc), on_dismiss=_reset_install)
             )
-            return
-        self._process = process
-        self._job = job
-        self._state = "install_running"
-        self.refresh(recompose=True)
-        self._start_monitoring()
 
     def _run_game(self, profile: Profile, dosbox_executable: str) -> None:
         try:
             process, job = launch_game(profile, dosbox_executable)
+            self._process = process
+            self._job = job
+            self._state = "game_running"
+            self.refresh(recompose=True)
+            self._start_monitoring()
+            if not job.job_handle:
+                self.notify(
+                    "Process isolation unavailable — running without Job Objects. "
+                    "Network firewall is active.",
+                    severity="warning",
+                    timeout=8,
+                )
         except Exception as exc:
+            def _reset_game() -> None:
+                def _do() -> None:
+                    self._state = "list"
+                    self.refresh(recompose=True)
+                self.call_after_refresh(_do)
             self.app.push_screen(
-                ErrorScreen("Launch failed", str(exc), on_dismiss=lambda: None)
+                ErrorScreen("Launch failed", str(exc), on_dismiss=_reset_game)
             )
-            return
-        self._process = process
-        self._job = job
-        self._state = "game_running"
-        self.refresh(recompose=True)
-        self._start_monitoring()
 
     # --- Process monitoring ---
 

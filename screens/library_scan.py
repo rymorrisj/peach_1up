@@ -18,13 +18,17 @@ from textual.widgets import Static, ListView, ListItem, Label, Checkbox
 from textual.containers import Container
 
 from utils.constants import Era
+from utils.dosbox_config import generate_conf
 from utils.media_detect import detect_era
 from utils.profile import save as save_profile, append_history
 from utils.profile_builder import build_profile
+from utils.vhd import ensure_hdd
 from utils import settings
 
 
 _SCAN_EXTENSIONS: frozenset[str] = frozenset({".iso", ".img", ".cue"})
+
+_DOSBOX_ERAS: frozenset[Era] = frozenset({Era.DOS, Era.WIN31})
 
 _ERA_LABELS: dict[str, str] = {
     "dos":   "DOS",
@@ -286,13 +290,20 @@ class LibraryScanScreen(Screen):
 
     def _do_import(self, entries: list[_ScanEntry]) -> None:
         profiles_dir = _profiles_dir()
+        conf_dir = profiles_dir / "conf"
+        images_dir = Path("images") / "hdd"
         saved = 0
         failed = 0
         for entry in entries:
             try:
                 era = entry.era if entry.era is not None else Era.DOS
-                profile = build_profile(entry.path, era, entry.name)
-                save_profile(profile, profiles_dir)
+                media_path = entry.path.resolve()
+                profile = build_profile(media_path, era, entry.name)
+                if era in _DOSBOX_ERAS:
+                    generate_conf(profile, conf_dir, profiles_dir)
+                    ensure_hdd(profile, images_dir, profiles_dir)
+                else:
+                    save_profile(profile, profiles_dir)
                 append_history(
                     profile,
                     profiles_dir,
@@ -300,7 +311,7 @@ class LibraryScanScreen(Screen):
                     [
                         {"field": "name",       "old": None, "new": entry.name},
                         {"field": "era",        "old": None, "new": era.value},
-                        {"field": "media_path", "old": None, "new": str(entry.path)},
+                        {"field": "media_path", "old": None, "new": str(media_path)},
                     ],
                 )
                 saved += 1

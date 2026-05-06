@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List, Tuple
 from subprocess import Popen
 
-from utils.job_objects import launch_under_job_object, WindowsJobObject
+from utils.job_objects import launch_direct, launch_under_job_object, WindowsJobObject
 from utils.constants import Era
 from utils.profile import Profile
 from utils.dosbox_config import regenerate_conf
@@ -113,12 +113,11 @@ def launch(media_path: Path, era: str, executable_path: str) -> Tuple[Popen, Win
 
     job_name = f"peach1up_dosbox_{era}_{media_path.stem}"
 
-    return launch_under_job_object(
+    return launch_direct(
         executable_path=executable_path,
         args=args,
-        media_paths=[str(media_path)],
         era=era,
-        job_name=job_name
+        job_name=job_name,
     )
 
 
@@ -163,15 +162,12 @@ def launch_install(
     args = ["-conf", conf_str]
 
     job_name = f"peach1up_install_{profile.name}"
-    process, job = launch_under_job_object(
+    return launch_direct(
         executable_path=dosbox_executable,
         args=args,
-        media_paths=[media_str, hdd_str],
         era=profile.era.value,
         job_name=job_name,
     )
-
-    return process, job
 
 
 def launch_game(
@@ -212,10 +208,9 @@ def launch_game(
     args = ["-conf", conf_str]
 
     job_name = f"peach1up_game_{profile.name}"
-    return launch_under_job_object(
+    return launch_direct(
         executable_path=dosbox_executable,
         args=args,
-        media_paths=[media_str, hdd_str],
         era=profile.era.value,
         job_name=job_name,
     )

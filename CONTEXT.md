@@ -135,7 +135,7 @@ where possible.
 
 The launcher is stable, well-tested, and handles failure gracefully across all supported eras.
 
-### CURRENT
+### DONE
 
 - [P3-1] First-run setup wizard — detect missing binaries and platforms, guide through setup
 - [P3-2] Game library scanner — scan a directory, auto-build profiles from found media
@@ -145,6 +145,26 @@ The launcher is stable, well-tested, and handles failure gracefully across all s
 - [P3-6] Known titles database — community YAML of titles with hardware requirements, used by accuracy detection
 - [P3-7] Platform health checks — detect degraded or broken OS images, prompt for recovery
 - [P3-8] P3 committed and pushed to main
+
+## P3.5 — Usability Improvements
+
+### CURRENT
+
+- [P3.5-1] Migrate config from .env to settings.yaml — move all path variables
+  (DOSBOX_PATH, BOX86_PATH, VIRTUALBOX_PATH, ROM_PATH, IMAGES_PATH, PROFILES_PATH)
+  into settings.yaml as top-level keys. settings.py reads them from there. Keep .env
+  as a legacy override — values present in .env take precedence over settings.yaml.
+  .env.template updated to reflect secrets-only purpose going forward.
+- [P3.5-3] Full graphical GUI replacing TUI — drag and drop media and profiles
+- [P3.5-2] Installation wizard — guided flow for original installer media. Detects
+  autorun.inf, scans ISO for common installer executables (SETUP.EXE, INSTALL.EXE,
+  INSTALL.BAT), runs installer inside emulator, scans HDD image post-install for new
+  executables, prompts user to confirm launch target.
+- [P3.5-4] Guide users on how to image their media for the app
+- [P3.5-5] Host-side .exe scanner — scan mounted HDD image for executables, present
+  as file browser for auto-launch
+- [P3.5-6] Single click download for emulators and extension packs that cannot be
+  bundled — VirtualBox installer, 86Box ROM pack, VirtualBox Extension Pack
 
 ## P4 — Console Backends
 
@@ -160,15 +180,8 @@ Expand beyond PC to first-generation console platforms using the same profile an
 - [P4-4] Expanded file format support — .chd, .xiso per platform
 - [P4-5] P4 committed and pushed to main
 
-## PX — Nice to Haves (no timeline)
+## PX — Nice to Haves
 
-- [!IMPORTANT] Installation wizard — guided flow for original installer media. Detects
-  autorun.inf, scans ISO for common installer executables (SETUP.EXE, INSTALL.EXE,
-  INSTALL.BAT), runs installer inside emulator, scans HDD image post-install for new
-  executables, prompts user to confirm launch target. Primary QoL gap — pull forward
-  before other PX items when capacity allows.
-- Full graphical GUI replacing TUI — drag and drop media and profiles
-- Host-side .exe scanner — scan mounted HDD image for executables, present as file browser for auto-launch
 - Windows ME support via DOSBox-X
 - PS2 support via PCSX2
 - Multiplayer / networking toggle per profile
@@ -181,7 +194,6 @@ Expand beyond PC to first-generation console platforms using the same profile an
 - dgVoodoo2 injection for 3D-era Win9x games
 - PS3 support via RPCS3
 - Xbox 360 support via Xenia
-- Guide Users on how to image their media for the app
 - Platform image compression — working copies and save backups will accumulate
   and consume significant disk space over time. Add compression, deduplication,
   and storage management tooling to reduce bloat. Warn users at registration

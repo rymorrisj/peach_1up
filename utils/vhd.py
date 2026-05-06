@@ -298,7 +298,7 @@ def ensure_hdd(profile: Profile, images_dir: Path, profiles_dir: Path) -> Path:
         )
 
     # Reuse existing image — never overwrite
-    if profile.hdd_image_path != Path("") and profile.hdd_image_path.exists():
+    if profile.hdd_image_path is not None and profile.hdd_image_path.exists():
         return profile.hdd_image_path
 
     images_dir.mkdir(parents=True, exist_ok=True)

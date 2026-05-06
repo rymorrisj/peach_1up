@@ -166,7 +166,7 @@ def list_profiles(profiles_dir: Path) -> list[Path]:
     """
     if not profiles_dir.exists():
         return []
-    return sorted(profiles_dir.glob("*.yaml"))
+    return sorted(p for p in profiles_dir.glob("*.yaml") if not p.name.endswith(".history.yaml"))
 
 
 def append_history(

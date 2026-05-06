@@ -21,6 +21,11 @@ from typing import List, Tuple
 import os
 import yaml
 
+# CREATE_BREAKAWAY_FROM_JOB: child process escapes the parent's Job Object so
+# it can be cleanly assigned to our own.  Used when the launcher is already
+# inside a Windows Job Object (common on Windows 11).
+_CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+
 
 # Windows API structures for job object limits
 class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
@@ -211,6 +216,15 @@ class WindowsJobObject:
             raise RuntimeError(f"Failed to open process {self.pid}. Error code: {error_code}")
 
         try:
+            # Informational check — captured to produce a richer error message
+            # if AssignProcessToJobObject still fails after the breakaway re-launch
+            # performed in launch_under_job_object().
+            _in_job = ctypes.wintypes.BOOL(False)
+            ctypes.windll.kernel32.IsProcessInJob(
+                process_handle, None, ctypes.byref(_in_job)
+            )
+            already_in_job = bool(_in_job)
+
             result = ctypes.windll.kernel32.AssignProcessToJobObject(
                 self.job_handle,
                 process_handle
@@ -218,8 +232,27 @@ class WindowsJobObject:
 
             if not result:
                 error_code = ctypes.windll.kernel32.GetLastError()
-                raise RuntimeError(f"Failed to add process {self.pid} to job object. Error code: {error_code}")
-
+                if error_code == 5:
+                    raise RuntimeError(
+                        f"Failed to add process {self.pid} to job object."
+                        f" Error code: 5. retry_with_breakaway"
+                    )
+                extra = (
+                    " The process is still inside an OS-managed job object — "
+                    "nested assignment failed. This should not occur on Windows 8+; "
+                    "check for third-party job managers or restricted environments."
+                    if already_in_job else ""
+                )
+                raise RuntimeError(
+                    f"Failed to add process {self.pid} to job object."
+                    f" Error code: {error_code}.{extra}"
+                )
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            raise RuntimeError(
+                f"Unexpected error assigning process {self.pid} to job object: {exc}"
+            ) from exc
         finally:
             # Always close the process handle — the job object retains its own reference
             ctypes.windll.kernel32.CloseHandle(process_handle)
@@ -557,6 +590,91 @@ class WindowsJobObject:
             ctypes.windll.kernel32.CloseHandle(snapshot)
 
 
+def _process_in_job(pid: int) -> bool:
+    """Return True if the process with *pid* is inside any Windows Job Object.
+
+    Opens the process with ``PROCESS_QUERY_INFORMATION`` (0x0400), calls
+    ``IsProcessInJob``, then closes the handle.  Returns ``False`` on any
+    error rather than raising so callers can treat it as a safe boolean check.
+    """
+    handle = ctypes.windll.kernel32.OpenProcess(0x0400, False, pid)
+    if not handle:
+        return False
+    try:
+        in_job = ctypes.wintypes.BOOL(False)
+        ctypes.windll.kernel32.IsProcessInJob(handle, None, ctypes.byref(in_job))
+        return bool(in_job)
+    finally:
+        ctypes.windll.kernel32.CloseHandle(handle)
+
+
+def launch_direct(
+    executable_path: str,
+    args: List[str],
+    era: str,
+    job_name: str,
+) -> Tuple[subprocess.Popen, WindowsJobObject]:
+    """Launch emulator with firewall rules only, bypassing Job Object isolation.
+
+    Creates a WindowsJobObject stub for firewall management so cleanup remains
+    identical to the full job path. The stub has no job_handle, so terminate_all
+    skips process termination (only firewall rules are cleaned up).
+
+    # TODO: re-enable Job Objects — CREATE_BREAKAWAY_FROM_JOB is blocked on this system
+
+    Args:
+        executable_path: Full path to the emulator executable.
+        args: Additional command-line arguments for the emulator.
+        era: Era key used to look up memory_limit_mb in eras.yaml.
+        job_name: Unique name passed through to the WindowsJobObject stub.
+
+    Returns:
+        (process, stub) — running Popen and a WindowsJobObject with firewall
+        rules applied. Caller must call stub.terminate_all() on exit.
+
+    Raises:
+        FileNotFoundError: If eras.yaml is missing.
+        RuntimeError: If the process cannot be launched or firewall setup fails.
+    """
+    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'eras.yaml')
+    try:
+        with open(config_path, 'r') as f:
+            eras_config = yaml.safe_load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"eras.yaml not found at {config_path}")
+    except yaml.YAMLError as exc:
+        raise RuntimeError(f"Failed to parse eras.yaml: {exc}")
+
+    if era not in eras_config:
+        raise RuntimeError(f"Era '{era}' not found in eras.yaml. Available: {list(eras_config.keys())}")
+
+    memory_limit_mb = eras_config[era].get('memory_limit_mb', 512)
+
+    try:
+        process = subprocess.Popen(
+            [executable_path] + args,
+            cwd=os.path.dirname(executable_path) or None,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+        )
+    except OSError as exc:
+        raise RuntimeError(f"Failed to launch '{os.path.basename(executable_path)}': {exc}") from exc
+
+    stub = WindowsJobObject(job_name, memory_limit_mb)
+    stub.pid = process.pid
+    stub.process_name = os.path.basename(executable_path).replace('.exe', '')
+    try:
+        stub.block_network_access(executable_path, process.pid)
+    except Exception as exc:
+        try:
+            process.kill()
+            process.wait()
+        except Exception:
+            pass
+        raise RuntimeError(f"Failed to create firewall rules: {exc}") from exc
+
+    return process, stub
+
+
 def launch_under_job_object(
     executable_path: str,
     args: List[str],
@@ -604,53 +722,157 @@ def launch_under_job_object(
     """
     job_object = None
     process = None
+    base_flags = None
+    launch_args = None
+    launch_cwd = None
 
+    # --- Phase 1: config, job creation, initial process launch ---
+    # Any failure here tears down whatever was created and raises a clean RuntimeError.
     try:
-        # Load memory limit from eras.yaml
+        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'eras.yaml')
         try:
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'eras.yaml')
             with open(config_path, 'r') as f:
                 eras_config = yaml.safe_load(f)
-
-            if era not in eras_config:
-                raise RuntimeError(f"Era '{era}' not found in eras.yaml. Available: {list(eras_config.keys())}")
-
-            memory_limit_mb = eras_config[era].get('memory_limit_mb')
-            if memory_limit_mb is None:
-                raise RuntimeError(f"memory_limit_mb not defined for era '{era}' in eras.yaml")
-
         except FileNotFoundError:
             raise FileNotFoundError(f"eras.yaml not found at {config_path}")
         except yaml.YAMLError as e:
             raise RuntimeError(f"Failed to parse eras.yaml: {str(e)}")
 
+        if era not in eras_config:
+            raise RuntimeError(f"Era '{era}' not found in eras.yaml. Available: {list(eras_config.keys())}")
+
+        memory_limit_mb = eras_config[era].get('memory_limit_mb')
+        if memory_limit_mb is None:
+            raise RuntimeError(f"memory_limit_mb not defined for era '{era}' in eras.yaml")
+
         job_object = WindowsJobObject(job_name, memory_limit_mb)
         job_object.create()
 
-        # Launch suspended so the process cannot run before being added to the job object
+        base_flags = subprocess.CREATE_NEW_PROCESS_GROUP | win32process.CREATE_SUSPENDED
+        launch_args = [executable_path] + args
+        launch_cwd = os.path.dirname(executable_path)
+
         process = subprocess.Popen(
-            args=[executable_path] + args,
-            cwd=os.path.dirname(executable_path),
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | win32process.CREATE_SUSPENDED
+            launch_args,
+            cwd=launch_cwd,
+            creationflags=base_flags,
         )
 
-        job_object.add_process(process)
-        job_object._resume_suspended_process(process)
-
-        return (process, job_object)
+        # Windows 11 pre-assigns child processes to an OS-managed job object.
+        # Detect this on the child itself after launch, then kill and re-launch
+        # with CREATE_BREAKAWAY_FROM_JOB so it escapes the OS job and can be
+        # cleanly assigned to ours.
+        if _process_in_job(process.pid):
+            try:
+                process.kill()
+                process.wait()
+            except Exception:
+                pass
+            try:
+                process = subprocess.Popen(
+                    launch_args,
+                    cwd=launch_cwd,
+                    creationflags=base_flags | _CREATE_BREAKAWAY_FROM_JOB,
+                )
+            except OSError as exc:
+                raise RuntimeError(
+                    f"Cannot launch '{os.path.basename(executable_path)}': the process "
+                    f"was pre-assigned to a Windows job object and "
+                    f"CREATE_BREAKAWAY_FROM_JOB was denied ({exc}). "
+                    f"Run Peach 1UP outside a restricted or sandboxed environment."
+                )
 
     except Exception as e:
-        # Cleanup on any failure — never leave orphaned processes or firewall rules
         cleanup_errors = []
-
+        if process:
+            try:
+                process.kill()
+                process.wait()
+            except Exception:
+                pass
         if job_object:
             try:
                 job_object.terminate_all()
-            except Exception as cleanup_e:
-                cleanup_errors.append(f"Job object cleanup failed: {str(cleanup_e)}")
-
-        error_message = f"Failed to launch {executable_path} under job object: {str(e)}"
+            except Exception as ce:
+                cleanup_errors.append(str(ce))
+        msg = f"Failed to launch {executable_path} under job object: {str(e)}"
         if cleanup_errors:
-            error_message += f" (Cleanup errors: {'; '.join(cleanup_errors)})"
+            msg += f" (Cleanup errors: {'; '.join(cleanup_errors)})"
+        raise RuntimeError(msg)
 
-        raise RuntimeError(error_message)
+    # --- Phase 2: assign to job, breakaway retry if needed, resume ---
+    # Runs entirely outside Phase 1's except handler. retry_with_breakaway is caught
+    # and handled here — it never reaches Phase 1's cleanup block. Each error path
+    # below performs its own teardown before raising a clean RuntimeError.
+
+    _needs_breakaway_retry = False
+    try:
+        job_object.add_process(process)
+    except RuntimeError as exc:
+        if "retry_with_breakaway" not in str(exc):
+            try:
+                process.kill()
+                process.wait()
+            except Exception:
+                pass
+            try:
+                job_object.terminate_all()
+            except Exception:
+                pass
+            raise RuntimeError(
+                f"Failed to assign process to job object: {exc}"
+            )
+        _needs_breakaway_retry = True
+
+    if _needs_breakaway_retry:
+        try:
+            process.kill()
+            process.wait()
+        except Exception:
+            pass
+        try:
+            process = subprocess.Popen(
+                launch_args,
+                cwd=launch_cwd,
+                creationflags=base_flags | _CREATE_BREAKAWAY_FROM_JOB,
+            )
+        except OSError as exc2:
+            try:
+                job_object.terminate_all()
+            except Exception:
+                pass
+            raise RuntimeError(
+                f"Cannot launch '{os.path.basename(executable_path)}': "
+                f"CREATE_BREAKAWAY_FROM_JOB failed after assignment error 5 ({exc2})."
+            )
+        try:
+            job_object.add_process(process)
+        except Exception as exc3:
+            try:
+                process.kill()
+                process.wait()
+            except Exception:
+                pass
+            try:
+                job_object.terminate_all()
+            except Exception:
+                pass
+            raise RuntimeError(
+                f"Failed to assign breakaway process to job object: {exc3}"
+            )
+
+    try:
+        job_object._resume_suspended_process(process)
+    except Exception as exc:
+        try:
+            process.kill()
+            process.wait()
+        except Exception:
+            pass
+        try:
+            job_object.terminate_all()
+        except Exception:
+            pass
+        raise RuntimeError(f"Failed to resume suspended process: {exc}")
+
+    return (process, job_object)

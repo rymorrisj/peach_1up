@@ -68,18 +68,14 @@ class Peach1UPApp(App):
 
     def _wizard_needed(self) -> bool:
         """Return True if the first-run setup wizard should be shown."""
-        from utils.platform import load_all
         if settings.is_first_run():
             return True
-        for emulator in ("dosbox", "virtualbox"):
+        # VirtualBox absence is not a wizard-blocker — it is caught at launch time
+        # when a Win9x/XP profile is actually attempted.
+        for emulator in ("dosbox",):
             path = settings.get_binary_path(emulator)
             if not path or not Path(path).is_file():
                 return True
-        try:
-            if not load_all(Path("config") / "platforms.yaml"):
-                return True
-        except Exception:
-            return True
         return False
 
 
