@@ -18,15 +18,23 @@ class Era(Enum):
     WIN95 = "win95"
     WIN98 = "win98"
     WINXP = "winxp"
+    PS1 = "ps1"
+    PS2 = "ps2"
+    XBOX = "xbox"
+    NES = "nes"
+    N64 = "n64"
 
 
 # Mapping of gaming eras to their supported media file extensions.
-# DOS and Windows 3.1 support all three formats including disk images (.img).
-# Windows 95, 98, and XP support only optical formats (.iso, .cue).
 ERA_MEDIA_TYPES: Dict[Era, Set[str]] = {
     Era.DOS: {'.iso', '.img', '.cue'},
     Era.WIN31: {'.iso', '.img', '.cue'},
     Era.WIN95: {'.iso', '.cue'},
     Era.WIN98: {'.iso', '.cue'},
     Era.WINXP: {'.iso', '.cue'},
+    Era.PS1: {'.iso', '.bin', '.cue', '.chd'},
+    Era.PS2: {'.iso', '.bin', '.cue', '.chd'},
+    Era.XBOX: {'.iso', '.xiso'},
+    Era.NES: {'.nes', '.chd'},
+    Era.N64: {'.z64', '.n64', '.v64'},
 }

@@ -47,6 +47,7 @@ def get_all_statuses() -> list[dict]:
             "is_installed": installed,
             "install_path": str(install_path) if installed else None,
             "is_placeholder": entry.get("linux_url", "").startswith("PLACEHOLDER"),
+            "supported_formats": entry.get("supported_formats", []),
         }
         if "install_note" in entry:
             item["install_note"] = entry["install_note"]

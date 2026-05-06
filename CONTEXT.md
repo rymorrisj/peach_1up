@@ -188,7 +188,7 @@ method. start.bat provided as a fallback for Windows users who cannot run Docker
 
 Expand beyond PC to first-generation console platforms using the same profile and launch architecture.
 
-### NEXT
+### DONE
 
 - [P4-1] Console backends — DuckStation (PS1), PCSX2 (PS2), Project64 (N64), Mesen (NES), xemu (Xbox OG)
 - [P4-2] Era/platform selector expansion — add console platforms to era selector
@@ -196,7 +196,7 @@ Expand beyond PC to first-generation console platforms using the same profile an
 - [P4-4] Expanded file format support — .chd, .xiso per platform
 - [P4-5] P4 committed and pushed to main
 
-## P4.5 — Native Installer and Distribution
+## P5 — Native Installer and Distribution
 
 ### Goal
 
@@ -205,21 +205,21 @@ dependencies required for end users.
 
 ### NEXT
 
-- [P4.5-1] PyInstaller backend compilation — compile FastAPI backend and all
+- [P5-1] PyInstaller backend compilation — compile FastAPI backend and all
   dependencies into a standalone executable. Python runtime embedded. Tested
   on Windows and Linux.
-- [P4.5-2] pystray tray icon — system tray icon with Open, Restart, and Quit
+- [P5-2] pystray tray icon — system tray icon with Open, Restart, and Quit
   options. Pure Python. Auto-opens browser on first launch.
-- [P4.5-3] Windows installer — NSIS or WiX packages the compiled backend,
+- [P5-3] Windows installer — NSIS or WiX packages the compiled backend,
   React static build, emulators directory, and SQLite data path into a signed
   .exe installer. Registers Peach1UP as a Windows service. UAC prompt on
   install only.
-- [P4.5-4] Linux packages — fpm produces .deb and AppImage. Registers systemd
+- [P5-4] Linux packages — fpm produces .deb and AppImage. Registers systemd
   service on deb install. AppImage runs standalone.
-- [P4.5-5] GitHub Actions release pipeline — on version tag: build Windows and
+- [P5-5] GitHub Actions release pipeline — on version tag: build Windows and
   Linux installers, sign with OSS certificate via ossign.org, attach to GitHub
   release automatically.
-- [P4.5-6] P4.5 committed and pushed to main.
+- [P5-6] P5 committed and pushed to main.
 
 ## PX — Nice to Haves
 
@@ -244,3 +244,4 @@ dependencies required for end users.
   reset, re-inject after. Reduces data loss risk when restoring from base.
 - Platform snapshot management — compression, auto-snapshots before risky installs,
   snapshot history, and storage cleanup tooling. Basic create/restore ships in P2.
+- Support a key,value (emulator, path) for users to add and configure their own emulators/eras in settings.yaml

@@ -10,6 +10,7 @@ import Platforms from '@/pages/Platforms'
 import Profiles from '@/pages/Profiles'
 import Settings from '@/pages/Settings'
 import EmulatorsSettings from '@/pages/Settings/Emulators'
+import CartridgeImaging from '@/pages/Guides/CartridgeImaging'
 import FirstRun from '@/pages/FirstRun'
 import NotFound from '@/pages/NotFound'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
@@ -63,6 +64,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/profiles" element={<Profiles />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/settings/emulators" element={<EmulatorsSettings />} />
+                <Route path="/guides/cartridge-imaging" element={<CartridgeImaging />} />
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />

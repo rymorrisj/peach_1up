@@ -89,6 +89,18 @@ function EmulatorRow({ entry }: EmulatorRowProps) {
         </span>
       </div>
       <p className="mb-2 text-xs text-neutral-400 dark:text-neutral-500">{entry.description}</p>
+      {entry.supported_formats && entry.supported_formats.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {entry.supported_formats.map((fmt) => (
+            <span
+              key={fmt}
+              className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-neutral-500 dark:bg-surface-700 dark:text-neutral-400"
+            >
+              {fmt}
+            </span>
+          ))}
+        </div>
+      )}
 
       {entry.install_note ? (
         <p className="text-sm text-neutral-500 dark:text-neutral-400">

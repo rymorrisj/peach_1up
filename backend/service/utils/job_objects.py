@@ -18,8 +18,13 @@ import ctypes.wintypes
 import win32com.client
 import win32process
 from typing import List, Tuple
+from pathlib import Path
 import os
 import yaml
+
+# Anchor eras.yaml to the project root regardless of CWD.
+# job_objects.py lives at backend/service/utils/ — 4 parents up is the project root.
+_ERAS_YAML = Path(__file__).resolve().parent.parent.parent.parent / "config" / "eras.yaml"
 
 # CREATE_BREAKAWAY_FROM_JOB: child process escapes the parent's Job Object so
 # it can be cleanly assigned to our own.  Used when the launcher is already
@@ -636,12 +641,11 @@ def launch_direct(
         FileNotFoundError: If eras.yaml is missing.
         RuntimeError: If the process cannot be launched or firewall setup fails.
     """
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'eras.yaml')
     try:
-        with open(config_path, 'r') as f:
+        with _ERAS_YAML.open('r') as f:
             eras_config = yaml.safe_load(f)
     except FileNotFoundError:
-        raise FileNotFoundError(f"eras.yaml not found at {config_path}")
+        raise FileNotFoundError(f"eras.yaml not found at {_ERAS_YAML}")
     except yaml.YAMLError as exc:
         raise RuntimeError(f"Failed to parse eras.yaml: {exc}")
 
@@ -729,12 +733,11 @@ def launch_under_job_object(
     # --- Phase 1: config, job creation, initial process launch ---
     # Any failure here tears down whatever was created and raises a clean RuntimeError.
     try:
-        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'eras.yaml')
         try:
-            with open(config_path, 'r') as f:
+            with _ERAS_YAML.open('r') as f:
                 eras_config = yaml.safe_load(f)
         except FileNotFoundError:
-            raise FileNotFoundError(f"eras.yaml not found at {config_path}")
+            raise FileNotFoundError(f"eras.yaml not found at {_ERAS_YAML}")
         except yaml.YAMLError as e:
             raise RuntimeError(f"Failed to parse eras.yaml: {str(e)}")
 

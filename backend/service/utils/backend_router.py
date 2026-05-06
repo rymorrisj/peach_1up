@@ -1,12 +1,14 @@
 """Backend routing utilities for Peach 1UP.
 
 Maps eras to their corresponding backend launch functions, accounting for
-the multi-tier routing introduced in P2 (primary / compat / accuracy).
+the multi-tier routing introduced in P2 (primary / compat / accuracy) and
+the console backends added in P4.
 """
 
 import os
 import yaml
-from typing import Callable, Dict, Any
+from pathlib import Path
+from typing import Callable, Dict, Any, Optional
 
 from backend.service.utils.constants import Era
 from backend.service.utils.settings import get_binary_path
@@ -22,8 +24,10 @@ def _load_eras_config() -> Dict[str, Any]:
         FileNotFoundError: If ``eras.yaml`` cannot be found.
         yaml.YAMLError: If the file exists but is not valid YAML.
     """
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'eras.yaml')
-    with open(config_path, 'r') as f:
+    # Anchor to the project root — this file is at backend/service/utils/,
+    # so 4 parents up is the project root.
+    config_path = Path(__file__).resolve().parent.parent.parent.parent / "config" / "eras.yaml"
+    with config_path.open('r') as f:
         return yaml.safe_load(f)
 
 
@@ -35,7 +39,8 @@ def resolve_backend_name(era: Era, accuracy_mode: bool) -> str:
         accuracy_mode: When True, Win9x routes to 86Box instead of VirtualBox.
 
     Returns:
-        One of ``'dosbox'``, ``'86box'``, or ``'virtualbox'``.
+        One of ``'dosbox'``, ``'86box'``, ``'virtualbox'``, ``'duckstation'``,
+        ``'pcsx2'``, ``'xemu'``, ``'mesen'``, or ``'project64'``.
 
     Raises:
         RuntimeError: If eras.yaml cannot be loaded or the era is not configured.
@@ -50,7 +55,7 @@ def resolve_backend_name(era: Era, accuracy_mode: bool) -> str:
     if not era_config:
         raise ValueError(f"Era '{era.value}' not found in eras.yaml")
 
-    # DOS and Win31 use a flat backend key — no multi-tier routing.
+    # Flat backend key — DOS, Win31, and all console eras use this.
     if 'backend' in era_config:
         return era_config['backend']
 
@@ -71,7 +76,8 @@ def get_launch_fn(era: Era, accuracy_mode: bool = False) -> Callable:
     """Return the ``launch`` callable for the backend that handles ``era``.
 
     For Win9x eras, ``accuracy_mode=True`` routes to 86Box; the default
-    routes to VirtualBox.  DOS and Win31 are unaffected by ``accuracy_mode``.
+    routes to VirtualBox.  DOS, Win31, and console eras are unaffected by
+    ``accuracy_mode``.
 
     Args:
         era: The gaming era to resolve.
@@ -91,18 +97,33 @@ def get_launch_fn(era: Era, accuracy_mode: bool = False) -> Callable:
 
     try:
         if backend_name == 'dosbox':
-            from backends.dosbox import launch
+            from backend.service.backends.dosbox import launch
             return launch
         elif backend_name == '86box':
-            from backends.box86 import launch
+            from backend.service.backends.box86 import launch
             return launch
         elif backend_name == 'virtualbox':
-            from backends.virtualbox import launch
+            from backend.service.backends.virtualbox import launch
+            return launch
+        elif backend_name == 'duckstation':
+            from backend.service.backends.duckstation import launch
+            return launch
+        elif backend_name == 'pcsx2':
+            from backend.service.backends.pcsx2 import launch
+            return launch
+        elif backend_name == 'xemu':
+            from backend.service.backends.xemu import launch
+            return launch
+        elif backend_name == 'mesen':
+            from backend.service.backends.mesen import launch
+            return launch
+        elif backend_name == 'project64':
+            from backend.service.backends.project64 import launch
             return launch
         else:
             raise ValueError(f"Unknown backend '{backend_name}' for era '{era.value}'")
     except Exception as e:
-        raise RuntimeError(f"Failed to resolve backend for era '{era.value}': {e}")
+        raise RuntimeError(f"Failed to load backend for era '{era.value}': {e}")
 
 
 def get_backend_name(era: Era, accuracy_mode: bool = False) -> str:
@@ -124,37 +145,50 @@ def get_backend_name(era: Era, accuracy_mode: bool = False) -> str:
             'dosbox': 'DOSBox-X',
             '86box': '86Box',
             'virtualbox': 'VirtualBox',
+            'duckstation': 'DuckStation',
+            'pcsx2': 'PCSX2',
+            'xemu': 'xemu',
+            'mesen': 'Mesen',
+            'project64': 'Project64',
         }.get(backend_name, 'Unknown')
     except Exception:
         return 'Unknown'
+
+
+# Maps backend name → (settings_key, emulator_key_for_get_binary_path)
+_BACKEND_TO_EMULATOR: Dict[str, tuple[str, str]] = {
+    'virtualbox':   ('VIRTUALBOX_PATH',   'virtualbox'),
+    '86box':        ('BOX86_PATH',        'box86'),
+    'duckstation':  ('DUCKSTATION_PATH',  'duckstation'),
+    'pcsx2':        ('PCSX2_PATH',        'pcsx2'),
+    'xemu':         ('XEMU_PATH',         'xemu'),
+    'mesen':        ('MESEN_PATH',        'mesen'),
+    'project64':    ('PROJECT64_PATH',    'project64'),
+}
 
 
 # NAMING: get_executable_path returns a tuple (path, env_var_name) — the second
 # element is the name of the environment variable that supplied the path, not
 # another path.  The function name does not signal the two-value return.
 def get_executable_path(era: Era, accuracy_mode: bool = False) -> tuple[str, str]:
-    """Return the emulator executable path and the env var that provides it.
+    """Return the emulator executable path and the settings key that provides it.
 
     Args:
         era: The gaming era to look up.
         accuracy_mode: Route Win9x to BOX86_PATH when True.
 
     Returns:
-        A tuple of ``(executable_path, env_var_name)`` where ``env_var_name``
-        is the environment variable consulted and ``executable_path`` is its
-        current value, or an empty string if the variable is not set.
+        A tuple of ``(executable_path, settings_key)`` where ``settings_key``
+        is the key consulted and ``executable_path`` is its current value,
+        or an empty string if the variable is not set.
     """
     try:
         backend_name = resolve_backend_name(era, accuracy_mode)
     except Exception:
         backend_name = 'dosbox'
 
-    if backend_name == 'virtualbox':
-        env_var = 'VIRTUALBOX_PATH'
-        emulator_key = 'virtualbox'
-    elif backend_name == '86box':
-        env_var = 'BOX86_PATH'
-        emulator_key = 'box86'
+    if backend_name in _BACKEND_TO_EMULATOR:
+        env_var, emulator_key = _BACKEND_TO_EMULATOR[backend_name]
     else:
         env_var = 'DOSBOX_PATH'
         emulator_key = 'dosbox'
@@ -162,31 +196,53 @@ def get_executable_path(era: Era, accuracy_mode: bool = False) -> tuple[str, str
     return get_binary_path(emulator_key), env_var
 
 
-def launch_media(era: Era, media_path):
+def launch_media(era, media_path, profile=None):
     """Resolve backend, validate executable, and launch media.
 
-    Single entry point for FastAPI route handlers and the TUI launch flow.
-    Resolves the backend for the era, validates that the executable is
-    configured and present, then calls the backend ``launch`` function.
+    Single entry point for FastAPI route handlers. Accepts era as either a
+    string or an Era enum, and media_path as either a string or a Path, to
+    match the types stored in the database.
 
     Args:
-        era: Gaming era to launch.
-        media_path: ``Path`` to the media file to mount.
+        era: Gaming era as an Era enum or a string matching an Era value.
+        media_path: Path to the media file — string or Path object.
+        profile: Optional Profile ORM object (reserved for accuracy_mode
+            routing on Win9x eras; unused for other eras).
 
     Returns:
         ``(process, job_object)`` from the backend launch call.
 
     Raises:
+        ValueError: If the era string does not match a known Era value.
         RuntimeError: If the executable path is not configured.
         FileNotFoundError: If the configured executable does not exist on disk.
-        ValueError: If the era has no resolvable backend.
         Any exception raised by the backend launch function.
     """
-    executable_path, env_var = get_executable_path(era)
+    # Coerce era string → Era enum (DB stores eras as strings).
+    if isinstance(era, str):
+        try:
+            era = Era(era)
+        except ValueError:
+            raise ValueError(
+                f"Unknown era '{era}'. "
+                f"Valid values: {', '.join(e.value for e in Era)}"
+            )
+
+    # Coerce media_path string → Path (DB stores paths as strings).
+    if isinstance(media_path, str):
+        media_path = Path(media_path)
+
+    # Resolve accuracy_mode from profile if present (Win9x only).
+    accuracy_mode = False
+    if profile is not None and hasattr(profile, 'accuracy_mode'):
+        accuracy_mode = bool(profile.accuracy_mode)
+
+    executable_path, env_var = get_executable_path(era, accuracy_mode)
     if not executable_path:
         raise RuntimeError(
             f"{env_var} is not configured. "
             "Set the path in config/settings.yaml or via Settings."
         )
-    launch_fn = get_launch_fn(era)
+
+    launch_fn = get_launch_fn(era, accuracy_mode)
     return launch_fn(media_path=media_path, era=era.value, executable_path=executable_path)

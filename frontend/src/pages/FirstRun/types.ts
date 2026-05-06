@@ -30,6 +30,7 @@ export interface CatalogEntry {
   install_path: string | null
   is_placeholder: boolean
   install_note?: string
+  supported_formats?: string[]
 }
 
 export interface EmulatorInstallStatus {

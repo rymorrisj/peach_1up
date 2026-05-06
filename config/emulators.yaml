@@ -7,6 +7,7 @@ emulators:
     linux_url: "PLACEHOLDER_DOSBOX_X_LINUX_URL"
     binary_name: dosbox-x
     license: GPL-2.0
+    supported_formats: ['.iso', '.img', '.cue']
 
   - slug: 86box
     name: 86Box
@@ -16,6 +17,7 @@ emulators:
     linux_url: "PLACEHOLDER_86BOX_LINUX_URL"
     binary_name: 86Box
     license: GPL-2.0
+    supported_formats: ['.iso', '.img', '.cue']
 
   - slug: duckstation
     name: DuckStation
@@ -25,6 +27,7 @@ emulators:
     linux_url: "PLACEHOLDER_DUCKSTATION_LINUX_URL"
     binary_name: duckstation-qt
     license: GPL-3.0
+    supported_formats: ['.iso', '.bin', '.cue', '.chd']
 
   - slug: pcsx2
     name: PCSX2
@@ -34,6 +37,7 @@ emulators:
     linux_url: "PLACEHOLDER_PCSX2_LINUX_URL"
     binary_name: pcsx2-qt
     license: GPL-3.0
+    supported_formats: ['.iso', '.bin', '.cue', '.chd']
 
   - slug: xemu
     name: xemu
@@ -43,6 +47,7 @@ emulators:
     linux_url: "PLACEHOLDER_XEMU_LINUX_URL"
     binary_name: xemu
     license: GPL-2.0
+    supported_formats: ['.iso', '.xiso']
 
   - slug: mesen
     name: Mesen
@@ -52,6 +57,7 @@ emulators:
     linux_url: "PLACEHOLDER_MESEN_LINUX_URL"
     binary_name: Mesen
     license: GPL-3.0
+    supported_formats: ['.nes', '.chd']
 
   - slug: project64
     name: Project64
@@ -61,6 +67,7 @@ emulators:
     linux_url: "PLACEHOLDER_PROJECT64_LINUX_URL"
     binary_name: project64
     license: GPL-2.0
+    supported_formats: ['.z64', '.n64', '.v64']
 
   - slug: virtualbox
     name: VirtualBox
@@ -70,4 +77,5 @@ emulators:
     linux_url: "PLACEHOLDER_VIRTUALBOX_LINUX_URL"
     binary_name: VBoxManage
     license: GPL-2.0
+    supported_formats: ['.iso', '.img', '.cue']
     install_note: "VirtualBox requires system-level installation. Download and run the official installer from virtualbox.org."

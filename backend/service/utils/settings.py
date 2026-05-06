@@ -31,6 +31,9 @@ _DEFAULTS: dict = {
     "XEMU_PATH": "",
     "MESEN_PATH": "",
     "PROJECT64_PATH": "",
+    "PS1_BIOS_PATH": "",
+    "PS2_BIOS_PATH": "",
+    "XBOX_BIOS_PATH": "",
     "suppress_confirmations": [],
 }
 
@@ -59,6 +62,9 @@ _PATH_KEYS: frozenset[str] = frozenset({
     "XEMU_PATH",
     "MESEN_PATH",
     "PROJECT64_PATH",
+    "PS1_BIOS_PATH",
+    "PS2_BIOS_PATH",
+    "XBOX_BIOS_PATH",
 })
 
 # Ordered emulator catalog used by compute_setup_status().
@@ -125,6 +131,9 @@ def init() -> None:
     _env["ROM_PATH"] = os.getenv("ROM_PATH", "")
     _env["PROFILES_PATH"] = os.getenv("PROFILES_PATH", "")
     _env["IMAGES_PATH"] = os.getenv("IMAGES_PATH", "")
+    _env["PS1_BIOS_PATH"] = os.getenv("PS1_BIOS_PATH", "")
+    _env["PS2_BIOS_PATH"] = os.getenv("PS2_BIOS_PATH", "")
+    _env["XBOX_BIOS_PATH"] = os.getenv("XBOX_BIOS_PATH", "")
     state["_env"] = _env
 
     _state = state

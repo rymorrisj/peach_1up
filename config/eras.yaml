@@ -34,3 +34,28 @@ winxp:
   memory_limit_mb: 1024
   supported_media: ['.iso', '.img', '.cue']
   mount_type: cdrom
+
+ps1:
+  backend: duckstation
+  memory_limit_mb: 256
+  supported_media: ['.iso', '.bin', '.cue', '.chd']
+
+ps2:
+  backend: pcsx2
+  memory_limit_mb: 512
+  supported_media: ['.iso', '.bin', '.cue', '.chd']
+
+xbox:
+  backend: xemu
+  memory_limit_mb: 1024
+  supported_media: ['.iso', '.xiso']
+
+nes:
+  backend: mesen
+  memory_limit_mb: 128
+  supported_media: ['.nes', '.chd']
+
+n64:
+  backend: project64
+  memory_limit_mb: 256
+  supported_media: ['.z64', '.n64', '.v64']
