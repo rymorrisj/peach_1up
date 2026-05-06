@@ -146,25 +146,36 @@ The launcher is stable, well-tested, and handles failure gracefully across all s
 - [P3-7] Platform health checks — detect degraded or broken OS images, prompt for recovery
 - [P3-8] P3 committed and pushed to main
 
-## P3.5 — Usability Improvements
+## P3.5 — Web UI and Docker Compose
 
-### CURRENT
+### Goal
+
+Replace the TUI with a web-based frontend. FastAPI serves the backend. React
+and TypeScript power the frontend. Docker Compose is the primary install
+method. start.bat provided as a fallback for Windows users who cannot run Docker.
+
+### DONE
 
 - [P3.5-1] Migrate config from .env to settings.yaml — move all path variables
   (DOSBOX_PATH, BOX86_PATH, VIRTUALBOX_PATH, ROM_PATH, IMAGES_PATH, PROFILES_PATH)
   into settings.yaml as top-level keys. settings.py reads them from there. Keep .env
   as a legacy override — values present in .env take precedence over settings.yaml.
   .env.template updated to reflect secrets-only purpose going forward.
-- [P3.5-3] Full graphical GUI replacing TUI — drag and drop media and profiles
-- [P3.5-2] Installation wizard — guided flow for original installer media. Detects
-  autorun.inf, scans ISO for common installer executables (SETUP.EXE, INSTALL.EXE,
-  INSTALL.BAT), runs installer inside emulator, scans HDD image post-install for new
-  executables, prompts user to confirm launch target.
-- [P3.5-4] Guide users on how to image their media for the app
-- [P3.5-5] Host-side .exe scanner — scan mounted HDD image for executables, present
-  as file browser for auto-launch
-- [P3.5-6] Single click download for emulators and extension packs that cannot be
-  bundled — VirtualBox installer, 86Box ROM pack, VirtualBox Extension Pack
+
+### NEXT
+
+- [P3.5-2] FastAPI backend service — REST API, OpenAPI spec auto-generated,
+  Pydantic models, SQLite database via SQLAlchemy, Alembic migrations
+- [P3.5-3] React/TypeScript frontend — Vite build, TanStack Query, Zustand,
+  React Router, Tailwind CSS, shadcn/ui. Replaces the Textual TUI entirely.
+- [P3.5-4] Docker Compose install — single compose up brings up backend and
+  frontend. Volumes for profiles, images, and config. Linux-first, WSL2 on Windows.
+- [P3.5-5] start.bat fallback — for Windows users who cannot run Docker. Launches
+  FastAPI backend and serves the React build directly.
+- [P3.5-6] First-run wizard (web) — replace the TUI wizard with a web-based
+  guided setup flow for binary detection, platform registration, and first launch.
+- [P3.5-7] Docusaurus documentation site — technical docs, user guide,
+  contributor guide. Versioned, MDX, full-text search.
 
 ## P4 — Console Backends
 
@@ -174,7 +185,7 @@ Expand beyond PC to first-generation console platforms using the same profile an
 
 ### NEXT
 
-- [P4-1] Console backends — DuckStation (PS1), Project64 (N64), Mesen (NES), xemu (Xbox OG)
+- [P4-1] Console backends — DuckStation (PS1), PCSX2 (PS2), Project64 (N64), Mesen (NES), xemu (Xbox OG)
 - [P4-2] Era/platform selector expansion — add console platforms to era selector
 - [P4-3] Cartridge imaging guide — in-app guide for users to dump cartridge media per platform (NES, N64, Game Boy etc.) with recommended hardware
 - [P4-4] Expanded file format support — .chd, .xiso per platform
@@ -183,7 +194,6 @@ Expand beyond PC to first-generation console platforms using the same profile an
 ## PX — Nice to Haves
 
 - Windows ME support via DOSBox-X
-- PS2 support via PCSX2
 - Multiplayer / networking toggle per profile
 - Cloud sync for game profiles
 - Controller remapping UI

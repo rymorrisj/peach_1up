@@ -1,0 +1,90 @@
+# Peach 1UP — Technology Stack
+
+Peach 1UP is a preservation automation tool. The stack was chosen to maximise
+community accessibility, developer familiarity, and long-term maintainability
+as an open source project.
+
+---
+
+## Infrastructure
+
+**Docker Engine (headless) via WSL2 on Windows, native on Linux. Docker Compose for orchestration.**
+
+The homelab and self-hosted audience is familiar with compose stacks, and it
+eliminates per-OS dependency management entirely. Docker Desktop is not
+required or recommended — Docker Engine headless is the target.
+
+## Platform
+
+**Linux-first.**
+
+Application containers run identically on Linux servers, Linux desktops, and
+Windows via WSL2. Emulators run natively on the host OS regardless of
+platform. This keeps a single clean codebase without Windows-specific
+application code paths.
+
+## Database
+
+**SQLite via SQLAlchemy ORM with Alembic migrations.**
+
+Read-heavy usage pattern makes SQLite sufficient. SQLAlchemy abstraction means
+Postgres is a future config change not a rewrite.
+
+## Backend
+
+**Python 3.11, FastAPI, Pydantic, python-dotenv, PyYAML.**
+
+Python chosen for existing codebase and emulator scripting ecosystem. FastAPI
+for async performance, automatic OpenAPI generation, and Pydantic validation.
+
+## API Bridge
+
+**FastAPI auto-generates an OpenAPI spec. openapi-typescript or Orval generates a typed API client for the React frontend.**
+
+No manual type duplication between backend and frontend. Schema changes in
+Python propagate automatically to the TypeScript client.
+
+## Frontend
+
+**TypeScript, React, Vite, React Router, TanStack Query, Zustand, Tailwind CSS, shadcn/ui.**
+
+React chosen for ecosystem size and developer availability. TypeScript required
+throughout. shadcn/ui for composable unstyled components that match the dark
+preservation-focused design system.
+
+## Emulators (PC)
+
+- **DOSBox-X** — DOS, Windows 3.1. No ROM required.
+- **VirtualBox** — Windows 95, 98, XP. Primary virtualization layer.
+- **86Box** — Windows 95, 98 accuracy mode. User supplies ROM pack.
+
+## Emulators (Console)
+
+- **DuckStation** — PS1
+- **PCSX2** — PS2
+- **xemu** — Xbox OG
+- **Mesen** — NES
+- **Project64** — N64
+
+## Process Isolation
+
+**cgroups and network namespaces on Linux. Windows Job Objects as host fallback on Windows.**
+
+Network blocking enforced at the process level on every emulator launch.
+Linux-first architecture makes cgroups the correct primitive. Job Objects
+retained as the Windows host fallback for direct emulator launches.
+
+## Documentation
+
+**Docusaurus.**
+
+React-based, versioned, MDX, full-text search. Chosen for consistency with the
+frontend stack and suitability for a growing open source project expecting
+community contributors.
+
+## Developer Tooling
+
+- **Ruff** — Python linting
+- **pytest** — Python testing
+- **ESLint and Prettier** — Frontend linting and formatting
+- **Vitest** — Frontend testing

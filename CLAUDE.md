@@ -10,21 +10,42 @@
 
 ## Project Overview
 
-Retro game launcher and VM manager. Point at a disk image, select an era,
-and a pre-configured isolated container spins up with the correct emulator,
-media mounted, and sensible defaults applied. Covers DOS through Windows XP.
-Runs on Windows (Home edition)
+Preservation automation tool. Point at a disk image, select an era, and the
+correct emulator launches with media mounted and sensible defaults applied —
+no manual emulator configuration required. Covers PC platforms from DOS
+through Windows XP and first-generation consoles (PS1, PS2, Xbox OG, NES,
+N64). Process isolation uses cgroups and namespaces on Linux, and Windows Job
+Objects on Windows. Primary install is Docker Compose; start.bat provided as
+a fallback for Windows users who cannot run Docker.
 
 ## Stack
 
+**Backend / API**
 - Python 3.11
-- Textual (TUI framework, keyboard-driven, no mouse required at P0)
-- DOSBox-X (DOS and Windows 3.1 era — runs natively on Windows host, no ROM required)
-- VirtualBox (Windows 95, 98, XP — primary virtualization layer, runs natively on Windows host, Python API)
-- 86Box (Windows 95, 98 accuracy mode — runs natively on Windows host, user supplies ROM pack)
-- Windows Job Objects (process isolation, resource limits, filesystem restriction for emulator processes)
-- PyYAML (game profiles and configuration)
-- python-dotenv (environment configuration)
+- FastAPI (REST API, OpenAPI spec auto-generated)
+- Pydantic (validation), PyYAML (profiles and config), python-dotenv (env vars)
+- SQLite via SQLAlchemy ORM with Alembic migrations
+
+**Frontend**
+- React, TypeScript, Vite
+- TanStack Query (data fetching), Zustand (state), React Router
+- Tailwind CSS, shadcn/ui
+
+**Documentation**
+- Docusaurus
+
+**PC Emulators**
+- DOSBox-X (DOS and Windows 3.1 — no ROM required)
+- VirtualBox (Windows 95, 98, XP — primary virtualization layer)
+- 86Box (Windows 95, 98 accuracy mode — user supplies ROM pack)
+
+**Console Emulators**
+- DuckStation (PS1), PCSX2 (PS2), xemu (Xbox OG)
+- Mesen (NES), Project64 (N64)
+
+**Process Isolation**
+- cgroups and network namespaces (Linux)
+- Windows Job Objects (Windows host fallback)
 
 ## Era → Backend Mapping
 
@@ -35,6 +56,11 @@ Runs on Windows (Home edition)
 | Windows 95  | VirtualBox | DOSBox-X (compat), 86Box (accuracy) | 86Box only   |
 | Windows 98  | VirtualBox | DOSBox-X (compat), 86Box (accuracy) | 86Box only   |
 | Windows XP  | VirtualBox | —                                   | No           |
+| PS1         | DuckStation | —                                  | Yes (PS1 BIOS) |
+| PS2         | PCSX2       | —                                  | Yes (PS2 BIOS) |
+| Xbox OG     | xemu        | —                                  | Yes (Xbox BIOS) |
+| NES         | Mesen       | —                                  | No             |
+| N64         | Project64   | —                                  | No             |
 
 ## Folder Structure
 
@@ -81,8 +107,8 @@ peach-1up/
 - Do not jump ahead to NEXT tasks without confirmation
 - If completing CURRENT requires touching NEXT, flag it and ask before proceeding
 - Never edit CONTEXT.md, CLAUDE.md, or DECISIONS.md — managed by user only
-- CRITICAL: Emulators run natively on Windows under Job Objects — never inside containers
-- CRITICAL: Network access must be blocked at the Job Objects level for every emulator launch
+- CRITICAL: Emulators run natively on the host OS under process isolation — never inside application containers
+- CRITICAL: Network access must be blocked at the process isolation level for every emulator launch (network namespaces on Linux, Job Objects on Windows)
 - CRITICAL: Never attempt to write to or overwrite a mounted image — always read-only
 - CRITICAL: Any file delete, overwrite, git operation, or destructive action requires
   explicit user confirmation before proceeding — no exceptions
@@ -91,7 +117,7 @@ peach-1up/
 
 - Fail loudly on every error — surface the message to the user, never swallow exceptions
 - Never proceed after a warning or error without user confirmation
-- If a container fails to start cleanly, abort and report — do not retry automatically
+- If an emulator or application container fails to start cleanly, abort and report — do not retry automatically
 - If media detection is uncertain, ask the user to confirm before launching
 - Memory and file operations must always err toward doing nothing over doing something wrong
 - All mounts inside containers are read-only unless explicitly approved
@@ -125,8 +151,9 @@ Awaiting your decision.
   with the official ROM pack link, do not attempt to launch with missing ROMs.
 - game profile .yaml files are user-editable — validate them on load and fail
   clearly if required fields are missing or malformed.
-- Emulators run natively on Windows host under Job Objects isolation.
-  Never attempt to run emulators inside containers.
+- Emulators run natively on the host OS. On Linux, isolation is via cgroups
+  and network namespaces. On Windows, isolation is via Job Objects.
+  Never run emulators inside application containers.
 - Read-only mount must be explicitly enforced for every media file passed to
   an emulator. Never pass a writable path.
 - DOS profiles remain standalone with per-game HDD images. Win95/98/XP use the
@@ -138,15 +165,27 @@ Awaiting your decision.
 - DOSBox-X: https://dosbox-x.com
 - 86Box: https://86box.net
 - 86Box ROM pack: https://github.com/86Box/roms
-- Textual: https://textual.textualize.io
+- VirtualBox: https://www.virtualbox.org
+- DuckStation: https://www.duckstation.org
+- PCSX2: https://pcsx2.net
+- xemu: https://xemu.app
+- Mesen: https://www.mesen.ca
+- Project64: https://www.pj64-emu.com
 
 ## Environment Variables (.env)
 
-- DOSBOX_PATH=C:\Program Files\DOSBox-X\dosbox-x.exe
-- BOX86_PATH=C:\Program Files\86Box\86Box.exe
-- VIRTUALBOX_PATH=C:\Program Files\Oracle\VirtualBox\VBoxManage.exe
-- ROM_PATH=./images/roms/86box
-- PROFILES_PATH=./profiles
+Binary paths and runtime configuration live in `config/settings.yaml`. The
+`.env` file is a legacy override only — values present in `.env` take
+precedence over `settings.yaml` but are not required for a standard install.
+`.env` is reserved for secrets and machine-specific overrides that should not
+be committed.
+
+Supported legacy overrides (also accepted in settings.yaml):
+- DOSBOX_PATH — path to dosbox-x.exe
+- BOX86_PATH — path to 86Box.exe
+- VIRTUALBOX_PATH — path to VBoxManage.exe
+- ROM_PATH — path to 86Box ROM pack directory
+- PROFILES_PATH — path to game profiles directory
 
 ## Git & Version Control
 
@@ -178,13 +217,16 @@ All commits must follow this structure:
 
 Use the area of the project being changed:
 
-- tui — Textual interface
+- tui — Textual interface (legacy)
 - dosbox — DOSBox-X backend
 - 86box — 86Box backend
+- virtualbox — VirtualBox backend
 - profiles — game profile system
 - detection — media or system detection logic
 - config — settings, .env, yaml files
+- settings — settings.yaml and config migration
 - launcher — main entry point
+- frontend — React/TypeScript frontend
 - docs — CLAUDE.md, CONTEXT.md, DECISIONS.md, README
 
 ### Examples
@@ -219,4 +261,6 @@ docs(decisions): log over VirtualBox decision
 - P1 — Core usability
 - P2 — Meaningful expansion
 - P3 — Maturity and automation
+- P3.5 — Web UI replacing TUI, FastAPI backend, React frontend, Docker Compose primary install
+- P4 — Console backends (PS1, PS2, Xbox OG, NES, N64)
 - PX — Nice to haves, no timeline

@@ -1,84 +1,95 @@
 # Peach 1UP
 
-Retro game launcher for DOS through Windows XP era games. Point it at a disk
-image, pick an era, and it spins up the correct emulator with the media
-mounted and sensible defaults applied — no manual emulator configuration
-required. Currently a keyboard-driven TUI; a GUI is planned for a later phase.
+Preservation automation tool for PC and console platforms. Point it at a disk
+image, pick an era, and it launches the correct emulator with the media mounted
+and sensible defaults applied — no manual emulator configuration required.
 
-Covers DOS and Windows 3.1 via DOSBox-X, and Windows 95, 98, and XP via VirtualBox.
-86Box is available as an opt-in accuracy mode for Windows 95 and 98.
+Covers PC platforms from DOS through Windows XP and first-generation consoles
+(PS1, PS2, Xbox OG, NES, N64).
 
 ---
 
 ## Prerequisites
 
-| Requirement                            | Notes                                                                                   |
-| -------------------------------------- | --------------------------------------------------------------------------------------- |
-| Windows 10/11 (Home edition supported) | WSL2 must be enabled                                                                    |
-| Python 3.11                            | [python.org](https://www.python.org/downloads/)                                         |
-| DOSBox-X                               | Required for DOS and Windows 3.1 — [dosbox-x.com](https://dosbox-x.com)                 |
-| VirtualBox                             | Required for Windows 95, 98, XP — [virtualbox.org](https://www.virtualbox.org)          |
-| 86Box                                  | Required for Win95/98 accuracy mode — [86box.net](https://86box.net)                    |
-| 86Box ROM pack                         | Required for 86Box to function — [github.com/86Box/roms](https://github.com/86Box/roms) |
+### Primary install (Docker Compose)
 
-### ROM pack setup
+| Requirement         | Notes                                                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------ |
+| Docker Engine       | Linux: [docs.docker.com](https://docs.docker.com/engine/install/). Windows: via WSL2.     |
+| WSL2 (Windows only) | Enable via `wsl --install` in an elevated PowerShell prompt.                               |
+| Docker Compose      | Included with Docker Engine.                                                               |
 
-Clone the ROM pack into a local directory:
+### Emulators (installed on the host OS)
 
-```terminal
-git clone https://github.com/86Box/roms C:\path\to\roms
-```
+| Emulator   | Era               | Notes                                                                              |
+| ---------- | ----------------- | ---------------------------------------------------------------------------------- |
+| DOSBox-X   | DOS, Windows 3.1  | [dosbox-x.com](https://dosbox-x.com) — no ROM required                            |
+| VirtualBox | Windows 95/98/XP  | [virtualbox.org](https://www.virtualbox.org)                                       |
+| 86Box      | Win95/98 accuracy | [86box.net](https://86box.net) — opt-in accuracy mode, requires ROM pack           |
+| 86Box ROMs | Win95/98 accuracy | [github.com/86Box/roms](https://github.com/86Box/roms)                             |
+| DuckStation | PS1              | [duckstation.org](https://www.duckstation.org) — requires PS1 BIOS                |
+| PCSX2      | PS2               | [pcsx2.net](https://pcsx2.net) — requires PS2 BIOS                                |
+| xemu       | Xbox OG           | [xemu.app](https://xemu.app) — requires Xbox BIOS                                 |
+| Mesen      | NES               | [mesen.ca](https://www.mesen.ca)                                                   |
+| Project64  | N64               | [pj64-emu.com](https://www.pj64-emu.com)                                          |
 
-Then set `ROM_PATH` in your `.env` file to that directory (see below).
+Emulators marked "requires BIOS" need a BIOS image sourced from your own
+hardware. Peach 1UP does not provide BIOS files.
 
-If the ROM pack is absent, a warning will appear next to Windows 95/98/XP in
-the era selector. The warning clears automatically once the pack is in place.
+### Python fallback (no Docker)
+
+| Requirement | Notes                                                  |
+| ----------- | ------------------------------------------------------ |
+| Python 3.11 | [python.org](https://www.python.org/downloads/)        |
 
 ---
 
 ## Installation
 
-1. Clone the repo
+### Option 1 — Docker Compose (recommended)
 
 ```terminal
 git clone https://github.com/rymorrisj/peach_1up
 cd peach_1up
+docker compose up
 ```
 
-2. Install dependencies
+Open `http://localhost:3000` in your browser. On first run, the setup wizard
+will detect installed emulators and guide you through initial configuration.
+Binary paths are auto-detected or set via `config/settings.yaml`.
+
+**Windows:** requires Docker Engine running under WSL2. Run
+`wsl --install` in an elevated PowerShell prompt if WSL2 is not yet enabled.
+
+### Option 2 — start.bat (Windows fallback)
+
+For Windows users who cannot run Docker:
 
 ```terminal
+git clone https://github.com/rymorrisj/peach_1up
+cd peach_1up
+start.bat
+```
+
+`start.bat` installs dependencies, starts the FastAPI backend, and opens the
+frontend in your default browser.
+
+### Option 3 — Python direct
+
+```terminal
+git clone https://github.com/rymorrisj/peach_1up
+cd peach_1up
 pip install -r requirements.txt
-```
-
-3. Create your `.env` file
-
-Copy the template and fill in paths for your machine:
-
-```terminal
-cp .env.template .env
-```
-
-Required variables:
-
-```py
-DOSBOX_PATH=C:\Program Files\DOSBox-X\dosbox-x.exe
-BOX86_PATH=C:\Program Files\86Box\86Box.exe
-VIRTUALBOX_PATH=C:\Program Files\Oracle\VirtualBox\VBoxManage.exe
-ROM_PATH=C:\path\to\86box-roms
-IMAGES_PATH=.\images\games
-PROFILES_PATH=.\profiles
-```
-
-4. Run the launcher
-
-```py
 python launcher.py
 ```
 
-The launcher requests administrator privileges on startup (required for
-Windows Job Objects and Firewall rule management). A UAC prompt will appear
-on first run.
+---
+
+## Configuration
+
+Binary paths and runtime settings live in `config/settings.yaml`. A `.env`
+file is supported as a legacy override — values in `.env` take precedence over
+`settings.yaml`. See `settings.yaml` for documented defaults.
 
 ---
 
@@ -87,3 +98,4 @@ on first run.
 - [CONTEXT.md](CONTEXT.md) — Development roadmap and current task
 - [DECISIONS.md](DECISIONS.md) — Design decision log
 - [CLAUDE.md](CLAUDE.md) — Project technical reference
+- [TECH.md](TECH.md) — Full technology stack with reasoning
