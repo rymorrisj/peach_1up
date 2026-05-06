@@ -7,7 +7,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 from textual.containers import Container, Vertical
 
-from utils.system_check import MissingBinary
+from backend.service.utils.system_check import MissingBinary
 
 
 class MissingBinaryScreen(ModalScreen):

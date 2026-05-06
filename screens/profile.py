@@ -12,13 +12,13 @@ from textual.screen import Screen, ModalScreen
 from textual.widgets import Static, ListView, ListItem, Label, Input
 from textual.containers import Container, VerticalScroll
 
-from utils.constants import Era
-from utils.profile import Profile, load, list_profiles, save, append_history, load_history
-from utils.media_detect import detect_era
-from utils.profile_builder import create_dos_profile
-from utils import settings
-from utils.job_objects import WindowsJobObject
-from backends.dosbox import launch_install, launch_game
+from backend.service.utils.constants import Era
+from backend.service.utils.profile import Profile, load, list_profiles, save, append_history, load_history
+from backend.service.utils.media_detect import detect_era
+from backend.service.utils.profile_builder import create_dos_profile
+from backend.service.utils import settings
+from backend.service.utils.job_objects import WindowsJobObject
+from backend.service.backends.dosbox import launch_install, launch_game
 from screens.error import ErrorScreen
 
 

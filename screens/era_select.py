@@ -8,9 +8,9 @@ from textual.screen import Screen
 from textual.widgets import Static, ListView, ListItem, Label
 from textual.containers import Container
 
-from utils.rom_check import is_rom_pack_present
-from utils.constants import Era
-from utils import settings
+from backend.service.utils.rom_check import is_rom_pack_present
+from backend.service.utils.constants import Era
+from backend.service.utils import settings
 
 
 def _create_era_item(era_name: str, era_key: str, requires_rom_warning: bool) -> ListItem:

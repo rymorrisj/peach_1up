@@ -8,8 +8,8 @@ from pathlib import Path
 from textual.app import App
 
 from screens.main_menu import MainMenuScreen
-from utils import settings
-from utils.system_check import is_elevated, check_missing_binaries
+from backend.service.utils import settings
+from backend.service.utils.system_check import is_elevated, check_missing_binaries
 
 
 class Peach1UPApp(App):
@@ -60,7 +60,7 @@ class Peach1UPApp(App):
                 from screens.system_warning import MissingBinaryScreen
                 self.push_screen(MissingBinaryScreen(missing))
 
-            from utils.platform import run_health_checks
+            from backend.service.utils.platform import run_health_checks
             from screens.platform_guidance import PlatformHealthModal
             health = run_health_checks(Path("config") / "platforms.yaml")
             if any(not r.is_healthy for r in health):

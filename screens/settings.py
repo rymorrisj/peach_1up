@@ -11,7 +11,7 @@ from textual.widgets import Static, ListView, ListItem, Label
 from textual.containers import Container
 
 from screens.profile import InputModal
-from utils import settings
+from backend.service.utils import settings
 
 
 # (settings_key, display_label)

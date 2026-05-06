@@ -15,9 +15,9 @@ from textual.screen import Screen, ModalScreen
 from textual.widgets import Static, ListView, ListItem, Label, Checkbox
 from textual.containers import Container
 
-from utils.constants import Era
-from utils.profile_builder import ScanEntry, scan_directory, import_profiles
-from utils import settings
+from backend.service.utils.constants import Era
+from backend.service.utils.profile_builder import ScanEntry, scan_directory, import_profiles
+from backend.service.utils import settings
 
 
 _ERA_LABELS: dict[str, str] = {

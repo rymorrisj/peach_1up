@@ -1,0 +1,3 @@
+# Docker Compose configuration — populated in P3.5-4
+version: "3.9"
+services: {}

@@ -19,8 +19,8 @@ from textual.screen import Screen
 from textual.widgets import Static, ListView, ListItem, Label
 from textual.containers import VerticalScroll
 
-from utils import settings
-from utils.system_check import compute_setup_status, clone_rom_pack
+from backend.service.utils import settings
+from backend.service.utils.system_check import compute_setup_status, clone_rom_pack
 
 
 # (key, display_name, required, download_url_or_none)

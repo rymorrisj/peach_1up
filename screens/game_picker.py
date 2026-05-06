@@ -10,9 +10,9 @@ from textual.screen import Screen
 from textual.widgets import Static, ListView, ListItem, Label
 from textual.containers import Container
 
-from utils.constants import Era
-from utils.media_detect import get_compatible_media
-from utils import settings
+from backend.service.utils.constants import Era
+from backend.service.utils.media_detect import get_compatible_media
+from backend.service.utils import settings
 
 
 def _get_search_path(images_path: str) -> str:

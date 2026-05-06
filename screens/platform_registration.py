@@ -11,9 +11,9 @@ from textual.screen import Screen
 from textual.widgets import Button, Checkbox, Input, Label, Select
 from textual.containers import Horizontal, Vertical, VerticalScroll
 
-from utils.constants import Era
-from utils.platform import OSPlatform, save as platform_save
-from utils.backend_router import resolve_backend_name
+from backend.service.utils.constants import Era
+from backend.service.utils.platform import OSPlatform, save as platform_save
+from backend.service.utils.backend_router import resolve_backend_name
 
 
 _VALID_MEDIA_EXTENSIONS = frozenset({".img", ".vhd", ".iso"})

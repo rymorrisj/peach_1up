@@ -13,9 +13,9 @@ from textual.screen import Screen
 from textual.widgets import Static
 from textual.containers import Container
 
-from utils.constants import Era
-from utils.backend_router import get_backend_name, get_executable_path, launch_media
-from utils.job_objects import WindowsJobObject
+from backend.service.utils.constants import Era
+from backend.service.utils.backend_router import get_backend_name, get_executable_path, launch_media
+from backend.service.utils.job_objects import WindowsJobObject
 from screens.error import ErrorScreen
 
 
