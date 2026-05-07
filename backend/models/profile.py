@@ -1,23 +1,52 @@
 from datetime import datetime
+from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
-
-from backend.models.base import Base
+from sqlalchemy import Column, DateTime, func
+from sqlmodel import Field, SQLModel
 
 
-class Profile(Base):
+class ProfileBase(SQLModel):
+    name: str
+    slug: str = Field(unique=True)
+    emulator_slug: str
+    era: str
+    config_path: Optional[str] = None
+    extra_args: Optional[str] = None
+    is_bundled: bool = False
+    is_accuracy_mode: bool = False
+    notes: Optional[str] = None
+
+
+class Profile(ProfileBase, table=True):
     __tablename__ = "profiles"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
-    slug: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
-    emulator_slug: Mapped[str] = mapped_column(String(100), nullable=False)
-    era: Mapped[str] = mapped_column(String(50), nullable=False)
-    config_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    extra_args: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_bundled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    is_accuracy_mode: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime, server_default=func.now(), nullable=False),
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False),
+    )
+
+
+class ProfileCreate(ProfileBase):
+    pass
+
+
+class ProfileUpdate(SQLModel):
+    name: Optional[str] = None
+    slug: Optional[str] = None
+    emulator_slug: Optional[str] = None
+    era: Optional[str] = None
+    config_path: Optional[str] = None
+    extra_args: Optional[str] = None
+    is_accuracy_mode: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class ProfileRead(ProfileBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime

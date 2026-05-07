@@ -11,9 +11,8 @@ logger = logging.getLogger(__name__)
 
 from backend.core.database import get_db
 from backend.core.settings import get_settings
-from backend.models import Platform, Snapshot
-from backend.schemas.platform import PlatformCreate, PlatformRead, PlatformUpdate
-from backend.schemas.snapshot import SnapshotCreate, SnapshotRead
+from backend.models.platform import Platform, PlatformCreate, PlatformRead, PlatformUpdate
+from backend.models.snapshot import Snapshot, SnapshotCreate, SnapshotRead
 from backend.service.utils.settings import get_binary_path
 
 router = APIRouter(prefix="/api/v1/platforms", tags=["platforms"], redirect_slashes=False)

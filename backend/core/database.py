@@ -1,11 +1,11 @@
-import os
 from pathlib import Path
 from typing import Generator
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
+from sqlmodel import SQLModel
 
-_DB_PATH = Path(os.environ.get("PEACH_DB_PATH", "peach1up.db"))
+_DB_PATH = Path(__file__).resolve().parents[2] / "database" / "data" / "peach1up.db"
 _ENGINE = None
 _SESSION_FACTORY = None
 
@@ -19,6 +19,8 @@ def _enforce_foreign_keys(dbapi_conn, _connection_record) -> None:
 def init_db() -> None:
     global _ENGINE, _SESSION_FACTORY
 
+    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
     _ENGINE = create_engine(
         f"sqlite:///{_DB_PATH}",
         connect_args={"check_same_thread": False},
@@ -29,10 +31,9 @@ def init_db() -> None:
 
 
 def create_tables() -> None:
-    from backend.models import Base
     if _ENGINE is None:
         raise RuntimeError("Database not initialised — call init_db() first.")
-    Base.metadata.create_all(bind=_ENGINE)
+    SQLModel.metadata.create_all(bind=_ENGINE)
 
 
 def get_engine():

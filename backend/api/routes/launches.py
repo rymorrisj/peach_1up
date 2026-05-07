@@ -9,7 +9,7 @@ from backend.core import process_registry
 from backend.core.database import get_db
 from backend.core.process_registry import ProcessEntry
 from backend.models import LaunchHistory, LibraryItem, Profile
-from backend.schemas.launch_history import LaunchHistoryRead
+from backend.models.launch_history import LaunchHistoryRead
 
 router = APIRouter(prefix="/api/v1", tags=["launches"])
 

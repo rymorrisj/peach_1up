@@ -207,7 +207,7 @@ consolidated. Static frontend build is always present.
 ### CURRENT
 
 - [P5-1] Move database to /database/data/ — relocate peach1up.db, update engine
-  config, .gitignore, and all path references. /database/ owns schema and config.
+  config, .gitignore, .env, and all path references. /database/ owns schema and config.
   No direct db path references outside of config.
 - [P5-2] Replace SQLAlchemy + Pydantic dual-layer with SQLModel — one class drives
   the database schema, API response shape, and OpenAPI spec. Remove Alembic entirely.

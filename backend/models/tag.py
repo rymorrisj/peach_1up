@@ -1,13 +1,29 @@
-from sqlalchemy import String
-from sqlalchemy.orm import Mapped, mapped_column
+from typing import Optional
 
-from backend.models.base import Base
+from sqlmodel import Field, SQLModel
 
 
-class Tag(Base):
+class TagBase(SQLModel):
+    name: str = Field(unique=True)
+    slug: str = Field(unique=True)
+    color: Optional[str] = None
+
+
+class Tag(TagBase, table=True):
     __tablename__ = "tags"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    color: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+
+class TagCreate(TagBase):
+    pass
+
+
+class TagUpdate(SQLModel):
+    name: Optional[str] = None
+    slug: Optional[str] = None
+    color: Optional[str] = None
+
+
+class TagRead(TagBase):
+    id: int

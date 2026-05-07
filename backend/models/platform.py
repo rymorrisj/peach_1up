@@ -1,30 +1,70 @@
 from datetime import datetime
+from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
-
-from backend.models.base import Base
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, func
+from sqlmodel import Field, SQLModel
 
 
-class Platform(Base):
+class PlatformBase(SQLModel):
+    name: str
+    era: str
+    emulator_slug: str
+    base_image_path: Optional[str] = None
+    working_image_path: Optional[str] = None
+    config_path: Optional[str] = None
+    status: str = "unknown"
+    notes: Optional[str] = None
+    is_system: bool = False
+    download_url: Optional[str] = None
+    supported_eras: Optional[str] = None
+    default_flags: Optional[str] = None
+
+
+class Platform(PlatformBase, table=True):
     __tablename__ = "platforms"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
-    slug: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True)
-    era: Mapped[str] = mapped_column(String(50), nullable=False)
-    emulator_slug: Mapped[str] = mapped_column(String(100), nullable=False)
-    profile_id: Mapped[int | None] = mapped_column(ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True)
-    base_image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    working_image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    config_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    status: Mapped[str] = mapped_column(String(50), default="ok", nullable=False)
-    last_health_check: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # System platform fields — populated only for pre-seeded emulator records
-    is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    download_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    supported_eras: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list of era strings
-    default_flags: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    slug: Optional[str] = Field(default=None, unique=True)
+    profile_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
+    )
+    last_health_check: Optional[datetime] = None
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime, server_default=func.now(), nullable=False),
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False),
+    )
+
+
+class PlatformCreate(PlatformBase):
+    slug: Optional[str] = None
+    profile_id: Optional[int] = None
+
+
+class PlatformUpdate(SQLModel):
+    name: Optional[str] = None
+    era: Optional[str] = None
+    emulator_slug: Optional[str] = None
+    profile_id: Optional[int] = None
+    base_image_path: Optional[str] = None
+    working_image_path: Optional[str] = None
+    config_path: Optional[str] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    slug: Optional[str] = None
+    download_url: Optional[str] = None
+    supported_eras: Optional[str] = None
+    default_flags: Optional[str] = None
+
+
+class PlatformRead(PlatformBase):
+    id: int
+    slug: Optional[str] = None
+    profile_id: Optional[int] = None
+    last_health_check: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime

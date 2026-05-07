@@ -1,14 +1,26 @@
 from datetime import datetime
+from typing import Optional
 
-from sqlalchemy import DateTime, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
-
-from backend.models.base import Base
+from sqlalchemy import Column, DateTime, func
+from sqlmodel import Field, SQLModel
 
 
-class Settings(Base):
+class Settings(SQLModel, table=True):
     __tablename__ = "app_settings"
 
-    key: Mapped[str] = mapped_column(String(200), primary_key=True)
-    value: Mapped[str | None] = mapped_column(Text, nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    key: str = Field(primary_key=True)
+    value: Optional[str] = None
+    updated_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False),
+    )
+
+
+class SettingsRead(SQLModel):
+    key: str
+    value: Optional[str] = None
+    updated_at: datetime
+
+
+class SettingsPatch(SQLModel):
+    updates: dict[str, Optional[str]]

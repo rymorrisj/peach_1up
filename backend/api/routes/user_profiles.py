@@ -3,8 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.models.user_profile import ProfilePermissions, UserProfile
-from backend.schemas.user_profile import UserProfileCreate, UserProfileRead, UserProfileUpdate
+from backend.models.user_profile import ProfilePermissions, UserProfile, UserProfileCreate, UserProfileRead, UserProfileUpdate
 
 router = APIRouter(prefix="/api/v1/profiles/users", tags=["user-profiles"])
 

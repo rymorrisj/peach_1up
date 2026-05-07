@@ -129,9 +129,7 @@ def _seed_system_platforms(db) -> None:
         logger.info("Seeded %d system platforms", len(_SYSTEM_PLATFORMS))
     except Exception as exc:
         db.rollback()
-        logger.warning(
-            "System platform seeding skipped — migration a3f1c8e20b47 may not be applied: %s", exc
-        )
+        logger.warning("System platform seeding skipped: %s", exc)
 
 
 def _seed_default_profiles(db) -> None:

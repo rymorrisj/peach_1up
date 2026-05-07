@@ -9,8 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.models import LibraryItem
-from backend.schemas.library import LibraryItemCreate, LibraryItemRead, LibraryItemUpdate
+from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate
 
 router = APIRouter(prefix="/api/v1/library", tags=["library"])
 logger = logging.getLogger(__name__)

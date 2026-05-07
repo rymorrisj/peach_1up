@@ -1,38 +1,84 @@
 from datetime import datetime
+from typing import Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
-
-from backend.models.base import Base
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Table, func
+from sqlmodel import Field, SQLModel
 
 
 library_item_tag = Table(
     "library_item_tags",
-    Base.metadata,
+    SQLModel.metadata,
     Column("library_item_id", Integer, ForeignKey("library_items.id", ondelete="CASCADE"), primary_key=True),
     Column("tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
 )
 
 
-class LibraryItem(Base):
+class LibraryItemBase(SQLModel):
+    title: str
+    sort_title: Optional[str] = None
+    era: str
+    category: Optional[str] = None
+    media_path: str
+    media_type: Optional[str] = None
+    cover_art_path: Optional[str] = None
+    description: Optional[str] = None
+    publisher: Optional[str] = None
+    year: Optional[int] = None
+    igdb_id: Optional[int] = None
+    metadata_source: Optional[str] = None
+
+
+class LibraryItem(LibraryItemBase, table=True):
     __tablename__ = "library_items"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    title: Mapped[str] = mapped_column(String(300), nullable=False)
-    sort_title: Mapped[str | None] = mapped_column(String(300), nullable=True)
-    era: Mapped[str] = mapped_column(String(50), nullable=False)
-    category: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    media_path: Mapped[str] = mapped_column(String(500), nullable=False)
-    media_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    platform_id: Mapped[int | None] = mapped_column(ForeignKey("platforms.id", ondelete="SET NULL"), nullable=True)
-    profile_id: Mapped[int | None] = mapped_column(ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True)
-    cover_art_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    publisher: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    year: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    igdb_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    metadata_source: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    last_launched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    launch_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    platform_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("platforms.id", ondelete="SET NULL"), nullable=True),
+    )
+    profile_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
+    )
+    last_launched_at: Optional[datetime] = None
+    launch_count: int = 0
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime, server_default=func.now(), nullable=False),
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False),
+    )
+
+
+class LibraryItemCreate(LibraryItemBase):
+    platform_id: Optional[int] = None
+    profile_id: Optional[int] = None
+
+
+class LibraryItemUpdate(SQLModel):
+    title: Optional[str] = None
+    sort_title: Optional[str] = None
+    era: Optional[str] = None
+    category: Optional[str] = None
+    media_path: Optional[str] = None
+    media_type: Optional[str] = None
+    platform_id: Optional[int] = None
+    profile_id: Optional[int] = None
+    cover_art_path: Optional[str] = None
+    description: Optional[str] = None
+    publisher: Optional[str] = None
+    year: Optional[int] = None
+    igdb_id: Optional[int] = None
+    metadata_source: Optional[str] = None
+
+
+class LibraryItemRead(LibraryItemBase):
+    id: int
+    platform_id: Optional[int] = None
+    profile_id: Optional[int] = None
+    last_launched_at: Optional[datetime] = None
+    launch_count: int
+    created_at: datetime
+    updated_at: datetime
