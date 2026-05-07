@@ -13,7 +13,11 @@ from backend.schemas.settings import SettingsPatch, SettingsRead
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
 _KNOWN_BINARY_KEYS = {"DOSBOX_PATH", "BOX86_PATH", "VIRTUALBOX_PATH"}
-_ALL_PATH_KEYS = {"DOSBOX_PATH", "BOX86_PATH", "VIRTUALBOX_PATH", "ROM_PATH", "IMAGES_PATH", "PROFILES_PATH"}
+_ALL_PATH_KEYS = {
+    "DOSBOX_PATH", "BOX86_PATH", "VIRTUALBOX_PATH",
+    "DUCKSTATION_PATH", "PCSX2_PATH", "XEMU_PATH", "MESEN_PATH", "PROJECT64_PATH",
+    "ROM_PATH", "IMAGES_PATH", "PROFILES_PATH",
+}
 
 _EMULATOR_SLUG_TO_KEY: dict[str, str] = {
     "dosbox-x":    "DOSBOX_PATH",

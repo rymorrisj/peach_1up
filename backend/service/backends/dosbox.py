@@ -8,11 +8,7 @@ from pathlib import Path
 from typing import List, Tuple
 from subprocess import Popen
 
-from backend.service.utils.job_objects import launch_direct, launch_under_job_object, WindowsJobObject
-from backend.service.utils.constants import Era
-from backend.service.utils.profile import Profile
-from backend.service.utils.dosbox_config import regenerate_conf
-from backend.service.utils.vhd import hdd_size_param
+from backend.service.utils.job_objects import launch_direct, WindowsJobObject
 
 
 # Supported file extensions for DOSBox-X backend
@@ -121,96 +117,3 @@ def launch(media_path: Path, era: str, executable_path: str) -> Tuple[Popen, Win
     )
 
 
-def launch_install(
-    profile: Profile,
-    dosbox_executable: str,
-) -> Tuple[Popen, WindowsJobObject]:
-    if not os.path.exists(dosbox_executable):
-        raise FileNotFoundError(f"DOSBox-X executable not found: {dosbox_executable}")
-
-    validate_media(profile.media_path)
-
-    if not profile.dosbox_conf_path:
-        raise ValueError(
-            f"Profile '{profile.name}' has no dosbox_conf_path set. Run generate_conf first."
-        )
-    if not profile.hdd_image_path:
-        raise ValueError(
-            f"Profile '{profile.name}' has no hdd_image_path set. Run ensure_hdd first."
-        )
-
-    media_str = str(profile.media_path.resolve())
-    hdd_str = str(profile.hdd_image_path.resolve())
-    conf_str = str(profile.dosbox_conf_path.resolve())
-    suffix = profile.media_path.suffix.lower()
-
-    if suffix in {".iso", ".cue"}:
-        media_mount_cmd = f'imgmount D "{media_str}" -t iso -ro'
-        switch_drive = "D:"
-    else:  # .img — treat as floppy
-        media_mount_cmd = f'imgmount A "{media_str}" -t floppy -ro'
-        switch_drive = "A:"
-
-    autoexec_lines = [
-        f'imgmount C "{hdd_str}" -t hdd -fs fat {hdd_size_param(profile.era)}',
-        media_mount_cmd,
-        "C:",
-        switch_drive,
-    ]
-    regenerate_conf(profile, autoexec_lines)
-
-    args = ["-conf", conf_str]
-
-    job_name = f"peach1up_install_{profile.name}"
-    return launch_direct(
-        executable_path=dosbox_executable,
-        args=args,
-        era=profile.era.value,
-        job_name=job_name,
-    )
-
-
-def launch_game(
-    profile: Profile,
-    dosbox_executable: str,
-) -> Tuple[Popen, WindowsJobObject]:
-    if not os.path.exists(dosbox_executable):
-        raise FileNotFoundError(f"DOSBox-X executable not found: {dosbox_executable}")
-
-    validate_media(profile.media_path)
-
-    if not profile.dosbox_conf_path:
-        raise ValueError(
-            f"Profile '{profile.name}' has no dosbox_conf_path set. Run generate_conf first."
-        )
-    if not profile.hdd_image_path:
-        raise ValueError(
-            f"Profile '{profile.name}' has no hdd_image_path set. Run ensure_hdd first."
-        )
-
-    media_str = str(profile.media_path.resolve())
-    hdd_str = str(profile.hdd_image_path.resolve())
-    conf_str = str(profile.dosbox_conf_path.resolve())
-    suffix = profile.media_path.suffix.lower()
-
-    if suffix in {".iso", ".cue"}:
-        media_mount_cmd = f'imgmount D "{media_str}" -t iso -ro'
-    else:  # .img — treat as floppy
-        media_mount_cmd = f'imgmount A "{media_str}" -t floppy -ro'
-
-    autoexec_lines = [
-        f'imgmount C "{hdd_str}" -t hdd -fs fat {hdd_size_param(profile.era)}',
-        media_mount_cmd,
-        "C:",
-    ]
-    regenerate_conf(profile, autoexec_lines)
-
-    args = ["-conf", conf_str]
-
-    job_name = f"peach1up_game_{profile.name}"
-    return launch_direct(
-        executable_path=dosbox_executable,
-        args=args,
-        era=profile.era.value,
-        job_name=job_name,
-    )

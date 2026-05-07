@@ -625,7 +625,8 @@ def launch_direct(
     identical to the full job path. The stub has no job_handle, so terminate_all
     skips process termination (only firewall rules are cleaned up).
 
-    # TODO: re-enable Job Objects — CREATE_BREAKAWAY_FROM_JOB is blocked on this system
+    # Error 5 (ACCESS_DENIED) on Windows 11 blocks job assignment regardless of
+    # CREATE_BREAKAWAY_FROM_JOB. Firewall rules still apply via the stub handle.
 
     Args:
         executable_path: Full path to the emulator executable.

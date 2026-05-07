@@ -1,8 +1,8 @@
 """Settings management for Peach 1UP.
 
 Single source for binary path resolution and persisted settings state.
-Call init() once at startup — from launcher.py on_mount — before any
-other access to this module.
+Call init() once at startup (via the FastAPI lifespan handler) before
+any other access to this module.
 """
 
 from __future__ import annotations
