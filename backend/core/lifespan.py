@@ -19,7 +19,7 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["dos", "win31"]),
         "download_url": "https://dosbox-x.com",
-        "status": "ok",
+        "status": "unknown",
     },
     {
         "name": "86Box",
@@ -29,7 +29,7 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["win95", "win98"]),
         "download_url": "https://86box.net",
-        "status": "ok",
+        "status": "unknown",
     },
     {
         "name": "VirtualBox",
@@ -39,7 +39,7 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["win95", "win98", "winxp"]),
         "download_url": "https://www.virtualbox.org",
-        "status": "ok",
+        "status": "unknown",
     },
     {
         "name": "DuckStation",
@@ -49,7 +49,7 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["ps1"]),
         "download_url": "https://www.duckstation.org",
-        "status": "ok",
+        "status": "unknown",
     },
     {
         "name": "PCSX2",
@@ -59,7 +59,7 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["ps2"]),
         "download_url": "https://pcsx2.net",
-        "status": "ok",
+        "status": "unknown",
     },
     {
         "name": "xemu",
@@ -69,7 +69,7 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["xbox"]),
         "download_url": "https://xemu.app",
-        "status": "ok",
+        "status": "unknown",
     },
     {
         "name": "Mesen",
@@ -79,7 +79,7 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["nes"]),
         "download_url": "https://www.mesen.ca",
-        "status": "ok",
+        "status": "unknown",
     },
     {
         "name": "Project64",
@@ -89,7 +89,7 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["n64"]),
         "download_url": "https://www.pj64-emu.com",
-        "status": "ok",
+        "status": "unknown",
     },
 ]
 

@@ -14,21 +14,25 @@ from backend.core.settings import get_settings
 from backend.models import Platform, Snapshot
 from backend.schemas.platform import PlatformCreate, PlatformRead, PlatformUpdate
 from backend.schemas.snapshot import SnapshotCreate, SnapshotRead
+from backend.service.utils.settings import get_binary_path
 
 router = APIRouter(prefix="/api/v1/platforms", tags=["platforms"], redirect_slashes=False)
 
 _TOKEN_TTL = 60
 _confirm_tokens: dict[str, tuple[int, str, float]] = {}
 
-_EMULATOR_SLUG_TO_SETTINGS_KEY: dict[str, str] = {
-    "dosbox-x":    "DOSBOX_PATH",
-    "86box":       "BOX86_PATH",
-    "virtualbox":  "VIRTUALBOX_PATH",
-    "duckstation": "DUCKSTATION_PATH",
-    "pcsx2":       "PCSX2_PATH",
-    "xemu":        "XEMU_PATH",
-    "mesen":       "MESEN_PATH",
-    "project64":   "PROJECT64_PATH",
+# Maps emulator_slug (as stored on Platform) to the key expected by get_binary_path().
+# dosbox-x and 86box differ from their slug because get_binary_path() uses the shorter
+# legacy keys ("dosbox", "box86") that predate the platform slug scheme.
+_EMULATOR_SLUG_TO_BINARY_KEY: dict[str, str] = {
+    "dosbox-x":    "dosbox",
+    "86box":       "box86",
+    "virtualbox":  "virtualbox",
+    "duckstation": "duckstation",
+    "pcsx2":       "pcsx2",
+    "xemu":        "xemu",
+    "mesen":       "mesen",
+    "project64":   "project64",
 }
 
 
@@ -138,9 +142,8 @@ def platform_health(platform_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Platform not found.")
 
     if platform.is_system:
-        svc = get_settings()
-        settings_key = _EMULATOR_SLUG_TO_SETTINGS_KEY.get(platform.emulator_slug, "")
-        binary_path = (svc.get(settings_key, "") or "") if settings_key else ""
+        emulator_key = _EMULATOR_SLUG_TO_BINARY_KEY.get(platform.emulator_slug, "")
+        binary_path = get_binary_path(emulator_key) if emulator_key else ""
         exists = bool(binary_path and Path(binary_path).is_file())
         platform.status = "ok" if exists else "missing"
         platform.last_health_check = datetime.utcnow()

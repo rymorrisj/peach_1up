@@ -30,6 +30,20 @@ if not exist "config\settings.yaml" (
     echo Copy config\settings.yaml and fill in paths before running.
 )
 
+echo Installing backend dependencies...
+py -m pip install -r backend\requirements.txt --quiet
+if errorlevel 1 (
+    echo ERROR: Failed to install backend dependencies.
+    exit /b 1
+)
+
+echo Installing frontend dependencies...
+call npm install --prefix ./frontend --silent
+if errorlevel 1 (
+    echo ERROR: Failed to install frontend dependencies.
+    exit /b 1
+)
+
 set PEACH_ENV=development
 
 echo Starting Peach 1UP frontend in a new window...

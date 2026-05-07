@@ -85,8 +85,9 @@ _EMULATOR_CATALOG: list[tuple[str, str, bool, str]] = [
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent.parent
 
 _BUNDLED: dict[str, Path] = {
-    "dosbox": _PROJECT_ROOT / "emulators" / "dosbox-x" / "dosbox-x.exe",
-    "box86":  _PROJECT_ROOT / "emulators" / "86box" / "86Box.exe",
+    "dosbox":      _PROJECT_ROOT / "emulators" / "dosbox-x" / "dosbox-x.exe",
+    "box86":       _PROJECT_ROOT / "emulators" / "86box" / "86Box.exe",
+    "virtualbox":  _PROJECT_ROOT / "emulators" / "virtualbox" / "VBoxManage.exe",
 }
 
 # None until init() is called; dict thereafter

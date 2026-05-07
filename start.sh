@@ -17,6 +17,12 @@ if [ ! -f "config/settings.yaml" ]; then
   echo "Copy config/settings.yaml.template to config/settings.yaml and fill in paths."
 fi
 
+echo "Installing backend dependencies..."
+python3 -m pip install -r backend/requirements.txt -q
+
+echo "Installing frontend dependencies..."
+(cd frontend && npm install --silent)
+
 export PEACH_ENV=development
 
 FRONTEND_PID=""
