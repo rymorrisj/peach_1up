@@ -142,6 +142,21 @@ Permission flags on sub-profiles:
   Authelia) in front of this service. Peach 1UP does not manage TLS termination or
   external routing.
 
+**Network isolation is emulator-native**
+
+Network blocking is enforced at the emulator level, not via host OS firewall rules.
+Each emulator is launched with its network adapter disabled or absent when
+enable_networking is false on the active profile (the default). DOSBox-X launches
+with the NE2000 adapter disabled via config. 86Box omits the network device from
+the machine config entirely. VirtualBox sets --nic1 null via VBoxManage at launch
+time. Console emulators (DuckStation, PCSX2, xemu, Mesen, Project64) have no
+meaningful network capability and require no explicit blocking.
+
+This approach requires no host elevation, cannot be accidentally bypassed by a
+COM availability issue, and is harder for emulated software to work around than
+a host firewall rule. Users who need network access for specific software can
+enable it explicitly per profile.
+
 ---
 
 ## Destructive Operations
@@ -228,11 +243,10 @@ conversation and wait for an explicit decision before proceeding.
 On Windows 11, assigning an emulator process to a Job Object fails with error code 5
 (access denied) regardless of breakaway flag combinations. When this occurs, the launcher
 falls back to `launch_direct`, which starts the emulator without Job Object containment.
-Network blocking via Windows Firewall rules still applies in this fallback path, but
-process-level isolation is weaker — resource limits and filesystem restriction are not
-enforced. This is a known Windows 11 behaviour and is logged in
-[DECISIONS.md](DECISIONS.md) (2026-05-05, "Job Objects bypassed via launch_direct for
-DOS launches"). The issue is tracked for revisit once the web UI replaces the TUI.
+Process-level isolation is weaker in this fallback path — resource limits and filesystem
+restriction are not enforced. Network isolation still applies because it is emulator-native
+(adapter disabled at the emulator config level, not the host firewall level). This is a
+known Windows 11 behaviour and is logged in [DECISIONS.md](DECISIONS.md).
 
 The scan endpoint validates all user-supplied directory paths against an allowlist of configured base directories (IMAGES_PATH, PROFILES_PATH, ROM_PATH) before any filesystem operation. This is a mandatory enforcement of the Input Validation Rules above. If none of these paths are configured in settings, scanning is blocked entirely. Media collections must reside under a configured base directory. This restriction must be carried forward to any future endpoint that accepts a directory or file path parameter.
 

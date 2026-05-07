@@ -142,12 +142,21 @@ def _inject_media(attachment: dict) -> None:
         raise
 
 
-def launch(platform: OSPlatform, media_path: Optional[Path] = None) -> None:
+def launch(
+    platform: OSPlatform,
+    media_path: Optional[Path] = None,
+    enable_networking: bool = False,
+) -> None:
     """Launch 86Box in accuracy mode under Job Objects.
 
     Validates platform state and environment, loads and validates the era
     hardware template, optionally injects game media into the config, then
-    launches 86Box with network blocked and resource limits applied.
+    launches 86Box with resource limits applied.
+
+    When enable_networking is False (the default), the [Network] section of
+    the 86Box config is patched to set net_type = none before launch, removing
+    any network device from the machine config. When True, the config is left
+    at its current value.
 
     Args:
         platform: Registered OSPlatform. ``era``, ``working_image_path``, and
@@ -155,6 +164,9 @@ def launch(platform: OSPlatform, media_path: Optional[Path] = None) -> None:
         media_path: Optional game media to attach at launch time. When
             provided, the cd_path key is injected into the 86Box config
             before launch.
+        enable_networking: When False (default), the network device is removed
+            from the machine config. Set True only for software that requires
+            a network connection.
 
     Raises:
         ValueError: If the era is unsupported, required platform fields are
@@ -205,6 +217,14 @@ def launch(platform: OSPlatform, media_path: Optional[Path] = None) -> None:
     if media_path is not None:
         attachment = build_86box_attachment(media_path, platform.config_path)
         _inject_media(attachment)
+
+    if not enable_networking:
+        _inject_media({
+            "config_path": platform.config_path,
+            "section": "Network",
+            "key": "net_type",
+            "value": "none",
+        })
 
     args = [
         "--config", str(platform.config_path),

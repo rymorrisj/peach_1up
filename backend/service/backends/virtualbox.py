@@ -239,18 +239,26 @@ def _virtualboxvm_path(vbm_path: str) -> str:
 def launch(
     platform: OSPlatform,
     media_path: Optional[Path] = None,
+    enable_networking: bool = False,
 ) -> Tuple[Popen, WindowsJobObject]:
     """Launch a VirtualBox VM under Job Objects.
 
     Validates platform state, registers the VM if needed, optionally attaches
-    game media, then launches VirtualBoxVM.exe with network blocked and
-    resource limits applied.
+    game media, configures the network adapter, then launches VirtualBoxVM.exe
+    with resource limits applied.
+
+    When enable_networking is False (the default), ``--nic1 null`` is passed
+    via VBoxManage to disconnect the VM's first network adapter before launch.
+    When True, ``--nic1 nat`` is set so the VM can reach the network.
 
     Args:
         platform: Registered OSPlatform. ``era`` and ``working_image_path``
             must be set before calling.
         media_path: Optional game media to attach at launch time. ISO files
             attach as DVD; .img/.vhd files attach as a second HDD on SATA port 1.
+        enable_networking: When False (default), the VM network adapter is
+            disconnected via VBoxManage. Set True only for software that
+            requires a network connection.
 
     Returns:
         ``(process, job_object)`` — the running ``Popen`` and the
@@ -293,6 +301,9 @@ def launch(
     if media_path is not None:
         attachment = build_virtualbox_attachment(media_path, platform.platform_id)
         _attach_media(vbm, attachment)
+
+    nic_mode = "nat" if enable_networking else "null"
+    _run_vbm(vbm, ["modifyvm", platform.platform_id, "--nic1", nic_mode], "set nic1")
 
     vboxvm = _virtualboxvm_path(vbm)
 

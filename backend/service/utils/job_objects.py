@@ -1,15 +1,12 @@
 """
 Windows Job Objects wrapper for Peach 1UP.
 
-Provides process isolation, memory limits, and network blocking for emulator
-processes running natively on the Windows host.  Each emulator launch gets its
-own named Job Object so multiple profiles can run without interfering with each
-other.
+Provides process isolation and memory limits for emulator processes running
+natively on the Windows host.  Each emulator launch gets its own named Job
+Object so multiple profiles can run without interfering with each other.
 
-Network blocking is implemented via Windows Firewall COM rules rather than
-Job Object flags because Job Objects have no built-in network-restriction API.
-Rules are named ``Peach1UP_Block_<process>_<pid>_in`` and
-``Peach1UP_Block_<process>_<pid>_out`` and are removed on clean exit.
+Network isolation is handled at the emulator level — each backend disables
+its network adapter when enable_networking is false on the active profile.
 """
 
 import subprocess
@@ -98,15 +95,13 @@ class THREADENTRY32(ctypes.Structure):
 class WindowsJobObject:
     """Windows Job Object wrapper for emulator process isolation.
 
-    Wraps a named Win32 Job Object and the associated Windows Firewall rules
-    that block network access for the emulator process.  The expected call
-    sequence is:
+    Wraps a named Win32 Job Object.  The expected call sequence is:
 
         job = WindowsJobObject(name, memory_limit_mb)
         job.create()
-        job.add_process(popen_process)   # assigns process + creates firewall rules
+        job.add_process(popen_process)
         # ... emulator runs ...
-        job.terminate_all()              # terminates process + removes rules
+        job.terminate_all()
 
     ``launch_under_job_object`` in this module handles this sequence and is
     the preferred entry point for callers outside this file.
@@ -115,8 +110,6 @@ class WindowsJobObject:
         name: Unique name for the Win32 Job Object.
         memory_limit_mb: Per-process memory cap applied at creation.
         job_handle: Raw Win32 handle; ``None`` until ``create()`` is called.
-        firewall_rule_names: Names of Windows Firewall rules created for the
-            current process; used for cleanup on exit.
         process_name: Basename of the emulator executable (no extension).
         pid: PID of the emulator process added via ``add_process``.
     """
@@ -130,7 +123,6 @@ class WindowsJobObject:
         self.name = name
         self.memory_limit_mb = memory_limit_mb
         self.job_handle = None
-        self.firewall_rule_names: list[str] = []  # names of active firewall rules for cleanup
         self.process_name = None
         self.pid = None
 
@@ -182,10 +174,10 @@ class WindowsJobObject:
             raise RuntimeError(f"Failed to set memory limit to {limit_mb}MB. Error code: {error_code}")
 
     def add_process(self, process: subprocess.Popen) -> None:
-        """Assign a process to the job object and create its firewall block rules.
+        """Assign a process to the job object.
 
         Opens the process with ``OpenProcess``, calls
-        ``AssignProcessToJobObject``, then calls ``block_network_access``.
+        ``AssignProcessToJobObject``, then closes the process handle.
         The process handle is closed immediately after assignment; the job
         object retains its own reference.
 
@@ -194,8 +186,8 @@ class WindowsJobObject:
 
         Raises:
             RuntimeError: If the job handle is not open, the process is
-                invalid, ``OpenProcess`` fails, ``AssignProcessToJobObject``
-                fails, or firewall rule creation fails.
+                invalid, ``OpenProcess`` fails, or ``AssignProcessToJobObject``
+                fails.
         """
         if not self.job_handle:
             raise RuntimeError("Job object not created. Call create() first.")
@@ -263,218 +255,17 @@ class WindowsJobObject:
             # Always close the process handle — the job object retains its own reference
             ctypes.windll.kernel32.CloseHandle(process_handle)
 
-        executable_full_path = process.args[0] if isinstance(process.args, list) else str(process.args)
-        self.block_network_access(executable_full_path, self.pid)
-
-    def block_network_access(self, executable_path: str, pid: int) -> None:
-        """Create Windows Firewall rules blocking all inbound and outbound traffic
-        for the emulator executable.
-
-        Rules are named ``Peach1UP_Block_<process_name>_<pid>_out`` and
-        ``Peach1UP_Block_<process_name>_<pid>_in`` and apply across all
-        network profiles (domain, private, public).  Both rule names are
-        appended to ``self.firewall_rule_names`` so they can be removed on
-        exit.  If either rule fails to be created, any partially added rules
-        are removed before raising.
-
-        Args:
-            executable_path: Full path to the emulator executable.
-            pid: PID of the emulator process (used in rule naming only).
-
-        Raises:
-            RuntimeError: If firewall rule creation fails.
-        """
-        try:
-            try:
-                import win32com.client
-            except ImportError:
-                raise RuntimeError(
-                    "Windows Firewall COM interface not available. "
-                    "Ensure pywin32 is installed and the Python COM bindings are present. "
-                    "Run: pip install pywin32"
-                )
-            fw_policy = win32com.client.Dispatch("HNetCfg.FwPolicy2")
-
-            # Outbound block rule
-            fw_rule_out = win32com.client.Dispatch("HNetCfg.FWRule")
-            rule_name_out = f"Peach1UP_Block_{self.process_name}_{pid}_out"
-            fw_rule_out.Name = rule_name_out
-            fw_rule_out.ApplicationName = executable_path
-            fw_rule_out.Direction = 2       # NET_FW_RULE_DIR_OUT
-            fw_rule_out.Action = 0          # NET_FW_ACTION_BLOCK
-            fw_rule_out.Enabled = True
-            fw_rule_out.Profiles = 0x7FFFFFFF  # all network profiles (domain, private, public)
-            fw_policy.Rules.Add(fw_rule_out)
-            self.firewall_rule_names.append(rule_name_out)
-            self._verify_firewall_rule(fw_policy, rule_name_out, "outbound")
-
-            # Inbound block rule
-            fw_rule_in = win32com.client.Dispatch("HNetCfg.FWRule")  # noqa: F821 — imported above
-            rule_name_in = f"Peach1UP_Block_{self.process_name}_{pid}_in"
-            fw_rule_in.Name = rule_name_in
-            fw_rule_in.ApplicationName = executable_path
-            fw_rule_in.Direction = 1        # NET_FW_RULE_DIR_IN
-            fw_rule_in.Action = 0           # NET_FW_ACTION_BLOCK
-            fw_rule_in.Enabled = True
-            fw_rule_in.Profiles = 0x7FFFFFFF  # all network profiles (domain, private, public)
-            fw_policy.Rules.Add(fw_rule_in)
-            self.firewall_rule_names.append(rule_name_in)
-            self._verify_firewall_rule(fw_policy, rule_name_in, "inbound")
-
-        except RuntimeError:
-            if self.firewall_rule_names:
-                self._cleanup_partial_firewall_rules()
-            raise
-        except Exception as e:
-            if self.firewall_rule_names:
-                self._cleanup_partial_firewall_rules()
-            raise RuntimeError(f"Failed to create firewall rules for {self.process_name}_{pid}. Error: {str(e)}")
-
-    def _verify_firewall_rule(self, fw_policy, rule_name: str, direction: str) -> None:
-        """Verify that a Windows Firewall rule is active immediately after creation.
-
-        Queries ``fw_policy.Rules.Item()`` to confirm the rule exists and is
-        enabled.  Called after each ``Rules.Add()`` in ``block_network_access``
-        before the emulator process is resumed.
-
-        Args:
-            fw_policy: The ``HNetCfg.FwPolicy2`` COM dispatch object.
-            rule_name: Name of the rule to verify.
-            direction: ``"inbound"`` or ``"outbound"`` — used in the error message only.
-
-        Raises:
-            RuntimeError: If the rule cannot be retrieved or is not enabled,
-                formatted for display via the TUI error screen.
-        """
-        _options = (
-            "Options:\n"
-            "A) Open Windows Firewall Advanced Security (wf.msc), search for Peach1UP "
-            "rules, remove any orphaned entries manually, then retry.\n"
-            "B) Confirm Peach 1UP is running as Administrator — firewall rule creation "
-            "requires elevated privileges.\n"
-            "Awaiting your decision."
-        )
-
-        try:
-            verified = fw_policy.Rules.Item(rule_name)
-        except Exception as e:
-            raise RuntimeError(
-                f"❌ Error: Firewall rule verification failed\n"
-                f"Cause: {direction.capitalize()} block rule '{rule_name}' was added but could not be "
-                f"confirmed active — Windows Firewall did not return it on query: {e}\n"
-                f"{_options}"
-            )
-
-        if not verified or not getattr(verified, 'Enabled', False):
-            raise RuntimeError(
-                f"❌ Error: Firewall rule verification failed\n"
-                f"Cause: {direction.capitalize()} block rule '{rule_name}' was returned by Windows Firewall "
-                f"but is not marked as enabled.\n"
-                f"{_options}"
-            )
-
-    def _cleanup_partial_firewall_rules(self) -> None:
-        """Remove any firewall rules already added to ``self.firewall_rule_names``.
-
-        Called only when ``block_network_access`` fails mid-way through rule
-        creation to prevent orphaned rules.  Errors during cleanup are
-        collected and re-raised together rather than silently swallowed.
-
-        # NAMING: this method and ``cleanup_firewall_rules`` contain identical
-        # logic.  The distinction is context: this one is called on partial
-        # creation failure; the public one is called on clean exit.  They should
-        # be merged into a single private helper at the next refactor pass.
-
-        Raises:
-            RuntimeError: If any rule removal fails.
-        """
-        cleanup_errors = []
-
-        try:
-            try:
-                import win32com.client as _win32com
-            except ImportError:
-                raise RuntimeError(
-                    "Windows Firewall COM interface not available. "
-                    "Ensure pywin32 is installed and the Python COM bindings are present. "
-                    "Run: pip install pywin32"
-                )
-            fw_policy = _win32com.Dispatch("HNetCfg.FwPolicy2")
-            for rule_name in self.firewall_rule_names[:]:  # copy to avoid mutation during iteration
-                try:
-                    fw_policy.Rules.Remove(rule_name)
-                    self.firewall_rule_names.remove(rule_name)
-                except Exception as e:
-                    cleanup_errors.append(f"Failed to remove rule {rule_name}: {str(e)}")
-
-        except Exception as e:
-            cleanup_errors.append(f"Failed to initialize firewall policy for cleanup: {str(e)}")
-
-        if cleanup_errors:
-            raise RuntimeError(f"Firewall rule cleanup errors: {'; '.join(cleanup_errors)}")
-
-    def cleanup_firewall_rules(self) -> None:
-        """Remove all Windows Firewall rules tracked in ``self.firewall_rule_names``.
-
-        Called on clean process exit (from ``terminate_all``) to remove the
-        block rules created by ``block_network_access``.  Each rule is removed
-        individually so a single stuck rule does not prevent the rest from
-        being cleaned up.  All failures are collected and reported together.
-
-        Raises:
-            RuntimeError: If any rule removal fails.  The error message includes
-                all failed rule names and instructs the user to clean up manually
-                via Windows Firewall Advanced Security.
-        """
-        if not self.firewall_rule_names:
-            return
-
-        cleanup_errors = []
-        failed_rules = []
-
-        try:
-            try:
-                import win32com.client as _win32com
-            except ImportError:
-                raise RuntimeError(
-                    "Windows Firewall COM interface not available. "
-                    "Ensure pywin32 is installed and the Python COM bindings are present. "
-                    "Run: pip install pywin32"
-                )
-            fw_policy = _win32com.Dispatch("HNetCfg.FwPolicy2")
-
-            for rule_name in self.firewall_rule_names[:]:  # copy to avoid mutation during iteration
-                try:
-                    fw_policy.Rules.Remove(rule_name)
-                    self.firewall_rule_names.remove(rule_name)
-                except Exception as e:
-                    cleanup_errors.append(f"Failed to remove rule {rule_name}: {str(e)}")
-                    failed_rules.append(rule_name)
-
-        except Exception as e:
-            cleanup_errors.append(f"Failed to initialize firewall policy for cleanup: {str(e)}")
-            failed_rules.extend(self.firewall_rule_names)
-
-        if cleanup_errors:
-            raise RuntimeError(
-                f"Firewall rule cleanup failed for {self.process_name}_{self.pid}. "
-                f"Manual cleanup required in Windows Firewall Advanced Security. "
-                f"Failed rules: {', '.join(failed_rules)}. "
-                f"Errors: {'; '.join(cleanup_errors)}"
-            )
-
-    # NAMING: terminate_all also removes firewall rules and closes the job handle —
-    # it is a full resource teardown, not just process termination.  Consider
-    # renaming to shutdown() or teardown() at the next refactor pass.
+    # NAMING: terminate_all also closes the job handle — it is a full resource
+    # teardown, not just process termination.  Consider renaming to shutdown()
+    # or teardown() at the next refactor pass.
     def terminate_all(self) -> None:
         """Terminate all processes in the job object and release all associated resources.
 
-        Performs three cleanup steps in order, collecting errors from each so
+        Performs two cleanup steps in order, collecting errors from each so
         that a failure in one step does not skip the rest:
 
-          1. Remove Windows Firewall rules (while process info is still available).
-          2. Call ``TerminateJobObject`` to kill all processes in the job.
-          3. Close the job object handle.
+          1. Call ``TerminateJobObject`` to kill all processes in the job.
+          2. Close the job object handle.
 
         ``self.job_handle`` is set to ``None`` regardless of success or failure
         so that ``is_active()`` returns ``False`` after this call.
@@ -485,14 +276,7 @@ class WindowsJobObject:
         """
         termination_errors = []
 
-        # Step 1: Remove firewall rules while process info is still valid
-        if self.process_name and self.pid:
-            try:
-                self.cleanup_firewall_rules()
-            except Exception as e:
-                termination_errors.append(f"Firewall cleanup error: {str(e)}")
-
-        # Step 2: Terminate all processes in the job
+        # Step 1: Terminate all processes in the job
         if self.job_handle:
             try:
                 result = ctypes.windll.kernel32.TerminateJobObject(
@@ -644,14 +428,12 @@ def launch_direct(
     era: str,
     job_name: str,
 ) -> Tuple[subprocess.Popen, WindowsJobObject]:
-    """Launch emulator with firewall rules only, bypassing Job Object isolation.
+    """Launch emulator without Job Object isolation, returning a stub handle.
 
-    Creates a WindowsJobObject stub for firewall management so cleanup remains
-    identical to the full job path. The stub has no job_handle, so terminate_all
-    skips process termination (only firewall rules are cleaned up).
-
-    # Error 5 (ACCESS_DENIED) on Windows 11 blocks job assignment regardless of
-    # CREATE_BREAKAWAY_FROM_JOB. Firewall rules still apply via the stub handle.
+    Used when Job Object assignment fails (error code 5 on Windows 11).
+    Returns a WindowsJobObject stub with no job_handle so callers can use
+    terminate_all() uniformly — process termination is skipped on the stub
+    but the interface remains consistent.
 
     Args:
         executable_path: Full path to the emulator executable.
@@ -660,12 +442,11 @@ def launch_direct(
         job_name: Unique name passed through to the WindowsJobObject stub.
 
     Returns:
-        (process, stub) — running Popen and a WindowsJobObject with firewall
-        rules applied. Caller must call stub.terminate_all() on exit.
+        (process, stub) — running Popen and a no-op WindowsJobObject stub.
 
     Raises:
         FileNotFoundError: If eras.yaml is missing.
-        RuntimeError: If the process cannot be launched or firewall setup fails.
+        RuntimeError: If the process cannot be launched.
     """
     try:
         with _ERAS_YAML.open('r') as f:
@@ -692,16 +473,6 @@ def launch_direct(
     stub = WindowsJobObject(job_name, memory_limit_mb)
     stub.pid = process.pid
     stub.process_name = os.path.basename(executable_path).replace('.exe', '')
-    try:
-        stub.block_network_access(executable_path, process.pid)
-    except Exception as exc:
-        try:
-            process.kill()
-            process.wait()
-        except Exception:
-            pass
-        raise RuntimeError(f"Failed to create firewall rules: {exc}") from exc
-
     return process, stub
 
 

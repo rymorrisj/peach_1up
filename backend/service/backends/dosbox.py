@@ -39,7 +39,7 @@ def validate_media(media_path: Path) -> None:
                         f"DOSBox-X backend supports: {', '.join(sorted(SUPPORTED_MEDIA))}")
 
 
-def build_args(media_path: Path, era: str) -> List[str]:
+def build_args(media_path: Path, era: str, enable_networking: bool = False) -> List[str]:
     """
     Build DOSBox-X command line arguments for given media and era.
 
@@ -48,6 +48,9 @@ def build_args(media_path: Path, era: str) -> List[str]:
     Args:
         media_path: Path to media file
         era: Era name ('dos' or 'win31')
+        enable_networking: When False (default), the NE2000 adapter is
+            disabled via -set ne2000=false. When True, the adapter config
+            is left at the emulator default.
 
     Returns:
         List of command line arguments (excludes executable path)
@@ -68,28 +71,39 @@ def build_args(media_path: Path, era: str) -> List[str]:
     media_str = str(media_path)
     suppress = ['-set', 'dos:automount=false', '-set', 'dos:mountwarning=false']
 
+    # Disable NE2000 adapter unless the profile explicitly enables networking.
+    net_args = [] if enable_networking else ['-set', 'ne2000=false']
+
     if suffix == '.img':
         # Mount IMG as hard disk — writable, no -ro
-        return suppress + ['-c', f'imgmount C "{media_str}" -t hdd', '-c', 'C:']
+        return suppress + net_args + ['-c', f'imgmount C "{media_str}" -t hdd', '-c', 'C:']
     elif suffix in {'.iso', '.cue'}:
         # Mount ISO/CUE as optical disc — read-only
-        return suppress + ['-c', f'imgmount D "{media_str}" -t iso -ro', '-c', 'D:']
+        return suppress + net_args + ['-c', f'imgmount D "{media_str}" -t iso -ro', '-c', 'D:']
     else:
         # This should never be reached due to validation above
         raise ValueError(f"Unhandled media suffix '{suffix}'. This indicates a programming error.")
 
 
-def launch(media_path: Path, era: str, executable_path: str) -> Tuple[Popen, WindowsJobObject]:
+def launch(
+    media_path: Path,
+    era: str,
+    executable_path: str,
+    enable_networking: bool = False,
+) -> Tuple[Popen, WindowsJobObject]:
     """
     Launch DOSBox-X with given media file under Job Object isolation.
 
     Single entry point for DOSBox-X backend. Validates media, builds arguments,
-    and launches process under Job Object with network blocking and memory limits.
+    and launches process under Job Object with memory limits applied.
 
     Args:
         media_path: Path to media file to mount
         era: Era name ('dos' or 'win31')
         executable_path: Full path to DOSBox-X executable
+        enable_networking: When False (default), the NE2000 adapter is
+            disabled. Set True only for software that requires a network
+            connection.
 
     Returns:
         Tuple of (subprocess.Popen process, WindowsJobObject instance)
@@ -105,7 +119,7 @@ def launch(media_path: Path, era: str, executable_path: str) -> Tuple[Popen, Win
 
     validate_media(media_path)
 
-    args = build_args(media_path, era)
+    args = build_args(media_path, era, enable_networking=enable_networking)
 
     job_name = f"peach1up_dosbox_{era}_{media_path.stem}"
 

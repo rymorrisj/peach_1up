@@ -14,6 +14,7 @@ class ProfileBase(SQLModel):
     extra_args: Optional[str] = None
     is_bundled: bool = False
     is_accuracy_mode: bool = False
+    enable_networking: bool = False
     notes: Optional[str] = None
 
 
@@ -43,6 +44,7 @@ class ProfileUpdate(SQLModel):
     config_path: Optional[str] = None
     extra_args: Optional[str] = None
     is_accuracy_mode: Optional[bool] = None
+    enable_networking: Optional[bool] = None
     notes: Optional[str] = None
 
 

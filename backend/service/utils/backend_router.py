@@ -231,10 +231,14 @@ def launch_media(era, media_path, profile=None):
     if isinstance(media_path, str):
         media_path = Path(media_path)
 
-    # Resolve accuracy_mode from profile if present (Win9x only).
+    # Resolve accuracy_mode and enable_networking from profile if present.
     accuracy_mode = False
-    if profile is not None and hasattr(profile, 'accuracy_mode'):
-        accuracy_mode = bool(profile.accuracy_mode)
+    enable_networking = False
+    if profile is not None:
+        if hasattr(profile, 'accuracy_mode'):
+            accuracy_mode = bool(profile.accuracy_mode)
+        if hasattr(profile, 'enable_networking'):
+            enable_networking = bool(profile.enable_networking)
 
     executable_path, env_var = get_executable_path(era, accuracy_mode)
     if not executable_path:
@@ -244,4 +248,27 @@ def launch_media(era, media_path, profile=None):
         )
 
     launch_fn = get_launch_fn(era, accuracy_mode)
-    return launch_fn(media_path=media_path, era=era.value, executable_path=executable_path)
+
+    # Console backends (DuckStation, PCSX2, xemu, Mesen, Project64) emulate
+    # hardware with no meaningful network capability — no enable_networking arg.
+    _console_backends = {
+        BackendSlug.DUCKSTATION.value,
+        BackendSlug.PCSX2.value,
+        BackendSlug.XEMU.value,
+        BackendSlug.MESEN.value,
+        BackendSlug.PROJECT64.value,
+    }
+    try:
+        backend_name = resolve_backend_name(era, accuracy_mode)
+    except Exception:
+        backend_name = BackendSlug.DOSBOX.value
+
+    if backend_name in _console_backends:
+        return launch_fn(media_path=media_path, era=era.value, executable_path=executable_path)
+
+    return launch_fn(
+        media_path=media_path,
+        era=era.value,
+        executable_path=executable_path,
+        enable_networking=enable_networking,
+    )

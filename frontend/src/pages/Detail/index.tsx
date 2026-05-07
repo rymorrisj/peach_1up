@@ -41,6 +41,7 @@ export default function Detail() {
   const [launching, setLaunching] = useState(false)
   const [launchError, setLaunchError] = useState<string | null>(null)
   const [launchSuccess, setLaunchSuccess] = useState(false)
+  const [launchWarnings, setLaunchWarnings] = useState<string[]>([])
 
   // Initialise selector from item once loaded
   const effectiveProfileId = selectedProfileId ?? item?.profile_id ?? null
@@ -72,12 +73,14 @@ export default function Detail() {
     setLaunching(true)
     setLaunchError(null)
     setLaunchSuccess(false)
+    setLaunchWarnings([])
     try {
-      await apiFetch(`/api/v1/library/${itemId}/launch`, {
-        method: 'POST',
-        body: JSON.stringify({ profile_id: effectiveProfileId }),
-      })
+      const res = await apiFetch<{ launch_history_id: number; warnings: string[] }>(
+        `/api/v1/library/${itemId}/launch`,
+        { method: 'POST', body: JSON.stringify({ profile_id: effectiveProfileId }) },
+      )
       setLaunchSuccess(true)
+      setLaunchWarnings(res.warnings ?? [])
     } catch (err) {
       setLaunchError(err instanceof ApiError ? err.detail : 'Launch failed.')
     } finally {
@@ -241,6 +244,16 @@ export default function Detail() {
             <p className="mt-2 text-center text-sm text-green-600 dark:text-green-400">
               Launch started. The emulator should open shortly.
             </p>
+          )}
+
+          {launchWarnings.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {launchWarnings.map((w, i) => (
+                <li key={i} className="text-center text-xs text-amber-600 dark:text-amber-400">
+                  ⚠ {w}
+                </li>
+              ))}
+            </ul>
           )}
 
           {launchError && (

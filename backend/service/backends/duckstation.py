@@ -1,8 +1,11 @@
 """DuckStation backend for Peach 1UP.
 
 Handles PlayStation 1 launches. Validates the binary path, media file, and
-PS1 BIOS directory, then launches DuckStation under Job Objects with network
-blocked.
+PS1 BIOS directory, then launches DuckStation under Job Objects.
+
+Network isolation: PS1 hardware has no network capability. DuckStation
+exposes no network emulation. No enable_networking handling is needed for
+this backend or any other console backend (PCSX2, xemu, Mesen, Project64).
 
 BIOS files must be dumped from PlayStation hardware the user owns. Peach 1UP
 does not provide, link to, or assist with acquiring BIOS files.

@@ -18,7 +18,12 @@ class LaunchRequest(BaseModel):
     profile_id: int | None = None
 
 
-@router.post("/library/{item_id}/launch", status_code=202)
+class LaunchResponse(BaseModel):
+    launch_history_id: int
+    warnings: list[str] = []
+
+
+@router.post("/library/{item_id}/launch", status_code=202, response_model=LaunchResponse)
 async def launch_item(item_id: int, body: LaunchRequest, db: Session = Depends(get_db)):
     item = db.get(LibraryItem, item_id)
     if not item:
@@ -44,22 +49,25 @@ async def launch_item(item_id: int, body: LaunchRequest, db: Session = Depends(g
         raise HTTPException(status_code=422, detail="No profile associated with this library item.")
 
     from backend.service.utils.backend_router import launch_media
-    from backend.service.utils.settings import get_binary_path
+
+    network_blocked = not bool(getattr(profile, 'enable_networking', False))
 
     history = LaunchHistory(
         library_item_id=item.id,
         profile_id=profile.id if profile else None,
         emulator_slug=profile.emulator_slug if profile else "",
         started_at=datetime.utcnow(),
-        network_blocked=True,
+        network_blocked=network_blocked,
         job_isolated=False,
     )
     db.add(history)
     db.commit()
     db.refresh(history)
 
+    warnings: list[str] = []
+
     try:
-        proc = await asyncio.to_thread(
+        result = await asyncio.to_thread(
             launch_media,
             item.era,
             item.media_path,
@@ -72,18 +80,28 @@ async def launch_item(item_id: int, body: LaunchRequest, db: Session = Depends(g
         db.commit()
         raise HTTPException(status_code=500, detail=f"Launch failed: {exc}")
 
+    proc = result[0] if isinstance(result, tuple) else result
+    job = result[1] if isinstance(result, tuple) and len(result) > 1 else None
+
     if proc is not None:
+        job_isolated = job is not None and getattr(job, 'job_handle', None) is not None
+        if not job_isolated:
+            warnings.append(
+                "Job Object isolation is unavailable on this system. "
+                "The emulator launched without process-level resource limits. "
+                "Network isolation still applies via the emulator adapter setting."
+            )
         entry = ProcessEntry(
             process_handle=proc,
-            job_handle=None,
+            job_handle=job,
             library_item_id=item.id,
             profile_id=profile.id if profile else None,
         )
         process_registry.register(proc.pid, entry)
-        history.job_isolated = True
+        history.job_isolated = job_isolated
         db.commit()
 
-    return {"launch_history_id": history.id}
+    return LaunchResponse(launch_history_id=history.id, warnings=warnings)
 
 
 @router.get("/launches", response_model=list[LaunchHistoryRead])

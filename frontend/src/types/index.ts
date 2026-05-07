@@ -43,8 +43,10 @@ export interface LaunchProfile {
   slug: string
   emulator_slug: string
   era: string
+  config_path: string | null
   is_bundled: boolean
   is_accuracy_mode: boolean
+  enable_networking: boolean
   extra_args: string | null
   notes: string | null
   created_at: string
