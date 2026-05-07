@@ -65,6 +65,7 @@ desktop.ini
 
 # SQLite database directory
 data/
+peach1up.db
 
 # Frontend build output and dependencies
 frontend/dist/

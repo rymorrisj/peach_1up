@@ -10,7 +10,7 @@ import yaml
 from pathlib import Path
 from typing import Callable, Dict, Any, Optional
 
-from backend.service.utils.constants import Era
+from backend.service.utils.constants import BackendSlug, Era
 from backend.service.utils.settings import get_binary_path
 
 
@@ -39,8 +39,7 @@ def resolve_backend_name(era: Era, accuracy_mode: bool) -> str:
         accuracy_mode: When True, Win9x routes to 86Box instead of VirtualBox.
 
     Returns:
-        One of ``'dosbox'``, ``'86box'``, ``'virtualbox'``, ``'duckstation'``,
-        ``'pcsx2'``, ``'xemu'``, ``'mesen'``, or ``'project64'``.
+        A ``BackendSlug`` value string — one of the values in ``BackendSlug``.
 
     Raises:
         RuntimeError: If eras.yaml cannot be loaded or the era is not configured.
@@ -61,7 +60,7 @@ def resolve_backend_name(era: Era, accuracy_mode: bool) -> str:
 
     # Win9x: accuracy_mode → 86box, default → virtualbox.
     if era.value in ('win95', 'win98'):
-        return '86box' if accuracy_mode else 'virtualbox'
+        return BackendSlug.BOX86.value if accuracy_mode else BackendSlug.VIRTUALBOX.value
 
     # WinXP: always virtualbox.
     if era.value == 'winxp':
@@ -96,28 +95,28 @@ def get_launch_fn(era: Era, accuracy_mode: bool = False) -> Callable:
         raise RuntimeError(f"Failed to resolve backend for era '{era.value}': {e}")
 
     try:
-        if backend_name == 'dosbox':
+        if backend_name == BackendSlug.DOSBOX.value:
             from backend.service.backends.dosbox import launch
             return launch
-        elif backend_name == '86box':
+        elif backend_name == BackendSlug.BOX86.value:
             from backend.service.backends.box86 import launch
             return launch
-        elif backend_name == 'virtualbox':
+        elif backend_name == BackendSlug.VIRTUALBOX.value:
             from backend.service.backends.virtualbox import launch
             return launch
-        elif backend_name == 'duckstation':
+        elif backend_name == BackendSlug.DUCKSTATION.value:
             from backend.service.backends.duckstation import launch
             return launch
-        elif backend_name == 'pcsx2':
+        elif backend_name == BackendSlug.PCSX2.value:
             from backend.service.backends.pcsx2 import launch
             return launch
-        elif backend_name == 'xemu':
+        elif backend_name == BackendSlug.XEMU.value:
             from backend.service.backends.xemu import launch
             return launch
-        elif backend_name == 'mesen':
+        elif backend_name == BackendSlug.MESEN.value:
             from backend.service.backends.mesen import launch
             return launch
-        elif backend_name == 'project64':
+        elif backend_name == BackendSlug.PROJECT64.value:
             from backend.service.backends.project64 import launch
             return launch
         else:
@@ -142,28 +141,28 @@ def get_backend_name(era: Era, accuracy_mode: bool = False) -> str:
     try:
         backend_name = resolve_backend_name(era, accuracy_mode)
         return {
-            'dosbox': 'DOSBox-X',
-            '86box': '86Box',
-            'virtualbox': 'VirtualBox',
-            'duckstation': 'DuckStation',
-            'pcsx2': 'PCSX2',
-            'xemu': 'xemu',
-            'mesen': 'Mesen',
-            'project64': 'Project64',
+            BackendSlug.DOSBOX.value: 'DOSBox-X',
+            BackendSlug.BOX86.value: '86Box',
+            BackendSlug.VIRTUALBOX.value: 'VirtualBox',
+            BackendSlug.DUCKSTATION.value: 'DuckStation',
+            BackendSlug.PCSX2.value: 'PCSX2',
+            BackendSlug.XEMU.value: 'xemu',
+            BackendSlug.MESEN.value: 'Mesen',
+            BackendSlug.PROJECT64.value: 'Project64',
         }.get(backend_name, 'Unknown')
     except Exception:
         return 'Unknown'
 
 
-# Maps backend name → (settings_key, emulator_key_for_get_binary_path)
+# Maps BackendSlug value → (settings_key, emulator_key_for_get_binary_path)
 _BACKEND_TO_EMULATOR: Dict[str, tuple[str, str]] = {
-    'virtualbox':   ('VIRTUALBOX_PATH',   'virtualbox'),
-    '86box':        ('BOX86_PATH',        'box86'),
-    'duckstation':  ('DUCKSTATION_PATH',  'duckstation'),
-    'pcsx2':        ('PCSX2_PATH',        'pcsx2'),
-    'xemu':         ('XEMU_PATH',         'xemu'),
-    'mesen':        ('MESEN_PATH',        'mesen'),
-    'project64':    ('PROJECT64_PATH',    'project64'),
+    BackendSlug.VIRTUALBOX.value:  ('VIRTUALBOX_PATH',  'virtualbox'),
+    BackendSlug.BOX86.value:       ('BOX86_PATH',       'box86'),
+    BackendSlug.DUCKSTATION.value: ('DUCKSTATION_PATH', 'duckstation'),
+    BackendSlug.PCSX2.value:       ('PCSX2_PATH',       'pcsx2'),
+    BackendSlug.XEMU.value:        ('XEMU_PATH',        'xemu'),
+    BackendSlug.MESEN.value:       ('MESEN_PATH',       'mesen'),
+    BackendSlug.PROJECT64.value:   ('PROJECT64_PATH',   'project64'),
 }
 
 
@@ -185,13 +184,13 @@ def get_executable_path(era: Era, accuracy_mode: bool = False) -> tuple[str, str
     try:
         backend_name = resolve_backend_name(era, accuracy_mode)
     except Exception:
-        backend_name = 'dosbox'
+        backend_name = BackendSlug.DOSBOX.value
 
     if backend_name in _BACKEND_TO_EMULATOR:
         env_var, emulator_key = _BACKEND_TO_EMULATOR[backend_name]
     else:
         env_var = 'DOSBOX_PATH'
-        emulator_key = 'dosbox'
+        emulator_key = BackendSlug.DOSBOX.value
 
     return get_binary_path(emulator_key), env_var
 

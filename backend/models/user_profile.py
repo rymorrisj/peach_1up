@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.models.base import Base
@@ -14,6 +14,12 @@ class UserProfile(Base):
     avatar_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     pin_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
     is_owner: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    platform_slug: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    era: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    custom_flags: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rom_pack_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    custom_script: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

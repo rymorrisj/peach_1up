@@ -59,6 +59,12 @@ def create_user_profile(body: UserProfileCreate, db: Session = Depends(get_db)):
         avatar_path=body.avatar_path,
         pin_hash=pin_hash,
         is_owner=body.is_owner,
+        platform_slug=body.platform_slug,
+        era=body.era,
+        custom_flags=body.custom_flags,
+        rom_pack_path=body.rom_pack_path,
+        custom_script=body.custom_script,
+        notes=body.notes,
     )
     db.add(profile)
     db.flush()
@@ -91,6 +97,10 @@ def update_user_profile(profile_id: int, body: UserProfileUpdate, db: Session = 
         from passlib.context import CryptContext
         crypt = CryptContext(schemes=["bcrypt"], bcrypt__rounds=12, deprecated="auto")
         profile.pin_hash = crypt.hash(body.pin)
+    for field in ("platform_slug", "era", "custom_flags", "rom_pack_path", "custom_script", "notes"):
+        val = getattr(body, field, None)
+        if val is not None:
+            setattr(profile, field, val)
     db.commit()
     db.refresh(profile)
     return profile

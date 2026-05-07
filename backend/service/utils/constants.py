@@ -1,10 +1,22 @@
 """
 Constants and enums for Peach 1UP.
-Defines era types and media format mappings.
+Defines era types, backend slugs, and media format mappings.
 """
 
 from enum import Enum
 from typing import Dict, Set
+
+
+class BackendSlug(Enum):
+    """Backend name constants matching eras.yaml backend keys."""
+    DOSBOX = "dosbox"
+    BOX86 = "86box"
+    VIRTUALBOX = "virtualbox"
+    DUCKSTATION = "duckstation"
+    PCSX2 = "pcsx2"
+    XEMU = "xemu"
+    MESEN = "mesen"
+    PROJECT64 = "project64"
 
 
 class Era(Enum):

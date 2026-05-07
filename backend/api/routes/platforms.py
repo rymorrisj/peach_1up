@@ -20,6 +20,17 @@ router = APIRouter(prefix="/api/v1/platforms", tags=["platforms"], redirect_slas
 _TOKEN_TTL = 60
 _confirm_tokens: dict[str, tuple[int, str, float]] = {}
 
+_EMULATOR_SLUG_TO_SETTINGS_KEY: dict[str, str] = {
+    "dosbox-x":    "DOSBOX_PATH",
+    "86box":       "BOX86_PATH",
+    "virtualbox":  "VIRTUALBOX_PATH",
+    "duckstation": "DUCKSTATION_PATH",
+    "pcsx2":       "PCSX2_PATH",
+    "xemu":        "XEMU_PATH",
+    "mesen":       "MESEN_PATH",
+    "project64":   "PROJECT64_PATH",
+}
+
 
 def _validate_image_path(path_str: str) -> Path:
     """Resolve path and reject anything outside IMAGES_PATH."""
@@ -125,6 +136,17 @@ def platform_health(platform_id: int, db: Session = Depends(get_db)):
     platform = db.get(Platform, platform_id)
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found.")
+
+    if platform.is_system:
+        svc = get_settings()
+        settings_key = _EMULATOR_SLUG_TO_SETTINGS_KEY.get(platform.emulator_slug, "")
+        binary_path = (svc.get(settings_key, "") or "") if settings_key else ""
+        exists = bool(binary_path and Path(binary_path).is_file())
+        platform.status = "ok" if exists else "missing"
+        platform.last_health_check = datetime.utcnow()
+        db.commit()
+        return {"status": platform.status, "binary_exists": exists, "binary_path": binary_path or None}
+
     working = platform.working_image_path
     if working:
         try:

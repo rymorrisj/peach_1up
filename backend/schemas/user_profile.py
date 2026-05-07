@@ -7,6 +7,12 @@ class UserProfileBase(BaseModel):
     name: str
     avatar_path: str | None = None
     is_owner: bool = False
+    platform_slug: str | None = None
+    era: str | None = None
+    custom_flags: str | None = None
+    rom_pack_path: str | None = None
+    custom_script: str | None = None
+    notes: str | None = None
 
 
 class UserProfileCreate(UserProfileBase):
@@ -17,6 +23,12 @@ class UserProfileUpdate(BaseModel):
     name: str | None = None
     avatar_path: str | None = None
     pin: str | None = Field(default=None, exclude=True)
+    platform_slug: str | None = None
+    era: str | None = None
+    custom_flags: str | None = None
+    rom_pack_path: str | None = None
+    custom_script: str | None = None
+    notes: str | None = None
 
 
 class UserProfileRead(UserProfileBase):

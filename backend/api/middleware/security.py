@@ -9,6 +9,23 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 _LOCALHOST_ORIGINS = {"127.0.0.1", "::1", "localhost"}
 
+
+def _apply_cors_headers(response: Response, request: Request) -> None:
+    """Inject CORS headers into a bare middleware response.
+
+    BaseHTTPMiddleware short-circuits (return without call_next) bypass the
+    outer CORSMiddleware's send-wrapper in some Starlette versions, leaving
+    preflight-passing origins without the required headers on the follow-up
+    request. This helper guarantees headers are present regardless of version.
+    setdefault is used so that if CORSMiddleware already injected them, we
+    do not duplicate.
+    """
+    origin = request.headers.get("origin", "")
+    if origin and origin in get_cors_origins():
+        response.headers.setdefault("access-control-allow-origin", origin)
+        response.headers.setdefault("access-control-allow-credentials", "true")
+        response.headers.setdefault("vary", "Origin")
+
 # RFC-1918 private ranges used by Docker bridge networks (172.16.0.0/12 covers 172.16–172.31)
 _DOCKER_BRIDGE_NETWORKS = [
     ipaddress.ip_network("172.16.0.0/12"),
@@ -41,10 +58,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         client_host = request.client.host if request.client else "unknown"
         is_local = client_host in _LOCALHOST_ORIGINS or _is_docker_bridge(client_host)
         if not allow_network and not is_local:
-            return Response(
-                content="Remote access is disabled.",
-                status_code=403,
-            )
+            resp = Response(content="Remote access is disabled.", status_code=403)
+            _apply_cors_headers(resp, request)
+            return resp
 
         response = await call_next(request)
 
@@ -93,12 +109,14 @@ class FirstRunGuardMiddleware(BaseHTTPMiddleware):
             _first_run_done_cache = True
             return await call_next(request)
 
-        return Response(
+        resp = Response(
             content=json.dumps({"redirect": "/first-run"}),
             status_code=302,
             media_type="application/json",
             headers={"Location": "/first-run"},
         )
+        _apply_cors_headers(resp, request)
+        return resp
 
 
 def get_cors_origins() -> list[str]:

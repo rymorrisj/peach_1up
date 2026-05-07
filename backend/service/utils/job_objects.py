@@ -15,12 +15,13 @@ Rules are named ``Peach1UP_Block_<process>_<pid>_in`` and
 import subprocess
 import ctypes
 import ctypes.wintypes
-import win32com.client
-import win32process
 from typing import List, Tuple
 from pathlib import Path
 import os
 import yaml
+
+# Win32 CREATE_SUSPENDED flag — avoids a hard dependency on pywin32 at module import time.
+_CREATE_SUSPENDED = 0x00000004
 
 # Anchor eras.yaml to the project root regardless of CWD.
 # job_objects.py lives at backend/service/utils/ — 4 parents up is the project root.
@@ -284,6 +285,14 @@ class WindowsJobObject:
             RuntimeError: If firewall rule creation fails.
         """
         try:
+            try:
+                import win32com.client
+            except ImportError:
+                raise RuntimeError(
+                    "Windows Firewall COM interface not available. "
+                    "Ensure pywin32 is installed and the Python COM bindings are present. "
+                    "Run: pip install pywin32"
+                )
             fw_policy = win32com.client.Dispatch("HNetCfg.FwPolicy2")
 
             # Outbound block rule
@@ -300,7 +309,7 @@ class WindowsJobObject:
             self._verify_firewall_rule(fw_policy, rule_name_out, "outbound")
 
             # Inbound block rule
-            fw_rule_in = win32com.client.Dispatch("HNetCfg.FWRule")
+            fw_rule_in = win32com.client.Dispatch("HNetCfg.FWRule")  # noqa: F821 — imported above
             rule_name_in = f"Peach1UP_Block_{self.process_name}_{pid}_in"
             fw_rule_in.Name = rule_name_in
             fw_rule_in.ApplicationName = executable_path
@@ -382,7 +391,15 @@ class WindowsJobObject:
         cleanup_errors = []
 
         try:
-            fw_policy = win32com.client.Dispatch("HNetCfg.FwPolicy2")
+            try:
+                import win32com.client as _win32com
+            except ImportError:
+                raise RuntimeError(
+                    "Windows Firewall COM interface not available. "
+                    "Ensure pywin32 is installed and the Python COM bindings are present. "
+                    "Run: pip install pywin32"
+                )
+            fw_policy = _win32com.Dispatch("HNetCfg.FwPolicy2")
             for rule_name in self.firewall_rule_names[:]:  # copy to avoid mutation during iteration
                 try:
                     fw_policy.Rules.Remove(rule_name)
@@ -416,7 +433,15 @@ class WindowsJobObject:
         failed_rules = []
 
         try:
-            fw_policy = win32com.client.Dispatch("HNetCfg.FwPolicy2")
+            try:
+                import win32com.client as _win32com
+            except ImportError:
+                raise RuntimeError(
+                    "Windows Firewall COM interface not available. "
+                    "Ensure pywin32 is installed and the Python COM bindings are present. "
+                    "Run: pip install pywin32"
+                )
+            fw_policy = _win32com.Dispatch("HNetCfg.FwPolicy2")
 
             for rule_name in self.firewall_rule_names[:]:  # copy to avoid mutation during iteration
                 try:
@@ -752,7 +777,7 @@ def launch_under_job_object(
         job_object = WindowsJobObject(job_name, memory_limit_mb)
         job_object.create()
 
-        base_flags = subprocess.CREATE_NEW_PROCESS_GROUP | win32process.CREATE_SUSPENDED
+        base_flags = subprocess.CREATE_NEW_PROCESS_GROUP | _CREATE_SUSPENDED
         launch_args = [executable_path] + args
         launch_cwd = os.path.dirname(executable_path)
 

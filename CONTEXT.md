@@ -196,7 +196,35 @@ Expand beyond PC to first-generation console platforms using the same profile an
 - [P4-4] Expanded file format support — .chd, .xiso per platform
 - [P4-5] P4 committed and pushed to main
 
-## P5 — Native Installer and Distribution
+## P5 — Architecture Consolidation and Schema Unification
+
+### Goal
+
+Eliminate type duplication across the stack. FastAPI OpenAPI spec becomes the single
+source of truth for all types. Database and shared artifacts are relocated and
+consolidated. Static frontend build is always present.
+
+### CURRENT
+
+- [P5-1] Move database to /database/data/ — relocate peach1up.db, update engine
+  config, .gitignore, and all path references. /database/ owns schema and config.
+  No direct db path references outside of config.
+- [P5-2] Replace SQLAlchemy + Pydantic dual-layer with SQLModel — one class drives
+  the database schema, API response shape, and OpenAPI spec. Remove Alembic entirely.
+  SQLModel create_all() on startup replaces migration management. Revisit migrations
+  only when real user data exists that cannot be wiped
+- [P5-3] /shared directory and OpenAPI type generation — export OpenAPI spec to
+  /shared/openapi.json on startup and via a standalone dev command. Use
+  openapi-typescript to generate /shared/types.ts. Frontend imports all API types
+  from /shared/types.ts only. Delete frontend/src/types/index.ts.
+- [P5-4] Static frontend always built and served — frontend/dist must exist before
+  backend starts. Pre-start check builds if missing or stale. StaticFiles mount in
+  main.py is unconditional. Vite dev server is opt-in for frontend development only.
+- [P5-5] Update start.sh and start.bat — build frontend if dist missing, start
+  backend, open browser. Document dev workflow: npm run dev is opt-in, not default.
+- [P5-6] P5 committed and pushed to main.
+
+## P6 — Native Installer and Distribution
 
 ### Goal
 
@@ -205,21 +233,21 @@ dependencies required for end users.
 
 ### NEXT
 
-- [P5-1] PyInstaller backend compilation — compile FastAPI backend and all
+- [P6-1] PyInstaller backend compilation — compile FastAPI backend and all
   dependencies into a standalone executable. Python runtime embedded. Tested
   on Windows and Linux.
-- [P5-2] pystray tray icon — system tray icon with Open, Restart, and Quit
+- [P6-2] pystray tray icon — system tray icon with Open, Restart, and Quit
   options. Pure Python. Auto-opens browser on first launch.
-- [P5-3] Windows installer — NSIS or WiX packages the compiled backend,
+- [P6-3] Windows installer — NSIS or WiX packages the compiled backend,
   React static build, emulators directory, and SQLite data path into a signed
   .exe installer. Registers Peach1UP as a Windows service. UAC prompt on
   install only.
-- [P5-4] Linux packages — fpm produces .deb and AppImage. Registers systemd
+- [P6-4] Linux packages — fpm produces .deb and AppImage. Registers systemd
   service on deb install. AppImage runs standalone.
-- [P5-5] GitHub Actions release pipeline — on version tag: build Windows and
+- [P6-5] GitHub Actions release pipeline — on version tag: build Windows and
   Linux installers, sign with OSS certificate via ossign.org, attach to GitHub
   release automatically.
-- [P5-6] P5 committed and pushed to main.
+- [P6-6] P6 committed and pushed to main.
 
 ## PX — Nice to Haves
 

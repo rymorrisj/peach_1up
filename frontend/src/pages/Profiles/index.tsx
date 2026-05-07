@@ -1,19 +1,47 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
-import { Button, FormField, Input, Modal, PageHeader } from '@/ui'
+import { Button, FormField, Input, Modal, PageHeader, Textarea } from '@/ui'
 import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useConfirm } from '@/hooks/useConfirm'
-import type { UserProfile } from '@/types'
+import type { UserProfile, Platform } from '@/types'
+
+const ERA_OPTIONS = [
+  { value: 'dos', label: 'DOS' },
+  { value: 'win31', label: 'Windows 3.1' },
+  { value: 'win95', label: 'Windows 95' },
+  { value: 'win98', label: 'Windows 98' },
+  { value: 'winxp', label: 'Windows XP' },
+  { value: 'ps1', label: 'PlayStation 1' },
+  { value: 'ps2', label: 'PlayStation 2' },
+  { value: 'xbox', label: 'Original Xbox' },
+  { value: 'nes', label: 'NES' },
+  { value: 'n64', label: 'Nintendo 64' },
+]
 
 interface ProfileForm {
   name: string
   pin: string
+  platform_slug: string
+  era: string
+  custom_flags: string
+  rom_pack_path: string
+  custom_script: string
+  notes: string
 }
 
-const EMPTY_FORM: ProfileForm = { name: '', pin: '' }
+const EMPTY_FORM: ProfileForm = {
+  name: '',
+  pin: '',
+  platform_slug: '',
+  era: '',
+  custom_flags: '',
+  rom_pack_path: '',
+  custom_script: '',
+  notes: '',
+}
 
 type ModalState = null | { mode: 'create' } | { mode: 'edit'; profile: UserProfile }
 
@@ -34,6 +62,13 @@ export default function Profiles() {
     queryFn: () => apiFetch<UserProfile[]>('/api/v1/profiles/users'),
   })
 
+  const { data: platforms = [] } = useQuery<Platform[]>({
+    queryKey: ['platforms'],
+    queryFn: () => apiFetch<Platform[]>('/api/v1/platforms'),
+  })
+
+  const systemPlatforms = platforms.filter((p) => p.is_system)
+
   const [modal, setModal] = useState<ModalState>(null)
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM)
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof ProfileForm, string>>>({})
@@ -48,7 +83,16 @@ export default function Profiles() {
   }
 
   function openEdit(profile: UserProfile) {
-    setForm({ name: profile.name, pin: '' })
+    setForm({
+      name: profile.name,
+      pin: '',
+      platform_slug: profile.platform_slug ?? '',
+      era: profile.era ?? '',
+      custom_flags: profile.custom_flags ?? '',
+      rom_pack_path: profile.rom_pack_path ?? '',
+      custom_script: profile.custom_script ?? '',
+      notes: profile.notes ?? '',
+    })
     setFormErrors({})
     setSubmitError(null)
     setModal({ mode: 'edit', profile })
@@ -75,15 +119,18 @@ export default function Profiles() {
     setSubmitting(true)
     setSubmitError(null)
     try {
+      const body: Record<string, string | null> = { name: form.name.trim() }
+      if (form.pin.trim()) body.pin = form.pin.trim()
+      if (form.platform_slug) body.platform_slug = form.platform_slug
+      if (form.era) body.era = form.era
+      if (form.custom_flags.trim()) body.custom_flags = form.custom_flags.trim()
+      if (form.rom_pack_path.trim()) body.rom_pack_path = form.rom_pack_path.trim()
+      if (form.custom_script.trim()) body.custom_script = form.custom_script.trim()
+      if (form.notes.trim()) body.notes = form.notes.trim()
+
       if (modal?.mode === 'create') {
-        const body: Record<string, string> = {
-          name: form.name.trim(),
-        }
-        if (form.pin.trim()) body.pin = form.pin.trim()
         await apiFetch('/api/v1/profiles/users', { method: 'POST', body: JSON.stringify(body) })
       } else if (modal?.mode === 'edit') {
-        const body: Record<string, string> = { name: form.name.trim() }
-        if (form.pin.trim()) body.pin = form.pin.trim()
         await apiFetch(`/api/v1/profiles/users/${modal.profile.id}`, {
           method: 'PATCH',
           body: JSON.stringify(body),
@@ -122,7 +169,7 @@ export default function Profiles() {
     <>
       <PageHeader
         title="Profiles"
-        description="Manage who can use this library. Each profile can have its own PIN and permissions."
+        description="Manage who can use this library. Each profile can have its own PIN and launch preferences."
         action={<Button onClick={openCreate}>+ Add Profile</Button>}
       />
 
@@ -158,6 +205,10 @@ export default function Profiles() {
                     {profile.last_active_at && (
                       <> · Last active {formatDate(profile.last_active_at)}</>
                     )}
+                    {profile.era && (
+                      <> · Era: {ERA_OPTIONS.find((e) => e.value === profile.era)?.label ?? profile.era}</>
+                    )}
+                    {profile.platform_slug && <> · Platform: {profile.platform_slug}</>}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -217,6 +268,76 @@ export default function Profiles() {
             onChange={(e) => setField('pin', e.target.value)}
             placeholder="••••"
             autoComplete="new-password"
+          />
+        </FormField>
+
+        <FormField label="Preferred Platform" htmlFor="prof-platform" hint="Emulator platform this profile prefers">
+          <select
+            id="prof-platform"
+            value={form.platform_slug}
+            onChange={(e) => setField('platform_slug', e.target.value)}
+            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100"
+          >
+            <option value="">— No preference —</option>
+            {systemPlatforms.map((p) => (
+              <option key={p.id} value={p.slug ?? p.emulator_slug}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </FormField>
+
+        <FormField label="Preferred Era" htmlFor="prof-era" hint="Default era when launching media">
+          <select
+            id="prof-era"
+            value={form.era}
+            onChange={(e) => setField('era', e.target.value)}
+            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100"
+          >
+            <option value="">— No preference —</option>
+            {ERA_OPTIONS.map((e) => (
+              <option key={e.value} value={e.value}>
+                {e.label}
+              </option>
+            ))}
+          </select>
+        </FormField>
+
+        <FormField label="Custom Flags" htmlFor="prof-flags" hint="Additional emulator command-line flags">
+          <Input
+            id="prof-flags"
+            value={form.custom_flags}
+            onChange={(e) => setField('custom_flags', e.target.value)}
+            placeholder="-fullscreen -noaudio"
+          />
+        </FormField>
+
+        <FormField label="ROM Pack Path" htmlFor="prof-rom" hint="Path to ROM pack if required by platform">
+          <Input
+            id="prof-rom"
+            value={form.rom_pack_path}
+            onChange={(e) => setField('rom_pack_path', e.target.value)}
+            placeholder="C:/roms/86box-roms"
+          />
+        </FormField>
+
+        <FormField label="Pre-launch Script" htmlFor="prof-script" hint="Command or script to run before launch">
+          <Textarea
+            id="prof-script"
+            value={form.custom_script}
+            onChange={(e) => setField('custom_script', e.target.value)}
+            placeholder="echo 'Starting emulator…'"
+            rows={2}
+          />
+        </FormField>
+
+        <FormField label="Notes" htmlFor="prof-notes">
+          <Textarea
+            id="prof-notes"
+            value={form.notes}
+            onChange={(e) => setField('notes', e.target.value)}
+            placeholder="Any notes about this profile…"
+            rows={2}
           />
         </FormField>
 

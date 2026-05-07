@@ -56,6 +56,12 @@ export interface UserProfile {
   name: string
   avatar_path: string | null
   is_owner: boolean
+  platform_slug: string | null
+  era: string | null
+  custom_flags: string | null
+  rom_pack_path: string | null
+  custom_script: string | null
+  notes: string | null
   created_at: string
   last_active_at: string | null
 }
