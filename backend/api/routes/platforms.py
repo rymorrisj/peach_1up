@@ -1,3 +1,4 @@
+import logging
 import secrets
 import shutil
 import time
@@ -6,13 +7,15 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+logger = logging.getLogger(__name__)
+
 from backend.core.database import get_db
 from backend.core.settings import get_settings
 from backend.models import Platform, Snapshot
 from backend.schemas.platform import PlatformCreate, PlatformRead, PlatformUpdate
 from backend.schemas.snapshot import SnapshotCreate, SnapshotRead
 
-router = APIRouter(prefix="/api/v1/platforms", tags=["platforms"])
+router = APIRouter(prefix="/api/v1/platforms", tags=["platforms"], redirect_slashes=False)
 
 _TOKEN_TTL = 60
 _confirm_tokens: dict[str, tuple[int, str, float]] = {}
@@ -38,11 +41,15 @@ def _issue_token(resource_id: int, action: str) -> str:
 
 
 def _consume_token(token: str, resource_id: int, action: str) -> bool:
+    now = time.monotonic()
+    expired = [k for k, (_, _, exp) in _confirm_tokens.items() if exp < now]
+    for k in expired:
+        _confirm_tokens.pop(k, None)
     entry = _confirm_tokens.pop(token, None)
     if entry is None:
         return False
     rid, act, expires_at = entry
-    if time.monotonic() > expires_at:
+    if now > expires_at:
         return False
     return rid == resource_id and act == action
 
@@ -221,7 +228,7 @@ def delete_snapshot(
         p = Path(snap.image_path)
         if p.exists():
             p.unlink()
-    except OSError:
-        pass
+    except OSError as exc:
+        logger.warning("Failed to delete snapshot file %s: %s", snap.image_path, exc)
     db.delete(snap)
     db.commit()

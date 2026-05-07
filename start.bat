@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set PYVER=%%v
+for /f "tokens=2 delims= " %%v in ('py --version 2^>^&1') do set PYVER=%%v
 if "%PYVER%"=="" (
     echo ERROR: Python not found. Install Python 3.11 or later from https://www.python.org/downloads/
     exit /b 1
@@ -19,6 +19,12 @@ if %PY_MAJOR% EQU 3 if %PY_MINOR% LSS 11 (
     exit /b 1
 )
 
+where npm >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: Node.js / npm not found. Install Node.js from https://nodejs.org/
+    exit /b 1
+)
+
 if not exist "config\settings.yaml" (
     echo WARNING: config\settings.yaml not found. Backend may not start correctly.
     echo Copy config\settings.yaml and fill in paths before running.
@@ -26,9 +32,12 @@ if not exist "config\settings.yaml" (
 
 set PEACH_ENV=development
 
+echo Starting Peach 1UP frontend in a new window...
+start "Peach 1UP Frontend" /d "%~dp0frontend" cmd /k "npm run dev"
+echo Frontend starting at http://localhost:5173
+
 echo Starting Peach 1UP backend...
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
-echo Backend running at http://localhost:8000 - open http://localhost:8000/api/docs to verify
-echo For the frontend run: cd frontend ^&^& npm run dev
+echo Backend will be available at http://localhost:8000
+py -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 
 endlocal

@@ -235,6 +235,21 @@ def is_first_run() -> bool:
     return not get("first_run_complete", False)
 
 
+def get_or_generate_session_secret() -> str:
+    """Return the session signing secret, generating and persisting it on first call.
+
+    Per SECURITY.md the secret is never exposed via API responses or logs.
+    """
+    state = _require_init()
+    secret: str = state.get("SESSION_SECRET") or ""
+    if not secret:
+        import secrets as _sec
+        secret = _sec.token_hex(32)
+        state["SESSION_SECRET"] = secret
+        _save()
+    return secret
+
+
 def mark_first_run_complete() -> None:
     """Set first_run_complete to True in state and persist to settings.yaml."""
     state = _require_init()

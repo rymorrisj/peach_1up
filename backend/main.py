@@ -1,8 +1,14 @@
 from fastapi import FastAPI
+from starlette.middleware.sessions import SessionMiddleware
 
 from backend.api.middleware.security import FirstRunGuardMiddleware, SecurityMiddleware, configure_cors
 from backend.api.routes import emulators, health, launches, library, platforms, profiles, settings, user_profiles
 from backend.core.lifespan import lifespan
+from backend.core.settings import init_settings
+from backend.service.utils.settings import get_or_generate_session_secret
+
+init_settings()
+_session_secret = get_or_generate_session_secret()
 
 app = FastAPI(
     title="Peach 1UP",
@@ -12,11 +18,15 @@ app = FastAPI(
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
+    redirect_slashes=False,
 )
 
-configure_cors(app)
-app.add_middleware(SecurityMiddleware)
+# Middleware is applied in LIFO order (last-added = outermost = first to run).
+# Execution order: CORS → Security → FirstRunGuard → Session → router
+app.add_middleware(SessionMiddleware, secret_key=_session_secret, https_only=False)
 app.add_middleware(FirstRunGuardMiddleware)
+app.add_middleware(SecurityMiddleware)
+configure_cors(app)
 
 app.include_router(health.router)
 app.include_router(settings.router)

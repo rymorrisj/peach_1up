@@ -1,5 +1,6 @@
 import ipaddress
 import json
+import os
 import uuid
 
 from fastapi import Request, Response
@@ -26,6 +27,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     """Strip Authorization headers from logs and enforce localhost binding."""
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         # Bind address enforcement — reject non-localhost clients unless network access is enabled
         try:
             from backend.core.settings import get_settings
@@ -70,6 +74,9 @@ class FirstRunGuardMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         global _first_run_done_cache
 
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         is_emulator_path = request.url.path.startswith("/api/v1/emulators")
         if _first_run_done_cache or request.url.path in _FIRST_RUN_EXEMPT_PATHS or is_emulator_path:
             return await call_next(request)
@@ -95,13 +102,10 @@ class FirstRunGuardMiddleware(BaseHTTPMiddleware):
 
 
 def get_cors_origins() -> list[str]:
-    try:
-        from backend.core.settings import get_settings
-        svc = get_settings()
-        origin = svc.get("CORS_ORIGIN", "http://localhost:5173")
-        return [origin] if origin else ["http://localhost:5173"]
-    except RuntimeError:
-        return ["http://localhost:5173"]
+    # init_settings() in main.py calls load_dotenv() before configure_cors(),
+    # so os.getenv reflects .env values at this point.
+    origin = os.getenv("CORS_ORIGIN") or "http://localhost:5173"
+    return [origin]
 
 
 def configure_cors(app) -> None:

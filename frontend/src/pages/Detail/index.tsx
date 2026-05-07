@@ -1,16 +1,255 @@
-import { useParams } from 'react-router-dom'
+import { useState } from 'react'
+import { useParams, Link } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, ApiError } from '@/api/client'
+import { Button, PageHeader } from '@/ui'
+import LoadingSpinner from '@/components/common/LoadingSpinner'
+import type { LibraryItem, LaunchProfile } from '@/types'
+
+const ERA_LABELS: Record<string, string> = {
+  dos: 'DOS',
+  win31: 'Windows 3.1',
+  win95: 'Windows 95',
+  win98: 'Windows 98',
+  winxp: 'Windows XP',
+  ps1: 'PlayStation 1',
+  ps2: 'PlayStation 2',
+  xbox: 'Original Xbox',
+  nes: 'NES',
+  n64: 'Nintendo 64',
+}
 
 export default function Detail() {
   const { id } = useParams<{ id: string }>()
+  const itemId = Number(id)
+  const queryClient = useQueryClient()
+
+  const { data: item, isLoading: itemLoading } = useQuery<LibraryItem>({
+    queryKey: ['library', itemId],
+    queryFn: () => apiFetch<LibraryItem>(`/api/v1/library/${itemId}`),
+    enabled: !isNaN(itemId),
+  })
+
+  const { data: allProfiles = [], isLoading: profilesLoading } = useQuery<LaunchProfile[]>({
+    queryKey: ['profiles'],
+    queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
+  })
+
+  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [launching, setLaunching] = useState(false)
+  const [launchError, setLaunchError] = useState<string | null>(null)
+  const [launchSuccess, setLaunchSuccess] = useState(false)
+
+  // Initialise selector from item once loaded
+  const effectiveProfileId = selectedProfileId ?? item?.profile_id ?? null
+
+  // Era-matched profiles shown first; others still available with warning
+  const eraProfiles = allProfiles.filter((p) => item && p.era === item.era)
+  const otherProfiles = allProfiles.filter((p) => item && p.era !== item.era)
+  const chosenProfile = allProfiles.find((p) => p.id === effectiveProfileId) ?? null
+
+  async function handleSaveProfile(profileId: number | null) {
+    setSavingProfile(true)
+    setSaveError(null)
+    try {
+      await apiFetch(`/api/v1/library/${itemId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ profile_id: profileId }),
+      })
+      queryClient.invalidateQueries({ queryKey: ['library', itemId] })
+      queryClient.invalidateQueries({ queryKey: ['library'] })
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.detail : 'Failed to save profile.')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  async function handleLaunch() {
+    if (!effectiveProfileId) return
+    setLaunching(true)
+    setLaunchError(null)
+    setLaunchSuccess(false)
+    try {
+      await apiFetch(`/api/v1/library/${itemId}/launch`, {
+        method: 'POST',
+        body: JSON.stringify({ profile_id: effectiveProfileId }),
+      })
+      setLaunchSuccess(true)
+    } catch (err) {
+      setLaunchError(err instanceof ApiError ? err.detail : 'Launch failed.')
+    } finally {
+      setLaunching(false)
+    }
+  }
+
+  if (isNaN(itemId)) {
+    return <p className="text-sm text-neutral-500">Invalid item ID.</p>
+  }
+
+  if (itemLoading || profilesLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
+        <LoadingSpinner label="Loading…" />
+        <span aria-hidden="true">Loading…</span>
+      </div>
+    )
+  }
+
+  if (!item) {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-neutral-500">Library item not found.</p>
+        <Link to="/library" className="text-sm text-[#ff8a5c] hover:underline">
+          ← Back to Library
+        </Link>
+      </div>
+    )
+  }
+
+  const eraLabel = ERA_LABELS[item.era] ?? (item.era === 'unknown' ? 'Unknown' : item.era)
+  const hasProfile = effectiveProfileId != null
 
   return (
     <>
-      <h1 className="mb-6 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-        Library Item
-      </h1>
-      <p className="text-sm text-neutral-500 dark:text-neutral-400">
-        Item #{id} — detail view coming soon.
-      </p>
+      <PageHeader
+        title={item.title}
+        description={
+          <Link to="/library" className="text-sm text-[#ff8a5c] hover:underline">
+            ← Library
+          </Link>
+        }
+      />
+
+      <div className="max-w-xl space-y-8">
+        {/* Meta */}
+        <section className="space-y-1 text-sm text-neutral-600 dark:text-neutral-300">
+          <div>
+            <span className="font-medium">Era:</span> {eraLabel}
+          </div>
+          <div className="flex items-start gap-1">
+            <span className="font-medium shrink-0">Path:</span>
+            <span className="break-all font-mono text-xs text-neutral-500 dark:text-neutral-400">
+              {item.media_path}
+            </span>
+          </div>
+          {item.launch_count > 0 && (
+            <div>
+              <span className="font-medium">Launches:</span> {item.launch_count}
+              {item.last_launched_at && (
+                <> · Last {new Date(item.last_launched_at).toLocaleDateString()}</>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* Profile selector */}
+        <section>
+          <h2 className="mb-1 text-base font-semibold text-neutral-900 dark:text-neutral-100">
+            Launch Profile
+          </h2>
+          <p className="mb-3 text-sm text-neutral-500 dark:text-neutral-400">
+            Select the emulator configuration to use when launching this item.
+            Launch is blocked until a profile is assigned.
+          </p>
+
+          <div className="space-y-2">
+            <select
+              value={effectiveProfileId ?? ''}
+              onChange={(e) => {
+                const val = e.target.value ? Number(e.target.value) : null
+                setSelectedProfileId(val)
+              }}
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100"
+            >
+              <option value="">— No profile selected —</option>
+              {eraProfiles.length > 0 && (
+                <optgroup label={`Matching era (${eraLabel})`}>
+                  {eraProfiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}{p.is_bundled ? ' (default)' : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {otherProfiles.length > 0 && (
+                <optgroup label="Other eras">
+                  {otherProfiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({ERA_LABELS[p.era] ?? p.era})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+
+            {chosenProfile && item && chosenProfile.era !== item.era && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Warning: the selected profile targets {ERA_LABELS[chosenProfile.era] ?? chosenProfile.era}, not {eraLabel}. Launch may fail or produce unexpected results.
+              </p>
+            )}
+
+            {selectedProfileId !== (item.profile_id ?? null) && (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleSaveProfile(selectedProfileId)}
+                  loading={savingProfile}
+                >
+                  Save profile selection
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelectedProfileId(item.profile_id ?? null)}
+                  disabled={savingProfile}
+                >
+                  Discard
+                </Button>
+              </div>
+            )}
+
+            {saveError && (
+              <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+                ❌ {saveError}
+              </p>
+            )}
+          </div>
+        </section>
+
+        {/* Launch */}
+        <section>
+          <Button
+            onClick={handleLaunch}
+            loading={launching}
+            disabled={!hasProfile || launching}
+            className="w-full justify-center py-3 text-base"
+          >
+            {hasProfile ? 'Launch' : 'Assign a profile to launch'}
+          </Button>
+
+          {!hasProfile && (
+            <p className="mt-2 text-center text-xs text-neutral-400 dark:text-neutral-500">
+              Select a profile above and save it to enable the launch button.
+            </p>
+          )}
+
+          {launchSuccess && (
+            <p className="mt-2 text-center text-sm text-green-600 dark:text-green-400">
+              Launch started. The emulator should open shortly.
+            </p>
+          )}
+
+          {launchError && (
+            <p role="alert" className="mt-2 text-center text-sm text-red-600 dark:text-red-400">
+              ❌ {launchError}
+            </p>
+          )}
+        </section>
+      </div>
     </>
   )
 }

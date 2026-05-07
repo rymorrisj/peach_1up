@@ -1,13 +1,20 @@
 import { Moon, Sun } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { useAppContext } from '@/context/AppContext'
+import { apiFetch } from '@/api/client'
+import type { LaunchHistory } from '@/types'
 
 export default function TopBar() {
   const { state, dispatch } = useAppContext()
   const isDark = state.theme === 'dark'
 
-  const activeProfileLabel = state.activeProfileId != null
-    ? `Profile ${state.activeProfileId}`
-    : null
+  const { data: launches = [] } = useQuery<LaunchHistory[]>({
+    queryKey: ['launches'],
+    queryFn: () => apiFetch<LaunchHistory[]>('/api/v1/launches'),
+    refetchInterval: 5000,
+  })
+
+  const activeSessions = launches.filter((l) => l.ended_at === null).length
 
   return (
     <header className="flex h-14 shrink-0 items-center border-b border-neutral-200 bg-neutral-50 px-[1em] dark:border-surface-400 dark:bg-surface-900">
@@ -15,8 +22,18 @@ export default function TopBar() {
         Peach 1UP
       </span>
 
-      <div className="flex-1 text-center text-sm font-medium text-neutral-500 dark:text-neutral-400">
-        {activeProfileLabel}
+      <div className="flex flex-1 items-center justify-center gap-3 text-sm">
+        {activeSessions > 0 && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" aria-hidden="true" />
+            {activeSessions} running
+          </span>
+        )}
+        {state.activeProfileId != null && (
+          <span className="font-medium text-neutral-500 dark:text-neutral-400">
+            Profile {state.activeProfileId}
+          </span>
+        )}
       </div>
 
       <button

@@ -1,5 +1,8 @@
+import logging
 import secrets
+import threading
 import time
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -10,14 +13,13 @@ from backend.models import LibraryItem
 from backend.schemas.library import LibraryItemCreate, LibraryItemRead, LibraryItemUpdate
 
 router = APIRouter(prefix="/api/v1/library", tags=["library"])
+logger = logging.getLogger(__name__)
 
-# In-memory scan state — cleared on each new scan
+_scan_lock = threading.Lock()
 _scan_state: dict[str, Any] = {"running": False, "progress": 0, "total": 0, "results": []}
 
-# Confirmation tokens: {token: (resource_id, expires_at)}
 _confirm_tokens: dict[str, tuple[int, float]] = {}
-
-_TOKEN_TTL = 60  # seconds
+_TOKEN_TTL = 60
 
 
 def _issue_confirm_token(item_id: int) -> str:
@@ -27,13 +29,79 @@ def _issue_confirm_token(item_id: int) -> str:
 
 
 def _consume_confirm_token(token: str, item_id: int) -> bool:
+    now = time.monotonic()
+    expired = [k for k, (_, exp) in _confirm_tokens.items() if exp < now]
+    for k in expired:
+        _confirm_tokens.pop(k, None)
     entry = _confirm_tokens.pop(token, None)
     if entry is None:
         return False
     expected_id, expires_at = entry
-    if time.monotonic() > expires_at:
+    if now > expires_at:
         return False
     return expected_id == item_id
+
+
+def _validate_scan_directory(directory: str) -> Path:
+    """Resolve and validate a scan directory against the allowlisted base directories.
+
+    Per SECURITY.md mandatory input validation rules: every file path accepted
+    from any source must be resolved, normalised, and validated against an
+    allowlist of permitted base directories before any filesystem operation.
+    Permitted base directories are IMAGES_PATH, PROFILES_PATH, and ROM_PATH.
+    """
+    if "\x00" in directory:
+        logger.warning("Scan directory rejected: contains null byte (raw=%r)", directory)
+        raise HTTPException(status_code=400, detail="Invalid path: contains a null byte.")
+
+    resolved = Path(directory).resolve()
+
+    try:
+        from backend.core.settings import get_settings
+        svc = get_settings()
+        allowed_roots: list[Path] = []
+        for key in ("IMAGES_PATH", "PROFILES_PATH", "ROM_PATH"):
+            val = svc.get(key, "") or ""
+            if val:
+                allowed_roots.append(Path(val).resolve())
+    except RuntimeError:
+        allowed_roots = []
+
+    if not allowed_roots:
+        logger.warning("Scan rejected: no allowed base directories are configured")
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No scan base directories are configured. "
+                "Set IMAGES_PATH in Settings before scanning."
+            ),
+        )
+
+    within_allowed = any(
+        resolved == root or resolved.is_relative_to(root)
+        for root in allowed_roots
+    )
+
+    if not within_allowed:
+        logger.warning(
+            "Path traversal attempt on scan endpoint: directory=%r resolved=%s allowed=%s",
+            directory,
+            resolved,
+            [str(r) for r in allowed_roots],
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Directory is outside the permitted scan locations "
+                "(IMAGES_PATH, PROFILES_PATH, ROM_PATH). "
+                "Update your path settings to include this location."
+            ),
+        )
+
+    if not resolved.is_dir():
+        raise HTTPException(status_code=400, detail="Path does not exist or is not a directory.")
+
+    return resolved
 
 
 @router.get("", response_model=list[LibraryItemRead])
@@ -65,29 +133,47 @@ def add_library_item(body: LibraryItemCreate, db: Session = Depends(get_db)):
 
 @router.get("/scan/status")
 def scan_status():
-    return _scan_state
+    with _scan_lock:
+        return dict(_scan_state)
 
 
 @router.post("/scan")
 def trigger_scan(directory: str = Query(...), background_tasks: BackgroundTasks = BackgroundTasks()):
-    if _scan_state["running"]:
-        raise HTTPException(status_code=409, detail="A scan is already running.")
-    background_tasks.add_task(_run_scan, directory)
-    return {"started": True, "directory": directory}
+    with _scan_lock:
+        if _scan_state["running"]:
+            raise HTTPException(status_code=409, detail="A scan is already running.")
+
+    validated_path = _validate_scan_directory(directory)
+
+    with _scan_lock:
+        _scan_state["running"] = True
+        _scan_state["progress"] = 0
+        _scan_state["total"] = 0
+        _scan_state["results"] = []
+
+    background_tasks.add_task(_run_scan, str(validated_path))
+    return {"started": True, "directory": str(validated_path)}
 
 
 def _run_scan(directory: str) -> None:
     from backend.service.utils.profile_builder import scan_directory
-    _scan_state["running"] = True
-    _scan_state["progress"] = 0
-    _scan_state["results"] = []
     try:
-        results = scan_directory(directory)
-        _scan_state["results"] = [vars(r) for r in results]
-        _scan_state["total"] = len(results)
-        _scan_state["progress"] = len(results)
+        results = scan_directory(Path(directory))
+        serialisable = [
+            {
+                "path": str(e.path),
+                "era": e.era.value if e.era is not None else None,
+                "name": e.name,
+            }
+            for e in results
+        ]
+        with _scan_lock:
+            _scan_state["results"] = serialisable
+            _scan_state["total"] = len(serialisable)
+            _scan_state["progress"] = len(serialisable)
     finally:
-        _scan_state["running"] = False
+        with _scan_lock:
+            _scan_state["running"] = False
 
 
 @router.get("/{item_id}", response_model=LibraryItemRead)

@@ -29,7 +29,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     headers['Authorization'] = `Bearer ${_sessionToken}`
   }
 
-  const res = await fetch(`${baseURL}${path}`, { ...init, headers })
+  const res = await fetch(`${baseURL}${path}`, { ...init, headers, credentials: 'include' })
 
   if (!res.ok) {
     let detail = res.statusText

@@ -67,14 +67,14 @@ in settings.
 
 Permission flags on sub-profiles:
 
-| Flag                   | What it controls                                              |
-| ---------------------- | ------------------------------------------------------------- |
-| `can_launch_media`     | Launch any library item (granted to all profiles by default)  |
-| `can_install_media`    | Run installation flows for new media                          |
-| `can_edit_library`     | Add, edit, or remove library items                            |
-| `can_manage_profiles`  | Create or modify sub-profiles (never grants owner privileges) |
-| `can_edit_settings`    | Modify application settings                                   |
-| `is_admin`             | All of the above except owner-only operations                 |
+| Flag                  | What it controls                                              |
+| --------------------- | ------------------------------------------------------------- |
+| `can_launch_media`    | Launch any library item (granted to all profiles by default)  |
+| `can_install_media`   | Run installation flows for new media                          |
+| `can_edit_library`    | Add, edit, or remove library items                            |
+| `can_manage_profiles` | Create or modify sub-profiles (never grants owner privileges) |
+| `can_edit_settings`   | Modify application settings                                   |
+| `is_admin`            | All of the above except owner-only operations                 |
 
 **Content ratings and parental controls:**
 
@@ -182,6 +182,8 @@ affected, and the timestamp.
   logged.
 - The recovery key is shown once at first run and then discarded. It is stored as a
   bcrypt hash only — the plaintext form cannot be recovered from the stored hash.
+- The session secret is generated on first run via get_or_generate_session_secret() and persisted to settings.yaml. It must never appear in logs, API responses, or  
+  version control. It is treated with the same handling rules as the JWT secret. If settings.yaml is deleted or the key is removed, a new secret is generated on next startup, invalidating all existing sessions.
 
 ---
 
@@ -232,9 +234,9 @@ enforced. This is a known Windows 11 behaviour and is logged in
 [DECISIONS.md](DECISIONS.md) (2026-05-05, "Job Objects bypassed via launch_direct for
 DOS launches"). The issue is tracked for revisit once the web UI replaces the TUI.
 
-**Docker bridge allowlist in security middleware**
+The scan endpoint validates all user-supplied directory paths against an allowlist of configured base directories (IMAGES_PATH, PROFILES_PATH, ROM_PATH) before any filesystem operation. This is a mandatory enforcement of the Input Validation Rules above. If none of these paths are configured in settings, scanning is blocked entirely. Media collections must reside under a configured base directory. This restriction must be carried forward to any future endpoint that accepts a directory or file path parameter.
 
-Docker bridge allowlist (172.16.0.0/12) in security middleware is safe while backend port 8000 is bound to 127.0.0.1 only. If port binding is changed to 0.0.0.0, re-evaluate the bridge allowlist.
+All frontend fetch calls must include credentials: 'include' while SessionMiddleware is active so session cookies are transmitted correctly. When P5 changes the serving model (FastAPI serving the React static build directly), re-evaluate whether this setting is still correct or introduces unintended cookie scope.
 
 ---
 

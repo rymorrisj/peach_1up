@@ -1,13 +1,16 @@
-# Peach 1UP — primary configuration
-# Set binary paths and storage locations here.
-# Values in .env take precedence over these as a legacy override.
-
-# Emulator binary paths
-DOSBOX_PATH: ""
-BOX86_PATH: ""
-VIRTUALBOX_PATH: ""
-
-# Storage paths
-ROM_PATH: ""
-IMAGES_PATH: ""
-PROFILES_PATH: ""
+first_run_complete: true
+DOSBOX_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/dosbox-x/dosbox-x.exe
+BOX86_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/86box/86Box.exe
+VIRTUALBOX_PATH: ''
+ROM_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/images/roms
+IMAGES_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/images/games
+PROFILES_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/profiles
+DUCKSTATION_PATH: ''
+PCSX2_PATH: ''
+XEMU_PATH: ''
+MESEN_PATH: ''
+PROJECT64_PATH: ''
+PS1_BIOS_PATH: ''
+PS2_BIOS_PATH: ''
+XBOX_BIOS_PATH: ''
+suppress_confirmations: []

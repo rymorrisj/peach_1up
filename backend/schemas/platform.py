@@ -13,6 +13,11 @@ class PlatformBase(BaseModel):
     config_path: str | None = None
     status: str = "ok"
     notes: str | None = None
+    slug: str | None = None
+    is_system: bool = False
+    download_url: str | None = None
+    supported_eras: str | None = None
+    default_flags: str | None = None
 
 
 class PlatformCreate(PlatformBase):
@@ -29,6 +34,10 @@ class PlatformUpdate(BaseModel):
     config_path: str | None = None
     status: str | None = None
     notes: str | None = None
+    slug: str | None = None
+    download_url: str | None = None
+    supported_eras: str | None = None
+    default_flags: str | None = None
 
 
 class PlatformRead(PlatformBase):

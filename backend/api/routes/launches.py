@@ -9,6 +9,7 @@ from backend.core import process_registry
 from backend.core.database import get_db
 from backend.core.process_registry import ProcessEntry
 from backend.models import LaunchHistory, LibraryItem, Profile
+from backend.schemas.launch_history import LaunchHistoryRead
 
 router = APIRouter(prefix="/api/v1", tags=["launches"])
 
@@ -85,7 +86,7 @@ async def launch_item(item_id: int, body: LaunchRequest, db: Session = Depends(g
     return {"launch_history_id": history.id}
 
 
-@router.get("/launches", response_model=list)
+@router.get("/launches", response_model=list[LaunchHistoryRead])
 def list_launches(db: Session = Depends(get_db)):
     return db.query(LaunchHistory).order_by(LaunchHistory.started_at.desc()).limit(50).all()
 
