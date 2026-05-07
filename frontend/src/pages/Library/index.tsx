@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { Button, FormField, Input, Modal, PageHeader } from '@/ui'
-import EraSelector, { type EraValue } from '@/components/common/EraSelector'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
@@ -27,10 +26,10 @@ const ERA_LABELS: Record<string, string> = {
 interface AddMediaForm {
   title: string
   media_path: string
-  era: EraValue | null
+  profile_id: number | null
 }
 
-const EMPTY_ADD: AddMediaForm = { title: '', media_path: '', era: null }
+const EMPTY_ADD: AddMediaForm = { title: '', media_path: '', profile_id: null }
 
 const MEDIA_ACCEPT = '.iso,.img,.cue,.chd,.xiso'
 
@@ -40,11 +39,12 @@ function isAbsolutePath(p: string) {
 
 interface AddMediaModalProps {
   open: boolean
+  profiles: LaunchProfile[]
   onClose: () => void
   onAdded: () => void
 }
 
-function AddMediaModal({ open, onClose, onAdded }: AddMediaModalProps) {
+function AddMediaModal({ open, profiles, onClose, onAdded }: AddMediaModalProps) {
   const [form, setForm] = useState<AddMediaForm>(EMPTY_ADD)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -98,13 +98,16 @@ function AddMediaModal({ open, onClose, onAdded }: AddMediaModalProps) {
     setError(null)
     setSubmitting(true)
     try {
+      const selectedProfile = profiles.find((p) => p.id === form.profile_id) ?? null
+      const body: Record<string, string | number | null> = {
+        title: form.title.trim(),
+        media_path: form.media_path.trim(),
+        era: selectedProfile?.era ?? 'unknown',
+      }
+      if (form.profile_id != null) body.profile_id = form.profile_id
       await apiFetch('/api/v1/library', {
         method: 'POST',
-        body: JSON.stringify({
-          title: form.title.trim(),
-          media_path: form.media_path.trim(),
-          era: form.era ?? 'unknown',
-        }),
+        body: JSON.stringify(body),
       })
       onAdded()
       onClose()
@@ -178,15 +181,24 @@ function AddMediaModal({ open, onClose, onAdded }: AddMediaModalProps) {
         />
       </FormField>
 
-      <FormField label="Platform Era" hint="Optional — leave unset if unknown. You can assign a profile later.">
-        <div className="mt-2">
-          <EraSelector value={form.era} onChange={(era) => setField('era', era)} />
-        </div>
-        {!form.era && (
-          <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-            No era selected. Item will be added as "Unknown" — you can assign a profile from the detail view.
-          </p>
-        )}
+      <FormField
+        label="Launch Profile"
+        htmlFor="add-profile"
+        hint="Optional — era is derived from the selected profile. You can change it from the detail view."
+      >
+        <select
+          id="add-profile"
+          value={form.profile_id ?? ''}
+          onChange={(e) => setField('profile_id', e.target.value ? Number(e.target.value) : null)}
+          className="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100"
+        >
+          <option value="">— No profile (add now, assign later) —</option>
+          {profiles.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}{p.is_bundled ? ' (default)' : ''}
+            </option>
+          ))}
+        </select>
       </FormField>
 
       {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">❌ {error}</p>}
@@ -519,6 +531,7 @@ export default function Library() {
 
       <AddMediaModal
         open={addOpen}
+        profiles={profiles}
         onClose={() => setAddOpen(false)}
         onAdded={invalidate}
       />
