@@ -83,9 +83,6 @@ profiles/conf/
 # HDD images (generated)
 images/hdd/
 
-# Local test artifacts
-local_test/
-
 # Bundled emulator binaries (drop-in, never committed — directories are tracked)
 emulators/
 
