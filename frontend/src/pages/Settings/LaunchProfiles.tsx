@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { Button, FormField, Input, Modal, PageHeader, Textarea } from '@/ui'
@@ -176,12 +175,8 @@ export default function LaunchProfiles() {
   return (
     <>
       <PageHeader
-        title="Launch Profiles"
-        description={
-          <Link to="/settings" className="text-sm text-[#ff8a5c] hover:underline">
-            ← Settings
-          </Link>
-        }
+        title="Profiles"
+        description="Emulator configuration presets. Assign a profile to each library item to enable launch."
         action={<Button onClick={openCreate}>+ Add Profile</Button>}
       />
 

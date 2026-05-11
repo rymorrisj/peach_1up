@@ -74,12 +74,26 @@ def build_args(media_path: Path, era: str, enable_networking: bool = False) -> L
     # Disable NE2000 adapter unless the profile explicitly enables networking.
     net_args = [] if enable_networking else ['-set', 'ne2000=false']
 
+    # Explicit SoundBlaster 16 settings override any user-level dosbox-x.conf
+    # that might have sound disabled or misconfigured. Values match the SB16
+    # hardware defaults that the majority of DOS games expect without extra setup.
+    sound_args = [
+        '-set', 'sblaster:sbtype=sb16',
+        '-set', 'sblaster:sbbase=220',
+        '-set', 'sblaster:irq=7',
+        '-set', 'sblaster:dma=1',
+        '-set', 'sblaster:hdma=5',
+        '-set', 'sblaster:oplmode=auto',
+        '-set', 'mixer:rate=44100',
+        '-set', 'mixer:nosound=false',
+    ]
+
     if suffix == '.img':
         # Mount IMG as hard disk — writable, no -ro
-        return suppress + net_args + ['-c', f'imgmount C "{media_str}" -t hdd', '-c', 'C:']
+        return suppress + sound_args + net_args + ['-c', f'imgmount C "{media_str}" -t hdd', '-c', 'C:']
     elif suffix in {'.iso', '.cue'}:
         # Mount ISO/CUE as optical disc — read-only
-        return suppress + net_args + ['-c', f'imgmount D "{media_str}" -t iso -ro', '-c', 'D:']
+        return suppress + sound_args + net_args + ['-c', f'imgmount D "{media_str}" -t iso -ro', '-c', 'D:']
     else:
         # This should never be reached due to validation above
         raise ValueError(f"Unhandled media suffix '{suffix}'. This indicates a programming error.")

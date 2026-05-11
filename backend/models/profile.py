@@ -16,6 +16,7 @@ class ProfileBase(SQLModel):
     is_accuracy_mode: bool = False
     enable_networking: bool = False
     notes: Optional[str] = None
+    user_id: Optional[int] = None
 
 
 class Profile(ProfileBase, table=True):
@@ -50,5 +51,6 @@ class ProfileUpdate(SQLModel):
 
 class ProfileRead(ProfileBase):
     id: int
+    user_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime

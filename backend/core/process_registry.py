@@ -10,6 +10,7 @@ class ProcessEntry:
     job_handle: Any | None
     library_item_id: int
     profile_id: int | None
+    launch_history_id: int | None = None
     started_at: datetime = field(default_factory=datetime.utcnow)
 
 
@@ -47,14 +48,14 @@ def terminate(pid: int) -> bool:
         return True
 
 
-def cleanup_exited() -> list[int]:
+def cleanup_exited() -> list[tuple[int, ProcessEntry]]:
     removed = []
     with _lock:
         for pid, entry in list(_registry.items()):
             proc = entry.process_handle
             if proc is not None and proc.poll() is not None:
                 _registry.pop(pid)
-                removed.append(pid)
+                removed.append((pid, entry))
     return removed
 
 

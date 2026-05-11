@@ -1,6 +1,8 @@
+import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastapi import FastAPI
 
@@ -146,6 +148,56 @@ def _seed_default_profiles(db) -> None:
         logger.warning("Default profile seeding skipped: %s", exc)
 
 
+def _cleanup_stale_sessions(db) -> None:
+    try:
+        from backend.models import LaunchHistory
+        stale = db.query(LaunchHistory).filter(LaunchHistory.ended_at.is_(None)).all()
+        for session in stale:
+            session.ended_at = datetime.utcnow()
+            session.exit_code = -1
+        db.flush()
+        if stale:
+            logger.info("Startup: closed %d stale launch session(s)", len(stale))
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Startup session cleanup failed: %s", exc)
+
+
+def _write_session_ends(exited: list, exit_code_override: int | None = None) -> None:
+    if not exited:
+        return
+    from backend.core.database import get_engine
+    from backend.models import LaunchHistory
+    from sqlalchemy.orm import sessionmaker
+    session_factory = sessionmaker(bind=get_engine())
+    with session_factory() as db:
+        for _pid, entry in exited:
+            if entry.launch_history_id is None:
+                continue
+            history = db.get(LaunchHistory, entry.launch_history_id)
+            if history and history.ended_at is None:
+                history.ended_at = datetime.utcnow()
+                if exit_code_override is not None:
+                    history.exit_code = exit_code_override
+                else:
+                    rc = getattr(entry.process_handle, "returncode", None) if entry.process_handle else None
+                    history.exit_code = rc if rc is not None else -1
+        db.commit()
+
+
+async def _process_monitor_loop() -> None:
+    while True:
+        try:
+            await asyncio.sleep(5)
+            exited = process_registry.cleanup_exited()
+            if exited:
+                await asyncio.to_thread(_write_session_ends, exited)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning("Process monitor iteration failed (will retry): %s", exc)
+
+
 def _scan_installed_emulators() -> None:
     try:
         from backend.service.utils.emulator_catalog import get_all_statuses
@@ -173,12 +225,30 @@ async def lifespan(app: FastAPI):
         _sync_first_run_from_db(db)
         _seed_system_platforms(db)
         _seed_default_profiles(db)
+        _cleanup_stale_sessions(db)
         db.commit()
 
     _scan_installed_emulators()
 
+    monitor_task = asyncio.create_task(_process_monitor_loop())
+
     yield
 
-    process_registry.cleanup_exited()
+    monitor_task.cancel()
+    try:
+        await monitor_task
+    except asyncio.CancelledError:
+        pass
+
+    # Finalize any sessions that exited while the monitor was between poll intervals.
+    exited = process_registry.cleanup_exited()
+    if exited:
+        _write_session_ends(exited)
+
+    # Mark still-running sessions as killed by backend shutdown before terminating.
+    still_running = list(process_registry.get_all().items())
+    if still_running:
+        _write_session_ends(still_running, exit_code_override=-15)
+
     for pid in list(process_registry.get_all().keys()):
         process_registry.terminate(pid)

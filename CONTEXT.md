@@ -204,7 +204,7 @@ Eliminate type duplication across the stack. FastAPI OpenAPI spec becomes the si
 source of truth for all types. Database and shared artifacts are relocated and
 consolidated. Static frontend build is always present.
 
-### CURRENT
+### DONE
 
 - [P5-1] Move database to /database/data/ — relocate peach1up.db, update engine
   config, .gitignore, .env, and all path references. /database/ owns schema and config.
@@ -224,7 +224,27 @@ consolidated. Static frontend build is always present.
   backend, open browser. Document dev workflow: npm run dev is opt-in, not default.
 - [P5-6] P5 committed and pushed to main.
 
-## P6 — Native Installer and Distribution
+## P6 — Windows Host Isolation and Resource Limits
+
+### Goal
+
+Emulators launched on Windows run under a dedicated low-privilege account
+and are contained in Job Objects with CPU limits and kill-on-close semantics.
+This improves host safety without blocking on AppContainer or Linux namespaces.
+
+### CURRENT
+
+- [P6-1] Design Windows sandbox model and config surface
+- [P6-2] Create and manage low-privilege `peach_sandbox` user at install time
+- [P6-3] Implement Job Object wrapper with CPU (and optional memory) limits
+- [P6-4] Integrate sandboxed launch path into emulator backends
+- [P6-5] Update LaunchHistory and diagnostics for sandboxed sessions
+- [P6-6] Add configuration and UX for per-profile resource caps
+- [P6-7] Hardening and regression tests on Windows 10/11
+- [P6-8] Documentation updates (DECISIONS.md, SECURITY.md, user docs)
+- [P6-9] P6 committed and pushed to main.
+
+## P7 — Native Installer and Distribution
 
 ### Goal
 
@@ -233,24 +253,42 @@ dependencies required for end users.
 
 ### NEXT
 
-- [P6-1] PyInstaller backend compilation — compile FastAPI backend and all
+- [P7-1] PyInstaller backend compilation — compile FastAPI backend and all
   dependencies into a standalone executable. Python runtime embedded. Tested
   on Windows and Linux.
-- [P6-2] pystray tray icon — system tray icon with Open, Restart, and Quit
+- [P7-2] pystray tray icon — system tray icon with Open, Restart, and Quit
   options. Pure Python. Auto-opens browser on first launch.
-- [P6-3] Windows installer — NSIS or WiX packages the compiled backend,
+- [P7-3] Windows installer — NSIS or WiX packages the compiled backend,
   React static build, emulators directory, and SQLite data path into a signed
   .exe installer. Registers Peach1UP as a Windows service. UAC prompt on
   install only.
-- [P6-4] Linux packages — fpm produces .deb and AppImage. Registers systemd
+- [P7-4] P7 committed and pushed to main.
+
+## P8 — Linux Namespace and cgroup Isolation (Scaffold)
+
+### Goal
+
+Replace the current Linux process isolation placeholder with a concrete implementation
+based on namespaces and cgroups (either via nsjail or a native implementation).
+Emulators remain host-native but run in a restricted view of the filesystem and with
+per-launch CPU/memory caps.
+
+### NEXT
+
+- [P8-1] Select Linux isolation backend (nsjail vs native namespaces+cgroups)
+- [P8-2] Define per-launch sandbox filesystem layout and allowed mounts
+- [P8-3] Implement CPU and memory limits via cgroup v2
+- [P8-4] Integrate Linux sandboxed launch into emulator backends
+- [P8-5] Update SECURITY.md and DECISIONS.md and any other documentation for Linux isolation
+- [P8-6] Linux packages — fpm produces .deb and AppImage. Registers systemd
   service on deb install. AppImage runs standalone.
-- [P6-5] GitHub Actions release pipeline — on version tag: build Windows and
-  Linux installers, sign with OSS certificate via ossign.org, attach to GitHub
-  release automatically.
-- [P6-6] P6 committed and pushed to main.
+- [P8-7] P8 committed and pushed to main.
 
 ## PX — Nice to Haves
 
+- GitHub Actions release pipeline — on version tag: build Windows and
+  Linux installers, sign with OSS certificate via ossign.org, attach to GitHub
+  release automatically.
 - Docusaurus documentation site — technical docs, user guide,
   contributor guide. Versioned, MDX, full-text search.
   Windows ME support via DOSBox-X
@@ -273,3 +311,5 @@ dependencies required for end users.
 - Platform snapshot management — compression, auto-snapshots before risky installs,
   snapshot history, and storage cleanup tooling. Basic create/restore ships in P2.
 - Support a key,value (emulator, path) for users to add and configure their own emulators/eras in settings.yaml
+- Add a Check All Health button to Platform page so user can check all platforms at once instead of one at a time
+- Drag drop jsut adds image name not path so Users see a warning anyway.

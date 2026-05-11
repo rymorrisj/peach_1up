@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.settings import get_settings
 from backend.models.settings import SettingsPatch, SettingsRead
-from backend.models.user_profile import UserProfile
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
@@ -104,15 +103,12 @@ def validate_paths():
 
 
 @router.get("/first-run-status")
-def get_first_run_status(db: Session = Depends(get_db)):
+def get_first_run_status():
     svc = get_settings()
     first_run_complete = not svc.is_first_run()
 
-    owner = db.query(UserProfile).filter(UserProfile.is_owner.is_(True)).first()
-
     return {
         "first_run_complete": first_run_complete,
-        "owner_profile_exists": owner is not None,
         "emulators": svc.compute_setup_status(),
         "paths": {
             "images_path": svc.get("IMAGES_PATH") or None,
@@ -165,13 +161,6 @@ def set_library_path(body: LibraryPathBody):
 
 @router.post("/complete-first-run")
 def complete_first_run(db: Session = Depends(get_db)):
-    owner = db.query(UserProfile).filter(UserProfile.is_owner.is_(True)).first()
-    if not owner:
-        raise HTTPException(
-            status_code=400,
-            detail="Owner profile must be created before completing setup.",
-        )
-
     from backend.models.settings import Settings as SettingsModel
     row = db.get(SettingsModel, "first_run_complete")
     if row:

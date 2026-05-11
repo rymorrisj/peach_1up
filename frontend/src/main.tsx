@@ -7,10 +7,8 @@ import AppShell from '@/components/layout/AppShell'
 import Library from '@/pages/Library'
 import Detail from '@/pages/Detail'
 import Platforms from '@/pages/Platforms'
-import Profiles from '@/pages/Profiles'
+import Profiles from '@/pages/Settings/LaunchProfiles'
 import Settings from '@/pages/Settings'
-import EmulatorsSettings from '@/pages/Settings/Emulators'
-import LaunchProfilesSettings from '@/pages/Settings/LaunchProfiles'
 import CartridgeImaging from '@/pages/Guides/CartridgeImaging'
 import FirstRun from '@/pages/FirstRun'
 import NotFound from '@/pages/NotFound'
@@ -64,8 +62,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/platforms" element={<Platforms />} />
                 <Route path="/profiles" element={<Profiles />} />
                 <Route path="/settings" element={<Settings />} />
-                <Route path="/settings/emulators" element={<EmulatorsSettings />} />
-                <Route path="/settings/launch-profiles" element={<LaunchProfilesSettings />} />
                 <Route path="/guides/cartridge-imaging" element={<CartridgeImaging />} />
               </Route>
             </Route>

@@ -96,6 +96,7 @@ async def launch_item(item_id: int, body: LaunchRequest, db: Session = Depends(g
             job_handle=job,
             library_item_id=item.id,
             profile_id=profile.id if profile else None,
+            launch_history_id=history.id,
         )
         process_registry.register(proc.pid, entry)
         history.job_isolated = job_isolated

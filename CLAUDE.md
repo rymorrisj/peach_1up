@@ -223,7 +223,6 @@ All commits must follow this structure:
 
 Use the area of the project being changed:
 
-- tui — Textual interface (legacy)
 - dosbox — DOSBox-X backend
 - 86box — 86Box backend
 - virtualbox — VirtualBox backend
@@ -260,14 +259,3 @@ docs(decisions): log over VirtualBox decision
 - Do not output diffs or show file contents after changes.
 - Only show code if flagging something complex, critical, or a potential issue.
 - Flag anything that could pose security, safety, or systems issues such as memory leaks, unsafe code, or resource handling problems.
-
-## Build Phases
-
-- P0 — Bare minimum working launcher (see CONTEXT.md)
-- P1 — Core usability
-- P2 — Meaningful expansion
-- P3 — Maturity and automation
-- P3.5 — Web UI replacing TUI, FastAPI backend, React frontend
-- P4 — Console backends (PS1, PS2, Xbox OG, NES, N64)
-- P4.5 - Package app as a native installer
-- PX — Nice to haves, no timeline

@@ -14,7 +14,6 @@ export interface LibraryPaths {
 
 export interface FirstRunStatus {
   first_run_complete: boolean
-  owner_profile_exists: boolean
   emulators: EmulatorStatus[]
   paths: LibraryPaths
 }

@@ -49,23 +49,9 @@ export interface LaunchProfile {
   enable_networking: boolean
   extra_args: string | null
   notes: string | null
+  user_id: number | null
   created_at: string
   updated_at: string
-}
-
-export interface UserProfile {
-  id: number
-  name: string
-  avatar_path: string | null
-  is_owner: boolean
-  platform_slug: string | null
-  era: string | null
-  custom_flags: string | null
-  rom_pack_path: string | null
-  custom_script: string | null
-  notes: string | null
-  created_at: string
-  last_active_at: string | null
 }
 
 export interface LaunchHistory {

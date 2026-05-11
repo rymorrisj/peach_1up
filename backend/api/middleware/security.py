@@ -77,7 +77,6 @@ _FIRST_RUN_EXEMPT_PATHS: frozenset[str] = frozenset({
     "/api/v1/settings/emulator-path",
     "/api/v1/settings/library-path",
     "/api/v1/settings/complete-first-run",
-    "/api/v1/profiles/users/owner",
     "/api/docs",
     "/api/redoc",
     "/api/openapi.json",

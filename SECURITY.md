@@ -236,9 +236,42 @@ conversation and wait for an explicit decision before proceeding.
 
 ---
 
+### Windows-specific process rules
+
+**Mandatory.**
+
+- All emulator processes on Windows are launched under a dedicated local account
+  (`peach_sandbox`), not under the owner or service account.
+- The `peach_sandbox` account has read-only access to:
+  - Configured emulator binary directories
+  - Configured ROM/library/media directories
+  - The application config directory where necessary
+    It has no access to user profile locations such as `Documents`, `Desktop`,
+    or arbitrary paths on `C:\` by default.
+- Every emulator launch is assigned to a fresh Job Object with:
+  - `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` enabled.
+  - A default CPU rate cap (e.g. 50–75% of a single core) to prevent runaway
+    usage and thermal spikes.
+  - Optional process or job memory limits where supported.
+- If assignment to the Job Object fails for any reason, the launch:
+  - Falls back to a direct launch **only** if explicitly permitted by configuration.
+  - Is logged with warning severity, including the OS error code and emulator info.
+  - Is treated as a weaker isolation mode in diagnostics and support docs.
+
+#### Windows sandbox account
+
+The `peach_sandbox` Windows account is created at install time and used exclusively
+for emulator processes. It is not exposed to end users and cannot log in interactively.
+
+- No API or UI operation ever returns credentials or identifiers for this account.
+- The account is granted the minimal ACLs required to read emulator binaries and media.
+- The account cannot modify Peach 1UP configuration, databases, or host user data.
+
+---
+
 ## Known Limitations
 
-**Job Objects bypass on Windows 11 (error code 5)**
+### Job Objects bypass on Windows 11 (error code 5)
 
 On Windows 11, assigning an emulator process to a Job Object fails with error code 5
 (access denied) regardless of breakaway flag combinations. When this occurs, the launcher
@@ -251,6 +284,30 @@ known Windows 11 behaviour and is logged in [DECISIONS.md](DECISIONS.md).
 The scan endpoint validates all user-supplied directory paths against an allowlist of configured base directories (IMAGES_PATH, PROFILES_PATH, ROM_PATH) before any filesystem operation. This is a mandatory enforcement of the Input Validation Rules above. If none of these paths are configured in settings, scanning is blocked entirely. Media collections must reside under a configured base directory. This restriction must be carried forward to any future endpoint that accepts a directory or file path parameter.
 
 All frontend fetch calls must include credentials: 'include' while SessionMiddleware is active so session cookies are transmitted correctly. When P5 changes the serving model (FastAPI serving the React static build directly), re-evaluate whether this setting is still correct or introduces unintended cookie scope.
+
+### Windows Job Object limitations
+
+On some Windows 11 systems, assigning an emulator process to a Job Object can fail with
+error code 5 (access denied) due to OS-level constraints (e.g. nested jobs, debugger,
+or session restrictions). When this occurs:
+
+- The launcher logs the failure with full context (backend, emulator, profile, error).
+- If `ALLOW_DIRECT_LAUNCH_FALLBACK` is `false` (default), the launch is rejected and
+  the user is shown a clear error.
+- If `ALLOW_DIRECT_LAUNCH_FALLBACK` is `true`, the launcher falls back to a direct
+  process spawn under the `peach_sandbox` account **without** Job containment.
+
+In the fallback mode, process-level resource limits and Job-based teardown are not
+enforced. Users who enable this behaviour accept weaker isolation and should do so
+only when necessary for compatibility.
+
+### Linux sandbox implementation (planned)
+
+The current Linux process isolation description (cgroups and network namespaces) is
+a design intent. A concrete implementation based on either nsjail or native
+namespaces + cgroups will be introduced in P8. Until then, Linux emulator launches
+do not have a hardened sandbox equivalent to the planned Windows low-privilege
+user + Job Object model.
 
 ---
 

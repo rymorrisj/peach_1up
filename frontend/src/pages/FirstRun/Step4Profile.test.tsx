@@ -1,39 +1,43 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from '@/test/helpers'
 import Step4Profile from './Step4Profile'
 import * as client from '@/api/client'
 
 describe('Step4Profile', () => {
-  it('submit button is disabled when name is empty', () => {
+  it('renders the Finish Setup button', () => {
     renderWithProviders(<Step4Profile onComplete={vi.fn()} />)
-    expect(screen.getByRole('button', { name: /finish setup/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /finish setup/i })).toBeInTheDocument()
   })
 
-  it('calls owner API with name and null PIN when PIN not provided', async () => {
+  it('calls complete-first-run and invokes onComplete', async () => {
     const user = userEvent.setup()
+    const onComplete = vi.fn()
     vi.spyOn(client, 'apiFetch').mockResolvedValue({ success: true } as never)
 
-    renderWithProviders(<Step4Profile onComplete={vi.fn()} />)
-
-    await user.type(screen.getByLabelText(/display name/i), 'Ryan')
+    renderWithProviders(<Step4Profile onComplete={onComplete} />)
     await user.click(screen.getByRole('button', { name: /finish setup/i }))
 
     await waitFor(() => {
       expect(client.apiFetch).toHaveBeenCalledWith(
-        '/api/v1/profiles/users/owner',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ name: 'Ryan', pin: null }),
-        }),
+        '/api/v1/settings/complete-first-run',
+        expect.objectContaining({ method: 'POST' }),
       )
+      expect(onComplete).toHaveBeenCalled()
     })
   })
 
-  it('shows inline error when name is missing on submit', () => {
+  it('shows inline error when complete-first-run fails', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(client, 'apiFetch').mockRejectedValue(
+      Object.assign(new Error(), { detail: 'Setup failed.' }),
+    )
+
     renderWithProviders(<Step4Profile onComplete={vi.fn()} />)
-    const form = document.querySelector('form')!
-    fireEvent.submit(form)
-    expect(screen.getByRole('alert')).toHaveTextContent(/display name is required/i)
+    await user.click(screen.getByRole('button', { name: /finish setup/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+    })
   })
 })

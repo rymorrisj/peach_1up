@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { Button, FormField, Input, Modal, PageHeader } from '@/ui'
+import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
+import { useConfirm } from '@/hooks/useConfirm'
 import type { LibraryItem, LaunchProfile } from '@/types'
 
 const ERA_LABELS: Record<string, string> = {
@@ -20,6 +22,22 @@ const ERA_LABELS: Record<string, string> = {
   nes: 'NES',
   n64: 'Nintendo 64',
 }
+
+const ERA_OPTIONS = [
+  { value: 'dos', label: 'DOS' },
+  { value: 'win31', label: 'Windows 3.1' },
+  { value: 'win95', label: 'Windows 95' },
+  { value: 'win98', label: 'Windows 98' },
+  { value: 'winxp', label: 'Windows XP' },
+  { value: 'ps1', label: 'PlayStation 1' },
+  { value: 'ps2', label: 'PlayStation 2' },
+  { value: 'xbox', label: 'Original Xbox' },
+  { value: 'nes', label: 'NES' },
+  { value: 'n64', label: 'Nintendo 64' },
+]
+
+const SELECT_CLASS =
+  'rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
 
 // ── Add Media modal ────────────────────────────────────────────────────────
 
@@ -134,7 +152,6 @@ function AddMediaModal({ open, profiles, onClose, onAdded }: AddMediaModalProps)
         </>
       }
     >
-      {/* Drag-and-drop zone */}
       <div
         ref={dropRef}
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
@@ -190,7 +207,7 @@ function AddMediaModal({ open, profiles, onClose, onAdded }: AddMediaModalProps)
           id="add-profile"
           value={form.profile_id ?? ''}
           onChange={(e) => setField('profile_id', e.target.value ? Number(e.target.value) : null)}
-          className="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100"
+          className={`mt-1 w-full ${SELECT_CLASS}`}
         >
           <option value="">— No profile (add now, assign later) —</option>
           {profiles.map((p) => (
@@ -415,63 +432,199 @@ function ScanModal({ open, onClose, onImported }: ScanModalProps) {
   )
 }
 
-// ── Library item row ───────────────────────────────────────────────────────
+// ── Edit modal ─────────────────────────────────────────────────────────────
 
-interface ItemRowProps {
-  item: LibraryItem
-  profiles: LaunchProfile[]
+interface EditForm {
+  title: string
+  era: string
+  profile_id: number | null
 }
 
-function ItemRow({ item, profiles }: ItemRowProps) {
-  const profile = item.profile_id != null ? profiles.find((p) => p.id === item.profile_id) : null
-  const eraLabel = ERA_LABELS[item.era] ?? (item.era === 'unknown' ? null : item.era) ?? null
-  const hasProfile = profile != null
+interface EditModalProps {
+  open: boolean
+  item: LibraryItem | null
+  profiles: LaunchProfile[]
+  onClose: () => void
+  onSaved: () => void
+}
+
+function EditModal({ open, item, profiles, onClose, onSaved }: EditModalProps) {
+  const [form, setForm] = useState<EditForm>({ title: '', era: '', profile_id: null })
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (open && item) {
+      setForm({ title: item.title, era: item.era, profile_id: item.profile_id })
+      setError(null)
+    }
+  }, [open, item])
+
+  async function handleSubmit() {
+    if (!item) return
+    if (!form.title.trim()) {
+      setError('Title is required.')
+      return
+    }
+    setError(null)
+    setSubmitting(true)
+    try {
+      await apiFetch(`/api/v1/library/${item.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: form.title.trim(),
+          era: form.era || 'unknown',
+          profile_id: form.profile_id,
+        }),
+      })
+      onSaved()
+      onClose()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : 'Failed to save.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const eraProfiles = profiles.filter((p) => p.era === form.era)
+  const otherProfiles = profiles.filter((p) => p.era !== form.era)
+  const chosenProfile = profiles.find((p) => p.id === form.profile_id) ?? null
+  const profileEraMismatch = chosenProfile && form.era && chosenProfile.era !== form.era
 
   return (
-    <li className="flex items-center justify-between gap-4 py-3">
-      <div className="min-w-0 flex-1">
-        <Link
-          to={`/library/${item.id}`}
-          className="block truncate font-medium text-neutral-900 hover:text-[#ff8a5c] dark:text-neutral-100 dark:hover:text-[#ff8a5c]"
+    <Modal
+      open={open}
+      title="Edit Media"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} loading={submitting}>
+            Save Changes
+          </Button>
+        </>
+      }
+    >
+      <FormField label="Title" htmlFor="edit-title" required>
+        <Input
+          id="edit-title"
+          value={form.title}
+          onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+          placeholder="Game or software title"
+          className="mt-1"
+        />
+      </FormField>
+
+      <FormField label="Era" htmlFor="edit-era">
+        <select
+          id="edit-era"
+          value={form.era}
+          onChange={(e) => setForm((f) => ({ ...f, era: e.target.value }))}
+          className={`mt-1 w-full ${SELECT_CLASS}`}
         >
-          {item.title}
-        </Link>
-        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-neutral-400 dark:text-neutral-500">
-          {eraLabel ? (
-            <span>{eraLabel}</span>
-          ) : (
-            <span className="italic">Unknown era</span>
+          <option value="unknown">Unknown</option>
+          {ERA_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </FormField>
+
+      <FormField label="Launch Profile" htmlFor="edit-profile">
+        <select
+          id="edit-profile"
+          value={form.profile_id ?? ''}
+          onChange={(e) =>
+            setForm((f) => ({ ...f, profile_id: e.target.value ? Number(e.target.value) : null }))
+          }
+          className={`mt-1 w-full ${SELECT_CLASS}`}
+        >
+          <option value="">— No profile —</option>
+          {eraProfiles.length > 0 && (
+            <optgroup label={`Matching era (${ERA_LABELS[form.era] ?? form.era})`}>
+              {eraProfiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}{p.is_bundled ? ' (default)' : ''}
+                </option>
+              ))}
+            </optgroup>
           )}
-          <span>·</span>
-          {hasProfile ? (
-            <span className="text-neutral-600 dark:text-neutral-300">{profile.name}</span>
-          ) : (
-            <Link
-              to={`/library/${item.id}`}
-              className="text-amber-600 hover:underline dark:text-amber-400"
-            >
-              No profile — assign one to launch
-            </Link>
+          {otherProfiles.length > 0 && (
+            <optgroup label="Other eras">
+              {otherProfiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({ERA_LABELS[p.era] ?? p.era})
+                </option>
+              ))}
+            </optgroup>
           )}
-        </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {item.launch_count > 0 && (
-          <span className="text-xs text-neutral-400">{item.launch_count}×</span>
+        </select>
+        {profileEraMismatch && (
+          <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+            Selected profile targets a different era — launch may fail.
+          </p>
         )}
-        <Link to={`/library/${item.id}`}>
+      </FormField>
+
+      {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">❌ {error}</p>}
+    </Modal>
+  )
+}
+
+// ── Library card ───────────────────────────────────────────────────────────
+
+interface ItemCardProps {
+  item: LibraryItem
+  profiles: LaunchProfile[]
+  onEdit: (item: LibraryItem) => void
+  onDelete: (item: LibraryItem) => void
+}
+
+function ItemCard({ item, profiles, onEdit, onDelete }: ItemCardProps) {
+  const profile = item.profile_id != null ? profiles.find((p) => p.id === item.profile_id) : null
+  const eraLabel = ERA_LABELS[item.era] ?? (item.era === 'unknown' ? 'Unknown era' : item.era)
+
+  return (
+    <div className="flex flex-col rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-surface-800">
+      <div className="mb-4 min-h-[4rem] flex-1">
+        <h3 className="truncate font-medium text-neutral-900 dark:text-neutral-100">
+          {item.title}
+        </h3>
+        <p className="mt-0.5 text-xs text-neutral-400 dark:text-neutral-500">{eraLabel}</p>
+        {profile ? (
+          <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">{profile.name}</p>
+        ) : (
+          <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">No profile</p>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <Link to={`/library/${item.id}`} className="flex-1">
           <Button
-            variant={hasProfile ? 'primary' : 'secondary'}
+            variant={profile ? 'primary' : 'secondary'}
             size="sm"
-            disabled={!hasProfile}
+            className="w-full justify-center"
             tabIndex={-1}
           >
-            {hasProfile ? 'Launch' : 'Set Profile'}
+            Launch
           </Button>
         </Link>
+        <Button variant="secondary" size="sm" onClick={() => onEdit(item)}>
+          Edit
+        </Button>
+        <Button variant="destructive" size="sm" onClick={() => onDelete(item)}>
+          Delete
+        </Button>
       </div>
-    </li>
+    </div>
   )
+}
+
+// ── Filters ────────────────────────────────────────────────────────────────
+
+interface Filters {
+  era: string
+  profileFilter: 'all' | 'assigned' | 'unassigned'
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────
@@ -480,6 +633,9 @@ export default function Library() {
   const queryClient = useQueryClient()
   const [addOpen, setAddOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
+  const [editItem, setEditItem] = useState<LibraryItem | null>(null)
+  const [filters, setFilters] = useState<Filters>({ era: '', profileFilter: 'all' })
+  const { confirm, isOpen: confirmOpen, options: confirmOptions, handleConfirm, handleCancel } = useConfirm()
 
   const { data: items, isLoading: itemsLoading } = useQuery<LibraryItem[]>({
     queryKey: ['library'],
@@ -491,9 +647,41 @@ export default function Library() {
     queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
   })
 
+  const filteredItems = (items ?? []).filter((item) => {
+    if (filters.era && item.era !== filters.era) return false
+    if (filters.profileFilter === 'assigned' && item.profile_id === null) return false
+    if (filters.profileFilter === 'unassigned' && item.profile_id !== null) return false
+    return true
+  })
+
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['library'] })
   }
+
+  async function handleDelete(item: LibraryItem) {
+    const confirmed = await confirm({
+      title: `Delete "${item.title}"?`,
+      consequence: 'This removes the item from your library. The media file on disk is not deleted.',
+      destructive: true,
+    })
+    if (!confirmed) return
+    try {
+      const { confirmation_token } = await apiFetch<{ confirmation_token: string }>(
+        `/api/v1/library/${item.id}/confirm-delete`,
+        { method: 'POST' },
+      )
+      await apiFetch(
+        `/api/v1/library/${item.id}?confirmation_token=${encodeURIComponent(confirmation_token)}`,
+        { method: 'DELETE' },
+      )
+      queryClient.invalidateQueries({ queryKey: ['library'] })
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.detail : 'Delete failed.'
+      alert(msg)
+    }
+  }
+
+  const hasActiveFilters = filters.era !== '' || filters.profileFilter !== 'all'
 
   return (
     <>
@@ -522,11 +710,62 @@ export default function Library() {
           cta={{ label: 'Add Media', onClick: () => setAddOpen(true) }}
         />
       ) : (
-        <ul role="list" className="divide-y divide-neutral-200 dark:divide-neutral-800">
-          {items.map((item) => (
-            <ItemRow key={item.id} item={item} profiles={profiles} />
-          ))}
-        </ul>
+        <>
+          {/* Filter bar */}
+          <div className="mb-6 flex flex-wrap items-center gap-3">
+            <select
+              value={filters.era}
+              onChange={(e) => setFilters((f) => ({ ...f, era: e.target.value }))}
+              className={SELECT_CLASS}
+            >
+              <option value="">All eras</option>
+              {ERA_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <select
+              value={filters.profileFilter}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, profileFilter: e.target.value as Filters['profileFilter'] }))
+              }
+              className={SELECT_CLASS}
+            >
+              <option value="all">All items</option>
+              <option value="assigned">Profile assigned</option>
+              <option value="unassigned">No profile</option>
+            </select>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={() => setFilters({ era: '', profileFilter: 'all' })}
+                className="text-xs text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300"
+              >
+                Clear filters
+              </button>
+            )}
+            <span className="ml-auto text-xs text-neutral-400 dark:text-neutral-500">
+              {filteredItems.length} of {items.length}
+            </span>
+          </div>
+
+          {filteredItems.length === 0 ? (
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              No items match the current filters.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredItems.map((item) => (
+                <ItemCard
+                  key={item.id}
+                  item={item}
+                  profiles={profiles}
+                  onEdit={setEditItem}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <AddMediaModal
@@ -539,6 +778,21 @@ export default function Library() {
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onImported={invalidate}
+      />
+      <EditModal
+        open={editItem !== null}
+        item={editItem}
+        profiles={profiles}
+        onClose={() => setEditItem(null)}
+        onSaved={invalidate}
+      />
+      <ConfirmModal
+        open={confirmOpen}
+        title={confirmOptions?.title ?? ''}
+        consequence={confirmOptions?.consequence ?? ''}
+        destructive={confirmOptions?.destructive}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
       />
     </>
   )

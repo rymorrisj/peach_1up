@@ -12,6 +12,7 @@ export default function TopBar() {
     queryKey: ['launches'],
     queryFn: () => apiFetch<LaunchHistory[]>('/api/v1/launches'),
     refetchInterval: 5000,
+    refetchOnWindowFocus: false,
   })
 
   const activeSessions = launches.filter((l) => l.ended_at === null).length

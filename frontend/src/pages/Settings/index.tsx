@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { PageHeader, FormField, Button } from '@/ui'
@@ -129,39 +128,6 @@ export default function Settings() {
             </div>
           </section>
 
-          <section>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Emulators
-            </h2>
-            <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-              Install or configure emulator binaries used for launching media.
-            </p>
-            <div className="mt-3">
-              <Link
-                to="/settings/emulators"
-                className="inline-flex items-center gap-1.5 rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-200 dark:bg-surface-700 dark:text-neutral-300 dark:hover:bg-surface-600"
-              >
-                Manage Emulators →
-              </Link>
-            </div>
-          </section>
-
-          <section>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Launch Profiles
-            </h2>
-            <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-              Emulator configuration presets. Assign a profile to each library item to enable launch. Controls the emulator, era, and network adapter state.
-            </p>
-            <div className="mt-3">
-              <Link
-                to="/settings/launch-profiles"
-                className="inline-flex items-center gap-1.5 rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-200 dark:bg-surface-700 dark:text-neutral-300 dark:hover:bg-surface-600"
-              >
-                Manage Launch Profiles →
-              </Link>
-            </div>
-          </section>
         </div>
       )}
     </>
