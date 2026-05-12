@@ -249,57 +249,58 @@ conversation and wait for an explicit decision before proceeding.
     It has no access to user profile locations such as `Documents`, `Desktop`,
     or arbitrary paths on `C:\` by default.
 - Every emulator launch is assigned to a fresh Job Object with:
-  - `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` enabled.
-  - A default CPU rate cap (e.g. 50–75% of a single core) to prevent runaway
-    usage and thermal spikes.
-  - Optional process or job memory limits where supported.
-- If assignment to the Job Object fails for any reason, the launch:
-  - Falls back to a direct launch **only** if explicitly permitted by configuration.
-  - Is logged with warning severity, including the OS error code and emulator info.
-  - Is treated as a weaker isolation mode in diagnostics and support docs.
+  - `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` — the entire emulator process tree is torn
+    down automatically if the backend exits, preventing orphaned processes.
+  - A per-era CPU hard cap sourced from `config/eras.yaml` (`cpu_limit_percent`).
+    Threads are throttled, not killed, when the budget is exhausted per scheduling
+    interval. Requires Windows 8.1 or later.
+  - A per-era per-process memory cap sourced from `config/eras.yaml`
+    (`memory_limit_mb`), applied via `JOB_OBJECT_LIMIT_PROCESS_MEMORY`.
+- If Job Object creation or assignment fails for any reason, **the launch is aborted**
+  and the error is surfaced to the user. There is no unsandboxed fallback path.
 
 #### Windows sandbox account
 
-The `peach_sandbox` Windows account is created at install time and used exclusively
-for emulator processes. It is not exposed to end users and cannot log in interactively.
+The `peach_sandbox` local account is created automatically when the backend first starts.
+`scripts/create_sandbox_user.ps1` runs via subprocess inside the FastAPI lifespan handler.
+It creates the account if absent, syncs the password, ensures the account is enabled, and
+verifies it is **not** a member of the Administrators group. If the script exits non-zero,
+backend startup is aborted with a clear error — there is no partial-setup path.
+
+The account is used exclusively to run emulator processes via `CreateProcessWithLogonW`.
+It cannot log in to Windows interactively.
 
 - No API or UI operation ever returns credentials or identifiers for this account.
-- The account is granted the minimal ACLs required to read emulator binaries and media.
+- The account password is generated on first run and stored in `config/settings.yaml`.
+  It is never exposed via logs, API responses, or committed to version control.
 - The account cannot modify Peach 1UP configuration, databases, or host user data.
 
 ---
 
 ## Known Limitations
 
-### Job Objects bypass on Windows 11 (error code 5)
+### Job Object assignment on Windows 11 (nested job retry)
 
-On Windows 11, assigning an emulator process to a Job Object fails with error code 5
-(access denied) regardless of breakaway flag combinations. When this occurs, the launcher
-falls back to `launch_direct`, which starts the emulator without Job Object containment.
-Process-level isolation is weaker in this fallback path — resource limits and filesystem
-restriction are not enforced. Network isolation still applies because it is emulator-native
-(adapter disabled at the emulator config level, not the host firewall level). This is a
-known Windows 11 behaviour and is logged in [DECISIONS.md](DECISIONS.md).
+Windows 11 pre-assigns new child processes to an OS-managed Job Object. Attempting to
+assign such a process to a second Job Object fails with error code 5 (access denied)
+unless the process was launched with `CREATE_BREAKAWAY_FROM_JOB`.
+
+The launcher handles this automatically in two stages:
+
+1. The emulator is launched suspended without `CREATE_BREAKAWAY_FROM_JOB`.
+2. If `IsProcessInJob` reports the process is already in a job, the launcher kills it
+   and relaunches with `CREATE_BREAKAWAY_FROM_JOB` set, then assigns it to the Peach
+   Job Object normally.
+
+If the breakaway relaunch also fails (e.g. the process is inside a non-breakaway job set
+by a third-party tool or a debugger), **the launch is aborted** and the error is surfaced
+to the user. There is no unsandboxed fallback. Network isolation is unaffected because it
+is emulator-native (network adapter disabled at the emulator config level).
 
 The scan endpoint validates all user-supplied directory paths against an allowlist of configured base directories (IMAGES_PATH, PROFILES_PATH, ROM_PATH) before any filesystem operation. This is a mandatory enforcement of the Input Validation Rules above. If none of these paths are configured in settings, scanning is blocked entirely. Media collections must reside under a configured base directory. This restriction must be carried forward to any future endpoint that accepts a directory or file path parameter.
 
 All frontend fetch calls must include credentials: 'include' while SessionMiddleware is active so session cookies are transmitted correctly. When P5 changes the serving model (FastAPI serving the React static build directly), re-evaluate whether this setting is still correct or introduces unintended cookie scope.
 
-### Windows Job Object limitations
-
-On some Windows 11 systems, assigning an emulator process to a Job Object can fail with
-error code 5 (access denied) due to OS-level constraints (e.g. nested jobs, debugger,
-or session restrictions). When this occurs:
-
-- The launcher logs the failure with full context (backend, emulator, profile, error).
-- If `ALLOW_DIRECT_LAUNCH_FALLBACK` is `false` (default), the launch is rejected and
-  the user is shown a clear error.
-- If `ALLOW_DIRECT_LAUNCH_FALLBACK` is `true`, the launcher falls back to a direct
-  process spawn under the `peach_sandbox` account **without** Job containment.
-
-In the fallback mode, process-level resource limits and Job-based teardown are not
-enforced. Users who enable this behaviour accept weaker isolation and should do so
-only when necessary for compatibility.
 
 ### Linux sandbox implementation (planned)
 
