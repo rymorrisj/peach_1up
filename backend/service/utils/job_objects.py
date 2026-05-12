@@ -1,9 +1,17 @@
 """
 Windows Job Objects wrapper for Peach 1UP.
 
-Provides process isolation and memory limits for emulator processes running
+Provides process isolation and resource limits for emulator processes running
 natively on the Windows host.  Each emulator launch gets its own named Job
 Object so multiple profiles can run without interfering with each other.
+
+All emulator processes are launched under the low-privilege ``peach_sandbox``
+local account via ``CreateProcessWithLogonW``.  If the sandbox account is
+unavailable or the Job Object cannot be created, the launch is aborted.
+There is no unsandboxed fallback.
+
+Resource limits (memory cap, CPU hard cap, kill-on-close) are sourced
+exclusively from eras.yaml.  There is no per-profile override path.
 
 Network isolation is handled at the emulator level — each backend disables
 its network adapter when enable_networking is false on the active profile.
@@ -29,8 +37,25 @@ _ERAS_YAML = Path(__file__).resolve().parent.parent.parent.parent / "config" / "
 # inside a Windows Job Object (common on Windows 11).
 _CREATE_BREAKAWAY_FROM_JOB = 0x01000000
 
+# LimitFlags values used in JOBOBJECT_BASIC_LIMIT_INFORMATION.LimitFlags
+_JOB_OBJECT_LIMIT_PROCESS_MEMORY = 0x00000100
+_JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
 
-# Windows API structures for job object limits
+# ControlFlags values used in JOBOBJECT_CPU_RATE_CONTROL_INFORMATION.ControlFlags
+_JOB_OBJECT_CPU_RATE_CONTROL_ENABLE   = 0x1
+_JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP = 0x4  # requires Windows 8.1+
+
+# CreateProcessWithLogonW: load the user profile before launching.
+_LOGON_WITH_PROFILE = 0x00000001
+
+# GetExitCodeProcess sentinel — process has not yet exited.
+_STILL_ACTIVE = 259
+
+
+# ---------------------------------------------------------------------------
+# Windows API structures
+# ---------------------------------------------------------------------------
+
 class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
     _fields_ = [
         ("PerProcessUserTimeLimit", ctypes.wintypes.LARGE_INTEGER),
@@ -67,6 +92,20 @@ class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
     ]
 
 
+class JOBOBJECT_CPU_RATE_CONTROL_INFORMATION(ctypes.Structure):
+    """Maps to the Win32 structure of the same name (hard-cap variant).
+
+    ``CpuRate`` occupies the first DWORD of the union field.  When
+    ``_JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP`` is set in ``ControlFlags``,
+    this field holds the per-scheduling-interval CPU budget expressed as
+    cycles per 10,000 across all logical processors (10,000 == 100%).
+    """
+    _fields_ = [
+        ("ControlFlags", ctypes.wintypes.DWORD),
+        ("CpuRate",      ctypes.wintypes.DWORD),
+    ]
+
+
 class JOBOBJECT_BASIC_ACCOUNTING_INFORMATION(ctypes.Structure):
     _fields_ = [
         ("TotalUserTime", ctypes.wintypes.LARGE_INTEGER),
@@ -92,14 +131,164 @@ class THREADENTRY32(ctypes.Structure):
     ]
 
 
+class STARTUPINFOW(ctypes.Structure):
+    """Maps to the Win32 STARTUPINFOW structure used by CreateProcessWithLogonW."""
+    _fields_ = [
+        ("cb",              ctypes.wintypes.DWORD),
+        ("lpReserved",      ctypes.wintypes.LPWSTR),
+        ("lpDesktop",       ctypes.wintypes.LPWSTR),
+        ("lpTitle",         ctypes.wintypes.LPWSTR),
+        ("dwX",             ctypes.wintypes.DWORD),
+        ("dwY",             ctypes.wintypes.DWORD),
+        ("dwXSize",         ctypes.wintypes.DWORD),
+        ("dwYSize",         ctypes.wintypes.DWORD),
+        ("dwXCountChars",   ctypes.wintypes.DWORD),
+        ("dwYCountChars",   ctypes.wintypes.DWORD),
+        ("dwFillAttribute", ctypes.wintypes.DWORD),
+        ("dwFlags",         ctypes.wintypes.DWORD),
+        ("wShowWindow",     ctypes.wintypes.WORD),
+        ("cbReserved2",     ctypes.wintypes.WORD),
+        ("lpReserved2",     ctypes.c_char_p),
+        ("hStdInput",       ctypes.wintypes.HANDLE),
+        ("hStdOutput",      ctypes.wintypes.HANDLE),
+        ("hStdError",       ctypes.wintypes.HANDLE),
+    ]
+
+
+class PROCESS_INFORMATION(ctypes.Structure):
+    """Maps to the Win32 PROCESS_INFORMATION structure used by CreateProcessWithLogonW."""
+    _fields_ = [
+        ("hProcess",    ctypes.wintypes.HANDLE),
+        ("hThread",     ctypes.wintypes.HANDLE),
+        ("dwProcessId", ctypes.wintypes.DWORD),
+        ("dwThreadId",  ctypes.wintypes.DWORD),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# SandboxProcess
+# ---------------------------------------------------------------------------
+
+class SandboxProcess:
+    """Lightweight process handle returned by _launch_as_sandbox_user.
+
+    Provides the interface expected by ``WindowsJobObject.add_process()``,
+    ``process_registry``, and the teardown paths in
+    ``launch_under_job_object``.
+
+    Attributes:
+        pid: Process ID.
+        args: Command-line as a list; ``args[0]`` is the executable path.
+        returncode: Exit code once the process has exited, ``None`` while running.
+    """
+
+    def __init__(
+        self,
+        pid: int,
+        process_handle,
+        thread_handle,
+        args: list,
+    ):
+        self.pid = pid
+        self._process_handle = process_handle
+        self._thread_handle = thread_handle
+        self.args = args
+        self.returncode = None
+
+    def poll(self):
+        """Return exit code if the process has exited, ``None`` if still running.
+
+        Closes OS handles when the process exits to release resources.
+        Safe to call multiple times after exit.
+        """
+        if self._process_handle is None:
+            return self.returncode
+        exit_code = ctypes.wintypes.DWORD(_STILL_ACTIVE)
+        ctypes.windll.kernel32.GetExitCodeProcess(
+            self._process_handle, ctypes.byref(exit_code)
+        )
+        if exit_code.value == _STILL_ACTIVE:
+            return None
+        self.returncode = exit_code.value
+        self._close_handles()
+        return self.returncode
+
+    def terminate(self) -> None:
+        """Send a termination signal to the process."""
+        if self._process_handle:
+            ctypes.windll.kernel32.TerminateProcess(self._process_handle, 1)
+
+    def kill(self) -> None:
+        """Terminate the process immediately (same as terminate on Windows)."""
+        self.terminate()
+
+    def wait(self) -> int:
+        """Wait for the process to exit and return its exit code.
+
+        Blocks indefinitely until the process terminates.  Closes OS handles
+        on return regardless of success.
+        """
+        if self._process_handle:
+            ctypes.windll.kernel32.WaitForSingleObject(
+                self._process_handle,
+                ctypes.wintypes.DWORD(0xFFFFFFFF),  # INFINITE
+            )
+            exit_code = ctypes.wintypes.DWORD(0)
+            ctypes.windll.kernel32.GetExitCodeProcess(
+                self._process_handle, ctypes.byref(exit_code)
+            )
+            self.returncode = exit_code.value
+        self._close_handles()
+        return self.returncode
+
+    def resume(self) -> None:
+        """Resume the suspended main thread using the stored thread handle.
+
+        Uses the thread handle from ``PROCESS_INFORMATION`` returned by
+        ``CreateProcessWithLogonW`` — no thread snapshot required.  The thread
+        handle is closed immediately after the resume call.
+
+        Raises:
+            RuntimeError: If the thread handle is already closed or
+                ``ResumeThread`` reports failure.
+        """
+        if not self._thread_handle:
+            raise RuntimeError(
+                f"Thread handle is not open for process {self.pid}. "
+                "resume() must be called exactly once after process creation."
+            )
+        result = ctypes.windll.kernel32.ResumeThread(self._thread_handle)
+        ctypes.windll.kernel32.CloseHandle(self._thread_handle)
+        self._thread_handle = None
+        if result == -1:
+            error_code = ctypes.windll.kernel32.GetLastError()
+            raise RuntimeError(
+                f"ResumeThread failed for process {self.pid}. Error code: {error_code}"
+            )
+
+    def _close_handles(self) -> None:
+        """Close process and thread handles to release OS resources."""
+        if self._thread_handle:
+            ctypes.windll.kernel32.CloseHandle(self._thread_handle)
+            self._thread_handle = None
+        if self._process_handle:
+            ctypes.windll.kernel32.CloseHandle(self._process_handle)
+            self._process_handle = None
+
+
+# ---------------------------------------------------------------------------
+# WindowsJobObject
+# ---------------------------------------------------------------------------
+
 class WindowsJobObject:
     """Windows Job Object wrapper for emulator process isolation.
 
-    Wraps a named Win32 Job Object.  The expected call sequence is:
+    Wraps a named Win32 Job Object with memory cap, CPU hard cap, and
+    kill-on-close semantics.  The expected call sequence is:
 
-        job = WindowsJobObject(name, memory_limit_mb)
+        job = WindowsJobObject(name, memory_limit_mb, cpu_limit_percent)
         job.create()
-        job.add_process(popen_process)
+        job.add_process(sandbox_process)
         # ... emulator runs ...
         job.terminate_all()
 
@@ -108,45 +297,57 @@ class WindowsJobObject:
 
     Attributes:
         name: Unique name for the Win32 Job Object.
-        memory_limit_mb: Per-process memory cap applied at creation.
+        memory_limit_mb: Per-process memory cap in MB, applied at creation.
+        cpu_limit_percent: CPU hard cap as a percentage of all logical
+            processors (1–100), applied at creation.
         job_handle: Raw Win32 handle; ``None`` until ``create()`` is called.
         process_name: Basename of the emulator executable (no extension).
         pid: PID of the emulator process added via ``add_process``.
     """
 
-    def __init__(self, name: str, memory_limit_mb: int):
+    def __init__(self, name: str, memory_limit_mb: int, cpu_limit_percent: int):
         """
         Args:
             name: Unique name for the job object.
             memory_limit_mb: Memory limit in MB (sourced from eras.yaml).
+            cpu_limit_percent: CPU hard cap as a percentage of all logical
+                processors (sourced from eras.yaml).  Must be 1–100.
         """
         self.name = name
         self.memory_limit_mb = memory_limit_mb
+        self.cpu_limit_percent = cpu_limit_percent
         self.job_handle = None
         self.process_name = None
         self.pid = None
 
     def create(self) -> None:
-        """Create the Win32 Job Object and apply the configured memory limit.
+        """Create the Win32 Job Object and apply memory and CPU limits.
 
         Raises:
-            RuntimeError: If ``CreateJobObjectW`` fails or the memory limit
+            RuntimeError: If ``CreateJobObjectW`` fails or either limit
                 cannot be set.
         """
-        # CreateJobObjectW returns a handle, or NULL on failure
         self.job_handle = ctypes.windll.kernel32.CreateJobObjectW(
-            None,                       # default security attributes
-            ctypes.c_wchar_p(self.name) # job object name (Unicode)
+            None,                        # default security attributes
+            ctypes.c_wchar_p(self.name)  # job object name (Unicode)
         )
 
         if not self.job_handle:
             error_code = ctypes.windll.kernel32.GetLastError()
-            raise RuntimeError(f"Failed to create Job Object '{self.name}'. Error code: {error_code}")
+            raise RuntimeError(
+                f"Failed to create Job Object '{self.name}'. Error code: {error_code}"
+            )
 
         self.set_memory_limit(self.memory_limit_mb)
+        self.set_cpu_limit(self.cpu_limit_percent)
 
     def set_memory_limit(self, limit_mb: int) -> None:
-        """Set the per-process memory cap via ``JOBOBJECT_EXTENDED_LIMIT_INFORMATION``.
+        """Set the per-process memory cap and enable kill-on-close.
+
+        Applies ``JOB_OBJECT_LIMIT_PROCESS_MEMORY`` and
+        ``JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`` together via a single
+        ``SetInformationJobObject`` call.  Kill-on-close guarantees the
+        entire emulator process tree is terminated if the backend exits.
 
         Args:
             limit_mb: Memory limit in megabytes.
@@ -159,8 +360,10 @@ class WindowsJobObject:
             raise RuntimeError("Job object not created. Call create() first.")
 
         limit_info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
-        limit_info.BasicLimitInformation.LimitFlags = 0x00000100  # JOB_OBJECT_LIMIT_PROCESS_MEMORY
-        limit_info.ProcessMemoryLimit = limit_mb * 1024 * 1024    # MB → bytes
+        limit_info.BasicLimitInformation.LimitFlags = (
+            _JOB_OBJECT_LIMIT_PROCESS_MEMORY | _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        )
+        limit_info.ProcessMemoryLimit = limit_mb * 1024 * 1024  # MB → bytes
 
         result = ctypes.windll.kernel32.SetInformationJobObject(
             self.job_handle,
@@ -171,9 +374,55 @@ class WindowsJobObject:
 
         if not result:
             error_code = ctypes.windll.kernel32.GetLastError()
-            raise RuntimeError(f"Failed to set memory limit to {limit_mb}MB. Error code: {error_code}")
+            raise RuntimeError(
+                f"Failed to set memory limit to {limit_mb}MB. Error code: {error_code}"
+            )
 
-    def add_process(self, process: subprocess.Popen) -> None:
+    def set_cpu_limit(self, cpu_limit_percent: int) -> None:
+        """Apply a hard CPU rate cap via ``JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP``.
+
+        ``CpuRate`` is expressed as cycles per 10,000 across all logical
+        processors, so a 50% cap on an 8-thread machine allows the job to
+        consume the equivalent of 4 threads' worth of CPU time per scheduling
+        interval.  Threads are throttled (not killed) when the budget is
+        exhausted within an interval.
+
+        Requires Windows 8.1 or later (KB2898600 for Windows 8.0).
+
+        Args:
+            cpu_limit_percent: CPU budget as a percentage of all logical
+                processors.  Clamped to [1, 100].
+
+        Raises:
+            RuntimeError: If the job handle is not open or
+                ``SetInformationJobObject`` fails.
+        """
+        if not self.job_handle:
+            raise RuntimeError("Job object not created. Call create() first.")
+
+        # CpuRate: units of 1/100 of a percent (10,000 == 100% of all CPUs).
+        cpu_rate = max(1, min(10000, cpu_limit_percent * 100))
+
+        cpu_rate_info = JOBOBJECT_CPU_RATE_CONTROL_INFORMATION()
+        cpu_rate_info.ControlFlags = (
+            _JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | _JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP
+        )
+        cpu_rate_info.CpuRate = cpu_rate
+
+        result = ctypes.windll.kernel32.SetInformationJobObject(
+            self.job_handle,
+            ctypes.wintypes.DWORD(15),  # JobObjectCpuRateControlInformation
+            ctypes.byref(cpu_rate_info),
+            ctypes.sizeof(cpu_rate_info)
+        )
+
+        if not result:
+            error_code = ctypes.windll.kernel32.GetLastError()
+            raise RuntimeError(
+                f"Failed to set CPU limit to {cpu_limit_percent}%. Error code: {error_code}"
+            )
+
+    def add_process(self, process: "SandboxProcess") -> None:
         """Assign a process to the job object.
 
         Opens the process with ``OpenProcess``, calls
@@ -182,7 +431,7 @@ class WindowsJobObject:
         object retains its own reference.
 
         Args:
-            process: A ``subprocess.Popen`` instance that has already been launched.
+            process: A ``SandboxProcess`` instance that has already been launched.
 
         Raises:
             RuntimeError: If the job handle is not open, the process is
@@ -196,13 +445,13 @@ class WindowsJobObject:
             raise RuntimeError("Invalid process or process not started.")
 
         self.pid = process.pid
-        # Derive a short name for firewall rule naming from the executable basename
         if hasattr(process, 'args') and process.args:
             executable_path = process.args[0] if isinstance(process.args, list) else str(process.args)
             self.process_name = os.path.basename(executable_path).replace('.exe', '')
         else:
             self.process_name = f"process_{self.pid}"
-        # Perviously was using 0x001F0FFF which requests every possible permission on the process. Updated to use minimal permissions
+
+        # Previously used 0x001F0FFF (all permissions). Updated to minimal permissions.
         process_handle = ctypes.windll.kernel32.OpenProcess(
             0x0201,  # PROCESS_SET_QUOTA | PROCESS_TERMINATE — minimum for AssignProcessToJobObject
             False,
@@ -211,7 +460,9 @@ class WindowsJobObject:
 
         if not process_handle:
             error_code = ctypes.windll.kernel32.GetLastError()
-            raise RuntimeError(f"Failed to open process {self.pid}. Error code: {error_code}")
+            raise RuntimeError(
+                f"Failed to open process {self.pid}. Error code: {error_code}"
+            )
 
         try:
             # Informational check — captured to produce a richer error message
@@ -276,22 +527,20 @@ class WindowsJobObject:
         """
         termination_errors = []
 
-        # Step 1: Terminate all processes in the job
         if self.job_handle:
             try:
                 result = ctypes.windll.kernel32.TerminateJobObject(
                     self.job_handle,
                     1  # exit code for terminated processes
                 )
-
                 if not result:
                     error_code = ctypes.windll.kernel32.GetLastError()
-                    termination_errors.append(f"TerminateJobObject failed with error code: {error_code}")
-
+                    termination_errors.append(
+                        f"TerminateJobObject failed with error code: {error_code}"
+                    )
             except Exception as e:
                 termination_errors.append(f"Exception during job termination: {str(e)}")
 
-            # Step 3: Close job handle regardless of termination result
             try:
                 ctypes.windll.kernel32.CloseHandle(self.job_handle)
             except Exception as e:
@@ -330,7 +579,6 @@ class WindowsJobObject:
 
         try:
             accounting_info = JOBOBJECT_BASIC_ACCOUNTING_INFORMATION()
-
             result = ctypes.windll.kernel32.QueryInformationJobObject(
                 self.job_handle,
                 ctypes.wintypes.DWORD(1),   # JobObjectBasicAccountingInformation
@@ -338,23 +586,19 @@ class WindowsJobObject:
                 ctypes.sizeof(accounting_info),
                 None  # return length not needed
             )
-
             return bool(result)
-
         except Exception:
-            # Any exception means the handle is invalid or unqueryable
             return False
 
-    def _resume_suspended_process(self, process: subprocess.Popen) -> None:
+    def _resume_suspended_process(self, process) -> None:
         """Resume the main thread of a process launched in a suspended state.
 
-        ``launch_under_job_object`` starts the emulator with
-        ``CREATE_SUSPENDED`` so it can be assigned to the job object before
-        any code runs.  This method finds the first thread belonging to the
-        process in a system-wide thread snapshot and calls ``ResumeThread``.
+        Finds the first thread belonging to the process in a system-wide
+        thread snapshot and calls ``ResumeThread``.  Used as a fallback for
+        process types that do not expose a thread handle directly.
 
         Args:
-            process: The suspended ``subprocess.Popen`` instance to resume.
+            process: An object with a ``pid`` attribute.
 
         Raises:
             RuntimeError: If the thread snapshot fails, the main thread cannot
@@ -363,7 +607,6 @@ class WindowsJobObject:
         TH32CS_SNAPTHREAD = 0x00000004
         THREAD_SUSPEND_RESUME = 0x0002
 
-        # Snapshot all threads system-wide to find ours by owner PID
         snapshot = ctypes.windll.kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0)
         if snapshot == -1:
             raise RuntimeError("Failed to create thread snapshot")
@@ -382,14 +625,15 @@ class WindowsJobObject:
                         break
 
             if not main_thread_id:
-                raise RuntimeError(f"Could not find main thread for process {process.pid}")
+                raise RuntimeError(
+                    f"Could not find main thread for process {process.pid}"
+                )
 
             thread_handle = ctypes.windll.kernel32.OpenThread(
                 THREAD_SUSPEND_RESUME,
                 False,
                 main_thread_id
             )
-
             if not thread_handle:
                 raise RuntimeError(f"Failed to open main thread {main_thread_id}")
 
@@ -403,6 +647,10 @@ class WindowsJobObject:
         finally:
             ctypes.windll.kernel32.CloseHandle(snapshot)
 
+
+# ---------------------------------------------------------------------------
+# Module-level helpers
+# ---------------------------------------------------------------------------
 
 def _process_in_job(pid: int) -> bool:
     """Return True if the process with *pid* is inside any Windows Job Object.
@@ -422,31 +670,16 @@ def _process_in_job(pid: int) -> bool:
         ctypes.windll.kernel32.CloseHandle(handle)
 
 
-def launch_direct(
-    executable_path: str,
-    args: List[str],
-    era: str,
-    job_name: str,
-) -> Tuple[subprocess.Popen, WindowsJobObject]:
-    """Launch emulator without Job Object isolation, returning a stub handle.
-
-    Used when Job Object assignment fails (error code 5 on Windows 11).
-    Returns a WindowsJobObject stub with no job_handle so callers can use
-    terminate_all() uniformly — process termination is skipped on the stub
-    but the interface remains consistent.
-
-    Args:
-        executable_path: Full path to the emulator executable.
-        args: Additional command-line arguments for the emulator.
-        era: Era key used to look up memory_limit_mb in eras.yaml.
-        job_name: Unique name passed through to the WindowsJobObject stub.
+def _load_era_limits(era: str) -> Tuple[int, int]:
+    """Load memory_limit_mb and cpu_limit_percent for *era* from eras.yaml.
 
     Returns:
-        (process, stub) — running Popen and a no-op WindowsJobObject stub.
+        (memory_limit_mb, cpu_limit_percent)
 
     Raises:
         FileNotFoundError: If eras.yaml is missing.
-        RuntimeError: If the process cannot be launched.
+        RuntimeError: If parsing fails, the era is unknown, or either
+            required field is absent.
     """
     try:
         with _ERAS_YAML.open('r') as f:
@@ -457,23 +690,108 @@ def launch_direct(
         raise RuntimeError(f"Failed to parse eras.yaml: {exc}")
 
     if era not in eras_config:
-        raise RuntimeError(f"Era '{era}' not found in eras.yaml. Available: {list(eras_config.keys())}")
-
-    memory_limit_mb = eras_config[era].get('memory_limit_mb', 512)
-
-    try:
-        process = subprocess.Popen(
-            [executable_path] + args,
-            cwd=os.path.dirname(executable_path) or None,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+        raise RuntimeError(
+            f"Era '{era}' not found in eras.yaml. Available: {list(eras_config.keys())}"
         )
-    except OSError as exc:
-        raise RuntimeError(f"Failed to launch '{os.path.basename(executable_path)}': {exc}") from exc
 
-    stub = WindowsJobObject(job_name, memory_limit_mb)
-    stub.pid = process.pid
-    stub.process_name = os.path.basename(executable_path).replace('.exe', '')
-    return process, stub
+    era_cfg = eras_config[era]
+
+    memory_limit_mb = era_cfg.get('memory_limit_mb')
+    if memory_limit_mb is None:
+        raise RuntimeError(
+            f"memory_limit_mb not defined for era '{era}' in eras.yaml"
+        )
+
+    cpu_limit_percent = era_cfg.get('cpu_limit_percent')
+    if cpu_limit_percent is None:
+        raise RuntimeError(
+            f"cpu_limit_percent not defined for era '{era}' in eras.yaml"
+        )
+
+    return int(memory_limit_mb), int(cpu_limit_percent)
+
+
+def _get_sandbox_credentials() -> Tuple[str, str]:
+    """Return (username, password) for the peach_sandbox local account.
+
+    Raises:
+        RuntimeError: If the sandbox password is not configured in settings.
+    """
+    from backend.service.utils.settings import get_or_generate_sandbox_password
+    password = get_or_generate_sandbox_password()
+    if not password:
+        raise RuntimeError(
+            "peach_sandbox account password is not configured. "
+            "Ensure the backend started correctly and the sandbox account was created."
+        )
+    return "peach_sandbox", password
+
+
+def _launch_as_sandbox_user(
+    executable_path: str,
+    args: List[str],
+    creation_flags: int,
+) -> SandboxProcess:
+    """Launch a process as the peach_sandbox local user via CreateProcessWithLogonW.
+
+    Uses the secondary logon service so no special privileges are required
+    from the calling process.  The process is created with ``creation_flags``
+    — callers pass ``CREATE_SUSPENDED`` so the process can be assigned to a
+    Job Object before any code runs.
+
+    Args:
+        executable_path: Full path to the emulator executable.
+        args: Additional command-line arguments.
+        creation_flags: Windows process creation flags.
+
+    Returns:
+        ``SandboxProcess`` with pid, process handle, and thread handle.
+
+    Raises:
+        RuntimeError: If sandbox credentials are unavailable or
+            ``CreateProcessWithLogonW`` fails.
+    """
+    username, password = _get_sandbox_credentials()
+
+    # Build command-line string using the same quoting rules as subprocess.Popen
+    # on Windows, so argument boundaries are preserved correctly.
+    cmd_line = subprocess.list2cmdline([executable_path] + args)
+    cmd_buf = ctypes.create_unicode_buffer(cmd_line)
+
+    cwd = os.path.dirname(executable_path) or None
+
+    si = STARTUPINFOW()
+    si.cb = ctypes.sizeof(STARTUPINFOW)
+    pi = PROCESS_INFORMATION()
+
+    result = ctypes.windll.advapi32.CreateProcessWithLogonW(
+        ctypes.c_wchar_p(username),
+        ctypes.c_wchar_p("."),                       # domain: "." = local machine
+        ctypes.c_wchar_p(password),
+        ctypes.wintypes.DWORD(_LOGON_WITH_PROFILE),
+        ctypes.c_wchar_p(executable_path),
+        cmd_buf,                                      # mutable LPWSTR — required by API
+        ctypes.wintypes.DWORD(creation_flags),
+        None,                                         # lpEnvironment: inherit caller's env
+        ctypes.c_wchar_p(cwd) if cwd else None,
+        ctypes.byref(si),
+        ctypes.byref(pi),
+    )
+
+    if not result:
+        error_code = ctypes.windll.kernel32.GetLastError()
+        raise RuntimeError(
+            f"Failed to launch '{os.path.basename(executable_path)}' as peach_sandbox. "
+            f"Error code: {error_code}. "
+            "Ensure the peach_sandbox account exists and the executable path is accessible."
+        )
+
+    return SandboxProcess(
+        pid=pi.dwProcessId,
+        process_handle=pi.hProcess,
+        thread_handle=pi.hThread,
+        args=[executable_path] + args,
+    )
 
 
 def launch_under_job_object(
@@ -482,81 +800,56 @@ def launch_under_job_object(
     media_paths: List[str],
     era: str,
     job_name: str
-) -> Tuple[subprocess.Popen, WindowsJobObject]:
-    """Launch an emulator under a Windows Job Object with era-specific resource limits.
+) -> Tuple[SandboxProcess, "WindowsJobObject"]:
+    """Launch an emulator as peach_sandbox under a Windows Job Object.
 
     Orchestrates the full startup sequence:
-      1. Load the memory limit for ``era`` from ``config/eras.yaml``.
-      2. Create a ``WindowsJobObject`` and apply the memory limit.
-      3. Launch the emulator in a suspended state (prevents a race between
-         process start and job assignment).
-      4. Assign the process to the job object (triggers firewall rule creation).
+      1. Load memory_limit_mb and cpu_limit_percent for ``era`` from eras.yaml.
+      2. Create a ``WindowsJobObject`` and apply both limits plus kill-on-close.
+      3. Launch the emulator as the peach_sandbox user in a suspended state
+         (prevents a race between process start and job assignment).
+      4. Assign the process to the job object.
       5. Resume the process.
 
-    On any failure, all resources created up to that point are torn down
-    before the exception propagates.
+    The launch is aborted and an error surfaced if:
+      - The peach_sandbox account credentials are unavailable.
+      - ``CreateProcessWithLogonW`` fails for any reason.
+      - Job Object creation or assignment fails.
+
+    There is no unsandboxed fallback.
 
     Args:
         executable_path: Full path to the emulator executable.
         args: Additional command-line arguments for the emulator.
-        media_paths: Media paths passed to the emulator.  Read-only enforcement
-            is the caller's responsibility — Job Objects cannot restrict
-            filesystem access on Windows.
-        era: Era key (e.g. ``"dos"``) used to look up ``memory_limit_mb`` in
-            ``eras.yaml``.
+        media_paths: Media paths passed to the emulator (informational only —
+            Job Objects cannot restrict filesystem access on Windows).
+        era: Era key (e.g. ``"dos"``) used to look up limits in ``eras.yaml``.
         job_name: Unique name for the Win32 Job Object.
 
     Returns:
-        ``(process, job_object)`` — the running ``Popen`` instance and the
+        ``(process, job_object)`` — the running ``SandboxProcess`` and the
         ``WindowsJobObject`` that owns it.  The caller must call
         ``job_object.terminate_all()`` when the emulator exits.
 
     Raises:
         FileNotFoundError: If ``eras.yaml`` is not found.
-        RuntimeError: If config loading, job creation, process launch, or job
-            assignment fails.  Any cleanup errors are appended to the message.
-
-    Notes:
-        KNOWN LIMITATION: Job Objects cannot enforce read-only filesystem access
-        on Windows.  Read-only enforcement must be handled at the media path
-        level when constructing the emulator command line.
+        RuntimeError: If any step in the startup sequence fails.
     """
     job_object = None
     process = None
     base_flags = None
-    launch_args = None
-    launch_cwd = None
 
     # --- Phase 1: config, job creation, initial process launch ---
     # Any failure here tears down whatever was created and raises a clean RuntimeError.
     try:
-        try:
-            with _ERAS_YAML.open('r') as f:
-                eras_config = yaml.safe_load(f)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"eras.yaml not found at {_ERAS_YAML}")
-        except yaml.YAMLError as e:
-            raise RuntimeError(f"Failed to parse eras.yaml: {str(e)}")
+        memory_limit_mb, cpu_limit_percent = _load_era_limits(era)
 
-        if era not in eras_config:
-            raise RuntimeError(f"Era '{era}' not found in eras.yaml. Available: {list(eras_config.keys())}")
-
-        memory_limit_mb = eras_config[era].get('memory_limit_mb')
-        if memory_limit_mb is None:
-            raise RuntimeError(f"memory_limit_mb not defined for era '{era}' in eras.yaml")
-
-        job_object = WindowsJobObject(job_name, memory_limit_mb)
+        job_object = WindowsJobObject(job_name, memory_limit_mb, cpu_limit_percent)
         job_object.create()
 
         base_flags = subprocess.CREATE_NEW_PROCESS_GROUP | _CREATE_SUSPENDED
-        launch_args = [executable_path] + args
-        launch_cwd = os.path.dirname(executable_path)
 
-        process = subprocess.Popen(
-            launch_args,
-            cwd=launch_cwd,
-            creationflags=base_flags,
-        )
+        process = _launch_as_sandbox_user(executable_path, args, base_flags)
 
         # Windows 11 pre-assigns child processes to an OS-managed job object.
         # Detect this on the child itself after launch, then kill and re-launch
@@ -568,19 +861,9 @@ def launch_under_job_object(
                 process.wait()
             except Exception:
                 pass
-            try:
-                process = subprocess.Popen(
-                    launch_args,
-                    cwd=launch_cwd,
-                    creationflags=base_flags | _CREATE_BREAKAWAY_FROM_JOB,
-                )
-            except OSError as exc:
-                raise RuntimeError(
-                    f"Cannot launch '{os.path.basename(executable_path)}': the process "
-                    f"was pre-assigned to a Windows job object and "
-                    f"CREATE_BREAKAWAY_FROM_JOB was denied ({exc}). "
-                    f"Run Peach 1UP outside a restricted or sandboxed environment."
-                )
+            process = _launch_as_sandbox_user(
+                executable_path, args, base_flags | _CREATE_BREAKAWAY_FROM_JOB
+            )
 
     except Exception as e:
         cleanup_errors = []
@@ -601,8 +884,8 @@ def launch_under_job_object(
         raise RuntimeError(msg)
 
     # --- Phase 2: assign to job, breakaway retry if needed, resume ---
-    # Runs entirely outside Phase 1's except handler. retry_with_breakaway is caught
-    # and handled here — it never reaches Phase 1's cleanup block. Each error path
+    # Runs entirely outside Phase 1's except handler.  retry_with_breakaway is caught
+    # and handled here — it never reaches Phase 1's cleanup block.  Each error path
     # below performs its own teardown before raising a clean RuntimeError.
 
     _needs_breakaway_retry = False
@@ -619,9 +902,7 @@ def launch_under_job_object(
                 job_object.terminate_all()
             except Exception:
                 pass
-            raise RuntimeError(
-                f"Failed to assign process to job object: {exc}"
-            )
+            raise RuntimeError(f"Failed to assign process to job object: {exc}")
         _needs_breakaway_retry = True
 
     if _needs_breakaway_retry:
@@ -631,12 +912,10 @@ def launch_under_job_object(
         except Exception:
             pass
         try:
-            process = subprocess.Popen(
-                launch_args,
-                cwd=launch_cwd,
-                creationflags=base_flags | _CREATE_BREAKAWAY_FROM_JOB,
+            process = _launch_as_sandbox_user(
+                executable_path, args, base_flags | _CREATE_BREAKAWAY_FROM_JOB
             )
-        except OSError as exc2:
+        except Exception as exc2:
             try:
                 job_object.terminate_all()
             except Exception:
@@ -662,7 +941,7 @@ def launch_under_job_object(
             )
 
     try:
-        job_object._resume_suspended_process(process)
+        process.resume()
     except Exception as exc:
         try:
             process.kill()

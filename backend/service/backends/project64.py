@@ -8,10 +8,9 @@ required.
 from __future__ import annotations
 
 from pathlib import Path
-from subprocess import Popen
 from typing import Tuple
 
-from backend.service.utils.job_objects import launch_direct, WindowsJobObject
+from backend.service.utils.job_objects import launch_under_job_object, SandboxProcess, WindowsJobObject
 
 
 SUPPORTED_MEDIA = {'.z64', '.n64', '.v64'}
@@ -49,7 +48,7 @@ def build_args(media_path: Path) -> list[str]:
     return [str(media_path)]
 
 
-def launch(media_path: Path, era: str, executable_path: str) -> Tuple[Popen, WindowsJobObject]:
+def launch(media_path: Path, era: str, executable_path: str) -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch Project64 with the given N64 ROM under Job Object isolation.
 
     Args:
@@ -74,9 +73,10 @@ def launch(media_path: Path, era: str, executable_path: str) -> Tuple[Popen, Win
     args = build_args(media_path)
     job_name = f"peach1up_project64_{media_path.stem}"
 
-    return launch_direct(
+    return launch_under_job_object(
         executable_path=executable_path,
         args=args,
+        media_paths=[str(media_path)],
         era=era,
         job_name=job_name,
     )

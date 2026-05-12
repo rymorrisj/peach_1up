@@ -10,12 +10,11 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from subprocess import Popen
 from typing import Optional, Tuple
 
 import yaml
 
-from backend.service.utils.job_objects import launch_under_job_object, WindowsJobObject
+from backend.service.utils.job_objects import launch_under_job_object, SandboxProcess, WindowsJobObject
 from backend.service.utils.media_attach import build_virtualbox_attachment
 from backend.service.utils.platform import OSPlatform
 from backend.service.utils.settings import get_binary_path
@@ -240,7 +239,7 @@ def launch(
     platform: OSPlatform,
     media_path: Optional[Path] = None,
     enable_networking: bool = False,
-) -> Tuple[Popen, WindowsJobObject]:
+) -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch a VirtualBox VM under Job Objects.
 
     Validates platform state, registers the VM if needed, optionally attaches

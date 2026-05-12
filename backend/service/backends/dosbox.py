@@ -6,9 +6,8 @@ Handles DOS and Windows 3.1 era games using DOSBox-X natively on Windows host.
 import os
 from pathlib import Path
 from typing import List, Tuple
-from subprocess import Popen
 
-from backend.service.utils.job_objects import launch_direct, WindowsJobObject
+from backend.service.utils.job_objects import launch_under_job_object, SandboxProcess, WindowsJobObject
 
 
 # Supported file extensions for DOSBox-X backend
@@ -104,7 +103,7 @@ def launch(
     era: str,
     executable_path: str,
     enable_networking: bool = False,
-) -> Tuple[Popen, WindowsJobObject]:
+) -> Tuple[SandboxProcess, WindowsJobObject]:
     """
     Launch DOSBox-X with given media file under Job Object isolation.
 
@@ -137,9 +136,10 @@ def launch(
 
     job_name = f"peach1up_dosbox_{era}_{media_path.stem}"
 
-    return launch_direct(
+    return launch_under_job_object(
         executable_path=executable_path,
         args=args,
+        media_paths=[str(media_path)],
         era=era,
         job_name=job_name,
     )
