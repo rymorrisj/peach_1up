@@ -4,6 +4,7 @@ import logging
 import os
 import platform
 import subprocess
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,7 @@ from fastapi import FastAPI
 from backend.core import install_registry, process_registry
 from backend.core.database import create_tables, init_db
 from backend.core.settings import init_settings
+import backend.models.user  # noqa: F401 — registers User/UserRestriction with SQLModel.metadata
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +208,10 @@ _SANDBOX_SCRIPT = (
     Path(__file__).resolve().parent.parent.parent / "scripts" / "create_sandbox_user.ps1"
 )
 
+_SETUP_ADMIN_SCRIPT = (
+    Path(__file__).resolve().parent.parent.parent / "scripts" / "setup_admin_user.py"
+)
+
 
 def _verify_sandbox_user() -> None:
     """Ensure the peach_sandbox local account exists and is correctly configured.
@@ -253,6 +259,38 @@ def _verify_sandbox_user() -> None:
         )
 
 
+def _ensure_owner_user() -> None:
+    """Prompt for owner account creation on first run if no owner record exists.
+
+    Calls setup_admin_user.py interactively. Aborts startup (raises RuntimeError)
+    if the script exits non-zero.
+    """
+    from backend.core.database import get_engine
+    from backend.models.user import User
+    from sqlalchemy.orm import sessionmaker
+
+    session_factory = sessionmaker(bind=get_engine())
+    with session_factory() as db:
+        has_owner = db.query(User).filter(User.is_owner.is_(True)).count() > 0
+
+    if has_owner:
+        return
+
+    if not _SETUP_ADMIN_SCRIPT.exists():
+        raise RuntimeError(
+            f"Admin setup script not found: {_SETUP_ADMIN_SCRIPT}\n"
+            "Re-clone the repository or restore scripts/setup_admin_user.py."
+        )
+
+    result = subprocess.run([sys.executable, str(_SETUP_ADMIN_SCRIPT)])
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Owner account setup failed (exit {result.returncode}). "
+            "Restart the application to try again."
+        )
+
+
 def _scan_installed_emulators() -> None:
     try:
         from backend.service.utils.emulator_catalog import get_all_statuses
@@ -273,6 +311,7 @@ async def lifespan(app: FastAPI):
     _verify_sandbox_user()
     init_db()
     create_tables()
+    _ensure_owner_user()
 
     from backend.core.database import get_engine
     from sqlalchemy.orm import sessionmaker
