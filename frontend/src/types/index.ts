@@ -65,4 +65,7 @@ export interface LaunchHistory {
   error_message: string | null
   network_blocked: boolean
   job_isolated: boolean
+  sandboxed: boolean
+  sandbox_memory_limit_mb: number | null
+  sandbox_cpu_limit_percent: number | null
 }

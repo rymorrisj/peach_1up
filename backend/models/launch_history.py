@@ -9,6 +9,9 @@ class LaunchHistoryBase(SQLModel):
     emulator_slug: str
     network_blocked: bool = True
     job_isolated: bool = False
+    sandboxed: bool = False
+    sandbox_memory_limit_mb: Optional[int] = None
+    sandbox_cpu_limit_percent: Optional[int] = None
 
 
 class LaunchHistory(LaunchHistoryBase, table=True):

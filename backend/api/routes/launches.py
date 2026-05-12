@@ -100,9 +100,23 @@ async def launch_item(item_id: int, body: LaunchRequest, db: Session = Depends(g
         )
         process_registry.register(proc.pid, entry)
         history.job_isolated = job_isolated
+        history.sandboxed = job_isolated
+        history.sandbox_memory_limit_mb = job.memory_limit_mb if job_isolated else None
+        history.sandbox_cpu_limit_percent = job.cpu_limit_percent if job_isolated else None
         db.commit()
 
     return LaunchResponse(launch_history_id=history.id, warnings=warnings)
+
+
+@router.get("/library/{item_id}/launches", response_model=list[LaunchHistoryRead])
+def list_item_launches(item_id: int, db: Session = Depends(get_db)):
+    return (
+        db.query(LaunchHistory)
+        .filter(LaunchHistory.library_item_id == item_id)
+        .order_by(LaunchHistory.started_at.desc())
+        .limit(20)
+        .all()
+    )
 
 
 @router.get("/launches", response_model=list[LaunchHistoryRead])

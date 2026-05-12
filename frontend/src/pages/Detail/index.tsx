@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { Button, PageHeader } from '@/ui'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
-import type { LibraryItem, LaunchProfile } from '@/types'
+import type { LibraryItem, LaunchProfile, LaunchHistory } from '@/types'
 
 const ERA_LABELS: Record<string, string> = {
   dos: 'DOS',
@@ -33,6 +33,12 @@ export default function Detail() {
   const { data: allProfiles = [], isLoading: profilesLoading } = useQuery<LaunchProfile[]>({
     queryKey: ['profiles'],
     queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
+  })
+
+  const { data: launchHistory = [], refetch: refetchHistory } = useQuery<LaunchHistory[]>({
+    queryKey: ['launches', itemId],
+    queryFn: () => apiFetch<LaunchHistory[]>(`/api/v1/library/${itemId}/launches`),
+    enabled: !isNaN(itemId),
   })
 
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null)
@@ -81,6 +87,7 @@ export default function Detail() {
       )
       setLaunchSuccess(true)
       setLaunchWarnings(res.warnings ?? [])
+      refetchHistory()
     } catch (err) {
       setLaunchError(err instanceof ApiError ? err.detail : 'Launch failed.')
     } finally {
@@ -262,6 +269,79 @@ export default function Detail() {
             </p>
           )}
         </section>
+
+        {/* Session history */}
+        {launchHistory.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
+              Session History
+            </h2>
+            <div className="divide-y divide-neutral-100 dark:divide-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm">
+              {launchHistory.map((h) => {
+                const started = new Date(h.started_at)
+                const durationMs = h.ended_at
+                  ? new Date(h.ended_at).getTime() - started.getTime()
+                  : null
+                const duration =
+                  durationMs != null
+                    ? durationMs < 60_000
+                      ? `${Math.round(durationMs / 1000)}s`
+                      : `${Math.floor(durationMs / 60_000)}m ${Math.round((durationMs % 60_000) / 1000)}s`
+                    : null
+                const isError = h.exit_code != null && h.exit_code !== 0
+
+                return (
+                  <div
+                    key={h.id}
+                    className="flex flex-wrap items-start gap-x-4 gap-y-1 px-3 py-2"
+                  >
+                    <span className="min-w-[7rem] text-neutral-500 dark:text-neutral-400 tabular-nums">
+                      {started.toLocaleDateString()} {started.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+
+                    <span className="font-mono text-xs text-neutral-400 dark:text-neutral-500 self-center">
+                      {h.emulator_slug}
+                    </span>
+
+                    {h.sandboxed ? (
+                      <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                        sandboxed
+                      </span>
+                    ) : (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                        not sandboxed
+                      </span>
+                    )}
+
+                    {h.sandboxed && h.sandbox_cpu_limit_percent != null && (
+                      <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                        CPU {h.sandbox_cpu_limit_percent}%
+                      </span>
+                    )}
+
+                    {h.sandboxed && h.sandbox_memory_limit_mb != null && (
+                      <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                        RAM {h.sandbox_memory_limit_mb} MB
+                      </span>
+                    )}
+
+                    {duration && (
+                      <span className="text-xs text-neutral-400 dark:text-neutral-500 ml-auto">
+                        {duration}
+                      </span>
+                    )}
+
+                    {isError && (
+                      <span className="w-full text-xs text-red-600 dark:text-red-400 truncate">
+                        exit {h.exit_code}{h.error_message ? ` · ${h.error_message}` : ''}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
       </div>
     </>
   )
