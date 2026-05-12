@@ -9,7 +9,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.dependencies import get_active_user, get_filtered_library, require_permission
 from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate
+from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1/library", tags=["library"])
 logger = logging.getLogger(__name__)
@@ -110,8 +112,9 @@ def list_library(
     platform_id: int | None = None,
     tag: str | None = None,
     db: Session = Depends(get_db),
+    active_user: User = Depends(get_active_user),
 ):
-    q = db.query(LibraryItem)
+    q = get_filtered_library(active_user, db)
     if era:
         q = q.filter(LibraryItem.era == era)
     if category:
@@ -122,8 +125,15 @@ def list_library(
 
 
 @router.post("", response_model=LibraryItemRead, status_code=201)
-def add_library_item(body: LibraryItemCreate, db: Session = Depends(get_db)):
+def add_library_item(
+    body: LibraryItemCreate,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
     item = LibraryItem(**body.model_dump())
+    if not item.content_rating:
+        from backend.utils.rating_detect import detect_rating
+        item.content_rating = detect_rating(body.media_path)
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -184,7 +194,12 @@ def get_library_item(item_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{item_id}", response_model=LibraryItemRead)
-def update_library_item(item_id: int, body: LibraryItemUpdate, db: Session = Depends(get_db)):
+def update_library_item(
+    item_id: int,
+    body: LibraryItemUpdate,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
     item = db.get(LibraryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found.")
@@ -196,7 +211,11 @@ def update_library_item(item_id: int, body: LibraryItemUpdate, db: Session = Dep
 
 
 @router.post("/{item_id}/confirm-delete")
-def issue_delete_token(item_id: int, db: Session = Depends(get_db)):
+def issue_delete_token(
+    item_id: int,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
     item = db.get(LibraryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found.")
@@ -209,6 +228,7 @@ def delete_library_item(
     item_id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
 ):
     if not _consume_confirm_token(confirmation_token, item_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")

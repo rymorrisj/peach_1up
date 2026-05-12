@@ -26,6 +26,7 @@ class LibraryItemBase(SQLModel):
     year: Optional[int] = None
     igdb_id: Optional[int] = None
     metadata_source: Optional[str] = None
+    content_rating: Optional[str] = None
 
 
 class LibraryItem(LibraryItemBase, table=True):
@@ -72,6 +73,7 @@ class LibraryItemUpdate(SQLModel):
     year: Optional[int] = None
     igdb_id: Optional[int] = None
     metadata_source: Optional[str] = None
+    content_rating: Optional[str] = None
 
 
 class LibraryItemRead(LibraryItemBase):

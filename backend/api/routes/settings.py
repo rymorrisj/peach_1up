@@ -6,8 +6,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.dependencies import require_permission
 from backend.core.settings import get_settings
 from backend.models.settings import SettingsPatch, SettingsRead
+from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
@@ -74,7 +76,7 @@ def get_all_settings():
 
 
 @router.patch("")
-def patch_settings(body: SettingsPatch):
+def patch_settings(body: SettingsPatch, _: User = require_permission("can_edit_settings")):
     svc = get_settings()
     for key, value in body.updates.items():
         if key in _ALL_PATH_KEYS:
@@ -119,7 +121,7 @@ def get_first_run_status():
 
 
 @router.post("/emulator-path")
-def set_emulator_path(body: EmulatorPathBody):
+def set_emulator_path(body: EmulatorPathBody, _: User = require_permission("can_edit_settings")):
     if body.slug not in _EMULATOR_SLUG_TO_KEY:
         raise HTTPException(status_code=400, detail=f"Unknown emulator slug: {body.slug!r}")
 
@@ -141,7 +143,7 @@ def set_emulator_path(body: EmulatorPathBody):
 
 
 @router.post("/library-path")
-def set_library_path(body: LibraryPathBody):
+def set_library_path(body: LibraryPathBody, _: User = require_permission("can_edit_settings")):
     try:
         resolved = _check_traversal(body.path)
     except ValueError as exc:
@@ -160,7 +162,7 @@ def set_library_path(body: LibraryPathBody):
 
 
 @router.post("/complete-first-run")
-def complete_first_run(db: Session = Depends(get_db)):
+def complete_first_run(db: Session = Depends(get_db), _: User = require_permission("can_edit_settings")):
     from backend.models.settings import Settings as SettingsModel
     row = db.get(SettingsModel, "first_run_complete")
     if row:

@@ -10,9 +10,11 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 from backend.core.database import get_db
+from backend.core.dependencies import require_permission
 from backend.core.settings import get_settings
 from backend.models.platform import Platform, PlatformCreate, PlatformRead, PlatformUpdate
 from backend.models.snapshot import Snapshot, SnapshotCreate, SnapshotRead
+from backend.models.user import User
 from backend.service.utils.settings import get_binary_path
 
 router = APIRouter(prefix="/api/v1/platforms", tags=["platforms"], redirect_slashes=False)
@@ -74,7 +76,7 @@ def list_platforms(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=PlatformRead, status_code=201)
-def create_platform(body: PlatformCreate, db: Session = Depends(get_db)):
+def create_platform(body: PlatformCreate, db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
     if body.base_image_path:
         _validate_image_path(body.base_image_path)
     if body.working_image_path:
@@ -95,7 +97,7 @@ def get_platform(platform_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{platform_id}", response_model=PlatformRead)
-def update_platform(platform_id: int, body: PlatformUpdate, db: Session = Depends(get_db)):
+def update_platform(platform_id: int, body: PlatformUpdate, db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
     platform = db.get(Platform, platform_id)
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found.")
@@ -112,7 +114,7 @@ def update_platform(platform_id: int, body: PlatformUpdate, db: Session = Depend
 
 
 @router.post("/{platform_id}/confirm-delete")
-def issue_delete_token(platform_id: int, db: Session = Depends(get_db)):
+def issue_delete_token(platform_id: int, db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
     if not db.get(Platform, platform_id):
         raise HTTPException(status_code=404, detail="Platform not found.")
     return {"confirmation_token": _issue_token(platform_id, "delete"), "expires_in_seconds": _TOKEN_TTL}
@@ -123,6 +125,7 @@ def delete_platform(
     platform_id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_platforms"),
 ):
     if not _consume_token(confirmation_token, platform_id, "delete"):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
@@ -174,7 +177,7 @@ def list_snapshots(platform_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{platform_id}/snapshots", response_model=SnapshotRead, status_code=201)
-def create_snapshot(platform_id: int, body: SnapshotCreate, db: Session = Depends(get_db)):
+def create_snapshot(platform_id: int, body: SnapshotCreate, db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
     platform = db.get(Platform, platform_id)
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found.")
@@ -200,7 +203,7 @@ def create_snapshot(platform_id: int, body: SnapshotCreate, db: Session = Depend
 
 
 @router.post("/{platform_id}/snapshots/{snapshot_id}/confirm-restore")
-def issue_restore_token(platform_id: int, snapshot_id: int, db: Session = Depends(get_db)):
+def issue_restore_token(platform_id: int, snapshot_id: int, db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
     snap = db.get(Snapshot, snapshot_id)
     if not snap or snap.platform_id != platform_id:
         raise HTTPException(status_code=404, detail="Snapshot not found.")
@@ -213,6 +216,7 @@ def restore_snapshot(
     snapshot_id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_platforms"),
 ):
     if not _consume_token(confirmation_token, snapshot_id, "restore"):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
@@ -229,7 +233,7 @@ def restore_snapshot(
 
 
 @router.post("/{platform_id}/snapshots/{snapshot_id}/confirm-delete")
-def issue_snap_delete_token(platform_id: int, snapshot_id: int, db: Session = Depends(get_db)):
+def issue_snap_delete_token(platform_id: int, snapshot_id: int, db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
     snap = db.get(Snapshot, snapshot_id)
     if not snap or snap.platform_id != platform_id:
         raise HTTPException(status_code=404, detail="Snapshot not found.")
@@ -242,6 +246,7 @@ def delete_snapshot(
     snapshot_id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_platforms"),
 ):
     if not _consume_token(confirmation_token, snapshot_id, "snap-delete"):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")

@@ -291,6 +291,29 @@ def _ensure_owner_user() -> None:
         )
 
 
+def _apply_schema_migrations() -> None:
+    """Add columns introduced after the initial schema creation.
+
+    Uses IF NOT EXISTS-style checks so this is safe to run on every startup.
+    Each entry is (table, column, sql_type).
+    """
+    from backend.core.database import get_engine
+    from sqlalchemy import inspect as sa_inspect, text
+
+    engine = get_engine()
+    pending: list[tuple[str, str, str]] = [
+        ("library_items", "content_rating", "TEXT"),
+    ]
+    with engine.connect() as conn:
+        inspector = sa_inspect(engine)
+        for table, column, col_type in pending:
+            existing = {c["name"] for c in inspector.get_columns(table)}
+            if column not in existing:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+                conn.commit()
+                logger.info("Schema migration: added %s.%s (%s)", table, column, col_type)
+
+
 def _scan_installed_emulators() -> None:
     try:
         from backend.service.utils.emulator_catalog import get_all_statuses
@@ -311,6 +334,7 @@ async def lifespan(app: FastAPI):
     _verify_sandbox_user()
     init_db()
     create_tables()
+    _apply_schema_migrations()
     _ensure_owner_user()
 
     from backend.core.database import get_engine

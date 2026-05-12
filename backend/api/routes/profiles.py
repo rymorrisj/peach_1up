@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.dependencies import require_permission
 from backend.models.profile import Profile, ProfileCreate, ProfileRead, ProfileUpdate
+from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1/profiles", tags=["profiles"])
 
@@ -16,7 +18,7 @@ def list_profiles(era: str | None = None, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=ProfileRead, status_code=201)
-def create_profile(body: ProfileCreate, db: Session = Depends(get_db)):
+def create_profile(body: ProfileCreate, db: Session = Depends(get_db), _: User = require_permission("can_manage_profiles")):
     existing = db.query(Profile).filter(Profile.slug == body.slug).first()
     if existing:
         raise HTTPException(status_code=409, detail="Profile slug already exists.")
@@ -36,7 +38,7 @@ def get_profile(profile_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{profile_id}", response_model=ProfileRead)
-def update_profile(profile_id: int, body: ProfileUpdate, db: Session = Depends(get_db)):
+def update_profile(profile_id: int, body: ProfileUpdate, db: Session = Depends(get_db), _: User = require_permission("can_manage_profiles")):
     profile = db.get(Profile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
@@ -48,7 +50,7 @@ def update_profile(profile_id: int, body: ProfileUpdate, db: Session = Depends(g
 
 
 @router.delete("/{profile_id}", status_code=204)
-def delete_profile(profile_id: int, db: Session = Depends(get_db)):
+def delete_profile(profile_id: int, db: Session = Depends(get_db), _: User = require_permission("can_manage_profiles")):
     profile = db.get(Profile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
