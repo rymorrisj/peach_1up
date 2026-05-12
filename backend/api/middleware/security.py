@@ -1,4 +1,3 @@
-import ipaddress
 import json
 import os
 import uuid
@@ -26,20 +25,6 @@ def _apply_cors_headers(response: Response, request: Request) -> None:
         response.headers.setdefault("access-control-allow-credentials", "true")
         response.headers.setdefault("vary", "Origin")
 
-# RFC-1918 private ranges used by Docker bridge networks (172.16.0.0/12 covers 172.16–172.31)
-_DOCKER_BRIDGE_NETWORKS = [
-    ipaddress.ip_network("172.16.0.0/12"),
-]
-
-
-def _is_docker_bridge(host: str) -> bool:
-    try:
-        addr = ipaddress.ip_address(host)
-        return any(addr in net for net in _DOCKER_BRIDGE_NETWORKS)
-    except ValueError:
-        return False
-
-
 class SecurityMiddleware(BaseHTTPMiddleware):
     """Strip Authorization headers from logs and enforce localhost binding."""
 
@@ -56,7 +41,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             allow_network = False
 
         client_host = request.client.host if request.client else "unknown"
-        is_local = client_host in _LOCALHOST_ORIGINS or _is_docker_bridge(client_host)
+        is_local = client_host in _LOCALHOST_ORIGINS
         if not allow_network and not is_local:
             resp = Response(content="Remote access is disabled.", status_code=403)
             _apply_cors_headers(resp, request)

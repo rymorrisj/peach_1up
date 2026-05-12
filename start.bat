@@ -1,57 +1,117 @@
 @echo off
+cd /d "%~dp0"
 setlocal
 
+echo ============================================================
+echo Peach 1UP - Setup and Start (Windows)
+echo ============================================================
+echo.
+
+REM ── Python check ─────────────────────────────────────────────
 for /f "tokens=2 delims= " %%v in ('py --version 2^>^&1') do set PYVER=%%v
 if "%PYVER%"=="" (
-    echo ERROR: Python not found. Install Python 3.11 or later from https://www.python.org/downloads/
+    echo ERROR: Python not found.
+    echo Install Python 3.11 or later from https://www.python.org/downloads/
+    echo Make sure to check "Add Python to PATH" during installation.
     exit /b 1
 )
+
 for /f "tokens=1,2 delims=." %%a in ("%PYVER%") do (
     set PY_MAJOR=%%a
     set PY_MINOR=%%b
 )
+
 if %PY_MAJOR% LSS 3 (
     echo ERROR: Python 3.11 or later is required. Found %PYVER%.
     exit /b 1
 )
+
 if %PY_MAJOR% EQU 3 if %PY_MINOR% LSS 11 (
     echo ERROR: Python 3.11 or later is required. Found %PYVER%.
     exit /b 1
 )
 
+echo [OK] Python %PYVER%
+
+REM ── Node / npm check ─────────────────────────────────────────
 where npm >nul 2>&1
 if errorlevel 1 (
-    echo ERROR: Node.js / npm not found. Install Node.js from https://nodejs.org/
+    echo ERROR: Node.js / npm not found.
     exit /b 1
 )
 
-if not exist "config\settings.yaml" (
-    echo WARNING: config\settings.yaml not found. Backend may not start correctly.
-    echo Copy config\settings.yaml and fill in paths before running.
+for /f "tokens=*"` %%n in ('node --version 2^>^&1') do set NODEVER=%%n
+echo [OK] Node.js %NODEVER%
+
+REM ── Virtual environment ───────────────────────────────────────
+if not exist ".venv" (
+    echo Creating virtual environment...
+    py -m venv .venv
+    if errorlevel 1 (
+        echo ERROR: Failed to create virtual environment.
+        exit /b 1
+    )
+    echo [OK] Virtual environment created at .venv\
+) else (
+    echo [OK] Virtual environment already exists at .venv\
 )
 
+REM ── Activate venv and install backend deps ────────────────────
 echo Installing backend dependencies...
-py -m pip install -r backend\requirements.txt --quiet
+
+call ".venv\Scripts\activate.bat"
+if errorlevel 1 (
+    echo ERROR: Failed to activate virtual environment.
+    exit /b 1
+)
+
+".venv\Scripts\python.exe" -m pip install --upgrade pip --quiet
+if errorlevel 1 (
+    echo ERROR: Failed to upgrade pip.
+    exit /b 1
+)
+
+".venv\Scripts\python.exe" -m pip install -r "backend\requirements.txt"
 if errorlevel 1 (
     echo ERROR: Failed to install backend dependencies.
     exit /b 1
 )
+echo [OK] Backend dependencies installed
 
+REM ── Frontend deps ────────────────────────────────────────────
 echo Installing frontend dependencies...
-call npm install --prefix ./frontend --silent
+pushd "frontend"
+call npm install
 if errorlevel 1 (
     echo ERROR: Failed to install frontend dependencies.
+    popd
     exit /b 1
 )
+popd
+echo [OK] Frontend dependencies installed
 
+REM ── Settings check ───────────────────────────────────────────
+if not exist "config\settings.yaml" (
+    echo.
+    echo WARNING: config\settings.yaml not found.
+    echo Copy config\settings.yaml.template to config\settings.yaml and fill in paths.
+) else (
+    echo [OK] config\settings.yaml found
+)
+
+REM ── Environment and start services ───────────────────────────
 set PEACH_ENV=development
 
+echo.
 echo Starting Peach 1UP frontend in a new window...
 start "Peach 1UP Frontend" /d "%~dp0frontend" cmd /k "npm run dev"
 echo Frontend starting at http://localhost:5173
 
+echo.
 echo Starting Peach 1UP backend...
 echo Backend will be available at http://localhost:8000
 py -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 
+echo.
+echo Backend stopped.
 endlocal

@@ -6,12 +6,4 @@ from backend.models.snapshot import Snapshot, SnapshotBase, SnapshotCreate, Snap
 from backend.models.launch_history import LaunchHistory, LaunchHistoryBase, LaunchHistoryRead
 from backend.models.settings import Settings, SettingsRead, SettingsPatch
 
-__all__ = [
-    "Tag", "TagBase", "TagCreate", "TagUpdate", "TagRead",
-    "Profile", "ProfileBase", "ProfileCreate", "ProfileUpdate", "ProfileRead",
-    "Platform", "PlatformBase", "PlatformCreate", "PlatformUpdate", "PlatformRead",
-    "LibraryItem", "library_item_tag", "LibraryItemBase", "LibraryItemCreate", "LibraryItemUpdate", "LibraryItemRead",
-    "Snapshot", "SnapshotBase", "SnapshotCreate", "SnapshotRead",
-    "LaunchHistory", "LaunchHistoryBase", "LaunchHistoryRead",
-    "Settings", "SettingsRead", "SettingsPatch",
-]
+# We do not maintain a __all__ as * wildcard imports are to be avoided per project practices
