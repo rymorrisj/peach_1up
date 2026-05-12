@@ -1,15 +1,8 @@
 from datetime import datetime
-from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, func
+from sqlalchemy import Column, DateTime, func
 from sqlmodel import Field, SQLModel
-
-
-class RestrictionType(str, Enum):
-    rating = "rating"
-    tag = "tag"
-    media_id = "media_id"
 
 
 class UserBase(SQLModel):
@@ -47,21 +40,3 @@ class UserRead(UserBase):
     id: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-
-
-class UserRestrictionBase(SQLModel):
-    restriction_type: RestrictionType
-    restriction_value: str
-
-
-class UserRestriction(UserRestrictionBase, table=True):
-    __tablename__ = "user_restrictions"
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: int = Field(
-        sa_column=Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    )
-    created_at: Optional[datetime] = Field(
-        default=None,
-        sa_column=Column(DateTime, server_default=func.now(), nullable=False),
-    )

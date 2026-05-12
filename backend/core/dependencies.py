@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.models.library import LibraryItem
+from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
 
 _DEFAULT_RATING_ORDINALS: dict[str, int] = {
@@ -37,25 +38,20 @@ def get_active_user(request: Request, db: Session = Depends(get_db)) -> User:
     """Return the currently active user for this session.
 
     Falls back to the owner account when:
-    - auth is disabled in settings (AUTH_ENABLED is falsy)
     - no active_user_id is stored in the session
     - the session user no longer exists in the database
 
     Raises 503 if no owner account exists.
     """
-    auth_enabled = False
+
     try:
         from backend.core.settings import get_settings
-        auth_enabled = bool(get_settings().get("AUTH_ENABLED", False))
     except RuntimeError:
         pass
 
     owner = db.query(User).filter(User.is_owner.is_(True)).first()
     if owner is None:
         raise HTTPException(status_code=503, detail="No owner account configured.")
-
-    if not auth_enabled:
-        return owner
 
     user_id = request.session.get("active_user_id")
     if user_id is None:
@@ -104,6 +100,11 @@ def get_filtered_library(active_user: User, db: Session):
 
     if active_user.is_owner:
         return q
+
+    restricted_ids = db.query(MediaRestriction.library_item_id).filter(
+        MediaRestriction.user_id == active_user.id
+    ).scalar_subquery()
+    q = q.filter(LibraryItem.id.not_in(restricted_ids))
 
     if active_user.block_unrated_media:
         q = q.filter(

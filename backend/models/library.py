@@ -33,6 +33,7 @@ class LibraryItem(LibraryItemBase, table=True):
     __tablename__ = "library_items"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    slug: Optional[str] = Field(default=None)
     platform_id: Optional[int] = Field(
         default=None,
         sa_column=Column(Integer, ForeignKey("platforms.id", ondelete="SET NULL"), nullable=True),
@@ -78,6 +79,7 @@ class LibraryItemUpdate(SQLModel):
 
 class LibraryItemRead(LibraryItemBase):
     id: int
+    slug: Optional[str] = None
     platform_id: Optional[int] = None
     profile_id: Optional[int] = None
     last_launched_at: Optional[datetime] = None

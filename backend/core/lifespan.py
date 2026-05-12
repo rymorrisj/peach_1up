@@ -14,7 +14,8 @@ from fastapi import FastAPI
 from backend.core import install_registry, process_registry
 from backend.core.database import create_tables, init_db
 from backend.core.settings import init_settings
-import backend.models.user  # noqa: F401 — registers User/UserRestriction with SQLModel.metadata
+import backend.models.user  # noqa: F401 — registers User with SQLModel.metadata
+import backend.models.media_restriction  # noqa: F401 — registers MediaRestriction with SQLModel.metadata
 
 logger = logging.getLogger(__name__)
 
@@ -292,17 +293,18 @@ def _ensure_owner_user() -> None:
 
 
 def _apply_schema_migrations() -> None:
-    """Add columns introduced after the initial schema creation.
+    """Add columns and apply schema changes introduced after initial creation.
 
-    Uses IF NOT EXISTS-style checks so this is safe to run on every startup.
-    Each entry is (table, column, sql_type).
+    Safe to run on every startup — all operations are idempotent.
     """
+    import re
     from backend.core.database import get_engine
     from sqlalchemy import inspect as sa_inspect, text
 
     engine = get_engine()
     pending: list[tuple[str, str, str]] = [
         ("library_items", "content_rating", "TEXT"),
+        ("library_items", "slug", "TEXT"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)
@@ -312,6 +314,39 @@ def _apply_schema_migrations() -> None:
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
                 conn.commit()
                 logger.info("Schema migration: added %s.%s (%s)", table, column, col_type)
+
+        # Drop legacy user_restrictions table
+        if "user_restrictions" in sa_inspect(engine).get_table_names():
+            conn.execute(text("DROP TABLE user_restrictions"))
+            conn.commit()
+            logger.info("Schema migration: dropped user_restrictions table")
+
+        # Backfill slugs for existing library items
+        items = conn.execute(
+            text("SELECT id, title FROM library_items WHERE slug IS NULL")
+        ).fetchall()
+        if items:
+            for item_id, title in items:
+                base = re.sub(
+                    r'[^a-z0-9-]', '',
+                    re.sub(r'\s+', '-', (title or '').lower())
+                ).strip('-') or 'item'
+                candidate = base
+                n = 2
+                while True:
+                    exists = conn.execute(
+                        text("SELECT 1 FROM library_items WHERE slug = :s"), {"s": candidate}
+                    ).fetchone()
+                    if not exists:
+                        break
+                    candidate = f"{base}-{n}"
+                    n += 1
+                conn.execute(
+                    text("UPDATE library_items SET slug = :s WHERE id = :id"),
+                    {"s": candidate, "id": item_id},
+                )
+            conn.commit()
+            logger.info("Schema migration: backfilled slugs for %d library item(s)", len(items))
 
 
 def _scan_installed_emulators() -> None:

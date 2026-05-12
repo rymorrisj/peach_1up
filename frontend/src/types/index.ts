@@ -22,13 +22,20 @@ export interface User {
 
 export interface LibraryItem {
   id: number
+  slug: string | null
   title: string
+  sort_title: string | null
   era: string
   media_path: string
   profile_id: number | null
   platform_id: number | null
   category: string | null
   media_type: string | null
+  cover_art_path: string | null
+  description: string | null
+  publisher: string | null
+  year: number | null
+  content_rating: string | null
   last_launched_at: string | null
   launch_count: number
   created_at: string

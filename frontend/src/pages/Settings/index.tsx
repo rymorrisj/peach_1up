@@ -6,6 +6,7 @@ import { useAppContext } from '@/context/AppContext'
 import { PageHeader, FormField, Button, Input, Modal } from '@/ui'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
+import UserSwitcher from '@/components/UserSwitcher'
 import { cn } from '@/lib/utils'
 import type { User } from '@/types'
 
@@ -338,6 +339,9 @@ export default function Settings() {
               ))}
             </div>
           </section>
+
+          {/* ── Account Switcher ── */}
+          <UserSwitcher />
 
           {/* ── Users (admin only) ── */}
           {isAdmin && (

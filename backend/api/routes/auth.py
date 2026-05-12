@@ -65,19 +65,14 @@ def logout(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserRead)
 def me(request: Request, db: Session = Depends(get_db)):
-    auth_enabled = False
     try:
         from backend.core.settings import get_settings
-        auth_enabled = bool(get_settings().get("AUTH_ENABLED", False))
     except RuntimeError:
         pass
 
     owner = db.query(User).filter(User.is_owner.is_(True)).first()
     if owner is None:
         raise HTTPException(status_code=503, detail="No owner account configured.")
-
-    if not auth_enabled:
-        return owner
 
     user_id = request.session.get("active_user_id")
     if user_id is None:

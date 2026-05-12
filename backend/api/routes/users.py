@@ -141,9 +141,9 @@ def delete_user(
     owner = db.query(User).filter(User.is_owner.is_(True)).first()
     owner_id = owner.id if owner else None
 
-    from backend.models.user import UserRestriction
+    from backend.models.media_restriction import MediaRestriction
     from backend.models.profile import Profile
-    db.query(UserRestriction).filter(UserRestriction.user_id == user_id).delete(synchronize_session=False)
+    db.query(MediaRestriction).filter(MediaRestriction.user_id == user_id).delete(synchronize_session=False)
     db.query(Profile).filter(Profile.user_id == user_id).update(
         {Profile.user_id: owner_id}, synchronize_session=False
     )

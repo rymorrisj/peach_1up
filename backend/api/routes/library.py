@@ -1,4 +1,5 @@
 import logging
+import re
 import secrets
 import threading
 import time
@@ -6,12 +7,29 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, get_filtered_library, require_permission
 from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate
+from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
+
+
+class RestrictionsBody(BaseModel):
+    user_ids: list[int]
+
+
+def _make_slug(title: str, db: Session) -> str:
+    base = re.sub(r'[^a-z0-9-]', '', re.sub(r'\s+', '-', title.lower())).strip('-') or 'item'
+    candidate = base
+    n = 2
+    while True:
+        if not db.query(LibraryItem).filter(LibraryItem.slug == candidate).first():
+            return candidate
+        candidate = f"{base}-{n}"
+        n += 1
 
 router = APIRouter(prefix="/api/v1/library", tags=["library"])
 logger = logging.getLogger(__name__)
@@ -131,6 +149,7 @@ def add_library_item(
     _: User = require_permission("can_edit_library"),
 ):
     item = LibraryItem(**body.model_dump())
+    item.slug = _make_slug(item.title, db)
     if not item.content_rating:
         from backend.utils.rating_detect import detect_rating
         item.content_rating = detect_rating(body.media_path)
@@ -185,6 +204,14 @@ def _run_scan(directory: str) -> None:
             _scan_state["running"] = False
 
 
+@router.get("/by-slug/{slug}", response_model=LibraryItemRead)
+def get_library_item_by_slug(slug: str, db: Session = Depends(get_db)):
+    item = db.query(LibraryItem).filter(LibraryItem.slug == slug).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Library item not found.")
+    return item
+
+
 @router.get("/{item_id}", response_model=LibraryItemRead)
 def get_library_item(item_id: int, db: Session = Depends(get_db)):
     item = db.get(LibraryItem, item_id)
@@ -237,3 +264,31 @@ def delete_library_item(
         raise HTTPException(status_code=404, detail="Library item not found.")
     db.delete(item)
     db.commit()
+
+
+@router.get("/{item_id}/restrictions")
+def get_restrictions(
+    item_id: int,
+    db: Session = Depends(get_db),
+    _: User = require_permission("is_admin"),
+):
+    if not db.get(LibraryItem, item_id):
+        raise HTTPException(status_code=404, detail="Library item not found.")
+    rows = db.query(MediaRestriction).filter(MediaRestriction.library_item_id == item_id).all()
+    return {"restricted_user_ids": [r.user_id for r in rows]}
+
+
+@router.put("/{item_id}/restrictions")
+def set_restrictions(
+    item_id: int,
+    body: RestrictionsBody,
+    db: Session = Depends(get_db),
+    _: User = require_permission("is_admin"),
+):
+    if not db.get(LibraryItem, item_id):
+        raise HTTPException(status_code=404, detail="Library item not found.")
+    db.query(MediaRestriction).filter(MediaRestriction.library_item_id == item_id).delete()
+    for user_id in body.user_ids:
+        db.add(MediaRestriction(user_id=user_id, library_item_id=item_id))
+    db.commit()
+    return {"restricted_user_ids": body.user_ids}

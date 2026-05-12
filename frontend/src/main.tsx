@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { AppProvider } from '@/context/AppContext'
 import AppShell from '@/components/layout/AppShell'
 import Library from '@/pages/Library'
-import Detail from '@/pages/Detail'
+import ItemDetail from '@/pages/Library/ItemDetail'
 import Platforms from '@/pages/Platforms'
 import Profiles from '@/pages/Settings/LaunchProfiles'
 import Settings from '@/pages/Settings'
@@ -58,7 +58,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <Route path="/" element={<Navigate to="/library" replace />} />
               <Route element={<AppShell />}>
                 <Route path="/library" element={<Library />} />
-                <Route path="/library/:id" element={<Detail />} />
+                <Route path="/library/:slug" element={<ItemDetail />} />
                 <Route path="/platforms" element={<Platforms />} />
                 <Route path="/profiles" element={<Profiles />} />
                 <Route path="/settings" element={<Settings />} />
