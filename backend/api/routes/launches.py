@@ -7,9 +7,11 @@ from sqlalchemy.orm import Session
 
 from backend.core import process_registry
 from backend.core.database import get_db
+from backend.core.dependencies import get_active_user
 from backend.core.process_registry import ProcessEntry
 from backend.models import LaunchHistory, LibraryItem, Profile
 from backend.models.launch_history import LaunchHistoryRead
+from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1", tags=["launches"])
 
@@ -24,7 +26,12 @@ class LaunchResponse(BaseModel):
 
 
 @router.post("/library/{item_id}/launch", status_code=202, response_model=LaunchResponse)
-async def launch_item(item_id: int, body: LaunchRequest, db: Session = Depends(get_db)):
+async def launch_item(
+    item_id: int,
+    body: LaunchRequest,
+    db: Session = Depends(get_db),
+    active_user: User = Depends(get_active_user),
+):
     item = db.get(LibraryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found.")

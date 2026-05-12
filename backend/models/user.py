@@ -43,6 +43,12 @@ class User(UserBase, table=True):
     )
 
 
+class UserRead(UserBase):
+    id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
 class UserRestrictionBase(SQLModel):
     restriction_type: RestrictionType
     restriction_value: str
