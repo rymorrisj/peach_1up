@@ -7,6 +7,7 @@ import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
+import UserSwitcher from '@/components/UserSwitcher'
 import { useConfirm } from '@/hooks/useConfirm'
 import type { LibraryItem, LaunchProfile } from '@/types'
 
@@ -685,6 +686,7 @@ export default function Library() {
 
   return (
     <>
+      <UserSwitcher />
       <PageHeader
         title="Library"
         description="Your media collection. Assign a profile to each item to enable launch."

@@ -95,6 +95,7 @@ def main() -> int:
         with session_factory() as db:
             existing = db.query(User).filter(User.is_owner.is_(True)).first()
             if existing:
+                existing.id = 1
                 existing.name = name
                 existing.pin_hash = pin_hash
                 existing.pin_required = True
@@ -108,6 +109,7 @@ def main() -> int:
                 existing.failed_pin_attempts = 0
             else:
                 db.add(User(
+                    id=1,
                     name=name,
                     is_owner=True,
                     pin_hash=pin_hash,

@@ -1,6 +1,25 @@
 // Re-exports generated types once `npm run generate:api` has been run
 // export * from '@/api/generated'
 
+export interface User {
+  id: number
+  name: string
+  is_owner: boolean
+  pin_required: boolean
+  can_launch_media: boolean
+  can_edit_platforms: boolean
+  can_edit_library: boolean
+  can_manage_profiles: boolean
+  can_edit_settings: boolean
+  is_admin: boolean
+  max_content_rating: string | null
+  block_unrated_media: boolean
+  is_locked: boolean
+  failed_pin_attempts: number
+  created_at: string | null
+  updated_at: string | null
+}
+
 export interface LibraryItem {
   id: number
   title: string

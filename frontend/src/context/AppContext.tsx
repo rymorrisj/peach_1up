@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useReducer } from 'react'
+import type { User } from '@/types'
 
 type Theme = 'dark' | 'light'
 
@@ -6,17 +7,20 @@ interface AppState {
   theme: Theme
   sidebarCollapsed: boolean
   activeProfileId: number | null
+  activeUser: User | null
 }
 
 type AppAction =
   | { type: 'SET_THEME'; payload: Theme }
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'SET_ACTIVE_PROFILE'; payload: number | null }
+  | { type: 'SET_ACTIVE_USER'; payload: User | null }
 
 const initialState: AppState = {
   theme: 'dark',
   sidebarCollapsed: false,
   activeProfileId: null,
+  activeUser: null,
 }
 
 function applyTheme(theme: Theme) {
@@ -36,6 +40,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, sidebarCollapsed: !state.sidebarCollapsed }
     case 'SET_ACTIVE_PROFILE':
       return { ...state, activeProfileId: action.payload }
+    case 'SET_ACTIVE_USER':
+      return { ...state, activeUser: action.payload }
   }
 }
 
