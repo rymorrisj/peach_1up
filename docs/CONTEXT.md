@@ -232,7 +232,7 @@ Emulators launched on Windows run under a dedicated low-privilege account
 and are contained in Job Objects with CPU limits and kill-on-close semantics.
 This improves host safety without blocking on AppContainer or Linux namespaces.
 
-### CURRENT
+### DONE
 
 - [P6-1] Design Windows sandbox model and config surface
 - [P6-2] Create and manage low-privilege `peach_sandbox` user at install time
@@ -243,6 +243,30 @@ This improves host safety without blocking on AppContainer or Linux namespaces.
 - [P6-7] Hardening and regression tests on Windows 10/11
 - [P6-8] Documentation updates (DECISIONS.md, SECURITY.md, user docs)
 - [P6-9] P6 committed and pushed to main.
+
+## P6.5 — Household User Accounts and Parental Controls
+
+### Goal
+
+Auth was removed in a prior change and we re-worked it to amtch the system intended use.
+A household can create one owner account and multiple sub-accounts. Each account
+uses a 4–6 digit PIN secured with Argon2id. Restricted accounts hide content
+above their rating threshold and cannot access features beyond their permission
+flags. The owner can reset any PIN via settings. If the owner is locked out,
+a local recovery script resets the owner account.
+
+### CURRENT
+
+- [P6.5-1] users and user_restrictions tables — SQLModel models, seeded at first run
+- [P6.5-2] scripts/setup_admin_user.py — creates or overwrites owner account interactively; called by lifespan on first run, available as standalone recovery tool
+- [P6.5-3] PIN verification endpoint — Argon2id verify, increment failed_pin_attempts, lock on 4th failure
+- [P6.5-4] Session handling — active user_id in server session; default to owner if auth disabled
+- [P6.5-5] Permission enforcement — FastAPI dependency checks flags on protected endpoints
+- [P6.5-6] Content rating ingestion — scan NFO/metadata at library scan time, store on LibraryItem
+- [P6.5-7] Rating enforcement — filter library query by active user's max_content_rating and block_unrated_media; server-side, not client-side
+- [P6.5-8] Frontend — PS4-style profile switcher on home screen, PIN entry modal, hidden restricted items
+- [P6.5-9] Owner settings — reset any user PIN, unlock locked accounts, manage sub-accounts
+- [P6.5-10] P6.5 committed and pushed to main
 
 ## P7 — Native Installer and Distribution
 

@@ -20,7 +20,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $AccountName    = "peach_sandbox"
-$AccountDesc    = "Peach 1UP emulator sandbox. Do not modify or delete manually."
+$AccountDesc    = "Peach 1UP emulator sandbox account"
 $AdminGroupName = "Administrators"
 
 # ---------------------------------------------------------------------------

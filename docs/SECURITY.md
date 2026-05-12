@@ -36,54 +36,38 @@ Realistic threats specific to this application:
 
 ---
 
-## Authentication and Profiles
-
-Auth is **off by default** for single-user local installs. It must be explicitly enabled
-in settings.
-
-**Profile model:**
-
-- **Owner profile** — created at first run. Full access. Bypasses all permission checks.
-  Cannot be deleted.
-- **Sub-profiles** — created by the owner. Explicit permission flags govern what each
-  sub-profile can do. All profiles can launch media by default.
-- **Profile switching** — PS4-style: visible on the home screen, select to switch. Each
-  profile may optionally have a PIN. PIN is required to switch into that profile.
-- **OIDC** — supported as an optional external identity provider. Disabled by default.
-  When enabled, profile switching defers to the OIDC provider for identity verification.
-
-**Recovery:**
-
-- A recovery key is generated at first run and shown once. It is not stored in
-  recoverable form after that. The owner must record it.
-- The recovery key can be used to reset the owner profile via the web UI.
-- CLI reset (`peach reset-owner`) is the last-resort fallback if the web UI is
-  inaccessible.
-- No email recovery. No external auth dependency by default.
-
----
-
 ## Authorisation and Permissions
 
-Permission flags on sub-profiles:
+Permission flags on sub-accounts:
 
-| Flag                  | What it controls                                              |
-| --------------------- | ------------------------------------------------------------- |
-| `can_launch_media`    | Launch any library item (granted to all profiles by default)  |
-| `can_install_media`   | Run installation flows for new media                          |
-| `can_edit_library`    | Add, edit, or remove library items                            |
-| `can_manage_profiles` | Create or modify sub-profiles (never grants owner privileges) |
-| `can_edit_settings`   | Modify application settings                                   |
-| `is_admin`            | All of the above except owner-only operations                 |
+| Flag                  | What it controls                                          |
+| --------------------- | --------------------------------------------------------- |
+| `can_launch_media`    | Launch any permitted library item (default: true)         |
+| `can_edit_platforms`  | Register or modify OS platforms                           |
+| `can_edit_library`    | Add, edit, or remove library items                        |
+| `can_manage_profiles` | Create or modify sub-accounts (never grants owner powers) |
+| `can_edit_settings`   | Modify application settings                               |
+| `is_admin`            | All of the above except owner-only operations             |
+
+**PIN security:**
+
+- PINs are 4–6 digits, stored as Argon2id hashes with a per-user random salt.
+- An optional app-level pepper may be configured in `settings.yaml`, stored outside SQLite.
+- Plaintext PINs are never stored, logged, or returned by any API endpoint.
+- 4 consecutive failures locks the account. Owner resets via Settings.
+- Owner lockout: run `scripts/setup_admin_user.py` locally — overwrites the owner record.
+  No remote reset, no email recovery, no bypass flag.
 
 **Content ratings and parental controls:**
 
-- The owner assigns a content rating to each library item.
-- The owner sets a maximum allowed rating per sub-profile.
-- A sub-profile cannot launch an item whose rating exceeds its limit, regardless of
-  other permissions.
-- Rating enforcement is server-side. The client UI hides restricted items but the API
-  enforces the limit independently.
+- Ratings ingested from NFO files, disc metadata, or filenames at scan time. Owner can override.
+- Unrated is a first-class state. `block_unrated_media` flag controls whether unrated items
+  are visible to a sub-account.
+- Each sub-account has a `max_content_rating` threshold. Items above the threshold are
+  filtered at the query level — hidden entirely, not surfaced and denied at launch.
+- Enforcement is server-side. Deny wins over any permission flag with no override path.
+- Rating scale is freetext on `LibraryItem`. Recommended: ESRB (E, E10+, T, M, AO) or
+  PEGI (3, 7, 12, 16, 18). Ordinal comparison map configured in `settings.yaml`.
 
 ---
 
@@ -300,7 +284,6 @@ is emulator-native (network adapter disabled at the emulator config level).
 The scan endpoint validates all user-supplied directory paths against an allowlist of configured base directories (IMAGES_PATH, PROFILES_PATH, ROM_PATH) before any filesystem operation. This is a mandatory enforcement of the Input Validation Rules above. If none of these paths are configured in settings, scanning is blocked entirely. Media collections must reside under a configured base directory. This restriction must be carried forward to any future endpoint that accepts a directory or file path parameter.
 
 All frontend fetch calls must include credentials: 'include' while SessionMiddleware is active so session cookies are transmitted correctly. When P5 changes the serving model (FastAPI serving the React static build directly), re-evaluate whether this setting is still correct or introduces unintended cookie scope.
-
 
 ### Linux sandbox implementation (planned)
 
