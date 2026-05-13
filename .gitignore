@@ -90,6 +90,8 @@ emulators/
 *.tmp
 *.temp
 .cache/
+temp/
+docs/AUDIT.md
 
 # Generated constants
 frontend/src/generated/constants.ts

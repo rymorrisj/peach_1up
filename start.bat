@@ -5,13 +5,43 @@ setlocal
 net session >nul 2>&1
 if errorlevel 1 (
     echo Requesting administrator privileges...
-    powershell -Command "Start-Process cmd -ArgumentList '/c \"\"%~f0\"\"' -Verb RunAs"
+    powershell -Command "Start-Process cmd -ArgumentList '/c """"%~f0""""' -Verb RunAs"
     exit /b
 )
 
 echo ============================================================
 echo Peach 1UP - Setup and Start (Windows)
 echo ============================================================
+echo.
+
+REM ── Shared DOSBox conf temp directory / sandbox ACLs ─────────
+REM DOSBox-X launch confs must be readable by the low-privilege
+REM peach_sandbox account. Do not place these confs under a
+REM user-private temp directory; create a machine-wide shared
+REM directory and grant read/execute access recursively.
+set "PEACH_SHARED_TEMP=%ProgramData%\Peach1Up\temp"
+
+echo Ensuring shared DOSBox conf directory exists...
+if not exist "%PEACH_SHARED_TEMP%" (
+    mkdir "%PEACH_SHARED_TEMP%"
+    if errorlevel 1 (
+        echo ERROR: Failed to create shared DOSBox conf directory:
+        echo   %PEACH_SHARED_TEMP%
+        exit /b 1
+    )
+)
+
+echo Granting peach_sandbox access to shared DOSBox conf directory...
+icacls "%PEACH_SHARED_TEMP%" /grant "peach_sandbox:(OI)(CI)RX" /T /C >nul
+if errorlevel 1 (
+    echo ERROR: Failed to grant peach_sandbox permissions on:
+    echo   %PEACH_SHARED_TEMP%
+    echo Ensure the peach_sandbox account already exists before launch setup runs.
+    exit /b 1
+)
+
+echo [OK] Shared DOSBox conf directory ready:
+echo   %PEACH_SHARED_TEMP%
 echo.
 
 REM ── Python check ─────────────────────────────────────────────
@@ -47,10 +77,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
-for /f "tokens=*"` %%n in ('node --version 2^>^&1') do set NODEVER=%%n
+for /f "tokens=*" %%n in ('node --version 2^>^&1') do set NODEVER=%%n
 echo [OK] Node.js %NODEVER%
 
-REM ── Virtual environment ───────────────────────────────────────
+REM ── Virtual environment ──────────────────────────────────────
 if not exist ".venv" (
     echo Creating virtual environment...
     py -m venv .venv
@@ -63,7 +93,7 @@ if not exist ".venv" (
     echo [OK] Virtual environment already exists at .venv\
 )
 
-REM ── Activate venv and install backend deps ────────────────────
+REM ── Activate venv and install backend deps ───────────────────
 echo Installing backend dependencies...
 
 call ".venv\Scripts\activate.bat"
@@ -83,6 +113,7 @@ if errorlevel 1 (
     echo ERROR: Failed to install backend dependencies.
     exit /b 1
 )
+
 echo [OK] Backend dependencies installed
 
 REM ── Frontend deps ────────────────────────────────────────────
@@ -94,6 +125,7 @@ if errorlevel 1 (
     popd
     exit /b 1
 )
+
 popd
 echo [OK] Frontend dependencies installed
 
@@ -104,6 +136,7 @@ if errorlevel 1 (
     echo ERROR: OpenAPI export failed. Aborting.
     exit /b 1
 )
+
 echo Generating frontend API types...
 pushd "frontend"
 call npm run generate:api
@@ -112,6 +145,7 @@ if errorlevel 1 (
     popd
     exit /b 1
 )
+
 popd
 echo [OK] API types generated
 

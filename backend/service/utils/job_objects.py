@@ -737,6 +737,53 @@ def _get_sandbox_credentials() -> Tuple[str, str]:
         )
     return "peach_sandbox", password
 
+def debug_can_sandbox_read_file(path: str) -> bool:
+    """Return True if the peach_sandbox account can read *path*.
+
+    This is a debug helper that launches a tiny sandboxed process under the
+    same CreateProcessWithLogonW path used for emulator launches. It attempts
+    to read the file using cmd.exe and returns whether the read succeeded.
+
+    Args:
+        path: Full path to a file that should be readable by peach_sandbox.
+
+    Returns:
+        True if the sandbox user can read the file, False otherwise.
+    """
+    system_root = Path(os.environ.get("SystemRoot", r"C:\Windows"))
+    cmd_exe = system_root / "System32" / "cmd.exe"
+
+    if not cmd_exe.exists():
+        print(f"DEBUG sandbox read probe: cmd.exe not found at {cmd_exe}", flush=True)
+        return False
+
+    quoted_path = str(path).replace('"', '""')
+    probe_args = ["/c", "type", quoted_path]
+
+    print("DEBUG sandbox read probe:", flush=True)
+    print(f"  target: {path}", flush=True)
+    print(f"  cmd_exe: {cmd_exe}", flush=True)
+    print(f"  probe_args: {probe_args}", flush=True)
+
+    process = None
+    try:
+        process = _launch_as_sandbox_user(
+            executable_path=str(cmd_exe),
+            args=probe_args,
+            creation_flags=0,
+        )
+        exit_code = process.wait()
+        print(f"  sandbox probe exit_code: {exit_code}", flush=True)
+        return exit_code == 0
+    except Exception as exc:
+        print(f"  sandbox probe failed: {exc}", flush=True)
+        return False
+    finally:
+        try:
+            if process is not None and process._process_handle:
+                process.kill()
+        except Exception:
+            pass
 
 def _launch_as_sandbox_user(
     executable_path: str,
@@ -774,6 +821,14 @@ def _launch_as_sandbox_user(
     si = STARTUPINFOW()
     si.cb = ctypes.sizeof(STARTUPINFOW)
     pi = PROCESS_INFORMATION()
+
+    print("DEBUG _launch_as_sandbox_user:", flush=True)
+    print(f"  username: {username}", flush=True)
+    print(f"  executable_path: {executable_path}", flush=True)
+    print(f"  cwd: {cwd}", flush=True)
+    print(f"  creation_flags: {creation_flags}", flush=True)
+    print(f"  args: {args}", flush=True)
+    print(f"  cmd_line: {cmd_line}", flush=True)
 
     result = ctypes.windll.advapi32.CreateProcessWithLogonW(
         ctypes.c_wchar_p(username),

@@ -275,7 +275,7 @@ a local recovery script resets the owner account.
 Package Peach 1UP as a native installer for Windows and Linux. No runtime
 dependencies required for end users.
 
-### NEXT
+### CURRENT
 
 - [P7-1] PyInstaller backend compilation — compile FastAPI backend and all
   dependencies into a standalone executable. Python runtime embedded. Tested
