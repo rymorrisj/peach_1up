@@ -9,11 +9,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Tuple
 
+from backend.constants import ERA_MEDIA_TYPES
+from backend.constants_generated import Era
 from backend.service.utils.job_objects import launch_under_job_object, SandboxProcess, WindowsJobObject
 
-
-SUPPORTED_MEDIA = {'.nes', '.chd'}
-SUPPORTED_ERAS = {'nes'}
+SUPPORTED_ERAS = {Era.NES.value}
+SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.NES]
 
 
 def validate_media(media_path: Path) -> None:

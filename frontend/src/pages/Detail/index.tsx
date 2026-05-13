@@ -4,20 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { Button, PageHeader } from '@/ui'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import { ERA_LABELS } from '@/generated/constants'
 import type { LibraryItem, LaunchProfile, LaunchHistory } from '@/types'
-
-const ERA_LABELS: Record<string, string> = {
-  dos: 'DOS',
-  win31: 'Windows 3.1',
-  win95: 'Windows 95',
-  win98: 'Windows 98',
-  winxp: 'Windows XP',
-  ps1: 'PlayStation 1',
-  ps2: 'PlayStation 2',
-  xbox: 'Original Xbox',
-  nes: 'NES',
-  n64: 'Nintendo 64',
-}
 
 export default function Detail() {
   const { id } = useParams<{ id: string }>()

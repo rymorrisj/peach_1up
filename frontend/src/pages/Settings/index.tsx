@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
 import UserSwitcher from '@/components/UserSwitcher'
 import { cn } from '@/lib/utils'
+import { RATING_OPTIONS as BASE_RATING_OPTIONS } from '@/generated/constants'
 import type { User } from '@/types'
 
 // ─── Library paths section ───────────────────────────────────────────────────
@@ -55,20 +56,7 @@ const PERMISSION_FLAGS: { key: keyof User; label: string }[] = [
   { key: 'is_admin', label: 'Admin' },
 ]
 
-const RATING_OPTIONS = [
-  { value: '', label: 'No restriction' },
-  { value: 'EC', label: 'EC — Early Childhood' },
-  { value: 'E', label: 'E — Everyone' },
-  { value: 'E10+', label: 'E10+ — Everyone 10+' },
-  { value: 'T', label: 'T — Teen' },
-  { value: 'M', label: 'M — Mature' },
-  { value: 'AO', label: 'AO — Adults Only' },
-  { value: 'PEGI 3', label: 'PEGI 3' },
-  { value: 'PEGI 7', label: 'PEGI 7' },
-  { value: 'PEGI 12', label: 'PEGI 12' },
-  { value: 'PEGI 16', label: 'PEGI 16' },
-  { value: 'PEGI 18', label: 'PEGI 18' },
-]
+const RATING_OPTIONS = [{ value: '', label: 'No restriction' }, ...BASE_RATING_OPTIONS.slice(1)]
 
 interface AddUserForm {
   name: string

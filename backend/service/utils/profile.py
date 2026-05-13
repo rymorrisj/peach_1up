@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 import yaml
 
-from backend.service.utils.constants import Era
+from backend.constants_generated import Era
 
 
 _REQUIRED_FIELDS = frozenset({"name", "era", "media_path", "notes"})

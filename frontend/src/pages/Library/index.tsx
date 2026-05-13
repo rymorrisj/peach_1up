@@ -8,33 +8,10 @@ import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
 import { useConfirm } from '@/hooks/useConfirm'
+import { ERA_LABELS } from '@/generated/constants'
 import type { LibraryItem, LaunchProfile } from '@/types'
 
-const ERA_LABELS: Record<string, string> = {
-  dos: 'DOS',
-  win31: 'Windows 3.1',
-  win95: 'Windows 95',
-  win98: 'Windows 98',
-  winxp: 'Windows XP',
-  ps1: 'PlayStation 1',
-  ps2: 'PlayStation 2',
-  xbox: 'Original Xbox',
-  nes: 'NES',
-  n64: 'Nintendo 64',
-}
-
-const ERA_OPTIONS = [
-  { value: 'dos', label: 'DOS' },
-  { value: 'win31', label: 'Windows 3.1' },
-  { value: 'win95', label: 'Windows 95' },
-  { value: 'win98', label: 'Windows 98' },
-  { value: 'winxp', label: 'Windows XP' },
-  { value: 'ps1', label: 'PlayStation 1' },
-  { value: 'ps2', label: 'PlayStation 2' },
-  { value: 'xbox', label: 'Original Xbox' },
-  { value: 'nes', label: 'NES' },
-  { value: 'n64', label: 'Nintendo 64' },
-]
+const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
 
 const SELECT_CLASS =
   'rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'

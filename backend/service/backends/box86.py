@@ -14,13 +14,13 @@ from typing import Optional
 
 import yaml
 
+from backend.constants_generated import Era
 from backend.service.utils.job_objects import launch_under_job_object
 from backend.service.utils.media_attach import build_86box_attachment
 from backend.service.utils.platform import OSPlatform
 from backend.service.utils.settings import get_binary_path, get_env_var
 
-
-SUPPORTED_ERAS = {"win95", "win98"}
+SUPPORTED_ERAS = {Era.WIN95.value, Era.WIN98.value}
 
 _TEMPLATE_DIR = Path("config") / "templates"
 

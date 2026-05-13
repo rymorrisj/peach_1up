@@ -14,13 +14,13 @@ from typing import Optional, Tuple
 
 import yaml
 
+from backend.constants_generated import Era
 from backend.service.utils.job_objects import launch_under_job_object, SandboxProcess, WindowsJobObject
 from backend.service.utils.media_attach import build_virtualbox_attachment
 from backend.service.utils.platform import OSPlatform
 from backend.service.utils.settings import get_binary_path
 
-
-SUPPORTED_ERAS = {"win95", "win98", "winxp"}
+SUPPORTED_ERAS = {Era.WIN95.value, Era.WIN98.value, Era.WINXP.value}
 
 _TEMPLATE_DIR = Path("config") / "templates"
 

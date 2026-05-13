@@ -6,35 +6,8 @@ import { Button, FormField, Input, Textarea, PageHeader } from '@/ui'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
 import { useAppContext } from '@/context/AppContext'
+import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
 import type { LibraryItem, LaunchProfile, Platform, User, LaunchHistory } from '@/types'
-
-const ERA_LABELS: Record<string, string> = {
-  dos: 'DOS',
-  win31: 'Windows 3.1',
-  win95: 'Windows 95',
-  win98: 'Windows 98',
-  winxp: 'Windows XP',
-  ps1: 'PlayStation 1',
-  ps2: 'PlayStation 2',
-  xbox: 'Original Xbox',
-  nes: 'NES',
-  n64: 'Nintendo 64',
-}
-
-const RATING_OPTIONS = [
-  { value: '', label: '— No rating —' },
-  { value: 'EC', label: 'EC — Early Childhood' },
-  { value: 'E', label: 'E — Everyone' },
-  { value: 'E10+', label: 'E10+ — Everyone 10+' },
-  { value: 'T', label: 'T — Teen' },
-  { value: 'M', label: 'M — Mature' },
-  { value: 'AO', label: 'AO — Adults Only' },
-  { value: 'PEGI 3', label: 'PEGI 3' },
-  { value: 'PEGI 7', label: 'PEGI 7' },
-  { value: 'PEGI 12', label: 'PEGI 12' },
-  { value: 'PEGI 16', label: 'PEGI 16' },
-  { value: 'PEGI 18', label: 'PEGI 18' },
-]
 
 const SELECT_CLASS =
   'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
@@ -48,6 +21,7 @@ interface EditForm {
   category: string
   cover_art_path: string
   content_rating: string
+  era: string
   platform_id: string
   profile_id: string
 }
@@ -62,6 +36,7 @@ function formFromItem(item: LibraryItem): EditForm {
     category: item.category ?? '',
     cover_art_path: item.cover_art_path ?? '',
     content_rating: item.content_rating ?? '',
+    era: item.era ?? '',
     platform_id: item.platform_id?.toString() ?? '',
     profile_id: item.profile_id?.toString() ?? '',
   }
@@ -144,6 +119,7 @@ export default function ItemDetail() {
           category: form.category.trim() || null,
           cover_art_path: form.cover_art_path.trim() || null,
           content_rating: form.content_rating || null,
+          era: form.era || null,
           platform_id: form.platform_id ? parseInt(form.platform_id, 10) : null,
           profile_id: form.profile_id ? parseInt(form.profile_id, 10) : null,
         }),
@@ -305,23 +281,25 @@ export default function ItemDetail() {
             Details
           </h2>
 
-          <FormField label="Title" htmlFor="detail-title" required>
-            <Input
-              id="detail-title"
-              value={form.title}
-              onChange={(e) => setField('title', e.target.value)}
-              placeholder="Game or software title"
-            />
-          </FormField>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Title" htmlFor="detail-title" required>
+              <Input
+                id="detail-title"
+                value={form.title}
+                onChange={(e) => setField('title', e.target.value)}
+                placeholder="Game or software title"
+              />
+            </FormField>
 
-          <FormField label="Sort Title" htmlFor="detail-sort-title" hint="Used for alphabetical sorting (e.g. 'Doom, The')">
-            <Input
-              id="detail-sort-title"
-              value={form.sort_title}
-              onChange={(e) => setField('sort_title', e.target.value)}
-              placeholder="Optional"
-            />
-          </FormField>
+            <FormField label="Sort Title" htmlFor="detail-sort-title" hint="Used for alphabetical sorting (e.g. 'Doom, The')">
+              <Input
+                id="detail-sort-title"
+                value={form.sort_title}
+                onChange={(e) => setField('sort_title', e.target.value)}
+                placeholder="Optional"
+              />
+            </FormField>
+          </div>
 
           <FormField label="Description" htmlFor="detail-description">
             <Textarea
@@ -393,21 +371,39 @@ export default function ItemDetail() {
             />
           </FormField>
 
-          <FormField label="Platform" htmlFor="detail-platform">
-            <select
-              id="detail-platform"
-              value={form.platform_id}
-              onChange={(e) => setField('platform_id', e.target.value)}
-              className={SELECT_CLASS}
-            >
-              <option value="">— No platform —</option>
-              {platforms.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Era" htmlFor="detail-era">
+              <select
+                id="detail-era"
+                value={form.era}
+                onChange={(e) => setField('era', e.target.value)}
+                className={SELECT_CLASS}
+              >
+                <option value="">— No era —</option>
+                {Object.entries(ERA_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            <FormField label="Platform" htmlFor="detail-platform">
+              <select
+                id="detail-platform"
+                value={form.platform_id}
+                onChange={(e) => setField('platform_id', e.target.value)}
+                className={SELECT_CLASS}
+              >
+                <option value="">— No platform —</option>
+                {platforms.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
 
           <FormField label="Launch Profile" htmlFor="detail-profile">
             <select

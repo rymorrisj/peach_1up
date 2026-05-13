@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from backend.service.utils.constants import Era
+from backend.constants_generated import Era
 
 
 _SCAN_EXTENSIONS: frozenset[str] = frozenset({".iso", ".img", ".cue"})

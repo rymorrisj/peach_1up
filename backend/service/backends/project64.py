@@ -10,11 +10,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Tuple
 
+from backend.constants import ERA_MEDIA_TYPES
+from backend.constants_generated import Era
 from backend.service.utils.job_objects import launch_under_job_object, SandboxProcess, WindowsJobObject
 
-
-SUPPORTED_MEDIA = {'.z64', '.n64', '.v64'}
-SUPPORTED_ERAS = {'n64'}
+SUPPORTED_ERAS = {Era.N64.value}
+SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.N64]
 
 
 def validate_media(media_path: Path) -> None:

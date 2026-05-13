@@ -1,4 +1,4 @@
-// Re-exports generated types once `npm run generate:api` has been run
+// TODO: wire up openapi-typescript in a dedicated task.
 // export * from '@/api/generated'
 
 export interface User {

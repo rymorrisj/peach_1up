@@ -90,3 +90,6 @@ emulators/
 *.tmp
 *.temp
 .cache/
+
+# Generated constants
+frontend/src/generated/constants.ts

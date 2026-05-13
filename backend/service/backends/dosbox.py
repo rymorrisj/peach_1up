@@ -7,14 +7,13 @@ import os
 from pathlib import Path
 from typing import List, Tuple
 
+from backend.constants import ERA_MEDIA_TYPES
+from backend.constants_generated import Era
 from backend.service.utils.job_objects import launch_under_job_object, SandboxProcess, WindowsJobObject
 
-
-# Supported file extensions for DOSBox-X backend
-SUPPORTED_MEDIA = {'.iso', '.img', '.cue'}
-
-# Supported eras for DOSBox-X backend
-SUPPORTED_ERAS = {'dos', 'win31'}
+_DOSBOX_ERAS = {Era.DOS, Era.WIN31}
+SUPPORTED_ERAS = {e.value for e in _DOSBOX_ERAS}
+SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.DOS] | ERA_MEDIA_TYPES[Era.WIN31]
 
 
 def validate_media(media_path: Path) -> None:

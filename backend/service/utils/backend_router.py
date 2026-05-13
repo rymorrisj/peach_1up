@@ -10,7 +10,7 @@ import yaml
 from pathlib import Path
 from typing import Callable, Dict, Any, Optional
 
-from backend.service.utils.constants import BackendSlug, Era
+from backend.constants_generated import BackendSlug, Era
 from backend.service.utils.settings import get_binary_path
 
 

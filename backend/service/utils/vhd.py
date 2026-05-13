@@ -27,7 +27,7 @@ import math
 import struct
 from pathlib import Path
 
-from backend.service.utils.constants import Era
+from backend.constants_generated import Era
 from backend.service.utils.profile import Profile, save
 
 

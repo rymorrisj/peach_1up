@@ -6,20 +6,10 @@ import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useConfirm } from '@/hooks/useConfirm'
+import { ERA_LABELS } from '@/generated/constants'
 import type { LaunchProfile } from '@/types'
 
-const ERA_OPTIONS = [
-  { value: 'dos', label: 'DOS' },
-  { value: 'win31', label: 'Windows 3.1' },
-  { value: 'win95', label: 'Windows 95' },
-  { value: 'win98', label: 'Windows 98' },
-  { value: 'winxp', label: 'Windows XP' },
-  { value: 'ps1', label: 'PlayStation 1' },
-  { value: 'ps2', label: 'PlayStation 2' },
-  { value: 'xbox', label: 'Original Xbox' },
-  { value: 'nes', label: 'NES' },
-  { value: 'n64', label: 'Nintendo 64' },
-]
+const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
 
 interface ProfileForm {
   name: string
