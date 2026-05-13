@@ -9,7 +9,8 @@ import PathInput from '@/components/common/PathInput'
 import UserSwitcher from '@/components/UserSwitcher'
 import { cn } from '@/lib/utils'
 import { RATING_OPTIONS as BASE_RATING_OPTIONS } from '@/generated/constants'
-import type { User } from '@/types'
+import type { components } from '@shared/types'
+type User = components['schemas']['UserRead']
 
 // ─── Library paths section ───────────────────────────────────────────────────
 

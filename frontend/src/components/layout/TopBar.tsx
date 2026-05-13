@@ -2,7 +2,8 @@ import { Moon, Sun } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useAppContext } from '@/context/AppContext'
 import { apiFetch } from '@/api/client'
-import type { LaunchHistory } from '@/types'
+import type { components } from '@shared/types'
+type LaunchHistory = components['schemas']['LaunchHistoryRead']
 
 export default function TopBar() {
   const { state, dispatch } = useAppContext()

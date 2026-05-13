@@ -97,6 +97,24 @@ if errorlevel 1 (
 popd
 echo [OK] Frontend dependencies installed
 
+REM ── Generate API types ───────────────────────────────────────
+echo Exporting OpenAPI spec...
+py scripts\export_openapi.py
+if errorlevel 1 (
+    echo ERROR: OpenAPI export failed. Aborting.
+    exit /b 1
+)
+echo Generating frontend API types...
+pushd "frontend"
+call npm run generate:api
+if errorlevel 1 (
+    echo ERROR: API type generation failed. Aborting.
+    popd
+    exit /b 1
+)
+popd
+echo [OK] API types generated
+
 REM ── Settings check ───────────────────────────────────────────
 if not exist "config\settings.yaml" (
     echo.

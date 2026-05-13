@@ -5,7 +5,10 @@ import { apiFetch, ApiError } from '@/api/client'
 import { Button, PageHeader } from '@/ui'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { ERA_LABELS } from '@/generated/constants'
-import type { LibraryItem, LaunchProfile, LaunchHistory } from '@/types'
+import type { components } from '@shared/types'
+type LibraryItem = components['schemas']['LibraryItemRead']
+type LaunchProfile = components['schemas']['ProfileRead']
+type LaunchHistory = components['schemas']['LaunchHistoryRead']
 
 export default function Detail() {
   const { id } = useParams<{ id: string }>()

@@ -9,7 +9,9 @@ import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
 import { useConfirm } from '@/hooks/useConfirm'
 import { ERA_LABELS } from '@/generated/constants'
-import type { LibraryItem, LaunchProfile } from '@/types'
+import type { components } from '@shared/types'
+type LibraryItem = components['schemas']['LibraryItemRead']
+type LaunchProfile = components['schemas']['ProfileRead']
 
 const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
 

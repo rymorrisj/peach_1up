@@ -93,3 +93,8 @@ emulators/
 
 # Generated constants
 frontend/src/generated/constants.ts
+/backend/constants_generated.py
+
+# Generated OpenAPI artifacts
+shared/openapi.json
+shared/types.ts

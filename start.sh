@@ -63,6 +63,21 @@ else
   echo "[OK] config/settings.yaml found"
 fi
 
+# ── Generate API types ─────────────────────────────────────────
+echo "Exporting OpenAPI spec..."
+python3 scripts/export_openapi.py
+if [ $? -ne 0 ]; then
+  echo "ERROR: OpenAPI export failed. Aborting."
+  exit 1
+fi
+echo "Generating frontend API types..."
+( cd frontend && npm run generate:api )
+if [ $? -ne 0 ]; then
+  echo "ERROR: API type generation failed. Aborting."
+  exit 1
+fi
+echo "[OK] API types generated"
+
 # ── Environment and start services ─────────────────────────────
 export PEACH_ENV=development
 

@@ -7,7 +7,12 @@ import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
 import { useAppContext } from '@/context/AppContext'
 import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
-import type { LibraryItem, LaunchProfile, Platform, User, LaunchHistory } from '@/types'
+import type { components } from '@shared/types'
+type LibraryItem = components['schemas']['LibraryItemRead']
+type LaunchProfile = components['schemas']['ProfileRead']
+type Platform = components['schemas']['PlatformRead']
+type User = components['schemas']['UserRead']
+type LaunchHistory = components['schemas']['LaunchHistoryRead']
 
 const SELECT_CLASS =
   'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'

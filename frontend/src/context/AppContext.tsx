@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer } from 'react'
-import type { User } from '@/types'
+import type { components } from '@shared/types'
+type User = components['schemas']['UserRead']
 
 type Theme = 'dark' | 'light'
 

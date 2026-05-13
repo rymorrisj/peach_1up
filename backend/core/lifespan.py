@@ -363,6 +363,18 @@ def _scan_installed_emulators() -> None:
         logger.warning("Startup emulator scan failed: %s", exc)
 
 
+def _export_openapi_spec(app: FastAPI) -> None:
+    try:
+        import json
+        from pathlib import Path as _Path
+        output = _Path(__file__).resolve().parent.parent.parent / "shared" / "openapi.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(app.openapi(), indent=2), encoding="utf-8")
+        logger.info("OpenAPI spec exported to %s", output)
+    except Exception as exc:
+        logger.warning("OpenAPI spec export failed (non-fatal): %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_settings()
@@ -383,6 +395,7 @@ async def lifespan(app: FastAPI):
         db.commit()
 
     _scan_installed_emulators()
+    _export_openapi_spec(app)
 
     monitor_task = asyncio.create_task(_process_monitor_loop())
 

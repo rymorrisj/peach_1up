@@ -5,7 +5,8 @@ import { apiFetch, ApiError } from '@/api/client'
 import { useAppContext } from '@/context/AppContext'
 import { Button, Input } from '@/ui'
 import { cn } from '@/lib/utils'
-import type { User } from '@/types'
+import type { components } from '@shared/types'
+type User = components['schemas']['UserRead']
 
 function avatarInitial(name: string): string {
   return name.trim().charAt(0).toUpperCase() || '?'

@@ -7,7 +7,8 @@ import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useConfirm } from '@/hooks/useConfirm'
 import { ERA_LABELS } from '@/generated/constants'
-import type { LaunchProfile } from '@/types'
+import type { components } from '@shared/types'
+type LaunchProfile = components['schemas']['ProfileRead']
 
 const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
 

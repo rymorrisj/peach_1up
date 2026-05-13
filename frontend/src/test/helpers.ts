@@ -3,7 +3,8 @@ import { render } from '@testing-library/react'
 import type { RenderResult } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
-import type { LibraryItem } from '@/types'
+import type { components } from '@shared/types'
+type LibraryItem = components['schemas']['LibraryItemRead']
 
 function createTestQueryClient() {
   return new QueryClient({

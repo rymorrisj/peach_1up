@@ -9,7 +9,8 @@ import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
 import { useConfirm } from '@/hooks/useConfirm'
 import { ERA_LABELS } from '@/generated/constants'
-import type { Platform } from '@/types'
+import type { components } from '@shared/types'
+type Platform = components['schemas']['PlatformRead']
 
 const ERA_TO_EMULATOR: Record<string, string> = {
   dos: 'dosbox-x',

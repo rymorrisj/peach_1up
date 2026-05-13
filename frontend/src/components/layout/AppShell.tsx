@@ -4,7 +4,8 @@ import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import { useAppContext } from '@/context/AppContext'
 import { apiFetch } from '@/api/client'
-import type { User } from '@/types'
+import type { components } from '@shared/types'
+type User = components['schemas']['UserRead']
 
 export default function AppShell() {
   const { dispatch } = useAppContext()
