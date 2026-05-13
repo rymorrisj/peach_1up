@@ -194,6 +194,7 @@ class SandboxProcess:
         self._thread_handle = thread_handle
         self.args = args
         self.returncode = None
+        self.handle: int | None = process_handle
 
     def poll(self):
         """Return exit code if the process has exited, ``None`` if still running.
@@ -274,6 +275,7 @@ class SandboxProcess:
         if self._process_handle:
             ctypes.windll.kernel32.CloseHandle(self._process_handle)
             self._process_handle = None
+            self.handle = None  # same OS handle value — prevent use-after-close
 
 
 # ---------------------------------------------------------------------------
@@ -425,10 +427,11 @@ class WindowsJobObject:
     def add_process(self, process: "SandboxProcess") -> None:
         """Assign a process to the job object.
 
-        Opens the process with ``OpenProcess``, calls
-        ``AssignProcessToJobObject``, then closes the process handle.
-        The process handle is closed immediately after assignment; the job
-        object retains its own reference.
+        If ``process.handle`` is set (populated by ``_launch_as_sandbox_user``),
+        it is used directly for ``AssignProcessToJobObject`` — no ``OpenProcess``
+        or ``CloseHandle`` call is made; handle lifecycle is managed by the
+        caller via ``launch_under_job_object``.  If ``process.handle`` is
+        ``None``, falls back to opening a minimal-permission handle.
 
         Args:
             process: A ``SandboxProcess`` instance that has already been launched.
@@ -451,18 +454,22 @@ class WindowsJobObject:
         else:
             self.process_name = f"process_{self.pid}"
 
-        # Previously used 0x001F0FFF (all permissions). Updated to minimal permissions.
-        process_handle = ctypes.windll.kernel32.OpenProcess(
-            0x0201,  # PROCESS_SET_QUOTA | PROCESS_TERMINATE — minimum for AssignProcessToJobObject
-            False,
-            process.pid
-        )
+        using_stored_handle = process.handle is not None
 
-        if not process_handle:
-            error_code = ctypes.windll.kernel32.GetLastError()
-            raise RuntimeError(
-                f"Failed to open process {self.pid}. Error code: {error_code}"
+        if using_stored_handle:
+            proc_handle = process.handle
+        else:
+            # Fallback: process was not created via _launch_as_sandbox_user.
+            proc_handle = ctypes.windll.kernel32.OpenProcess(
+                0x0201,  # PROCESS_SET_QUOTA | PROCESS_TERMINATE — minimum for AssignProcessToJobObject
+                False,
+                process.pid
             )
+            if not proc_handle:
+                error_code = ctypes.windll.kernel32.GetLastError()
+                raise RuntimeError(
+                    f"Failed to open process {self.pid}. Error code: {error_code}"
+                )
 
         try:
             # Informational check — captured to produce a richer error message
@@ -470,13 +477,13 @@ class WindowsJobObject:
             # performed in launch_under_job_object().
             _in_job = ctypes.wintypes.BOOL(False)
             ctypes.windll.kernel32.IsProcessInJob(
-                process_handle, None, ctypes.byref(_in_job)
+                proc_handle, None, ctypes.byref(_in_job)
             )
             already_in_job = bool(_in_job)
 
             result = ctypes.windll.kernel32.AssignProcessToJobObject(
                 self.job_handle,
-                process_handle
+                proc_handle
             )
 
             if not result:
@@ -503,8 +510,10 @@ class WindowsJobObject:
                 f"Unexpected error assigning process {self.pid} to job object: {exc}"
             ) from exc
         finally:
-            # Always close the process handle — the job object retains its own reference
-            ctypes.windll.kernel32.CloseHandle(process_handle)
+            # Only close if we opened the handle ourselves; stored handle lifecycle
+            # is managed by launch_under_job_object after resume() completes.
+            if not using_stored_handle:
+                ctypes.windll.kernel32.CloseHandle(proc_handle)
 
     # NAMING: terminate_all also closes the job handle — it is a full resource
     # teardown, not just process termination.  Consider renaming to shutdown()
@@ -659,6 +668,8 @@ def _process_in_job(pid: int) -> bool:
     ``IsProcessInJob``, then closes the handle.  Returns ``False`` on any
     error rather than raising so callers can treat it as a safe boolean check.
     """
+
+    # SAFETY: handle is closed by wait(); do not call add_process after kill/wait
     handle = ctypes.windll.kernel32.OpenProcess(0x0400, False, pid)
     if not handle:
         return False
@@ -758,7 +769,7 @@ def _launch_as_sandbox_user(
     cmd_line = subprocess.list2cmdline([executable_path] + args)
     cmd_buf = ctypes.create_unicode_buffer(cmd_line)
 
-    cwd = os.path.dirname(executable_path) or None
+    cwd = str(Path(executable_path).parent)
 
     si = STARTUPINFOW()
     si.cb = ctypes.sizeof(STARTUPINFOW)
@@ -888,6 +899,7 @@ def launch_under_job_object(
     # and handled here — it never reaches Phase 1's cleanup block.  Each error path
     # below performs its own teardown before raising a clean RuntimeError.
 
+    # SAFETY: handle is closed by wait(); do not call add_process after kill/wait
     _needs_breakaway_retry = False
     try:
         job_object.add_process(process)
@@ -953,5 +965,12 @@ def launch_under_job_object(
         except Exception:
             pass
         raise RuntimeError(f"Failed to resume suspended process: {exc}")
+
+    # pi.hThread was already closed inside resume().
+    # Close pi.hProcess now that add_process and resume are both complete.
+    if process.handle is not None:
+        ctypes.windll.kernel32.CloseHandle(process.handle)
+        process.handle = None
+        process._process_handle = None  # same OS handle — prevent double-close in _close_handles()
 
     return (process, job_object)

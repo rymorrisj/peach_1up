@@ -1,14 +1,17 @@
-"""
+﻿"""
 DOSBox-X backend for Peach 1UP
 Handles DOS and Windows 3.1 era games using DOSBox-X natively on Windows host.
 """
 
 import os
+import sys
+import tempfile
 from pathlib import Path
 from typing import List, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
+from backend.service.utils import dosbox_paths
 from backend.service.utils.job_objects import launch_under_job_object, SandboxProcess, WindowsJobObject
 
 _DOSBOX_ERAS = {Era.DOS, Era.WIN31}
@@ -35,6 +38,39 @@ def validate_media(media_path: Path) -> None:
     if media_path.suffix.lower() not in SUPPORTED_MEDIA:
         raise ValueError(f"Unsupported media format '{media_path.suffix}'. "
                         f"DOSBox-X backend supports: {', '.join(sorted(SUPPORTED_MEDIA))}")
+
+
+def write_launch_conf(media_path: Path, era: str) -> Path:
+    """Write a minimal DOSBox-X .conf containing only an [autoexec] section.
+
+    On Windows, uses the 8.3 short path so that DOSBox-X autoexec lines are
+    not broken by spaces â€” quoted long paths are not reliably accepted there.
+    On Linux, uses the POSIX path directly.
+
+    Args:
+        media_path: Path to the media file to mount.
+        era: Era name (unused here; kept for call-site symmetry).
+
+    Returns:
+        Path to the written .conf file inside a fresh temp directory.
+    """
+    suffix = media_path.suffix.lower()
+    prefer_short = sys.platform == 'win32'
+
+    if suffix == '.img':
+        mount_line = dosbox_paths.build_mount_dir(media_path, 'C', prefer_short_windows_path=prefer_short)
+        drive_line = 'C:'
+    elif suffix in {'.iso', '.cue'}:
+        mount_line = dosbox_paths.build_imgmount_cdrom(media_path, 'D', prefer_short_windows_path=prefer_short)
+        drive_line = 'D:'
+    else:
+        raise ValueError(f"Unhandled media suffix '{suffix}'. This indicates a programming error.")
+
+    # TODO(PX): clean up temp conf on process exit
+    conf_dir = Path(tempfile.mkdtemp())
+    conf_path = conf_dir / 'launch.conf'
+    conf_path.write_text(f'[autoexec]\n{mount_line}\n{drive_line}\n', encoding='utf-8')
+    return conf_path
 
 
 def build_args(media_path: Path, era: str, enable_networking: bool = False) -> List[str]:
@@ -66,7 +102,6 @@ def build_args(media_path: Path, era: str, enable_networking: bool = False) -> L
         raise ValueError(f"Media suffix '{suffix}' not supported by DOSBox-X backend. "
                         f"Supported: {', '.join(sorted(SUPPORTED_MEDIA))}")
 
-    media_str = str(media_path)
     suppress = ['-set', 'dos:automount=false', '-set', 'dos:mountwarning=false']
 
     # Disable NE2000 adapter unless the profile explicitly enables networking.
@@ -86,15 +121,7 @@ def build_args(media_path: Path, era: str, enable_networking: bool = False) -> L
         '-set', 'mixer:nosound=false',
     ]
 
-    if suffix == '.img':
-        # Mount IMG as hard disk — writable, no -ro
-        return suppress + sound_args + net_args + ['-c', f'imgmount C "{media_str}" -t hdd', '-c', 'C:']
-    elif suffix in {'.iso', '.cue'}:
-        # Mount ISO/CUE as optical disc — read-only
-        return suppress + sound_args + net_args + ['-c', f'imgmount D "{media_str}" -t iso -ro', '-c', 'D:']
-    else:
-        # This should never be reached due to validation above
-        raise ValueError(f"Unhandled media suffix '{suffix}'. This indicates a programming error.")
+    return suppress + sound_args + net_args
 
 
 def launch(
@@ -132,6 +159,8 @@ def launch(
     validate_media(media_path)
 
     args = build_args(media_path, era, enable_networking=enable_networking)
+    conf_path = write_launch_conf(media_path, era)
+    args = args + ['-defaultconf', '-conf', str(conf_path)]
 
     job_name = f"peach1up_dosbox_{era}_{media_path.stem}"
 
@@ -142,5 +171,6 @@ def launch(
         era=era,
         job_name=job_name,
     )
+
 
 

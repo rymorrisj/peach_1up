@@ -255,7 +255,7 @@ above their rating threshold and cannot access features beyond their permission
 flags. The owner can reset any PIN via settings. If the owner is locked out,
 a local recovery script resets the owner account.
 
-### CURRENT
+### DONE
 
 - [P6.5-1] users and user_restrictions tables — SQLModel models, seeded at first run
 - [P6.5-2] scripts/setup_admin_user.py — creates or overwrites owner account interactively; called by lifespan on first run, available as standalone recovery tool
