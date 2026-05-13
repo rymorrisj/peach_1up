@@ -101,7 +101,7 @@ echo "Frontend starting at http://localhost:5173"
 echo
 echo "Starting Peach 1UP backend..."
 echo "Backend will be available at http://localhost:8000"
-python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload --reload-exclude "emulators/*"
 
 echo
 echo "Backend stopped."

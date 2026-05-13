@@ -114,9 +114,10 @@ $InAdmins = $false
 try {
     $Members = Get-LocalGroupMember -Group $AdminGroupName -ErrorAction SilentlyContinue
     if ($Members) {
-        $InAdmins = ($Members | Where-Object {
+        $match = $Members | Where-Object {
             $_.Name -eq $AccountName -or $_.Name -like "*\$AccountName"
-        }).Count -gt 0
+        }
+        $InAdmins = $null -ne $match -and @($match).Count -gt 0
     }
 } catch {
     # Non-fatal: if we cannot query the group, we cannot fix it — flag and continue.
@@ -131,6 +132,73 @@ if ($InAdmins) {
         Fail "Failed to remove account from Administrators group: $_"
     }
     Write-Status "Removed from Administrators group."
+}
+
+# ---------------------------------------------------------------------------
+# Grant peach_sandbox RX on configured emulator and media directories
+# ---------------------------------------------------------------------------
+
+$SettingsFile = [System.IO.Path]::GetFullPath((Join-Path (Join-Path $PSScriptRoot "..") "config\settings.yaml"))
+
+if (-not (Test-Path $SettingsFile)) {
+    Write-Status "Warning: settings.yaml not found at '$SettingsFile' - skipping ACL grants."
+} else {
+    # Parse flat key: value YAML. Handles bare values and single-quoted empty strings.
+    $Cfg = @{}
+    foreach ($line in (Get-Content $SettingsFile -Encoding UTF8)) {
+        if ($line -match "^([A-Za-z0-9_]+):\s*(.+)$") {
+            $Cfg[$Matches[1]] = $Matches[2].Trim().Trim("'").Trim('"')
+        }
+    }
+
+    # Collect paths to grant: directories containing each emulator binary, plus
+    # IMAGES_PATH and ROM_PATH directly.
+    $BinaryKeys = @(
+        "DOSBOX_PATH", "BOX86_PATH", "VIRTUALBOX_PATH",
+        "DUCKSTATION_PATH", "PCSX2_PATH", "XEMU_PATH",
+        "MESEN_PATH", "PROJECT64_PATH"
+    )
+
+    $Seen  = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $Grant = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($key in $BinaryKeys) {
+        if (-not $Cfg.ContainsKey($key) -or [string]::IsNullOrWhiteSpace($Cfg[$key])) {
+            Write-Status "Warning: $key is not configured - skipping ACL grant."
+            continue
+        }
+        $bin = $Cfg[$key].Replace('/', '\')
+        $dir = Split-Path -Parent $bin
+        if ([string]::IsNullOrWhiteSpace($dir)) {
+            Write-Status "Warning: cannot resolve directory for $key ('$bin') - skipping."
+            continue
+        }
+        if ($Seen.Add($dir)) { $Grant.Add($dir) }
+    }
+
+    foreach ($key in @("IMAGES_PATH", "ROM_PATH")) {
+        if (-not $Cfg.ContainsKey($key) -or [string]::IsNullOrWhiteSpace($Cfg[$key])) {
+            Write-Status "Warning: $key is not configured - skipping ACL grant."
+            continue
+        }
+        $p = $Cfg[$key].Replace('/', '\')
+        if ($Seen.Add($p)) { $Grant.Add($p) }
+    }
+
+    $AclArg = "${AccountName}:(OI)(CI)RX"
+
+    foreach ($p in $Grant) {
+        if (-not (Test-Path $p)) {
+            Write-Status "Warning: path does not exist - skipping ACL grant: $p"
+            continue
+        }
+        Write-Status "Granting RX on: $p"
+        icacls "$p" /grant $AclArg /T | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Fail "icacls failed (exit $LASTEXITCODE) for: $p"
+        }
+        Write-Status "ACL granted: $p"
+    }
 }
 
 # ---------------------------------------------------------------------------

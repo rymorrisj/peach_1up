@@ -252,7 +252,7 @@ def launch(
 
     print(f"DEBUG conf:\n{conf_path.read_text(encoding='utf-8', errors='replace')}", flush=True)
 
-    args = args + ["-conf", str(conf_path)]
+    args = ["-conf", str(conf_path)] + args
     job_name = f"peach1up_dosbox_{era}_{media_path.stem}"
 
     return launch_under_job_object(
