@@ -144,6 +144,25 @@ export default function ItemDetail() {
   const [launchError, setLaunchError] = useState<string | null>(null)
   const [launchSuccess, setLaunchSuccess] = useState(false)
   const [launchWarnings, setLaunchWarnings] = useState<string[]>([])
+  const [activeHistoryId, setActiveHistoryId] = useState<number | null>(null)
+
+  // Poll the active launch record until ended_at is set, then clear the success banner.
+  useEffect(() => {
+    if (activeHistoryId === null) return
+    const intervalId = setInterval(async () => {
+      try {
+        const record = await apiFetch<LaunchHistory>(`/api/v1/launches/${activeHistoryId}`)
+        if (record.ended_at !== null) {
+          setLaunchSuccess(false)
+          setActiveHistoryId(null)
+          queryClient.invalidateQueries({ queryKey: ['launches', item?.id] })
+        }
+      } catch {
+        setActiveHistoryId(null)
+      }
+    }, 2000)
+    return () => clearInterval(intervalId)
+  }, [activeHistoryId, item?.id, queryClient])
 
   async function handleLaunch() {
     if (!item || !form) return
@@ -153,6 +172,7 @@ export default function ItemDetail() {
     setLaunchError(null)
     setLaunchSuccess(false)
     setLaunchWarnings([])
+    setActiveHistoryId(null)
     try {
       const res = await apiFetch<{ launch_history_id: number; warnings: string[] }>(
         `/api/v1/library/${item.id}/launch`,
@@ -160,6 +180,7 @@ export default function ItemDetail() {
       )
       setLaunchSuccess(true)
       setLaunchWarnings(res.warnings ?? [])
+      setActiveHistoryId(res.launch_history_id)
     } catch (err) {
       setLaunchError(err instanceof ApiError ? err.detail : 'Launch failed.')
     } finally {

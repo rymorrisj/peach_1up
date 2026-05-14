@@ -17,6 +17,7 @@ Network isolation is handled at the emulator level — each backend disables
 its network adapter when enable_networking is false on the active profile.
 """
 
+import logging
 import subprocess
 import ctypes
 import ctypes.wintypes
@@ -24,6 +25,8 @@ from typing import List, Tuple
 from pathlib import Path
 import os
 import yaml
+
+logger = logging.getLogger(__name__)
 
 # Win32 CREATE_SUSPENDED flag — avoids a hard dependency on pywin32 at module import time.
 _CREATE_SUSPENDED = 0x00000004
@@ -565,6 +568,17 @@ class WindowsJobObject:
                 f"Errors: {'; '.join(termination_errors)}"
             )
 
+    def close(self) -> None:
+        """Close the job object handle without terminating any processes.
+
+        Use this when the process has already exited and the handle only needs
+        to be released.  Does not call ``TerminateJobObject``.  Safe to call
+        multiple times — no-op if the handle is already closed.
+        """
+        if self.job_handle:
+            ctypes.windll.kernel32.CloseHandle(self.job_handle)
+            self.job_handle = None
+
     # NAMING: is_active checks only that the job handle is open and queryable —
     # it does NOT check whether any processes are currently running in the job.
     # A handle can be valid with zero live processes.  The name implies otherwise.
@@ -754,16 +768,13 @@ def debug_can_sandbox_read_file(path: str) -> bool:
     cmd_exe = system_root / "System32" / "cmd.exe"
 
     if not cmd_exe.exists():
-        print(f"DEBUG sandbox read probe: cmd.exe not found at {cmd_exe}", flush=True)
+        logger.debug("Sandbox read probe: cmd.exe not found at %s", cmd_exe)
         return False
 
     quoted_path = str(path).replace('"', '""')
     probe_args = ["/c", "type", quoted_path]
 
-    print("DEBUG sandbox read probe:", flush=True)
-    print(f"  target: {path}", flush=True)
-    print(f"  cmd_exe: {cmd_exe}", flush=True)
-    print(f"  probe_args: {probe_args}", flush=True)
+    logger.debug("Sandbox read probe: target=%s cmd_exe=%s args=%s", path, cmd_exe, probe_args)
 
     process = None
     try:
@@ -773,10 +784,10 @@ def debug_can_sandbox_read_file(path: str) -> bool:
             creation_flags=0,
         )
         exit_code = process.wait()
-        print(f"  sandbox probe exit_code: {exit_code}", flush=True)
+        logger.debug("Sandbox read probe exit_code: %d", exit_code)
         return exit_code == 0
     except Exception as exc:
-        print(f"  sandbox probe failed: {exc}", flush=True)
+        logger.debug("Sandbox read probe failed: %s", exc)
         return False
     finally:
         try:
@@ -822,13 +833,10 @@ def _launch_as_sandbox_user(
     si.cb = ctypes.sizeof(STARTUPINFOW)
     pi = PROCESS_INFORMATION()
 
-    print("DEBUG _launch_as_sandbox_user:", flush=True)
-    print(f"  username: {username}", flush=True)
-    print(f"  executable_path: {executable_path}", flush=True)
-    print(f"  cwd: {cwd}", flush=True)
-    print(f"  creation_flags: {creation_flags}", flush=True)
-    print(f"  args: {args}", flush=True)
-    print(f"  cmd_line: {cmd_line}", flush=True)
+    logger.debug(
+        "launch_as_sandbox_user: user=%s exe=%s cwd=%s flags=%#x args=%s cmd=%s",
+        username, executable_path, cwd, creation_flags, args, cmd_line,
+    )
 
     result = ctypes.windll.advapi32.CreateProcessWithLogonW(
         ctypes.c_wchar_p(username),
@@ -1021,11 +1029,7 @@ def launch_under_job_object(
             pass
         raise RuntimeError(f"Failed to resume suspended process: {exc}")
 
-    # pi.hThread was already closed inside resume().
-    # Close pi.hProcess now that add_process and resume are both complete.
-    if process.handle is not None:
-        ctypes.windll.kernel32.CloseHandle(process.handle)
-        process.handle = None
-        process._process_handle = None  # same OS handle — prevent double-close in _close_handles()
-
+    # pi.hThread was closed inside resume(). pi.hProcess is kept open so that
+    # SandboxProcess.poll() can call GetExitCodeProcess to detect exit.
+    # _close_handles() (called from poll() on exit) closes it exactly once.
     return (process, job_object)

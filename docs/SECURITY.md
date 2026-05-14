@@ -31,8 +31,8 @@ Realistic threats specific to this application:
 - **Unauthorised access to a shared library on a local network** — if the service is
   bound to `0.0.0.0` (remote access mode), other devices on the network can reach it.
   Without authentication this exposes the full library, settings, and launch capability.
-- **JWT secret exposure** — if the JWT secret is logged, returned in an API response, or
-  committed to version control, all issued tokens become forgeable.
+- **Session secret exposure** — if the session secret is logged, returned in an API
+  response, or committed to version control, all active sessions become forgeable.
 
 ---
 
@@ -170,19 +170,20 @@ affected, and the timestamp.
 
 **Mandatory.**
 
-- The JWT secret is generated on first run and stored in `settings.yaml`. It is never
-  exposed via any API response and never written to logs.
-- Passwords are hashed with bcrypt at a minimum cost factor of **12**. Plaintext
-  passwords are never stored or logged.
+- The session secret (`SESSION_SECRET` in `settings.yaml`) is generated on first run via
+  `get_or_generate_session_secret()` and used by `SessionMiddleware` to sign session
+  cookies. It must never appear in logs, API responses, or version control. If
+  `settings.yaml` is deleted or the key is removed, a new secret is generated on next
+  startup, invalidating all existing sessions.
+- PINs are hashed with Argon2id with a per-user random salt. Plaintext PINs are never
+  stored or logged.
 - HTTP middleware strips `Authorization` headers before any log output. Credentials must
   not appear in application logs under any circumstances.
 - IGDB API keys and any other third-party API credentials are stored in `settings.yaml`
   only. They are never committed to version control, never returned by the API, and never
   logged.
-- The recovery key is shown once at first run and then discarded. It is stored as a
-  bcrypt hash only — the plaintext form cannot be recovered from the stored hash.
-- The session secret is generated on first run via get_or_generate_session_secret() and persisted to settings.yaml. It must never appear in logs, API responses, or  
-  version control. It is treated with the same handling rules as the JWT secret. If settings.yaml is deleted or the key is removed, a new secret is generated on next startup, invalidating all existing sessions.
+- The recovery key is shown once at first run and then discarded. It is stored as an
+  Argon2id hash only — the plaintext form cannot be recovered from the stored hash.
 
 ---
 

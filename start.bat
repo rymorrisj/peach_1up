@@ -5,7 +5,7 @@ setlocal
 net session >nul 2>&1
 if errorlevel 1 (
     echo Requesting administrator privileges...
-    powershell -Command "Start-Process cmd -ArgumentList '/cS """"%~f0""""' -Verb RunAs"
+    powershell -Command "Start-Process cmd -ArgumentList '/c """"%~f0""""' -Verb RunAs"
     exit /b
 )
 

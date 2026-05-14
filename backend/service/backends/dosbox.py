@@ -7,7 +7,6 @@ is required. DOSBox-X loads its own bundled dosbox-x.conf automatically from
 the emulator directory; -set args override specific settings on top of that.
 """
 
-import ctypes
 import os
 import sys
 from pathlib import Path
@@ -52,22 +51,15 @@ def validate_media(media_path: Path) -> None:
 def _dosbox_cmd_path(path: Path) -> str:
     """Return a path string safe for a DOSBox-X -c argument.
 
-    On Windows, returns the 8.3 short path if available (avoids quoting for
-    most paths and eliminates spaces from the autoexec token boundary). Falls
-    back to the native long path, quoted if it contains whitespace. Forward
-    slashes are never used — the DOSBox-X autoexec tokeniser treats them as
-    DOS switch characters, which truncates the imgmount file argument.
+    Returns the raw absolute Windows path, double-quoted if it contains
+    whitespace. Forward slashes are never used — the DOSBox-X autoexec
+    tokeniser treats them as DOS switch characters, which truncates the
+    imgmount file argument.
 
     On non-Windows platforms, returns the POSIX path form.
     """
     if sys.platform != "win32":
         return path.as_posix()
-    try:
-        buf = ctypes.create_unicode_buffer(32768)
-        if ctypes.windll.kernel32.GetShortPathNameW(str(path), buf, len(buf)):
-            return buf.value
-    except Exception:
-        pass
     p = str(path)
     return f'"{p}"' if any(c.isspace() for c in p) else p
 

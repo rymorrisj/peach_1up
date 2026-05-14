@@ -54,7 +54,10 @@ PowerShell during its startup sequence. The script:
 3. If already present, syncs the password to the value stored in `config/settings.yaml`.
 4. Enables the account if it was disabled.
 5. Removes the account from the Administrators group if it was accidentally added.
-6. Exits with code 0 on success, or code 1 with an error on stderr on any failure.
+6. Grants read and execute ACLs to the configured emulator binary directories,
+   `IMAGES_PATH`, and `ROM_PATH` so `peach_sandbox` can reach media and executables
+   without requiring broader filesystem access.
+7. Exits with code 0 on success, or code 1 with an error on stderr on any failure.
 
 If the script exits with a non-zero code, backend startup is aborted and the error is
 shown in the log. Resolve the error (usually a permissions issue) and restart the backend.
@@ -152,9 +155,12 @@ Check the log output for the specific error line and resolve it, then restart th
 
 - The `peach_sandbox` account does not exist yet — start the backend once to trigger
   account creation before attempting a launch.
-- The emulator binary path is not readable by the `peach_sandbox` account. Ensure the
-  directory containing the emulator executable grants read + execute access to local
-  users (the default on most Windows installs).
+- The emulator binary path or media path is not readable by the `peach_sandbox` account.
+  ACL grants for all configured paths are applied automatically by
+  `create_sandbox_user.ps1` on every backend startup. If you moved an emulator or changed
+  a path in `settings.yaml` after initial setup, restart the backend to re-apply the
+  grants. You can also grant read + execute access to `peach_sandbox` manually via
+  `icacls` or the folder Properties > Security tab.
 - The secondary logon service (`seclogon`) is disabled. Open Services (`services.msc`),
   find "Secondary Logon", and set it to Manual or Automatic.
 
@@ -162,3 +168,14 @@ Check the log output for the specific error line and resolve it, then restart th
 
 The memory cap for the era may be too low. Raise `memory_limit_mb` in `config/eras.yaml`
 for the affected era and restart the backend.
+
+---
+
+## DOSBox-X specifics
+
+DOSBox-X is launched with mount and hardware settings passed as inline `-c` arguments on
+the command line. No temporary `.conf` file is written to disk at launch time. The
+`peach_sandbox` account therefore needs read access only to the emulator binary directory
+and the media path — it does not require access to any temp or user-profile config
+location. Long paths containing spaces are passed as quoted absolute paths; 8.3 short
+path conversion is not used.

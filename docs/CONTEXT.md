@@ -337,3 +337,4 @@ per-launch CPU/memory caps.
 - Support a key,value (emulator, path) for users to add and configure their own emulators/eras in settings.yaml
 - Add a Check All Health button to Platform page so user can check all platforms at once instead of one at a time
 - Drag drop jsut adds image name not path so Users see a warning anyway.
+- Add a note in the UI and docs: "if you change media paths, restart the backend to apply permissions."

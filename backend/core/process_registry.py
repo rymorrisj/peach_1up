@@ -1,7 +1,10 @@
+import logging
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -45,6 +48,11 @@ def terminate(pid: int) -> bool:
         except Exception:
             pass
         _registry.pop(pid, None)
+        if entry.job_handle is not None:
+            try:
+                entry.job_handle.terminate_all()
+            except Exception:
+                pass
         return True
 
 
@@ -53,9 +61,20 @@ def cleanup_exited() -> list[tuple[int, ProcessEntry]]:
     with _lock:
         for pid, entry in list(_registry.items()):
             proc = entry.process_handle
-            if proc is not None and proc.poll() is not None:
+            poll_result = proc.poll() if proc is not None else "no-handle"
+            reaped = proc is not None and poll_result is not None and poll_result != "no-handle"
+            logger.debug(
+                "cleanup_exited: pid=%d poll=%s reaped=%s",
+                pid, poll_result, reaped,
+            )
+            if reaped:
                 _registry.pop(pid)
                 removed.append((pid, entry))
+                if entry.job_handle is not None:
+                    try:
+                        entry.job_handle.close()
+                    except Exception:
+                        pass
     return removed
 
 

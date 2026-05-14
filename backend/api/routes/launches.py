@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from backend.core import process_registry
 from backend.core.database import get_db
@@ -35,6 +38,13 @@ async def launch_item(
     item = db.get(LibraryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found.")
+
+    # Reap any processes that exited since the last monitor poll so the gate
+    # check below never blocks on a dead registry entry.
+    _exited = process_registry.cleanup_exited()
+    if _exited:
+        from backend.core.lifespan import _write_session_ends
+        await asyncio.to_thread(_write_session_ends, _exited)
 
     # Enforce one active launch per user profile
     if body.profile_id is not None:
@@ -81,6 +91,7 @@ async def launch_item(
             profile,
         )
     except Exception as exc:
+        logger.exception("Launch failed")
         history.error_message = str(exc)
         history.ended_at = datetime.utcnow()
         history.exit_code = -1
