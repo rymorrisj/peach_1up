@@ -6,10 +6,14 @@ import { AppProvider } from '@/context/AppContext'
 import AppShell from '@/components/layout/AppShell'
 import Library from '@/pages/Library'
 import ItemDetail from '@/pages/Library/ItemDetail'
-import Platforms from '@/pages/Platforms'
+import Environments from '@/pages/Environments'
 import Profiles from '@/pages/Settings/LaunchProfiles'
 import Settings from '@/pages/Settings'
+import GuidesIndex from '@/pages/Guides'
 import CartridgeImaging from '@/pages/Guides/CartridgeImaging'
+import VirtualBoxSetup from '@/pages/Guides/VirtualBoxSetup'
+import BiosSourcing from '@/pages/Guides/BiosSourcing'
+import Emulators from '@/pages/Emulators'
 import FirstRun from '@/pages/FirstRun'
 import NotFound from '@/pages/NotFound'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
@@ -59,10 +63,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <Route element={<AppShell />}>
                 <Route path="/library" element={<Library />} />
                 <Route path="/library/:slug" element={<ItemDetail />} />
-                <Route path="/platforms" element={<Platforms />} />
+                <Route path="/environments" element={<Environments />} />
                 <Route path="/profiles" element={<Profiles />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/emulators" element={<Emulators />} />
+                <Route path="/guides" element={<GuidesIndex />} />
                 <Route path="/guides/cartridge-imaging" element={<CartridgeImaging />} />
+                <Route path="/guides/virtualbox-setup" element={<VirtualBoxSetup />} />
+                <Route path="/guides/bios-sourcing" element={<BiosSourcing />} />
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />

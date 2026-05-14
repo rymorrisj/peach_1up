@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 interface Platform {
   id: string
   name: string
@@ -144,9 +146,100 @@ function PlatformSection({ platform }: { platform: Platform }) {
   )
 }
 
+function RomPackFallback() {
+  return (
+    <section aria-labelledby="rompack-fallback" className="mb-12">
+      <h2
+        id="rompack-fallback"
+        className="mb-3 text-xl font-semibold text-neutral-900 dark:text-neutral-100"
+      >
+        86Box ROM Pack — Manual Install Fallback
+      </h2>
+      <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">
+        86Box requires a ROM pack (firmware images for emulated hardware) to start. Peach 1UP can
+        clone it automatically via git from the Emulators page. If git is not available or the clone
+        fails, follow these steps to install manually.
+      </p>
+
+      <h3 className="mb-2 text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+        Manual install steps
+      </h3>
+      <ol className="mb-6 list-decimal space-y-2 pl-5 text-sm text-neutral-600 dark:text-neutral-400">
+        <li>
+          Download the ROM pack as a ZIP archive from the{' '}
+          <a
+            href="https://github.com/86Box/roms/releases"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[#ff8a5c] underline hover:opacity-80"
+          >
+            86Box/roms GitHub Releases page
+          </a>
+          . Download the latest release ZIP.
+        </li>
+        <li>
+          Extract the contents of the ZIP. The archive contains a top-level folder called{' '}
+          <code className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-xs dark:bg-surface-700">
+            roms
+          </code>{' '}
+          or similar — you want the <em>contents</em> of that folder, not the folder itself.
+        </li>
+        <li>
+          Copy all extracted files and subfolders into{' '}
+          <code className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-xs dark:bg-surface-700">
+            library/roms/86box/
+          </code>{' '}
+          inside your Peach 1UP folder. After copying, the path{' '}
+          <code className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-xs dark:bg-surface-700">
+            library/roms/86box/
+          </code>{' '}
+          should contain directories such as{' '}
+          <code className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-xs dark:bg-surface-700">
+            machines
+          </code>
+          ,{' '}
+          <code className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-xs dark:bg-surface-700">
+            sound
+          </code>
+          , and others.
+        </li>
+        <li>
+          Return to the Emulators page. The 86Box ROM Pack status will update from Missing to Present
+          automatically.
+        </li>
+      </ol>
+
+      <div className="rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          The ROM pack is maintained by the 86Box project and is redistributed under the terms of the
+          individual firmware copyright holders. See the{' '}
+          <a
+            href="https://github.com/86Box/roms"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[#ff8a5c] underline hover:opacity-80"
+          >
+            86Box/roms repository
+          </a>{' '}
+          for licensing information.
+        </p>
+      </div>
+    </section>
+  )
+}
+
 export default function CartridgeImaging() {
   return (
     <>
+      <div className="mb-6">
+        <Link
+          to="/guides"
+          className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+        >
+          ← Guides
+        </Link>
+      </div>
+
       <h1 className="mb-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
         Cartridge Imaging Guide
       </h1>
@@ -158,6 +251,8 @@ export default function CartridgeImaging() {
       {PLATFORMS.map((platform) => (
         <PlatformSection key={platform.id} platform={platform} />
       ))}
+
+      <RomPackFallback />
     </>
   )
 }

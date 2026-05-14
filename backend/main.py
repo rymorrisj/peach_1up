@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from backend.api.middleware.security import FirstRunGuardMiddleware, SecurityMiddleware, configure_cors
-from backend.api.routes import auth, emulators, health, launches, library, platforms, profiles, settings, users
+from backend.api.routes import auth, bios, emulators, health, launches, library, platforms, profiles, settings, users
 from backend.core.lifespan import lifespan
 from backend.core.settings import init_settings
 from backend.service.utils.settings import get_or_generate_session_secret
@@ -34,6 +34,7 @@ app.include_router(users.router)
 app.include_router(health.router)
 app.include_router(settings.router)
 app.include_router(emulators.router)
+app.include_router(bios.router)
 app.include_router(profiles.router)
 app.include_router(library.router)
 app.include_router(launches.router)

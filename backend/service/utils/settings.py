@@ -280,6 +280,21 @@ def mark_first_run_complete() -> None:
     _save()
 
 
+def set_flag(key: str, value: bool) -> None:
+    """Persist a boolean flag to settings.yaml.
+
+    Args:
+        key: Settings key to set (e.g. ``'virtualbox_expert_mode_set'``).
+        value: Boolean value to store.
+
+    Raises:
+        RuntimeError: If init() has not been called.
+    """
+    state = _require_init()
+    state[key] = value
+    _save()
+
+
 def add_suppression(suppression_id: str) -> None:
     """Add a confirmation suppression ID and persist to settings.yaml.
 

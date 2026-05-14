@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import subprocess
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -13,6 +14,7 @@ from backend.service.utils.emulator_installer import (
     launch_installer,
     remove_emulator,
 )
+from backend.service.utils import settings as _settings
 
 router = APIRouter(prefix="/api/v1/emulators", tags=["emulators"])
 logger = logging.getLogger(__name__)
@@ -24,26 +26,55 @@ class DeleteRequest(BaseModel):
     confirmation_token: str
 
 
+class ConfigureRequest(BaseModel):
+    action: str
+
+
+_CONFIGURE_ACTIONS: dict[str, list[str]] = {
+    "virtualbox": ["set_expert_mode"],
+}
+
+
 @router.get("")
 def list_emulators():
+    import glob as _glob
+    from backend.service.utils.emulator_installer import check_git
+
     result = []
     for entry in load_catalog():
         slug = entry["slug"]
         binary = detect_binary(slug)
+        install_type = entry.get("install_type", "zip")
+
+        installer_present = False
+        if install_type == "installer":
+            installer_glob = entry.get("windows_installer_glob", "")
+            if installer_glob:
+                slug_dir = _PROJECT_ROOT / "emulators" / slug
+                installer_present = bool(_glob.glob(str(slug_dir / installer_glob)))
+
         item: dict = {
             "slug": slug,
             "name": entry.get("name", slug),
             "version": entry.get("version", ""),
             "description": entry.get("description", ""),
             "license": entry.get("license", ""),
-            "install_type": entry.get("install_type", "zip"),
+            "copyright": entry.get("copyright", ""),
+            "source_url": entry.get("source_url", ""),
+            "install_type": install_type,
             "required": entry.get("required", False),
             "supported_formats": entry.get("supported_formats", []),
             "is_installed": binary is not None,
             "install_path": str(binary) if binary else None,
+            "installer_present": installer_present,
+            "git_available": check_git() if install_type == "rom_pack" else None,
+            "guidance_text": entry.get("guidance_text"),
+            "guidance_url": entry.get("guidance_url"),
         }
         if "install_note" in entry:
             item["install_note"] = entry["install_note"]
+        if slug == "virtualbox":
+            item["expert_mode_set"] = bool(_settings.get("virtualbox_expert_mode_set", False))
         result.append(item)
     return result
 
@@ -169,3 +200,38 @@ def delete_emulator(slug: str, body: DeleteRequest):
 
     install_registry.set_status(slug, "idle")
     return {"slug": slug, "status": "removed"}
+
+
+@router.post("/{slug}/configure")
+def configure_emulator(slug: str, body: ConfigureRequest):
+    allowed_actions = _CONFIGURE_ACTIONS.get(slug)
+    if allowed_actions is None:
+        raise HTTPException(status_code=404, detail=f"No configurable actions for '{slug}'.")
+    if body.action not in allowed_actions:
+        raise HTTPException(status_code=400, detail=f"Unknown action '{body.action}' for '{slug}'.")
+
+    if slug == "virtualbox" and body.action == "set_expert_mode":
+        binary = detect_binary("virtualbox")
+        if binary is None:
+            raise HTTPException(
+                status_code=404,
+                detail="VBoxManage not found. Install VirtualBox first.",
+            )
+        try:
+            result = subprocess.run(
+                [str(binary), "setextradata", "global", "GUI/ExperienceMode", "Expert"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(status_code=500, detail="VBoxManage timed out.")
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail=f"Failed to run VBoxManage: {exc}")
+
+        if result.returncode != 0:
+            detail = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+            raise HTTPException(status_code=500, detail=f"VBoxManage failed: {detail}")
+
+        _settings.set_flag("virtualbox_expert_mode_set", True)
+        return {"slug": slug, "action": body.action, "status": "ok"}

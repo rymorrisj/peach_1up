@@ -31,6 +31,20 @@ def is_installed(slug: str) -> bool:
     return path.exists() and path.is_file() and os.access(str(path), os.X_OK)
 
 
+def load_bios_requirements() -> list[dict]:
+    with _CATALOG_PATH.open("r", encoding="utf-8") as fh:
+        data = yaml.safe_load(fh) or {}
+    return data.get("bios_requirements", [])
+
+
+def check_bios_presence(bios_path: str) -> bool:
+    path = (_PROJECT_ROOT / bios_path).resolve()
+    try:
+        return path.exists() and path.is_dir() and any(path.iterdir())
+    except PermissionError:
+        return False
+
+
 def get_all_statuses() -> list[dict]:
     result = []
     for entry in load_catalog():

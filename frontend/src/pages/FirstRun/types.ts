@@ -24,17 +24,45 @@ export interface CatalogEntry {
   version: string
   description: string
   license: string
+  copyright?: string
+  source_url?: string
+  install_type: 'zip' | 'installer' | 'rom_pack'
   required: boolean
   is_installed: boolean
   install_path: string | null
-  is_placeholder: boolean
-  install_note?: string
+  installer_present: boolean
+  git_available: boolean | null
+  expert_mode_set?: boolean
   supported_formats?: string[]
+  install_note?: string
+  guidance_text?: string
+  guidance_url?: string
 }
 
 export interface EmulatorInstallStatus {
   slug: string
-  status: 'idle' | 'downloading' | 'complete' | 'error'
+  status: 'idle' | 'complete' | 'error' | 'installer_launched' | 'cloning'
   error: string | null
   install_path: string | null
+}
+
+export interface EmulatorStatusData {
+  slug: string
+  install_type: 'zip' | 'installer' | 'rom_pack'
+  binary_detected: boolean
+  binary_path: string | null
+  installer_present: boolean
+  status: 'idle' | 'complete' | 'error' | 'installer_launched' | 'cloning'
+  error: string | null
+  install_path: string | null
+}
+
+export interface BiosRequirement {
+  slug: string
+  name: string
+  platform: string
+  bios_path: string
+  guidance_text: string
+  guidance_url: string
+  is_present: boolean
 }

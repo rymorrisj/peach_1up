@@ -9,7 +9,11 @@ emulators:
     install_type: zip
     windows_binary: dosbox-x.exe
     license: GPL-2.0
+    copyright: "Copyright 2011–2024 The DOSBox-X Team"
+    source_url: "https://github.com/joncampbell123/dosbox-x"
     supported_formats: [".iso", ".img", ".cue"]
+    guidance_text: "Download the DOSBox-X Windows release and extract it to emulators/dosbox-x/ so that dosbox-x.exe is inside."
+    guidance_url: "https://dosbox-x.com"
 
   - slug: 86box
     name: 86Box
@@ -21,7 +25,11 @@ emulators:
     install_type: zip
     windows_binary: 86Box.exe
     license: GPL-2.0
+    copyright: "Copyright 2015–2024 86Box contributors"
+    source_url: "https://github.com/86Box/86Box"
     supported_formats: [".iso", ".img", ".cue"]
+    guidance_text: "Download the 86Box Windows release and extract it to emulators/86box/ so that 86Box.exe is inside."
+    guidance_url: "https://86box.net"
 
   - slug: duckstation
     name: DuckStation
@@ -34,7 +42,11 @@ emulators:
     windows_installer_glob: "duckstation-*.exe"
     windows_binary: pcsx2-qt.exe
     license: GPL-3.0
+    copyright: "Copyright 2019–2024 Connor McLaughlin and contributors"
+    source_url: "https://github.com/stenzek/duckstation"
     supported_formats: [".iso", ".bin", ".cue", ".chd"]
+    guidance_text: "Download the DuckStation Windows installer and place it in emulators/duckstation/, then click Run Installer."
+    guidance_url: "https://www.duckstation.org"
 
   - slug: pcsx2
     name: PCSX2
@@ -46,7 +58,11 @@ emulators:
     install_type: zip
     windows_binary: "C:\\Program Files\\PCSX2\\pcsx2-qt.exe"
     license: GPL-3.0
+    copyright: "Copyright 2002–2024 PCSX2 Dev Team"
+    source_url: "https://github.com/PCSX2/pcsx2"
     supported_formats: [".iso", ".bin", ".cue", ".chd"]
+    guidance_text: "Download the PCSX2 Windows installer and run it. PCSX2 installs to Program Files automatically."
+    guidance_url: "https://pcsx2.net"
 
   - slug: xemu
     name: xemu
@@ -58,7 +74,11 @@ emulators:
     install_type: zip
     windows_binary: xemu.exe
     license: GPL-2.0
+    copyright: "Copyright 2020–2024 Matt Borgerson and contributors"
+    source_url: "https://github.com/xemu-project/xemu"
     supported_formats: [".iso", ".xiso"]
+    guidance_text: "Download the xemu Windows release and extract it to emulators/xemu/ so that xemu.exe is inside."
+    guidance_url: "https://xemu.app"
 
   - slug: mesen
     name: Mesen
@@ -70,7 +90,11 @@ emulators:
     install_type: zip
     windows_binary: Mesen.exe
     license: GPL-3.0
+    copyright: "Copyright 2014–2024 M. Bibeau and contributors"
+    source_url: "https://github.com/SourMesen/Mesen2"
     supported_formats: [".nes", ".chd"]
+    guidance_text: "Download the Mesen Windows release and extract it to emulators/mesen/ so that Mesen.exe is inside."
+    guidance_url: "https://www.mesen.ca"
 
   - slug: project64
     name: Project64
@@ -83,7 +107,11 @@ emulators:
     windows_installer_glob: "Project64*.exe"
     windows_binary: "C:\\Program Files\\Project64*\\Project64.exe"
     license: GPL-2.0
+    copyright: "Copyright 2001–2024 Project64 Ltd and contributors"
+    source_url: "https://github.com/project64/project64"
     supported_formats: [".z64", ".n64", ".v64"]
+    guidance_text: "Download the Project64 Windows installer and place it in emulators/project64/, then click Run Installer."
+    guidance_url: "https://www.pj64-emu.com"
 
   - slug: virtualbox
     name: VirtualBox
@@ -96,8 +124,12 @@ emulators:
     windows_installer_glob: "VirtualBox*.exe"
     windows_binary: "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe"
     license: GPL-2.0
+    copyright: "Copyright 2004–2024 Oracle Corporation"
+    source_url: "https://www.virtualbox.org/browser/vbox/trunk"
     supported_formats: [".iso", ".img", ".cue"]
     install_note: "VirtualBox requires system-level installation. Download and run the official installer from virtualbox.org."
+    guidance_text: "Download the VirtualBox Windows installer and place it in emulators/virtualbox/, then click Run Installer. Admin elevation is required."
+    guidance_url: "https://www.virtualbox.org"
 
   - slug: 86box-roms
     name: 86Box ROM Pack
@@ -107,4 +139,30 @@ emulators:
     install_type: rom_pack
     windows_binary: "library/roms/86box"
     license: Various
+    copyright: "See individual ROM files for copyright information"
+    source_url: "https://github.com/86Box/roms"
     supported_formats: []
+    guidance_text: "Click Clone ROM Pack to download via git, or manually download and extract to library/roms/86box/."
+    guidance_url: "https://github.com/86Box/roms"
+
+bios_requirements:
+  - slug: ps1-bios
+    name: PS1 BIOS
+    platform: ps1
+    bios_path: "library/bios/ps1"
+    guidance_text: "Place your PS1 BIOS file (e.g. scph1001.bin) in library/bios/ps1/. DuckStation requires a BIOS image to boot PS1 games."
+    guidance_url: "https://www.duckstation.org/wiki/BIOS"
+
+  - slug: ps2-bios
+    name: PS2 BIOS
+    platform: ps2
+    bios_path: "library/bios/ps2"
+    guidance_text: "Place your PS2 BIOS files in library/bios/ps2/. PCSX2 requires a PS2 BIOS image to run."
+    guidance_url: "https://pcsx2.net/guides/basic-setup/"
+
+  - slug: xbox-bios
+    name: Xbox BIOS
+    platform: xbox
+    bios_path: "library/bios/xbox"
+    guidance_text: "Place your Xbox MCPX and BIOS files in library/bios/xbox/. See xemu.app for the exact files required."
+    guidance_url: "https://xemu.app/docs/required-files/"

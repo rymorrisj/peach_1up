@@ -9,6 +9,7 @@ import PathInput from '@/components/common/PathInput'
 import UserSwitcher from '@/components/UserSwitcher'
 import { cn } from '@/lib/utils'
 import { RATING_OPTIONS as BASE_RATING_OPTIONS } from '@/generated/constants'
+import type { CatalogEntry } from '@/pages/FirstRun/types'
 import type { components } from '@shared/types'
 type User = components['schemas']['UserRead']
 
@@ -279,6 +280,12 @@ export default function Settings() {
     }
   }
 
+  const { data: emulatorCatalog } = useQuery<CatalogEntry[]>({
+    queryKey: ['emulators-catalog'],
+    queryFn: () => apiFetch<CatalogEntry[]>('/api/v1/emulators'),
+    staleTime: 60_000,
+  })
+
   return (
     <>
       <PageHeader title="Settings" description="Configure library paths and application settings." />
@@ -331,6 +338,58 @@ export default function Settings() {
 
           {/* ── Account Switcher ── */}
           <UserSwitcher />
+
+          {/* ── Attribution ── */}
+          <section>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+              Attribution
+            </h2>
+            <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+              Open-source software included with Peach 1UP. Source code is available via the links below.
+            </p>
+            <ul className="mt-4 divide-y divide-neutral-100 dark:divide-neutral-800">
+              {(emulatorCatalog ?? []).map((entry) => (
+                <li key={entry.slug} className="py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <span className="font-medium text-sm text-neutral-900 dark:text-neutral-100">
+                        {entry.name}
+                      </span>
+                      {entry.copyright && (
+                        <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                          {entry.copyright}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-neutral-500 dark:bg-surface-700 dark:text-neutral-400">
+                        {entry.license}
+                      </span>
+                      {entry.source_url && (
+                        <a
+                          href={entry.source_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-[#ff8a5c] underline hover:opacity-80"
+                        >
+                          Source →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-6">
+              <h3 className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                Contributors
+              </h3>
+              <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+                Contributors will be listed here in a future update.
+              </p>
+            </div>
+          </section>
 
           {/* ── Users (admin only) ── */}
           {isAdmin && (

@@ -1,13 +1,14 @@
 import { NavLink } from 'react-router-dom'
-import { Library, Monitor, User, Settings, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Library, Monitor, User, Settings, BookOpen, ChevronLeft, ChevronRight, Cpu } from 'lucide-react'
 import { useAppContext } from '@/context/AppContext'
 
 const NAV_ITEMS = [
   { to: '/library', label: 'Library', Icon: Library },
-  { to: '/platforms', label: 'Platforms', Icon: Monitor },
+  { to: '/environments', label: 'Environments', Icon: Monitor },
   { to: '/profiles', label: 'Profiles', Icon: User },
   { to: '/settings', label: 'Settings', Icon: Settings },
-  { to: '/guides/cartridge-imaging', label: 'Guides', Icon: BookOpen },
+  { to: '/emulators', label: 'Emulators', Icon: Cpu },
+  { to: '/guides', label: 'Guides', Icon: BookOpen },
 ] as const
 
 export default function Sidebar() {
