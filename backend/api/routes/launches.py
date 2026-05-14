@@ -12,7 +12,7 @@ from backend.core import process_registry
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user
 from backend.core.process_registry import ProcessEntry
-from backend.models import LaunchHistory, LibraryItem, Profile
+from backend.models import LaunchHistory, LibraryItem, Platform, Profile
 from backend.models.launch_history import LaunchHistoryRead
 from backend.models.user import User
 
@@ -65,6 +65,8 @@ async def launch_item(
     if profile is None:
         raise HTTPException(status_code=422, detail="No profile associated with this library item.")
 
+    platform_record = db.query(Platform).filter(Platform.profile_id == profile.id).first()
+
     from backend.service.utils.backend_router import launch_media
 
     network_blocked = not bool(getattr(profile, 'enable_networking', False))
@@ -89,6 +91,7 @@ async def launch_item(
             item.era,
             item.media_path,
             profile,
+            platform_record,
         )
     except Exception as exc:
         logger.exception("Launch failed")

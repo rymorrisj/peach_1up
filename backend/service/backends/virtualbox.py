@@ -15,9 +15,9 @@ from typing import Optional, Tuple
 import yaml
 
 from backend.constants_generated import Era
+from backend.models.platform import Platform
 from backend.service.utils.job_objects import launch_under_job_object, SandboxProcess, WindowsJobObject
 from backend.service.utils.media_attach import build_virtualbox_attachment
-from backend.service.utils.platform import OSPlatform
 from backend.service.utils.settings import get_binary_path
 
 SUPPORTED_ERAS = {Era.WIN95.value, Era.WIN98.value, Era.WINXP.value}
@@ -111,7 +111,7 @@ def _vm_is_registered(vbm: str, vm_name: str) -> bool:
     return result.returncode == 0
 
 
-def _ensure_registered(vbm: str, platform: OSPlatform, template: dict) -> None:
+def _ensure_registered(vbm: str, platform: Platform, template: dict) -> None:
     """Register and configure a VirtualBox VM for the platform if not yet present.
 
     Idempotent: returns immediately if the VM is already registered. On first
@@ -127,7 +127,7 @@ def _ensure_registered(vbm: str, platform: OSPlatform, template: dict) -> None:
     Raises:
         RuntimeError: If any VBoxManage command fails.
     """
-    vm_name = platform.platform_id
+    vm_name = platform.slug
 
     if _vm_is_registered(vbm, vm_name):
         return
@@ -236,7 +236,7 @@ def _virtualboxvm_path(vbm_path: str) -> str:
 
 
 def launch(
-    platform: OSPlatform,
+    platform: Platform,
     media_path: Optional[Path] = None,
     enable_networking: bool = False,
 ) -> Tuple[SandboxProcess, WindowsJobObject]:
@@ -283,7 +283,7 @@ def launch(
             "Complete platform registration (including image copy) before launching."
         )
 
-    if not platform.working_image_path.exists():
+    if not Path(platform.working_image_path).exists():
         raise FileNotFoundError(
             f"Working image not found: {platform.working_image_path}. "
             "Re-register the platform or restore from base."
@@ -298,11 +298,11 @@ def launch(
     _ensure_registered(vbm, platform, template)
 
     if media_path is not None:
-        attachment = build_virtualbox_attachment(media_path, platform.platform_id)
+        attachment = build_virtualbox_attachment(media_path, platform.slug)
         _attach_media(vbm, attachment)
 
     nic_mode = "nat" if enable_networking else "null"
-    _run_vbm(vbm, ["modifyvm", platform.platform_id, "--nic1", nic_mode], "set nic1")
+    _run_vbm(vbm, ["modifyvm", platform.slug, "--nic1", nic_mode], "set nic1")
 
     vboxvm = _virtualboxvm_path(vbm)
 
@@ -310,11 +310,11 @@ def launch(
     if media_path is not None:
         media_paths.append(str(media_path))
 
-    job_name = f"peach1up_virtualbox_{platform.era}_{platform.platform_id}"
+    job_name = f"peach1up_virtualbox_{platform.era}_{platform.slug}"
 
     return launch_under_job_object(
         executable_path=vboxvm,
-        args=["--startvm", platform.platform_id],
+        args=["--startvm", platform.slug],
         media_paths=media_paths,
         era=platform.era,
         job_name=job_name,

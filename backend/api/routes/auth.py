@@ -40,6 +40,12 @@ def switch_user(body: SwitchRequest, request: Request, db: Session = Depends(get
     if user.is_locked:
         raise HTTPException(status_code=403, detail="Account is locked.")
 
+    if not user.pin_required:
+        user.failed_pin_attempts = 0
+        db.commit()
+        request.session["active_user_id"] = user.id
+        return user
+
     if user.pin_hash is None or not _verify_pin(body.pin, user.pin_hash):
         user.failed_pin_attempts = (user.failed_pin_attempts or 0) + 1
         if user.failed_pin_attempts >= 4:

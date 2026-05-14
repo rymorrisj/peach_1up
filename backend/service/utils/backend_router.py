@@ -195,7 +195,7 @@ def get_executable_path(era: Era, accuracy_mode: bool = False) -> tuple[str, str
     return get_binary_path(emulator_key), env_var
 
 
-def launch_media(era, media_path, profile=None):
+def launch_media(era, media_path, profile=None, platform=None):
     """Resolve backend, validate executable, and launch media.
 
     Single entry point for FastAPI route handlers. Accepts era as either a
@@ -235,8 +235,8 @@ def launch_media(era, media_path, profile=None):
     accuracy_mode = False
     enable_networking = False
     if profile is not None:
-        if hasattr(profile, 'accuracy_mode'):
-            accuracy_mode = bool(profile.accuracy_mode)
+        if hasattr(profile, 'is_accuracy_mode'):
+            accuracy_mode = bool(profile.is_accuracy_mode)
         if hasattr(profile, 'enable_networking'):
             enable_networking = bool(profile.enable_networking)
 
@@ -249,14 +249,16 @@ def launch_media(era, media_path, profile=None):
 
     launch_fn = get_launch_fn(era, accuracy_mode)
 
-    # Console backends (DuckStation, PCSX2, xemu, Mesen, Project64) emulate
-    # hardware with no meaningful network capability — no enable_networking arg.
     _console_backends = {
         BackendSlug.DUCKSTATION.value,
         BackendSlug.PCSX2.value,
         BackendSlug.XEMU.value,
         BackendSlug.MESEN.value,
         BackendSlug.PROJECT64.value,
+    }
+    _platform_backends = {
+        BackendSlug.BOX86.value,
+        BackendSlug.VIRTUALBOX.value,
     }
     try:
         backend_name = resolve_backend_name(era, accuracy_mode)
@@ -265,6 +267,14 @@ def launch_media(era, media_path, profile=None):
 
     if backend_name in _console_backends:
         return launch_fn(media_path=media_path, era=era.value, executable_path=executable_path)
+
+    if backend_name in _platform_backends:
+        if platform is None:
+            raise RuntimeError(
+                f"A Platform record is required to launch era '{era.value}' "
+                "but none was provided."
+            )
+        return launch_fn(platform, media_path=media_path, enable_networking=enable_networking)
 
     return launch_fn(
         media_path=media_path,

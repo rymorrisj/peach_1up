@@ -72,7 +72,11 @@ def _check_traversal(path_str: str) -> Path:
 def get_all_settings():
     svc = get_settings()
     state = svc._require_init()
-    return {k: v for k, v in state.items() if not k.startswith("_")}
+    _SENSITIVE = {"SECRET", "PASSWORD", "TOKEN"}
+    return {
+        k: v for k, v in state.items()
+        if not k.startswith("_") and not any(s in k.upper() for s in _SENSITIVE)
+    }
 
 
 @router.patch("")

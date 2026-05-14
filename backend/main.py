@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from backend.api.middleware.security import FirstRunGuardMiddleware, SecurityMiddleware, configure_cors
@@ -38,4 +39,4 @@ app.include_router(library.router)
 app.include_router(launches.router)
 app.include_router(platforms.router)
 
-# app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
+app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
