@@ -51,6 +51,10 @@ preservation-focused design system.
 - **VirtualBox** — Windows 95, 98, XP. Primary virtualization layer.
 - **86Box** — Windows 95, 98 accuracy mode. User supplies ROM pack.
 
+### Limitations
+
+DOSBox-X: DOS game sound requires HDD image install flow — games that write their sound config to the install directory (e.g. Doom DEFAULT.CFG) will have no in-game sound when launched directly from a read-only ISO. Sound works correctly once the game is installed to a writable HDD image via the install flow. Direct ISO launch is intentionally read-only and cannot persist game config. No code change required — this is expected behaviour.
+
 ## Emulators (Console)
 
 - **DuckStation** — PS1

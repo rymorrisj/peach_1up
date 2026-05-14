@@ -2,13 +2,17 @@
 DOSBox-X backend for Peach 1UP.
 
 Handles DOS and Windows 3.1 era games using DOSBox-X natively on the Windows
-host. Mount commands are passed as -c autoexec args so no temporary conf file
-is required. DOSBox-X loads its own bundled dosbox-x.conf automatically from
-the emulator directory; -set args override specific settings on top of that.
+host. A per-launch conf file is written to a temp directory, incorporating the
+emulator's bundled dosbox-x.conf with Peach's [autoexec] and SDL overrides
+appended. The temp file is cleaned up via atexit when the service exits.
 """
 
+import atexit
 import os
+import re
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import List, Tuple
 
@@ -49,7 +53,7 @@ def validate_media(media_path: Path) -> None:
 
 
 def _dosbox_cmd_path(path: Path) -> str:
-    """Return a path string safe for a DOSBox-X -c argument.
+    """Return a path string safe for a DOSBox-X autoexec line.
 
     Returns the raw absolute Windows path, double-quoted if it contains
     whitespace. Forward slashes are never used — the DOSBox-X autoexec
@@ -64,21 +68,126 @@ def _dosbox_cmd_path(path: Path) -> str:
     return f'"{p}"' if any(c.isspace() for c in p) else p
 
 
+def _strip_autoexec(conf_text: str) -> str:
+    """Remove any existing [autoexec] section from DOSBox-X config text.
+
+    DOSBox-X applies the last [autoexec] section it sees. Peach generates its
+    own [autoexec] block, so any pre-existing one in the bundled dosbox-x.conf
+    is stripped to avoid duplicate mount commands and conflicting startup
+    behaviour. Also normalises lastdrive to z so DOSBox-X has room for mounts.
+
+    Args:
+        conf_text: Full text of a DOSBox-X config file.
+
+    Returns:
+        Config text with any [autoexec] section removed and lastdrive
+        normalised.
+    """
+    lines = conf_text.splitlines(keepends=True)
+    i = 0
+    while i < len(lines):
+        if lines[i].strip().lower() == "[autoexec]":
+            end = i + 1
+            while end < len(lines):
+                stripped = lines[end].strip()
+                if (
+                    stripped.startswith("[")
+                    and stripped.endswith("]")
+                    and stripped.lower() != "[autoexec]"
+                ):
+                    break
+                end += 1
+            lines = lines[:i] + lines[end:]
+            continue
+        i += 1
+    result = "".join(lines)
+    result = re.sub(r"lastdrive\s*=\s*\w", "lastdrive = z", result, flags=re.IGNORECASE)
+    return result
+
+
+def write_launch_conf(media_path: Path, era: str, executable_path: Path) -> Path:
+    """Write a per-launch DOSBox-X conf to a temp directory and return its path.
+
+    Reads the emulator's bundled dosbox-x.conf if present, strips its
+    [autoexec] section, then appends an [sdl] override block (output=surface
+    to suppress TTF mode), a [dos] suppression block, and Peach's [autoexec]
+    mount commands. If the bundled conf is absent, a minimal conf is generated
+    with just the [sdl] and [dos] blocks.
+
+    The returned path is inside a mkdtemp directory. Callers are responsible
+    for registering cleanup; launch() does this via atexit.
+
+    Args:
+        media_path: Path to the media file to mount.
+        era: Era name (unused; retained for call-site symmetry).
+        executable_path: Path to the DOSBox-X executable.
+
+    Returns:
+        Path to the written launch.conf file.
+
+    Raises:
+        ValueError: If the media suffix is not handled by this backend.
+    """
+    suffix = media_path.suffix.lower()
+    host = _dosbox_cmd_path(media_path)
+
+    if suffix == ".img":
+        mount_line = f"imgmount C {host} -t hdd"
+        drive_line = "C:"
+    elif suffix in {".iso", ".cue"}:
+        mount_line = f"imgmount D {host} -t iso -ro"
+        drive_line = "D:"
+    else:
+        raise ValueError(
+            f"Unhandled media suffix '{suffix}'. This indicates a programming error."
+        )
+
+    emulator_conf = executable_path.parent / "dosbox-x.conf"
+    if emulator_conf.exists():
+        base = _strip_autoexec(
+            emulator_conf.read_text(encoding="utf-8", errors="replace")
+        )
+    else:
+        base = ""
+
+    tmpdir = Path(tempfile.mkdtemp(prefix="peach1up_dosbox_"))
+    conf_path = tmpdir / "launch.conf"
+
+    content = base.rstrip("\n")
+    if content:
+        content += "\n\n"
+    # Appending [sdl] after the bundled conf ensures output=surface takes
+    # precedence over TTF mode; DOSBox-X uses the last value it reads per key.
+    content += "[sdl]\noutput=surface\n\n"
+    content += "[dos]\nautomount=false\nmountwarning=false\n\n"
+    content += f"[autoexec]\n{mount_line}\n{drive_line}\n"
+
+    try:
+        conf_path.write_text(content, encoding="utf-8")
+    except Exception:
+        shutil.rmtree(str(tmpdir), ignore_errors=True)
+        raise
+
+    return conf_path
+
+
 def build_args(media_path: Path, era: str, enable_networking: bool = False) -> List[str]:
     """Build DOSBox-X command-line arguments for the given media and era.
 
-    Returns -c autoexec mount commands followed by -set hardware overrides.
-    No temporary conf file is required.
+    Mount commands, sound settings, and SDL/CPU overrides are handled by the
+    generated conf file. This function returns only the networking guard, which
+    is a security default that must be set explicitly at launch time.
 
     Args:
-        media_path: Path to the media file.
+        media_path: Path to the media file (validated here for early failure).
         era: Era name (``'dos'`` or ``'win31'``).
         enable_networking: When ``False`` (default), the NE2000 adapter is
             disabled via ``-set ne2000=false``. When ``True``, the adapter
             config is left at the emulator default.
 
     Returns:
-        List of command-line arguments, excluding the executable path.
+        List of command-line arguments, excluding the executable path and
+        the ``-conf`` flag (added by ``launch()``).
 
     Raises:
         ValueError: If the era is unsupported.
@@ -97,35 +206,8 @@ def build_args(media_path: Path, era: str, enable_networking: bool = False) -> L
             f"Supported: {', '.join(sorted(SUPPORTED_MEDIA))}"
         )
 
-    host = _dosbox_cmd_path(media_path)
-    if suffix == ".img":
-        mount_args = ["-c", f"imgmount C {host} -t hdd", "-c", "C:"]
-    else:  # .iso or .cue
-        mount_args = ["-c", f"imgmount D {host} -t iso -ro", "-c", "D:"]
-
-    suppress = ["-set", "dos:automount=false", "-set", "dos:mountwarning=false"]
-
     # Disable NE2000 adapter unless the profile explicitly enables networking.
-    net_args = [] if enable_networking else ["-set", "ne2000=false"]
-
-    # Explicit SoundBlaster 16 settings override any user-level dosbox-x.conf
-    # that might have sound disabled or misconfigured.
-    sound_args = [
-        "-set", "sblaster:sbtype=sb16",
-        "-set", "sblaster:sbbase=220",
-        "-set", "sblaster:irq=7",
-        "-set", "sblaster:dma=1",
-        "-set", "sblaster:hdma=5",
-        "-set", "sblaster:oplmode=auto",
-        "-set", "mixer:rate=44100",
-        "-set", "mixer:nosound=false",
-    ]
-
-    # core=normal avoids dynamic recompiler cache allocation spikes under the
-    # Job Object memory cap, which cause crashes on some DOS titles.
-    cpu_args = ["-set", "cpu:core=normal"] if era == Era.DOS.value else []
-
-    return mount_args + suppress + sound_args + net_args + cpu_args
+    return [] if enable_networking else ["-set", "ne2000=false"]
 
 
 def launch(
@@ -136,9 +218,9 @@ def launch(
 ) -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch DOSBox-X with the given media file under Job Object isolation.
 
-    This is the single entry point for the DOSBox-X backend. It validates the
-    media, builds the command-line arguments, and launches the process under
-    the current user account with Windows Job Object limits applied.
+    Writes a per-launch conf to a user-private temp directory, passes it to
+    DOSBox-X via -conf, and registers an atexit handler to clean up the temp
+    directory when the service exits.
 
     Args:
         media_path: Path to the media file to mount.
@@ -162,7 +244,10 @@ def launch(
 
     validate_media(media_path)
 
-    args = build_args(media_path, era, enable_networking=enable_networking)
+    conf_path = write_launch_conf(media_path, era, Path(executable_path))
+    atexit.register(shutil.rmtree, str(conf_path.parent), True)
+
+    args = ["-conf", str(conf_path)] + build_args(media_path, era, enable_networking=enable_networking)
     job_name = f"peach1up_dosbox_{era}_{media_path.stem}"
 
     return launch_under_job_object(

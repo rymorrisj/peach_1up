@@ -857,6 +857,9 @@ def launch_under_job_object(
         # with CREATE_BREAKAWAY_FROM_JOB so it escapes the OS job and can be
         # cleanly assigned to ours.
         if _process_in_job(process.pid):
+            logger.debug(
+                "Windows 11 job pre-assignment detected, relaunching with breakaway"
+            )
             try:
                 process.kill()
                 process.wait()
