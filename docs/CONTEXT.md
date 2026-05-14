@@ -268,7 +268,21 @@ a local recovery script resets the owner account.
 - [P6.5-9] Owner settings — reset any user PIN, unlock locked accounts, manage sub-accounts
 - [P6.5-10] P6.5 committed and pushed to main
 
-## P7 — Native Installer and Distribution
+## P7 — Emulator and Support Software Installion
+
+### Goal
+
+Add download support and include emulators that can be bundled and distributed with the app. This
+includes ROM packs, extensions, updating /guides to give user instructions and including links.
+
+### NEXT
+
+- [P7-1] — Binary detection for all bundled emulators; remove the dead download machinery from emulator_installer.py; wire VirtualBox installer launch via ShellExecute; poll for binary post-install; remove HTTP 501 from install route
+- [P7-2] — Guidance cards for VirtualBox (with Run Installer button), BIOS files, 86Box ROM pack (with Git Clone button); surface in first-run wizard Step 2 and emulator catalog page
+- [P7-3] — Attribution page in Settings (GPL source links, copyright notices, contributor section scaffold); update /guides for any emulator or asset requiring manual steps
+- [P7-4] — Commit and push
+
+## P8 — Native Installer and Distribution
 
 ### Goal
 
@@ -277,18 +291,48 @@ dependencies required for end users.
 
 ### CURRENT
 
-- [P7-1] PyInstaller backend compilation — compile FastAPI backend and all
+- [P8-1] PyInstaller backend compilation — compile FastAPI backend and all
   dependencies into a standalone executable. Python runtime embedded. Tested
-  on Windows and Linux.
-- [P7-2] pystray tray icon — system tray icon with Open, Restart, and Quit
+  on Windows.
+- [P8-2] pystray tray icon — system tray icon with Open, Restart, and Quit
   options. Pure Python. Auto-opens browser on first launch.
-- [P7-3] Windows installer — NSIS or WiX packages the compiled backend,
-  React static build, emulators directory, and SQLite data path into a signed
-  .exe installer. Registers Peach1UP as a Windows service. UAC prompt on
-  install only.
-- [P7-4] P7 committed and pushed to main.
+- [P8-3] Windows installer — NSIS or WiX packages the compiled backend,
+  React static build, emulators directory, and SQLite data path into a
+  signed .exe installer. Registers Peach 1UP as a Windows service. UAC
+  prompt on install only.
+- [P8-4] P8 committed and pushed to main.
 
-## P8 — Linux Namespace and cgroup Isolation (Scaffold)
+## P9 — Windows AppContainer Isolation
+
+### Goal
+
+Replace the current Job Object + current-user launch model with AppContainer
+isolation for emulator processes on Windows. Emulators run in a restricted
+container with explicit capability grants for display, audio, and media access.
+
+**Research note:** The peach_sandbox account experiment demonstrated that
+restricted process contexts can silently block emulator access to audio
+devices, GPU resources, and display infrastructure. AppContainer isolation
+will require careful capability mapping per emulator before implementation
+— what each emulator needs from the host (audio session, D3D/OpenGL, file
+paths) must be established before any code is written. Implementation should
+not begin until capability requirements are fully understood.
+
+### NEXT
+
+- [P9-1] Research capability requirements per emulator — audio device access,
+  display/GPU access, file system grants for media and config paths. Document
+  findings before any implementation begins.
+- [P9-2] Implement AppContainer provisioning at launch time — create container
+  profile, grant required capabilities, launch emulator inside container
+- [P9-3] Integrate AppContainer launch path into all emulator backends,
+  replacing current CreateProcessW path on Windows
+- [P9-4] Test on Windows 10 and Windows 11 — confirm audio, display, and
+  media access work correctly inside container for all supported emulators
+- [P9-5] Update SECURITY.md and DECISIONS.md
+- [P9-6] P9 committed and pushed to main.
+
+## PX-1 — Linux Namespace and cgroup Isolation (Scaffold)
 
 ### Goal
 
@@ -299,14 +343,15 @@ per-launch CPU/memory caps.
 
 ### NEXT
 
-- [P8-1] Select Linux isolation backend (nsjail vs native namespaces+cgroups)
-- [P8-2] Define per-launch sandbox filesystem layout and allowed mounts
-- [P8-3] Implement CPU and memory limits via cgroup v2
-- [P8-4] Integrate Linux sandboxed launch into emulator backends
-- [P8-5] Update SECURITY.md and DECISIONS.md and any other documentation for Linux isolation
-- [P8-6] Linux packages — fpm produces .deb and AppImage. Registers systemd
+- [PX-1-1] Select Linux isolation backend (nsjail vs native namespaces+cgroups)
+- [PX-1-2] Define per-launch sandbox filesystem layout and allowed mounts
+- [PX-1-3] Implement CPU and memory limits via cgroup v2
+- [PX-1-4] Integrate Linux sandboxed launch into emulator backends
+- [PX-1-5] Update SECURITY.md and DECISIONS.md and any other documentation for Linux isolation
+- [PX-1-6] Linux packages — fpm produces .deb and AppImage. Registers systemd
   service on deb install. AppImage runs standalone.
-- [P8-7] P8 committed and pushed to main.
+- [PX-1-7] Include Linux in the native installation and distribution flow (depends on P8 Windows installer being stable)
+- [PX-1-8] PX-1 committed and pushed to main.
 
 ## PX — Nice to Haves
 
@@ -315,13 +360,11 @@ per-launch CPU/memory caps.
   release automatically.
 - Docusaurus documentation site — technical docs, user guide,
   contributor guide. Versioned, MDX, full-text search.
-  Windows ME support via DOSBox-X
+- Windows ME support via DOSBox-X
 - Multiplayer / networking toggle per profile
-- Cloud sync for game profiles
 - Controller remapping UI
 - Plugin system for additional emulator backends
 - Auto-update for emulator binaries
-- Bundle emulator binaries — eliminates manual install and env var setup
 - Linux runtime packaging — ship a minimal Linux environment with all emulators pre-configured
 - dgVoodoo2 injection for 3D-era Win9x games
 - PS3 support via RPCS3
@@ -329,12 +372,12 @@ per-launch CPU/memory caps.
 - Platform image compression — working copies and save backups will accumulate
   and consume significant disk space over time. Add compression, deduplication,
   and storage management tooling to reduce bloat. Warn users at registration
-  that duplicate images will be created and space usage will grow.
+  that duplicate images will be created and space usage will grow (package?)
 - Save data backup and restore — extract save files from working images before
   reset, re-inject after. Reduces data loss risk when restoring from base.
 - Platform snapshot management — compression, auto-snapshots before risky installs,
   snapshot history, and storage cleanup tooling. Basic create/restore ships in P2.
 - Support a key,value (emulator, path) for users to add and configure their own emulators/eras in settings.yaml
 - Add a Check All Health button to Platform page so user can check all platforms at once instead of one at a time
-- Drag drop jsut adds image name not path so Users see a warning anyway.
+- Drag drop jsut adds image name not path so Users see a warning anyway. (drag drop may present security concerns)
 - Add a note in the UI and docs: "if you change media paths, restart the backend to apply permissions."

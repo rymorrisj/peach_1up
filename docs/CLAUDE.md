@@ -124,10 +124,17 @@ peach_1up/
 │   ├── 86box/
 │   ├── dosbox-x/
 │   └── virtualbox/
-└── images/                    # user-supplied, never committed
-    ├── games/
-    ├── hdd/
-    └── roms/
+└── library/                   # user-supplied, never committed
+    ├── games/                 # games/{era}/{slug}/
+    ├── os/                    # os/{era}/
+    ├── roms/
+    │   └── 86box/             # 86Box ROM pack
+    ├── bios/
+    │   ├── ps1/
+    │   ├── ps2/
+    │   └── xbox/
+    ├── tools/                 # tools/{slug}/
+    └── saves/
 
 ## Key Rules
 

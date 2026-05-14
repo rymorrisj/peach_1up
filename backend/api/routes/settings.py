@@ -17,7 +17,8 @@ _KNOWN_BINARY_KEYS = {"DOSBOX_PATH", "BOX86_PATH", "VIRTUALBOX_PATH"}
 _ALL_PATH_KEYS = {
     "DOSBOX_PATH", "BOX86_PATH", "VIRTUALBOX_PATH",
     "DUCKSTATION_PATH", "PCSX2_PATH", "XEMU_PATH", "MESEN_PATH", "PROJECT64_PATH",
-    "ROM_PATH", "IMAGES_PATH", "PROFILES_PATH",
+    "LIBRARY_PATH", "GAMES_PATH", "OS_PATH", "ROM_PATH", "BIOS_PATH", "TOOLS_PATH",
+    "PROFILES_PATH",
 }
 
 _EMULATOR_SLUG_TO_KEY: dict[str, str] = {
@@ -32,9 +33,13 @@ _EMULATOR_SLUG_TO_KEY: dict[str, str] = {
 }
 
 _LIBRARY_KEY_MAP: dict[str, str] = {
-    "images_path":   "IMAGES_PATH",
-    "profiles_path": "PROFILES_PATH",
+    "library_path":  "LIBRARY_PATH",
+    "games_path":    "GAMES_PATH",
+    "os_path":       "OS_PATH",
     "rom_path":      "ROM_PATH",
+    "bios_path":     "BIOS_PATH",
+    "tools_path":    "TOOLS_PATH",
+    "profiles_path": "PROFILES_PATH",
 }
 
 
@@ -55,7 +60,7 @@ class EmulatorPathBody(BaseModel):
 
 
 class LibraryPathBody(BaseModel):
-    key: Literal["images_path", "profiles_path", "rom_path"]
+    key: Literal["library_path", "games_path", "os_path", "rom_path", "bios_path", "tools_path", "profiles_path"]
     path: str
 
 
@@ -117,9 +122,13 @@ def get_first_run_status():
         "first_run_complete": first_run_complete,
         "emulators": svc.compute_setup_status(),
         "paths": {
-            "images_path": svc.get("IMAGES_PATH") or None,
+            "library_path":  svc.get("LIBRARY_PATH") or None,
+            "games_path":    svc.get("GAMES_PATH") or None,
+            "os_path":       svc.get("OS_PATH") or None,
+            "rom_path":      svc.get("ROM_PATH") or None,
+            "bios_path":     svc.get("BIOS_PATH") or None,
+            "tools_path":    svc.get("TOOLS_PATH") or None,
             "profiles_path": svc.get("PROFILES_PATH") or None,
-            "rom_path": svc.get("ROM_PATH") or None,
         },
     }
 

@@ -253,6 +253,8 @@ def _apply_schema_migrations() -> None:
     pending: list[tuple[str, str, str]] = [
         ("library_items", "content_rating", "TEXT"),
         ("library_items", "slug", "TEXT"),
+        ("library_items", "folder_path", "TEXT"),
+        ("library_items", "cover_path", "TEXT"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)

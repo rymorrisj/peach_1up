@@ -2,8 +2,13 @@ first_run_complete: true
 DOSBOX_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/dosbox-x/dosbox-x.exe
 BOX86_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/86box/86Box.exe
 VIRTUALBOX_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/virtualbox/VBoxManage.exe
-ROM_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/images/roms
-IMAGES_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/images
+# Root of all user-supplied media. Sub-paths below are derived from this value only.
+LIBRARY_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library
+GAMES_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/games
+OS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/os
+ROM_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/roms/86box
+BIOS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/bios
+TOOLS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/tools
 PROFILES_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/profiles
 DUCKSTATION_PATH: ''
 PCSX2_PATH: ''

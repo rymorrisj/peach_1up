@@ -80,8 +80,8 @@ debug.log
 profiles/*.yaml
 profiles/conf/
 
-# HDD images (generated)
-images/hdd/
+# Library
+library/
 
 # Bundled emulator binaries (drop-in, never committed — directories are tracked)
 emulators/

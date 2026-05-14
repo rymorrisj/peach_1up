@@ -12,6 +12,8 @@ class LibraryItemBase(SQLModel):
     category: Optional[str] = None
     media_path: str
     media_type: Optional[str] = None
+    folder_path: Optional[str] = None
+    cover_path: Optional[str] = None
     cover_art_path: Optional[str] = None
     description: Optional[str] = None
     publisher: Optional[str] = None
@@ -58,6 +60,8 @@ class LibraryItemUpdate(SQLModel):
     category: Optional[str] = None
     media_path: Optional[str] = None
     media_type: Optional[str] = None
+    folder_path: Optional[str] = None
+    cover_path: Optional[str] = None
     platform_id: Optional[int] = None
     profile_id: Optional[int] = None
     cover_art_path: Optional[str] = None

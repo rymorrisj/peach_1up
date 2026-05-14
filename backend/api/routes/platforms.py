@@ -38,14 +38,14 @@ _EMULATOR_SLUG_TO_BINARY_KEY: dict[str, str] = {
 
 
 def _validate_image_path(path_str: str) -> Path:
-    """Resolve path and reject anything outside IMAGES_PATH."""
+    """Resolve path and reject anything outside OS_PATH (library/os/)."""
     svc = get_settings()
-    images_root = Path(svc.get("IMAGES_PATH", "") or "images").resolve()
+    os_root = Path(svc.get("OS_PATH", "") or "library/os").resolve()
     resolved = Path(path_str).resolve()
-    if not resolved.is_relative_to(images_root):
+    if not resolved.is_relative_to(os_root):
         raise HTTPException(
             status_code=400,
-            detail="Path escapes the permitted images directory. Path traversal rejected.",
+            detail="Path escapes the permitted OS image directory. Path traversal rejected.",
         )
     return resolved
 

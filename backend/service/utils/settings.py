@@ -23,8 +23,12 @@ _DEFAULTS: dict = {
     "DOSBOX_PATH": "",
     "BOX86_PATH": "",
     "VIRTUALBOX_PATH": "",
+    "LIBRARY_PATH": "",
+    "GAMES_PATH": "",
+    "OS_PATH": "",
     "ROM_PATH": "",
-    "IMAGES_PATH": "",
+    "BIOS_PATH": "",
+    "TOOLS_PATH": "",
     "PROFILES_PATH": "",
     "DUCKSTATION_PATH": "",
     "PCSX2_PATH": "",
@@ -54,8 +58,12 @@ _PATH_KEYS: frozenset[str] = frozenset({
     "DOSBOX_PATH",
     "BOX86_PATH",
     "VIRTUALBOX_PATH",
+    "LIBRARY_PATH",
+    "GAMES_PATH",
+    "OS_PATH",
     "ROM_PATH",
-    "IMAGES_PATH",
+    "BIOS_PATH",
+    "TOOLS_PATH",
     "PROFILES_PATH",
     "DUCKSTATION_PATH",
     "PCSX2_PATH",
@@ -129,9 +137,13 @@ def init() -> None:
     _env: dict[str, str] = {}
     for _emulator, (env_var, _yaml_key) in _ENV_BINARY_VARS.items():
         _env[env_var] = os.getenv(env_var, "")
+    _env["LIBRARY_PATH"] = os.getenv("LIBRARY_PATH", "")
+    _env["GAMES_PATH"] = os.getenv("GAMES_PATH", "")
+    _env["OS_PATH"] = os.getenv("OS_PATH", "")
     _env["ROM_PATH"] = os.getenv("ROM_PATH", "")
+    _env["BIOS_PATH"] = os.getenv("BIOS_PATH", "")
+    _env["TOOLS_PATH"] = os.getenv("TOOLS_PATH", "")
     _env["PROFILES_PATH"] = os.getenv("PROFILES_PATH", "")
-    _env["IMAGES_PATH"] = os.getenv("IMAGES_PATH", "")
     _env["PS1_BIOS_PATH"] = os.getenv("PS1_BIOS_PATH", "")
     _env["PS2_BIOS_PATH"] = os.getenv("PS2_BIOS_PATH", "")
     _env["XBOX_BIOS_PATH"] = os.getenv("XBOX_BIOS_PATH", "")
@@ -168,8 +180,18 @@ def get_env_var(key: str) -> str:
         return str(yaml_val)
     if key == "PROFILES_PATH":
         return "profiles"
-    if key == "IMAGES_PATH":
-        return str((_PROJECT_ROOT / "images" / "games").resolve())
+    if key == "LIBRARY_PATH":
+        return str((_PROJECT_ROOT / "library").resolve())
+    if key == "GAMES_PATH":
+        return str((_PROJECT_ROOT / "library" / "games").resolve())
+    if key == "OS_PATH":
+        return str((_PROJECT_ROOT / "library" / "os").resolve())
+    if key == "ROM_PATH":
+        return str((_PROJECT_ROOT / "library" / "roms" / "86box").resolve())
+    if key == "BIOS_PATH":
+        return str((_PROJECT_ROOT / "library" / "bios").resolve())
+    if key == "TOOLS_PATH":
+        return str((_PROJECT_ROOT / "library" / "tools").resolve())
     return ""
 
 
@@ -315,7 +337,8 @@ def set_path(key: str, value: str) -> None:
     """Write a path value to settings.yaml and update state.
 
     Covers all keys in ``_PATH_KEYS``: ``DOSBOX_PATH``, ``BOX86_PATH``,
-    ``VIRTUALBOX_PATH``, ``ROM_PATH``, ``IMAGES_PATH``, ``PROFILES_PATH``.
+    ``VIRTUALBOX_PATH``, ``LIBRARY_PATH``, ``GAMES_PATH``, ``OS_PATH``,
+    ``ROM_PATH``, ``BIOS_PATH``, ``TOOLS_PATH``, ``PROFILES_PATH``.
     For emulator binary paths, ``set_override_path()`` accepts a short
     emulator key (``'dosbox'``) as an alternative.
 

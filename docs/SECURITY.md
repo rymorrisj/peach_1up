@@ -78,8 +78,9 @@ Permission flags on sub-accounts:
 - Every file path accepted from any source — request body, query parameter, profile
   field, settings value — **must be resolved, normalised, and validated against an
   allowlist of permitted base directories** before any filesystem operation is performed.
-  Permitted base directories are: the configured `IMAGES_PATH`, `PROFILES_PATH`,
-  `ROM_PATH`, and the application config directory.
+  Permitted base directories are: the configured `LIBRARY_PATH` (and its
+  derived sub-paths `GAMES_PATH`, `OS_PATH`, `ROM_PATH`, `BIOS_PATH`,
+  `TOOLS_PATH`), `PROFILES_PATH`, and the application config directory.
 - Path traversal attempts (resolved path escapes its permitted base) **must be rejected
   with a 400 error and logged** before any filesystem operation occurs.
 - **No user-supplied string may reach a subprocess call directly.** There must be at
@@ -261,7 +262,7 @@ by a third-party tool or a debugger), **the launch is aborted** and the error is
 to the user. There is no unsandboxed fallback. Network isolation is unaffected because it
 is emulator-native (network adapter disabled at the emulator config level).
 
-The scan endpoint validates all user-supplied directory paths against an allowlist of configured base directories (IMAGES_PATH, PROFILES_PATH, ROM_PATH) before any filesystem operation. This is a mandatory enforcement of the Input Validation Rules above. If none of these paths are configured in settings, scanning is blocked entirely. Media collections must reside under a configured base directory. This restriction must be carried forward to any future endpoint that accepts a directory or file path parameter.
+The scan endpoint validates all user-supplied directory paths against an allowlist of configured base directories (LIBRARY_PATH, PROFILES_PATH) before any filesystem operation. This is a mandatory enforcement of the Input Validation Rules above. If none of these paths are configured in settings, scanning is blocked entirely. Media collections must reside under a configured base directory. This restriction must be carried forward to any future endpoint that accepts a directory or file path parameter.
 
 All frontend fetch calls must include credentials: 'include' while SessionMiddleware is active so session cookies are transmitted correctly. When P5 changes the serving model (FastAPI serving the React static build directly), re-evaluate whether this setting is still correct or introduces unintended cookie scope.
 

@@ -67,7 +67,7 @@ def _validate_scan_directory(directory: str) -> Path:
     Per SECURITY.md mandatory input validation rules: every file path accepted
     from any source must be resolved, normalised, and validated against an
     allowlist of permitted base directories before any filesystem operation.
-    Permitted base directories are IMAGES_PATH, PROFILES_PATH, and ROM_PATH.
+    Permitted base directories are LIBRARY_PATH and PROFILES_PATH.
     """
     if "\x00" in directory:
         logger.warning("Scan directory rejected: contains null byte (raw=%r)", directory)
@@ -79,7 +79,7 @@ def _validate_scan_directory(directory: str) -> Path:
         from backend.core.settings import get_settings
         svc = get_settings()
         allowed_roots: list[Path] = []
-        for key in ("IMAGES_PATH", "PROFILES_PATH", "ROM_PATH"):
+        for key in ("LIBRARY_PATH", "PROFILES_PATH"):
             val = svc.get(key, "") or ""
             if val:
                 allowed_roots.append(Path(val).resolve())
@@ -92,7 +92,7 @@ def _validate_scan_directory(directory: str) -> Path:
             status_code=400,
             detail=(
                 "No scan base directories are configured. "
-                "Set IMAGES_PATH in Settings before scanning."
+                "Set LIBRARY_PATH in Settings before scanning."
             ),
         )
 
@@ -112,7 +112,7 @@ def _validate_scan_directory(directory: str) -> Path:
             status_code=400,
             detail=(
                 "Directory is outside the permitted scan locations "
-                "(IMAGES_PATH, PROFILES_PATH, ROM_PATH). "
+                "(LIBRARY_PATH, PROFILES_PATH). "
                 "Update your path settings to include this location."
             ),
         )
@@ -148,8 +148,34 @@ def add_library_item(
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_library"),
 ):
+    from backend.core.settings import get_settings
+    from backend.service.utils.slug_generator import generate_item_slug
+
     item = LibraryItem(**body.model_dump())
-    item.slug = _make_slug(item.title, db)
+    item.slug = generate_item_slug(item.title, item.era, db)
+
+    svc = get_settings()
+    games_root_str = svc.get("GAMES_PATH", "") or ""
+    if games_root_str:
+        item_folder = Path(games_root_str) / item.era / item.slug
+        try:
+            item_folder.mkdir(parents=True, exist_ok=True)
+            item.folder_path = str(item_folder)
+            if body.media_path:
+                src = Path(body.media_path)
+                if src.is_file():
+                    import shutil as _shutil
+                    dest = item_folder / src.name
+                    if not dest.exists():
+                        _shutil.copy2(str(src), str(dest))
+                    item.media_path = str(dest)
+            from backend.service.utils.profile_builder import _find_cover
+            cover = _find_cover(item_folder)
+            if cover:
+                item.cover_path = str(cover)
+        except OSError as exc:
+            logger.warning("Could not create item folder %s: %s", item_folder, exc)
+
     if not item.content_rating:
         from backend.utils.rating_detect import detect_rating
         item.content_rating = detect_rating(body.media_path)
