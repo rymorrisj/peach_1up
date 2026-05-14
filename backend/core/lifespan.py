@@ -301,14 +301,20 @@ def _apply_schema_migrations() -> None:
 
 def _scan_installed_emulators() -> None:
     try:
-        from backend.service.utils.emulator_catalog import get_all_statuses
-        statuses = get_all_statuses()
-        installed_count = 0
-        for s in statuses:
-            if s["is_installed"]:
-                install_registry.set_status(s["slug"], "complete", install_path=s["install_path"])
-                installed_count += 1
-        logger.info("Startup: detected %d/%d emulators installed", installed_count, len(statuses))
+        from backend.service.utils.emulator_catalog import load_catalog
+        from backend.service.utils.emulator_installer import detect_binary
+        catalog = load_catalog()
+        detected = 0
+        for entry in catalog:
+            slug = entry["slug"]
+            path = detect_binary(slug)
+            if path is not None:
+                install_registry.set_status(slug, "complete", install_path=str(path))
+                logger.info("Startup: %s detected at %s", slug, path)
+                detected += 1
+            else:
+                logger.info("Startup: %s not detected", slug)
+        logger.info("Startup: %d/%d emulators detected", detected, len(catalog))
     except Exception as exc:
         logger.warning("Startup emulator scan failed: %s", exc)
 

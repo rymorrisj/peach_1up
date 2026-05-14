@@ -3,7 +3,7 @@ import time
 import uuid
 from typing import Literal
 
-InstallStatus = Literal["idle", "downloading", "complete", "error"]
+InstallStatus = Literal["idle", "complete", "error", "installer_launched", "cloning"]
 
 _registry: dict[str, dict] = {}
 _lock = threading.Lock()

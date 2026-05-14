@@ -1,54 +1,133 @@
+import glob as _glob
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
-import httpx
-
-from backend.service.utils.emulator_catalog import get_emulator, get_install_path
+from backend.service.utils.emulator_catalog import get_emulator
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _BASE_DIR = _PROJECT_ROOT / "emulators"
 
 
-def _validate_path(path: Path) -> None:
-    try:
-        path.resolve().relative_to(_BASE_DIR.resolve())
-    except ValueError:
-        raise ValueError(f"Path escapes emulators/ base: {path.resolve()}")
-
-
-async def download_emulator(slug: str) -> Path:
+def detect_binary(slug: str) -> Path | None:
     entry = get_emulator(slug)
-    url = entry.get("linux_url", "")
-    if not url or url.startswith("PLACEHOLDER"):
-        raise NotImplementedError(
-            f"Download URL not yet configured for {slug} — update config/emulators.yaml"
+    install_type = entry.get("install_type", "zip")
+    windows_binary = entry.get("windows_binary", "")
+
+    if not windows_binary:
+        return None
+
+    if install_type == "zip":
+        slug_dir = (_BASE_DIR / slug).resolve()
+        path = (slug_dir / windows_binary).resolve()
+        try:
+            path.relative_to(slug_dir)
+        except ValueError:
+            return None
+        return path if path.exists() else None
+
+    if install_type == "installer":
+        matches = _glob.glob(windows_binary)
+        return Path(matches[0]) if matches else None
+
+    if install_type == "rom_pack":
+        pack_dir = (_PROJECT_ROOT / windows_binary).resolve()
+        try:
+            if pack_dir.exists() and pack_dir.is_dir() and any(pack_dir.iterdir()):
+                return pack_dir
+        except PermissionError:
+            pass
+        return None
+
+    return None
+
+
+def launch_installer(slug: str) -> dict:
+    if sys.platform != "win32":
+        raise RuntimeError("Installer launch is only supported on Windows.")
+
+    import ctypes
+
+    entry = get_emulator(slug)
+    if entry.get("install_type") != "installer":
+        raise ValueError(f"'{slug}' is not an installer-type emulator.")
+
+    installer_glob = entry.get("windows_installer_glob")
+    if not installer_glob:
+        raise ValueError(f"No windows_installer_glob configured for '{slug}'.")
+
+    slug_dir = (_BASE_DIR / slug).resolve()
+    matches = _glob.glob(str(slug_dir / installer_glob))
+
+    valid = []
+    for m in matches:
+        resolved = Path(m).resolve()
+        try:
+            resolved.relative_to(slug_dir)
+            valid.append(resolved)
+        except ValueError:
+            pass
+
+    if not valid:
+        raise FileNotFoundError(
+            f"No installer matching '{installer_glob}' found in emulators/{slug}/. "
+            "Download the installer and place it there."
         )
 
-    install_path = get_install_path(slug)
-    _validate_path(install_path)
+    installer = valid[0]
+    result = ctypes.windll.shell32.ShellExecuteW(
+        None, "runas", str(installer), None, str(slug_dir), 1
+    )
+    if result <= 32:
+        raise RuntimeError(
+            f"ShellExecuteW failed with code {result} for '{installer.name}'."
+        )
 
-    install_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = install_path.parent / f"{install_path.name}.tmp"
+    return {"installer": str(installer)}
 
-    async with httpx.AsyncClient(follow_redirects=True, timeout=300.0) as client:
-        async with client.stream("GET", url) as response:
-            response.raise_for_status()
-            try:
-                with tmp_path.open("wb") as fh:
-                    async for chunk in response.aiter_bytes():
-                        fh.write(chunk)
-            except Exception:
-                tmp_path.unlink(missing_ok=True)
-                raise
 
-    tmp_path.rename(install_path)
-    install_path.chmod(install_path.stat().st_mode | 0o111)
-    return install_path
+def check_git() -> bool:
+    return shutil.which("git") is not None
+
+
+def clone_rom_pack(target_path: Path) -> None:
+    if not check_git():
+        raise RuntimeError("git is not available on PATH. Install git and try again.")
+
+    roms_base = (_PROJECT_ROOT / "library" / "roms").resolve()
+    try:
+        target_path.resolve().relative_to(roms_base)
+    except ValueError:
+        raise ValueError(
+            f"target_path must be inside library/roms/: {target_path.resolve()}"
+        )
+
+    if target_path.exists():
+        try:
+            if any(target_path.iterdir()):
+                raise FileExistsError(
+                    f"Target directory already has content: {target_path}. "
+                    "Remove it before cloning."
+                )
+        except PermissionError:
+            pass
+
+    target_path.mkdir(parents=True, exist_ok=True)
+
+    result = subprocess.run(
+        ["git", "clone", "https://github.com/86Box/roms", str(target_path)],
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"git clone failed with exit code {result.returncode}.")
 
 
 def remove_emulator(slug: str) -> None:
     get_emulator(slug)
     install_dir = (_BASE_DIR / slug).resolve()
-    _validate_path(install_dir)
+    try:
+        install_dir.relative_to(_BASE_DIR.resolve())
+    except ValueError:
+        raise ValueError(f"Path escapes emulators/ base: {install_dir}")
     if install_dir.exists():
         shutil.rmtree(install_dir)

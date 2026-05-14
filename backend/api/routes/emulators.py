@@ -1,14 +1,23 @@
+import asyncio
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from backend.core import install_registry
-from backend.service.utils.emulator_catalog import get_all_statuses, get_emulator
-from backend.service.utils.emulator_installer import download_emulator, remove_emulator
+from backend.service.utils.emulator_catalog import get_emulator, load_catalog
+from backend.service.utils.emulator_installer import (
+    clone_rom_pack,
+    detect_binary,
+    launch_installer,
+    remove_emulator,
+)
 
 router = APIRouter(prefix="/api/v1/emulators", tags=["emulators"])
 logger = logging.getLogger(__name__)
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
 class DeleteRequest(BaseModel):
@@ -17,7 +26,26 @@ class DeleteRequest(BaseModel):
 
 @router.get("")
 def list_emulators():
-    return get_all_statuses()
+    result = []
+    for entry in load_catalog():
+        slug = entry["slug"]
+        binary = detect_binary(slug)
+        item: dict = {
+            "slug": slug,
+            "name": entry.get("name", slug),
+            "version": entry.get("version", ""),
+            "description": entry.get("description", ""),
+            "license": entry.get("license", ""),
+            "install_type": entry.get("install_type", "zip"),
+            "required": entry.get("required", False),
+            "supported_formats": entry.get("supported_formats", []),
+            "is_installed": binary is not None,
+            "install_path": str(binary) if binary else None,
+        }
+        if "install_note" in entry:
+            item["install_note"] = entry["install_note"]
+        result.append(item)
+    return result
 
 
 @router.post("/{slug}/install")
@@ -27,41 +55,91 @@ async def install_emulator(slug: str, background_tasks: BackgroundTasks):
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
 
-    url = entry.get("linux_url", "")
-    if not url or url.startswith("PLACEHOLDER"):
-        raise HTTPException(
-            status_code=501,
-            detail=f"Download URL not yet configured for '{slug}' — update config/emulators.yaml",
-        )
+    install_type = entry.get("install_type", "zip")
 
-    current = install_registry.get_status(slug)
-    if current["status"] == "downloading":
-        raise HTTPException(status_code=409, detail=f"Install already in progress for '{slug}'.")
+    if install_type == "zip":
+        binary = detect_binary(slug)
+        if binary is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"Binary not found for '{slug}'. "
+                    f"Extract the emulator archive into emulators/{slug}/."
+                ),
+            )
+        install_registry.set_status(slug, "complete", install_path=str(binary))
+        return {"status": "detected", "slug": slug, "install_path": str(binary)}
 
-    install_registry.set_status(slug, "downloading")
-    background_tasks.add_task(_run_install, slug)
-    return {"status": "downloading", "slug": slug}
+    if install_type == "installer":
+        current = install_registry.get_status(slug)
+        if current.get("status") == "installer_launched":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Installer already launched for '{slug}'.",
+            )
+        try:
+            info = launch_installer(slug)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        except (ValueError, RuntimeError) as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
+        install_registry.set_status(slug, "installer_launched")
+        return {"status": "installer_launched", "slug": slug, **info}
+
+    if install_type == "rom_pack":
+        current = install_registry.get_status(slug)
+        if current.get("status") == "cloning":
+            raise HTTPException(
+                status_code=409,
+                detail=f"ROM pack clone already in progress for '{slug}'.",
+            )
+        windows_binary = entry.get("windows_binary", "library/roms/86box")
+        target = (_PROJECT_ROOT / windows_binary).resolve()
+        install_registry.set_status(slug, "cloning")
+        background_tasks.add_task(_run_clone, slug, target)
+        return {"status": "cloning", "slug": slug}
+
+    raise HTTPException(
+        status_code=400,
+        detail=f"Unknown install_type '{install_type}' for '{slug}'.",
+    )
 
 
-async def _run_install(slug: str) -> None:
+async def _run_clone(slug: str, target: Path) -> None:
     try:
-        path = await download_emulator(slug)
-        install_registry.set_status(slug, "complete", install_path=str(path))
-    except NotImplementedError as exc:
+        await asyncio.to_thread(clone_rom_pack, target)
+        install_registry.set_status(slug, "complete", install_path=str(target))
+    except FileExistsError as exc:
         install_registry.set_status(slug, "error", error=str(exc))
-        logger.error("Install %s failed (not implemented): %s", slug, exc)
+        logger.error("ROM pack clone %s blocked: %s", slug, exc)
     except Exception as exc:
         install_registry.set_status(slug, "error", error=str(exc))
-        logger.error("Install %s failed: %s", slug, exc)
+        logger.error("ROM pack clone %s failed: %s", slug, exc)
 
 
-@router.get("/{slug}/install/status")
-def get_install_status(slug: str):
+@router.get("/{slug}/status")
+def get_emulator_status(slug: str):
     try:
-        get_emulator(slug)
+        entry = get_emulator(slug)
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
-    return install_registry.get_status(slug)
+
+    binary = detect_binary(slug)
+    installer_glob = entry.get("windows_installer_glob", "")
+    installer_present = False
+    if installer_glob:
+        import glob as _glob
+        slug_dir = _PROJECT_ROOT / "emulators" / slug
+        installer_present = bool(_glob.glob(str(slug_dir / installer_glob)))
+
+    return {
+        "slug": slug,
+        "install_type": entry.get("install_type", "zip"),
+        "binary_detected": binary is not None,
+        "binary_path": str(binary) if binary else None,
+        "installer_present": installer_present,
+        **install_registry.get_status(slug),
+    }
 
 
 @router.get("/{slug}/confirm-token")

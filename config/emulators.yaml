@@ -6,8 +6,10 @@ emulators:
     required: false
     linux_url: "PLACEHOLDER_DOSBOX_X_LINUX_URL"
     binary_name: dosbox-x
+    install_type: zip
+    windows_binary: dosbox-x.exe
     license: GPL-2.0
-    supported_formats: ['.iso', '.img', '.cue']
+    supported_formats: [".iso", ".img", ".cue"]
 
   - slug: 86box
     name: 86Box
@@ -16,8 +18,10 @@ emulators:
     required: false
     linux_url: "PLACEHOLDER_86BOX_LINUX_URL"
     binary_name: 86Box
+    install_type: zip
+    windows_binary: 86Box.exe
     license: GPL-2.0
-    supported_formats: ['.iso', '.img', '.cue']
+    supported_formats: [".iso", ".img", ".cue"]
 
   - slug: duckstation
     name: DuckStation
@@ -26,8 +30,11 @@ emulators:
     required: false
     linux_url: "PLACEHOLDER_DUCKSTATION_LINUX_URL"
     binary_name: duckstation-qt
+    install_type: installer
+    windows_installer_glob: "duckstation-*.exe"
+    windows_binary: pcsx2-qt.exe
     license: GPL-3.0
-    supported_formats: ['.iso', '.bin', '.cue', '.chd']
+    supported_formats: [".iso", ".bin", ".cue", ".chd"]
 
   - slug: pcsx2
     name: PCSX2
@@ -36,8 +43,10 @@ emulators:
     required: false
     linux_url: "PLACEHOLDER_PCSX2_LINUX_URL"
     binary_name: pcsx2-qt
+    install_type: zip
+    windows_binary: "C:\\Program Files\\PCSX2\\pcsx2-qt.exe"
     license: GPL-3.0
-    supported_formats: ['.iso', '.bin', '.cue', '.chd']
+    supported_formats: [".iso", ".bin", ".cue", ".chd"]
 
   - slug: xemu
     name: xemu
@@ -46,8 +55,10 @@ emulators:
     required: false
     linux_url: "PLACEHOLDER_XEMU_LINUX_URL"
     binary_name: xemu
+    install_type: zip
+    windows_binary: xemu.exe
     license: GPL-2.0
-    supported_formats: ['.iso', '.xiso']
+    supported_formats: [".iso", ".xiso"]
 
   - slug: mesen
     name: Mesen
@@ -56,8 +67,10 @@ emulators:
     required: false
     linux_url: "PLACEHOLDER_MESEN_LINUX_URL"
     binary_name: Mesen
+    install_type: zip
+    windows_binary: Mesen.exe
     license: GPL-3.0
-    supported_formats: ['.nes', '.chd']
+    supported_formats: [".nes", ".chd"]
 
   - slug: project64
     name: Project64
@@ -66,8 +79,11 @@ emulators:
     required: false
     linux_url: "PLACEHOLDER_PROJECT64_LINUX_URL"
     binary_name: project64
+    install_type: installer
+    windows_installer_glob: "Project64*.exe"
+    windows_binary: "C:\\Program Files\\Project64*\\Project64.exe"
     license: GPL-2.0
-    supported_formats: ['.z64', '.n64', '.v64']
+    supported_formats: [".z64", ".n64", ".v64"]
 
   - slug: virtualbox
     name: VirtualBox
@@ -76,6 +92,19 @@ emulators:
     required: false
     linux_url: "PLACEHOLDER_VIRTUALBOX_LINUX_URL"
     binary_name: VBoxManage
+    install_type: installer
+    windows_installer_glob: "VirtualBox*.exe"
+    windows_binary: "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe"
     license: GPL-2.0
-    supported_formats: ['.iso', '.img', '.cue']
+    supported_formats: [".iso", ".img", ".cue"]
     install_note: "VirtualBox requires system-level installation. Download and run the official installer from virtualbox.org."
+
+  - slug: 86box-roms
+    name: 86Box ROM Pack
+    version: "latest"
+    description: Firmware files required by 86Box for hardware accuracy mode
+    required: false
+    install_type: rom_pack
+    windows_binary: "library/roms/86box"
+    license: Various
+    supported_formats: []
