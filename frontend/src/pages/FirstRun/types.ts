@@ -27,6 +27,7 @@ export interface CatalogEntry {
   copyright?: string
   source_url?: string
   install_type: 'zip' | 'installer' | 'rom_pack'
+  install_scope: 'portable' | 'system'
   required: boolean
   is_installed: boolean
   install_path: string | null

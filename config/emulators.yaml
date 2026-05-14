@@ -7,6 +7,7 @@ emulators:
     linux_url: "PLACEHOLDER_DOSBOX_X_LINUX_URL"
     binary_name: dosbox-x
     install_type: zip
+    install_scope: portable
     windows_binary: dosbox-x.exe
     license: GPL-2.0
     copyright: "Copyright 2011–2024 The DOSBox-X Team"
@@ -23,6 +24,7 @@ emulators:
     linux_url: "PLACEHOLDER_86BOX_LINUX_URL"
     binary_name: 86Box
     install_type: zip
+    install_scope: portable
     windows_binary: 86Box.exe
     license: GPL-2.0
     copyright: "Copyright 2015–2024 86Box contributors"
@@ -39,6 +41,7 @@ emulators:
     linux_url: "PLACEHOLDER_DUCKSTATION_LINUX_URL"
     binary_name: duckstation-qt
     install_type: installer
+    install_scope: system
     windows_installer_glob: "duckstation-*.exe"
     windows_binary: pcsx2-qt.exe
     license: GPL-3.0
@@ -56,6 +59,7 @@ emulators:
     linux_url: "PLACEHOLDER_PCSX2_LINUX_URL"
     binary_name: pcsx2-qt
     install_type: zip
+    install_scope: portable
     windows_binary: "C:\\Program Files\\PCSX2\\pcsx2-qt.exe"
     license: GPL-3.0
     copyright: "Copyright 2002–2024 PCSX2 Dev Team"
@@ -72,6 +76,7 @@ emulators:
     linux_url: "PLACEHOLDER_XEMU_LINUX_URL"
     binary_name: xemu
     install_type: zip
+    install_scope: portable
     windows_binary: xemu.exe
     license: GPL-2.0
     copyright: "Copyright 2020–2024 Matt Borgerson and contributors"
@@ -88,6 +93,7 @@ emulators:
     linux_url: "PLACEHOLDER_MESEN_LINUX_URL"
     binary_name: Mesen
     install_type: zip
+    install_scope: portable
     windows_binary: Mesen.exe
     license: GPL-3.0
     copyright: "Copyright 2014–2024 M. Bibeau and contributors"
@@ -104,6 +110,7 @@ emulators:
     linux_url: "PLACEHOLDER_PROJECT64_LINUX_URL"
     binary_name: project64
     install_type: installer
+    install_scope: system
     windows_installer_glob: "Project64*.exe"
     windows_binary: "C:\\Program Files\\Project64*\\Project64.exe"
     license: GPL-2.0
@@ -121,6 +128,7 @@ emulators:
     linux_url: "PLACEHOLDER_VIRTUALBOX_LINUX_URL"
     binary_name: VBoxManage
     install_type: installer
+    install_scope: system
     windows_installer_glob: "VirtualBox*.exe"
     windows_binary: "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe"
     license: GPL-2.0
@@ -137,6 +145,7 @@ emulators:
     description: Firmware files required by 86Box for hardware accuracy mode
     required: false
     install_type: rom_pack
+    install_scope: portable
     windows_binary: "library/roms/86box"
     license: Various
     copyright: "See individual ROM files for copyright information"

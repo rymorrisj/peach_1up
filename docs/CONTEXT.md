@@ -355,6 +355,7 @@ per-launch CPU/memory caps.
 
 ## PX — Nice to Haves
 
+- [!important] When a user supplies their own installer for a supported emulator, detect install_scope from emulators.yaml and mark the entry appropriately in the registry so uninstall guidance is correct.
 - GitHub Actions release pipeline — on version tag: build Windows and
   Linux installers, sign with OSS certificate via ossign.org, attach to GitHub
   release automatically.

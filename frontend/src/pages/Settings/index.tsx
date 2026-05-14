@@ -126,12 +126,24 @@ function permissionSummary(user: User): string {
   return labels.length ? labels.join(', ') : 'no permissions'
 }
 
+// ─── Tab bar ─────────────────────────────────────────────────────────────────
+
+type Tab = 'general' | 'users' | 'attribution'
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'users', label: 'Users' },
+  { id: 'attribution', label: 'Attribution' },
+]
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Settings() {
   const { state: appState } = useAppContext()
   const queryClient = useQueryClient()
   const isAdmin = appState.activeUser?.is_admin ?? false
+
+  const [activeTab, setActiveTab] = useState<Tab>('general')
 
   // ── Library paths ──
   const { data: settings, isLoading: settingsLoading } = useQuery<Record<string, string | null>>({
@@ -280,6 +292,7 @@ export default function Settings() {
     }
   }
 
+  // ── Attribution ──
   const { data: emulatorCatalog } = useQuery<CatalogEntry[]>({
     queryKey: ['emulators-catalog'],
     queryFn: () => apiFetch<CatalogEntry[]>('/api/v1/emulators'),
@@ -290,115 +303,94 @@ export default function Settings() {
     <>
       <PageHeader title="Settings" description="Configure library paths and application settings." />
 
-      {settingsLoading ? (
-        <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-          <LoadingSpinner label="Loading settings…" />
-          <span aria-hidden="true">Loading settings…</span>
-        </div>
-      ) : (
+      {/* ── Tab bar ── */}
+      <div className="mb-6 flex border-b border-neutral-200 dark:border-neutral-800">
+        {TABS.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={cn(
+              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === id
+                ? 'border-[#ff8a5c] text-[#ff8a5c]'
+                : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300',
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── General tab ── */}
+      {activeTab === 'general' && (
+        settingsLoading ? (
+          <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
+            <LoadingSpinner label="Loading settings…" />
+            <span aria-hidden="true">Loading settings…</span>
+          </div>
+        ) : (
+          <div className="max-w-xl">
+            <section>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                Library Paths
+              </h2>
+              <div className="mt-4 space-y-5">
+                {PATH_ENTRIES.map(({ key, label, hint }) => (
+                  <FormField
+                    key={key}
+                    label={label}
+                    htmlFor={`path-${key}`}
+                    hint={hint}
+                    error={fields[key].error ?? undefined}
+                  >
+                    <div className="mt-1 flex gap-2">
+                      <PathInput
+                        id={`path-${key}`}
+                        mode="folder"
+                        value={fields[key].value}
+                        onChange={(v) => setField(key, { value: v, saved: false })}
+                        placeholder={`/path/to/${key.replace('_path', '').replace('_', '-')}`}
+                        hasError={!!fields[key].error}
+                        className="flex-1 min-w-0"
+                      />
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleSave(key)}
+                        disabled={!fields[key].value.trim() || fields[key].saving}
+                        loading={fields[key].saving}
+                      >
+                        {fields[key].saved ? 'Saved ✓' : 'Save'}
+                      </Button>
+                    </div>
+                  </FormField>
+                ))}
+              </div>
+            </section>
+          </div>
+        )
+      )}
+
+      {/* ── Users tab ── */}
+      {activeTab === 'users' && (
         <div className="max-w-xl space-y-10">
-
-          {/* ── Library Paths ── */}
-          <section>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Library Paths
-            </h2>
-            <div className="mt-4 space-y-5">
-              {PATH_ENTRIES.map(({ key, label, hint }) => (
-                <FormField
-                  key={key}
-                  label={label}
-                  htmlFor={`path-${key}`}
-                  hint={hint}
-                  error={fields[key].error ?? undefined}
-                >
-                  <div className="mt-1 flex gap-2">
-                    <PathInput
-                      id={`path-${key}`}
-                      mode="folder"
-                      value={fields[key].value}
-                      onChange={(v) => setField(key, { value: v, saved: false })}
-                      placeholder={`/path/to/${key.replace('_path', '').replace('_', '-')}`}
-                      hasError={!!fields[key].error}
-                      className="flex-1 min-w-0"
-                    />
-                    <Button
-                      variant="secondary"
-                      onClick={() => handleSave(key)}
-                      disabled={!fields[key].value.trim() || fields[key].saving}
-                      loading={fields[key].saving}
-                    >
-                      {fields[key].saved ? 'Saved ✓' : 'Save'}
-                    </Button>
-                  </div>
-                </FormField>
-              ))}
-            </div>
-          </section>
-
-          {/* ── Account Switcher ── */}
           <UserSwitcher />
 
-          {/* ── Attribution ── */}
-          <section>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Attribution
-            </h2>
-            <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-              Open-source software included with Peach 1UP. Source code is available via the links below.
-            </p>
-            <ul className="mt-4 divide-y divide-neutral-100 dark:divide-neutral-800">
-              {(emulatorCatalog ?? []).map((entry) => (
-                <li key={entry.slug} className="py-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <span className="font-medium text-sm text-neutral-900 dark:text-neutral-100">
-                        {entry.name}
-                      </span>
-                      {entry.copyright && (
-                        <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                          {entry.copyright}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-neutral-500 dark:bg-surface-700 dark:text-neutral-400">
-                        {entry.license}
-                      </span>
-                      {entry.source_url && (
-                        <a
-                          href={entry.source_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs text-[#ff8a5c] underline hover:opacity-80"
-                        >
-                          Source →
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-6">
-              <h3 className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                Contributors
-              </h3>
-              <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-                Contributors will be listed here in a future update.
-              </p>
-            </div>
-          </section>
-
-          {/* ── Users (admin only) ── */}
           {isAdmin && (
             <section>
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
                   Users
                 </h2>
-                <Button size="sm" onClick={() => { setAddForm(EMPTY_ADD_FORM); setAddError(null); setAddErrors({}); setAddOpen(true) }}>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setAddForm(EMPTY_ADD_FORM)
+                    setAddError(null)
+                    setAddErrors({})
+                    setAddOpen(true)
+                  }}
+                >
                   + Add Account
                 </Button>
               </div>
@@ -446,7 +438,9 @@ export default function Settings() {
                                 size="sm"
                                 title="Reset PIN"
                                 disabled={isBusy}
-                                onClick={() => setResetPinTarget({ user, pin: '', error: null, submitting: false })}
+                                onClick={() =>
+                                  setResetPinTarget({ user, pin: '', error: null, submitting: false })
+                                }
                               >
                                 <KeyRound size={14} />
                               </Button>
@@ -456,7 +450,11 @@ export default function Settings() {
                                   size="sm"
                                   title="Unlock account"
                                   disabled={isBusy}
-                                  loading={actionState?.userId === user.id && actionState.action === 'unlock' && actionState.submitting}
+                                  loading={
+                                    actionState?.userId === user.id &&
+                                    actionState.action === 'unlock' &&
+                                    actionState.submitting
+                                  }
                                   onClick={() => handleUnlock(user)}
                                 >
                                   <Unlock size={14} />
@@ -481,6 +479,62 @@ export default function Settings() {
               )}
             </section>
           )}
+        </div>
+      )}
+
+      {/* ── Attribution tab ── */}
+      {activeTab === 'attribution' && (
+        <div className="max-w-xl">
+          <section>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+              Attribution
+            </h2>
+            <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+              Open-source software included with Peach 1UP. Source code is available via the links below.
+            </p>
+            <ul className="mt-4 divide-y divide-neutral-100 dark:divide-neutral-800">
+              {(emulatorCatalog ?? []).map((entry) => (
+                <li key={entry.slug} className="py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                        {entry.name}
+                      </span>
+                      {entry.copyright && (
+                        <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                          {entry.copyright}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-neutral-500 dark:bg-surface-700 dark:text-neutral-400">
+                        {entry.license}
+                      </span>
+                      {entry.source_url && (
+                        <a
+                          href={entry.source_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-[#ff8a5c] underline hover:opacity-80"
+                        >
+                          Source →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-6">
+              <h3 className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                Contributors
+              </h3>
+              <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+                Contributors will be listed here in a future update.
+              </p>
+            </div>
+          </section>
         </div>
       )}
 
@@ -534,7 +588,10 @@ export default function Settings() {
           </legend>
           <div className="grid grid-cols-2 gap-x-4 gap-y-2">
             {PERMISSION_FLAGS.map(({ key, label }) => (
-              <label key={key} className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+              <label
+                key={key}
+                className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
+              >
                 <input
                   type="checkbox"
                   checked={addForm[key] as boolean}
@@ -555,7 +612,9 @@ export default function Settings() {
             className={SELECT_CLASS}
           >
             {RATING_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
             ))}
           </select>
         </FormField>
@@ -588,7 +647,11 @@ export default function Settings() {
           onClose={() => setResetPinTarget(null)}
           footer={
             <>
-              <Button variant="ghost" onClick={() => setResetPinTarget(null)} disabled={resetPinTarget.submitting}>
+              <Button
+                variant="ghost"
+                onClick={() => setResetPinTarget(null)}
+                disabled={resetPinTarget.submitting}
+              >
                 Cancel
               </Button>
               <Button onClick={handleResetPin} loading={resetPinTarget.submitting}>

@@ -62,6 +62,7 @@ def list_emulators():
             "copyright": entry.get("copyright", ""),
             "source_url": entry.get("source_url", ""),
             "install_type": install_type,
+            "install_scope": entry.get("install_scope", "portable"),
             "required": entry.get("required", False),
             "supported_formats": entry.get("supported_formats", []),
             "is_installed": binary is not None,
