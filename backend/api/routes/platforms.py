@@ -42,7 +42,7 @@ def _validate_image_path(path_str: str) -> Path:
     svc = get_settings()
     images_root = Path(svc.get("IMAGES_PATH", "") or "images").resolve()
     resolved = Path(path_str).resolve()
-    if not str(resolved).startswith(str(images_root)):
+    if not resolved.is_relative_to(images_root):
         raise HTTPException(
             status_code=400,
             detail="Path escapes the permitted images directory. Path traversal rejected.",
