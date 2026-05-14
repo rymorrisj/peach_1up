@@ -8,7 +8,7 @@ as an open source project.
 
 ## Infrastructure
 
-PyInstaller compiles the Python backend to a standalone executable. React builds to static files served by FastAPI. pystray provides a system tray icon. Windows installer via NSIS/WiX, Linux via deb/AppImage. GitHub Actions handles release builds. Deferred to P4.5.
+PyInstaller compiles the Python backend to a standalone executable. React builds to static files served by FastAPI. pystray provides a system tray icon. Windows installer via NSIS/WiX, Linux via deb/AppImage. GitHub Actions handles release builds. P7.
 
 ## Platform
 
@@ -18,7 +18,7 @@ The application runs natively on Linux and Windows. Emulators run natively on th
 
 ## Database
 
-**SQLite via SQLAlchemy ORM with Alembic migrations.**
+**SQLite via SQLModel, create_all() on startup.**
 
 Read-heavy usage pattern makes SQLite sufficient. SQLAlchemy abstraction means
 Postgres is a future config change not a rewrite.
@@ -39,11 +39,10 @@ Python propagate automatically to the TypeScript client.
 
 ## Frontend
 
-**TypeScript, React, Vite, React Router, TanStack Query, Zustand, Tailwind CSS, shadcn/ui.**
+**TypeScript, React, Vite, React Router, TanStack Query, useReducer, Tailwind CSS, Radix UI primitives (dialog, slot).**
 
 React chosen for ecosystem size and developer availability. TypeScript required
-throughout. shadcn/ui for composable unstyled components that match the dark
-preservation-focused design system.
+throughout. Radix UI primitives (dialog, slot) with hand-rolled component library.
 
 ## Emulators (PC)
 

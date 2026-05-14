@@ -213,7 +213,7 @@ following areas, **re-read this file before writing code**:
 - Settings read or write
 - Destructive operations (delete, overwrite, reset)
 - Network binding, CORS configuration, or middleware
-- Secrets, credentials, or JWT handling
+- Secrets, credentials, or session secret handling
 
 If an implementation approach would require bypassing, weakening, or working around any
 rule in this file, **stop and flag it** rather than finding a workaround. Raise it in the

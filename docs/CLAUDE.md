@@ -24,13 +24,13 @@ Objects on Windows.
 - Python 3.11
 - FastAPI (REST API, OpenAPI spec auto-generated)
 - Pydantic (validation), PyYAML (profiles and config), python-dotenv (env vars)
-- SQLite via SQLAlchemy ORM with Alembic migrations
+- SQLite via SQLModel, create_all() on startup, no Alembic
 
 **Frontend**
 
 - React, TypeScript, Vite
-- TanStack Query (data fetching), Zustand (state), React Router
-- Tailwind CSS, shadcn/ui
+- TanStack Query (data fetching), useReducer (state), React Router
+- Tailwind CSS, Radix UI primitives (dialog, slot) with hand-rolled components
 
 **Documentation**
 
@@ -69,38 +69,65 @@ Objects on Windows.
 
 ## Folder Structure
 
-peach-1up/
-├── launcher.py # TUI entry point
-├── CLAUDE.md
-├── CONTEXT.md
-├── DECISIONS.md
+peach_1up/
 ├── README.md
-├── .env # never committed
+├── start.bat / start.sh
+├── .env                       # never committed
+├── .env.template
+├── .gitignore
+├── backend/
+│   ├── api/
+│   │   ├── middleware/
+│   │   └── routes/
+│   ├── core/
+│   │   ├── database.py
+│   │   ├── dependencies.py
+│   │   ├── lifespan.py
+│   │   ├── process_registry.py
+│   │   └── settings.py
+│   ├── models/
+│   ├── service/
+│   │   ├── backends/
+│   │   └── utils/
+│   ├── tests/
+│   └── main.py
+├── frontend/
+│   ├── src/
+│   │   ├── api/
+│   │   ├── components/
+│   │   ├── context/
+│   │   ├── hooks/
+│   │   ├── pages/
+│   │   ├── styles/
+│   │   ├── types/
+│   │   └── ui/
+│   └── package.json
 ├── config/
-│ ├── settings.yaml # paths to binaries, images, display config
-│ ├── eras.yaml # era → backend mapping and defaults
-│ ├── platforms.yaml # registered OS platforms
-│ └── known_titles.yaml # community database of titles with hardware requirements
-├── profiles/ # one .yaml per game
-├── backends/
-│ ├── dosbox.py # DOSBox-X container logic
-│ ├── box86.py # 86Box container logic
-│ └── virtualbox.py # VirtualBox backend
-├── utils/
-│ ├── media_detect.py # sniff .iso/.img/.cue to suggest era
-│ └── profile_builder.py # create/edit game profiles
-├── images/ # user-supplied OS base images (never committed)
-│ ├── README.md # guidance and official links
-│ ├── os/ # OS platform images (base and working copies)
-│ │ ├── dos/
-│ │ ├── win31/
-│ │ ├── win95/
-│ │ ├── win98/
-│ │ └── winxp/
-│ ├── hdd/ # DOS per-game HDD images
-│ └── roms/
-│ └── 86box/ # 86Box ROM pack
-└── tests/
+│   ├── templates/
+│   ├── constants.yaml
+│   ├── emulators.yaml
+│   ├── eras.yaml
+│   ├── known_titles.yaml
+│   ├── platforms.yaml
+│   └── settings.yaml
+├── database/
+│   └── data/                  # peach1up.db lives here (never committed)
+├── shared/
+│   ├── openapi.json           # auto-generated at startup
+│   └── types.ts               # auto-generated from openapi.json
+├── docs/
+├── scripts/
+│   ├── export_openapi.py
+│   ├── gen_constants.py
+│   └── setup_admin_user.py
+├── emulators/
+│   ├── 86box/
+│   ├── dosbox-x/
+│   └── virtualbox/
+└── images/                    # user-supplied, never committed
+    ├── games/
+    ├── hdd/
+    └── roms/
 
 ## Key Rules
 
@@ -112,8 +139,8 @@ peach-1up/
 - Do not jump ahead to NEXT tasks without confirmation
 - If completing CURRENT requires touching NEXT, flag it and ask before proceeding
 - Never edit CONTEXT.md, CLAUDE.md, or DECISIONS.md — managed by user only
-- CRITICAL: Emulators run natively on the host OS under process isolation — never inside application containers
-- CRITICAL: Network access must be blocked at the process isolation level for every emulator launch (network namespaces on Linux, Job Objects on Windows)
+- CRITICAL: Emulators run natively on the host OS under process isolation
+- CRITICAL: Network isolation is emulator-native — each emulator is launched with its network adapter disabled when enable_networking is false on the active profile. Never rely on host OS firewall rules or process isolation for network blocking
 - CRITICAL: Never attempt to write to or overwrite a mounted image — always read-only
 - CRITICAL: Any file delete, overwrite, git operation, or destructive action requires
   explicit user confirmation before proceeding — no exceptions
@@ -122,7 +149,7 @@ peach-1up/
 
 - Fail loudly on every error — surface the message to the user, never swallow exceptions
 - Never proceed after a warning or error without user confirmation
-- If an emulator or application container fails to start cleanly, abort and report — do not retry automatically
+- If an emulator fails to start cleanly, abort and report — do not retry automatically
 - If media detection is uncertain, ask the user to confirm before launching
 - Memory and file operations must always err toward doing nothing over doing something wrong
 - All mounts inside containers are read-only unless explicitly approved
@@ -158,11 +185,10 @@ Awaiting your decision.
   clearly if required fields are missing or malformed.
 - Emulators run natively on the host OS. On Linux, isolation is via cgroups
   and network namespaces. On Windows, isolation is via Job Objects.
-  Never run emulators inside application containers.
 - Read-only mount must be explicitly enforced for every media file passed to
   an emulator. Never pass a writable path.
 - DOS profiles remain standalone with per-game HDD images. Win95/98/XP use the
-  OSPlatform model with a locked base image and a working copy — two image copies
+  DB-backed Platform model with a locked base image and a working copy — two image copies
   per platform will be stored on disk.
 
 ## Official Download Links
@@ -233,6 +259,13 @@ Use the area of the project being changed:
 - launcher — main entry point
 - frontend — React/TypeScript frontend
 - docs — CLAUDE.md, CONTEXT.md, DECISIONS.md, README
+- api — FastAPI routes and API layer
+- auth — authentication and session handling
+- sandbox — process isolation and Job Objects
+- launches — launch flow and process tracking
+- library — game library management
+- platforms — OS platform management
+- backend — backend-wide changes
 
 ### Examples
 
