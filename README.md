@@ -61,6 +61,10 @@ Binary paths and runtime settings live in `config/settings.yaml`. A `.env`
 file is supported as a legacy override — values in `.env` take precedence over
 `settings.yaml`. See `settings.yaml` for documented defaults.
 
+There aer several default paths that you can update such as \images for the .iso, .cud, etc. files.
+If you update this path you MUST restart the backend service. During runtime startup, a script is ran
+in order to grant correct permissions to all folder and files that need them.
+
 ---
 
 ## Documentation

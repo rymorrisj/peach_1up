@@ -13,11 +13,13 @@ _ERA_DEFAULTS = {
         "memsize": 16,
         "machine": "vga",
         "cycles": "auto",
+        "core": "normal",
     },
     Era.WIN31: {
         "memsize": 64,
         "machine": "svga_s3",
         "cycles": "auto",
+        "core": "auto",
     },
 }
 
@@ -105,7 +107,7 @@ def build_conf_content(era: Era, autoexec_lines: list[str] | None = None) -> str
         f"machine={era_defaults['machine']}",
         "",
         "[cpu]",
-        "core=auto",
+        f"core={era_defaults['core']}",
         "cputype=auto",
         f"cycles={era_defaults['cycles']}",
         "",
