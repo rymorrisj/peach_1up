@@ -5,10 +5,9 @@ Provides process isolation and resource limits for emulator processes running
 natively on the Windows host.  Each emulator launch gets its own named Job
 Object so multiple profiles can run without interfering with each other.
 
-All emulator processes are launched under the low-privilege ``peach_sandbox``
-local account via ``CreateProcessWithLogonW``.  If the sandbox account is
-unavailable or the Job Object cannot be created, the launch is aborted.
-There is no unsandboxed fallback.
+All emulator processes are launched under the current user account via
+``CreateProcessW``.  If the Job Object cannot be created, the launch is
+aborted.  There is no unsandboxed fallback.
 
 Resource limits (memory cap, CPU hard cap, kill-on-close) are sourced
 exclusively from eras.yaml.  There is no per-profile override path.
@@ -47,9 +46,6 @@ _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
 # ControlFlags values used in JOBOBJECT_CPU_RATE_CONTROL_INFORMATION.ControlFlags
 _JOB_OBJECT_CPU_RATE_CONTROL_ENABLE   = 0x1
 _JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP = 0x4  # requires Windows 8.1+
-
-# CreateProcessWithLogonW: load the user profile before launching.
-_LOGON_WITH_PROFILE = 0x00000001
 
 # GetExitCodeProcess sentinel — process has not yet exited.
 _STILL_ACTIVE = 259
@@ -135,7 +131,7 @@ class THREADENTRY32(ctypes.Structure):
 
 
 class STARTUPINFOW(ctypes.Structure):
-    """Maps to the Win32 STARTUPINFOW structure used by CreateProcessWithLogonW."""
+    """Maps to the Win32 STARTUPINFOW structure."""
     _fields_ = [
         ("cb",              ctypes.wintypes.DWORD),
         ("lpReserved",      ctypes.wintypes.LPWSTR),
@@ -159,7 +155,7 @@ class STARTUPINFOW(ctypes.Structure):
 
 
 class PROCESS_INFORMATION(ctypes.Structure):
-    """Maps to the Win32 PROCESS_INFORMATION structure used by CreateProcessWithLogonW."""
+    """Maps to the Win32 PROCESS_INFORMATION structure."""
     _fields_ = [
         ("hProcess",    ctypes.wintypes.HANDLE),
         ("hThread",     ctypes.wintypes.HANDLE),
@@ -173,7 +169,7 @@ class PROCESS_INFORMATION(ctypes.Structure):
 # ---------------------------------------------------------------------------
 
 class SandboxProcess:
-    """Lightweight process handle returned by _launch_as_sandbox_user.
+    """Lightweight process handle returned by _launch_process.
 
     Provides the interface expected by ``WindowsJobObject.add_process()``,
     ``process_registry``, and the teardown paths in
@@ -249,7 +245,7 @@ class SandboxProcess:
         """Resume the suspended main thread using the stored thread handle.
 
         Uses the thread handle from ``PROCESS_INFORMATION`` returned by
-        ``CreateProcessWithLogonW`` — no thread snapshot required.  The thread
+        ``CreateProcessW`` — no thread snapshot required.  The thread
         handle is closed immediately after the resume call.
 
         Raises:
@@ -430,7 +426,7 @@ class WindowsJobObject:
     def add_process(self, process: "SandboxProcess") -> None:
         """Assign a process to the job object.
 
-        If ``process.handle`` is set (populated by ``_launch_as_sandbox_user``),
+        If ``process.handle`` is set (populated by ``_launch_process``),
         it is used directly for ``AssignProcessToJobObject`` — no ``OpenProcess``
         or ``CloseHandle`` call is made; handle lifecycle is managed by the
         caller via ``launch_under_job_object``.  If ``process.handle`` is
@@ -462,7 +458,7 @@ class WindowsJobObject:
         if using_stored_handle:
             proc_handle = process.handle
         else:
-            # Fallback: process was not created via _launch_as_sandbox_user.
+            # Fallback: process handle was not retained by the caller.
             proc_handle = ctypes.windll.kernel32.OpenProcess(
                 0x0201,  # PROCESS_SET_QUOTA | PROCESS_TERMINATE — minimum for AssignProcessToJobObject
                 False,
@@ -736,77 +732,16 @@ def _load_era_limits(era: str) -> Tuple[int, int]:
     return int(memory_limit_mb), int(cpu_limit_percent)
 
 
-def _get_sandbox_credentials() -> Tuple[str, str]:
-    """Return (username, password) for the peach_sandbox local account.
-
-    Raises:
-        RuntimeError: If the sandbox password is not configured in settings.
-    """
-    from backend.service.utils.settings import get_or_generate_sandbox_password
-    password = get_or_generate_sandbox_password()
-    if not password:
-        raise RuntimeError(
-            "peach_sandbox account password is not configured. "
-            "Ensure the backend started correctly and the sandbox account was created."
-        )
-    return "peach_sandbox", password
-
-def debug_can_sandbox_read_file(path: str) -> bool:
-    """Return True if the peach_sandbox account can read *path*.
-
-    This is a debug helper that launches a tiny sandboxed process under the
-    same CreateProcessWithLogonW path used for emulator launches. It attempts
-    to read the file using cmd.exe and returns whether the read succeeded.
-
-    Args:
-        path: Full path to a file that should be readable by peach_sandbox.
-
-    Returns:
-        True if the sandbox user can read the file, False otherwise.
-    """
-    system_root = Path(os.environ.get("SystemRoot", r"C:\Windows"))
-    cmd_exe = system_root / "System32" / "cmd.exe"
-
-    if not cmd_exe.exists():
-        logger.debug("Sandbox read probe: cmd.exe not found at %s", cmd_exe)
-        return False
-
-    quoted_path = str(path).replace('"', '""')
-    probe_args = ["/c", "type", quoted_path]
-
-    logger.debug("Sandbox read probe: target=%s cmd_exe=%s args=%s", path, cmd_exe, probe_args)
-
-    process = None
-    try:
-        process = _launch_as_sandbox_user(
-            executable_path=str(cmd_exe),
-            args=probe_args,
-            creation_flags=0,
-        )
-        exit_code = process.wait()
-        logger.debug("Sandbox read probe exit_code: %d", exit_code)
-        return exit_code == 0
-    except Exception as exc:
-        logger.debug("Sandbox read probe failed: %s", exc)
-        return False
-    finally:
-        try:
-            if process is not None and process._process_handle:
-                process.kill()
-        except Exception:
-            pass
-
-def _launch_as_sandbox_user(
+def _launch_process(
     executable_path: str,
     args: List[str],
     creation_flags: int,
 ) -> SandboxProcess:
-    """Launch a process as the peach_sandbox local user via CreateProcessWithLogonW.
+    """Launch a process under the current user account via CreateProcessW.
 
-    Uses the secondary logon service so no special privileges are required
-    from the calling process.  The process is created with ``creation_flags``
-    — callers pass ``CREATE_SUSPENDED`` so the process can be assigned to a
-    Job Object before any code runs.
+    The process is created with ``creation_flags`` — callers pass
+    ``CREATE_SUSPENDED`` so the process can be assigned to a Job Object
+    before any code runs.
 
     Args:
         executable_path: Full path to the emulator executable.
@@ -817,13 +752,8 @@ def _launch_as_sandbox_user(
         ``SandboxProcess`` with pid, process handle, and thread handle.
 
     Raises:
-        RuntimeError: If sandbox credentials are unavailable or
-            ``CreateProcessWithLogonW`` fails.
+        RuntimeError: If ``CreateProcessW`` fails.
     """
-    username, password = _get_sandbox_credentials()
-
-    # Build command-line string using the same quoting rules as subprocess.Popen
-    # on Windows, so argument boundaries are preserved correctly.
     cmd_line = subprocess.list2cmdline([executable_path] + args)
     cmd_buf = ctypes.create_unicode_buffer(cmd_line)
 
@@ -834,19 +764,18 @@ def _launch_as_sandbox_user(
     pi = PROCESS_INFORMATION()
 
     logger.debug(
-        "launch_as_sandbox_user: user=%s exe=%s cwd=%s flags=%#x args=%s cmd=%s",
-        username, executable_path, cwd, creation_flags, args, cmd_line,
+        "launch_process: exe=%s cwd=%s flags=%#x args=%s cmd=%s",
+        executable_path, cwd, creation_flags, args, cmd_line,
     )
 
-    result = ctypes.windll.advapi32.CreateProcessWithLogonW(
-        ctypes.c_wchar_p(username),
-        ctypes.c_wchar_p("."),                       # domain: "." = local machine
-        ctypes.c_wchar_p(password),
-        ctypes.wintypes.DWORD(_LOGON_WITH_PROFILE),
+    result = ctypes.windll.kernel32.CreateProcessW(
         ctypes.c_wchar_p(executable_path),
-        cmd_buf,                                      # mutable LPWSTR — required by API
+        cmd_buf,
+        None,
+        None,
+        False,
         ctypes.wintypes.DWORD(creation_flags),
-        None,                                         # lpEnvironment: inherit caller's env
+        None,
         ctypes.c_wchar_p(cwd) if cwd else None,
         ctypes.byref(si),
         ctypes.byref(pi),
@@ -855,9 +784,8 @@ def _launch_as_sandbox_user(
     if not result:
         error_code = ctypes.windll.kernel32.GetLastError()
         raise RuntimeError(
-            f"Failed to launch '{os.path.basename(executable_path)}' as peach_sandbox. "
-            f"Error code: {error_code}. "
-            "Ensure the peach_sandbox account exists and the executable path is accessible."
+            f"Failed to launch '{os.path.basename(executable_path)}'. "
+            f"Error code: {error_code}."
         )
 
     return SandboxProcess(
@@ -875,19 +803,18 @@ def launch_under_job_object(
     era: str,
     job_name: str
 ) -> Tuple[SandboxProcess, "WindowsJobObject"]:
-    """Launch an emulator as peach_sandbox under a Windows Job Object.
+    """Launch an emulator under the current user account in a Windows Job Object.
 
     Orchestrates the full startup sequence:
       1. Load memory_limit_mb and cpu_limit_percent for ``era`` from eras.yaml.
       2. Create a ``WindowsJobObject`` and apply both limits plus kill-on-close.
-      3. Launch the emulator as the peach_sandbox user in a suspended state
+      3. Launch the emulator as the current user in a suspended state
          (prevents a race between process start and job assignment).
       4. Assign the process to the job object.
       5. Resume the process.
 
     The launch is aborted and an error surfaced if:
-      - The peach_sandbox account credentials are unavailable.
-      - ``CreateProcessWithLogonW`` fails for any reason.
+      - ``CreateProcessW`` fails for any reason.
       - Job Object creation or assignment fails.
 
     There is no unsandboxed fallback.
@@ -923,7 +850,7 @@ def launch_under_job_object(
 
         base_flags = subprocess.CREATE_NEW_PROCESS_GROUP | _CREATE_SUSPENDED
 
-        process = _launch_as_sandbox_user(executable_path, args, base_flags)
+        process = _launch_process(executable_path, args, base_flags)
 
         # Windows 11 pre-assigns child processes to an OS-managed job object.
         # Detect this on the child itself after launch, then kill and re-launch
@@ -935,7 +862,7 @@ def launch_under_job_object(
                 process.wait()
             except Exception:
                 pass
-            process = _launch_as_sandbox_user(
+            process = _launch_process(
                 executable_path, args, base_flags | _CREATE_BREAKAWAY_FROM_JOB
             )
 
@@ -987,7 +914,7 @@ def launch_under_job_object(
         except Exception:
             pass
         try:
-            process = _launch_as_sandbox_user(
+            process = _launch_process(
                 executable_path, args, base_flags | _CREATE_BREAKAWAY_FROM_JOB
             )
         except Exception as exc2:

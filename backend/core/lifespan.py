@@ -1,8 +1,6 @@
 import asyncio
 import json
 import logging
-import os
-import platform
 import subprocess
 import sys
 from contextlib import asynccontextmanager
@@ -205,59 +203,9 @@ async def _process_monitor_loop() -> None:
             logger.warning("Process monitor iteration failed (will retry): %s", exc)
 
 
-_SANDBOX_SCRIPT = (
-    Path(__file__).resolve().parent.parent.parent / "scripts" / "create_sandbox_user.ps1"
-)
-
 _SETUP_ADMIN_SCRIPT = (
     Path(__file__).resolve().parent.parent.parent / "scripts" / "setup_admin_user.py"
 )
-
-
-def _verify_sandbox_user() -> None:
-    """Ensure the peach_sandbox local account exists and is correctly configured.
-
-    No-op on non-Windows hosts. Calls create_sandbox_user.ps1 via a subprocess
-    PowerShell call. Aborts startup (raises RuntimeError) if the script fails
-    or exits non-zero.
-    """
-    if platform.system() != "Windows":
-        return
-
-    if not _SANDBOX_SCRIPT.exists():
-        raise RuntimeError(
-            f"Sandbox setup script not found: {_SANDBOX_SCRIPT}\n"
-            "Re-clone the repository or restore scripts/create_sandbox_user.ps1."
-        )
-
-    from backend.service.utils import settings as _settings_mod
-    password = _settings_mod.get_or_generate_sandbox_password()
-
-    env = os.environ.copy()
-    env["PEACH_SANDBOX_PASSWORD"] = password
-
-    result = subprocess.run(
-        [
-            "powershell.exe",
-            "-NonInteractive",
-            "-ExecutionPolicy", "Bypass",
-            "-File", str(_SANDBOX_SCRIPT),
-        ],
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-
-    # Surface stdout at INFO so operators see what the script did.
-    if result.stdout.strip():
-        for line in result.stdout.strip().splitlines():
-            logger.info("Sandbox setup: %s", line)
-
-    if result.returncode != 0:
-        error_output = (result.stdout + "\n" + result.stderr).strip()
-        raise RuntimeError(
-            f"Sandbox user setup failed (exit {result.returncode}):\n{error_output}"
-        )
 
 
 def _ensure_owner_user() -> None:
@@ -378,7 +326,6 @@ def _export_openapi_spec(app: FastAPI) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_settings()
-    _verify_sandbox_user()
     init_db()
     create_tables()
     _apply_schema_migrations()

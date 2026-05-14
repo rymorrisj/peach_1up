@@ -42,10 +42,8 @@ def get_shared_dosbox_conf_dir() -> Path:
     """Return the shared directory used for generated DOSBox-X conf files.
 
     On Windows, conf files are written to a machine-wide directory under
-    ``%ProgramData%`` so the low-privilege ``peach_sandbox`` account can read
-    them once setup has granted ACLs on that directory tree. This avoids
-    writing launch confs into user-private project or temp directories that
-    the sandbox account cannot access.
+    ``%ProgramData%`` so they are accessible regardless of the working
+    directory or user context.
 
     On non-Windows platforms, use a standard per-user data directory under the
     current user's home directory.
@@ -215,8 +213,7 @@ def generate_conf(
 ) -> Path:
     """Create a new conf file for the profile, record its path, and save it.
 
-    New conf files are written to the shared DOSBox-X conf directory so they
-    can be read by the low-privilege ``peach_sandbox`` account during launch.
+    New conf files are written to the shared DOSBox-X conf directory.
     The ``conf_dir`` parameter is accepted for backwards-compatible call-site
     symmetry but is no longer used as the primary destination.
 

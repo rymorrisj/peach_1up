@@ -1,21 +1,15 @@
 """
-Regression tests for the Windows sandbox isolation layer (P6-7).
+Regression tests for the Windows Job Object isolation layer.
 
 Coverage:
   _load_era_limits      — eras.yaml parsing and all error paths
   WindowsJobObject      — constructor, pre-create error guards, Win32 lifecycle
   SandboxProcess        — attribute/state paths that do not call Win32 APIs
-  _verify_sandbox_user  — non-Windows skip, missing script, script failure, success
-  _get_sandbox_credentials — password absent and present paths
 
 Tests marked @requires_windows call Win32 APIs and must run on Windows 10/11.
-Tests marked @pytest.mark.skip(reason="manual: ...") require a live Windows
-environment with the peach_sandbox account present and an emulator binary on disk.
-They cannot be run in automated CI.
 """
 
 import sys
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -257,146 +251,17 @@ class TestSandboxProcess:
 
 
 # ---------------------------------------------------------------------------
-# _verify_sandbox_user — fully mock-based, runs on any OS
-# ---------------------------------------------------------------------------
-
-class TestVerifySandboxUser:
-    def test_skips_on_non_windows(self):
-        import backend.core.lifespan as lifespan
-        with patch("backend.core.lifespan.platform.system", return_value="Linux"):
-            lifespan._verify_sandbox_user()  # must not raise
-
-    def test_raises_if_script_missing(self, tmp_path):
-        import backend.core.lifespan as lifespan
-        missing = tmp_path / "no_such_script.ps1"
-        with patch("backend.core.lifespan.platform.system", return_value="Windows"), \
-             patch("backend.core.lifespan._SANDBOX_SCRIPT", missing):
-            with pytest.raises(RuntimeError, match="Sandbox setup script not found"):
-                lifespan._verify_sandbox_user()
-
-    def test_raises_on_script_nonzero_exit(self, tmp_path):
-        import backend.core.lifespan as lifespan
-        script = tmp_path / "create_sandbox_user.ps1"
-        script.write_text("# stub", encoding="utf-8")
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stdout = "[peach_sandbox] error line"
-        mock_result.stderr = ""
-        with patch("backend.core.lifespan.platform.system", return_value="Windows"), \
-             patch("backend.core.lifespan._SANDBOX_SCRIPT", script), \
-             patch("backend.service.utils.settings.get_or_generate_sandbox_password", return_value="pw"), \
-             patch("subprocess.run", return_value=mock_result):
-            with pytest.raises(RuntimeError, match="Sandbox user setup failed"):
-                lifespan._verify_sandbox_user()
-
-    def test_succeeds_on_script_zero_exit(self, tmp_path):
-        import backend.core.lifespan as lifespan
-        script = tmp_path / "create_sandbox_user.ps1"
-        script.write_text("# stub", encoding="utf-8")
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "[peach_sandbox] Ready."
-        mock_result.stderr = ""
-        with patch("backend.core.lifespan.platform.system", return_value="Windows"), \
-             patch("backend.core.lifespan._SANDBOX_SCRIPT", script), \
-             patch("backend.service.utils.settings.get_or_generate_sandbox_password", return_value="pw"), \
-             patch("subprocess.run", return_value=mock_result):
-            lifespan._verify_sandbox_user()  # must not raise
-
-    def test_password_passed_via_env_not_args(self, tmp_path):
-        """PEACH_SANDBOX_PASSWORD must be in env, never on the command line."""
-        import backend.core.lifespan as lifespan
-        script = tmp_path / "create_sandbox_user.ps1"
-        script.write_text("# stub", encoding="utf-8")
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = ""
-        mock_result.stderr = ""
-        captured = {}
-        def capture_run(*args, **kwargs):
-            captured["cmd"] = args[0] if args else kwargs.get("args", [])
-            captured["env"] = kwargs.get("env", {})
-            return mock_result
-        with patch("backend.core.lifespan.platform.system", return_value="Windows"), \
-             patch("backend.core.lifespan._SANDBOX_SCRIPT", script), \
-             patch("backend.service.utils.settings.get_or_generate_sandbox_password", return_value="secret_pw"), \
-             patch("subprocess.run", side_effect=capture_run):
-            lifespan._verify_sandbox_user()
-        assert "secret_pw" not in " ".join(str(a) for a in captured.get("cmd", []))
-        assert captured.get("env", {}).get("PEACH_SANDBOX_PASSWORD") == "secret_pw"
-
-
-# ---------------------------------------------------------------------------
-# _get_sandbox_credentials — mock-based
-# ---------------------------------------------------------------------------
-
-class TestGetSandboxCredentials:
-    def test_returns_peach_sandbox_username(self):
-        from backend.service.utils.job_objects import _get_sandbox_credentials
-        with patch("backend.service.utils.settings.get_or_generate_sandbox_password", return_value="secure123"):
-            username, _ = _get_sandbox_credentials()
-        assert username == "peach_sandbox"
-
-    def test_returns_configured_password(self):
-        from backend.service.utils.job_objects import _get_sandbox_credentials
-        with patch("backend.service.utils.settings.get_or_generate_sandbox_password", return_value="secure123"):
-            _, password = _get_sandbox_credentials()
-        assert password == "secure123"
-
-    def test_raises_when_password_is_empty_string(self):
-        from backend.service.utils.job_objects import _get_sandbox_credentials
-        with patch("backend.service.utils.settings.get_or_generate_sandbox_password", return_value=""):
-            with pytest.raises(RuntimeError, match="peach_sandbox account password is not configured"):
-                _get_sandbox_credentials()
-
-    def test_raises_when_password_is_none(self):
-        from backend.service.utils.job_objects import _get_sandbox_credentials
-        with patch("backend.service.utils.settings.get_or_generate_sandbox_password", return_value=None):
-            with pytest.raises(RuntimeError, match="peach_sandbox account password is not configured"):
-                _get_sandbox_credentials()
-
-
-# ---------------------------------------------------------------------------
-# Manual verification tests — cannot run in automated CI
+# Manual verification test — cannot run in automated CI
 # ---------------------------------------------------------------------------
 
 @pytest.mark.skip(
     reason=(
-        "manual: requires admin privileges and a live Windows 10/11 environment. "
-        "Steps: (1) Start the backend so lifespan._verify_sandbox_user() runs. "
-        "(2) Open an admin PowerShell and run: "
-        "Get-LocalUser -Name peach_sandbox; "
-        "Get-LocalGroupMember -Group Administrators | Where-Object { $_.Name -like '*peach_sandbox*' }. "
-        "Expected: account exists and is Enabled; account is NOT in Administrators group."
-    )
-)
-def test_manual_sandbox_user_exists_and_not_admin():
-    pass
-
-
-@pytest.mark.skip(
-    reason=(
-        "manual: requires the peach_sandbox account to exist, a real emulator binary "
-        "at DOSBOX_PATH, and Windows 10/11. "
-        "Steps: (1) Ensure the backend has started once. "
-        "(2) Call launch_under_job_object(dosbox_path, [], [], 'dos', 'PeachManualTest'). "
-        "(3) Verify process.pid > 0 and job.is_active() is True. "
-        "(4) Call job.terminate_all() and verify the process is gone. "
+        "manual: requires a real emulator binary at DOSBOX_PATH and Windows 10/11. "
+        "Steps: (1) Call launch_under_job_object(dosbox_path, [], [], 'dos', 'PeachManualTest'). "
+        "(2) Verify process.pid > 0 and job.is_active() is True. "
+        "(3) Call job.terminate_all() and verify the process is gone. "
         "Expected: no RuntimeError; pid > 0; job active after launch; inactive after terminate."
     )
 )
 def test_manual_launch_under_job_object_real_process():
-    pass
-
-
-@pytest.mark.skip(
-    reason=(
-        "manual: requires Windows 10/11 with peach_sandbox account absent. "
-        "Steps: (1) Delete the peach_sandbox account if it exists: Remove-LocalUser peach_sandbox. "
-        "(2) Start the backend — _verify_sandbox_user() must create the account. "
-        "(3) Verify Get-LocalUser -Name peach_sandbox shows the account as Enabled. "
-        "Expected: account created automatically on first backend start."
-    )
-)
-def test_manual_sandbox_user_created_on_first_start():
     pass

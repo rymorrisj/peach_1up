@@ -138,7 +138,7 @@ def launch(
 
     This is the single entry point for the DOSBox-X backend. It validates the
     media, builds the command-line arguments, and launches the process under
-    the ``peach_sandbox`` account with Windows Job Object limits applied.
+    the current user account with Windows Job Object limits applied.
 
     Args:
         media_path: Path to the media file to mount.

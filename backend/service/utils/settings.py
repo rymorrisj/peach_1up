@@ -35,7 +35,6 @@ _DEFAULTS: dict = {
     "PS2_BIOS_PATH": "",
     "XBOX_BIOS_PATH": "",
     "suppress_confirmations": [],
-    "SANDBOX_PASSWORD": "",
 }
 
 # Maps emulator key → (env_var_name, settings_yaml_key)
@@ -250,25 +249,6 @@ def get_or_generate_session_secret() -> str:
         state["SESSION_SECRET"] = secret
         _save()
     return secret
-
-
-def get_or_generate_sandbox_password() -> str:
-    """Return the peach_sandbox account password, generating and persisting it on first call.
-
-    Follows the same pattern as get_or_generate_session_secret(). The password
-    is a 32-character alphanumeric string. Per SECURITY.md it is never exposed
-    via API responses or logs.
-    """
-    state = _require_init()
-    password: str = state.get("SANDBOX_PASSWORD") or ""
-    if not password:
-        import secrets as _sec
-        import string as _str
-        alphabet = _str.ascii_letters + _str.digits
-        password = "".join(_sec.choice(alphabet) for _ in range(32))
-        state["SANDBOX_PASSWORD"] = password
-        _save()
-    return password
 
 
 def mark_first_run_complete() -> None:

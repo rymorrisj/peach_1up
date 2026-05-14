@@ -2,13 +2,6 @@
 cd /d "%~dp0"
 setlocal
 
-net session >nul 2>&1
-if errorlevel 1 (
-    echo Requesting administrator privileges...
-    powershell -Command "Start-Process cmd -ArgumentList '/c """"%~f0""""' -Verb RunAs"
-    exit /b
-)
-
 echo ============================================================
 echo Peach 1UP - Setup and Start (Windows)
 echo ============================================================

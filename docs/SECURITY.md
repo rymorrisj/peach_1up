@@ -225,14 +225,9 @@ conversation and wait for an explicit decision before proceeding.
 
 **Mandatory.**
 
-- All emulator processes on Windows are launched under a dedicated local account
-  (`peach_sandbox`), not under the owner or service account.
-- The `peach_sandbox` account has read-only access to:
-  - Configured emulator binary directories
-  - Configured ROM/library/media directories
-  - The application config directory where necessary
-    It has no access to user profile locations such as `Documents`, `Desktop`,
-    or arbitrary paths on `C:\` by default.
+- All emulator processes on Windows are launched under the current user account via
+  `CreateProcessW`. Account-level isolation (AppContainer or a dedicated low-privilege
+  account) is deferred to a later phase.
 - Every emulator launch is assigned to a fresh Job Object with:
   - `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` — the entire emulator process tree is torn
     down automatically if the backend exits, preventing orphaned processes.
@@ -243,22 +238,6 @@ conversation and wait for an explicit decision before proceeding.
     (`memory_limit_mb`), applied via `JOB_OBJECT_LIMIT_PROCESS_MEMORY`.
 - If Job Object creation or assignment fails for any reason, **the launch is aborted**
   and the error is surfaced to the user. There is no unsandboxed fallback path.
-
-#### Windows sandbox account
-
-The `peach_sandbox` local account is created automatically when the backend first starts.
-`scripts/create_sandbox_user.ps1` runs via subprocess inside the FastAPI lifespan handler.
-It creates the account if absent, syncs the password, ensures the account is enabled, and
-verifies it is **not** a member of the Administrators group. If the script exits non-zero,
-backend startup is aborted with a clear error — there is no partial-setup path.
-
-The account is used exclusively to run emulator processes via `CreateProcessWithLogonW`.
-It cannot log in to Windows interactively.
-
-- No API or UI operation ever returns credentials or identifiers for this account.
-- The account password is generated on first run and stored in `config/settings.yaml`.
-  It is never exposed via logs, API responses, or committed to version control.
-- The account cannot modify Peach 1UP configuration, databases, or host user data.
 
 ---
 
