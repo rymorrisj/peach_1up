@@ -343,6 +343,13 @@ def set_override_path(emulator: str, path: str) -> None:
             f"Valid values: {', '.join(sorted(_ENV_BINARY_VARS))}"
         )
 
+    if path:
+        from backend.service.utils.path_utils import normalise_path
+        try:
+            path = str(normalise_path(path))
+        except ValueError as exc:
+            raise ValueError(f"Invalid path: {exc}") from exc
+
     _, yaml_key = _ENV_BINARY_VARS[emulator]
     state[yaml_key] = path
     _save()
@@ -371,6 +378,12 @@ def set_path(key: str, value: str) -> None:
             f"'{key}' is not a recognised path key. "
             f"Valid path keys: {', '.join(sorted(_PATH_KEYS))}"
         )
+    if value:
+        from backend.service.utils.path_utils import normalise_path
+        try:
+            value = str(normalise_path(value))
+        except ValueError as exc:
+            raise ValueError(f"Invalid path for {key}: {exc}") from exc
     state[key] = value
     _save()
 

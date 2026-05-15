@@ -1,7 +1,7 @@
-import { useRef } from 'react'
-import type { ChangeEvent, InputHTMLAttributes } from 'react'
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Input, Button } from '@/ui'
+import FileBrowser from '@/components/common/FileBrowser'
 
 interface PathInputProps {
   id?: string
@@ -24,24 +24,15 @@ export default function PathInput({
   accept,
   className,
 }: PathInputProps) {
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [browserOpen, setBrowserOpen] = useState(false)
 
-  function handlePickerChange(e: ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-    const f = files[0]
-    const picked =
-      mode === 'folder' && f.webkitRelativePath
-        ? f.webkitRelativePath.split('/')[0]
-        : f.name
-    onChange(picked)
-    e.target.value = ''
-  }
-
-  const dirProps: InputHTMLAttributes<HTMLInputElement> =
-    mode === 'folder'
-      ? ({ webkitdirectory: '', multiple: true } as InputHTMLAttributes<HTMLInputElement>)
-      : {}
+  const extensions =
+    mode === 'file' && accept
+      ? accept
+          .split(',')
+          .map((e) => e.trim().replace(/^\./, ''))
+          .join(',')
+      : undefined
 
   return (
     <div className={cn('flex gap-2', className)}>
@@ -58,19 +49,17 @@ export default function PathInput({
         variant="secondary"
         size="sm"
         className="shrink-0"
-        onClick={() => fileRef.current?.click()}
+        onClick={() => setBrowserOpen(true)}
       >
         Browse…
       </Button>
-      <input
-        ref={fileRef}
-        type="file"
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-        accept={accept}
-        onChange={handlePickerChange}
-        {...dirProps}
+      <FileBrowser
+        open={browserOpen}
+        onClose={() => setBrowserOpen(false)}
+        onSelect={(path) => { onChange(path); setBrowserOpen(false) }}
+        extensions={extensions}
+        mode={mode}
+        title={mode === 'folder' ? 'Select Folder' : 'Select File'}
       />
     </div>
   )

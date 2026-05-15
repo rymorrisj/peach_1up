@@ -65,12 +65,8 @@ class LibraryPathBody(BaseModel):
 
 
 def _check_traversal(path_str: str) -> Path:
-    if '\x00' in path_str:
-        raise ValueError("Path contains a null byte.")
-    resolved = Path(path_str).resolve()
-    if '..' in resolved.parts:
-        raise ValueError("Path traversal detected.")
-    return resolved
+    from backend.service.utils.path_utils import normalise_path
+    return normalise_path(path_str)
 
 
 @router.get("", response_model=dict)
