@@ -352,6 +352,13 @@ async def lifespan(app: FastAPI):
     _scan_installed_emulators()
     _export_openapi_spec(app)
 
+    _tray_stop_fn = None
+    try:
+        from backend.tray import start as _tray_start, stop as _tray_stop_fn
+        _tray_start()
+    except Exception as exc:
+        logger.warning("Tray icon not started: %s", exc)
+
     monitor_task = asyncio.create_task(_process_monitor_loop())
 
     yield
@@ -374,3 +381,6 @@ async def lifespan(app: FastAPI):
 
     for pid in list(process_registry.get_all().keys()):
         process_registry.terminate(pid)
+
+    if _tray_stop_fn is not None:
+        _tray_stop_fn()

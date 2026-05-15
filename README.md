@@ -48,10 +48,44 @@ start.bat     # Windows
 cd frontend && npm run dev
 ```
 
-## Production (coming in P5)
+## Build
 
-- **Windows:** download and run `Peach1UP-Setup-Windows-x64.exe`
-- **Linux:** download `peach1up-linux-x64.deb` or `.AppImage`
+### 1. Generate the tray icon
+
+```bat
+.venv\Scripts\python.exe scripts\gen_icon.py
+```
+
+Writes `assets/peach1up.png` (16×16 solid peach #ff8a5c).
+
+### 2. Build the frontend
+
+```bat
+cd frontend && npm run build && cd ..
+```
+
+### 3. Package with PyInstaller
+
+```bat
+.venv\Scripts\python.exe -m pip install pyinstaller
+.venv\Scripts\python.exe -m PyInstaller peach1up.spec
+```
+
+Output: `dist\peach1up\` — a self-contained directory containing `peach1up.exe`.
+
+> `frontend/dist/` must exist before running PyInstaller.
+
+### 4. Build the installer
+
+Requires [NSIS](https://nsis.sourceforge.io/) and [NSSM](https://nssm.cc/) placed at `installer\tools\nssm.exe`.
+
+```bat
+makensis installer\peach1up.nsi
+```
+
+Output: `Peach1UP-Setup.exe`. Installs to `%PROGRAMFILES%\Peach1UP\`, registers a
+Windows service via NSSM, and creates a Start Menu shortcut. The uninstaller stops
+the service and removes all files; `config\settings.yaml` is preserved.
 
 ---
 
