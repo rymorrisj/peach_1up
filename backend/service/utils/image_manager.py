@@ -28,7 +28,7 @@ def get_working_copy_path(base_image_path: Path, era: str, platform_id: str) -> 
     Returns:
         Expected path for the working copy.
     """
-    return Path("images") / "os" / era / platform_id / base_image_path.name
+    return Path("library") / "os" / era / platform_id / base_image_path.name
 
 
 def working_copy_exists(base_image_path: Path, era: str, platform_id: str) -> bool:
@@ -56,7 +56,7 @@ def create_working_copy(base_image_path: Path, era: str, platform_id: str) -> Pa
 
     .. warning::
         This operation doubles disk usage for the image file. A multi-GB image
-        will consume the same space again under ``images/os/{era}/{platform_id}/``.
+        will consume the same space again under ``library/os/{era}/{platform_id}/``.
         The caller should warn the user before invoking this function.
 
     Args:
