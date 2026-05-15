@@ -16,7 +16,7 @@ import yaml
 
 from backend.constants_generated import Era
 from backend.models.platform import Platform
-from backend.service.utils.job_objects import launch_under_job_object
+from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.media_attach import build_86box_attachment
 from backend.service.utils.settings import get_binary_path, get_env_var
 

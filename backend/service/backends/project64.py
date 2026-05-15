@@ -12,7 +12,9 @@ from typing import Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
-from backend.service.utils.job_objects import launch_under_job_object, SandboxProcess, WindowsJobObject
+from backend.service.utils.launcher import launch_under_job_object
+from backend.service.utils.sandbox_process import SandboxProcess
+from backend.service.utils.job_objects import WindowsJobObject
 
 SUPPORTED_ERAS = {Era.N64.value}
 SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.N64]

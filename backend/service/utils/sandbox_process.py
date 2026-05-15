@@ -1,0 +1,121 @@
+"""
+SandboxProcess — lightweight process handle returned by the launcher.
+
+Wraps the Win32 handles from CreateProcessW and provides the interface
+expected by WindowsJobObject.add_process(), process_registry, and the
+teardown paths in launch_under_job_object.
+"""
+
+import ctypes
+import ctypes.wintypes
+
+from backend.service.utils.win32_types import _STILL_ACTIVE
+
+
+class SandboxProcess:
+    """Lightweight process handle returned by _launch_process.
+
+    Provides the interface expected by ``WindowsJobObject.add_process()``,
+    ``process_registry``, and the teardown paths in
+    ``launch_under_job_object``.
+
+    Attributes:
+        pid: Process ID.
+        args: Command-line as a list; ``args[0]`` is the executable path.
+        returncode: Exit code once the process has exited, ``None`` while running.
+    """
+
+    def __init__(
+        self,
+        pid: int,
+        process_handle,
+        thread_handle,
+        args: list,
+    ):
+        self.pid = pid
+        self._process_handle = process_handle
+        self._thread_handle = thread_handle
+        self.args = args
+        self.returncode = None
+        self.handle: int | None = process_handle
+
+    def poll(self):
+        """Return exit code if the process has exited, ``None`` if still running.
+
+        Closes OS handles when the process exits to release resources.
+        Safe to call multiple times after exit.
+        """
+        if self._process_handle is None:
+            return self.returncode
+        exit_code = ctypes.wintypes.DWORD(_STILL_ACTIVE)
+        ctypes.windll.kernel32.GetExitCodeProcess(
+            self._process_handle, ctypes.byref(exit_code)
+        )
+        if exit_code.value == _STILL_ACTIVE:
+            return None
+        self.returncode = exit_code.value
+        self._close_handles()
+        return self.returncode
+
+    def terminate(self) -> None:
+        """Send a termination signal to the process."""
+        if self._process_handle:
+            ctypes.windll.kernel32.TerminateProcess(self._process_handle, 1)
+
+    def kill(self) -> None:
+        """Terminate the process immediately (same as terminate on Windows)."""
+        self.terminate()
+
+    def wait(self) -> int:
+        """Wait for the process to exit and return its exit code.
+
+        Blocks indefinitely until the process terminates.  Closes OS handles
+        on return regardless of success.
+        """
+        if self._process_handle:
+            ctypes.windll.kernel32.WaitForSingleObject(
+                self._process_handle,
+                ctypes.wintypes.DWORD(0xFFFFFFFF),  # INFINITE
+            )
+            exit_code = ctypes.wintypes.DWORD(0)
+            ctypes.windll.kernel32.GetExitCodeProcess(
+                self._process_handle, ctypes.byref(exit_code)
+            )
+            self.returncode = exit_code.value
+        self._close_handles()
+        return self.returncode
+
+    def resume(self) -> None:
+        """Resume the suspended main thread using the stored thread handle.
+
+        Uses the thread handle from ``PROCESS_INFORMATION`` returned by
+        ``CreateProcessW`` — no thread snapshot required.  The thread
+        handle is closed immediately after the resume call.
+
+        Raises:
+            RuntimeError: If the thread handle is already closed or
+                ``ResumeThread`` reports failure.
+        """
+        if not self._thread_handle:
+            raise RuntimeError(
+                f"Thread handle is not open for process {self.pid}. "
+                "resume() must be called exactly once after process creation."
+            )
+        result = ctypes.windll.kernel32.ResumeThread(self._thread_handle)
+        ctypes.windll.kernel32.CloseHandle(self._thread_handle)
+        self._thread_handle = None
+        if result == -1:
+            error_code = ctypes.windll.kernel32.GetLastError()
+            raise RuntimeError(
+                f"ResumeThread failed for process {self.pid}. Error code: {error_code}"
+            )
+
+    def _close_handles(self) -> None:
+        """Close process and thread handles to release OS resources."""
+        if self._thread_handle:
+            ctypes.windll.kernel32.CloseHandle(self._thread_handle)
+            self._thread_handle = None
+        if self._process_handle:
+            ctypes.windll.kernel32.CloseHandle(self._process_handle)
+            self._process_handle = None
+            self.handle = None  # same OS handle value — prevent use-after-close

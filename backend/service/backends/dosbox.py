@@ -18,11 +18,9 @@ from typing import List, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
-from backend.service.utils.job_objects import (
-    SandboxProcess,
-    WindowsJobObject,
-    launch_under_job_object,
-)
+from backend.service.utils.launcher import launch_under_job_object
+from backend.service.utils.sandbox_process import SandboxProcess
+from backend.service.utils.job_objects import WindowsJobObject
 
 _DOSBOX_ERAS = {Era.DOS, Era.WIN31}
 SUPPORTED_ERAS = {e.value for e in _DOSBOX_ERAS}
