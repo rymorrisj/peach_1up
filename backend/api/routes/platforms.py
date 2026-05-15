@@ -36,12 +36,18 @@ _EMULATOR_SLUG_TO_BINARY_KEY: dict[str, str] = {
     "project64":   "project64",
 }
 
+_PC_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
+
 
 def _validate_image_path(path_str: str) -> Path:
-    """Resolve path and reject anything outside OS_PATH (library/os/)."""
+    """Normalise and validate an image path against the OS_PATH allowlist."""
+    from backend.service.utils.path_utils import normalise_path
+    try:
+        resolved = normalise_path(path_str)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     svc = get_settings()
     os_root = Path(svc.get("OS_PATH", "") or "library/os").resolve()
-    resolved = Path(path_str).resolve()
     if not resolved.is_relative_to(os_root):
         raise HTTPException(
             status_code=400,
@@ -77,6 +83,8 @@ def list_platforms(db: Session = Depends(get_db)):
 
 @router.post("", response_model=PlatformRead, status_code=201)
 def create_platform(body: PlatformCreate, db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
+    if body.era not in _PC_ERAS:
+        raise HTTPException(status_code=422, detail=f"Only PC eras are supported: {', '.join(sorted(_PC_ERAS))}.")
     if body.base_image_path:
         _validate_image_path(body.base_image_path)
     if body.working_image_path:
@@ -86,6 +94,28 @@ def create_platform(body: PlatformCreate, db: Session = Depends(get_db), _: User
     db.commit()
     db.refresh(platform)
     return platform
+
+
+@router.post("/health-all")
+def health_check_all(db: Session = Depends(get_db)):
+    from datetime import datetime
+    platforms_to_check = db.query(Platform).filter(Platform.is_system == False).all()
+    results = []
+    for platform in platforms_to_check:
+        working = platform.working_image_path
+        if working:
+            try:
+                _validate_image_path(working)
+                exists = Path(working).exists()
+            except HTTPException:
+                exists = False
+        else:
+            exists = False
+        platform.status = "ok" if exists else "missing"
+        platform.last_health_check = datetime.utcnow()
+        results.append({"id": platform.id, "status": platform.status})
+    db.commit()
+    return {"results": results, "checked": len(results)}
 
 
 @router.get("/{platform_id}", response_model=PlatformRead)
@@ -102,6 +132,8 @@ def update_platform(platform_id: int, body: PlatformUpdate, db: Session = Depend
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found.")
     updates = body.model_dump(exclude_none=True)
+    if "era" in updates and updates["era"] not in _PC_ERAS:
+        raise HTTPException(status_code=422, detail=f"Only PC eras are supported: {', '.join(sorted(_PC_ERAS))}.")
     if "base_image_path" in updates:
         _validate_image_path(updates["base_image_path"])
     if "working_image_path" in updates:

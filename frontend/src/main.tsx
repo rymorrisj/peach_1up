@@ -12,6 +12,7 @@ import CartridgeImaging from '@/pages/Guides/CartridgeImaging'
 import VirtualBoxSetup from '@/pages/Guides/VirtualBoxSetup'
 import BiosSourcing from '@/pages/Guides/BiosSourcing'
 import Emulators from '@/pages/Emulators'
+import Environments from '@/pages/Environments'
 import FirstRun from '@/pages/FirstRun'
 import NotFound from '@/pages/NotFound'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
@@ -62,6 +63,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/library" element={<Library />} />
                 <Route path="/library/:slug" element={<ItemDetail />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/environments" element={<Environments />} />
                 <Route path="/emulators" element={<Emulators />} />
                 <Route path="/guides" element={<GuidesIndex />} />
                 <Route path="/guides/cartridge-imaging" element={<CartridgeImaging />} />
