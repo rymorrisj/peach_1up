@@ -6,8 +6,6 @@ import { AppProvider } from '@/context/AppContext'
 import AppShell from '@/components/layout/AppShell'
 import Library from '@/pages/Library'
 import ItemDetail from '@/pages/Library/ItemDetail'
-import Environments from '@/pages/Environments'
-import Profiles from '@/pages/Settings/LaunchProfiles'
 import Settings from '@/pages/Settings'
 import GuidesIndex from '@/pages/Guides'
 import CartridgeImaging from '@/pages/Guides/CartridgeImaging'
@@ -63,8 +61,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <Route element={<AppShell />}>
                 <Route path="/library" element={<Library />} />
                 <Route path="/library/:slug" element={<ItemDetail />} />
-                <Route path="/environments" element={<Environments />} />
-                <Route path="/profiles" element={<Profiles />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/emulators" element={<Emulators />} />
                 <Route path="/guides" element={<GuidesIndex />} />

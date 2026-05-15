@@ -2,6 +2,7 @@ import asyncio
 import logging
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
@@ -22,6 +23,28 @@ logger = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
+class CatalogEntryResponse(BaseModel):
+    slug: str
+    name: str
+    version: str
+    description: str
+    license: str
+    install_type: str
+    required: bool
+    is_installed: bool
+    install_path: Optional[str] = None
+    supported_formats: list[str] = []
+    install_note: Optional[str] = None
+    source_url: Optional[str] = None
+    copyright: Optional[str] = None
+    guidance_text: Optional[str] = None
+    guidance_url: Optional[str] = None
+    install_scope: Optional[str] = None
+    installer_present: Optional[bool] = None
+    git_available: Optional[bool] = None
+    expert_mode_set: Optional[bool] = None
+
+
 class DeleteRequest(BaseModel):
     confirmation_token: str
 
@@ -35,7 +58,7 @@ _CONFIGURE_ACTIONS: dict[str, list[str]] = {
 }
 
 
-@router.get("")
+@router.get("", response_model=list[CatalogEntryResponse])
 def list_emulators():
     import glob as _glob
     from backend.service.utils.emulator_installer import check_git

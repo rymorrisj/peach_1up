@@ -275,7 +275,7 @@ a local recovery script resets the owner account.
 Add download support and include emulators that can be bundled and distributed with the app. This
 includes ROM packs, extensions, updating /guides to give user instructions and including links.
 
-### NEXT
+### DONE
 
 - [P7-1] — Binary detection for all bundled emulators; remove the dead download machinery from emulator_installer.py; wire VirtualBox installer launch via ShellExecute; poll for binary post-install; remove HTTP 501 from install route
 - [P7-2] — Guidance cards for VirtualBox (with Run Installer button), BIOS files, 86Box ROM pack (with Git Clone button); surface in first-run wizard Step 2 and emulator catalog page

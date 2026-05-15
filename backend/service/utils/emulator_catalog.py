@@ -44,26 +44,3 @@ def check_bios_presence(bios_path: str) -> bool:
     except PermissionError:
         return False
 
-
-def get_all_statuses() -> list[dict]:
-    result = []
-    for entry in load_catalog():
-        slug = entry["slug"]
-        installed = is_installed(slug)
-        install_path = get_install_path(slug)
-        item: dict = {
-            "slug": slug,
-            "name": entry["name"],
-            "version": entry["version"],
-            "description": entry["description"],
-            "license": entry["license"],
-            "required": entry.get("required", False),
-            "is_installed": installed,
-            "install_path": str(install_path) if installed else None,
-            "is_placeholder": entry.get("linux_url", "").startswith("PLACEHOLDER"),
-            "supported_formats": entry.get("supported_formats", []),
-        }
-        if "install_note" in entry:
-            item["install_note"] = entry["install_note"]
-        result.append(item)
-    return result
