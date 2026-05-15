@@ -4,23 +4,11 @@ type User = components['schemas']['UserRead']
 
 type Theme = 'dark' | 'light'
 
-export interface LaunchEntry {
-  launch_id: number
-  target_id: number | null
-  target_type: string
-  pid: number
-  started_at: string
-  ended_at: string | null
-  exit_code: number | null
-  job_isolated: boolean
-}
-
 interface AppState {
   theme: Theme
   sidebarCollapsed: boolean
   activeProfileId: number | null
   activeUser: User | null
-  activeLaunches: Map<number, LaunchEntry>
 }
 
 type AppAction =
@@ -28,16 +16,12 @@ type AppAction =
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'SET_ACTIVE_PROFILE'; payload: number | null }
   | { type: 'SET_ACTIVE_USER'; payload: User | null }
-  | { type: 'SET_LAUNCHES'; payload: LaunchEntry[] }
-  | { type: 'UPSERT_LAUNCH'; payload: LaunchEntry }
-  | { type: 'REMOVE_LAUNCH'; payload: number }
 
 const initialState: AppState = {
   theme: 'dark',
   sidebarCollapsed: false,
   activeProfileId: null,
   activeUser: null,
-  activeLaunches: new Map(),
 }
 
 function applyTheme(theme: Theme) {
@@ -59,23 +43,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, activeProfileId: action.payload }
     case 'SET_ACTIVE_USER':
       return { ...state, activeUser: action.payload }
-    case 'SET_LAUNCHES': {
-      const m = new Map<number, LaunchEntry>()
-      for (const e of action.payload) {
-        m.set(e.launch_id, e)
-      }
-      return { ...state, activeLaunches: m }
-    }
-    case 'UPSERT_LAUNCH': {
-      const m = new Map(state.activeLaunches)
-      m.set(action.payload.launch_id, action.payload)
-      return { ...state, activeLaunches: m }
-    }
-    case 'REMOVE_LAUNCH': {
-      const m = new Map(state.activeLaunches)
-      m.delete(action.payload)
-      return { ...state, activeLaunches: m }
-    }
   }
 }
 

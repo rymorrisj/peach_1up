@@ -271,45 +271,6 @@ def _apply_schema_migrations() -> None:
             conn.commit()
             logger.info("Schema migration: dropped user_restrictions table")
 
-        # Rebuild launch_history: nullable library_item_id, add target_type and environment_id
-        if "launch_history" in sa_inspect(engine).get_table_names():
-            lh_cols = {c["name"] for c in sa_inspect(engine).get_columns("launch_history")}
-            if "target_type" not in lh_cols:
-                conn.execute(text("""
-                    CREATE TABLE launch_history_new (
-                        id INTEGER PRIMARY KEY,
-                        target_type TEXT NOT NULL DEFAULT 'library_item',
-                        library_item_id INTEGER,
-                        environment_id INTEGER,
-                        profile_id INTEGER,
-                        emulator_slug TEXT NOT NULL,
-                        network_blocked INTEGER NOT NULL DEFAULT 1,
-                        job_isolated INTEGER NOT NULL DEFAULT 0,
-                        sandboxed INTEGER NOT NULL DEFAULT 0,
-                        sandbox_memory_limit_mb INTEGER,
-                        sandbox_cpu_limit_percent INTEGER,
-                        started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        ended_at TIMESTAMP,
-                        exit_code INTEGER,
-                        error_message TEXT
-                    )
-                """))
-                conn.execute(text("""
-                    INSERT INTO launch_history_new (
-                        id, target_type, library_item_id, profile_id, emulator_slug,
-                        network_blocked, job_isolated, sandboxed, sandbox_memory_limit_mb,
-                        sandbox_cpu_limit_percent, started_at, ended_at, exit_code, error_message
-                    )
-                    SELECT id, 'library_item', library_item_id, profile_id, emulator_slug,
-                        network_blocked, job_isolated, sandboxed, sandbox_memory_limit_mb,
-                        sandbox_cpu_limit_percent, started_at, ended_at, exit_code, error_message
-                    FROM launch_history
-                """))
-                conn.execute(text("DROP TABLE launch_history"))
-                conn.execute(text("ALTER TABLE launch_history_new RENAME TO launch_history"))
-                conn.commit()
-                logger.info("Schema migration: rebuilt launch_history (nullable library_item_id, added target_type, environment_id)")
-
         # Backfill slugs for existing library items
         items = conn.execute(
             text("SELECT id, title FROM library_items WHERE slug IS NULL")
@@ -376,7 +337,6 @@ async def lifespan(app: FastAPI):
     init_db()
     create_tables()
     _apply_schema_migrations()
-    process_registry.set_event_loop(asyncio.get_event_loop())
     _ensure_owner_user()
 
     from backend.core.database import get_engine

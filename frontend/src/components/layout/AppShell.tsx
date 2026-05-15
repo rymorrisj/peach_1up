@@ -3,14 +3,12 @@ import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import { useAppContext } from '@/context/AppContext'
-import { useLaunchStream } from '@/hooks/useLaunchStream'
 import { apiFetch } from '@/api/client'
 import type { components } from '@shared/types'
 type User = components['schemas']['UserRead']
 
 export default function AppShell() {
   const { dispatch } = useAppContext()
-  useLaunchStream()
 
   useEffect(() => {
     apiFetch<User>('/api/v1/auth/me')

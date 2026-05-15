@@ -8,7 +8,6 @@ import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
 import { useConfirm } from '@/hooks/useConfirm'
-import { useAppContext } from '@/context/AppContext'
 import { ERA_LABELS } from '@/generated/constants'
 import type { components } from '@shared/types'
 type LibraryItem = components['schemas']['LibraryItemRead']
@@ -421,22 +420,12 @@ interface ItemCardProps {
 }
 
 function ItemCard({ item, profiles, onDelete }: ItemCardProps) {
-  const { state } = useAppContext()
   const profile = item.profile_id != null ? profiles.find((p) => p.id === item.profile_id) : null
   const eraLabel = ERA_LABELS[item.era] ?? (item.era === 'unknown' ? 'Unknown era' : item.era)
   const detailHref = `/library/${item.slug ?? item.id}`
-  const isActive = Array.from(state.activeLaunches.values()).some(
-    (e) => e.target_type === 'library_item' && e.target_id === item.id && e.ended_at === null,
-  )
 
   return (
-    <div className="relative flex flex-col rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-surface-800">
-      {isActive && (
-        <span
-          className="absolute right-2 top-2 h-2 w-2 rounded-full bg-green-500"
-          aria-hidden="true"
-        />
-      )}
+    <div className="flex flex-col rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-surface-800">
       <div className="mb-4 min-h-[4rem] flex-1">
         <h3 className="truncate font-medium text-neutral-900 dark:text-neutral-100">
           {item.title}
