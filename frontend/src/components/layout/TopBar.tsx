@@ -1,22 +1,13 @@
 import { Moon, Sun } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
 import { useAppContext } from '@/context/AppContext'
-import { apiFetch } from '@/api/client'
-import type { components } from '@shared/types'
-type LaunchHistory = components['schemas']['LaunchHistoryRead']
 
 export default function TopBar() {
   const { state, dispatch } = useAppContext()
   const isDark = state.theme === 'dark'
 
-  const { data: launches = [] } = useQuery<LaunchHistory[]>({
-    queryKey: ['launches'],
-    queryFn: () => apiFetch<LaunchHistory[]>('/api/v1/launches'),
-    refetchInterval: 5000,
-    refetchOnWindowFocus: false,
-  })
-
-  const activeSessions = launches.filter((l) => l.ended_at === null).length
+  const activeSessions = Array.from(state.activeLaunches.values()).filter(
+    (e) => e.ended_at === null,
+  ).length
 
   return (
     <header className="flex h-14 shrink-0 items-center border-b border-neutral-200 bg-neutral-50 px-[1em] dark:border-surface-400 dark:bg-surface-900">

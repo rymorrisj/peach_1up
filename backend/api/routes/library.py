@@ -69,11 +69,12 @@ def _validate_scan_directory(directory: str) -> Path:
     allowlist of permitted base directories before any filesystem operation.
     Permitted base directories are LIBRARY_PATH and PROFILES_PATH.
     """
-    if "\x00" in directory:
-        logger.warning("Scan directory rejected: contains null byte (raw=%r)", directory)
-        raise HTTPException(status_code=400, detail="Invalid path: contains a null byte.")
-
-    resolved = Path(directory).resolve()
+    from backend.service.utils.path_utils import normalise_path
+    try:
+        resolved = normalise_path(directory)
+    except ValueError as exc:
+        logger.warning("Scan directory rejected: %s (raw=%r)", exc, directory)
+        raise HTTPException(status_code=400, detail=str(exc))
 
     try:
         from backend.core.settings import get_settings
@@ -157,24 +158,29 @@ def add_library_item(
     svc = get_settings()
     games_root_str = svc.get("GAMES_PATH", "") or ""
     if games_root_str:
-        item_folder = Path(games_root_str) / item.era / item.slug
-        try:
-            item_folder.mkdir(parents=True, exist_ok=True)
-            item.folder_path = str(item_folder)
-            if body.media_path:
-                src = Path(body.media_path)
-                if src.is_file():
+        from backend.service.utils.profile_builder import _find_cover
+        src = Path(body.media_path) if body.media_path else None
+        if src is not None and src.is_dir():
+            item.folder_path = str(src)
+            cover = _find_cover(src)
+            if cover:
+                item.cover_path = str(cover)
+        else:
+            item_folder = Path(games_root_str) / item.era / item.slug
+            try:
+                item_folder.mkdir(parents=True, exist_ok=True)
+                item.folder_path = str(item_folder)
+                if src is not None and src.is_file():
                     import shutil as _shutil
                     dest = item_folder / src.name
                     if not dest.exists():
-                        _shutil.copy2(str(src), str(dest))
+                        _shutil.move(str(src), str(dest))
                     item.media_path = str(dest)
-            from backend.service.utils.profile_builder import _find_cover
-            cover = _find_cover(item_folder)
-            if cover:
-                item.cover_path = str(cover)
-        except OSError as exc:
-            logger.warning("Could not create item folder %s: %s", item_folder, exc)
+                cover = _find_cover(item_folder)
+                if cover:
+                    item.cover_path = str(cover)
+            except OSError as exc:
+                logger.warning("Could not create item folder or move file %s: %s", item_folder, exc)
 
     if not item.content_rating:
         from backend.utils.rating_detect import detect_rating
@@ -210,9 +216,33 @@ def trigger_scan(directory: str = Query(...), background_tasks: BackgroundTasks 
 
 
 def _run_scan(directory: str) -> None:
+    import shutil as _shutil
     from backend.service.utils.profile_builder import scan_directory
     try:
         results = scan_directory(Path(directory))
+
+        try:
+            from backend.core.settings import get_settings
+            games_root_str = get_settings().get("GAMES_PATH", "") or ""
+        except RuntimeError:
+            games_root_str = ""
+
+        if games_root_str:
+            games_root = Path(games_root_str)
+            for entry in results:
+                if entry.folder_path is not None or entry.era is None:
+                    continue
+                target_folder = games_root / entry.era.value / entry.name
+                try:
+                    target_folder.mkdir(parents=True, exist_ok=True)
+                    dest = target_folder / entry.path.name
+                    if not dest.exists():
+                        _shutil.move(str(entry.path), str(dest))
+                    entry.path = dest
+                    entry.folder_path = target_folder
+                except OSError as exc:
+                    logger.warning("Scan: could not move loose file %s: %s", entry.path, exc)
+
         serialisable = [
             {
                 "path": str(e.path),
