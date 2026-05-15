@@ -81,7 +81,7 @@ profiles/*.yaml
 profiles/conf/
 
 # Library
-library/
+/library/
 
 # Bundled emulator binaries (drop-in, never committed — directories are tracked)
 emulators/
