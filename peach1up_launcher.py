@@ -1,16 +1,109 @@
-"""Entry point for both direct invocation and PyInstaller bundle."""
-import os
-import sys
+# """Entry point for both direct invocation and PyInstaller bundle."""
 
-if getattr(sys, "frozen", False):
-    os.chdir(os.path.dirname(sys.executable))
+# from __future__ import annotations
 
-import uvicorn
+# import multiprocessing
+# import os
+# import sys
+
+# # Must be first executable line for frozen Windows builds
+# multiprocessing.freeze_support()
+
+# # Prevent any child re-execution from starting the server again
+# if multiprocessing.current_process().name != "MainProcess":
+#     sys.exit(0)
+
+# if __name__ == "__main__":
+#     if getattr(sys, "frozen", False):
+#         os.chdir(os.path.dirname(sys.executable))
+
+#     if sys.stdout is None:
+#         sys.stdout = open(os.devnull, "w")
+#     if sys.stderr is None:
+#         sys.stderr = open(os.devnull, "w")
+
+#     import asyncio
+#     import uvicorn
+#     from backend.main import app
+
+#     LOG_CONFIG = {
+#         "version": 1,
+#         "disable_existing_loggers": False,
+#         "formatters": {
+#             "default": {
+#                 "class": "logging.Formatter",
+#                 "format": "%(levelname)s: %(message)s",
+#             },
+#             "access": {
+#                 "class": "logging.Formatter",
+#                 "format": '%(levelname)s: %(client_addr)s - "%(request_line)s" %(status_code)s',
+#             },
+#         },
+#         "handlers": {
+#             "default": {
+#                 "class": "logging.StreamHandler",
+#                 "formatter": "default",
+#                 "stream": "ext://sys.stderr",
+#             },
+#             "access": {
+#                 "class": "logging.StreamHandler",
+#                 "formatter": "access",
+#                 "stream": "ext://sys.stdout",
+#             },
+#         },
+#         "loggers": {
+#             "uvicorn": {
+#                 "handlers": ["default"],
+#                 "level": "INFO",
+#                 "propagate": False,
+#             },
+#             "uvicorn.error": {
+#                 "handlers": ["default"],
+#                 "level": "INFO",
+#                 "propagate": False,
+#             },
+#             "uvicorn.access": {
+#                 "handlers": ["access"],
+#                 "level": "INFO",
+#                 "propagate": False,
+#             },
+#         },
+#     }
+
+#     config = uvicorn.Config(
+#         app,
+#         host="127.0.0.1",
+#         port=8000,
+#         log_level="info",
+#         log_config=LOG_CONFIG,
+#         loop="asyncio",
+#     )
+#     server = uvicorn.Server(config)
+#     asyncio.run(server.serve())
+import multiprocessing
+multiprocessing.freeze_support()
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "backend.main:app",
+    import os
+    import asyncio
+    import uvicorn
+    import traceback
+    from backend.main import app
+
+    original_popen = __import__('subprocess').Popen
+    def traced_popen(*args, **kwargs):
+        traceback.print_stack()
+        print(f"POPEN CALLED: {args} {kwargs}")
+        return original_popen(*args, **kwargs)
+    __import__('subprocess').Popen = traced_popen
+
+    print(f"Process started, PID: {os.getpid()}")
+
+    config = uvicorn.Config(
+        app,
         host="127.0.0.1",
         port=8000,
-        log_level="info",
+        loop="asyncio",
     )
+    server = uvicorn.Server(config)
+    asyncio.run(server.serve())

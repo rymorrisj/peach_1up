@@ -5,7 +5,6 @@ forms) must pass through normalise_path before any allowlist check or filesystem
 operation. This module is the single choke-point for that normalisation.
 """
 
-import os
 from pathlib import Path
 
 
@@ -31,5 +30,5 @@ def normalise_path(path: str) -> Path:
         raise ValueError("Path must not be empty.")
     if "\x00" in path:
         raise ValueError("Path contains a null byte.")
-    unified = path.replace("/", os.sep).replace("\\", os.sep)
+    unified = path.replace("\\", "/")
     return Path(unified).resolve()

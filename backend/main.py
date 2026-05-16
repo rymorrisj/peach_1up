@@ -1,6 +1,16 @@
+import logging
+import sys
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
+
+
+def resource_path(relative: str) -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / relative
+    return Path(__file__).resolve().parent.parent / relative
 
 from backend.api.middleware.security import FirstRunGuardMiddleware, SecurityMiddleware, configure_cors
 from backend.api.routes import auth, bios, emulators, filesystem, health, launches, library, media, platforms, profiles, settings, users
@@ -42,4 +52,18 @@ app.include_router(platforms.router)
 app.include_router(filesystem.router)
 app.include_router(media.router)
 
-app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
+frontend_dist = resource_path("frontend/dist")
+print(f"[PEACH] frozen={getattr(sys, 'frozen', False)}", flush=True)
+print(f"[PEACH] _MEIPASS={getattr(sys, '_MEIPASS', 'N/A')}", flush=True)
+print(f"[PEACH] frontend_dist={frontend_dist}", flush=True)
+print(f"[PEACH] exists={frontend_dist.exists()}", flush=True)
+
+from fastapi.responses import FileResponse
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def spa_fallback(full_path: str):
+    asset = frontend_dist / full_path
+    if asset.exists() and asset.is_file():
+        return FileResponse(str(asset))
+    index = frontend_dist / "index.html"
+    return FileResponse(str(index))

@@ -2,6 +2,34 @@
 # PyInstaller spec for Peach 1UP — one-dir build.
 # Prerequisites: build frontend (npm run build) before running pyinstaller.
 
+from PyInstaller.utils.hooks import collect_submodules
+
+hiddenimports = (
+    collect_submodules("fastapi")
+    + collect_submodules("starlette")
+    + collect_submodules("uvicorn")
+    + collect_submodules("sqlmodel")
+    + collect_submodules("pydantic")
+    + [
+        "pystray",
+        "pystray._win32",
+        "PIL",
+        "PIL.Image",
+        "sqlalchemy",
+        "sqlalchemy.dialects.sqlite",
+        "passlib",
+        "passlib.handlers",
+        "passlib.handlers.bcrypt",
+        "passlib.handlers.argon2",
+        "argon2",
+        "pydantic_settings",
+        "itsdangerous",
+        "jose",
+        "yaml",
+        "pycdlib",
+    ]
+)
+
 block_cipher = None
 
 a = Analysis(
@@ -14,40 +42,9 @@ a = Analysis(
         ("assets/", "assets/"),
         ("frontend/dist/", "frontend/dist/"),
         ("emulators/", "emulators/"),
+        ("scripts/", "scripts/"),
     ],
-    hiddenimports=[
-        "uvicorn",
-        "uvicorn.logging",
-        "uvicorn.loops",
-        "uvicorn.loops.auto",
-        "uvicorn.protocols",
-        "uvicorn.protocols.http",
-        "uvicorn.protocols.http.auto",
-        "uvicorn.protocols.websockets",
-        "uvicorn.protocols.websockets.auto",
-        "uvicorn.lifespan",
-        "uvicorn.lifespan.on",
-        "uvicorn.main",
-        "fastapi",
-        "starlette",
-        "pystray",
-        "pystray._win32",
-        "PIL",
-        "PIL.Image",
-        "sqlalchemy",
-        "sqlalchemy.dialects.sqlite",
-        "sqlmodel",
-        "passlib",
-        "passlib.handlers",
-        "passlib.handlers.bcrypt",
-        "passlib.handlers.argon2",
-        "argon2",
-        "pydantic",
-        "pydantic_settings",
-        "itsdangerous",
-        "jose",
-        "yaml",
-    ],
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -65,7 +62,6 @@ a = Analysis(
     noarchive=False,
 )
 
-# Strip __pycache__ and test files from datas
 a.datas = [
     (dest, src, kind)
     for dest, src, kind in a.datas
@@ -85,7 +81,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,
+    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

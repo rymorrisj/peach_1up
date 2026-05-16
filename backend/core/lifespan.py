@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import subprocess
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -203,17 +202,8 @@ async def _process_monitor_loop() -> None:
             logger.warning("Process monitor iteration failed (will retry): %s", exc)
 
 
-_SETUP_ADMIN_SCRIPT = (
-    Path(__file__).resolve().parent.parent.parent / "scripts" / "setup_admin_user.py"
-)
-
-
 def _ensure_owner_user() -> None:
-    """Prompt for owner account creation on first run if no owner record exists.
-
-    Calls setup_admin_user.py interactively. Aborts startup (raises RuntimeError)
-    if the script exits non-zero.
-    """
+    """Log a warning if no owner account exists; first-run web flow handles creation."""
     from backend.core.database import get_engine
     from backend.models.user import User
     from sqlalchemy.orm import sessionmaker
@@ -222,21 +212,9 @@ def _ensure_owner_user() -> None:
     with session_factory() as db:
         has_owner = db.query(User).filter(User.is_owner.is_(True)).count() > 0
 
-    if has_owner:
-        return
-
-    if not _SETUP_ADMIN_SCRIPT.exists():
-        raise RuntimeError(
-            f"Admin setup script not found: {_SETUP_ADMIN_SCRIPT}\n"
-            "Re-clone the repository or restore scripts/setup_admin_user.py."
-        )
-
-    result = subprocess.run([sys.executable, str(_SETUP_ADMIN_SCRIPT)])
-
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Owner account setup failed (exit {result.returncode}). "
-            "Restart the application to try again."
+    if not has_owner:
+        logger.warning(
+            "No owner account found. Complete the first-run setup in the web interface."
         )
 
 
@@ -264,6 +242,47 @@ def _apply_schema_migrations() -> None:
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
                 conn.commit()
                 logger.info("Schema migration: added %s.%s (%s)", table, column, col_type)
+
+        # Rebuild launch_history to add target_type/platform_id and make library_item_id nullable
+        if "launch_history" in inspector.get_table_names():
+            lh_cols = {c["name"] for c in inspector.get_columns("launch_history")}
+            if "target_type" not in lh_cols:
+                conn.execute(text("""
+                    CREATE TABLE launch_history_new (
+                        id INTEGER PRIMARY KEY,
+                        target_type TEXT NOT NULL DEFAULT 'library_item',
+                        library_item_id INTEGER REFERENCES library_items(id) ON DELETE CASCADE,
+                        platform_id INTEGER REFERENCES platforms(id) ON DELETE CASCADE,
+                        profile_id INTEGER REFERENCES profiles(id) ON DELETE SET NULL,
+                        emulator_slug TEXT NOT NULL,
+                        started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        ended_at DATETIME,
+                        exit_code INTEGER,
+                        error_message TEXT,
+                        network_blocked BOOLEAN NOT NULL DEFAULT 1,
+                        job_isolated BOOLEAN NOT NULL DEFAULT 0,
+                        sandboxed BOOLEAN NOT NULL DEFAULT 0,
+                        sandbox_memory_limit_mb INTEGER,
+                        sandbox_cpu_limit_percent INTEGER
+                    )
+                """))
+                conn.execute(text("""
+                    INSERT INTO launch_history_new (
+                        id, target_type, library_item_id, platform_id, profile_id, emulator_slug,
+                        started_at, ended_at, exit_code, error_message,
+                        network_blocked, job_isolated, sandboxed,
+                        sandbox_memory_limit_mb, sandbox_cpu_limit_percent
+                    )
+                    SELECT id, 'library_item', library_item_id, NULL, profile_id, emulator_slug,
+                        started_at, ended_at, exit_code, error_message,
+                        network_blocked, job_isolated, sandboxed,
+                        sandbox_memory_limit_mb, sandbox_cpu_limit_percent
+                    FROM launch_history
+                """))
+                conn.execute(text("DROP TABLE launch_history"))
+                conn.execute(text("ALTER TABLE launch_history_new RENAME TO launch_history"))
+                conn.commit()
+                logger.info("Schema migration: rebuilt launch_history with target_type and platform_id")
 
         # Drop legacy user_restrictions table
         if "user_restrictions" in sa_inspect(engine).get_table_names():
@@ -299,6 +318,15 @@ def _apply_schema_migrations() -> None:
             logger.info("Schema migration: backfilled slugs for %d library item(s)", len(items))
 
 
+def _sync_detected_emulator_paths() -> None:
+    try:
+        from backend.service.utils.emulator_catalog import detect_and_sync_all
+        detect_and_sync_all()
+        logger.info("Startup: detected emulator paths synced to settings")
+    except Exception as exc:
+        logger.warning("Startup emulator path sync failed: %s", exc)
+
+
 def _scan_installed_emulators() -> None:
     try:
         from backend.service.utils.emulator_catalog import load_catalog
@@ -320,6 +348,8 @@ def _scan_installed_emulators() -> None:
 
 
 def _export_openapi_spec(app: FastAPI) -> None:
+    if getattr(sys, "frozen", False):
+        return
     try:
         import json
         from pathlib import Path as _Path
@@ -350,6 +380,7 @@ async def lifespan(app: FastAPI):
         db.commit()
 
     _scan_installed_emulators()
+    _sync_detected_emulator_paths()
     _export_openapi_spec(app)
 
     _tray_stop_fn = None
