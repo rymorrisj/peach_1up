@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
-from backend.core.settings import get_settings
 from backend.models.platform import Platform, PlatformCreate, PlatformRead, PlatformUpdate
 from backend.models.snapshot import Snapshot, SnapshotCreate, SnapshotRead
 from backend.models.user import User
@@ -40,19 +39,16 @@ _PC_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
 
 
 def _validate_image_path(path_str: str) -> Path:
-    """Normalise and validate an image path against the OS_PATH allowlist."""
+    """Normalise and validate an image path."""
     from backend.service.utils.path_utils import normalise_path
     try:
         resolved = normalise_path(path_str)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    svc = get_settings()
-    os_root = Path(svc.get("OS_PATH", "") or "library/os").resolve()
-    if not resolved.is_relative_to(os_root):
-        raise HTTPException(
-            status_code=400,
-            detail="Path escapes the permitted OS image directory. Path traversal rejected.",
-        )
+    if not resolved.exists():
+        raise HTTPException(status_code=400, detail="Path does not exist.")
+    if not resolved.is_file():
+        raise HTTPException(status_code=400, detail="Path is not a file.")
     return resolved
 
 

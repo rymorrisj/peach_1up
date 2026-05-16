@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useReducer } from 'react'
 import type { components } from '@shared/types'
 type User = components['schemas']['UserRead']
+interface LaunchEntry {
+  target_type: string
+  ended_at?: string | null
+}
 
 type Theme = 'dark' | 'light'
 
@@ -9,6 +13,7 @@ interface AppState {
   sidebarCollapsed: boolean
   activeProfileId: number | null
   activeUser: User | null
+  activeLaunches: Map<number, LaunchEntry>
 }
 
 type AppAction =
@@ -22,6 +27,7 @@ const initialState: AppState = {
   sidebarCollapsed: false,
   activeProfileId: null,
   activeUser: null,
+  activeLaunches: new Map(),
 }
 
 function applyTheme(theme: Theme) {

@@ -31,7 +31,7 @@ class LaunchResponse(BaseModel):
 @router.post("/library/{item_id}/launch", status_code=202, response_model=LaunchResponse)
 async def launch_item(
     item_id: int,
-    body: LaunchRequest,
+    body: LaunchRequest = LaunchRequest(),
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
 ):
@@ -124,6 +124,117 @@ async def launch_item(
         history.sandboxed = job_isolated
         history.sandbox_memory_limit_mb = job.memory_limit_mb if job_isolated else None
         history.sandbox_cpu_limit_percent = job.cpu_limit_percent if job_isolated else None
+        db.commit()
+
+    return LaunchResponse(launch_history_id=history.id, warnings=warnings)
+
+
+@router.post("/environments/{platform_id}/launch", status_code=202, response_model=LaunchResponse)
+async def launch_environment(
+    platform_id: int,
+    body: LaunchRequest = LaunchRequest(),
+    db: Session = Depends(get_db),
+    active_user: User = Depends(get_active_user),
+):
+    platform = db.get(Platform, platform_id)
+    if not platform:
+        raise HTTPException(status_code=404, detail="Environment not found.")
+
+    _exited = process_registry.cleanup_exited()
+    if _exited:
+        from backend.core.lifespan import _write_session_ends
+        await asyncio.to_thread(_write_session_ends, _exited)
+
+    if body.profile_id is not None:
+        for _, entry in process_registry.get_all().items():
+            if entry.profile_id == body.profile_id:
+                raise HTTPException(status_code=409, detail="A launch is already active for this profile.")
+
+    profile: Profile | None = None
+    if body.profile_id:
+        profile = db.get(Profile, body.profile_id)
+        if not profile:
+            raise HTTPException(status_code=404, detail="Profile not found.")
+    if profile is None and platform.profile_id:
+        profile = db.get(Profile, platform.profile_id)
+    if profile is None:
+        profile = db.query(Profile).filter(
+            Profile.era == platform.era,
+            Profile.is_bundled.is_(True),
+        ).first()
+    if profile is None:
+        raise HTTPException(status_code=422, detail="No profile found for this environment's era.")
+
+    from backend.service.utils.backend_router import launch_media
+
+    network_blocked = not bool(getattr(profile, 'enable_networking', False))
+
+    history = LaunchHistory(
+        target_type="environment",
+        platform_id=platform.id,
+        profile_id=profile.id,
+        emulator_slug=profile.emulator_slug,
+        started_at=datetime.utcnow(),
+        network_blocked=network_blocked,
+        job_isolated=False,
+    )
+    db.add(history)
+    db.commit()
+    db.refresh(history)
+
+    warnings: list[str] = []
+
+    try:
+        result = await asyncio.to_thread(
+            launch_media,
+            platform.era,
+            None,
+            profile,
+            platform,
+        )
+    except Exception as exc:
+        logger.exception("Environment launch failed")
+        history.error_message = str(exc)
+        history.ended_at = datetime.utcnow()
+        history.exit_code = -1
+        db.commit()
+        raise HTTPException(status_code=500, detail=f"Launch failed: {exc}")
+
+    proc = result[0] if isinstance(result, tuple) else result
+    job = result[1] if isinstance(result, tuple) and len(result) > 1 else None
+
+    if proc is not None:
+        job_isolated = job is not None and getattr(job, 'job_handle', None) is not None
+        if not job_isolated:
+            warnings.append(
+                "Job Object isolation is unavailable on this system. "
+                "The emulator launched without process-level resource limits. "
+                "Network isolation still applies via the emulator adapter setting."
+            )
+        entry = ProcessEntry(
+            process_handle=proc,
+            job_handle=job,
+            library_item_id=None,
+            profile_id=profile.id,
+            launch_history_id=history.id,
+        )
+        process_registry.register(proc.pid, entry)
+        history.job_isolated = job_isolated
+        history.sandboxed = job_isolated
+        history.sandbox_memory_limit_mb = job.memory_limit_mb if job_isolated else None
+        history.sandbox_cpu_limit_percent = job.cpu_limit_percent if job_isolated else None
+        db.commit()
+
+    old_records = (
+        db.query(LaunchHistory)
+        .filter(LaunchHistory.platform_id == platform.id, LaunchHistory.target_type == "environment")
+        .order_by(LaunchHistory.started_at.desc())
+        .offset(10)
+        .all()
+    )
+    for old in old_records:
+        db.delete(old)
+    if old_records:
         db.commit()
 
     return LaunchResponse(launch_history_id=history.id, warnings=warnings)

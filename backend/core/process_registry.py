@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class ProcessEntry:
     process_handle: Any
     job_handle: Any | None
-    library_item_id: int
+    library_item_id: int | None
     profile_id: int | None
     launch_history_id: int | None = None
     started_at: datetime = field(default_factory=datetime.utcnow)
