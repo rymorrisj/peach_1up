@@ -110,12 +110,14 @@ def validate_paths():
 
 
 @router.get("/first-run-status")
-def get_first_run_status():
+def get_first_run_status(db: Session = Depends(get_db)):
     svc = get_settings()
     first_run_complete = not svc.is_first_run()
+    owner_exists = db.query(User).filter(User.is_owner.is_(True)).count() > 0
 
     return {
         "first_run_complete": first_run_complete,
+        "owner_exists": owner_exists,
         "emulators": svc.compute_setup_status(),
         "paths": {
             "library_path":  svc.get("LIBRARY_PATH") or None,
@@ -188,5 +190,8 @@ def complete_first_run(db: Session = Depends(get_db), _: User = require_permissi
         # Config dir is read-only (e.g. read-only mount).
         # In-memory state was already updated before the file write failed.
         pass
+
+    from backend.api.middleware.security import invalidate_first_run_cache
+    invalidate_first_run_cache()
 
     return {"success": True}

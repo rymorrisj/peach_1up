@@ -64,71 +64,79 @@ def _hash_pin(pin: str) -> tuple[str, str]:
     return pin_hash, salt.hex()
 
 
-def main() -> int:
-    print("=== Peach 1UP — Owner Account Setup ===")
+def run_setup(db_path: str | Path, force: bool = False) -> bool:
+    """Create or overwrite the owner account interactively.
+
+    Prompts for name and PIN on stdin. Returns True on success, False if the
+    user cancelled (KeyboardInterrupt). Raises on database errors.
+    """
+    db_path = Path(db_path)
     try:
-        db_path = _get_db_path()
         name = _prompt_name()
         pin = _prompt_pin()
         pin_hash, _ = _hash_pin(pin)
     except KeyboardInterrupt:
         print("\nAborted.")
-        return 1
+        return False
 
+    from sqlalchemy import create_engine, event
+    from sqlalchemy.orm import sessionmaker
+
+    from backend.models.user import User
+
+    engine = create_engine(
+        f"sqlite:///{db_path}",
+        connect_args={"check_same_thread": False},
+    )
+
+    def _enforce_fk(conn, _rec) -> None:
+        conn.cursor().execute("PRAGMA foreign_keys=ON")
+
+    event.listen(engine, "connect", _enforce_fk)
+    session_factory = sessionmaker(bind=engine)
+
+    with session_factory() as db:
+        existing = db.query(User).filter(User.is_owner.is_(True)).first()
+        if existing:
+            existing.name = name
+            existing.pin_hash = pin_hash
+            existing.pin_required = True
+            existing.can_launch_media = True
+            existing.can_edit_platforms = True
+            existing.can_edit_library = True
+            existing.can_manage_profiles = True
+            existing.can_edit_settings = True
+            existing.is_admin = True
+            existing.is_locked = False
+            existing.failed_pin_attempts = 0
+        else:
+            db.add(User(
+                id=1,
+                name=name,
+                is_owner=True,
+                pin_hash=pin_hash,
+                pin_required=True,
+                can_launch_media=True,
+                can_edit_platforms=True,
+                can_edit_library=True,
+                can_manage_profiles=True,
+                can_edit_settings=True,
+                is_admin=True,
+            ))
+        db.commit()
+
+    print(f"Owner account '{name}' saved successfully.")
+    return True
+
+
+def main() -> int:
+    print("=== Peach 1UP — Owner Account Setup ===")
     try:
-        from sqlalchemy import create_engine, event
-        from sqlalchemy.orm import sessionmaker
-
-        from backend.models.user import User
-
-        engine = create_engine(
-            f"sqlite:///{db_path}",
-            connect_args={"check_same_thread": False},
-        )
-
-        def _enforce_fk(conn, _rec) -> None:
-            conn.cursor().execute("PRAGMA foreign_keys=ON")
-
-        event.listen(engine, "connect", _enforce_fk)
-        session_factory = sessionmaker(bind=engine)
-
-        with session_factory() as db:
-            existing = db.query(User).filter(User.is_owner.is_(True)).first()
-            if existing:
-                existing.id = 1
-                existing.name = name
-                existing.pin_hash = pin_hash
-                existing.pin_required = True
-                existing.can_launch_media = True
-                existing.can_edit_platforms = True
-                existing.can_edit_library = True
-                existing.can_manage_profiles = True
-                existing.can_edit_settings = True
-                existing.is_admin = True
-                existing.is_locked = False
-                existing.failed_pin_attempts = 0
-            else:
-                db.add(User(
-                    id=1,
-                    name=name,
-                    is_owner=True,
-                    pin_hash=pin_hash,
-                    pin_required=True,
-                    can_launch_media=True,
-                    can_edit_platforms=True,
-                    can_edit_library=True,
-                    can_manage_profiles=True,
-                    can_edit_settings=True,
-                    is_admin=True,
-                ))
-            db.commit()
-
+        success = run_setup(db_path=_get_db_path())
     except Exception as exc:
         print(f"Error saving owner account: {exc}", file=sys.stderr)
         return 1
-
-    print(f"Owner account '{name}' saved successfully.")
-    return 0
+    return 0 if success else 1
 
 
 if __name__ == "__main__":

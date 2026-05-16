@@ -1,11 +1,7 @@
 import { useState } from 'react'
 import { apiFetch, ApiError } from '@/api/client'
 
-interface Step4ProfileProps {
-  onComplete: () => void
-}
-
-export default function Step4Profile({ onComplete }: Step4ProfileProps) {
+export default function Step4Profile() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -14,7 +10,7 @@ export default function Step4Profile({ onComplete }: Step4ProfileProps) {
     setError(null)
     try {
       await apiFetch('/api/v1/settings/complete-first-run', { method: 'POST' })
-      onComplete()
+      window.location.replace('/')
     } catch (err) {
       const message = err instanceof ApiError ? err.detail : 'Setup failed. Please try again.'
       setError(message)

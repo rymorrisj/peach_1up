@@ -12,7 +12,8 @@ const mockStatus: FirstRunStatus = {
     { slug: 'dosbox-x', name: 'DOSBox-X', required: true, available: false, path: null },
     { slug: '86box', name: '86Box', required: false, available: false, path: null },
   ],
-  paths: { images_path: null, profiles_path: null, rom_path: null },
+  owner_exists: false,
+  paths: { library_path: null, profiles_path: null, rom_path: null },
 }
 
 const mockCatalog: CatalogEntry[] = [
@@ -25,6 +26,10 @@ const mockCatalog: CatalogEntry[] = [
     required: true,
     is_installed: false,
     install_path: null,
+    install_type: 'zip',
+    install_scope: 'portable',
+    installer_present: false,
+    git_available: null,
     is_placeholder: false,
   },
   {
@@ -36,6 +41,10 @@ const mockCatalog: CatalogEntry[] = [
     required: false,
     is_installed: false,
     install_path: null,
+    install_type: 'zip',
+    install_scope: 'portable',
+    installer_present: false,
+    git_available: null,
     is_placeholder: true,
   },
 ]
@@ -103,7 +112,7 @@ describe('Step2Emulators', () => {
   })
 
   it('save button calls API with correct slug and path', async () => {
-    vi.spyOn(client, 'apiFetch').mockImplementation((path, init) => {
+    vi.spyOn(client, 'apiFetch').mockImplementation((path) => {
       if (path === '/api/v1/emulators') return Promise.resolve(mockCatalog)
       if (path === '/api/v1/settings/emulator-path')
         return Promise.resolve({ slug: 'dosbox-x', path: '/usr/bin/dosbox', available: true })

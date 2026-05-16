@@ -217,12 +217,10 @@ function EmulatorRow({
   const [inputPath, setInputPath] = useState(savedPath)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [pathAvailable, setPathAvailable] = useState(!!savedPath)
 
   useEffect(() => {
     if (catalogEntry?.is_installed && catalogEntry.install_path && !inputPath) {
       setInputPath(catalogEntry.install_path)
-      setPathAvailable(true)
     }
   }, [catalogEntry?.is_installed, catalogEntry?.install_path])
 
@@ -231,11 +229,10 @@ function EmulatorRow({
     setSaving(true)
     setSaveError(null)
     try {
-      const result = await apiFetch<{ slug: string; path: string; available: boolean }>(
+      await apiFetch<{ slug: string; path: string; available: boolean }>(
         '/api/v1/settings/emulator-path',
         { method: 'POST', body: JSON.stringify({ slug, path: inputPath.trim() }) },
       )
-      setPathAvailable(result.available)
     } catch (err) {
       setSaveError(err instanceof ApiError ? err.detail : 'Failed to save path.')
     } finally {

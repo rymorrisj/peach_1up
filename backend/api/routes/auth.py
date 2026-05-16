@@ -17,6 +17,12 @@ class SwitchRequest(BaseModel):
     pin: str
 
 
+class SetupOwnerRequest(BaseModel):
+    name: str
+    pin: str
+    confirm_pin: str
+
+
 def _verify_pin(pin: str, pin_hash: str) -> bool:
     from argon2 import PasswordHasher
     from argon2.exceptions import VerificationError, VerifyMismatchError
@@ -29,6 +35,41 @@ def _verify_pin(pin: str, pin_hash: str) -> bool:
     except (VerificationError, Exception) as exc:
         logger.warning("PIN verification error: %s", exc)
         return False
+
+
+@router.post("/setup-owner")
+def setup_owner(body: SetupOwnerRequest, db: Session = Depends(get_db)):
+    has_owner = db.query(User).filter(User.is_owner.is_(True)).count() > 0
+    if has_owner:
+        raise HTTPException(status_code=409, detail="Owner account already exists.")
+
+    if not body.name.strip():
+        raise HTTPException(status_code=400, detail="Name is required.")
+    if not body.pin.isdigit() or not (4 <= len(body.pin) <= 6):
+        raise HTTPException(status_code=400, detail="PIN must be 4–6 digits.")
+    if body.pin != body.confirm_pin:
+        raise HTTPException(status_code=400, detail="PINs do not match.")
+
+    from argon2 import PasswordHasher
+    ph = PasswordHasher()
+    pin_hash = ph.hash(body.pin)
+
+    owner = User(
+        name=body.name.strip(),
+        is_owner=True,
+        is_admin=True,
+        pin_required=True,
+        can_launch_media=True,
+        can_edit_platforms=True,
+        can_edit_library=True,
+        can_manage_profiles=True,
+        can_edit_settings=True,
+        pin_hash=pin_hash,
+    )
+    db.add(owner)
+    db.commit()
+    logger.info("Owner account created for %r", body.name.strip())
+    return {"success": True}
 
 
 @router.post("/switch", response_model=UserRead)

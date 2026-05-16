@@ -254,8 +254,22 @@ def get(key: str, default=None):
 
 
 def is_first_run() -> bool:
-    """Return True if first_run_complete is False or absent in settings.yaml."""
-    return not get("first_run_complete", False)
+    """Return True if neither settings.yaml nor the DB records first_run_complete."""
+    if get("first_run_complete", False):
+        return False
+    try:
+        from backend.core.database import get_engine
+        from sqlalchemy import text
+        with get_engine().connect() as conn:
+            row = conn.execute(
+                text("SELECT value FROM settings WHERE key='first_run_complete'")
+            ).fetchone()
+            if row and row[0] == "true":
+                _require_init()["first_run_complete"] = True
+                return False
+    except Exception:
+        pass
+    return True
 
 
 def get_or_generate_session_secret() -> str:

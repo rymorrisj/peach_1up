@@ -7,7 +7,7 @@ interface Step3PathsProps {
   onNext: () => void
 }
 
-type LibraryKey = 'images_path' | 'profiles_path' | 'rom_path'
+type LibraryKey = 'library_path' | 'profiles_path' | 'rom_path'
 
 interface PathConfig {
   label: string
@@ -18,10 +18,10 @@ interface PathConfig {
 
 const PATH_ROWS: PathConfig[] = [
   {
-    label: 'Images folder',
-    key: 'images_path',
+    label: 'Library folder',
+    key: 'library_path',
     required: true,
-    description: 'Where disk images are stored',
+    description: 'Root folder for the Peach 1UP library',
   },
   {
     label: 'Profiles folder',
@@ -46,9 +46,9 @@ interface RowState {
 
 export default function Step3Paths({ status, onNext }: Step3PathsProps) {
   const [rows, setRows] = useState<Record<LibraryKey, RowState>>({
-    images_path: {
-      inputPath: status.paths.images_path ?? '',
-      saved: !!status.paths.images_path,
+    library_path: {
+      inputPath: status.paths.library_path ?? '',
+      saved: !!status.paths.library_path,
       error: null,
       saving: false,
     },
@@ -87,7 +87,7 @@ export default function Step3Paths({ status, onNext }: Step3PathsProps) {
     }
   }
 
-  const canContinue = rows.images_path.saved && rows.profiles_path.saved
+  const canContinue = rows.library_path.saved && rows.profiles_path.saved
 
   return (
     <section>

@@ -7,13 +7,15 @@ export interface EmulatorStatus {
 }
 
 export interface LibraryPaths {
-  images_path: string | null
+  library_path: string | null
   profiles_path: string | null
   rom_path: string | null
 }
 
 export interface FirstRunStatus {
   first_run_complete: boolean
+  owner_exists: boolean
+  owner_profile_exists?: boolean
   emulators: EmulatorStatus[]
   paths: LibraryPaths
 }
@@ -32,6 +34,7 @@ export interface CatalogEntry {
   is_installed: boolean
   install_path: string | null
   installer_present: boolean
+  is_placeholder?: boolean
   git_available: boolean | null
   expert_mode_set?: boolean
   supported_formats?: string[]

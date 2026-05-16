@@ -5,6 +5,7 @@ import uuid
 from fastapi import Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import RedirectResponse
 
 _LOCALHOST_ORIGINS = {"127.0.0.1", "::1", "localhost"}
 
@@ -71,6 +72,11 @@ _FIRST_RUN_EXEMPT_PATHS: frozenset[str] = frozenset({
 })
 
 
+def invalidate_first_run_cache() -> None:
+    global _first_run_done_cache
+    _first_run_done_cache = False
+
+
 class FirstRunGuardMiddleware(BaseHTTPMiddleware):
     """Redirect non-wizard requests to /first-run when setup is incomplete."""
 
@@ -80,8 +86,7 @@ class FirstRunGuardMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        is_emulator_path = request.url.path.startswith("/api/v1/emulators")
-        if _first_run_done_cache or request.url.path in _FIRST_RUN_EXEMPT_PATHS or is_emulator_path:
+        if _first_run_done_cache:
             return await call_next(request)
 
         first_run_done = False
@@ -96,14 +101,15 @@ class FirstRunGuardMiddleware(BaseHTTPMiddleware):
             _first_run_done_cache = True
             return await call_next(request)
 
-        resp = Response(
-            content=json.dumps({"redirect": "/first-run"}),
-            status_code=302,
-            media_type="application/json",
-            headers={"Location": "/first-run"},
-        )
-        _apply_cors_headers(resp, request)
-        return resp
+        path = request.url.path
+        excluded = path.startswith("/api/") or path.startswith("/assets/")
+        is_first_run_page = path == "/first-run" or path.startswith("/first-run")
+        has_extension = "." in path.rsplit("/", 1)[-1]
+
+        if not excluded and not is_first_run_page and not has_extension:
+            return RedirectResponse("/first-run")
+
+        return await call_next(request)
 
 
 def get_cors_origins() -> list[str]:
