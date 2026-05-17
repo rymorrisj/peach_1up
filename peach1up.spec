@@ -41,7 +41,6 @@ a = Analysis(
         ("config/", "config/"),
         ("assets/", "assets/"),
         ("frontend/dist/", "frontend/dist/"),
-        ("emulators/", "emulators/"),
         ("scripts/", "scripts/"),
     ],
     hiddenimports=hiddenimports,

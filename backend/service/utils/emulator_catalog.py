@@ -1,12 +1,16 @@
 import glob as _glob
 import os
+import sys
 from pathlib import Path
 
 import yaml
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+if getattr(sys, "frozen", False):
+    _PROJECT_ROOT = Path(sys.executable).parent
+else:
+    _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _CATALOG_PATH = _PROJECT_ROOT / "config" / "emulators.yaml"
-_BASE_DIR = Path(os.getcwd()) / "emulators"
+_BASE_DIR = _PROJECT_ROOT / "emulators"
 
 _SLUG_TO_SETTINGS_KEY: dict[str, str] = {
     "dosbox-x":    "DOSBOX_PATH",

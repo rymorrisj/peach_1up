@@ -9,7 +9,7 @@ ROM_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/roms/86box
 BIOS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/bios
 TOOLS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/tools
 PROFILES_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/profiles
-DUCKSTATION_PATH: ''
+DUCKSTATION_PATH: C:/Users/ryanm/AppData/Local/Programs/DuckStation/duckstation-qt-x64-ReleaseLTCG.exe
 PCSX2_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/pcsx2/pcsx2-qt.exe
 XEMU_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/xemu/xemu.exe
 MESEN_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/mesen/Mesen.exe
