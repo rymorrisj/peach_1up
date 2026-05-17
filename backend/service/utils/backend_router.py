@@ -36,7 +36,7 @@ def resolve_backend_name(era: Era, accuracy_mode: bool) -> str:
 
     Args:
         era: The gaming era to resolve.
-        accuracy_mode: When True, Win9x routes to 86Box instead of VirtualBox.
+        accuracy_mode: When True, Win9x routes to VirtualBox instead of 86Box.
 
     Returns:
         A ``BackendSlug`` value string — one of the values in ``BackendSlug``.
@@ -58,9 +58,9 @@ def resolve_backend_name(era: Era, accuracy_mode: bool) -> str:
     if 'backend' in era_config:
         return era_config['backend']
 
-    # Win9x: accuracy_mode → 86box, default → virtualbox.
+    # Win9x: default → 86Box, accuracy_mode → VirtualBox (high-compat fallback).
     if era.value in ('win95', 'win98'):
-        return BackendSlug.BOX86.value if accuracy_mode else BackendSlug.VIRTUALBOX.value
+        return BackendSlug.BOX86.value if not accuracy_mode else BackendSlug.VIRTUALBOX.value
 
     # WinXP: always virtualbox.
     if era.value == 'winxp':
@@ -74,13 +74,13 @@ def resolve_backend_name(era: Era, accuracy_mode: bool) -> str:
 def get_launch_fn(era: Era, accuracy_mode: bool = False) -> Callable:
     """Return the ``launch`` callable for the backend that handles ``era``.
 
-    For Win9x eras, ``accuracy_mode=True`` routes to 86Box; the default
-    routes to VirtualBox.  DOS, Win31, and console eras are unaffected by
-    ``accuracy_mode``.
+    For Win9x eras, ``accuracy_mode=False`` (default) routes to 86Box;
+    ``accuracy_mode=True`` routes to VirtualBox.  DOS, Win31, and console
+    eras are unaffected by ``accuracy_mode``.
 
     Args:
         era: The gaming era to resolve.
-        accuracy_mode: Route Win9x to 86Box when True.
+        accuracy_mode: Route Win9x to VirtualBox when True (default is 86Box).
 
     Returns:
         The ``launch`` function from the resolved backend module.
@@ -133,7 +133,7 @@ def get_backend_name(era: Era, accuracy_mode: bool = False) -> str:
 
     Args:
         era: The gaming era to look up.
-        accuracy_mode: Route Win9x display name to 86Box when True.
+        accuracy_mode: Route Win9x display name to VirtualBox when True.
 
     Returns:
         Display name string, or ``"Unknown"`` if the era is not configured.
@@ -174,7 +174,7 @@ def get_executable_path(era: Era, accuracy_mode: bool = False) -> tuple[str, str
 
     Args:
         era: The gaming era to look up.
-        accuracy_mode: Route Win9x to BOX86_PATH when True.
+        accuracy_mode: Route Win9x to VIRTUALBOX_PATH when True (default is BOX86_PATH).
 
     Returns:
         A tuple of ``(executable_path, settings_key)`` where ``settings_key``

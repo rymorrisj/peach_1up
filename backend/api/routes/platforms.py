@@ -1,4 +1,5 @@
 import logging
+import re
 import secrets
 import shutil
 import time
@@ -36,6 +37,17 @@ _EMULATOR_SLUG_TO_BINARY_KEY: dict[str, str] = {
 }
 
 _PC_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
+_PROVISIONABLE_ERAS = frozenset({"win95", "win98", "winxp"})
+
+
+def _generate_slug(name: str, db: Session) -> str:
+    base = re.sub(r'[^a-z0-9-]', '', re.sub(r'\s+', '-', name.lower())).strip('-') or 'platform'
+    candidate = base
+    n = 2
+    while db.query(Platform).filter(Platform.slug == candidate).first():
+        candidate = f"{base}-{n}"
+        n += 1
+    return candidate
 
 
 def _validate_image_path(path_str: str) -> Path:
@@ -86,9 +98,28 @@ def create_platform(body: PlatformCreate, db: Session = Depends(get_db), _: User
     if body.working_image_path:
         _validate_image_path(body.working_image_path)
     platform = Platform(**body.model_dump())
+    if not platform.slug:
+        platform.slug = _generate_slug(platform.name, db)
     db.add(platform)
     db.commit()
     db.refresh(platform)
+
+    if not platform.working_image_path and platform.era in _PROVISIONABLE_ERAS:
+        try:
+            from backend.service.utils.vm_provisioner import provision_platform
+            working_path, config_path = provision_platform(platform)
+            if working_path:
+                platform.working_image_path = working_path
+            if config_path:
+                platform.config_path = config_path
+            db.commit()
+            db.refresh(platform)
+        except Exception as exc:
+            logger.warning(
+                "Auto-provisioning failed for platform %d (%s/%s): %s",
+                platform.id, platform.era, platform.slug, exc,
+            )
+
     return platform
 
 

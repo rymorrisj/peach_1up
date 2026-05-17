@@ -7,7 +7,6 @@ from datetime import datetime
 from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-_SAVE_DIR_SLUGS = ["xemu", "mesen", "project64", "pcsx2", "duckstation"]
 
 from fastapi import FastAPI
 
@@ -236,6 +235,7 @@ def _apply_schema_migrations() -> None:
         ("library_items", "slug", "TEXT"),
         ("library_items", "folder_path", "TEXT"),
         ("library_items", "cover_path", "TEXT"),
+        ("platforms", "installed_at", "DATETIME"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)
@@ -321,10 +321,26 @@ def _apply_schema_migrations() -> None:
             logger.info("Schema migration: backfilled slugs for %d library item(s)", len(items))
 
 
-def _ensure_save_dirs() -> None:
-    saves_root = _PROJECT_ROOT / "library" / "saves"
-    for slug in _SAVE_DIR_SLUGS:
-        (saves_root / slug).mkdir(parents=True, exist_ok=True)
+def _ensure_default_paths() -> None:
+    lib = _PROJECT_ROOT / "library"
+    for subdir in [
+        "games",
+        "os",
+        "profiles",
+        "tools",
+        Path("roms") / "86box",
+        "bios",
+        Path("bios") / "ps1",
+        Path("bios") / "ps2",
+        Path("bios") / "xbox",
+        "saves",
+        Path("saves") / "mesen",
+        Path("saves") / "project64",
+        Path("saves") / "pcsx2",
+        Path("saves") / "duckstation",
+        Path("saves") / "xemu",
+    ]:
+        (lib / subdir).mkdir(parents=True, exist_ok=True)
 
 
 def _sync_detected_emulator_paths() -> None:
@@ -373,6 +389,7 @@ def _export_openapi_spec(app: FastAPI) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_settings()
+    _ensure_default_paths()
     init_db()
     create_tables()
     _apply_schema_migrations()
@@ -388,7 +405,6 @@ async def lifespan(app: FastAPI):
         _cleanup_stale_sessions(db)
         db.commit()
 
-    _ensure_save_dirs()
     _scan_installed_emulators()
     _sync_detected_emulator_paths()
     _export_openapi_spec(app)

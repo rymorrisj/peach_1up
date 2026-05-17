@@ -166,6 +166,29 @@ async def launch_environment(
     if profile is None:
         raise HTTPException(status_code=422, detail="No profile found for this environment's era.")
 
+    if platform.working_image_path is None and platform.era in {"win95", "win98", "winxp"}:
+        try:
+            from backend.service.utils.vm_provisioner import provision_platform
+            working_path, config_path = await asyncio.to_thread(provision_platform, platform)
+            if working_path:
+                platform.working_image_path = working_path
+            if config_path:
+                platform.config_path = config_path
+            db.commit()
+            db.refresh(platform)
+        except Exception as exc:
+            logger.exception("On-launch provisioning failed for platform %d", platform_id)
+            raise HTTPException(
+                status_code=422,
+                detail=f"Environment has no working image and automatic provisioning failed: {exc}",
+            )
+
+    if platform.working_image_path is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Environment has no working image. Provisioning is not available for this era.",
+        )
+
     from backend.service.utils.backend_router import launch_media
 
     network_blocked = not bool(getattr(profile, 'enable_networking', False))

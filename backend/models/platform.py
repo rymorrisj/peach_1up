@@ -18,6 +18,7 @@ class PlatformBase(SQLModel):
     download_url: Optional[str] = None
     supported_eras: Optional[str] = None
     default_flags: Optional[str] = None
+    installed_at: Optional[datetime] = None
 
 
 class Platform(PlatformBase, table=True):
@@ -59,6 +60,7 @@ class PlatformUpdate(SQLModel):
     download_url: Optional[str] = None
     supported_eras: Optional[str] = None
     default_flags: Optional[str] = None
+    installed_at: Optional[datetime] = None
 
 
 class PlatformRead(PlatformBase):

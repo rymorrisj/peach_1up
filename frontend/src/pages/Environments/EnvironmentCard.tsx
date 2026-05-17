@@ -1,38 +1,64 @@
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/ui'
 import { ERA_LABELS } from '@/generated/constants'
 import type { components } from '@shared/types'
 import EmulatorStatus from '@/components/emulators/EmulatorStatus'
 import LaunchHistory from '@/components/launches/LaunchHistory'
 import { useLaunch } from '@/hooks/useLaunch'
+import { apiFetch, ApiError } from '@/api/client'
 
-type Platform = components['schemas']['PlatformRead']
+type PlatformBase = components['schemas']['PlatformRead']
+type Platform = PlatformBase & { installed_at?: string | null }
 
 const EMULATOR_LABELS: Record<string, string> = {
   'dosbox-x': 'DOSBox-X',
+  '86box': '86Box',
   virtualbox: 'VirtualBox',
 }
 
 interface EnvironmentCardProps {
-  platform: Platform
+  platform: PlatformBase
   healthLoading: boolean
-  onEdit: (platform: Platform) => void
-  onDelete: (platform: Platform) => void
-  onHealthCheck: (platform: Platform) => void
+  onEdit: (platform: PlatformBase) => void
+  onDelete: (platform: PlatformBase) => void
+  onHealthCheck: (platform: PlatformBase) => void
 }
 
 export default function EnvironmentCard({
-  platform,
+  platform: platformBase,
   healthLoading,
   onEdit,
   onDelete,
   onHealthCheck,
 }: EnvironmentCardProps) {
+  const platform = platformBase as Platform
+  const queryClient = useQueryClient()
   const eraLabel = ERA_LABELS[platform.era] ?? platform.era
   const emulatorLabel = EMULATOR_LABELS[platform.emulator_slug] ?? platform.emulator_slug
   const { launch, stop, isLaunching, error: launchError, warnings } = useLaunch(
     platform.id,
     'environment',
   )
+
+  const [markingInstalled, setMarkingInstalled] = useState(false)
+  const [markInstalledError, setMarkInstalledError] = useState<string | null>(null)
+
+  async function handleMarkInstalled() {
+    setMarkingInstalled(true)
+    setMarkInstalledError(null)
+    try {
+      await apiFetch(`/api/v1/platforms/${platform.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ installed_at: new Date().toISOString() }),
+      })
+      await queryClient.invalidateQueries({ queryKey: ['platforms'] })
+    } catch (err) {
+      setMarkInstalledError(err instanceof ApiError ? err.detail : 'Failed to mark as installed.')
+    } finally {
+      setMarkingInstalled(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-surface-800">
@@ -48,6 +74,11 @@ export default function EnvironmentCard({
             <span className="inline-flex rounded px-1.5 py-0.5 text-xs font-medium bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
               {emulatorLabel}
             </span>
+            {platform.installed_at && (
+              <span className="inline-flex rounded px-1.5 py-0.5 text-xs font-medium bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                Installed
+              </span>
+            )}
           </div>
         </div>
         <EmulatorStatus status={platform.status} />
@@ -84,22 +115,39 @@ export default function EnvironmentCard({
             Launch
           </Button>
         )}
-        <Button variant="secondary" size="sm" onClick={() => onEdit(platform)}>
+        {!platform.installed_at && (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleMarkInstalled}
+            loading={markingInstalled}
+            disabled={markingInstalled}
+          >
+            Mark as Installed
+          </Button>
+        )}
+        <Button variant="secondary" size="sm" onClick={() => onEdit(platformBase)}>
           Edit
         </Button>
         <Button
           variant="secondary"
           size="sm"
-          onClick={() => onHealthCheck(platform)}
+          onClick={() => onHealthCheck(platformBase)}
           loading={healthLoading}
           disabled={healthLoading}
         >
           Health Check
         </Button>
-        <Button variant="destructive" size="sm" onClick={() => onDelete(platform)}>
+        <Button variant="destructive" size="sm" onClick={() => onDelete(platformBase)}>
           Delete
         </Button>
       </div>
+
+      {markInstalledError && (
+        <p role="alert" className="text-xs text-error">
+          ❌ {markInstalledError}
+        </p>
+      )}
 
       {warnings.length > 0 && (
         <div className="space-y-1">

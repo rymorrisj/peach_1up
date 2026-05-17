@@ -16,18 +16,18 @@ win31:
   mount_type: hdd
 
 win95:
-  primary: virtualbox
+  primary: box86
+  secondary: virtualbox
   compat: dosbox
-  accuracy: 86box
   memory_limit_mb: 512
   cpu_limit_percent: 75
   supported_media: [".iso", ".img", ".cue"]
   mount_type: cdrom
 
 win98:
-  primary: virtualbox
+  primary: box86
+  secondary: virtualbox
   compat: dosbox
-  accuracy: 86box
   memory_limit_mb: 512
   cpu_limit_percent: 75
   supported_media: [".iso", ".img", ".cue"]

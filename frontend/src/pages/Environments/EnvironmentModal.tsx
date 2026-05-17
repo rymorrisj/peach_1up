@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Button, FormField, Input, Modal, Textarea } from '@/ui'
 import PathInput from '@/components/common/PathInput'
 import FileUpload from '@/components/common/FileUpload'
@@ -15,13 +16,14 @@ const PC_ERAS: { value: PCEra; label: string }[] = [
 const ERA_TO_EMULATOR: Record<PCEra, string> = {
   dos: 'dosbox-x',
   win31: 'dosbox-x',
-  win95: 'virtualbox',
-  win98: 'virtualbox',
+  win95: '86box',
+  win98: '86box',
   winxp: 'virtualbox',
 }
 
 const EMULATOR_LABELS: Record<string, string> = {
   'dosbox-x': 'DOSBox-X',
+  '86box': '86Box',
   virtualbox: 'VirtualBox',
 }
 
@@ -67,6 +69,9 @@ export default function EnvironmentModal({
   onFieldChange,
 }: EnvironmentModalProps) {
   const emulatorLabel = form.era ? (EMULATOR_LABELS[ERA_TO_EMULATOR[form.era]] ?? null) : null
+  const hasAdvancedValues = !!(form.working_image_path || form.notes)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const advancedOpen = showAdvanced || hasAdvancedValues
 
   return (
     <Modal
@@ -137,7 +142,7 @@ export default function EnvironmentModal({
         <FormField
           label="Base Image Path"
           htmlFor="env-base"
-          hint="Full path to the locked base image file (never modified)"
+          hint="Provide an ISO or disk image. Peach 1UP will set up the environment automatically."
         >
           <PathInput
             id="env-base"
@@ -157,40 +162,55 @@ export default function EnvironmentModal({
             />
           )}
         </FormField>
-
-        <FormField
-          label="Working Image Path"
-          htmlFor="env-working"
-          hint="Full path to the working copy used for all launches"
-        >
-          <PathInput
-            id="env-working"
-            mode="file"
-            accept=".img,.iso,.vhd,.cue,.chd,.xiso"
-            value={form.working_image_path}
-            onChange={(v) => onFieldChange('working_image_path', v)}
-            placeholder="/path/to/images/os/win98/working.img"
-            className="mt-1"
-          />
-          {form.era && (
-            <FileUpload
-              era={form.era}
-              mediaType="os"
-              accept=".img,.iso,.vhd,.cue,.chd,.xiso"
-              onComplete={(path) => onFieldChange('working_image_path', path)}
-            />
-          )}
-        </FormField>
       </div>
 
-      <FormField label="Notes" htmlFor="env-notes">
-        <Textarea
-          id="env-notes"
-          value={form.notes}
-          onChange={(e) => onFieldChange('notes', e.target.value)}
-          placeholder="Optional notes about this environment"
-        />
-      </FormField>
+      <div className="border-t border-neutral-200 pt-3 dark:border-neutral-700">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="flex items-center gap-1.5 text-sm font-medium text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+        >
+          <span>{advancedOpen ? '▾' : '▸'}</span>
+          Advanced
+        </button>
+
+        {advancedOpen && (
+          <div className="mt-3 space-y-4">
+            <FormField
+              label="Working Image Path"
+              htmlFor="env-working"
+              hint="Full path to the working copy used for all launches"
+            >
+              <PathInput
+                id="env-working"
+                mode="file"
+                accept=".img,.iso,.vhd,.cue,.chd,.xiso"
+                value={form.working_image_path}
+                onChange={(v) => onFieldChange('working_image_path', v)}
+                placeholder="/path/to/images/os/win98/working.img"
+                className="mt-1"
+              />
+              {form.era && (
+                <FileUpload
+                  era={form.era}
+                  mediaType="os"
+                  accept=".img,.iso,.vhd,.cue,.chd,.xiso"
+                  onComplete={(path) => onFieldChange('working_image_path', path)}
+                />
+              )}
+            </FormField>
+
+            <FormField label="Notes" htmlFor="env-notes">
+              <Textarea
+                id="env-notes"
+                value={form.notes}
+                onChange={(e) => onFieldChange('notes', e.target.value)}
+                placeholder="Optional notes about this environment"
+              />
+            </FormField>
+          </div>
+        )}
+      </div>
 
       {submitError && (
         <p role="alert" className="text-sm text-error">
