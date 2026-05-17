@@ -103,7 +103,7 @@ def _strip_autoexec(conf_text: str) -> str:
     return result
 
 
-def write_launch_conf(media_path: Path, era: str, executable_path: Path) -> Path:
+def write_launch_conf(media_path: Path, era: str, executable_path: Path, game_executable: str | None = None) -> Path:
     """Write a per-launch DOSBox-X conf to a temp directory and return its path.
 
     Reads the emulator's bundled dosbox-x.conf if present, strips its
@@ -158,7 +158,10 @@ def write_launch_conf(media_path: Path, era: str, executable_path: Path) -> Path
     # precedence over TTF mode; DOSBox-X uses the last value it reads per key.
     content += "[sdl]\noutput=surface\n\n"
     content += "[dos]\nautomount=false\nmountwarning=false\n\n"
-    content += f"[autoexec]\n{mount_line}\n{drive_line}\n"
+    autoexec = f"[autoexec]\n{mount_line}\n{drive_line}\n"
+    if game_executable:
+        autoexec += f"{game_executable}\n"
+    content += autoexec
 
     try:
         conf_path.write_text(content, encoding="utf-8")
@@ -213,6 +216,7 @@ def launch(
     era: str,
     executable_path: str,
     enable_networking: bool = False,
+    game_executable: str | None = None,
 ) -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch DOSBox-X with the given media file under Job Object isolation.
 
@@ -242,7 +246,7 @@ def launch(
 
     validate_media(media_path)
 
-    conf_path = write_launch_conf(media_path, era, Path(executable_path))
+    conf_path = write_launch_conf(media_path, era, Path(executable_path), game_executable=game_executable)
     atexit.register(shutil.rmtree, str(conf_path.parent), True)
 
     args = ["-conf", str(conf_path)] + build_args(media_path, era, enable_networking=enable_networking)

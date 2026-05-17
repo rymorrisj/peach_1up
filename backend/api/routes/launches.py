@@ -92,6 +92,7 @@ async def launch_item(
             item.media_path,
             profile,
             platform_record,
+            item.executable_path,
         )
     except Exception as exc:
         logger.exception("Launch failed")
