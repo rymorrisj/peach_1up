@@ -254,10 +254,17 @@ export default function ItemDetail() {
   const effectiveProfileId = form.profile_id ? parseInt(form.profile_id, 10) : null
   const hasProfile = effectiveProfileId != null
 
+  const ERA_TO_EMULATOR: Record<string, string> = {
+    dos: 'dosbox-x', win31: 'dosbox-x',
+    win95: '86box',  win98: '86box',
+    winxp: 'virtualbox',
+  }
   const eraProfiles = profiles.filter((p) => p.era === item.era)
   const otherProfiles = profiles.filter((p) => p.era !== item.era)
   const chosenProfile = profiles.find((p) => p.id === effectiveProfileId) ?? null
-  const profileEraMismatch = chosenProfile && chosenProfile.era !== item.era
+  const expectedEmulator = ERA_TO_EMULATOR[item.era]
+  const profileEraMismatch =
+    chosenProfile && expectedEmulator != null && chosenProfile.emulator_slug !== expectedEmulator
 
   const nonOwnerUsers = users.filter((u) => !u.is_owner)
 

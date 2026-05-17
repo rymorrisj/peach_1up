@@ -57,19 +57,19 @@ manually inside the emulator). The user never selects or configures an emulator 
 | ------- | ------------- | ---------- | ------------------------------------ | ---------------------------------------------- |
 | DOS     | MS-DOS        | DOSBox-X   | —                                    | Always DOSBox-X                                |
 | Win 3.x | Windows 3.1   | DOSBox-X   | —                                    | Runs inside DOS session                        |
-| Win 9x  | Windows 95/98 | VirtualBox | DOSBox-X (compat) / 86Box (accuracy) | VirtualBox default. See selection logic below. |
+| Win 9x  | Windows 95/98 | 86Box      | VirtualBox (override), DOSBox-X (compat) | 86Box default. See selection logic below. |
 | Win XP  | Windows XP    | VirtualBox | —                                    | Always VirtualBox                              |
 
 **Win 9x selection logic:**
 
-- Default → VirtualBox (hardware virtualization, near-native performance)
+- Default → 86Box (accuracy and game compatibility). VirtualBox available as override.
 - DOS app running under Windows → DOSBox-X (better DOS compatibility)
-- User enables accuracy mode OR title is in known titles database → 86Box
+- User enables accuracy mode OR title is in known titles database → 86Box (Note: 86Box is now the default for all Win9x; this condition is obsolete as of 2026-05-17.)
 
 **Accuracy mode:**
 A user-facing "Hardware accuracy mode" checkbox on profile creation. Never exposes
 emulator names. Clear tradeoff language: "Slower but required for some games with
-specific hardware needs." When checked, Win9x routes to 86Box.
+specific hardware needs." When checked, Win9x routes to 86Box. Note: with 86Box as the 2026-05-17 default, this checkbox no longer changes the backend route — its current function and UI status should be reviewed before P9.
 
 ### Media Paths
 
@@ -97,6 +97,7 @@ where possible.
 - [P2-3] Era hardware templates — pre-built emulator config templates per era:
   DOSBox-X for DOS and Win3.1, VirtualBox for Win95/98 (default) and XP, 86Box for
   Win95/98 accuracy mode only. Stored in config/ as YAML, not hardcoded in Python.
+  (Note: default flipped to 86Box as of 2026-05-17; see DECISIONS.md.)
 - [P2-4] Base and working image management — on first registration, base image
   is locked and a working copy is created in images/os/{era}/. All launches use
   the working copy. Base is never modified. User is warned at registration that

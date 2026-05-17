@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -75,7 +75,7 @@ async def launch_item(
         library_item_id=item.id,
         profile_id=profile.id if profile else None,
         emulator_slug=profile.emulator_slug if profile else "",
-        started_at=datetime.utcnow(),
+        started_at=datetime.now(timezone.utc),
         network_blocked=network_blocked,
         job_isolated=False,
     )
@@ -97,7 +97,7 @@ async def launch_item(
     except Exception as exc:
         logger.exception("Launch failed")
         history.error_message = str(exc)
-        history.ended_at = datetime.utcnow()
+        history.ended_at = datetime.now(timezone.utc)
         history.exit_code = -1
         db.commit()
         raise HTTPException(status_code=500, detail=f"Launch failed: {exc}")
@@ -198,7 +198,7 @@ async def launch_environment(
         platform_id=platform.id,
         profile_id=profile.id,
         emulator_slug=profile.emulator_slug,
-        started_at=datetime.utcnow(),
+        started_at=datetime.now(timezone.utc),
         network_blocked=network_blocked,
         job_isolated=False,
     )
@@ -219,7 +219,7 @@ async def launch_environment(
     except Exception as exc:
         logger.exception("Environment launch failed")
         history.error_message = str(exc)
-        history.ended_at = datetime.utcnow()
+        history.ended_at = datetime.now(timezone.utc)
         history.exit_code = -1
         db.commit()
         raise HTTPException(status_code=500, detail=f"Launch failed: {exc}")
@@ -296,13 +296,15 @@ def stop_launch(history_id: int, db: Session = Depends(get_db)):
 
     stopped = False
     for pid, entry in process_registry.get_all().items():
-        if entry.library_item_id == record.library_item_id:
+        by_history = entry.launch_history_id == history_id
+        by_item = record.library_item_id is not None and entry.library_item_id == record.library_item_id
+        if by_history or by_item:
             process_registry.terminate(pid)
             stopped = True
             break
 
     if stopped:
-        record.ended_at = datetime.utcnow()
+        record.ended_at = datetime.now(timezone.utc)
         record.exit_code = -15
         db.commit()
 

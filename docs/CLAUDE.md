@@ -39,8 +39,8 @@ Objects on Windows.
 **PC Emulators**
 
 - DOSBox-X (DOS and Windows 3.1 — no ROM required)
-- VirtualBox (Windows 95, 98, XP — primary virtualization layer)
-- 86Box (Windows 95, 98 accuracy mode — user supplies ROM pack)
+- 86Box (Windows 95, 98 — primary; user supplies ROM pack)
+- VirtualBox (Windows 95, 98, XP — available as override; primary for XP)
 
 **Console Emulators**
 
@@ -58,8 +58,8 @@ Objects on Windows.
 | ----------- | ----------- | ----------------------------------- | --------------- |
 | DOS         | DOSBox-X    | —                                   | No              |
 | Windows 3.1 | DOSBox-X    | —                                   | No              |
-| Windows 95  | VirtualBox  | DOSBox-X (compat), 86Box (accuracy) | 86Box only      |
-| Windows 98  | VirtualBox  | DOSBox-X (compat), 86Box (accuracy) | 86Box only      |
+| Windows 95  | 86Box       | VirtualBox (override), DOSBox-X (compat) | Yes (ROM pack) |
+| Windows 98  | 86Box       | VirtualBox (override), DOSBox-X (compat) | Yes (ROM pack) |
 | Windows XP  | VirtualBox  | —                                   | No              |
 | PS1         | DuckStation | —                                   | Yes (PS1 BIOS)  |
 | PS2         | PCSX2       | —                                   | Yes (PS2 BIOS)  |
@@ -209,6 +209,16 @@ Awaiting your decision.
 - xemu: https://xemu.app
 - Mesen: https://www.mesen.ca
 - Project64: https://www.pj64-emu.com
+
+## Emulator Path Model
+
+Emulator binary path resolution follows three tiers, highest priority first:
+
+1. **User override** — absolute path stored in `settings.yaml`, set via the Emulators or Settings page in the UI. Never accepted from request input.
+2. **Bundled** — portable emulators (DOSBox-X, 86Box) ship inside `emulators/{slug}/` under the project root. Presence detected by checking the known project-relative path on startup.
+3. **Catalog-detected** — system-installed emulators (VirtualBox, DuckStation, Project64) are located via known installation paths declared in `emulators.yaml`. No registry scanning.
+
+No emulator binary path is ever accepted from request input at launch time. This rule has no exceptions.
 
 ## Environment Variables (.env)
 

@@ -24,9 +24,9 @@ export default function LaunchHistory({ targetId, targetType }: LaunchHistoryPro
     <div className="mt-2 border-t border-neutral-100 pt-2 dark:border-neutral-800">
       {launches.slice(0, 5).map((l) => (
         <div key={l.id} className="flex items-center gap-2 py-0.5 text-xs text-neutral-400">
-          <span>{new Date(l.started_at).toLocaleString()}</span>
+          <span>{new Date(l.started_at + 'Z').toLocaleString()}</span>
           {l.ended_at ? (
-            <span>ended</span>
+            <span>{new Date(l.ended_at + 'Z').toLocaleString()}</span>
           ) : (
             <span className="text-green-500">running</span>
           )}

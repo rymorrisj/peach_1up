@@ -76,21 +76,28 @@ Permission flags on sub-accounts:
 **These are mandatory implementation rules, not guidelines.**
 
 - Every file path accepted from any source — request body, query parameter, profile
-  field, settings value — **must be resolved, normalised, and validated against an
-  allowlist of permitted base directories** before any filesystem operation is performed.
-  Permitted base directories are: the configured `LIBRARY_PATH` (and its
-  derived sub-paths `GAMES_PATH`, `OS_PATH`, `ROM_PATH`, `BIOS_PATH`,
-  `TOOLS_PATH`), `PROFILES_PATH`, and the application config directory.
+  field, settings value — **must be resolved and normalised** before any filesystem
+  operation is performed. Paths used for library scans, media scanning, and profile
+  operations **must be validated against an allowlist** of permitted base directories:
+  the configured `LIBRARY_PATH` (and its derived sub-paths `GAMES_PATH`, `OS_PATH`,
+  `ROM_PATH`, `BIOS_PATH`, `TOOLS_PATH`), `PROFILES_PATH`, and the application config
+  directory. **Exception:** platform image paths (`base_image_path`,
+  `working_image_path`) may reside anywhere on the host filesystem — see Known Gaps.
 - Path traversal attempts (resolved path escapes its permitted base) **must be rejected
-  with a 400 error and logged** before any filesystem operation occurs.
+  with a 400 error and logged** before any filesystem operation occurs. This applies to
+  all path-validated operations; platform image paths are the explicit carved-out
+  exception documented in Known Gaps.
 - **No user-supplied string may reach a subprocess call directly.** There must be at
   least one validation layer between input and execution.
-- Emulator binary paths come from `settings.yaml` only. They are never taken from
-  request input, query parameters, or profile fields.
+- Emulator binary paths are **never taken from request input**, query parameters, or
+  profile fields. Paths resolve through three tiers: (1) user override stored in
+  `settings.yaml` via the UI, (2) bundled project `emulators/{slug}/` directory,
+  (3) catalog-detected known installation paths from `emulators.yaml`. No registry
+  scanning. This rule has no exceptions.
 - CLI arguments passed to emulator processes come from validated `Profile` config fields
   only. There is no freeform command construction anywhere in the codebase.
 - All validated inputs must be checked again at the point of use — do not rely on prior
-  validation in a different layer.
+  validation in a different layer. (For image paths, see Known Gaps.)
 
 ---
 
@@ -98,8 +105,10 @@ Permission flags on sub-accounts:
 
 **Mandatory.**
 
-- Emulator binaries are resolved from `settings.yaml` exclusively. The binary path is
-  never derived from request input.
+- Emulator binary paths are never derived from request input. Paths resolve through
+  three tiers: `settings.yaml` user override, bundled `emulators/{slug}/` project
+  directory, or catalog-detected system installation paths from `emulators.yaml`.
+  No registry scanning.
 - Arguments are constructed from validated `Profile` fields only. No string interpolation
   of raw user input into argument lists.
 - One concurrent launch is permitted per profile. A second launch request while a
@@ -273,6 +282,31 @@ a design intent. A concrete implementation based on either nsjail or native
 namespaces + cgroups will be introduced in P8. Until then, Linux emulator launches
 do not have a hardened sandbox equivalent to the planned Windows low-privilege
 user + Job Object model.
+
+---
+
+## Known Gaps
+
+### Platform image path traversal relies on OS trust model
+
+`base_image_path` and `working_image_path` on Platform records may be set by any user
+with `can_edit_platforms` permission and may point to any location on the host filesystem.
+The runtime allowlist check against `OS_PATH` and `LIBRARY_PATH` was intentionally
+removed to allow images on secondary drives, external volumes, and NAS shares outside
+the configured library directories.
+
+**Implications:** A user with `can_edit_platforms` can cause the backend to read, copy,
+or perform existence checks on files at arbitrary paths on the host. Mitigating factors:
+
+- `can_edit_platforms` is an explicit operator-granted permission, not a default for
+  sub-accounts.
+- The application runs as a local user, not a privileged service account.
+- Operations on image paths are limited to copy, read, and existence check — no shell
+  execution of image path values.
+
+This gap is tracked and will be addressed in a future hardening pass, either by restoring
+a configurable allowlist with an opt-out flag or by surfacing an explicit warning at
+environment registration time.
 
 ---
 

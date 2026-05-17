@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { apiFetch, ApiError } from '@/api/client'
 import type { components } from '@shared/types'
 
@@ -9,6 +9,22 @@ export function useLaunch(targetId: number, targetType: string) {
   const [launchId, setLaunchId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!launchId) return
+    const id = setInterval(async () => {
+      try {
+        const rec = await apiFetch<{ ended_at: string | null }>(`/api/v1/launches/${launchId}`)
+        if (rec.ended_at != null) {
+          setIsLaunching(false)
+          setLaunchId(null)
+        }
+      } catch {
+        // poll errors are non-fatal
+      }
+    }, 3000)
+    return () => clearInterval(id)
+  }, [launchId])
 
   async function launch() {
     setIsLaunching(true)
