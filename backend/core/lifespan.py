@@ -104,9 +104,9 @@ _SYSTEM_PLATFORMS = [
 _DEFAULT_PROFILES = [
     {"name": "DOS Default",      "slug": "dos-default",    "era": "dos",   "emulator_slug": "dosbox-x",   "is_bundled": True, "is_accuracy_mode": False},
     {"name": "Win 3.1 Default",  "slug": "win31-default",  "era": "win31", "emulator_slug": "dosbox-x",   "is_bundled": True, "is_accuracy_mode": False},
-    {"name": "Win 95 Compat",    "slug": "win95-compat",   "era": "win95", "emulator_slug": "virtualbox",  "is_bundled": True, "is_accuracy_mode": False},
+    {"name": "Win 95 Compat",    "slug": "win95-compat",   "era": "win95", "emulator_slug": "86box",       "is_bundled": True, "is_accuracy_mode": False},
     {"name": "Win 95 Accuracy",  "slug": "win95-accuracy", "era": "win95", "emulator_slug": "86box",       "is_bundled": True, "is_accuracy_mode": True},
-    {"name": "Win 98 Compat",    "slug": "win98-compat",   "era": "win98", "emulator_slug": "virtualbox",  "is_bundled": True, "is_accuracy_mode": False},
+    {"name": "Win 98 Compat",    "slug": "win98-compat",   "era": "win98", "emulator_slug": "86box",       "is_bundled": True, "is_accuracy_mode": False},
     {"name": "Win 98 Accuracy",  "slug": "win98-accuracy", "era": "win98", "emulator_slug": "86box",       "is_bundled": True, "is_accuracy_mode": True},
     {"name": "Win XP Default",   "slug": "winxp-default",  "era": "winxp", "emulator_slug": "virtualbox",  "is_bundled": True, "is_accuracy_mode": False},
     {"name": "PS1 Default",      "slug": "ps1-default",    "era": "ps1",   "emulator_slug": "duckstation", "is_bundled": True, "is_accuracy_mode": False},
