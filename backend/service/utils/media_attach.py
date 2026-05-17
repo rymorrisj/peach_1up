@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Optional
 
 import pycdlib
-from pycdlib import PyCdlibException
+from pycdlib.pycdlibexception import PyCdlibException
 
 
 logger = logging.getLogger(__name__)

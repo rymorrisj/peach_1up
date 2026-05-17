@@ -32,6 +32,9 @@ export function createMockLibraryItem(overrides?: Partial<LibraryItem>): Library
     title: 'Test Game',
     era: 'dos',
     media_path: '/images/test.iso',
+    launch_count: 0,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
   }
 }

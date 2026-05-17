@@ -12,7 +12,7 @@ import type { components } from '@shared/types'
 
 type User = components['schemas']['UserRead']
 
-const PERMISSION_FLAGS: { key: keyof User; label: string }[] = [
+const PERMISSION_FLAGS: { key: keyof AddUserForm; label: string }[] = [
   { key: 'can_launch_media', label: 'Launch media' },
   { key: 'can_edit_library', label: 'Edit library' },
   { key: 'can_edit_platforms', label: 'Edit platforms' },

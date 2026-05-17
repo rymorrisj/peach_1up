@@ -5,7 +5,7 @@ import { FormField, Button } from '@/ui'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
 
-type LibraryKey = 'images_path' | 'profiles_path' | 'rom_path'
+type LibraryKey = 'library_path' | 'profiles_path' | 'rom_path'
 
 interface PathFieldState {
   value: string
@@ -16,10 +16,10 @@ interface PathFieldState {
 
 const PATH_ENTRIES: { key: LibraryKey; settingsKey: string; label: string; hint: string }[] = [
   {
-    key: 'images_path',
-    settingsKey: 'IMAGES_PATH',
-    label: 'Images Path',
-    hint: 'Directory where OS images and game media are stored',
+    key: 'library_path',
+    settingsKey: 'LIBRARY_PATH',
+    label: 'Library Path',
+    hint: 'Root directory for the Peach 1UP library',
   },
   {
     key: 'profiles_path',
@@ -44,7 +44,7 @@ export default function GeneralTab() {
   })
 
   const [fields, setFields] = useState<Record<LibraryKey, PathFieldState>>({
-    images_path: EMPTY_FIELD,
+    library_path: EMPTY_FIELD,
     profiles_path: EMPTY_FIELD,
     rom_path: EMPTY_FIELD,
   })
@@ -53,7 +53,7 @@ export default function GeneralTab() {
   useEffect(() => {
     if (!settings || initialized) return
     setFields({
-      images_path: { ...EMPTY_FIELD, value: settings['IMAGES_PATH'] ?? '' },
+      library_path: { ...EMPTY_FIELD, value: settings['LIBRARY_PATH'] ?? '' },
       profiles_path: { ...EMPTY_FIELD, value: settings['PROFILES_PATH'] ?? '' },
       rom_path: { ...EMPTY_FIELD, value: settings['ROM_PATH'] ?? '' },
     })

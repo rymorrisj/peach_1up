@@ -43,7 +43,10 @@ emulators:
     install_type: installer
     install_scope: system
     windows_installer_glob: "duckstation-*.exe"
-    windows_binary: pcsx2-qt.exe
+    windows_binary: duckstation-qt.exe
+    system_paths:
+      - "C:\\Program Files\\DuckStation\\duckstation-qt.exe"
+      - "C:\\Program Files (x86)\\DuckStation\\duckstation-qt.exe"
     license: GPL-3.0
     copyright: "Copyright 2019–2024 Connor McLaughlin and contributors"
     source_url: "https://github.com/stenzek/duckstation"
@@ -58,9 +61,12 @@ emulators:
     required: false
     linux_url: "PLACEHOLDER_PCSX2_LINUX_URL"
     binary_name: pcsx2-qt
-    install_type: zip
-    install_scope: portable
+    install_type: installer
+    install_scope: system
     windows_binary: "C:\\Program Files\\PCSX2\\pcsx2-qt.exe"
+    system_paths:
+      - "C:\\Program Files\\PCSX2\\pcsx2-qt.exe"
+      - "C:\\Program Files (x86)\\PCSX2\\pcsx2-qt.exe"
     license: GPL-3.0
     copyright: "Copyright 2002–2024 PCSX2 Dev Team"
     source_url: "https://github.com/PCSX2/pcsx2"
@@ -113,6 +119,9 @@ emulators:
     install_scope: system
     windows_installer_glob: "Project64*.exe"
     windows_binary: "C:\\Program Files\\Project64*\\Project64.exe"
+    system_paths:
+      - "C:\\Program Files\\Project64 3.0\\Project64.exe"
+      - "C:\\Program Files (x86)\\Project64 3.0\\Project64.exe"
     license: GPL-2.0
     copyright: "Copyright 2001–2024 Project64 Ltd and contributors"
     source_url: "https://github.com/project64/project64"
