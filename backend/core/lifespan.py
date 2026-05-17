@@ -3,7 +3,7 @@ import json
 import logging
 import sys
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -159,7 +159,7 @@ def _cleanup_stale_sessions(db) -> None:
         from backend.models import LaunchHistory
         stale = db.query(LaunchHistory).filter(LaunchHistory.ended_at.is_(None)).all()
         for session in stale:
-            session.ended_at = datetime.utcnow()
+            session.ended_at = datetime.now(timezone.utc)
             session.exit_code = -1
         db.flush()
         if stale:
@@ -182,7 +182,7 @@ def _write_session_ends(exited: list, exit_code_override: int | None = None) -> 
                 continue
             history = db.get(LaunchHistory, entry.launch_history_id)
             if history and history.ended_at is None:
-                history.ended_at = datetime.utcnow()
+                history.ended_at = datetime.now(timezone.utc)
                 if exit_code_override is not None:
                     history.exit_code = exit_code_override
                 else:
@@ -232,10 +232,13 @@ def _apply_schema_migrations() -> None:
     engine = get_engine()
     pending: list[tuple[str, str, str]] = [
         ("library_items", "content_rating", "TEXT"),
+        ("library_items", "executable_path", "TEXT"),
         ("library_items", "slug", "TEXT"),
         ("library_items", "folder_path", "TEXT"),
         ("library_items", "cover_path", "TEXT"),
         ("platforms", "installed_at", "DATETIME"),
+        ("platforms", "hardware_profile", "TEXT DEFAULT 'standard'"),
+        ("platforms", "machine_override", "TEXT"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)

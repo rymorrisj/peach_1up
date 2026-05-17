@@ -120,7 +120,8 @@ def _inject_media(attachment: dict) -> None:
             "Ensure the platform config_path is set correctly."
         )
 
-    parser = configparser.RawConfigParser(optionxform=str)
+    parser = configparser.RawConfigParser()
+    parser.optionxform = str
     parser.read(str(config_path), encoding="utf-8")
 
     section = attachment["section"]
@@ -228,7 +229,6 @@ def launch(
 
     args = [
         "--config", str(platform.config_path),
-        "--rom-path", rom_path_str,
     ]
 
     job_paths = [str(platform.working_image_path)]
@@ -237,7 +237,7 @@ def launch(
 
     job_name = f"peach1up_86box_{platform.era}_{platform.slug}"
 
-    launch_under_job_object(
+    return launch_under_job_object(
         executable_path=box86_path,
         args=args,
         media_paths=job_paths,

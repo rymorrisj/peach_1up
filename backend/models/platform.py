@@ -19,6 +19,8 @@ class PlatformBase(SQLModel):
     supported_eras: Optional[str] = None
     default_flags: Optional[str] = None
     installed_at: Optional[datetime] = None
+    hardware_profile: str = "standard"
+    machine_override: Optional[str] = None
 
 
 class Platform(PlatformBase, table=True):
@@ -61,6 +63,8 @@ class PlatformUpdate(SQLModel):
     supported_eras: Optional[str] = None
     default_flags: Optional[str] = None
     installed_at: Optional[datetime] = None
+    hardware_profile: Optional[str] = None
+    machine_override: Optional[str] = None
 
 
 class PlatformRead(PlatformBase):

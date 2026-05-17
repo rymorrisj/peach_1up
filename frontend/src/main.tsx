@@ -11,6 +11,7 @@ import GuidesIndex from '@/pages/Guides'
 import CartridgeImaging from '@/pages/Guides/CartridgeImaging'
 import VirtualBoxSetup from '@/pages/Guides/VirtualBoxSetup'
 import BiosSourcing from '@/pages/Guides/BiosSourcing'
+import Box86HardwareGuide from '@/pages/Guides/86BoxHardwareGuide'
 import Emulators from '@/pages/Emulators'
 import Environments from '@/pages/Environments'
 import FirstRun from '@/pages/FirstRun'
@@ -69,6 +70,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/guides/cartridge-imaging" element={<CartridgeImaging />} />
                 <Route path="/guides/virtualbox-setup" element={<VirtualBoxSetup />} />
                 <Route path="/guides/bios-sourcing" element={<BiosSourcing />} />
+                <Route path="/guides/86box-hardware" element={<Box86HardwareGuide />} />
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />

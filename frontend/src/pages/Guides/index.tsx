@@ -14,6 +14,11 @@ const GUIDES: GuideEntry[] = [
     description: 'How to source a pre-installed HDD image, register it as an Environment, and launch software from it.',
   },
   {
+    to: '/guides/86box-hardware',
+    title: '86Box Hardware Profiles',
+    description: 'Which hardware profile to choose for Win95/98 games — 3dfx, OPL music, MIDI, or the standard setup.',
+  },
+  {
     to: '/guides/bios-sourcing',
     title: 'BIOS File Sourcing',
     description: 'Where to obtain PS1, PS2, and Xbox OG BIOS files from your own hardware.',

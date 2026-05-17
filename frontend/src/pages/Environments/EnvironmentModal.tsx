@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, FormField, Input, Modal, Textarea } from '@/ui'
 import PathInput from '@/components/common/PathInput'
 import FileUpload from '@/components/common/FileUpload'
+import FileBrowser from '@/components/common/FileBrowser'
 
 type PCEra = 'dos' | 'win31' | 'win95' | 'win98' | 'winxp'
 
@@ -27,11 +28,40 @@ const EMULATOR_LABELS: Record<string, string> = {
   virtualbox: 'VirtualBox',
 }
 
+const BOX86_ERAS = new Set<PCEra>(['win95', 'win98'])
+
+type HardwareProfile = 'standard' | '3dfx' | 'opl' | 'midi'
+
+const HARDWARE_PROFILES: { value: HardwareProfile; label: string; description: string }[] = [
+  {
+    value: 'standard',
+    label: 'Standard',
+    description: 'Works for most software. Good 2D performance.',
+  },
+  {
+    value: '3dfx',
+    label: '3D / Glide',
+    description: 'For 3dfx titles: Tomb Raider, NFS, Quake. Requires Voodoo drivers after install.',
+  },
+  {
+    value: 'opl',
+    label: 'DOS / FM Music',
+    description: 'For older DOS games run under Windows with AdLib/OPL music.',
+  },
+  {
+    value: 'midi',
+    label: 'MIDI Music',
+    description: 'For strategy and adventure games with Roland MIDI soundtracks (C&C, X-COM, etc.)',
+  },
+]
+
 export interface EnvironmentForm {
   name: string
   era: PCEra | null
   base_image_path: string
   working_image_path: string
+  hardware_profile: HardwareProfile
+  machine_override: string
   notes: string
 }
 
@@ -40,6 +70,8 @@ export const EMPTY_ENV_FORM: EnvironmentForm = {
   era: null,
   base_image_path: '',
   working_image_path: '',
+  hardware_profile: 'standard',
+  machine_override: '',
   notes: '',
 }
 
@@ -69,9 +101,13 @@ export default function EnvironmentModal({
   onFieldChange,
 }: EnvironmentModalProps) {
   const emulatorLabel = form.era ? (EMULATOR_LABELS[ERA_TO_EMULATOR[form.era]] ?? null) : null
-  const hasAdvancedValues = !!(form.working_image_path || form.notes)
+  const isBox86Era = form.era !== null && BOX86_ERAS.has(form.era)
+  const hasAdvancedValues = !!(
+    form.base_image_path || form.working_image_path || form.machine_override || form.notes
+  )
   const [showAdvanced, setShowAdvanced] = useState(false)
   const advancedOpen = showAdvanced || hasAdvancedValues
+  const [machineBrowserOpen, setMachineBrowserOpen] = useState(false)
 
   return (
     <Modal
@@ -134,35 +170,45 @@ export default function EnvironmentModal({
         </div>
       )}
 
-      <div className="border-t border-neutral-200 pt-4 dark:border-neutral-700">
-        <h4 className="mb-3 text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-          OS Image
-        </h4>
-
-        <FormField
-          label="Base Image Path"
-          htmlFor="env-base"
-          hint="Provide an ISO or disk image. Peach 1UP will set up the environment automatically."
-        >
-          <PathInput
-            id="env-base"
-            mode="file"
-            accept=".img,.iso,.vhd,.cue,.chd,.xiso"
-            value={form.base_image_path}
-            onChange={(v) => onFieldChange('base_image_path', v)}
-            placeholder="/path/to/images/os/win98/base.img"
-            className="mt-1"
-          />
-          {form.era && (
-            <FileUpload
-              era={form.era}
-              mediaType="os"
-              accept=".img,.iso,.vhd,.cue,.chd,.xiso"
-              onComplete={(path) => onFieldChange('base_image_path', path)}
-            />
-          )}
-        </FormField>
-      </div>
+      {isBox86Era && (
+        <div className="border-t border-neutral-200 pt-4 dark:border-neutral-700">
+          <h4 className="mb-3 text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+            Hardware Profile
+          </h4>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {HARDWARE_PROFILES.map((profile) => {
+              const selected = form.hardware_profile === profile.value
+              return (
+                <button
+                  key={profile.value}
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => onFieldChange('hardware_profile', profile.value)}
+                  aria-pressed={selected}
+                  className={`rounded-md border p-3 text-left transition-colors ${
+                    selected
+                      ? 'border-[#ff8a5c] bg-[#ff8a5c]/10 dark:bg-[#ff8a5c]/20'
+                      : 'border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:border-neutral-500 dark:hover:bg-surface-800'
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  <span
+                    className={`block text-sm font-medium ${
+                      selected
+                        ? 'text-[#ff8a5c]'
+                        : 'text-neutral-800 dark:text-neutral-200'
+                    }`}
+                  >
+                    {profile.label}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400">
+                    {profile.description}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="border-t border-neutral-200 pt-3 dark:border-neutral-700">
         <button
@@ -176,6 +222,30 @@ export default function EnvironmentModal({
 
         {advancedOpen && (
           <div className="mt-3 space-y-4">
+            <FormField
+              label="Base Image Path"
+              htmlFor="env-base"
+              hint="Provide an ISO or disk image. Peach 1UP will set up the environment automatically."
+            >
+              <PathInput
+                id="env-base"
+                mode="file"
+                accept=".img,.iso,.vhd,.cue,.chd,.xiso"
+                value={form.base_image_path}
+                onChange={(v) => onFieldChange('base_image_path', v)}
+                placeholder="/path/to/images/os/win98/base.img"
+                className="mt-1"
+              />
+              {form.era && (
+                <FileUpload
+                  era={form.era}
+                  mediaType="os"
+                  accept=".img,.iso,.vhd,.cue,.chd,.xiso"
+                  onComplete={(path) => onFieldChange('base_image_path', path)}
+                />
+              )}
+            </FormField>
+
             <FormField
               label="Working Image Path"
               htmlFor="env-working"
@@ -199,6 +269,57 @@ export default function EnvironmentModal({
                 />
               )}
             </FormField>
+
+            {isBox86Era && (
+              <FormField
+                label="Machine Override"
+                htmlFor="env-machine"
+                hint="Browse your ROM pack to select a specific machine. The folder name is the machine identifier 86Box will use."
+              >
+                <div className="mt-1 flex items-center gap-2">
+                  {form.machine_override ? (
+                    <span className="flex-1 truncate font-mono text-sm text-neutral-900 dark:text-neutral-100">
+                      {form.machine_override}
+                    </span>
+                  ) : (
+                    <span className="flex-1 text-sm text-neutral-400 dark:text-neutral-500">
+                      Using profile default
+                    </span>
+                  )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => setMachineBrowserOpen(true)}
+                    disabled={submitting}
+                  >
+                    Browse…
+                  </Button>
+                  {form.machine_override && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => onFieldChange('machine_override', '')}
+                      disabled={submitting}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+                <FileBrowser
+                  open={machineBrowserOpen}
+                  onClose={() => setMachineBrowserOpen(false)}
+                  onSelect={(path) => {
+                    const slug = path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? ''
+                    onFieldChange('machine_override', slug)
+                    setMachineBrowserOpen(false)
+                  }}
+                  mode="folder"
+                  title="Select Machine (ROM pack › machines)"
+                />
+              </FormField>
+            )}
 
             <FormField label="Notes" htmlFor="env-notes">
               <Textarea

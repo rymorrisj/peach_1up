@@ -3,6 +3,7 @@ import re
 import secrets
 import shutil
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -120,12 +121,29 @@ def create_platform(body: PlatformCreate, db: Session = Depends(get_db), _: User
                 platform.id, platform.era, platform.slug, exc,
             )
 
+    working = platform.working_image_path
+    base = platform.base_image_path
+    if not working and not base:
+        platform.status = "unconfigured"
+    else:
+        working_ok = bool(working and Path(working).is_file())
+        base_ok = bool(base and Path(base).is_file())
+        if working_ok:
+            platform.status = "healthy"
+        elif base_ok:
+            platform.status = "degraded"
+        else:
+            platform.status = "error"
+    platform.last_health_check = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(platform)
+
     return platform
 
 
 @router.post("/health-all")
 def health_check_all(db: Session = Depends(get_db)):
-    from datetime import datetime
+
     platforms_to_check = db.query(Platform).filter(Platform.is_system == False).all()
     results = []
     for platform in platforms_to_check:
@@ -139,7 +157,7 @@ def health_check_all(db: Session = Depends(get_db)):
         else:
             exists = False
         platform.status = "ok" if exists else "missing"
-        platform.last_health_check = datetime.utcnow()
+        platform.last_health_check = datetime.now(timezone.utc)
         results.append({"id": platform.id, "status": platform.status})
     db.commit()
     return {"results": results, "checked": len(results)}
@@ -197,7 +215,7 @@ def delete_platform(
 
 @router.post("/{platform_id}/health")
 def platform_health(platform_id: int, db: Session = Depends(get_db)):
-    from datetime import datetime
+
     platform = db.get(Platform, platform_id)
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found.")
@@ -207,23 +225,33 @@ def platform_health(platform_id: int, db: Session = Depends(get_db)):
         binary_path = get_binary_path(emulator_key) if emulator_key else ""
         exists = bool(binary_path and Path(binary_path).is_file())
         platform.status = "ok" if exists else "missing"
-        platform.last_health_check = datetime.utcnow()
+        platform.last_health_check = datetime.now(timezone.utc)
         db.commit()
         return {"status": platform.status, "binary_exists": exists, "binary_path": binary_path or None}
 
     working = platform.working_image_path
-    if working:
-        try:
-            _validate_image_path(working)
-            exists = Path(working).exists()
-        except HTTPException:
-            exists = False
+    base = platform.base_image_path
+
+    if not working and not base:
+        status = "unconfigured"
     else:
-        exists = False
-    platform.status = "ok" if exists else "missing"
-    platform.last_health_check = datetime.utcnow()
+        working_ok = bool(working and Path(working).is_file())
+        base_ok = bool(base and Path(base).is_file())
+        if working_ok:
+            status = "healthy"
+        elif base_ok:
+            status = "degraded"
+        else:
+            status = "error"
+
+    platform.status = status
+    platform.last_health_check = datetime.now(timezone.utc)
     db.commit()
-    return {"status": platform.status, "working_image_exists": exists}
+    return {
+        "status": status,
+        "working_image_exists": bool(working and Path(working).is_file()),
+        "base_image_exists": bool(base and Path(base).is_file()),
+    }
 
 
 # --- Snapshots ---

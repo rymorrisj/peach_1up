@@ -13,13 +13,14 @@ from __future__ import annotations
 
 import configparser
 import logging
+import os
 import subprocess
 from pathlib import Path
 
-import yaml
-
 from backend.models.platform import Platform
-from backend.service.utils.settings import get_binary_path, get_env_var
+from backend.service.utils.settings import get, get_binary_path, get_env_var
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,30 @@ _VM_MEMORY_MB: dict[str, int] = {
 }
 
 _WIN9X_ERAS = frozenset({"win95", "win98"})
+
+# Per-era base machine hardware for 86Box 5.x (cpu_speed in Hz)
+_MACHINE_BASE: dict[str, dict[str, str]] = {
+    "win98": {
+        "machine":    "prosignias31x_bx",
+        "cpu_family": "pentium2_deschutes",
+        "cpu_speed":  "350000000",
+    },
+    "win95": {
+        "machine":    "p55t2p4",
+        "cpu_family": "pentium_mmx",
+        "cpu_speed":  "200000000",
+    },
+}
+
+# Hardware profile → gfxcard / sndcard overrides
+_HARDWARE_PROFILES: dict[str, dict[str, str]] = {
+    "standard": {"gfxcard": "s3_virge_dx",          "sndcard": "sb16_pnp"},
+    "3dfx":     {"gfxcard": "voodoo3_3500_si_agp",   "sndcard": "sb16_pnp"},
+    "opl":      {"gfxcard": "s3_virge_dx",            "sndcard": "sb16"},
+    "midi":     {"gfxcard": "s3_virge_dx",            "sndcard": "sb_awe32"},
+}
+
+_MIDI_PROFILES = frozenset({"midi"})
 
 
 def _run_vbm(vbox_path: str, args: list[str], desc: str) -> None:
@@ -172,71 +197,83 @@ def provision_virtualbox_vm(platform: Platform, vbox_path: str) -> str:
     return str(vdi_path)
 
 
-def provision_86box_vm(platform: Platform, box86_path: str, rom_path: str) -> str:
+def provision_86box_vm(
+    platform: Platform,
+    box86_path: str,
+    rom_path: str,
+    hardware_profile: str = "standard",
+) -> str:
     """Create an 86Box INI config file for a Win95/Win98 platform.
 
-    Reads the era hardware template from config/templates/86box_{era}.yaml,
-    writes an INI config with the ROM path and optional installer ISO attached,
-    and returns the config file path. This path is stored as both
-    working_image_path and config_path on the platform record.
+    Generates a complete INI config from the selected hardware profile and
+    era machine base, writes it to OS_PATH/{era}/{vm_name}/86box.cfg, and
+    returns that path. Stored as both working_image_path and config_path.
 
     Args:
         platform: Platform record with ``era``, ``slug`` (or ``id``), and
-            optionally ``base_image_path`` set.
+            optionally ``base_image_path`` and ``machine_override`` set.
         box86_path: Absolute path to 86Box.exe, resolved from settings.
         rom_path: Absolute path to the 86Box ROM pack directory.
+        hardware_profile: One of the keys in ``_HARDWARE_PROFILES``.
+            Defaults to ``"standard"`` if the key is unrecognised.
 
     Returns:
         Absolute path to the created 86box.cfg as a string.
 
     Raises:
-        ValueError: If era is unsupported or the template is not a valid mapping.
-        FileNotFoundError: If the era template file does not exist.
+        ValueError: If era is unsupported.
         OSError: If writing the config file fails.
     """
     era = platform.era
     if era not in _WIN9X_ERAS:
         raise ValueError(f"provision_86box_vm: unsupported era '{era}'")
 
-    template_path = Path("config") / "templates" / f"86box_{era}.yaml"
-    if not template_path.exists():
-        raise FileNotFoundError(
-            f"86Box template not found: {template_path}. "
-            "Expected config/templates/86box_{era}.yaml."
-        )
-    with template_path.open("r", encoding="utf-8") as fh:
-        template = yaml.safe_load(fh)
-    if not isinstance(template, dict):
-        raise ValueError(
-            f"86Box template '{template_path.name}' is not a valid YAML mapping."
-        )
+    profile = _HARDWARE_PROFILES.get(hardware_profile, _HARDWARE_PROFILES["standard"])
+    machine_base = _MACHINE_BASE[era]
+    machine = getattr(platform, "machine_override", None) or machine_base["machine"]
 
     os_base = Path(get_env_var("OS_PATH")).resolve()
     vm_name = _vm_name(platform)
-
     cfg_dir = _resolve_within(os_base, era, vm_name)
     cfg_dir.mkdir(parents=True, exist_ok=True)
     cfg_path = cfg_dir / "86box.cfg"
 
-    parser = configparser.RawConfigParser(optionxform=str)
-    for section, values in template.items():
-        if isinstance(values, dict):
-            parser.add_section(section)
-            for key, val in values.items():
-                parser.set(section, key, str(val))
+    parser = configparser.RawConfigParser()
+    parser.optionxform = str
 
-    if not parser.has_section("Paths"):
-        parser.add_section("Paths")
-    parser.set("Paths", "rompath", rom_path)
+    parser.add_section("Machine")
+    parser.set("Machine", "machine",         machine)
+    parser.set("Machine", "cpu_family",      machine_base["cpu_family"])
+    parser.set("Machine", "cpu_speed",       machine_base["cpu_speed"])
+    parser.set("Machine", "mem_size",        "131072")
+    parser.set("Machine", "cpu_use_dynarec", "1")
+    parser.set("Machine", "fpu_type",        "internal")
+
+    parser.add_section("Video")
+    parser.set("Video", "gfxcard",      profile["gfxcard"])
+    parser.set("Video", "vid_renderer", "qt_software")
+
+    parser.add_section("Sound")
+    parser.set("Sound", "sndcard", profile["sndcard"])
+
+    parser.add_section("Network")
+    parser.set("Network", "net_type",    "none")
+    parser.set("Network", "net_01_link", "0")
+
+    if hardware_profile in _MIDI_PROFILES:
+        parser.add_section("MIDI")
+        parser.set("MIDI", "midi_device", "nuked_sc55")
+
+    parser.add_section("Paths")
+    parser.set("Paths", "rompath", os.path.normpath(rom_path))
 
     if platform.base_image_path:
         from backend.service.utils.path_utils import normalise_path
         iso_path = normalise_path(platform.base_image_path)
         _validate_iso_within_library(iso_path)
         if iso_path.exists():
-            if not parser.has_section("CD-ROM"):
-                parser.add_section("CD-ROM")
-            parser.set("CD-ROM", "cd_path", str(iso_path))
+            parser.add_section("CD-ROM")
+            parser.set("CD-ROM", "cd_path", os.path.normpath(str(iso_path)))
 
     with cfg_path.open("w", encoding="utf-8") as fh:
         parser.write(fh)
@@ -284,18 +321,21 @@ def provision_platform(platform: Platform) -> tuple[str | None, str | None]:
 
     if era in _WIN9X_ERAS:
         box86_path = get_binary_path("box86")
-        rom_path = get_env_var("ROM_PATH")
         if not box86_path:
             raise RuntimeError(
                 "BOX86_PATH is not configured — cannot provision 86Box config. "
                 "Set the path in Settings or config/settings.yaml."
             )
-        if not rom_path:
+        _rom_str = get("ROM_PATH") or ""
+        rom_dir = Path(_rom_str) if _rom_str else _PROJECT_ROOT / "library" / "roms" / "86box"
+        if not rom_dir.exists():
             raise RuntimeError(
-                "ROM_PATH is not configured — cannot provision 86Box config. "
-                "Download the ROM pack from: https://github.com/86Box/roms"
+                f"86Box ROM pack not found at {rom_dir}. "
+                "Download the ROM pack from https://github.com/86Box/roms and place it at that path."
             )
-        cfg = provision_86box_vm(platform, box86_path, rom_path)
+        rom_path = str(rom_dir)
+        hw_profile = getattr(platform, "hardware_profile", None) or "standard"
+        cfg = provision_86box_vm(platform, box86_path, rom_path, hw_profile)
         return cfg, cfg
 
     return None, None

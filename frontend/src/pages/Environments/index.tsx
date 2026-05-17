@@ -19,11 +19,14 @@ type Platform = components['schemas']['PlatformRead']
 type EnvModalState = null | { mode: 'create' } | { mode: 'edit'; platform: Platform }
 
 function formFromPlatform(p: Platform): EnvironmentForm {
+  const ext = p as Platform & { hardware_profile?: string; machine_override?: string }
   return {
     name: p.name,
     era: p.era as EnvironmentForm['era'],
     base_image_path: p.base_image_path ?? '',
     working_image_path: p.working_image_path ?? '',
+    hardware_profile: (ext.hardware_profile ?? 'standard') as EnvironmentForm['hardware_profile'],
+    machine_override: ext.machine_override ?? '',
     notes: p.notes ?? '',
   }
 }
@@ -90,6 +93,8 @@ export default function Environments() {
         emulator_slug: ERA_TO_EMULATOR[era],
         base_image_path: form.base_image_path.trim() || null,
         working_image_path: form.working_image_path.trim() || null,
+        hardware_profile: form.hardware_profile,
+        machine_override: form.machine_override.trim() || null,
         notes: form.notes.trim() || null,
       }
       if (modal?.mode === 'create') {
