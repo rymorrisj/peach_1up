@@ -8,12 +8,19 @@ any other access to this module.
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import Optional
 
 import yaml
 from dotenv import load_dotenv
+
+
+def _get_project_root() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).resolve().parent.parent.parent.parent
 
 
 _SETTINGS_PATH = Path("config") / "settings.yaml"
@@ -90,7 +97,7 @@ _EMULATOR_CATALOG: list[tuple[str, str, bool, str]] = [
 # Bundled emulator executables checked as a last-resort fallback in get_binary_path().
 # Checked after the settings.yaml override and the .env var, so users can always
 # override by setting either of those.
-_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent.parent
+_PROJECT_ROOT: Path = _get_project_root()
 
 _BUNDLED: dict[str, Path] = {
     "dosbox":      _PROJECT_ROOT / "emulators" / "dosbox-x" / "dosbox-x.exe",
@@ -130,6 +137,21 @@ def init() -> None:
             loaded = yaml.safe_load(fh) or {}
         if isinstance(loaded, dict):
             state.update(loaded)
+
+    _root = _get_project_root()
+    for _key, _default in {
+        "LIBRARY_PATH":  _root / "library" / "games",
+        "GAMES_PATH":    _root / "library" / "games",
+        "OS_PATH":       _root / "library" / "os",
+        "ROM_PATH":      _root / "library" / "roms" / "86box",
+        "BIOS_PATH":     _root / "library" / "bios",
+        "TOOLS_PATH":    _root / "library" / "tools",
+        "PROFILES_PATH": _root / "library" / "profiles",
+        "DOSBOX_PATH":   _root / "emulators" / "dosbox-x" / "dosbox-x.exe",
+        "BOX86_PATH":    _root / "emulators" / "86box" / "86Box.exe",
+    }.items():
+        if not state.get(_key):
+            state[_key] = str(_default)
 
     # Snapshot .env values after load_dotenv() so path resolution never calls
     # os.getenv() at call time. settings.yaml values are already in state;
@@ -264,7 +286,10 @@ def is_first_run() -> bool:
             row = conn.execute(
                 text("SELECT value FROM settings WHERE key='first_run_complete'")
             ).fetchone()
-            if row and row[0] == "true":
+            owner = conn.execute(
+                text("SELECT id FROM user WHERE is_owner=1")
+            ).fetchone()
+            if row and row[0] == "true" and owner:
                 _require_init()["first_run_complete"] = True
                 return False
     except Exception:

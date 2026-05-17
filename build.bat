@@ -132,6 +132,14 @@ echo === Running PyInstaller ===
 .venv\Scripts\python.exe -m PyInstaller --clean peach1up.spec
 if errorlevel 1 goto :error
 
+echo === Copying emulators, library and config beside exe ===
+xcopy /E /I /Y emulators dist\peach1up\emulators
+xcopy /E /I /Y library dist\peach1up\library
+xcopy /E /I /Y config dist\peach1up\config
+
+echo === Stripping first_run_complete from dist settings.yaml ===
+python -c "import yaml,pathlib; p=pathlib.Path('dist/peach1up/config/settings.yaml'); d=yaml.safe_load(p.read_text()) or {}; d.pop('first_run_complete',None); p.write_text(yaml.dump(d))"
+
 echo === Build complete ===
 goto :eof
 
