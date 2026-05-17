@@ -8,10 +8,14 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from backend.core import install_registry
-from backend.service.utils.emulator_catalog import get_emulator, load_catalog
+from backend.service.utils.emulator_catalog import (
+    get_emulator,
+    get_install_path,
+    installer_present as _installer_present,
+    load_catalog,
+)
 from backend.service.utils.emulator_installer import (
     clone_rom_pack,
-    detect_binary,
     launch_installer,
     remove_emulator,
 )
@@ -60,21 +64,14 @@ _CONFIGURE_ACTIONS: dict[str, list[str]] = {
 
 @router.get("", response_model=list[CatalogEntryResponse])
 def list_emulators():
-    import glob as _glob
     from backend.service.utils.emulator_installer import check_git
 
     result = []
     for entry in load_catalog():
         slug = entry["slug"]
-        binary = detect_binary(slug)
+        binary = get_install_path(slug)
         install_type = entry.get("install_type", "zip")
-
-        installer_present = False
-        if install_type == "installer":
-            installer_glob = entry.get("windows_installer_glob", "")
-            if installer_glob:
-                slug_dir = _PROJECT_ROOT / "emulators" / slug
-                installer_present = bool(_glob.glob(str(slug_dir / installer_glob)))
+        installer_present = _installer_present(slug)
 
         item: dict = {
             "slug": slug,
@@ -179,13 +176,8 @@ def get_emulator_status(slug: str):
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
 
-    binary = detect_binary(slug)
-    installer_glob = entry.get("windows_installer_glob", "")
-    installer_present = False
-    if installer_glob:
-        import glob as _glob
-        slug_dir = _PROJECT_ROOT / "emulators" / slug
-        installer_present = bool(_glob.glob(str(slug_dir / installer_glob)))
+    binary = get_install_path(slug)
+    installer_present = _installer_present(slug)
 
     return {
         "slug": slug,

@@ -43,10 +43,8 @@ emulators:
     install_type: installer
     install_scope: system
     windows_installer_glob: "duckstation-*.exe"
-    windows_binary: duckstation-qt.exe
-    system_paths:
-      - "C:\\Program Files\\DuckStation\\duckstation-qt.exe"
-      - "C:\\Program Files (x86)\\DuckStation\\duckstation-qt.exe"
+    known_path_env: LOCALAPPDATA
+    known_path_suffix: "Programs\\DuckStation\\duckstation-qt-x64-ReleaseLTCG.exe"
     license: GPL-3.0
     copyright: "Copyright 2019–2024 Connor McLaughlin and contributors"
     source_url: "https://github.com/stenzek/duckstation"
@@ -61,12 +59,9 @@ emulators:
     required: false
     linux_url: "PLACEHOLDER_PCSX2_LINUX_URL"
     binary_name: pcsx2-qt
-    install_type: installer
-    install_scope: system
-    windows_binary: "C:\\Program Files\\PCSX2\\pcsx2-qt.exe"
-    system_paths:
-      - "C:\\Program Files\\PCSX2\\pcsx2-qt.exe"
-      - "C:\\Program Files (x86)\\PCSX2\\pcsx2-qt.exe"
+    install_type: zip
+    install_scope: portable
+    windows_binary: pcsx2-qt.exe
     license: GPL-3.0
     copyright: "Copyright 2002–2024 PCSX2 Dev Team"
     source_url: "https://github.com/PCSX2/pcsx2"
@@ -101,6 +96,7 @@ emulators:
     install_type: zip
     install_scope: portable
     windows_binary: Mesen.exe
+    launch_args: ["--home", "library/saves/mesen"]
     license: GPL-3.0
     copyright: "Copyright 2014–2024 M. Bibeau and contributors"
     source_url: "https://github.com/SourMesen/Mesen2"
@@ -118,10 +114,7 @@ emulators:
     install_type: installer
     install_scope: system
     windows_installer_glob: "Project64*.exe"
-    windows_binary: "C:\\Program Files\\Project64*\\Project64.exe"
-    system_paths:
-      - "C:\\Program Files\\Project64 3.0\\Project64.exe"
-      - "C:\\Program Files (x86)\\Project64 3.0\\Project64.exe"
+    known_path: "C:\\Program Files (x86)\\Project64 3.0\\Project64.exe"
     license: GPL-2.0
     copyright: "Copyright 2001–2024 Project64 Ltd and contributors"
     source_url: "https://github.com/project64/project64"
@@ -139,7 +132,7 @@ emulators:
     install_type: installer
     install_scope: system
     windows_installer_glob: "VirtualBox*.exe"
-    windows_binary: "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe"
+    known_path: "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe"
     license: GPL-2.0
     copyright: "Copyright 2004–2024 Oracle Corporation"
     source_url: "https://www.virtualbox.org/browser/vbox/trunk"

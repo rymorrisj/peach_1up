@@ -6,6 +6,9 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_SAVE_DIR_SLUGS = ["xemu", "mesen", "project64", "pcsx2", "duckstation"]
+
 from fastapi import FastAPI
 
 from backend.core import install_registry, process_registry
@@ -318,6 +321,12 @@ def _apply_schema_migrations() -> None:
             logger.info("Schema migration: backfilled slugs for %d library item(s)", len(items))
 
 
+def _ensure_save_dirs() -> None:
+    saves_root = _PROJECT_ROOT / "library" / "saves"
+    for slug in _SAVE_DIR_SLUGS:
+        (saves_root / slug).mkdir(parents=True, exist_ok=True)
+
+
 def _sync_detected_emulator_paths() -> None:
     try:
         from backend.service.utils.emulator_catalog import detect_and_sync_all
@@ -379,6 +388,7 @@ async def lifespan(app: FastAPI):
         _cleanup_stale_sessions(db)
         db.commit()
 
+    _ensure_save_dirs()
     _scan_installed_emulators()
     _sync_detected_emulator_paths()
     _export_openapi_spec(app)
