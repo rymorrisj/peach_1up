@@ -1,7 +1,7 @@
 import { Button } from '@/ui'
 import { ERA_LABELS } from '@/generated/constants'
 import type { components } from '@shared/types'
-import HealthStatus from '@/components/launches/HealthStatus'
+import EmulatorStatus from '@/components/emulators/EmulatorStatus'
 import LaunchHistory from '@/components/launches/LaunchHistory'
 import { useLaunch } from '@/hooks/useLaunch'
 
@@ -50,7 +50,7 @@ export default function EnvironmentCard({
             </span>
           </div>
         </div>
-        <HealthStatus status={platform.status} />
+        <EmulatorStatus status={platform.status} />
       </div>
 
       {(platform.base_image_path || platform.working_image_path) && (
@@ -103,7 +103,7 @@ export default function EnvironmentCard({
 
       {warnings.length > 0 && (
         <div className="space-y-1">
-          {warnings.map((w, i) => (
+          {warnings.map((w: string, i: number) => (
             <p key={i} className="text-xs text-amber-600 dark:text-amber-400">
               ⚠ {w}
             </p>
