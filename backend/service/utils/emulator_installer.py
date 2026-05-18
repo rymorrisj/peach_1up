@@ -13,14 +13,14 @@ _BASE_DIR = _PROJECT_ROOT / "emulators"
 def detect_binary(slug: str) -> Path | None:
     entry = get_emulator(slug)
     install_type = entry.get("install_type", "zip")
-    windows_binary = entry.get("windows_binary", "")
+    binary = entry.get("binary", "")
 
-    if not windows_binary:
+    if not binary:
         return None
 
     if install_type == "zip":
         slug_dir = (_BASE_DIR / slug).resolve()
-        path = (slug_dir / windows_binary).resolve()
+        path = (slug_dir / binary).resolve()
         try:
             path.relative_to(slug_dir)
         except ValueError:
@@ -28,11 +28,11 @@ def detect_binary(slug: str) -> Path | None:
         return path if path.exists() else None
 
     if install_type == "installer":
-        matches = _glob.glob(windows_binary)
+        matches = _glob.glob(binary)
         return Path(matches[0]) if matches else None
 
     if install_type == "rom_pack":
-        pack_dir = (_PROJECT_ROOT / windows_binary).resolve()
+        pack_dir = (_PROJECT_ROOT / binary).resolve()
         try:
             if pack_dir.exists() and pack_dir.is_dir() and any(pack_dir.iterdir()):
                 return pack_dir
@@ -95,12 +95,23 @@ def clone_rom_pack(target_path: Path) -> None:
     if not check_git():
         raise RuntimeError("git is not available on PATH. Install git and try again.")
 
-    box86_base = (_PROJECT_ROOT / "emulators" / "86box").resolve()
+    # Resolve the 86Box base directory from the user-configured binary path so
+    # the clone target is never placed inside a compiled dist directory.
+    try:
+        from backend.service.utils import settings as _settings_mod
+        box86_bin = _settings_mod.get("BOX86_PATH", "")
+        if box86_bin:
+            box86_base = Path(str(box86_bin)).resolve().parent
+        else:
+            box86_base = (_PROJECT_ROOT / "emulators" / "86box").resolve()
+    except Exception:
+        box86_base = (_PROJECT_ROOT / "emulators" / "86box").resolve()
+
     try:
         target_path.resolve().relative_to(box86_base)
     except ValueError:
         raise ValueError(
-            f"target_path must be inside emulators/86box/: {target_path.resolve()}"
+            f"target_path must be inside {box86_base}: {target_path.resolve()}"
         )
 
     if target_path.exists():
@@ -115,8 +126,14 @@ def clone_rom_pack(target_path: Path) -> None:
 
     target_path.mkdir(parents=True, exist_ok=True)
 
+    # Read acquire_tag from the 86box-roms dependency entry in the manifest.
     try:
-        version = get_emulator("86box").get("rom_pack_version", "")
+        catalog_entry = get_emulator("86box")
+        roms_dep = next(
+            (d for d in catalog_entry.get("dependencies", []) if d.get("name") == "86box-roms"),
+            None,
+        )
+        version = roms_dep.get("acquire_tag", "") if roms_dep else ""
     except Exception:
         version = ""
 

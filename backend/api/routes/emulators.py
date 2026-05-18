@@ -145,8 +145,8 @@ async def install_emulator(slug: str, background_tasks: BackgroundTasks):
                 status_code=409,
                 detail=f"ROM pack clone already in progress for '{slug}'.",
             )
-        windows_binary = entry.get("windows_binary", "library/roms/86box")
-        target = (_PROJECT_ROOT / windows_binary).resolve()
+        binary = entry.get("binary", "library/roms/86box")
+        target = (_PROJECT_ROOT / binary).resolve()
         install_registry.set_status(slug, "cloning")
         background_tasks.add_task(_run_clone, slug, target)
         return {"status": "cloning", "slug": slug}

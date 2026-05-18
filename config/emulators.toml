@@ -1,0 +1,271 @@
+[[emulators]]
+slug = "86box"
+display_name = "86Box"
+name = "86Box"
+version = "PLACEHOLDER"
+binary = "86Box.exe"
+sha256 = ""
+download_url = "https://86box.net"
+release_url = "https://github.com/86Box/86Box/releases"
+portable_sentinel = ""
+sandbox_mode = "appcontainer"
+capabilities = []
+description = "Windows 95/98 accuracy mode"
+required = false
+install_type = "zip"
+install_scope = "portable"
+license = "GPL-2.0"
+copyright = "Copyright 2015–2024 86Box contributors"
+source_url = "https://github.com/86Box/86Box"
+rom_pack_version = "5.3"
+rom_pack_url = "https://github.com/86Box/roms"
+supported_formats = [".iso", ".img", ".cue"]
+guidance_text = "Download the 86Box Windows release and extract it to emulators/86box/ so that 86Box.exe is inside."
+guidance_url = "https://86box.net"
+
+[[emulators.dependencies]]
+name = "86box-roms"
+acquire_method = "git_clone"
+acquire_url = "https://github.com/86Box/roms"
+acquire_tag = "v5.3"
+acquire_target = "emulators/86box/roms"
+
+[[emulators.dependencies]]
+name = "86box-assets"
+acquire_method = "git_clone"
+acquire_url = "https://github.com/86Box/assets"
+acquire_tag = "v5.3"
+acquire_target = "emulators/86box/assets"
+
+[[emulators]]
+slug = "dosbox-x"
+display_name = "DOSBox-X"
+name = "DOSBox-X"
+version = "PLACEHOLDER"
+binary = "dosbox-x.exe"
+sha256 = ""
+download_url = "https://dosbox-x.com"
+release_url = "https://github.com/joncampbell123/dosbox-x/releases"
+portable_sentinel = ""
+sandbox_mode = "appcontainer"
+capabilities = []
+description = "DOS and Windows 3.1 emulation"
+required = false
+install_type = "zip"
+install_scope = "portable"
+license = "GPL-2.0"
+copyright = "Copyright 2011–2024 The DOSBox-X Team"
+source_url = "https://github.com/joncampbell123/dosbox-x"
+supported_formats = [".iso", ".img", ".cue"]
+guidance_text = "Download the DOSBox-X Windows release and extract it to emulators/dosbox-x/ so that dosbox-x.exe is inside."
+guidance_url = "https://dosbox-x.com"
+
+[[emulators]]
+slug = "duckstation"
+display_name = "DuckStation"
+name = "DuckStation"
+version = "PLACEHOLDER"
+binary = "duckstation-qt-x64-ReleaseLTCG.exe"
+sha256 = ""
+download_url = "https://www.duckstation.org"
+release_url = "https://github.com/stenzek/duckstation/releases"
+portable_sentinel = "portable.txt"
+sandbox_mode = "appcontainer"
+capabilities = []
+description = "PlayStation 1 emulation"
+required = false
+install_type = "installer"
+install_scope = "system"
+windows_installer_glob = "duckstation-*.exe"
+known_path_env = "LOCALAPPDATA"
+known_path_suffix = "Programs\\DuckStation\\duckstation-qt-x64-ReleaseLTCG.exe"
+license = "GPL-3.0"
+copyright = "Copyright 2019–2024 Connor McLaughlin and contributors"
+source_url = "https://github.com/stenzek/duckstation"
+supported_formats = [".iso", ".bin", ".cue", ".chd"]
+guidance_text = "Download the DuckStation Windows installer and place it in emulators/duckstation/, then click Run Installer."
+guidance_url = "https://www.duckstation.org"
+
+[[emulators.dependencies]]
+name = "ps1-bios"
+acquire_method = "user_supplied"
+required = true
+validation_type = "directory"
+display_name = "PS1 BIOS"
+platform = "ps1"
+bios_path = "library/bios/ps1"
+guidance_text = "Place your PS1 BIOS file (e.g. scph1001.bin) in library/bios/ps1/. DuckStation requires a BIOS image to boot PS1 games."
+guidance_url = "https://www.duckstation.org/wiki/BIOS"
+
+[[emulators]]
+slug = "flycast"
+display_name = "Flycast"
+name = "Flycast"
+version = "PLACEHOLDER"
+binary = "flycast.exe"
+sha256 = ""
+download_url = "https://github.com/flyinghead/flycast"
+release_url = "https://github.com/flyinghead/flycast/releases"
+portable_sentinel = "emu.cfg"
+sandbox_mode = "appcontainer"
+capabilities = []
+description = "Dreamcast emulation"
+required = false
+install_type = "zip"
+install_scope = "portable"
+license = "GPL-2.0"
+copyright = "Copyright 2018–2024 The Flycast Team"
+source_url = "https://github.com/flyinghead/flycast"
+supported_formats = [".iso", ".cdi", ".gdi", ".chd"]
+guidance_text = "Download the Flycast Windows release and extract it to emulators/flycast/ so that flycast.exe is inside."
+guidance_url = "https://github.com/flyinghead/flycast"
+
+[[emulators.dependencies]]
+name = "dc-bios"
+acquire_method = "user_supplied"
+required = true
+validation_type = "directory"
+display_name = "Dreamcast BIOS"
+platform = "dreamcast"
+bios_path = "library/bios/dreamcast"
+guidance_text = "Place your Dreamcast BIOS files (dc_boot.bin, dc_flash.bin) in library/bios/dreamcast/. Flycast requires these files to boot."
+guidance_url = "https://github.com/flyinghead/flycast"
+
+[[emulators]]
+slug = "mesen"
+display_name = "Mesen"
+name = "Mesen"
+version = "PLACEHOLDER"
+binary = "Mesen.exe"
+sha256 = ""
+download_url = "https://www.mesen.ca"
+release_url = "https://github.com/SourMesen/Mesen2/releases"
+portable_sentinel = ""
+sandbox_mode = "appcontainer"
+capabilities = []
+description = "NES emulation"
+required = false
+install_type = "zip"
+install_scope = "portable"
+license = "GPL-3.0"
+copyright = "Copyright 2014–2024 M. Bibeau and contributors"
+source_url = "https://github.com/SourMesen/Mesen2"
+supported_formats = [".nes", ".chd"]
+guidance_text = "Download the Mesen Windows release and extract it to emulators/mesen/ so that Mesen.exe is inside."
+guidance_url = "https://www.mesen.ca"
+
+[[emulators]]
+slug = "pcsx2"
+display_name = "PCSX2"
+name = "PCSX2"
+version = "PLACEHOLDER"
+binary = "pcsx2-qt.exe"
+sha256 = ""
+download_url = "https://pcsx2.net"
+release_url = "https://github.com/PCSX2/pcsx2/releases"
+portable_sentinel = "portable.txt"
+sandbox_mode = "appcontainer"
+capabilities = []
+description = "PlayStation 2 emulation"
+required = false
+install_type = "zip"
+install_scope = "portable"
+license = "GPL-3.0"
+copyright = "Copyright 2002–2024 PCSX2 Dev Team"
+source_url = "https://github.com/PCSX2/pcsx2"
+supported_formats = [".iso", ".bin", ".cue", ".chd"]
+guidance_text = "Download the PCSX2 Windows installer and run it. PCSX2 installs to Program Files automatically."
+guidance_url = "https://pcsx2.net"
+
+[[emulators.dependencies]]
+name = "ps2-bios"
+acquire_method = "user_supplied"
+required = true
+validation_type = "directory"
+display_name = "PS2 BIOS"
+platform = "ps2"
+bios_path = "library/bios/ps2"
+guidance_text = "Place your PS2 BIOS files in library/bios/ps2/. PCSX2 requires a PS2 BIOS image to run."
+guidance_url = "https://pcsx2.net/guides/basic-setup/"
+
+[[emulators]]
+slug = "project64"
+display_name = "Project64"
+name = "Project64"
+version = "PLACEHOLDER"
+binary = "Project64.exe"
+sha256 = ""
+download_url = "https://www.pj64-emu.com"
+release_url = "https://github.com/project64/project64/releases"
+portable_sentinel = ""
+sandbox_mode = "appcontainer"
+capabilities = []
+description = "Nintendo 64 emulation"
+required = false
+install_type = "installer"
+install_scope = "system"
+windows_installer_glob = "Project64*.exe"
+known_path = "C:\\Program Files (x86)\\Project64 3.0\\Project64.exe"
+license = "GPL-2.0"
+copyright = "Copyright 2001–2024 Project64 Ltd and contributors"
+source_url = "https://github.com/project64/project64"
+supported_formats = [".z64", ".n64", ".v64"]
+guidance_text = "Download the Project64 Windows installer and place it in emulators/project64/, then click Run Installer."
+guidance_url = "https://www.pj64-emu.com"
+
+[[emulators]]
+slug = "scummvm"
+display_name = "ScummVM"
+name = "ScummVM"
+version = "PLACEHOLDER"
+binary = "scummvm.exe"
+sha256 = ""
+download_url = "https://www.scummvm.org"
+release_url = "https://github.com/scummvm/scummvm/releases"
+portable_sentinel = "scummvm.ini"
+sandbox_mode = "appcontainer"
+capabilities = []
+description = "Point-and-click adventure game emulation"
+required = false
+install_type = "zip"
+install_scope = "portable"
+license = "GPL-3.0"
+copyright = "Copyright 2001–2024 The ScummVM Team"
+source_url = "https://github.com/scummvm/scummvm"
+supported_formats = [".iso", ".img"]
+guidance_text = "Download the ScummVM Windows release and extract it to emulators/scummvm/ so that scummvm.exe is inside."
+guidance_url = "https://www.scummvm.org"
+
+[[emulators]]
+slug = "xemu"
+display_name = "xemu"
+name = "xemu"
+version = "PLACEHOLDER"
+binary = "xemu.exe"
+sha256 = ""
+download_url = "https://xemu.app"
+release_url = "https://github.com/xemu-project/xemu/releases"
+portable_sentinel = "xemu.toml"
+sandbox_mode = "appcontainer"
+capabilities = []
+description = "Original Xbox emulation"
+required = false
+install_type = "zip"
+install_scope = "portable"
+license = "GPL-2.0"
+copyright = "Copyright 2020–2024 Matt Borgerson and contributors"
+source_url = "https://github.com/xemu-project/xemu"
+supported_formats = [".iso", ".xiso"]
+guidance_text = "Download the xemu Windows release and extract it to emulators/xemu/ so that xemu.exe is inside."
+guidance_url = "https://xemu.app"
+
+[[emulators.dependencies]]
+name = "xbox-bios"
+acquire_method = "user_supplied"
+required = true
+validation_type = "directory"
+display_name = "Xbox BIOS"
+platform = "xbox"
+bios_path = "library/bios/xbox"
+guidance_text = "Place your Xbox MCPX and BIOS files in library/bios/xbox/. See xemu.app for the exact files required."
+guidance_url = "https://xemu.app/docs/required-files/"

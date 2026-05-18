@@ -1,15 +1,14 @@
 import glob as _glob
 import os
 import sys
+import tomllib
 from pathlib import Path
-
-import yaml
 
 if getattr(sys, "frozen", False):
     _PROJECT_ROOT = Path(sys.executable).parent
 else:
     _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-_CATALOG_PATH = _PROJECT_ROOT / "config" / "emulators.yaml"
+_CATALOG_PATH = _PROJECT_ROOT / "config" / "emulators.toml"
 _BASE_DIR = _PROJECT_ROOT / "emulators"
 
 _SLUG_TO_SETTINGS_KEY: dict[str, str] = {
@@ -25,8 +24,7 @@ _SLUG_TO_SETTINGS_KEY: dict[str, str] = {
 
 
 def load_catalog() -> list[dict]:
-    with _CATALOG_PATH.open("r", encoding="utf-8") as fh:
-        data = yaml.safe_load(fh) or {}
+    data = tomllib.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
     return data.get("emulators", [])
 
 
@@ -54,11 +52,11 @@ def get_install_path(slug: str) -> Path | None:
     entry = get_emulator(slug)
     install_type = entry.get("install_type", "zip")
     install_scope = entry.get("install_scope", "portable")
-    windows_binary = entry.get("windows_binary", "")
+    binary = entry.get("binary", "")
 
     if install_type == "rom_pack":
-        if windows_binary:
-            pack_dir = (_PROJECT_ROOT / windows_binary).resolve()
+        if binary:
+            pack_dir = (_PROJECT_ROOT / binary).resolve()
             try:
                 if pack_dir.exists() and pack_dir.is_dir() and any(pack_dir.iterdir()):
                     return pack_dir
@@ -92,8 +90,8 @@ def get_install_path(slug: str) -> Path | None:
 
         return None
 
-    if windows_binary:
-        path = _BASE_DIR / slug / windows_binary
+    if binary:
+        path = _BASE_DIR / slug / binary
         if path.exists():
             return path
 
@@ -199,9 +197,19 @@ def detect_and_sync_all() -> None:
 
 
 def load_bios_requirements() -> list[dict]:
-    with _CATALOG_PATH.open("r", encoding="utf-8") as fh:
-        data = yaml.safe_load(fh) or {}
-    return data.get("bios_requirements", [])
+    result = []
+    for entry in load_catalog():
+        for dep in entry.get("dependencies", []):
+            if dep.get("acquire_method") == "user_supplied":
+                result.append({
+                    "slug": dep["name"],
+                    "name": dep.get("display_name", dep["name"]),
+                    "platform": dep.get("platform", ""),
+                    "bios_path": dep.get("bios_path", ""),
+                    "guidance_text": dep.get("guidance_text", ""),
+                    "guidance_url": dep.get("guidance_url", ""),
+                })
+    return result
 
 
 def check_bios_presence(bios_path: str) -> bool:
