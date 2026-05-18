@@ -1,14 +1,13 @@
 """Backend routing utilities for Peach 1UP.
 
-Maps eras to their corresponding backend launch functions, accounting for
-the multi-tier routing introduced in P2 (primary / compat / accuracy) and
-the console backends added in P4.
+Maps eras to their corresponding backend launch functions. Win9x (win95, win98)
+always routes to 86Box. WinXP always routes to VirtualBox. DOS and console
+eras route to their dedicated backends. No accuracy-mode conditional exists.
 """
 
-import os
 import yaml
 from pathlib import Path
-from typing import Callable, Dict, Any, Optional
+from typing import Callable, Dict, Any
 
 from backend.constants_generated import BackendSlug, Era
 from backend.service.utils.settings import get_binary_path
@@ -24,19 +23,20 @@ def _load_eras_config() -> Dict[str, Any]:
         FileNotFoundError: If ``eras.yaml`` cannot be found.
         yaml.YAMLError: If the file exists but is not valid YAML.
     """
-    # Anchor to the project root — this file is at backend/service/utils/,
-    # so 4 parents up is the project root.
     config_path = Path(__file__).resolve().parent.parent.parent.parent / "config" / "eras.yaml"
     with config_path.open('r') as f:
         return yaml.safe_load(f)
 
 
-def resolve_backend_name(era: Era, accuracy_mode: bool) -> str:
-    """Resolve the backend name string for an era and accuracy flag.
+def resolve_backend_name(era: Era) -> str:
+    """Resolve the backend name string for an era.
+
+    Win9x (win95, win98) always routes to 86Box. WinXP always routes to
+    VirtualBox. DOS, Win31, and console eras use the flat 'backend' key from
+    eras.yaml.
 
     Args:
         era: The gaming era to resolve.
-        accuracy_mode: When True, Win9x routes to VirtualBox instead of 86Box.
 
     Returns:
         A ``BackendSlug`` value string — one of the values in ``BackendSlug``.
@@ -58,11 +58,11 @@ def resolve_backend_name(era: Era, accuracy_mode: bool) -> str:
     if 'backend' in era_config:
         return era_config['backend']
 
-    # Win9x: default → 86Box, accuracy_mode → VirtualBox (high-compat fallback).
+    # Win9x always routes to 86Box.
     if era.value in ('win95', 'win98'):
-        return BackendSlug.BOX86.value if not accuracy_mode else BackendSlug.VIRTUALBOX.value
+        return BackendSlug.BOX86.value
 
-    # WinXP: always virtualbox.
+    # WinXP always routes to VirtualBox.
     if era.value == 'winxp':
         if 'primary' not in era_config:
             raise ValueError(f"Era 'winxp' has no primary backend configured in eras.yaml")
@@ -71,16 +71,11 @@ def resolve_backend_name(era: Era, accuracy_mode: bool) -> str:
     raise ValueError(f"Cannot resolve backend for era '{era.value}'")
 
 
-def get_launch_fn(era: Era, accuracy_mode: bool = False) -> Callable:
+def get_launch_fn(era: Era) -> Callable:
     """Return the ``launch`` callable for the backend that handles ``era``.
-
-    For Win9x eras, ``accuracy_mode=False`` (default) routes to 86Box;
-    ``accuracy_mode=True`` routes to VirtualBox.  DOS, Win31, and console
-    eras are unaffected by ``accuracy_mode``.
 
     Args:
         era: The gaming era to resolve.
-        accuracy_mode: Route Win9x to VirtualBox when True (default is 86Box).
 
     Returns:
         The ``launch`` function from the resolved backend module.
@@ -90,7 +85,7 @@ def get_launch_fn(era: Era, accuracy_mode: bool = False) -> Callable:
             configured, or the backend module cannot be imported.
     """
     try:
-        backend_name = resolve_backend_name(era, accuracy_mode)
+        backend_name = resolve_backend_name(era)
     except (ValueError, RuntimeError) as e:
         raise RuntimeError(f"Failed to resolve backend for era '{era.value}': {e}")
 
@@ -125,7 +120,7 @@ def get_launch_fn(era: Era, accuracy_mode: bool = False) -> Callable:
         raise RuntimeError(f"Failed to load backend for era '{era.value}': {e}")
 
 
-def get_backend_name(era: Era, accuracy_mode: bool = False) -> str:
+def get_backend_name(era: Era) -> str:
     """Return a human-readable display name for the backend handling ``era``.
 
     Pure display function for the UI layer — does not validate that the
@@ -133,13 +128,12 @@ def get_backend_name(era: Era, accuracy_mode: bool = False) -> str:
 
     Args:
         era: The gaming era to look up.
-        accuracy_mode: Route Win9x display name to VirtualBox when True.
 
     Returns:
         Display name string, or ``"Unknown"`` if the era is not configured.
     """
     try:
-        backend_name = resolve_backend_name(era, accuracy_mode)
+        backend_name = resolve_backend_name(era)
         return {
             BackendSlug.DOSBOX.value: 'DOSBox-X',
             BackendSlug.BOX86.value: '86Box',
@@ -156,8 +150,9 @@ def get_backend_name(era: Era, accuracy_mode: bool = False) -> str:
 
 # Maps BackendSlug value → (settings_key, emulator_key_for_get_binary_path)
 _BACKEND_TO_EMULATOR: Dict[str, tuple[str, str]] = {
-    BackendSlug.VIRTUALBOX.value:  ('VIRTUALBOX_PATH',  'virtualbox'),
+    BackendSlug.DOSBOX.value:      ('DOSBOX_PATH',      'dosbox'),
     BackendSlug.BOX86.value:       ('BOX86_PATH',       'box86'),
+    BackendSlug.VIRTUALBOX.value:  ('VIRTUALBOX_PATH',  'virtualbox'),
     BackendSlug.DUCKSTATION.value: ('DUCKSTATION_PATH', 'duckstation'),
     BackendSlug.PCSX2.value:       ('PCSX2_PATH',       'pcsx2'),
     BackendSlug.XEMU.value:        ('XEMU_PATH',        'xemu'),
@@ -166,33 +161,30 @@ _BACKEND_TO_EMULATOR: Dict[str, tuple[str, str]] = {
 }
 
 
-# NAMING: get_executable_path returns a tuple (path, env_var_name) — the second
-# element is the name of the environment variable that supplied the path, not
-# another path.  The function name does not signal the two-value return.
-def get_executable_path(era: Era, accuracy_mode: bool = False) -> tuple[str, str]:
+def get_executable_path(era: Era) -> tuple[str, str]:
     """Return the emulator executable path and the settings key that provides it.
 
     Args:
         era: The gaming era to look up.
-        accuracy_mode: Route Win9x to VIRTUALBOX_PATH when True (default is BOX86_PATH).
 
     Returns:
         A tuple of ``(executable_path, settings_key)`` where ``settings_key``
-        is the key consulted and ``executable_path`` is its current value,
-        or an empty string if the variable is not set.
+        is the settings.yaml key consulted and ``executable_path`` is its
+        current value, or an empty string if not configured.
+
+    Raises:
+        RuntimeError: If the era cannot be resolved or has no emulator mapping.
     """
-    try:
-        backend_name = resolve_backend_name(era, accuracy_mode)
-    except Exception:
-        backend_name = BackendSlug.DOSBOX.value
+    backend_name = resolve_backend_name(era)
 
-    if backend_name in _BACKEND_TO_EMULATOR:
-        env_var, emulator_key = _BACKEND_TO_EMULATOR[backend_name]
-    else:
-        env_var = 'DOSBOX_PATH'
-        emulator_key = BackendSlug.DOSBOX.value
+    if backend_name not in _BACKEND_TO_EMULATOR:
+        raise RuntimeError(
+            f"No executable mapping for backend '{backend_name}' (era '{era.value}'). "
+            "Add an entry to _BACKEND_TO_EMULATOR in backend_router.py."
+        )
 
-    return get_binary_path(emulator_key), env_var
+    settings_key, emulator_key = _BACKEND_TO_EMULATOR[backend_name]
+    return get_binary_path(emulator_key), settings_key
 
 
 def launch_media(era, media_path, profile=None, platform=None, game_executable: str | None = None):
@@ -205,15 +197,17 @@ def launch_media(era, media_path, profile=None, platform=None, game_executable: 
     Args:
         era: Gaming era as an Era enum or a string matching an Era value.
         media_path: Path to the media file — string or Path object.
-        profile: Optional Profile ORM object (reserved for accuracy_mode
-            routing on Win9x eras; unused for other eras).
+        profile: Optional Profile ORM object used for enable_networking.
+        platform: Optional Platform ORM object required for Win9x/WinXP eras.
+        game_executable: Optional executable name passed to DOS backends.
 
     Returns:
         ``(process, job_object)`` from the backend launch call.
 
     Raises:
         ValueError: If the era string does not match a known Era value.
-        RuntimeError: If the executable path is not configured.
+        RuntimeError: If the executable path is not configured or the era
+            cannot be resolved.
         FileNotFoundError: If the configured executable does not exist on disk.
         Any exception raised by the backend launch function.
     """
@@ -231,23 +225,19 @@ def launch_media(era, media_path, profile=None, platform=None, game_executable: 
     if isinstance(media_path, str):
         media_path = Path(media_path)
 
-    # Resolve accuracy_mode and enable_networking from profile if present.
-    accuracy_mode = False
     enable_networking = False
-    if profile is not None:
-        if hasattr(profile, 'is_accuracy_mode'):
-            accuracy_mode = bool(profile.is_accuracy_mode)
-        if hasattr(profile, 'enable_networking'):
-            enable_networking = bool(profile.enable_networking)
+    if profile is not None and hasattr(profile, 'enable_networking'):
+        enable_networking = bool(profile.enable_networking)
 
-    executable_path, env_var = get_executable_path(era, accuracy_mode)
+    executable_path, settings_key = get_executable_path(era)
     if not executable_path:
         raise RuntimeError(
-            f"{env_var} is not configured. "
-            "Set the path in config/settings.yaml or via Settings."
+            f"The emulator path for '{settings_key}' is not configured. "
+            "Set it in config/settings.yaml or via the Settings page."
         )
 
-    launch_fn = get_launch_fn(era, accuracy_mode)
+    launch_fn = get_launch_fn(era)
+    backend_name = resolve_backend_name(era)
 
     _console_backends = {
         BackendSlug.DUCKSTATION.value,
@@ -260,10 +250,6 @@ def launch_media(era, media_path, profile=None, platform=None, game_executable: 
         BackendSlug.BOX86.value,
         BackendSlug.VIRTUALBOX.value,
     }
-    try:
-        backend_name = resolve_backend_name(era, accuracy_mode)
-    except Exception:
-        backend_name = BackendSlug.DOSBOX.value
 
     if backend_name in _console_backends:
         return launch_fn(media_path=media_path, era=era.value, executable_path=executable_path)

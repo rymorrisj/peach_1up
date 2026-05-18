@@ -102,18 +102,16 @@ _SYSTEM_PLATFORMS = [
 ]
 
 _DEFAULT_PROFILES = [
-    {"name": "DOS Default",      "slug": "dos-default",    "era": "dos",   "emulator_slug": "dosbox-x",   "is_bundled": True, "is_accuracy_mode": False},
-    {"name": "Win 3.1 Default",  "slug": "win31-default",  "era": "win31", "emulator_slug": "dosbox-x",   "is_bundled": True, "is_accuracy_mode": False},
-    {"name": "Win 95 Compat",    "slug": "win95-compat",   "era": "win95", "emulator_slug": "86box",       "is_bundled": True, "is_accuracy_mode": False},
-    {"name": "Win 95 Accuracy",  "slug": "win95-accuracy", "era": "win95", "emulator_slug": "86box",       "is_bundled": True, "is_accuracy_mode": True},
-    {"name": "Win 98 Compat",    "slug": "win98-compat",   "era": "win98", "emulator_slug": "86box",       "is_bundled": True, "is_accuracy_mode": False},
-    {"name": "Win 98 Accuracy",  "slug": "win98-accuracy", "era": "win98", "emulator_slug": "86box",       "is_bundled": True, "is_accuracy_mode": True},
-    {"name": "Win XP Default",   "slug": "winxp-default",  "era": "winxp", "emulator_slug": "virtualbox",  "is_bundled": True, "is_accuracy_mode": False},
-    {"name": "PS1 Default",      "slug": "ps1-default",    "era": "ps1",   "emulator_slug": "duckstation", "is_bundled": True, "is_accuracy_mode": False},
-    {"name": "PS2 Default",      "slug": "ps2-default",    "era": "ps2",   "emulator_slug": "pcsx2",       "is_bundled": True, "is_accuracy_mode": False},
-    {"name": "Xbox OG Default",  "slug": "xbox-default",   "era": "xbox",  "emulator_slug": "xemu",        "is_bundled": True, "is_accuracy_mode": False},
-    {"name": "NES Default",      "slug": "nes-default",    "era": "nes",   "emulator_slug": "mesen",       "is_bundled": True, "is_accuracy_mode": False},
-    {"name": "N64 Default",      "slug": "n64-default",    "era": "n64",   "emulator_slug": "project64",   "is_bundled": True, "is_accuracy_mode": False},
+    {"name": "DOS Default",     "slug": "dos-default",   "era": "dos",   "emulator_slug": "dosbox-x",   "is_bundled": True},
+    {"name": "Win 3.1 Default", "slug": "win31-default", "era": "win31", "emulator_slug": "dosbox-x",   "is_bundled": True},
+    {"name": "Win 95 Default",  "slug": "win95-compat",  "era": "win95", "emulator_slug": "86box",       "is_bundled": True},
+    {"name": "Win 98 Default",  "slug": "win98-compat",  "era": "win98", "emulator_slug": "86box",       "is_bundled": True},
+    {"name": "Win XP Default",  "slug": "winxp-default", "era": "winxp", "emulator_slug": "virtualbox",  "is_bundled": True},
+    {"name": "PS1 Default",     "slug": "ps1-default",   "era": "ps1",   "emulator_slug": "duckstation", "is_bundled": True},
+    {"name": "PS2 Default",     "slug": "ps2-default",   "era": "ps2",   "emulator_slug": "pcsx2",       "is_bundled": True},
+    {"name": "Xbox OG Default", "slug": "xbox-default",  "era": "xbox",  "emulator_slug": "xemu",        "is_bundled": True},
+    {"name": "NES Default",     "slug": "nes-default",   "era": "nes",   "emulator_slug": "mesen",       "is_bundled": True},
+    {"name": "N64 Default",     "slug": "n64-default",   "era": "n64",   "emulator_slug": "project64",   "is_bundled": True},
 ]
 
 

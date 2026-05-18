@@ -18,11 +18,11 @@ from backend.constants_generated import Era
 from backend.models.platform import Platform
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.media_attach import build_86box_attachment
-from backend.service.utils.settings import get_binary_path, get_env_var
+from backend.service.utils.settings import get, get_binary_path
 
 SUPPORTED_ERAS = {Era.WIN95.value, Era.WIN98.value}
 
-_TEMPLATE_DIR = Path("config") / "templates"
+_TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "config" / "templates"
 
 
 def validate_rom_path(rom_path: Path) -> None:
@@ -147,7 +147,7 @@ def launch(
     platform: Platform,
     media_path: Optional[Path] = None,
     enable_networking: bool = False,
-) -> None:
+) -> tuple:
     """Launch 86Box in accuracy mode under Job Objects.
 
     Validates platform state and environment, loads and validates the era
@@ -206,11 +206,11 @@ def launch(
     if not Path(box86_path).exists():
         raise FileNotFoundError(f"86Box executable not found: {box86_path}")
 
-    rom_path_str = get_env_var("ROM_PATH")
+    rom_path_str = get("ROM_PATH") or ""
     if not rom_path_str:
         raise RuntimeError(
-            "ROM_PATH environment variable is not set. "
-            "Set it to the 86Box ROM directory in your .env file. "
+            "ROM_PATH is not configured. "
+            "Set 'ROM_PATH' in config/settings.yaml or via the Settings page. "
             "Download the ROM pack from: https://github.com/86Box/roms"
         )
     validate_rom_path(Path(rom_path_str))
@@ -219,13 +219,12 @@ def launch(
         attachment = build_86box_attachment(media_path, platform.config_path)
         _inject_media(attachment)
 
-    if not enable_networking:
-        _inject_media({
-            "config_path": platform.config_path,
-            "section": "Network",
-            "key": "net_type",
-            "value": "none",
-        })
+    _inject_media({
+        "config_path": platform.config_path,
+        "section": "Network",
+        "key": "net_type",
+        "value": "ne2000" if enable_networking else "none",
+    })
 
     args = [
         "--config", str(platform.config_path),

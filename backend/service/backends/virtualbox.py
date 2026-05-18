@@ -24,7 +24,7 @@ from backend.service.utils.settings import get_binary_path
 
 SUPPORTED_ERAS = {Era.WIN95.value, Era.WIN98.value, Era.WINXP.value}
 
-_TEMPLATE_DIR = Path("config") / "templates"
+_TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "config" / "templates"
 
 
 def _vboxmanage_path() -> str:

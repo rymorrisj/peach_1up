@@ -14,7 +14,6 @@ import yaml
 
 
 _REQUIRED_FIELDS = frozenset({"name", "era", "requires_86box"})
-_VALID_ERAS = frozenset({"win95", "win98"})
 
 
 def load_titles(titles_path: Path) -> list[dict]:
@@ -56,7 +55,7 @@ def load_titles(titles_path: Path) -> list[dict]:
             )
 
         era = str(entry["era"])
-        if era not in _VALID_ERAS:
+        if era not in {"win95", "win98"}:
             raise ValueError(
                 f"known_titles.yaml entry {i} ('{entry['name']}') has invalid era "
                 f"'{era}'. Valid values: {', '.join(sorted(_VALID_ERAS))}"
@@ -71,31 +70,6 @@ def load_titles(titles_path: Path) -> list[dict]:
         validated.append(entry)
 
     return validated
-
-
-def requires_accuracy_mode(title_name: str, titles_path: Path) -> bool:
-    """Return True if the title is known to require 86Box accuracy mode.
-
-    Matching is case-insensitive with leading/trailing whitespace stripped.
-    Returns False on no match, a missing database, or any load error — never
-    raises.
-
-    Args:
-        title_name: Title name to look up.
-        titles_path: Path to ``known_titles.yaml``.
-
-    Returns:
-        True if a matching entry exists with ``requires_86box: true``,
-        False otherwise.
-    """
-    try:
-        needle = title_name.strip().lower()
-        for entry in load_titles(titles_path):
-            if str(entry["name"]).strip().lower() == needle:
-                return bool(entry["requires_86box"])
-    except Exception:
-        pass
-    return False
 
 
 def get_title(title_name: str, titles_path: Path) -> Optional[dict]:

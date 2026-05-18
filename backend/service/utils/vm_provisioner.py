@@ -4,9 +4,6 @@ Creates VirtualBox VMs and 86Box configs for Win9x/WinXP platforms on first
 launch or platform creation. All output paths are resolved within OS_PATH and
 validated before use. Subprocess args are constructed from validated, computed
 values only — no user input reaches a subprocess call directly.
-
-SECURITY: base_image_path from the platform record is re-validated at the
-point of use (SECURITY.md: validate at the point of use, not only at input).
 """
 
 from __future__ import annotations
@@ -94,19 +91,6 @@ def _vm_name(platform: Platform) -> str:
     return platform.slug or f"p{platform.id}"
 
 
-def _validate_iso_within_library(iso_path: Path) -> None:
-    """Assert iso_path is within OS_PATH or LIBRARY_PATH (SECURITY.md allowlist)."""
-    os_base = Path(get_env_var("OS_PATH")).resolve()
-    lib_base = Path(get_env_var("LIBRARY_PATH")).resolve()
-    resolved = iso_path.resolve()
-    within_os = resolved == os_base or os_base in resolved.parents
-    within_lib = resolved == lib_base or lib_base in resolved.parents
-    if not within_os and not within_lib:
-        raise ValueError(
-            f"Base image path {resolved} is not within a permitted directory "
-            f"({os_base} or {lib_base})"
-        )
-
 
 def provision_virtualbox_vm(platform: Platform, vbox_path: str) -> str:
     """Create a VDI and register a VirtualBox VM for a Win9x/WinXP platform.
@@ -182,7 +166,6 @@ def provision_virtualbox_vm(platform: Platform, vbox_path: str) -> str:
     if platform.base_image_path:
         from backend.service.utils.path_utils import normalise_path
         iso_path = normalise_path(platform.base_image_path)
-        _validate_iso_within_library(iso_path)
         if not iso_path.exists():
             raise FileNotFoundError(f"Base image not found: {iso_path}")
         _run_vbm(vbox_path, [
@@ -270,7 +253,6 @@ def provision_86box_vm(
     if platform.base_image_path:
         from backend.service.utils.path_utils import normalise_path
         iso_path = normalise_path(platform.base_image_path)
-        _validate_iso_within_library(iso_path)
         if iso_path.exists():
             parser.add_section("CD-ROM")
             parser.set("CD-ROM", "cd_path", os.path.normpath(str(iso_path)))

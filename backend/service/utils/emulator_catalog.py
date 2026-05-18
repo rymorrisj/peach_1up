@@ -38,6 +38,19 @@ def get_emulator(slug: str) -> dict:
 
 
 def get_install_path(slug: str) -> Path | None:
+    # Check settings.yaml user override first — user path always wins.
+    settings_key = _SLUG_TO_SETTINGS_KEY.get(slug)
+    if settings_key:
+        try:
+            from backend.service.utils import settings as _settings_mod
+            val = _settings_mod.get(settings_key, "")
+            if val:
+                p = Path(str(val))
+                if p.exists():
+                    return p
+        except Exception:
+            pass
+
     entry = get_emulator(slug)
     install_type = entry.get("install_type", "zip")
     install_scope = entry.get("install_scope", "portable")
@@ -165,6 +178,13 @@ def detect_and_sync_all() -> None:
         slug = entry["slug"]
         settings_key = _SLUG_TO_SETTINGS_KEY.get(slug)
         if not settings_key:
+            continue
+        # Never overwrite an existing user override.
+        try:
+            existing = _settings_mod.get(settings_key, "")
+        except Exception:
+            existing = ""
+        if existing:
             continue
         path = get_install_path(slug)
         if path is not None:

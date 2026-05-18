@@ -7,6 +7,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
 import { useAppContext } from '@/context/AppContext'
 import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
+import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal'
 import type { components } from '@shared/types'
 type LibraryItem = components['schemas']['LibraryItemRead']
 type LaunchProfile = components['schemas']['ProfileRead']
@@ -254,15 +255,10 @@ export default function ItemDetail() {
   const effectiveProfileId = form.profile_id ? parseInt(form.profile_id, 10) : null
   const hasProfile = effectiveProfileId != null
 
-  const ERA_TO_EMULATOR: Record<string, string> = {
-    dos: 'dosbox-x', win31: 'dosbox-x',
-    win95: '86box',  win98: '86box',
-    winxp: 'virtualbox',
-  }
   const eraProfiles = profiles.filter((p) => p.era === item.era)
   const otherProfiles = profiles.filter((p) => p.era !== item.era)
   const chosenProfile = profiles.find((p) => p.id === effectiveProfileId) ?? null
-  const expectedEmulator = ERA_TO_EMULATOR[item.era]
+  const expectedEmulator = (ERA_TO_EMULATOR as Record<string, string | undefined>)[item.era]
   const profileEraMismatch =
     chosenProfile && expectedEmulator != null && chosenProfile.emulator_slug !== expectedEmulator
 

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 from backend.core import process_registry
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user
+from backend.core.dependencies import get_active_user, require_permission
 from backend.core.process_registry import ProcessEntry
 from backend.models import LaunchHistory, LibraryItem, Platform, Profile
 from backend.models.launch_history import LaunchHistoryRead
@@ -34,6 +34,7 @@ async def launch_item(
     body: LaunchRequest = LaunchRequest(),
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
+    _: User = require_permission("can_launch_media"),
 ):
     item = db.get(LibraryItem, item_id)
     if not item:
@@ -106,12 +107,18 @@ async def launch_item(
     job = result[1] if isinstance(result, tuple) and len(result) > 1 else None
 
     if proc is not None:
-        job_isolated = job is not None and getattr(job, 'job_handle', None) is not None
-        if not job_isolated:
-            warnings.append(
-                "Job Object isolation is unavailable on this system. "
-                "The emulator launched without process-level resource limits. "
-                "Network isolation still applies via the emulator adapter setting."
+        if job is None or getattr(job, 'job_handle', None) is None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            history.error_message = "Launch aborted: Job Object isolation is required but unavailable."
+            history.ended_at = datetime.now(timezone.utc)
+            history.exit_code = -1
+            db.commit()
+            raise HTTPException(
+                status_code=500,
+                detail="Launch failed: Job Object isolation is required but unavailable on this system.",
             )
         entry = ProcessEntry(
             process_handle=proc,
@@ -121,10 +128,10 @@ async def launch_item(
             launch_history_id=history.id,
         )
         process_registry.register(proc.pid, entry)
-        history.job_isolated = job_isolated
-        history.sandboxed = job_isolated
-        history.sandbox_memory_limit_mb = job.memory_limit_mb if job_isolated else None
-        history.sandbox_cpu_limit_percent = job.cpu_limit_percent if job_isolated else None
+        history.job_isolated = True
+        history.sandboxed = True
+        history.sandbox_memory_limit_mb = job.memory_limit_mb
+        history.sandbox_cpu_limit_percent = job.cpu_limit_percent
         db.commit()
 
     return LaunchResponse(launch_history_id=history.id, warnings=warnings)
@@ -136,6 +143,7 @@ async def launch_environment(
     body: LaunchRequest = LaunchRequest(),
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
+    _: User = require_permission("can_launch_media"),
 ):
     platform = db.get(Platform, platform_id)
     if not platform:
@@ -228,12 +236,18 @@ async def launch_environment(
     job = result[1] if isinstance(result, tuple) and len(result) > 1 else None
 
     if proc is not None:
-        job_isolated = job is not None and getattr(job, 'job_handle', None) is not None
-        if not job_isolated:
-            warnings.append(
-                "Job Object isolation is unavailable on this system. "
-                "The emulator launched without process-level resource limits. "
-                "Network isolation still applies via the emulator adapter setting."
+        if job is None or getattr(job, 'job_handle', None) is None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            history.error_message = "Launch aborted: Job Object isolation is required but unavailable."
+            history.ended_at = datetime.now(timezone.utc)
+            history.exit_code = -1
+            db.commit()
+            raise HTTPException(
+                status_code=500,
+                detail="Launch failed: Job Object isolation is required but unavailable on this system.",
             )
         entry = ProcessEntry(
             process_handle=proc,
@@ -243,10 +257,10 @@ async def launch_environment(
             launch_history_id=history.id,
         )
         process_registry.register(proc.pid, entry)
-        history.job_isolated = job_isolated
-        history.sandboxed = job_isolated
-        history.sandbox_memory_limit_mb = job.memory_limit_mb if job_isolated else None
-        history.sandbox_cpu_limit_percent = job.cpu_limit_percent if job_isolated else None
+        history.job_isolated = True
+        history.sandboxed = True
+        history.sandbox_memory_limit_mb = job.memory_limit_mb
+        history.sandbox_cpu_limit_percent = job.cpu_limit_percent
         db.commit()
 
     old_records = (
