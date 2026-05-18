@@ -1,11 +1,11 @@
-first_run_complete: true
+first_run_complete: false
 DOSBOX_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/dosbox-x/dosbox-x.exe
 BOX86_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/86box/86Box.exe
 VIRTUALBOX_PATH: C:/Program Files/Oracle/VirtualBox/VBoxManage.exe
 LIBRARY_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library
 GAMES_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/games
 OS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/os
-ROM_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/roms/86box/roms-5.3
+ROM_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/dist/peach1up/emulators/86box/roms-5.3
 BIOS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/bios
 TOOLS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/tools
 PROFILES_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/profiles

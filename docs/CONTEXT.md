@@ -55,12 +55,12 @@ manually inside the emulator). The user never selects or configures an emulator 
 
 ### Emulator Strategy
 
-| Era     | OS            | Primary    | Fallback                             | Logic                                          |
-| ------- | ------------- | ---------- | ------------------------------------ | ---------------------------------------------- |
-| DOS     | MS-DOS        | DOSBox-X   | —                                    | Always DOSBox-X                                |
-| Win 3.x | Windows 3.1   | DOSBox-X   | —                                    | Runs inside DOS session                        |
-| Win 9x  | Windows 95/98 | 86Box      | DOSBox-X (compat) | 86Box default. See selection logic below. |
-| Win XP  | Windows XP    | 86Box      | —                 | Always 86Box                              |
+| Era     | OS            | Primary  | Fallback          | Logic                                     |
+| ------- | ------------- | -------- | ----------------- | ----------------------------------------- |
+| DOS     | MS-DOS        | DOSBox-X | —                 | Always DOSBox-X                           |
+| Win 3.x | Windows 3.1   | DOSBox-X | —                 | Runs inside DOS session                   |
+| Win 9x  | Windows 95/98 | 86Box    | DOSBox-X (compat) | 86Box default. See selection logic below. |
+| Win XP  | Windows XP    | 86Box    | —                 | Always 86Box                              |
 
 **Win 9x selection logic:**
 
@@ -387,3 +387,8 @@ per-launch CPU/memory caps.
 - Add a Check All Health button to Platform page so user can check all platforms at once instead of one at a time
 - Drag drop jsut adds image name not path so Users see a warning anyway. (drag drop may present security concerns)
 - Add a note in the UI and docs: "if you change media paths, restart the backend to apply permissions."
+- GitHub Action — weekly scheduled job that checks each emulator's
+  release page for a version newer than the pinned version in its
+  config/emulators/<slug>.toml. Opens a draft PR with the diff if a
+  newer version is found. Runs offline (no emulator binaries, no downloads).
+  One action per emulator slug, driven by release_url in the TOML.
