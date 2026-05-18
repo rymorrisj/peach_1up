@@ -18,7 +18,7 @@ from backend.constants_generated import Era
 from backend.models.platform import Platform
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.media_attach import build_86box_attachment
-from backend.service.utils.settings import get, get_binary_path
+from backend.service.utils.settings import get_binary_path
 
 SUPPORTED_ERAS = {Era.WIN95.value, Era.WIN98.value}
 
@@ -94,23 +94,44 @@ def load_template(era: str) -> dict:
     return template
 
 
-def _resolve_rom_path(rom_path: Path) -> Path:
-    """Return effective ROM path, auto-resolving a single versioned subfolder.
+def _resolve_rom_path(box86_binary: Path) -> Path:
+    """Derive the effective ROM path from the 86Box binary location.
 
-    Handles the common case where a GitHub release zip extracts into a
-    versioned subdirectory (e.g. roms-5.3/) inside the configured directory.
-    Only resolves when there is exactly one subdirectory and no loose files
-    at the top level; otherwise returns the configured path unchanged.
+    Looks in the directory containing the binary for a single versioned
+    ROM subdirectory (e.g. roms-5.3). No fallback — the subdirectory must
+    exist and be the only subdirectory present.
+
+    Raises:
+        FileNotFoundError: If no single ROM subdirectory is found.
     """
+    from backend.service.utils.emulator_catalog import get_emulator
+
+    base = box86_binary.parent
     try:
-        entries = list(rom_path.iterdir())
-    except OSError:
-        return rom_path
+        entries = list(base.iterdir())
+    except OSError as exc:
+        raise FileNotFoundError(f"Cannot read 86Box directory: {base}") from exc
+
     subdirs = [e for e in entries if e.is_dir()]
-    loose_files = [e for e in entries if e.is_file()]
-    if len(subdirs) == 1 and not loose_files:
-        return subdirs[0]
-    return rom_path
+    rom_dirs = [e for e in subdirs if e.name.startswith("roms")]
+    if len(rom_dirs) == 1:
+        return rom_dirs[0]
+
+    try:
+        catalog_entry = get_emulator("86box")
+        rom_pack_version = catalog_entry.get("rom_pack_version", "")
+        rom_pack_url = catalog_entry.get("rom_pack_url", "https://github.com/86Box/roms")
+    except Exception:
+        rom_pack_version = ""
+        rom_pack_url = "https://github.com/86Box/roms"
+
+    expected_name = f"roms-{rom_pack_version}" if rom_pack_version else "roms-<version>"
+    expected_path = base / expected_name
+    raise FileNotFoundError(
+        f"No ROM directory found alongside the 86Box binary at {base}. "
+        f"Expected a versioned subdirectory at {expected_path}. "
+        f"Download the 86Box ROM pack from: {rom_pack_url}"
+    )
 
 
 def _inject_media(attachment: dict) -> None:
@@ -225,15 +246,7 @@ def launch(
     if not Path(box86_path).exists():
         raise FileNotFoundError(f"86Box executable not found: {box86_path}")
 
-    rom_path_str = get("ROM_PATH") or ""
-    if not rom_path_str:
-        raise RuntimeError(
-            "ROM_PATH is not configured. "
-            "Set 'ROM_PATH' in config/settings.yaml or via the Settings page. "
-            "Download the ROM pack from: https://github.com/86Box/roms"
-        )
-    validate_rom_path(Path(rom_path_str))
-    effective_rom_path = _resolve_rom_path(Path(rom_path_str))
+    effective_rom_path = _resolve_rom_path(Path(box86_path))
 
     _inject_media({
         "config_path": platform.config_path,

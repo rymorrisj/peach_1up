@@ -95,12 +95,12 @@ def clone_rom_pack(target_path: Path) -> None:
     if not check_git():
         raise RuntimeError("git is not available on PATH. Install git and try again.")
 
-    roms_base = (_PROJECT_ROOT / "library" / "roms").resolve()
+    box86_base = (_PROJECT_ROOT / "emulators" / "86box").resolve()
     try:
-        target_path.resolve().relative_to(roms_base)
+        target_path.resolve().relative_to(box86_base)
     except ValueError:
         raise ValueError(
-            f"target_path must be inside library/roms/: {target_path.resolve()}"
+            f"target_path must be inside emulators/86box/: {target_path.resolve()}"
         )
 
     if target_path.exists():
@@ -115,9 +115,17 @@ def clone_rom_pack(target_path: Path) -> None:
 
     target_path.mkdir(parents=True, exist_ok=True)
 
-    result = subprocess.run(
-        ["git", "clone", "https://github.com/86Box/roms", str(target_path)],
-    )
+    try:
+        version = get_emulator("86box").get("rom_pack_version", "")
+    except Exception:
+        version = ""
+
+    cmd = ["git", "clone", "--depth", "1"]
+    if version:
+        cmd += ["--branch", version]
+    cmd += ["https://github.com/86Box/roms", str(target_path)]
+
+    result = subprocess.run(cmd)
     if result.returncode != 0:
         raise RuntimeError(f"git clone failed with exit code {result.returncode}.")
 

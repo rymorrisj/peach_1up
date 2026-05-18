@@ -42,6 +42,7 @@ a = Analysis(
         ("assets/", "assets/"),
         ("frontend/dist/", "frontend/dist/"),
         ("scripts/", "scripts/"),
+        ("emulators/", "emulators/"),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],
@@ -66,6 +67,7 @@ a.datas = [
     for dest, src, kind in a.datas
     if "__pycache__" not in dest
     and not any(seg in dest for seg in ("test_", "_test.", "/tests/", "/test/"))
+    and not any(part in dest for part in ("roms", "bios", "saves"))
 ]
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)

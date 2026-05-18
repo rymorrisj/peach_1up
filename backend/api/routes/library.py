@@ -151,24 +151,21 @@ def add_library_item(
 ):
     from backend.models.platform import Platform
 
-    existing = db.query(LibraryItem).filter(LibraryItem.media_path == body.media_path).first()
-    if existing:
-        response.status_code = 200
-        return existing
+    incoming_norm = Path(body.media_path).resolve().as_posix()
 
-    is_os_image = (
-        db.query(Platform)
-        .filter(
-            (Platform.base_image_path == body.media_path)
-            | (Platform.working_image_path == body.media_path)
-        )
-        .first()
-    )
-    if is_os_image:
-        raise HTTPException(
-            status_code=409,
-            detail="Path is an OS environment image and cannot be added as a library item.",
-        )
+    for stored_path, item_id in db.query(LibraryItem.media_path, LibraryItem.id).all():
+        if stored_path and Path(stored_path).resolve().as_posix() == incoming_norm:
+            response.status_code = 200
+            return db.get(LibraryItem, item_id)
+
+    for base_path, working_path in db.query(Platform.base_image_path, Platform.working_image_path).all():
+        if (base_path and Path(base_path).resolve().as_posix() == incoming_norm) or (
+            working_path and Path(working_path).resolve().as_posix() == incoming_norm
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Path is an OS environment image and cannot be added as a library item.",
+            )
 
     from backend.core.settings import get_settings
     from backend.service.utils.slug_generator import generate_item_slug
