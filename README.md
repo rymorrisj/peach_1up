@@ -13,17 +13,18 @@ Covers PC platforms from DOS through Windows XP and first-generation consoles
 
 ### Emulators (installed on the host OS)
 
-| Emulator    | Era               | Notes                                                                    |
-| ----------- | ----------------- | ------------------------------------------------------------------------ |
-| DOSBox-X    | DOS, Windows 3.1  | [dosbox-x.com](https://dosbox-x.com) — no ROM required                   |
-| VirtualBox  | Windows 95/98/XP  | [virtualbox.org](https://www.virtualbox.org)                             |
-| 86Box       | Win95/98 accuracy | [86box.net](https://86box.net) — opt-in accuracy mode, requires ROM pack |
-| 86Box ROMs  | Win95/98 accuracy | [github.com/86Box/roms](https://github.com/86Box/roms)                   |
-| DuckStation | PS1               | [duckstation.org](https://www.duckstation.org) — requires PS1 BIOS       |
-| PCSX2       | PS2               | [pcsx2.net](https://pcsx2.net) — requires PS2 BIOS                       |
-| xemu        | Xbox OG           | [xemu.app](https://xemu.app) — requires Xbox BIOS                        |
-| Mesen       | NES               | [mesen.ca](https://www.mesen.ca)                                         |
-| Project64   | N64               | [pj64-emu.com](https://www.pj64-emu.com)                                 |
+| Emulator    | Era                | Notes                                                                          |
+| ----------- | ------------------ | ------------------------------------------------------------------------------ |
+| DOSBox-X    | DOS, Windows 3.1   | [dosbox-x.com](https://dosbox-x.com) — no ROM required                        |
+| 86Box       | Win95/98/XP        | [86box.net](https://86box.net) — requires ROM pack                             |
+| 86Box ROMs  | Win95/98/XP        | [github.com/86Box/roms](https://github.com/86Box/roms)                        |
+| ScummVM     | DOS/Win adventures | [scummvm.org](https://www.scummvm.org) — no ROM required, point at game data folder |
+| DuckStation | PS1                | [duckstation.org](https://www.duckstation.org) — requires PS1 BIOS            |
+| PCSX2       | PS2                | [pcsx2.net](https://pcsx2.net) — requires PS2 BIOS                            |
+| xemu        | Xbox OG            | [xemu.app](https://xemu.app) — requires Xbox BIOS                             |
+| Flycast     | Dreamcast          | [github.com/flyinghead/flycast](https://github.com/flyinghead/flycast) — requires DC BIOS |
+| Mesen       | NES                | [mesen.ca](https://www.mesen.ca)                                               |
+| Project64   | N64                | [pj64-emu.com](https://www.pj64-emu.com)                                      |
 
 Emulators marked "requires BIOS" need a BIOS image sourced from your own
 hardware. Peach 1UP does not provide BIOS files.
@@ -107,3 +108,4 @@ in order to grant correct permissions to all folder and files that need them.
 - [DECISIONS.md](DECISIONS.md) — Design decision log
 - [CLAUDE.md](CLAUDE.md) — Project technical reference
 - [TECH.md](TECH.md) — Full technology stack with reasoning
+- [EMULATORS.md](docs/EMULATORS.md) — Emulator reference, portable mode, BIOS requirements, version coupling notes

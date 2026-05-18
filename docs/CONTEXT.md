@@ -44,6 +44,8 @@
 
 ## P2 — Win95/98 and XP Direct Launch
 
+> VirtualBox removed 2026-05-17 — all Win9x and XP now handled by 86Box
+
 ### Goal
 
 A user can register a Windows OS platform and launch software from it via the correct
@@ -57,12 +59,12 @@ manually inside the emulator). The user never selects or configures an emulator 
 | ------- | ------------- | ---------- | ------------------------------------ | ---------------------------------------------- |
 | DOS     | MS-DOS        | DOSBox-X   | —                                    | Always DOSBox-X                                |
 | Win 3.x | Windows 3.1   | DOSBox-X   | —                                    | Runs inside DOS session                        |
-| Win 9x  | Windows 95/98 | 86Box      | VirtualBox (override), DOSBox-X (compat) | 86Box default. See selection logic below. |
-| Win XP  | Windows XP    | VirtualBox | —                                    | Always VirtualBox                              |
+| Win 9x  | Windows 95/98 | 86Box      | DOSBox-X (compat) | 86Box default. See selection logic below. |
+| Win XP  | Windows XP    | 86Box      | —                 | Always 86Box                              |
 
 **Win 9x selection logic:**
 
-- Default → 86Box (accuracy and game compatibility). VirtualBox available as override.
+- Default → 86Box (accuracy and game compatibility).
 - DOS app running under Windows → DOSBox-X (better DOS compatibility)
 - User enables accuracy mode OR title is in known titles database → 86Box (Note: 86Box is now the default for all Win9x; this condition is obsolete as of 2026-05-17.)
 
@@ -280,6 +282,8 @@ includes ROM packs, extensions, updating /guides to give user instructions and i
 
 - [P7-1] — Binary detection for all bundled emulators; remove the dead download machinery from emulator_installer.py; wire VirtualBox installer launch via ShellExecute; poll for binary post-install; remove HTTP 501 from install route
 - [P7-2] — Guidance cards for VirtualBox (with Run Installer button), BIOS files, 86Box ROM pack (with Git Clone button); surface in first-run wizard Step 2 and emulator catalog page
+- [P7-2a] — Add ScummVM backend — locate binary, auto-detect games from data directory, launch under Job Objects, no BIOS required
+- [P7-2b] — Add Flycast backend — locate binary, validate DC BIOS, launch under Job Objects
 - [P7-3] — Attribution page in Settings (GPL source links, copyright notices, contributor section scaffold); update /guides for any emulator or asset requiring manual steps
 - [P7-4] — Commit and push
 

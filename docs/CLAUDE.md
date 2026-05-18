@@ -39,13 +39,14 @@ Objects on Windows.
 **PC Emulators**
 
 - DOSBox-X (DOS and Windows 3.1 — no ROM required)
-- 86Box (Windows 95, 98 — primary; user supplies ROM pack)
-- VirtualBox (Windows 95, 98, XP — available as override; primary for XP)
+- 86Box (Windows 95, 98, XP — user supplies ROM pack)
+- ScummVM (point-and-click adventures — no BIOS required, auto-detects games from data files)
 
 **Console Emulators**
 
 - DuckStation (PS1), PCSX2 (PS2), xemu (Xbox OG)
 - Mesen (NES), Project64 (N64)
+- Flycast (Dreamcast)
 
 **Process Isolation**
 
@@ -54,18 +55,20 @@ Objects on Windows.
 
 ## Era → Backend Mapping
 
-| Era         | Primary     | Fallback                            | ROM Required    |
-| ----------- | ----------- | ----------------------------------- | --------------- |
-| DOS         | DOSBox-X    | —                                   | No              |
-| Windows 3.1 | DOSBox-X    | —                                   | No              |
-| Windows 95  | 86Box       | VirtualBox (override), DOSBox-X (compat) | Yes (ROM pack) |
-| Windows 98  | 86Box       | VirtualBox (override), DOSBox-X (compat) | Yes (ROM pack) |
-| Windows XP  | VirtualBox  | —                                   | No              |
-| PS1         | DuckStation | —                                   | Yes (PS1 BIOS)  |
-| PS2         | PCSX2       | —                                   | Yes (PS2 BIOS)  |
-| Xbox OG     | xemu        | —                                   | Yes (Xbox BIOS) |
-| NES         | Mesen       | —                                   | No              |
-| N64         | Project64   | —                                   | No              |
+| Era                       | Primary     | Fallback | ROM Required         |
+| ------------------------- | ----------- | -------- | -------------------- |
+| DOS                       | DOSBox-X    | —        | No                   |
+| Windows 3.1               | DOSBox-X    | —        | No                   |
+| Windows 95                | 86Box       | —        | Yes (86Box ROM pack) |
+| Windows 98                | 86Box       | —        | Yes (86Box ROM pack) |
+| Windows XP                | 86Box       | —        | Yes (86Box ROM pack) |
+| DOS/Win (adventure games) | ScummVM     | —        | No                   |
+| PS1                       | DuckStation | —        | Yes (PS1 BIOS)       |
+| PS2                       | PCSX2       | —        | Yes (PS2 BIOS)       |
+| Xbox OG                   | xemu        | —        | Yes (Xbox BIOS)      |
+| Dreamcast                 | Flycast     | —        | Yes (DC BIOS)        |
+| NES                       | Mesen       | —        | No                   |
+| N64                       | Project64   | —        | No                   |
 
 ## Folder Structure
 
@@ -197,13 +200,16 @@ Awaiting your decision.
 - DOS profiles remain standalone with per-game HDD images. Win95/98/XP use the
   DB-backed Platform model with a locked base image and a working copy — two image copies
   per platform will be stored on disk.
+- ScummVM auto-detects games from a directory scan — point at the folder containing
+  game data files, not an ISO or image.
 
 ## Official Download Links
 
 - DOSBox-X: https://dosbox-x.com
 - 86Box: https://86box.net
 - 86Box ROM pack: https://github.com/86Box/roms
-- VirtualBox: https://www.virtualbox.org
+- ScummVM: https://www.scummvm.org
+- Flycast: https://github.com/flyinghead/flycast
 - DuckStation: https://www.duckstation.org
 - PCSX2: https://pcsx2.net
 - xemu: https://xemu.app
@@ -216,7 +222,7 @@ Emulator binary path resolution follows three tiers, highest priority first:
 
 1. **User override** — absolute path stored in `settings.yaml`, set via the Emulators or Settings page in the UI. Never accepted from request input.
 2. **Bundled** — portable emulators (DOSBox-X, 86Box) ship inside `emulators/{slug}/` under the project root. Presence detected by checking the known project-relative path on startup.
-3. **Catalog-detected** — system-installed emulators (VirtualBox, DuckStation, Project64) are located via known installation paths declared in `emulators.yaml`. No registry scanning.
+3. **Catalog-detected** — system-installed emulators (DuckStation, Project64) are located via known installation paths declared in `emulators.yaml`. No registry scanning.
 
 No emulator binary path is ever accepted from request input at launch time. This rule has no exceptions.
 
