@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -147,7 +147,29 @@ def add_library_item(
     body: LibraryItemCreate,
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_library"),
+    response: Response = None,
 ):
+    from backend.models.platform import Platform
+
+    existing = db.query(LibraryItem).filter(LibraryItem.media_path == body.media_path).first()
+    if existing:
+        response.status_code = 200
+        return existing
+
+    is_os_image = (
+        db.query(Platform)
+        .filter(
+            (Platform.base_image_path == body.media_path)
+            | (Platform.working_image_path == body.media_path)
+        )
+        .first()
+    )
+    if is_os_image:
+        raise HTTPException(
+            status_code=409,
+            detail="Path is an OS environment image and cannot be added as a library item.",
+        )
+
     from backend.core.settings import get_settings
     from backend.service.utils.slug_generator import generate_item_slug
 

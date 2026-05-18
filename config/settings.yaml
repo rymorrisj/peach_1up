@@ -5,7 +5,7 @@ VIRTUALBOX_PATH: C:/Program Files/Oracle/VirtualBox/VBoxManage.exe
 LIBRARY_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library
 GAMES_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/games
 OS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/os
-ROM_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/roms/86box
+ROM_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/roms/86box/roms-5.3
 BIOS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/bios
 TOOLS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/tools
 PROFILES_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/profiles
@@ -14,8 +14,8 @@ PCSX2_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/pcsx2/pcsx2-q
 XEMU_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/xemu/xemu.exe
 MESEN_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/mesen/Mesen.exe
 PROJECT64_PATH: C:/Program Files (x86)/Project64 3.0/Project64.exe
-PS1_BIOS_PATH: ''
-PS2_BIOS_PATH: ''
-XBOX_BIOS_PATH: ''
+PS1_BIOS_PATH: ""
+PS2_BIOS_PATH: ""
+XBOX_BIOS_PATH: ""
 suppress_confirmations: []
 SESSION_SECRET: 090dbf2838d695ecd63cfa196c9921109266e29cdbdd9b6751a6185c8ab2a784

@@ -94,6 +94,25 @@ def load_template(era: str) -> dict:
     return template
 
 
+def _resolve_rom_path(rom_path: Path) -> Path:
+    """Return effective ROM path, auto-resolving a single versioned subfolder.
+
+    Handles the common case where a GitHub release zip extracts into a
+    versioned subdirectory (e.g. roms-5.3/) inside the configured directory.
+    Only resolves when there is exactly one subdirectory and no loose files
+    at the top level; otherwise returns the configured path unchanged.
+    """
+    try:
+        entries = list(rom_path.iterdir())
+    except OSError:
+        return rom_path
+    subdirs = [e for e in entries if e.is_dir()]
+    loose_files = [e for e in entries if e.is_file()]
+    if len(subdirs) == 1 and not loose_files:
+        return subdirs[0]
+    return rom_path
+
+
 def _inject_media(attachment: dict) -> None:
     """Inject a media path into an 86Box config file atomically.
 
@@ -214,6 +233,14 @@ def launch(
             "Download the ROM pack from: https://github.com/86Box/roms"
         )
     validate_rom_path(Path(rom_path_str))
+    effective_rom_path = _resolve_rom_path(Path(rom_path_str))
+
+    _inject_media({
+        "config_path": platform.config_path,
+        "section": "Paths",
+        "key": "rompath",
+        "value": str(effective_rom_path),
+    })
 
     if media_path is not None:
         attachment = build_86box_attachment(media_path, platform.config_path)
