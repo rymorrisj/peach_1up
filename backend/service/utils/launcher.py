@@ -8,7 +8,6 @@ with memory and CPU limits sourced from eras.yaml.
 
 import ctypes
 import ctypes.wintypes
-import logging
 import os
 import subprocess
 import yaml
@@ -21,11 +20,12 @@ from backend.service.utils.win32_types import (
     STARTUPINFOW,
     PROCESS_INFORMATION,
 )
+from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.job_objects import WindowsJobObject, _process_in_job
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _load_era_limits(era: str) -> Tuple[int, int]:

@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -8,6 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from backend.core import install_registry
+from backend.core.logger import get_logger
 from backend.service.utils.emulator_catalog import (
     get_emulator,
     get_install_path,
@@ -22,7 +22,7 @@ from backend.service.utils.emulator_installer import (
 from backend.service.utils import settings as _settings
 
 router = APIRouter(prefix="/api/v1/emulators", tags=["emulators"])
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CatalogEntryResponse(BaseModel):

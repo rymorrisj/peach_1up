@@ -8,7 +8,6 @@ media attachment into the config file, and launches 86Box under Job Objects.
 from __future__ import annotations
 
 import configparser
-import logging
 import os
 from pathlib import Path
 from typing import Optional
@@ -16,13 +15,14 @@ from typing import Optional
 import yaml
 
 from backend.constants_generated import Era
+from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.models.platform import Platform
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.media_attach import build_86box_attachment
 from backend.service.utils.settings import get_binary_path
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 SUPPORTED_ERAS = {Era.WIN95.value, Era.WIN98.value}
 

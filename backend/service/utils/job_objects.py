@@ -18,7 +18,6 @@ its network adapter when enable_networking is false on the active profile.
 
 import ctypes
 import ctypes.wintypes
-import logging
 import os
 
 from backend.service.utils.win32_types import (
@@ -31,9 +30,10 @@ from backend.service.utils.win32_types import (
     JOBOBJECT_BASIC_ACCOUNTING_INFORMATION,
     THREADENTRY32,
 )
+from backend.core.logger import get_logger
 from backend.service.utils.sandbox_process import SandboxProcess
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _process_in_job(pid: int) -> bool:

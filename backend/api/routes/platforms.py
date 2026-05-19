@@ -1,4 +1,3 @@
-import logging
 import re
 import secrets
 import shutil
@@ -9,16 +8,16 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-logger = logging.getLogger(__name__)
-
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
+from backend.core.logger import get_logger
 from backend.models.platform import Platform, PlatformCreate, PlatformRead, PlatformUpdate
 from backend.models.snapshot import Snapshot, SnapshotCreate, SnapshotRead
 from backend.models.user import User
 from backend.service.utils.settings import get_binary_path
 
 router = APIRouter(prefix="/api/v1/platforms", tags=["platforms"], redirect_slashes=False)
+logger = get_logger(__name__)
 
 _TOKEN_TTL = 60
 _confirm_tokens: dict[str, tuple[int, str, float]] = {}

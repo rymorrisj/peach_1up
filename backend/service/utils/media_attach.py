@@ -11,7 +11,6 @@ from __future__ import annotations
 import configparser
 import csv
 import io
-import logging
 import re
 import subprocess
 from pathlib import Path
@@ -20,8 +19,9 @@ from typing import Optional
 import pycdlib
 from pycdlib.pycdlibexception import PyCdlibException
 
+from backend.core.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def detect_media_type(media_path: Path) -> str:

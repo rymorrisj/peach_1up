@@ -1,10 +1,11 @@
-import logging
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from backend.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass

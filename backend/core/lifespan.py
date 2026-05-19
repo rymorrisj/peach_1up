@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -10,11 +9,12 @@ from fastapi import FastAPI
 
 from backend.core import install_registry, process_registry
 from backend.core.database import create_tables, init_db
+from backend.core.logger import get_logger
 from backend.core.settings import get_base_path, init_settings
 import backend.models.user  # noqa: F401 — registers User with SQLModel.metadata
 import backend.models.media_restriction  # noqa: F401 — registers MediaRestriction with SQLModel.metadata
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _SYSTEM_PLATFORMS = [
     {

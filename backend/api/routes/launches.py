@@ -1,22 +1,21 @@
 import asyncio
-import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-logger = logging.getLogger(__name__)
-
 from backend.core import process_registry
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
+from backend.core.logger import get_logger
 from backend.core.process_registry import ProcessEntry
 from backend.models import LaunchHistory, LibraryItem, Platform, Profile
 from backend.models.launch_history import LaunchHistoryRead
 from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1", tags=["launches"])
+logger = get_logger(__name__)
 
 
 class LaunchRequest(BaseModel):

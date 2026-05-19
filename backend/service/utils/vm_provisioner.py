@@ -9,7 +9,6 @@ values only — no user input reaches a subprocess call directly.
 from __future__ import annotations
 
 import configparser
-import logging
 import os
 import struct
 import subprocess
@@ -19,11 +18,12 @@ from pathlib import Path
 
 import yaml
 
+from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.models.platform import Platform
 from backend.service.utils.settings import get_binary_path, get_env_var
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _VDI_SIZE_MB: dict[str, int] = {
     "win95": 4096,

@@ -1,4 +1,3 @@
-import logging
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,9 +6,10 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
+from backend.core.logger import get_logger
 from backend.models.user import User, UserRead
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 

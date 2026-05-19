@@ -1,4 +1,3 @@
-import logging
 import os
 import signal
 import subprocess
@@ -9,9 +8,10 @@ import webbrowser
 import pystray
 from PIL import Image
 
+from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 _APP_URL = "http://localhost:8000"
 _icon: pystray.Icon | None = None
 

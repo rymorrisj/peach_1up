@@ -1,11 +1,10 @@
-import logging
-
 from fastapi import APIRouter
 
+from backend.core.logger import get_logger
 from backend.service.utils.emulator_catalog import check_bios_presence, load_bios_requirements
 
 router = APIRouter(prefix="/api/v1/bios", tags=["bios"])
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @router.get("")
