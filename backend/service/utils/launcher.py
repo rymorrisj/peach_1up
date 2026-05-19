@@ -21,14 +21,11 @@ from backend.service.utils.win32_types import (
     STARTUPINFOW,
     PROCESS_INFORMATION,
 )
+from backend.core.settings import get_base_path
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.job_objects import WindowsJobObject, _process_in_job
 
 logger = logging.getLogger(__name__)
-
-# Anchor eras.yaml to the project root regardless of CWD.
-# launcher.py lives at backend/service/utils/ — 4 parents up is the project root.
-_ERAS_YAML = Path(__file__).resolve().parent.parent.parent.parent / "config" / "eras.yaml"
 
 
 def _load_era_limits(era: str) -> Tuple[int, int]:
@@ -42,11 +39,12 @@ def _load_era_limits(era: str) -> Tuple[int, int]:
         RuntimeError: If parsing fails, the era is unknown, or either
             required field is absent.
     """
+    _eras_yaml = get_base_path() / "config" / "eras.yaml"
     try:
-        with _ERAS_YAML.open('r') as f:
+        with _eras_yaml.open('r') as f:
             eras_config = yaml.safe_load(f)
     except FileNotFoundError:
-        raise FileNotFoundError(f"eras.yaml not found at {_ERAS_YAML}")
+        raise FileNotFoundError(f"eras.yaml not found at {_eras_yaml}")
     except yaml.YAMLError as exc:
         raise RuntimeError(f"Failed to parse eras.yaml: {exc}")
 
@@ -203,8 +201,8 @@ def launch_under_job_object(
             try:
                 process.kill()
                 process.wait()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.error("kill failed for pid=%s during breakaway pre-check teardown: %s", process.pid, exc)
             process = _launch_process(
                 executable_path, args, base_flags | _CREATE_BREAKAWAY_FROM_JOB
             )
@@ -215,8 +213,8 @@ def launch_under_job_object(
             try:
                 process.kill()
                 process.wait()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.error("kill failed for pid=%s during phase 1 cleanup: %s", process.pid, exc)
         if job_object:
             try:
                 job_object.terminate_all()
@@ -241,8 +239,8 @@ def launch_under_job_object(
             try:
                 process.kill()
                 process.wait()
-            except Exception:
-                pass
+            except Exception as exc2:
+                logger.error("kill failed for pid=%s during job assignment cleanup: %s", process.pid, exc2)
             try:
                 job_object.terminate_all()
             except Exception:
@@ -254,8 +252,8 @@ def launch_under_job_object(
         try:
             process.kill()
             process.wait()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.error("kill failed for pid=%s during breakaway retry teardown: %s", process.pid, exc)
         try:
             process = _launch_process(
                 executable_path, args, base_flags | _CREATE_BREAKAWAY_FROM_JOB
@@ -275,8 +273,8 @@ def launch_under_job_object(
             try:
                 process.kill()
                 process.wait()
-            except Exception:
-                pass
+            except Exception as exc4:
+                logger.error("kill failed for pid=%s during post-breakaway assignment cleanup: %s", process.pid, exc4)
             try:
                 job_object.terminate_all()
             except Exception:
@@ -291,8 +289,8 @@ def launch_under_job_object(
         try:
             process.kill()
             process.wait()
-        except Exception:
-            pass
+        except Exception as kill_exc:
+            logger.error("kill failed for pid=%s during resume failure cleanup: %s", process.pid, kill_exc)
         try:
             job_object.terminate_all()
         except Exception:

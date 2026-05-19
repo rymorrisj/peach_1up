@@ -4,10 +4,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import get_emulator
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-_BASE_DIR = _PROJECT_ROOT / "emulators"
+_BASE_DIR = get_base_path() / "emulators"
 
 
 def detect_binary(slug: str) -> Path | None:
@@ -32,7 +32,7 @@ def detect_binary(slug: str) -> Path | None:
         return Path(matches[0]) if matches else None
 
     if install_type == "rom_pack":
-        pack_dir = (_PROJECT_ROOT / binary).resolve()
+        pack_dir = (get_base_path() / binary).resolve()
         try:
             if pack_dir.exists() and pack_dir.is_dir() and any(pack_dir.iterdir()):
                 return pack_dir
@@ -91,28 +91,18 @@ def check_git() -> bool:
     return shutil.which("git") is not None
 
 
-def clone_rom_pack(target_path: Path) -> None:
+def clone_rom_pack() -> Path:
     if not check_git():
         raise RuntimeError("git is not available on PATH. Install git and try again.")
 
-    # Resolve the 86Box base directory from the user-configured binary path so
-    # the clone target is never placed inside a compiled dist directory.
-    try:
-        from backend.service.utils import settings as _settings_mod
-        box86_bin = _settings_mod.get("BOX86_PATH", "")
-        if box86_bin:
-            box86_base = Path(str(box86_bin)).resolve().parent
-        else:
-            box86_base = (_PROJECT_ROOT / "emulators" / "86box").resolve()
-    except Exception:
-        box86_base = (_PROJECT_ROOT / "emulators" / "86box").resolve()
+    from backend.service.utils.settings import get_binary_path
+    box86_bin = get_binary_path("box86")
+    if box86_bin:
+        box86_base = Path(str(box86_bin)).resolve().parent
+    else:
+        box86_base = (get_base_path() / "emulators" / "86box").resolve()
 
-    try:
-        target_path.resolve().relative_to(box86_base)
-    except ValueError:
-        raise ValueError(
-            f"target_path must be inside {box86_base}: {target_path.resolve()}"
-        )
+    target_path = box86_base / "roms"
 
     if target_path.exists():
         try:
@@ -145,6 +135,8 @@ def clone_rom_pack(target_path: Path) -> None:
     result = subprocess.run(cmd)
     if result.returncode != 0:
         raise RuntimeError(f"git clone failed with exit code {result.returncode}.")
+
+    return target_path
 
 
 def remove_emulator(slug: str) -> None:

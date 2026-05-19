@@ -8,6 +8,7 @@ media attachment into the config file, and launches 86Box under Job Objects.
 from __future__ import annotations
 
 import configparser
+import logging
 import os
 from pathlib import Path
 from typing import Optional
@@ -15,14 +16,15 @@ from typing import Optional
 import yaml
 
 from backend.constants_generated import Era
+from backend.core.settings import get_base_path
 from backend.models.platform import Platform
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.media_attach import build_86box_attachment
 from backend.service.utils.settings import get_binary_path
 
-SUPPORTED_ERAS = {Era.WIN95.value, Era.WIN98.value}
+logger = logging.getLogger(__name__)
 
-_TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "config" / "templates"
+SUPPORTED_ERAS = {Era.WIN95.value, Era.WIN98.value}
 
 
 def validate_rom_path(rom_path: Path) -> None:
@@ -64,7 +66,7 @@ def load_template(era: str) -> dict:
         FileNotFoundError: If the template file does not exist.
         ValueError: If any string field in the template is blank or None.
     """
-    template_path = _TEMPLATE_DIR / f"86box_{era}.yaml"
+    template_path = get_base_path() / "config" / "templates" / f"86box_{era}.yaml"
     if not template_path.exists():
         raise FileNotFoundError(
             f"86Box hardware template not found: {template_path}. "
@@ -132,6 +134,38 @@ def _resolve_rom_path(box86_binary: Path) -> Path:
         f"Expected a versioned subdirectory at {expected_path}. "
         f"Download the 86Box ROM pack from: {rom_pack_url}"
     )
+
+
+def _inject_install_iso(config_path: str, iso_path: Path) -> None:
+    """Inject confirmed CD-ROM section keys for a first-launch install ISO."""
+    cp = Path(config_path)
+    if not cp.exists():
+        raise FileNotFoundError(f"86Box config not found: {cp}")
+
+    parser = configparser.RawConfigParser()
+    parser.optionxform = str
+    parser.read(str(cp), encoding="utf-8")
+
+    section = "Floppy and CD-ROM drives"
+    if not parser.has_section(section):
+        parser.add_section(section)
+    iso_fwd = str(iso_path).replace("\\", "/")
+    parser.set(section, "cdrom_02_image_path", iso_fwd)
+    parser.set(section, "cdrom_02_parameters",  "1, atapi")
+    parser.set(section, "cdrom_02_ide_channel", "0:1")
+
+    tmp_path = cp.with_suffix(cp.suffix + ".tmp")
+    try:
+        with tmp_path.open("w", encoding="utf-8") as fh:
+            parser.write(fh)
+        os.replace(str(tmp_path), str(cp))
+    except Exception:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def _inject_media(attachment: dict) -> None:
@@ -229,6 +263,19 @@ def launch(
             "Complete platform registration (including image copy) before launching."
         )
 
+    img_path = Path(str(platform.working_image_path))
+    if not img_path.exists():
+        raise ValueError(
+            f"Platform '{platform.name}' working_image_path does not exist on disk: {img_path}. "
+            "Re-register the platform to provision a new disk image."
+        )
+    if img_path.suffix.lower() not in {".img", ".vhd"}:
+        raise ValueError(
+            f"Platform '{platform.name}' working_image_path must be a disk image "
+            f"(.img or .vhd), not '{img_path.suffix}': {img_path}. "
+            "working_image_path is set to a config file — re-register the platform."
+        )
+
     if platform.config_path is None:
         raise ValueError(
             f"Platform '{platform.name}' has no config_path set. "
@@ -268,11 +315,28 @@ def launch(
 
     args = [
         "--config", str(platform.config_path),
+        "--rompath", str(effective_rom_path),
     ]
 
     job_paths = [str(platform.working_image_path)]
     if media_path is not None:
         job_paths.append(str(media_path))
+
+    try:
+        with img_path.open("rb") as f:
+            f.seek(510)
+            mbr_sig = f.read(2)
+    except OSError as exc:
+        raise OSError(
+            f"Cannot read disk image for platform '{platform.name}': {img_path}"
+        ) from exc
+
+    if mbr_sig != b"\x55\xaa":
+        if platform.base_image_path is not None:
+            iso = Path(str(platform.base_image_path))
+            if iso.exists():
+                _inject_install_iso(str(platform.config_path), iso)
+                job_paths.append(str(iso))
 
     job_name = f"peach1up_86box_{platform.era}_{platform.slug}"
 

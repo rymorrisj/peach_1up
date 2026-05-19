@@ -23,7 +23,7 @@ def _get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent.parent
 
 
-_SETTINGS_PATH = Path("config") / "settings.yaml"
+_SETTINGS_PATH = _get_project_root() / "config" / "settings.yaml"
 
 _DEFAULTS: dict = {
     "first_run_complete": False,

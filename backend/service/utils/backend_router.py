@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable, Dict, Any
 
 from backend.constants_generated import BackendSlug, Era
+from backend.core.settings import get_base_path
 from backend.service.utils.settings import get_binary_path
 
 
@@ -23,7 +24,7 @@ def _load_eras_config() -> Dict[str, Any]:
         FileNotFoundError: If ``eras.yaml`` cannot be found.
         yaml.YAMLError: If the file exists but is not valid YAML.
     """
-    config_path = Path(__file__).resolve().parent.parent.parent.parent / "config" / "eras.yaml"
+    config_path = get_base_path() / "config" / "eras.yaml"
     with config_path.open('r') as f:
         return yaml.safe_load(f)
 

@@ -24,8 +24,6 @@ from backend.service.utils import settings as _settings
 router = APIRouter(prefix="/api/v1/emulators", tags=["emulators"])
 logger = logging.getLogger(__name__)
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-
 
 class CatalogEntryResponse(BaseModel):
     slug: str
@@ -145,10 +143,8 @@ async def install_emulator(slug: str, background_tasks: BackgroundTasks):
                 status_code=409,
                 detail=f"ROM pack clone already in progress for '{slug}'.",
             )
-        binary = entry.get("binary", "library/roms/86box")
-        target = (_PROJECT_ROOT / binary).resolve()
         install_registry.set_status(slug, "cloning")
-        background_tasks.add_task(_run_clone, slug, target)
+        background_tasks.add_task(_run_clone, slug)
         return {"status": "cloning", "slug": slug}
 
     raise HTTPException(
@@ -157,9 +153,9 @@ async def install_emulator(slug: str, background_tasks: BackgroundTasks):
     )
 
 
-async def _run_clone(slug: str, target: Path) -> None:
+async def _run_clone(slug: str) -> None:
     try:
-        await asyncio.to_thread(clone_rom_pack, target)
+        target = await asyncio.to_thread(clone_rom_pack)
         install_registry.set_status(slug, "complete", install_path=str(target))
     except FileExistsError as exc:
         install_registry.set_status(slug, "error", error=str(exc))

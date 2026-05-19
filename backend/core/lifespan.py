@@ -6,13 +6,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-
 from fastapi import FastAPI
 
 from backend.core import install_registry, process_registry
 from backend.core.database import create_tables, init_db
-from backend.core.settings import init_settings
+from backend.core.settings import get_base_path, init_settings
 import backend.models.user  # noqa: F401 — registers User with SQLModel.metadata
 import backend.models.media_restriction  # noqa: F401 — registers MediaRestriction with SQLModel.metadata
 
@@ -322,14 +320,37 @@ def _apply_schema_migrations() -> None:
             logger.info("Schema migration: backfilled slugs for %d library item(s)", len(items))
 
 
+def _flag_corrupt_platform_working_paths(db) -> None:
+    try:
+        from backend.models import Platform
+        corrupt = (
+            db.query(Platform)
+            .filter(Platform.working_image_path.like("%.cfg"))
+            .all()
+        )
+        for p in corrupt:
+            logger.warning(
+                "Platform %s (%s) has a .cfg file as working_image_path — "
+                "this record was created by the broken provisioner and must be re-registered",
+                p.id,
+                p.name,
+            )
+            if p.status != "degraded":
+                p.status = "degraded"
+        db.flush()
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Corrupt working_image_path check failed: %s", exc)
+
+
 def _ensure_default_paths() -> None:
-    lib = _PROJECT_ROOT / "library"
+    from backend.service.utils.settings import get_env_var
+    lib = get_base_path() / "library"
     for subdir in [
         "games",
         "os",
         "profiles",
         "tools",
-        Path("roms") / "86box",
         "bios",
         Path("bios") / "ps1",
         Path("bios") / "ps2",
@@ -342,6 +363,7 @@ def _ensure_default_paths() -> None:
         Path("saves") / "xemu",
     ]:
         (lib / subdir).mkdir(parents=True, exist_ok=True)
+    Path(get_env_var("ROM_PATH")).mkdir(parents=True, exist_ok=True)
 
 
 def _sync_detected_emulator_paths() -> None:
@@ -378,8 +400,7 @@ def _export_openapi_spec(app: FastAPI) -> None:
         return
     try:
         import json
-        from pathlib import Path as _Path
-        output = _Path(__file__).resolve().parent.parent.parent / "shared" / "openapi.json"
+        output = get_base_path() / "shared" / "openapi.json"
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(app.openapi(), indent=2), encoding="utf-8")
         logger.info("OpenAPI spec exported to %s", output)
@@ -404,6 +425,7 @@ async def lifespan(app: FastAPI):
         _seed_system_platforms(db)
         _seed_default_profiles(db)
         _cleanup_stale_sessions(db)
+        _flag_corrupt_platform_working_paths(db)
         db.commit()
 
     _scan_installed_emulators()

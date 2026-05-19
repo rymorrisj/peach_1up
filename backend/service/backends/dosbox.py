@@ -103,6 +103,38 @@ def _strip_autoexec(conf_text: str) -> str:
     return result
 
 
+def _validate_game_executable(game_executable: str, expected_drive: str) -> None:
+    """Validate game_executable before inserting into a DOSBox-X autoexec section.
+
+    Raises:
+        ValueError: If the value is empty, contains unsafe characters, starts
+                    with a DOSBox-X meta-character, or references the wrong drive.
+    """
+    if not game_executable:
+        raise ValueError("game_executable must be a non-empty string")
+
+    if "\n" in game_executable or "\r" in game_executable:
+        raise ValueError("game_executable must not contain newline characters")
+
+    if "\x00" in game_executable:
+        raise ValueError("game_executable must not contain null bytes")
+
+    if game_executable[0] in ("[", "@"):
+        raise ValueError(
+            f"game_executable must not start with '[' or '@' (DOSBox-X meta-characters); "
+            f"got '{game_executable[0]}'"
+        )
+
+    # If game_executable specifies an absolute drive path (e.g. C:\GAME.EXE),
+    # the drive letter must match the mounted drive to prevent cross-drive references.
+    if len(game_executable) >= 2 and game_executable[1] == ":":
+        specified = game_executable[0].upper() + ":"
+        if specified != expected_drive.upper():
+            raise ValueError(
+                f"game_executable references drive '{specified}' but media is mounted at '{expected_drive}'"
+            )
+
+
 def write_launch_conf(media_path: Path, era: str, executable_path: Path, game_executable: str | None = None) -> Path:
     """Write a per-launch DOSBox-X conf to a temp directory and return its path.
 
@@ -160,6 +192,7 @@ def write_launch_conf(media_path: Path, era: str, executable_path: Path, game_ex
     content += "[dos]\nautomount=false\nmountwarning=false\n\n"
     autoexec = f"[autoexec]\n{mount_line}\n{drive_line}\n"
     if game_executable:
+        _validate_game_executable(game_executable, drive_line)
         autoexec += f"{game_executable}\n"
     content += autoexec
 

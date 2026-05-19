@@ -23,6 +23,7 @@ win95:
   cpu_limit_percent: 75
   supported_media: [".iso", ".img", ".cue"]
   mount_type: cdrom
+  default_disk_size_mb: 1024
 
 win98:
   primary: box86
@@ -32,6 +33,7 @@ win98:
   cpu_limit_percent: 75
   supported_media: [".iso", ".img", ".cue"]
   mount_type: cdrom
+  default_disk_size_mb: 2048
 
 winxp:
   primary: virtualbox
@@ -39,6 +41,7 @@ winxp:
   cpu_limit_percent: 80
   supported_media: [".iso", ".img", ".cue"]
   mount_type: cdrom
+  default_disk_size_mb: 4096
 
 ps1:
   backend: duckstation

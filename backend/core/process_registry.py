@@ -23,7 +23,14 @@ _lock = threading.Lock()
 
 def register(pid: int, entry: ProcessEntry) -> None:
     with _lock:
-        _registry[pid] = entry
+        try:
+            _registry[pid] = entry
+        except Exception as exc:
+            logger.error(
+                "Failed to register process pid=%d library_item_id=%s profile_id=%s: %s",
+                pid, entry.library_item_id, entry.profile_id, exc,
+            )
+            raise
 
 
 def get(pid: int) -> ProcessEntry | None:
@@ -45,14 +52,14 @@ def terminate(pid: int) -> bool:
             proc = entry.process_handle
             if proc is not None and proc.poll() is None:
                 proc.terminate()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to terminate process pid=%d: %s", pid, exc)
         _registry.pop(pid, None)
         if entry.job_handle is not None:
             try:
                 entry.job_handle.terminate_all()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to terminate job handle for pid=%d: %s", pid, exc)
         return True
 
 
@@ -73,8 +80,8 @@ def cleanup_exited() -> list[tuple[int, ProcessEntry]]:
                 if entry.job_handle is not None:
                     try:
                         entry.job_handle.close()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.error("Failed to close job handle for pid=%d: %s", pid, exc)
     return removed
 
 

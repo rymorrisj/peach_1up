@@ -1,15 +1,12 @@
 import glob as _glob
 import os
-import sys
 import tomllib
 from pathlib import Path
 
-if getattr(sys, "frozen", False):
-    _PROJECT_ROOT = Path(sys.executable).parent
-else:
-    _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-_CATALOG_PATH = _PROJECT_ROOT / "config" / "emulators.toml"
-_BASE_DIR = _PROJECT_ROOT / "emulators"
+from backend.core.settings import get_base_path
+
+_CATALOG_PATH = get_base_path() / "config" / "emulators.toml"
+_BASE_DIR = get_base_path() / "emulators"
 
 _SLUG_TO_SETTINGS_KEY: dict[str, str] = {
     "dosbox-x":    "DOSBOX_PATH",
@@ -56,7 +53,7 @@ def get_install_path(slug: str) -> Path | None:
 
     if install_type == "rom_pack":
         if binary:
-            pack_dir = (_PROJECT_ROOT / binary).resolve()
+            pack_dir = (get_base_path() / binary).resolve()
             try:
                 if pack_dir.exists() and pack_dir.is_dir() and any(pack_dir.iterdir()):
                     return pack_dir
@@ -160,7 +157,7 @@ def configure_emulator(slug: str) -> None:
     elif slug == "project64":
         cfg_path = exe_dir / "Project64.cfg"
         if not cfg_path.exists():
-            saves_dir = _PROJECT_ROOT / "library" / "saves" / "project64"
+            saves_dir = get_base_path() / "library" / "saves" / "project64"
             screenshots_dir = saves_dir / "screenshots"
             cfg_path.write_text(
                 "[Directory]\n"
@@ -197,23 +194,12 @@ def detect_and_sync_all() -> None:
 
 
 def load_bios_requirements() -> list[dict]:
-    result = []
-    for entry in load_catalog():
-        for dep in entry.get("dependencies", []):
-            if dep.get("acquire_method") == "user_supplied":
-                result.append({
-                    "slug": dep["name"],
-                    "name": dep.get("display_name", dep["name"]),
-                    "platform": dep.get("platform", ""),
-                    "bios_path": dep.get("bios_path", ""),
-                    "guidance_text": dep.get("guidance_text", ""),
-                    "guidance_url": dep.get("guidance_url", ""),
-                })
-    return result
+    data = tomllib.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
+    return data.get("bios_requirements", [])
 
 
 def check_bios_presence(bios_path: str) -> bool:
-    path = (_PROJECT_ROOT / bios_path).resolve()
+    path = (get_base_path() / bios_path).resolve()
     try:
         return path.exists() and path.is_dir() and any(path.iterdir())
     except PermissionError:

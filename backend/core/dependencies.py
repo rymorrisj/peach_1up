@@ -44,11 +44,6 @@ def get_active_user(request: Request, db: Session = Depends(get_db)) -> User:
     Raises 503 if no owner account exists.
     """
 
-    try:
-        from backend.core.settings import get_settings
-    except RuntimeError:
-        pass
-
     owner = db.query(User).filter(User.is_owner.is_(True)).first()
     if owner is None:
         raise HTTPException(status_code=503, detail="No owner account configured.")

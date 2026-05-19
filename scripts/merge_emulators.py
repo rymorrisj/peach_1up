@@ -10,6 +10,7 @@ from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
 _SRC_DIR = _ROOT / "config" / "emulators"
+_BIOS_PATH = _ROOT / "config" / "bios_requirements.toml"
 _OUT_PATH = _ROOT / "config" / "emulators.toml"
 
 
@@ -49,6 +50,12 @@ def _render_flat(data: dict) -> list[str]:
     return lines
 
 
+def _render_bios_requirement(data: dict) -> str:
+    parts = ["[[bios_requirements]]"]
+    parts.extend(_render_flat(data))
+    return "\n".join(parts)
+
+
 def _render_emulator(data: dict) -> str:
     deps = data.pop("dependencies", [])
     grants = data.pop("filesystem_grants", [])
@@ -84,6 +91,18 @@ def main() -> None:
             sys.exit(1)
         sections.append(_render_emulator(data))
         print(f"  merged {path.name}")
+
+    if not _BIOS_PATH.exists():
+        print(f"ERROR: bios_requirements.toml not found: {_BIOS_PATH}", file=sys.stderr)
+        sys.exit(1)
+    try:
+        bios_data = tomllib.loads(_BIOS_PATH.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as exc:
+        print(f"ERROR: bios_requirements.toml: {exc}", file=sys.stderr)
+        sys.exit(1)
+    for entry in bios_data.get("bios_requirements", []):
+        sections.append(_render_bios_requirement(entry))
+        print(f"  merged bios_requirement {entry.get('slug', '?')}")
 
     _OUT_PATH.write_text("\n\n".join(sections) + "\n", encoding="utf-8")
     print(f"written {_OUT_PATH}")

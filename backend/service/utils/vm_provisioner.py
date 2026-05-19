@@ -11,13 +11,17 @@ from __future__ import annotations
 import configparser
 import logging
 import os
+import struct
 import subprocess
+import time
+import uuid
 from pathlib import Path
 
-from backend.models.platform import Platform
-from backend.service.utils.settings import get, get_binary_path, get_env_var
+import yaml
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+from backend.core.settings import get_base_path
+from backend.models.platform import Platform
+from backend.service.utils.settings import get_binary_path, get_env_var
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +68,54 @@ _HARDWARE_PROFILES: dict[str, dict[str, str]] = {
 }
 
 _MIDI_PROFILES = frozenset({"midi"})
+
+
+def _build_vhd_footer(size_bytes: int) -> bytes:
+    footer = bytearray(512)
+    footer[0:8] = b"conectix"
+    struct.pack_into(">I", footer, 8, 0x00000002)
+    struct.pack_into(">I", footer, 12, 0x00010000)
+    struct.pack_into(">Q", footer, 16, 0xFFFFFFFFFFFFFFFF)
+    epoch_2000 = 946684800
+    struct.pack_into(">I", footer, 24, max(0, int(time.time()) - epoch_2000))
+    footer[28:32] = b"pe1u"
+    struct.pack_into(">I", footer, 32, 0x00010000)
+    footer[36:40] = b"Wi2k"
+    struct.pack_into(">Q", footer, 40, size_bytes)
+    struct.pack_into(">Q", footer, 48, size_bytes)
+    cylinders = size_bytes // (16 * 63 * 512)
+    struct.pack_into(">HBB", footer, 56, cylinders, 16, 63)
+    struct.pack_into(">I", footer, 60, 0x00000002)
+    struct.pack_into(">I", footer, 64, 0)
+    footer[68:84] = uuid.uuid4().bytes
+    checksum = (~sum(footer)) & 0xFFFFFFFF
+    struct.pack_into(">I", footer, 64, checksum)
+    return bytes(footer)
+
+
+def _load_default_disk_size_mb(era: str) -> int:
+    """Load default_disk_size_mb for *era* from eras.yaml.
+
+    Raises:
+        FileNotFoundError: If eras.yaml cannot be read, the era entry is
+            absent, or the default_disk_size_mb key is missing.
+    """
+    eras_yaml = get_base_path() / "config" / "eras.yaml"
+    try:
+        with eras_yaml.open("r", encoding="utf-8") as fh:
+            eras_config = yaml.safe_load(fh)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"eras.yaml not found at {eras_yaml}")
+    if not isinstance(eras_config, dict) or era not in eras_config:
+        raise FileNotFoundError(
+            f"Era '{era}' not found in eras.yaml — cannot determine disk size."
+        )
+    size = eras_config[era].get("default_disk_size_mb")
+    if size is None:
+        raise FileNotFoundError(
+            f"default_disk_size_mb not defined for era '{era}' in eras.yaml."
+        )
+    return int(size)
 
 
 def _run_vbm(vbox_path: str, args: list[str], desc: str) -> None:
@@ -185,12 +237,12 @@ def provision_86box_vm(
     box86_path: str,
     rom_path: str,
     hardware_profile: str = "standard",
-) -> str:
-    """Create an 86Box INI config file for a Win95/Win98 platform.
+) -> tuple[str, str]:
+    """Create a raw fixed-size VHD and 86Box INI config for a Win95/Win98 platform.
 
-    Generates a complete INI config from the selected hardware profile and
-    era machine base, writes it to OS_PATH/{era}/{vm_name}/86box.cfg, and
-    returns that path. Stored as both working_image_path and config_path.
+    Creates a raw VHD at OS_PATH/{era}/{vm_name}/disk.vhd sized per
+    eras.yaml default_disk_size_mb and appends a valid 512-byte VHD footer,
+    then writes a complete INI config at OS_PATH/{era}/{vm_name}/86box.cfg.
 
     Args:
         platform: Platform record with ``era``, ``slug`` (or ``id``), and
@@ -201,15 +253,23 @@ def provision_86box_vm(
             Defaults to ``"standard"`` if the key is unrecognised.
 
     Returns:
-        Absolute path to the created 86box.cfg as a string.
+        Tuple of (working_image_path, config_path) — absolute path strings.
+        working_image_path is the raw VHD disk file;
+        config_path is the 86box.cfg.
 
     Raises:
         ValueError: If era is unsupported.
-        OSError: If writing the config file fails.
+        FileNotFoundError: If eras.yaml is missing, the era entry lacks
+            default_disk_size_mb, or base_image_path is set but does not exist.
+        OSError: If creating the disk image or writing the config fails.
     """
     era = platform.era
     if era not in _WIN9X_ERAS:
         raise ValueError(f"provision_86box_vm: unsupported era '{era}'")
+
+    disk_size_mb = _load_default_disk_size_mb(era)
+    size_bytes = disk_size_mb * 1024 * 1024
+    cylinders = size_bytes // (16 * 63 * 512)
 
     profile = _HARDWARE_PROFILES.get(hardware_profile, _HARDWARE_PROFILES["standard"])
     machine_base = _MACHINE_BASE[era]
@@ -220,6 +280,24 @@ def provision_86box_vm(
     cfg_dir = _resolve_within(os_base, era, vm_name)
     cfg_dir.mkdir(parents=True, exist_ok=True)
     cfg_path = cfg_dir / "86box.cfg"
+    vhd_path = cfg_dir / "disk.vhd"
+
+    footer = _build_vhd_footer(size_bytes)
+    with vhd_path.open("wb") as f:
+        f.seek(size_bytes - 512 - 1)
+        f.write(b"\x00")
+        f.write(footer)
+
+    if platform.base_image_path:
+        from backend.service.utils.path_utils import normalise_path
+        iso_path = normalise_path(platform.base_image_path)
+        if not iso_path.exists():
+            raise FileNotFoundError(
+                f"Base image not found: {iso_path}. "
+                "Ensure base_image_path is set to a valid ISO before provisioning."
+            )
+    else:
+        iso_path = None
 
     parser = configparser.RawConfigParser()
     parser.optionxform = str
@@ -239,28 +317,34 @@ def provision_86box_vm(
     parser.add_section("Sound")
     parser.set("Sound", "sndcard", profile["sndcard"])
 
-    parser.add_section("Network")
-    parser.set("Network", "net_type",    "none")
-    parser.set("Network", "net_01_link", "0")
-
     if hardware_profile in _MIDI_PROFILES:
         parser.add_section("MIDI")
         parser.set("MIDI", "midi_device", "nuked_sc55")
 
-    parser.add_section("Paths")
-    parser.set("Paths", "rompath", os.path.normpath(rom_path))
+    vhd_fwd = str(vhd_path).replace("\\", "/")
+    parser.add_section("Hard disks")
+    parser.set("Hard disks", "hdd_01_fn",          vhd_fwd)
+    parser.set("Hard disks", "hdd_01_ide_channel",  "0:0")
+    parser.set("Hard disks", "hdd_01_parameters",   f"63, 16, {cylinders}, 0, ide")
+    parser.set("Hard disks", "hdd_01_speed",         "ramdisk")
 
-    if platform.base_image_path:
-        from backend.service.utils.path_utils import normalise_path
-        iso_path = normalise_path(platform.base_image_path)
-        if iso_path.exists():
-            parser.add_section("CD-ROM")
-            parser.set("CD-ROM", "cd_path", os.path.normpath(str(iso_path)))
+    if iso_path is not None:
+        iso_fwd = str(iso_path).replace("\\", "/")
+        parser.add_section("Floppy and CD-ROM drives")
+        parser.set("Floppy and CD-ROM drives", "cdrom_02_image_path", iso_fwd)
+        parser.set("Floppy and CD-ROM drives", "cdrom_02_parameters",  "1, atapi")
+        parser.set("Floppy and CD-ROM drives", "cdrom_02_ide_channel", "0:1")
+
+    parser.add_section("Paths")
+    parser.set("Paths", "rompath", str(Path(rom_path)).replace("\\", "/"))
+
+    parser.add_section("Network")
+    parser.set("Network", "net_01_link", "0")
 
     with cfg_path.open("w", encoding="utf-8") as fh:
         parser.write(fh)
 
-    return str(cfg_path)
+    return str(vhd_path), str(cfg_path)
 
 
 def provision_platform(platform: Platform) -> tuple[str | None, str | None]:
@@ -308,16 +392,10 @@ def provision_platform(platform: Platform) -> tuple[str | None, str | None]:
                 "BOX86_PATH is not configured — cannot provision 86Box config. "
                 "Set the path in Settings or config/settings.yaml."
             )
-        _rom_str = get("ROM_PATH") or ""
-        rom_dir = Path(_rom_str) if _rom_str else _PROJECT_ROOT / "library" / "roms" / "86box"
-        if not rom_dir.exists():
-            raise RuntimeError(
-                f"86Box ROM pack not found at {rom_dir}. "
-                "Download the ROM pack from https://github.com/86Box/roms and place it at that path."
-            )
-        rom_path = str(rom_dir)
+        from backend.service.backends.box86 import _resolve_rom_path
+        rom_dir = _resolve_rom_path(Path(box86_path))
         hw_profile = getattr(platform, "hardware_profile", None) or "standard"
-        cfg = provision_86box_vm(platform, box86_path, rom_path, hw_profile)
-        return cfg, cfg
+        img_path, cfg_path = provision_86box_vm(platform, box86_path, str(rom_dir), hw_profile)
+        return img_path, cfg_path
 
     return None, None
