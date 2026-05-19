@@ -1,6 +1,9 @@
-import logging
 import sys
 from pathlib import Path
+
+from backend.core.logger import get_logger
+
+logger = get_logger(__name__)
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -53,10 +56,10 @@ app.include_router(filesystem.router)
 app.include_router(media.router)
 
 frontend_dist = resource_path("frontend/dist")
-print(f"[PEACH] frozen={getattr(sys, 'frozen', False)}", flush=True)
-print(f"[PEACH] _MEIPASS={getattr(sys, '_MEIPASS', 'N/A')}", flush=True)
-print(f"[PEACH] frontend_dist={frontend_dist}", flush=True)
-print(f"[PEACH] exists={frontend_dist.exists()}", flush=True)
+logger.debug("[PEACH] frozen=%s", getattr(sys, 'frozen', False))
+logger.debug("[PEACH] _MEIPASS=%s", getattr(sys, '_MEIPASS', 'N/A'))
+logger.debug("[PEACH] frontend_dist=%s", frontend_dist)
+logger.debug("[PEACH] exists=%s", frontend_dist.exists())
 
 from fastapi.responses import FileResponse
 

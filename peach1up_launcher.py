@@ -25,50 +25,9 @@ if __name__ == "__main__":
     import asyncio
     import uvicorn
     from backend.main import app
+    from backend.core.logger import configure_uvicorn_logging
 
-    LOG_CONFIG = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "default": {
-                "class": "logging.Formatter",
-                "format": "%(levelname)s: %(message)s",
-            },
-            "access": {
-                "class": "logging.Formatter",
-                "format": '%(levelname)s: %(client_addr)s - "%(request_line)s" %(status_code)s',
-            },
-        },
-        "handlers": {
-            "default": {
-                "class": "logging.StreamHandler",
-                "formatter": "default",
-                "stream": "ext://sys.stderr",
-            },
-            "access": {
-                "class": "logging.StreamHandler",
-                "formatter": "access",
-                "stream": "ext://sys.stdout",
-            },
-        },
-        "loggers": {
-            "uvicorn": {
-                "handlers": ["default"],
-                "level": "INFO",
-                "propagate": False,
-            },
-            "uvicorn.error": {
-                "handlers": ["default"],
-                "level": "INFO",
-                "propagate": False,
-            },
-            "uvicorn.access": {
-                "handlers": ["access"],
-                "level": "INFO",
-                "propagate": False,
-            },
-        },
-    }
+    configure_uvicorn_logging()
 
     config = uvicorn.Config(
         app,

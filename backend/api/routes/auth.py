@@ -1,13 +1,12 @@
-import logging
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.logger import get_logger
 from backend.models.user import User, UserRead
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 

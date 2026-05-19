@@ -1,4 +1,3 @@
-import logging
 import re
 import secrets
 import threading
@@ -12,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, get_filtered_library, require_permission
+from backend.core.logger import get_logger
 from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
@@ -32,7 +32,7 @@ def _make_slug(title: str, db: Session) -> str:
         n += 1
 
 router = APIRouter(prefix="/api/v1/library", tags=["library"])
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _scan_lock = threading.Lock()
 _scan_state: dict[str, Any] = {"running": False, "progress": 0, "total": 0, "results": []}
