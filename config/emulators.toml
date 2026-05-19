@@ -1,4 +1,22 @@
 [[emulators]]
+slug = "86box-roms"
+name = "86Box ROM Pack"
+description = "ROM and firmware files required by 86Box for PC emulation"
+version = "v5.3"
+install_type = "rom_pack"
+install_scope = "portable"
+binary = "emulators/86box/roms"
+acquire_method = "git_clone"
+acquire_url = "https://github.com/86Box/roms"
+acquire_tag = "v5.3"
+required = false
+license = "Various"
+source_url = "https://github.com/86Box/roms"
+supported_formats = []
+guidance_text = "Click Clone ROM Pack to download via git, or manually download and extract to emulators/86box/roms/."
+guidance_url = "https://github.com/86Box/roms"
+
+[[emulators]]
 slug = "86box"
 display_name = "86Box"
 name = "86Box"
@@ -269,3 +287,35 @@ platform = "xbox"
 bios_path = "library/bios/xbox"
 guidance_text = "Place your Xbox MCPX and BIOS files in library/bios/xbox/. See xemu.app for the exact files required."
 guidance_url = "https://xemu.app/docs/required-files/"
+
+[[bios_requirements]]
+slug = "ps1-bios"
+name = "PS1 BIOS"
+platform = "ps1"
+bios_path = "library/bios/ps1"
+guidance_text = "Place your PS1 BIOS file (e.g. scph1001.bin) in library/bios/ps1/. DuckStation requires a BIOS image to boot PS1 games."
+guidance_url = "https://www.duckstation.org/wiki/BIOS"
+
+[[bios_requirements]]
+slug = "ps2-bios"
+name = "PS2 BIOS"
+platform = "ps2"
+bios_path = "library/bios/ps2"
+guidance_text = "Place your PS2 BIOS files in library/bios/ps2/. PCSX2 requires a PS2 BIOS image to run."
+guidance_url = "https://pcsx2.net/guides/basic-setup/"
+
+[[bios_requirements]]
+slug = "xbox-bios"
+name = "Xbox BIOS"
+platform = "xbox"
+bios_path = "library/bios/xbox"
+guidance_text = "Place your Xbox MCPX and BIOS files in library/bios/xbox/. See xemu.app for the exact files required."
+guidance_url = "https://xemu.app/docs/required-files/"
+
+[[bios_requirements]]
+slug = "dreamcast-bios"
+name = "Dreamcast BIOS"
+platform = "dreamcast"
+bios_path = "library/bios/dreamcast"
+guidance_text = "Place your Dreamcast BIOS files (dc_boot.bin, dc_flash.bin) in library/bios/dreamcast/. Flycast requires these files to boot."
+guidance_url = "https://github.com/flyinghead/flycast"

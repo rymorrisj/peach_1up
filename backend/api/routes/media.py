@@ -49,9 +49,9 @@ async def upload_media(
     max_bytes = int(svc.get("UPLOAD_MAX_BYTES", _DEFAULT_MAX_BYTES) or _DEFAULT_MAX_BYTES)
 
     if media_type == "os":
-        base = Path(svc.get("OS_PATH", "") or "library/os").resolve()
+        base = Path(svc.get_env_var("OS_PATH")).resolve()
     else:
-        base = Path(svc.get("GAMES_PATH", "") or "library/games").resolve()
+        base = Path(svc.get_env_var("GAMES_PATH")).resolve()
 
     slug = _make_slug(file.filename)
     dest_dir = base / era / slug

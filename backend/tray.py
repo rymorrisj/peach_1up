@@ -5,21 +5,20 @@ import subprocess
 import sys
 import threading
 import webbrowser
-from pathlib import Path
 
 import pystray
 from PIL import Image
 
-logger = logging.getLogger(__name__)
+from backend.core.settings import get_base_path
 
-_ICON_PATH = Path(__file__).resolve().parent.parent / "assets" / "peach1up.png"
+logger = logging.getLogger(__name__)
 _APP_URL = "http://localhost:8000"
 _icon: pystray.Icon | None = None
 
 
 def _load_image() -> Image.Image:
     try:
-        return Image.open(_ICON_PATH)
+        return Image.open(get_base_path() / "assets" / "peach1up.png")
     except Exception:
         return Image.new("RGBA", (16, 16), (255, 138, 92, 255))
 

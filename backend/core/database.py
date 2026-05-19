@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 from typing import Generator
 
@@ -6,10 +5,9 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlmodel import SQLModel
 
-if getattr(sys, "frozen", False):
-    _DB_PATH = Path("database") / "data" / "peach1up.db"
-else:
-    _DB_PATH = Path(__file__).resolve().parents[2] / "database" / "data" / "peach1up.db"
+from backend.core.settings import get_base_path
+
+_DB_PATH = get_base_path() / "database" / "data" / "peach1up.db"
 _ENGINE = None
 _SESSION_FACTORY = None
 

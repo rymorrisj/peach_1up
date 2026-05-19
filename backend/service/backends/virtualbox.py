@@ -15,6 +15,7 @@ from typing import Optional, Tuple
 import yaml
 
 from backend.constants_generated import Era
+from backend.core.settings import get_base_path
 from backend.models.platform import Platform
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
@@ -23,8 +24,6 @@ from backend.service.utils.media_attach import build_virtualbox_attachment
 from backend.service.utils.settings import get_binary_path
 
 SUPPORTED_ERAS = {Era.WIN95.value, Era.WIN98.value, Era.WINXP.value}
-
-_TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "config" / "templates"
 
 
 def _vboxmanage_path() -> str:
@@ -80,7 +79,7 @@ def load_template(era: str) -> dict:
         FileNotFoundError: If the template file does not exist.
         ValueError: If the file is not a valid YAML mapping.
     """
-    template_path = _TEMPLATE_DIR / f"virtualbox_{era}.yaml"
+    template_path = get_base_path() / "config" / "templates" / f"virtualbox_{era}.yaml"
     if not template_path.exists():
         raise FileNotFoundError(
             f"VirtualBox hardware template not found: {template_path}. "
