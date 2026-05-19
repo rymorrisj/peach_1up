@@ -73,10 +73,20 @@ export default function Environments() {
     setFormErrors((prev) => ({ ...prev, [key]: undefined }))
   }
 
+  const INSTALL_MEDIA_ERAS = new Set(['win95', 'win98', 'winxp'])
+
   function validate(): boolean {
     const errors: Partial<Record<keyof EnvironmentForm, string>> = {}
     if (!form.name.trim()) errors.name = 'Name is required.'
     if (!form.era) errors.era = 'Select an environment era.'
+    if (
+      modal?.mode === 'create' &&
+      form.era &&
+      INSTALL_MEDIA_ERAS.has(form.era) &&
+      !form.base_image_path.trim()
+    ) {
+      errors.base_image_path = 'Installation media is required for this era.'
+    }
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }

@@ -237,7 +237,7 @@ def provision_86box_vm(
     box86_path: str,
     rom_path: str,
     hardware_profile: str = "standard",
-) -> tuple[str, str]:
+) -> tuple[str | None, str, str]:
     """Create a raw fixed-size VHD and 86Box INI config for a Win95/Win98 platform.
 
     Creates a raw VHD at OS_PATH/{era}/{vm_name}/disk.vhd sized per
@@ -253,7 +253,8 @@ def provision_86box_vm(
             Defaults to ``"standard"`` if the key is unrecognised.
 
     Returns:
-        Tuple of (working_image_path, config_path) — absolute path strings.
+        Tuple of (base_image_path, working_image_path, config_path).
+        base_image_path is the resolved ISO string, or None if not set;
         working_image_path is the raw VHD disk file;
         config_path is the 86box.cfg.
 
@@ -344,24 +345,24 @@ def provision_86box_vm(
     with cfg_path.open("w", encoding="utf-8") as fh:
         parser.write(fh)
 
-    return str(vhd_path), str(cfg_path)
+    return str(iso_path) if iso_path else None, str(vhd_path), str(cfg_path)
 
 
-def provision_platform(platform: Platform) -> tuple[str | None, str | None]:
+def provision_platform(platform: Platform) -> tuple[str | None, str | None, str | None]:
     """Provision a working image for a platform, selecting the backend by era.
 
     Provisions 86Box for win95/win98 (the new default), VirtualBox for winxp.
-    Returns (None, None) for eras that do not need provisioning or when the
-    required emulator paths are not configured.
+    Returns (None, None, None) for eras that do not need provisioning or when
+    the required emulator paths are not configured.
 
     Args:
         platform: Platform record with ``era``, ``slug`` (or ``id``), and
             optionally ``base_image_path`` set.
 
     Returns:
-        ``(working_image_path, config_path)`` — both are None if provisioning
-        was skipped. For 86Box, both values are the cfg file path. For
-        VirtualBox, config_path is None (config lives inside the VM).
+        ``(base_image_path, working_image_path, config_path)`` — all None if
+        provisioning was skipped. base_image_path is the resolved ISO path for
+        86Box, or None for VirtualBox. config_path is None for VirtualBox.
 
     Raises:
         RuntimeError: If required emulator paths are not configured.
@@ -383,7 +384,7 @@ def provision_platform(platform: Platform) -> tuple[str | None, str | None]:
                 "Download VirtualBox from: https://www.virtualbox.org"
             )
         working = provision_virtualbox_vm(platform, vbox_path)
-        return working, None
+        return None, working, None
 
     if era in _WIN9X_ERAS:
         box86_path = get_binary_path("box86")
@@ -395,7 +396,9 @@ def provision_platform(platform: Platform) -> tuple[str | None, str | None]:
         from backend.service.backends.box86 import _resolve_rom_path
         rom_dir = _resolve_rom_path(Path(box86_path))
         hw_profile = getattr(platform, "hardware_profile", None) or "standard"
-        img_path, cfg_path = provision_86box_vm(platform, box86_path, str(rom_dir), hw_profile)
-        return img_path, cfg_path
+        iso_path, img_path, cfg_path = provision_86box_vm(platform, box86_path, str(rom_dir), hw_profile)
+        if iso_path and not platform.base_image_path:
+            platform.base_image_path = iso_path
+        return iso_path, img_path, cfg_path
 
-    return None, None
+    return None, None, None

@@ -4,6 +4,11 @@ Emulator launch orchestration for Peach 1UP.
 Provides the public entry point ``launch_under_job_object`` which runs an
 emulator executable under the current user account inside a Windows Job Object
 with memory and CPU limits sourced from eras.yaml.
+
+Processes are launched without CREATE_SUSPENDED and assigned to the Job Object
+immediately after CreateProcessW returns.  There is a small race window between
+launch and assignment; if Job Object assignment fails the process is terminated
+and the launch is aborted — there is no unsandboxed fallback.
 """
 
 import ctypes
@@ -15,7 +20,6 @@ from pathlib import Path
 from typing import List, Tuple
 
 from backend.service.utils.win32_types import (
-    _CREATE_SUSPENDED,
     _CREATE_BREAKAWAY_FROM_JOB,
     STARTUPINFOW,
     PROCESS_INFORMATION,
@@ -23,7 +27,7 @@ from backend.service.utils.win32_types import (
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.sandbox_process import SandboxProcess
-from backend.service.utils.job_objects import WindowsJobObject, _process_in_job
+from backend.service.utils.job_objects import WindowsJobObject
 
 logger = get_logger(__name__)
 
@@ -77,9 +81,7 @@ def _launch_process(
 ) -> SandboxProcess:
     """Launch a process under the current user account via CreateProcessW.
 
-    The process is created with ``creation_flags`` — callers pass
-    ``CREATE_SUSPENDED`` so the process can be assigned to a Job Object
-    before any code runs.
+    The process is created with ``creation_flags``.
 
     Args:
         executable_path: Full path to the emulator executable.
@@ -126,12 +128,14 @@ def _launch_process(
             f"Error code: {error_code}."
         )
 
-    return SandboxProcess(
+    proc = SandboxProcess(
         pid=pi.dwProcessId,
         process_handle=pi.hProcess,
-        thread_handle=pi.hThread,
+        thread_handle=None,
         args=[executable_path] + args,
     )
+    ctypes.windll.kernel32.CloseHandle(pi.hThread)
+    return proc
 
 
 def launch_under_job_object(
@@ -146,10 +150,10 @@ def launch_under_job_object(
     Orchestrates the full startup sequence:
       1. Load memory_limit_mb and cpu_limit_percent for ``era`` from eras.yaml.
       2. Create a ``WindowsJobObject`` and apply both limits plus kill-on-close.
-      3. Launch the emulator as the current user in a suspended state
-         (prevents a race between process start and job assignment).
-      4. Assign the process to the job object.
-      5. Resume the process.
+      3. Launch the emulator as the current user without CREATE_SUSPENDED.
+      4. Immediately assign the process to the job object after CreateProcessW returns.
+         If assignment fails with ERROR_ACCESS_DENIED (5), terminate and relaunch with
+         CREATE_BREAKAWAY_FROM_JOB, then assign to the job object normally.
 
     The launch is aborted and an error surfaced if:
       - ``CreateProcessW`` fails for any reason.
@@ -186,26 +190,9 @@ def launch_under_job_object(
         job_object = WindowsJobObject(job_name, memory_limit_mb, cpu_limit_percent)
         job_object.create()
 
-        base_flags = subprocess.CREATE_NEW_PROCESS_GROUP | _CREATE_SUSPENDED
+        base_flags = subprocess.CREATE_NEW_PROCESS_GROUP
 
         process = _launch_process(executable_path, args, base_flags)
-
-        # Windows 11 pre-assigns child processes to an OS-managed job object.
-        # Detect this on the child itself after launch, then kill and re-launch
-        # with CREATE_BREAKAWAY_FROM_JOB so it escapes the OS job and can be
-        # cleanly assigned to ours.
-        if _process_in_job(process.pid):
-            logger.debug(
-                "Windows 11 job pre-assignment detected, relaunching with breakaway"
-            )
-            try:
-                process.kill()
-                process.wait()
-            except Exception as exc:
-                logger.error("kill failed for pid=%s during breakaway pre-check teardown: %s", process.pid, exc)
-            process = _launch_process(
-                executable_path, args, base_flags | _CREATE_BREAKAWAY_FROM_JOB
-            )
 
     except Exception as e:
         cleanup_errors = []
@@ -283,21 +270,7 @@ def launch_under_job_object(
                 f"Failed to assign breakaway process to job object: {exc3}"
             )
 
-    try:
-        process.resume()
-    except Exception as exc:
-        try:
-            process.kill()
-            process.wait()
-        except Exception as kill_exc:
-            logger.error("kill failed for pid=%s during resume failure cleanup: %s", process.pid, kill_exc)
-        try:
-            job_object.terminate_all()
-        except Exception:
-            pass
-        raise RuntimeError(f"Failed to resume suspended process: {exc}")
-
-    # pi.hThread was closed inside resume(). pi.hProcess is kept open so that
-    # SandboxProcess.poll() can call GetExitCodeProcess to detect exit.
+    # pi.hThread was closed in _launch_process immediately after process creation.
+    # pi.hProcess is kept open so SandboxProcess.poll() can call GetExitCodeProcess.
     # _close_handles() (called from poll() on exit) closes it exactly once.
     return (process, job_object)

@@ -6,8 +6,6 @@ import logging
 import os
 import sys
 
-_IS_DEV = os.environ.get("PEACH_ENV", "production") == "development"
-
 _ANSI: dict[int, str] = {
     logging.DEBUG:    "\033[2;37m",
     logging.INFO:     "\033[32m",
@@ -37,7 +35,18 @@ def _make_dev_handler() -> logging.Handler:
     return handler
 
 
-_dev_handler: logging.Handler | None = _make_dev_handler() if _IS_DEV else None
+_dev_handler: logging.Handler | None = None
+
+
+def _is_dev() -> bool:
+    return os.environ.get("PEACH_ENV", "production") == "development"
+
+
+def _get_dev_handler() -> logging.Handler:
+    global _dev_handler
+    if _dev_handler is None:
+        _dev_handler = _make_dev_handler()
+    return _dev_handler
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -45,10 +54,9 @@ def get_logger(name: str) -> logging.Logger:
     if logger.handlers:
         return logger
     logger.propagate = False
-    if _IS_DEV:
-        assert _dev_handler is not None
+    if _is_dev():
         logger.setLevel(logging.DEBUG)
-        logger.addHandler(_dev_handler)
+        logger.addHandler(_get_dev_handler())
     else:
         logger.addHandler(logging.NullHandler())
         logger.setLevel(logging.CRITICAL)
@@ -60,10 +68,9 @@ def configure_uvicorn_logging() -> None:
         uvi = logging.getLogger(name)
         uvi.handlers.clear()
         uvi.propagate = False
-        if _IS_DEV:
-            assert _dev_handler is not None
+        if _is_dev():
             uvi.setLevel(logging.DEBUG)
-            uvi.addHandler(_dev_handler)
+            uvi.addHandler(_get_dev_handler())
         else:
             uvi.addHandler(logging.NullHandler())
             uvi.setLevel(logging.CRITICAL)

@@ -140,6 +140,9 @@ xcopy /E /I /Y config dist\peach1up\config
 echo === Stripping first_run_complete from dist settings.yaml ===
 python -c "import yaml,pathlib; p=pathlib.Path('dist/peach1up/config/settings.yaml'); d=yaml.safe_load(p.read_text()) or {}; d.pop('first_run_complete',None); p.write_text(yaml.dump(d))"
 
+echo === Writing peach_env=production to dist settings.yaml ===
+python -c "import yaml,pathlib; p=pathlib.Path('dist/peach1up/config/settings.yaml'); d=yaml.safe_load(p.read_text()) or {}; d['peach_env']='production'; p.write_text(yaml.dump(d))"
+
 echo === Build complete ===
 goto :eof
 

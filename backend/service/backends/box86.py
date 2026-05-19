@@ -149,7 +149,7 @@ def _inject_install_iso(config_path: str, iso_path: Path) -> None:
     section = "Floppy and CD-ROM drives"
     if not parser.has_section(section):
         parser.add_section(section)
-    iso_fwd = str(iso_path).replace("\\", "/")
+    iso_fwd = str(Path(iso_path).resolve()).replace("\\", "/")
     parser.set(section, "cdrom_02_image_path", iso_fwd)
     parser.set(section, "cdrom_02_parameters",  "1, atapi")
     parser.set(section, "cdrom_02_ide_channel", "0:1")

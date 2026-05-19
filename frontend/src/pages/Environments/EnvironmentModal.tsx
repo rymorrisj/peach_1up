@@ -29,6 +29,7 @@ const EMULATOR_LABELS: Record<string, string> = {
 }
 
 const BOX86_ERAS = new Set<PCEra>(['win95', 'win98'])
+const INSTALL_MEDIA_ERAS = new Set<PCEra>(['win95', 'win98', 'winxp'])
 
 type HardwareProfile = 'standard' | '3dfx' | 'opl' | 'midi'
 
@@ -102,8 +103,10 @@ export default function EnvironmentModal({
 }: EnvironmentModalProps) {
   const emulatorLabel = form.era ? (EMULATOR_LABELS[ERA_TO_EMULATOR[form.era]] ?? null) : null
   const isBox86Era = form.era !== null && BOX86_ERAS.has(form.era)
+  const showInstallMediaAbove = form.era !== null && INSTALL_MEDIA_ERAS.has(form.era) && mode === 'create'
   const hasAdvancedValues = !!(
-    form.base_image_path || form.working_image_path || form.machine_override || form.notes
+    (!showInstallMediaAbove && form.base_image_path) ||
+    form.working_image_path || form.machine_override || form.notes
   )
   const [showAdvanced, setShowAdvanced] = useState(false)
   const advancedOpen = showAdvanced || hasAdvancedValues
@@ -210,6 +213,37 @@ export default function EnvironmentModal({
         </div>
       )}
 
+      {showInstallMediaAbove && (
+        <div className="border-t border-neutral-200 pt-4 dark:border-neutral-700">
+          <FormField
+            label="Installation Media"
+            htmlFor="env-install-media"
+            required
+            hint="ISO or disk image for this Windows environment. Required to set up a new environment."
+            error={formErrors.base_image_path}
+          >
+            <PathInput
+              id="env-install-media"
+              mode="file"
+              accept=".iso,.img,.vhd,.cue,.chd"
+              value={form.base_image_path}
+              onChange={(v) => onFieldChange('base_image_path', v)}
+              placeholder="/path/to/win98.iso"
+              className="mt-1"
+              hasError={!!formErrors.base_image_path}
+            />
+            {form.era && (
+              <FileUpload
+                era={form.era}
+                mediaType="os"
+                accept=".iso,.img,.vhd,.cue,.chd"
+                onComplete={(path) => onFieldChange('base_image_path', path)}
+              />
+            )}
+          </FormField>
+        </div>
+      )}
+
       <div className="border-t border-neutral-200 pt-3 dark:border-neutral-700">
         <button
           type="button"
@@ -222,6 +256,7 @@ export default function EnvironmentModal({
 
         {advancedOpen && (
           <div className="mt-3 space-y-4">
+            {!showInstallMediaAbove && (
             <FormField
               label="Base Image Path"
               htmlFor="env-base"
@@ -245,6 +280,7 @@ export default function EnvironmentModal({
                 />
               )}
             </FormField>
+            )}
 
             <FormField
               label="Working Image Path"

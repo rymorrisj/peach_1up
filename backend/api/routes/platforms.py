@@ -107,7 +107,9 @@ def create_platform(body: PlatformCreate, db: Session = Depends(get_db), _: User
     if not platform.working_image_path and platform.era in _PROVISIONABLE_ERAS:
         try:
             from backend.service.utils.vm_provisioner import provision_platform
-            working_path, config_path = provision_platform(platform)
+            iso_path, working_path, config_path = provision_platform(platform)
+            if iso_path and not platform.base_image_path:
+                platform.base_image_path = iso_path
             if working_path:
                 platform.working_image_path = working_path
             if config_path:
