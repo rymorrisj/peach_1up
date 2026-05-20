@@ -97,10 +97,13 @@ class WindowsJobObject:
         self.pid = None
 
     def create(self) -> None:
-        """Create the Win32 Job Object and apply memory and CPU limits.
+        """Create the Win32 Job Object and apply the CPU rate cap.
+
+        Memory limit and kill-on-close are applied by the launcher after
+        creation, conditionally on the emulator slug.
 
         Raises:
-            RuntimeError: If ``CreateJobObjectW`` fails or either limit
+            RuntimeError: If ``CreateJobObjectW`` fails or the CPU limit
                 cannot be set.
         """
         self.job_handle = ctypes.windll.kernel32.CreateJobObjectW(
@@ -114,7 +117,6 @@ class WindowsJobObject:
                 f"Failed to create Job Object '{self.name}'. Error code: {error_code}"
             )
 
-        self.set_memory_limit(self.memory_limit_mb)
         self.set_cpu_limit(self.cpu_limit_percent)
 
     def set_memory_limit(self, limit_mb: int) -> None:
@@ -152,6 +154,36 @@ class WindowsJobObject:
             error_code = ctypes.windll.kernel32.GetLastError()
             raise RuntimeError(
                 f"Failed to set memory limit to {limit_mb}MB. Error code: {error_code}"
+            )
+
+    def set_kill_on_close(self) -> None:
+        """Set kill-on-close without a process memory cap.
+
+        Used when ``JOB_OBJECT_LIMIT_PROCESS_MEMORY`` must be skipped (e.g.
+        Qt-based emulators that fast-fail on that flag) while still ensuring
+        the process tree is torn down when the backend exits.
+
+        Raises:
+            RuntimeError: If the job handle is not open or
+                ``SetInformationJobObject`` fails.
+        """
+        if not self.job_handle:
+            raise RuntimeError("Job object not created. Call create() first.")
+
+        limit_info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+        limit_info.BasicLimitInformation.LimitFlags = _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+
+        result = ctypes.windll.kernel32.SetInformationJobObject(
+            self.job_handle,
+            ctypes.wintypes.DWORD(9),   # JobObjectExtendedLimitInformation
+            ctypes.byref(limit_info),
+            ctypes.sizeof(limit_info)
+        )
+
+        if not result:
+            error_code = ctypes.windll.kernel32.GetLastError()
+            raise RuntimeError(
+                f"Failed to set kill-on-close for '{self.name}'. Error code: {error_code}"
             )
 
     def set_cpu_limit(self, cpu_limit_percent: int) -> None:

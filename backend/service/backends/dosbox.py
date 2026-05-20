@@ -291,4 +291,5 @@ def launch(
         media_paths=[str(media_path)],
         era=era,
         job_name=job_name,
+        slug="dosbox-x",
     )

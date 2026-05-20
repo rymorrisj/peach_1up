@@ -28,6 +28,7 @@ from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.job_objects import WindowsJobObject
+from backend.service.utils.emulator_catalog import get_skip_memory_limit
 
 logger = get_logger(__name__)
 
@@ -143,7 +144,8 @@ def launch_under_job_object(
     args: List[str],
     media_paths: List[str],
     era: str,
-    job_name: str
+    job_name: str,
+    slug: str = "",
 ) -> Tuple[SandboxProcess, "WindowsJobObject"]:
     """Launch an emulator under the current user account in a Windows Job Object.
 
@@ -189,6 +191,11 @@ def launch_under_job_object(
 
         job_object = WindowsJobObject(job_name, memory_limit_mb, cpu_limit_percent)
         job_object.create()
+
+        if get_skip_memory_limit(slug):
+            job_object.set_kill_on_close()
+        else:
+            job_object.set_memory_limit(job_object.memory_limit_mb)
 
         base_flags = subprocess.CREATE_NEW_PROCESS_GROUP
 

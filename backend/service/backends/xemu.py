@@ -124,4 +124,5 @@ def launch(media_path: Path, era: str, executable_path: str) -> Tuple[SandboxPro
         media_paths=[str(media_path)],
         era=era,
         job_name=job_name,
+        slug="xemu",
     )

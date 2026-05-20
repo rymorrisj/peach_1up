@@ -319,4 +319,5 @@ def launch(
         media_paths=media_paths,
         era=platform.era,
         job_name=job_name,
+        slug="virtualbox",
     )

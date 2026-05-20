@@ -12,6 +12,8 @@ _ROOT = Path(__file__).resolve().parent.parent
 _SRC_DIR = _ROOT / "config" / "emulators"
 _BIOS_PATH = _ROOT / "config" / "bios_requirements.toml"
 _OUT_PATH = _ROOT / "config" / "emulators.toml"
+_PROFILES_SRC_DIR = _ROOT / "config" / "86box-profiles"
+_PROFILES_OUT_PATH = _ROOT / "config" / "86box-profiles.toml"
 
 
 def _toml_str(s: str) -> str:
@@ -48,6 +50,12 @@ def _render_flat(data: dict) -> list[str]:
         else:
             lines.append(f"{k} = {_toml_scalar(v)}")
     return lines
+
+
+def _render_profile(data: dict) -> str:
+    parts = ["[[profiles]]"]
+    parts.extend(_render_flat(data))
+    return "\n".join(parts)
 
 
 def _render_bios_requirement(data: dict) -> str:
@@ -106,6 +114,28 @@ def main() -> None:
 
     _OUT_PATH.write_text("\n\n".join(sections) + "\n", encoding="utf-8")
     print(f"written {_OUT_PATH}")
+
+    if not _PROFILES_SRC_DIR.is_dir():
+        print(f"ERROR: 86box profiles directory not found: {_PROFILES_SRC_DIR}", file=sys.stderr)
+        sys.exit(1)
+
+    profile_files = sorted(_PROFILES_SRC_DIR.glob("*.toml"))
+    if not profile_files:
+        print(f"ERROR: no .toml files in {_PROFILES_SRC_DIR}", file=sys.stderr)
+        sys.exit(1)
+
+    profile_sections: list[str] = []
+    for path in profile_files:
+        try:
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+        except tomllib.TOMLDecodeError as exc:
+            print(f"ERROR: {path.name}: {exc}", file=sys.stderr)
+            sys.exit(1)
+        profile_sections.append(_render_profile(data))
+        print(f"  merged profile {path.name}")
+
+    _PROFILES_OUT_PATH.write_text("\n\n".join(profile_sections) + "\n", encoding="utf-8")
+    print(f"written {_PROFILES_OUT_PATH}")
 
 
 if __name__ == "__main__":
