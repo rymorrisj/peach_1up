@@ -98,6 +98,9 @@ def get_launch_fn(era: Era) -> Callable:
         elif backend_name == BackendSlug.PROJECT64.value:
             from backend.service.backends.project64 import launch
             return launch
+        elif backend_name == BackendSlug.FLYCAST.value:
+            from backend.service.backends.flycast import launch
+            return launch
         else:
             raise ValueError(f"Unknown backend '{backend_name}' for era '{era.value}'")
     except Exception as e:
@@ -127,6 +130,7 @@ def get_backend_name(era: Era) -> str:
             BackendSlug.XEMU.value: 'xemu',
             BackendSlug.MESEN.value: 'Mesen',
             BackendSlug.PROJECT64.value: 'Project64',
+            BackendSlug.FLYCAST.value: 'Flycast',
         }.get(backend_name, 'Unknown')
     except Exception:
         return 'Unknown'
@@ -142,6 +146,7 @@ _BACKEND_TO_EMULATOR: Dict[str, tuple[str, str]] = {
     BackendSlug.XEMU.value:        ('XEMU_PATH',        'xemu'),
     BackendSlug.MESEN.value:       ('MESEN_PATH',       'mesen'),
     BackendSlug.PROJECT64.value:   ('PROJECT64_PATH',   'project64'),
+    BackendSlug.FLYCAST.value:     ('FLYCAST_PATH',     'flycast'),
 }
 
 
@@ -228,6 +233,7 @@ def launch_media(era, media_path, profile=None, platform=None, game_executable: 
         BackendSlug.PCSX2.value,
         BackendSlug.MESEN.value,
         BackendSlug.PROJECT64.value,
+        BackendSlug.FLYCAST.value,
     }
     _platform_backends = {
         BackendSlug.BOX86.value,

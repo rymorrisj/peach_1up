@@ -7,8 +7,9 @@ eras:
   ps1:   "PlayStation 1"
   ps2:   "PlayStation 2"
   xbox:  "Original Xbox"
-  nes:   "NES"
-  n64:   "Nintendo 64"
+  nes:       "NES"
+  n64:       "Nintendo 64"
+  dreamcast: "Dreamcast"
 
 content_ratings:
   - value: "EC"
@@ -43,3 +44,4 @@ backend_slugs:
   xemu:        "xemu"
   mesen:       "Mesen"
   project64:   "Project64"
+  flycast:     "Flycast"

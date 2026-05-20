@@ -13,6 +13,7 @@ class Era(Enum):
     XBOX = "xbox"
     NES = "nes"
     N64 = "n64"
+    DREAMCAST = "dreamcast"
 
 
 class BackendSlug(Enum):
@@ -24,6 +25,7 @@ class BackendSlug(Enum):
     XEMU = "xemu"
     MESEN = "mesen"
     PROJECT64 = "project64"
+    FLYCAST = "flycast"
 
 
 ERA_LABELS: dict[str, str] = {
@@ -37,6 +39,7 @@ ERA_LABELS: dict[str, str] = {
     "xbox": "Original Xbox",
     "nes": "NES",
     "n64": "Nintendo 64",
+    "dreamcast": "Dreamcast",
 }
 
 BACKEND_LABELS: dict[str, str] = {
@@ -48,6 +51,7 @@ BACKEND_LABELS: dict[str, str] = {
     "xemu": "xemu",
     "mesen": "Mesen",
     "project64": "Project64",
+    "flycast": "Flycast",
 }
 
 CONTENT_RATINGS: list[dict[str, str]] = [
