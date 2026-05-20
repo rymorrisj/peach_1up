@@ -11,14 +11,15 @@ acquiring BIOS files.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
+from backend.models.platform import Platform
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.job_objects import WindowsJobObject
-from backend.service.utils.settings import get_env_var
+from backend.service.utils.settings import get_binary_path, get_env_var
 
 SUPPORTED_ERAS = {Era.XBOX.value}
 SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.XBOX]
@@ -84,27 +85,47 @@ def build_args(media_path: Path) -> list[str]:
     return ["-dvd_path", str(media_path)]
 
 
-def launch(media_path: Path, era: str, executable_path: str) -> Tuple[SandboxProcess, WindowsJobObject]:
+def launch(
+    platform: Platform,
+    media_path: Optional[Path] = None,
+    enable_networking: bool = False,
+) -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch xemu with the given Xbox disc image under Job Object isolation.
 
     Args:
-        media_path: Path to the Xbox disc image to mount.
-        era: Era string — must be 'xbox'.
-        executable_path: Full path to the xemu executable.
+        platform: Registered Platform record for the Xbox environment.
+            ``config_path`` must point to the VM directory's xemu.toml so the
+            VM directory can be resolved and used as the process CWD.
+        media_path: Optional path to the Xbox disc image to mount.
+        enable_networking: Accepted for interface compatibility; ignored for
+            xemu (no meaningful network capability per SECURITY.md).
 
     Returns:
-        Tuple of (subprocess.Popen process, WindowsJobObject instance).
+        Tuple of (SandboxProcess, WindowsJobObject instance).
         Caller is responsible for cleanup via job_object.terminate_all().
 
     Raises:
         FileNotFoundError: If the executable, media file, or BIOS path is missing.
-        ValueError: If the media extension is unsupported.
-        RuntimeError: If XBOX_BIOS_PATH is not configured or process launch fails.
+        ValueError: If the media extension is unsupported or config_path is unset.
+        RuntimeError: If XEMU_PATH or XBOX_BIOS_PATH is not configured or launch fails.
     """
+    if platform.config_path is None:
+        raise ValueError(
+            f"Platform '{platform.name}' has no config_path set. "
+            "Complete platform registration before launching."
+        )
+
+    executable_path = get_binary_path("xemu")
+    if not executable_path:
+        raise RuntimeError(
+            "xemu binary path is not configured. "
+            "Set XEMU_PATH in config/settings.yaml or via the Settings page."
+        )
     if not Path(executable_path).exists():
         raise FileNotFoundError(f"xemu executable not found: {executable_path}")
 
-    validate_media(media_path)
+    if media_path is not None:
+        validate_media(media_path)
 
     bios_path_str = get_env_var("XBOX_BIOS_PATH")
     if not bios_path_str:
@@ -115,14 +136,26 @@ def launch(media_path: Path, era: str, executable_path: str) -> Tuple[SandboxPro
         )
     validate_bios_path(Path(bios_path_str))
 
-    args = build_args(media_path)
-    job_name = f"peach1up_xemu_{media_path.stem}"
+    vm_dir = Path(str(platform.config_path)).parent.resolve()
+
+    args = ["-config_path", str(platform.config_path)]
+    if media_path is not None:
+        args += build_args(media_path)
+
+    media_paths = []
+    if media_path is not None:
+        media_paths.append(str(media_path))
+    if platform.working_image_path:
+        media_paths.append(str(platform.working_image_path))
+
+    job_name = f"peach1up_xemu_{platform.era}_{platform.slug}"
 
     return launch_under_job_object(
         executable_path=executable_path,
         args=args,
-        media_paths=[str(media_path)],
-        era=era,
+        media_paths=media_paths,
+        era=platform.era,
         job_name=job_name,
         slug="xemu",
+        cwd=str(vm_dir),
     )

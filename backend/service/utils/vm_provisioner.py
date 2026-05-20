@@ -1,9 +1,12 @@
 """VM provisioning for Peach 1UP.
 
-Creates VirtualBox VMs and 86Box configs for Win9x/WinXP platforms on first
-launch or platform creation. All output paths are resolved within OS_PATH and
-validated before use. Subprocess args are constructed from validated, computed
-values only — no user input reaches a subprocess call directly.
+Creates 86Box configs for Win95/Win98/WinXP platforms and xemu configs for
+Xbox platforms on first launch or platform creation. 86Box VM files are placed
+under emulators/86box/vms/{slug}/; xemu VM files under emulators/xemu/vms/{slug}/.
+VirtualBox VMs are provisioned under OS_PATH for legacy/fallback use.
+All output paths are resolved and validated before use. Subprocess args are
+constructed from validated, computed values only — no user input reaches a
+subprocess call directly.
 """
 
 from __future__ import annotations
@@ -44,7 +47,7 @@ _VM_MEMORY_MB: dict[str, int] = {
     "winxp": 512,
 }
 
-_WIN9X_ERAS = frozenset({"win95", "win98"})
+_86BOX_ERAS = frozenset({"win95", "win98", "winxp"})
 
 
 
@@ -218,9 +221,9 @@ def provision_86box_vm(
 ) -> tuple[str | None, str, str]:
     """Create a raw fixed-size VHD and 86Box INI config for a Win95/Win98 platform.
 
-    Creates a raw VHD at OS_PATH/{era}/{vm_name}/disk.vhd sized per
+    Creates a raw VHD at emulators/86box/vms/{slug}/disk.vhd sized per
     eras.yaml default_disk_size_mb and appends a valid 512-byte VHD footer,
-    then writes a complete INI config at OS_PATH/{era}/{vm_name}/86box.cfg.
+    then writes a complete INI config at emulators/86box/vms/{slug}/86box.cfg.
 
     Args:
         platform: Platform record with ``era``, ``slug`` (or ``id``), and
@@ -243,7 +246,7 @@ def provision_86box_vm(
         OSError: If creating the disk image or writing the config fails.
     """
     era = platform.era
-    if era not in _WIN9X_ERAS:
+    if era not in _86BOX_ERAS:
         raise ValueError(f"provision_86box_vm: unsupported era '{era}'")
 
     disk_size_mb = _load_default_disk_size_mb(era)
@@ -253,9 +256,9 @@ def provision_86box_vm(
     profile = get_86box_profile(hardware_profile)
     machine = getattr(platform, "machine_override", None) or profile["machine"]
 
-    os_base = Path(get_env_var("OS_PATH")).resolve()
+    vms_base = (get_base_path() / "emulators" / "86box" / "vms").resolve()
     vm_name = _vm_name(platform)
-    cfg_dir = _resolve_within(os_base, era, vm_name)
+    cfg_dir = _resolve_within(vms_base, vm_name)
     cfg_dir.mkdir(parents=True, exist_ok=True)
     cfg_path = cfg_dir / "86box.cfg"
     vhd_path = cfg_dir / "disk.vhd"
@@ -309,9 +312,8 @@ def provision_86box_vm(
     parser.add_section("Mouse")
     parser.set("Mouse", "mouse_type", profile["mouse_type"])
 
-    vhd_fwd = Path(vhd_path).resolve().as_posix()
     parser.add_section("Hard disks")
-    parser.set("Hard disks", "hdd_01_fn",          vhd_fwd)
+    parser.set("Hard disks", "hdd_01_fn",          "disk.vhd")
     parser.set("Hard disks", "hdd_01_ide_channel",  "0:0")
     parser.set("Hard disks", "hdd_01_parameters",   f"63, 16, {cylinders}, 0, ide")
     parser.set("Hard disks", "hdd_01_speed",         "ramdisk")
@@ -333,6 +335,54 @@ def provision_86box_vm(
         parser.write(fh)
 
     return str(iso_path) if iso_path else None, str(vhd_path), str(cfg_path)
+
+
+def provision_xemu_vm(platform: Platform) -> tuple[str | None, str, str]:
+    """Create a VM directory and xemu.toml config for an Xbox platform.
+
+    Creates the VM directory at
+    get_base_path()/emulators/xemu/vms/{slug} and writes a minimal
+    xemu.toml pointing to BIOS files in XBOX_BIOS_PATH and to a
+    colocated xbox_hdd.qcow2 HDD image. The HDD image is not created
+    here — it must be provided separately by the user.
+
+    Args:
+        platform: Platform record with ``era`` == "xbox" and ``slug`` set.
+
+    Returns:
+        Tuple of (base_image_path, working_image_path, config_path).
+        base_image_path is always None (Xbox HDD is not an ISO);
+        working_image_path is the expected path to xbox_hdd.qcow2;
+        config_path is the written xemu.toml.
+
+    Raises:
+        ValueError: If path validation fails.
+        OSError: If creating the directory or writing the config fails.
+    """
+    vm_name = _vm_name(platform)
+    vms_base = (get_base_path() / "emulators" / "xemu" / "vms").resolve()
+    vm_dir = _resolve_within(vms_base, vm_name)
+    vm_dir.mkdir(parents=True, exist_ok=True)
+
+    bios_path_str = get_env_var("XBOX_BIOS_PATH")
+    if bios_path_str:
+        bios_dir = Path(bios_path_str).resolve()
+        bootrom = str(bios_dir / "mcpx_1.0.bin").replace("\\", "/")
+        flashrom = str(bios_dir / "bios.bin").replace("\\", "/")
+    else:
+        bootrom = ""
+        flashrom = ""
+
+    toml_path = vm_dir / "xemu.toml"
+    with toml_path.open("w", encoding="utf-8") as fh:
+        fh.write("[sys]\n")
+        fh.write(f'bootrom_path = "{bootrom}"\n')
+        fh.write(f'flashrom_path = "{flashrom}"\n')
+        fh.write('hdd_path = "xbox_hdd.qcow2"\n')
+        fh.write('dvd_path = ""\n')
+        fh.write("\n[net]\nenabled = false\n")
+
+    return None, str(vm_dir / "xbox_hdd.qcow2"), str(toml_path)
 
 
 def provision_platform(platform: Platform) -> tuple[str | None, str | None, str | None]:
@@ -358,22 +408,7 @@ def provision_platform(platform: Platform) -> tuple[str | None, str | None, str 
     """
     era = platform.era
 
-    if era == "winxp":
-        vbox_path = get_binary_path("virtualbox")
-        if not vbox_path:
-            raise RuntimeError(
-                "VIRTUALBOX_PATH is not configured — cannot provision WinXP VM. "
-                "Set the path in Settings or config/settings.yaml."
-            )
-        if not Path(vbox_path).exists():
-            raise FileNotFoundError(
-                f"VBoxManage not found at {vbox_path}. "
-                "Download VirtualBox from: https://www.virtualbox.org"
-            )
-        working = provision_virtualbox_vm(platform, vbox_path)
-        return None, working, None
-
-    if era in _WIN9X_ERAS:
+    if era in _86BOX_ERAS:
         box86_path = get_binary_path("box86")
         if not box86_path:
             raise RuntimeError(
@@ -386,6 +421,10 @@ def provision_platform(platform: Platform) -> tuple[str | None, str | None, str 
         iso_path, img_path, cfg_path = provision_86box_vm(platform, box86_path, str(rom_dir), hw_profile)
         if iso_path and not platform.base_image_path:
             platform.base_image_path = iso_path
+        return iso_path, img_path, cfg_path
+
+    if era == "xbox":
+        iso_path, img_path, cfg_path = provision_xemu_vm(platform)
         return iso_path, img_path, cfg_path
 
     return None, None, None

@@ -79,6 +79,7 @@ def _launch_process(
     executable_path: str,
     args: List[str],
     creation_flags: int,
+    cwd: str | None = None,
 ) -> SandboxProcess:
     """Launch a process under the current user account via CreateProcessW.
 
@@ -88,6 +89,8 @@ def _launch_process(
         executable_path: Full path to the emulator executable.
         args: Additional command-line arguments.
         creation_flags: Windows process creation flags.
+        cwd: Working directory for the process. Defaults to the executable's
+            parent directory when None.
 
     Returns:
         ``SandboxProcess`` with pid, process handle, and thread handle.
@@ -98,7 +101,7 @@ def _launch_process(
     cmd_line = subprocess.list2cmdline([executable_path] + args)
     cmd_buf = ctypes.create_unicode_buffer(cmd_line)
 
-    cwd = str(Path(executable_path).parent)
+    cwd = cwd if cwd is not None else str(Path(executable_path).parent)
 
     si = STARTUPINFOW()
     si.cb = ctypes.sizeof(STARTUPINFOW)
@@ -146,6 +149,7 @@ def launch_under_job_object(
     era: str,
     job_name: str,
     slug: str = "",
+    cwd: str | None = None,
 ) -> Tuple[SandboxProcess, "WindowsJobObject"]:
     """Launch an emulator under the current user account in a Windows Job Object.
 
@@ -199,7 +203,7 @@ def launch_under_job_object(
 
         base_flags = subprocess.CREATE_NEW_PROCESS_GROUP
 
-        process = _launch_process(executable_path, args, base_flags)
+        process = _launch_process(executable_path, args, base_flags, cwd=cwd)
 
     except Exception as e:
         cleanup_errors = []
@@ -250,7 +254,7 @@ def launch_under_job_object(
             logger.error("kill failed for pid=%s during breakaway retry teardown: %s", process.pid, exc)
         try:
             process = _launch_process(
-                executable_path, args, base_flags | _CREATE_BREAKAWAY_FROM_JOB
+                executable_path, args, base_flags | _CREATE_BREAKAWAY_FROM_JOB, cwd=cwd
             )
         except Exception as exc2:
             try:

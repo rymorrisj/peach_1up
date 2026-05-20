@@ -201,9 +201,8 @@ def _prepare_config(platform: Platform, cfg_path: str, rom_path: Path) -> None:
     _ensure_section(parser, "Mouse")
     parser.set("Mouse", "mouse_type", hw_profile["mouse_type"])
 
-    disk_fwd = str(img_path.resolve()).replace("\\", "/")
     _ensure_section(parser, "Hard disks")
-    parser.set("Hard disks", "hdd_01_fn", disk_fwd)
+    parser.set("Hard disks", "hdd_01_fn", "disk.vhd")
     parser.set("Hard disks", "hdd_01_ide_channel", "0:0")
     parser.set("Hard disks", "hdd_01_parameters", "63, 16, 4161, 0, ide")
     parser.set("Hard disks", "hdd_01_speed", "ramdisk")
@@ -390,9 +389,12 @@ def launch(
         if iso.exists():
             job_paths.append(str(iso))
 
+    vm_dir = Path(str(platform.config_path)).parent.resolve()
+
     args = [
         "--config", str(platform.config_path),
         "--rompath", str(effective_rom_path),
+        "--vmpath", str(vm_dir),
     ]
 
     job_name = f"peach1up_86box_{platform.era}_{platform.slug}"
@@ -404,4 +406,5 @@ def launch(
         era=platform.era,
         job_name=job_name,
         slug="86box",
+        cwd=str(vm_dir),
     )

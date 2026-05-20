@@ -36,8 +36,8 @@ _EMULATOR_SLUG_TO_BINARY_KEY: dict[str, str] = {
     "project64":   "project64",
 }
 
-_PC_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
-_PROVISIONABLE_ERAS = frozenset({"win95", "win98", "winxp"})
+_PLATFORM_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp", "xbox"})
+_PROVISIONABLE_ERAS = frozenset({"win95", "win98", "winxp", "xbox"})
 
 
 def _generate_slug(name: str, db: Session) -> str:
@@ -91,8 +91,8 @@ def list_platforms(db: Session = Depends(get_db)):
 
 @router.post("", response_model=PlatformRead, status_code=201)
 def create_platform(body: PlatformCreate, db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
-    if body.era not in _PC_ERAS:
-        raise HTTPException(status_code=422, detail=f"Only PC eras are supported: {', '.join(sorted(_PC_ERAS))}.")
+    if body.era not in _PLATFORM_ERAS:
+        raise HTTPException(status_code=422, detail=f"Only PC eras are supported: {', '.join(sorted(_PLATFORM_ERAS))}.")
     if body.base_image_path:
         _validate_image_path(body.base_image_path)
     if body.working_image_path:
@@ -178,8 +178,8 @@ def update_platform(platform_id: int, body: PlatformUpdate, db: Session = Depend
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found.")
     updates = body.model_dump(exclude_none=True)
-    if "era" in updates and updates["era"] not in _PC_ERAS:
-        raise HTTPException(status_code=422, detail=f"Only PC eras are supported: {', '.join(sorted(_PC_ERAS))}.")
+    if "era" in updates and updates["era"] not in _PLATFORM_ERAS:
+        raise HTTPException(status_code=422, detail=f"Only PC eras are supported: {', '.join(sorted(_PLATFORM_ERAS))}.")
     if "base_image_path" in updates:
         _validate_image_path(updates["base_image_path"])
     if "working_image_path" in updates:

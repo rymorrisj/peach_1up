@@ -1,8 +1,8 @@
 """Backend routing utilities for Peach 1UP.
 
-Maps eras to their corresponding backend launch functions. Win9x (win95, win98)
-always routes to 86Box. WinXP always routes to VirtualBox. DOS and console
-eras route to their dedicated backends. No accuracy-mode conditional exists.
+Maps eras to their corresponding backend launch functions. 86Box eras
+(win95, win98, winxp) always route to 86Box. DOS and console eras route
+to their dedicated backends. No accuracy-mode conditional exists.
 """
 
 import yaml
@@ -32,9 +32,8 @@ def _load_eras_config() -> Dict[str, Any]:
 def resolve_backend_name(era: Era) -> str:
     """Resolve the backend name string for an era.
 
-    Win9x (win95, win98) always routes to 86Box. WinXP always routes to
-    VirtualBox. DOS, Win31, and console eras use the flat 'backend' key from
-    eras.yaml.
+    86Box eras (win95, win98, winxp) always route to 86Box. DOS, Win31,
+    and console eras use the flat 'backend' key from eras.yaml.
 
     Args:
         era: The gaming era to resolve.
@@ -59,15 +58,9 @@ def resolve_backend_name(era: Era) -> str:
     if 'backend' in era_config:
         return era_config['backend']
 
-    # Win9x always routes to 86Box.
-    if era.value in ('win95', 'win98'):
+    # 86Box eras (win95, win98, winxp) always route to 86Box.
+    if era.value in ('win95', 'win98', 'winxp'):
         return BackendSlug.BOX86.value
-
-    # WinXP always routes to VirtualBox.
-    if era.value == 'winxp':
-        if 'primary' not in era_config:
-            raise ValueError(f"Era 'winxp' has no primary backend configured in eras.yaml")
-        return era_config['primary']
 
     raise ValueError(f"Cannot resolve backend for era '{era.value}'")
 
@@ -243,13 +236,13 @@ def launch_media(era, media_path, profile=None, platform=None, game_executable: 
     _console_backends = {
         BackendSlug.DUCKSTATION.value,
         BackendSlug.PCSX2.value,
-        BackendSlug.XEMU.value,
         BackendSlug.MESEN.value,
         BackendSlug.PROJECT64.value,
     }
     _platform_backends = {
         BackendSlug.BOX86.value,
         BackendSlug.VIRTUALBOX.value,
+        BackendSlug.XEMU.value,
     }
 
     if backend_name in _console_backends:

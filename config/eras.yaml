@@ -36,7 +36,7 @@ win98:
   default_disk_size_mb: 2048
 
 winxp:
-  primary: virtualbox
+  primary: box86
   memory_limit_mb: 1024
   cpu_limit_percent: 80
   supported_media: [".iso", ".img", ".cue"]
