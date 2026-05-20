@@ -275,6 +275,15 @@ The scan endpoint validates all user-supplied directory paths against an allowli
 
 All frontend fetch calls must include credentials: 'include' while SessionMiddleware is active so session cookies are transmitted correctly. When P5 changes the serving model (FastAPI serving the React static build directly), re-evaluate whether this setting is still correct or introduces unintended cookie scope.
 
+#### Qt emulator process memory cap waived
+
+JOB_OBJECT_LIMIT_PROCESS_MEMORY is not applied to Qt-based emulators
+(86Box, DuckStation, PCSX2). Qt's security initialisation triggers
+STATUS_STACK_BUFFER_OVERRUN (0xC0000409) when this limit is applied
+after process creation. Kill-on-close and CPU rate control still apply.
+The skip_memory_limit flag in config/emulators/ controls this per
+emulator. See DECISIONS.md 2026-05-19 for full rationale.
+
 ### Linux sandbox implementation (planned)
 
 The current Linux process isolation description (cgroups and network namespaces) is

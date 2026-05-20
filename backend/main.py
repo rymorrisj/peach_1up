@@ -1,6 +1,9 @@
 import sys
 from pathlib import Path
 
+from backend.core.settings import init_settings
+init_settings()
+
 from backend.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -18,10 +21,7 @@ def resource_path(relative: str) -> Path:
 from backend.api.middleware.security import FirstRunGuardMiddleware, SecurityMiddleware, configure_cors
 from backend.api.routes import auth, bios, emulators, filesystem, health, launches, library, media, platforms, profiles, settings, users
 from backend.core.lifespan import lifespan
-from backend.core.settings import init_settings
 from backend.service.utils.settings import get_or_generate_session_secret
-
-init_settings()
 _session_secret = get_or_generate_session_secret()
 
 app = FastAPI(
