@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, func
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, func
 from sqlmodel import Field, SQLModel
 
 
@@ -21,6 +21,9 @@ class LibraryItemBase(SQLModel):
     metadata_source: Optional[str] = None
     content_rating: Optional[str] = None
     executable_path: Optional[str] = None
+    launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
+    scan_candidates: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
+    launch_review_flagged: bool = Field(default=False)
 
 
 class LibraryItem(LibraryItemBase, table=True):
@@ -71,6 +74,9 @@ class LibraryItemUpdate(SQLModel):
     metadata_source: Optional[str] = None
     content_rating: Optional[str] = None
     executable_path: Optional[str] = None
+    launch_commands: Optional[list[str]] = None
+    scan_candidates: Optional[list[str]] = None
+    launch_review_flagged: Optional[bool] = None
 
 
 class LibraryItemRead(LibraryItemBase):
@@ -82,3 +88,6 @@ class LibraryItemRead(LibraryItemBase):
     launch_count: int
     created_at: datetime
     updated_at: datetime
+    launch_commands: Optional[list[str]] = None
+    scan_candidates: Optional[list[str]] = None
+    launch_review_flagged: bool = False
