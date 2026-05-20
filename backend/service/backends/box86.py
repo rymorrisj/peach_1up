@@ -12,12 +12,11 @@ import os
 from pathlib import Path
 from typing import Optional
 
-import yaml
-
 from backend.constants_generated import Era
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.models.platform import Platform
+from backend.service.utils.disk_utils import has_valid_mbr
 from backend.service.utils.emulator_catalog import get_86box_profile
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.media_attach import build_86box_attachment
@@ -48,53 +47,6 @@ def validate_rom_path(rom_path: Path) -> None:
             f"ROM path is not a directory: {rom_path}. "
             "ROM_PATH must point to the directory containing 86Box ROM files."
         )
-
-
-def load_template(era: str) -> dict:
-    """Load and validate the hardware template for the given era.
-
-    Checks that every string leaf value in the template is present and
-    non-empty. A blank identifier would be passed to 86Box verbatim and
-    cause a silent failure or wrong hardware configuration.
-
-    Args:
-        era: Era string — must be one of ``SUPPORTED_ERAS``.
-
-    Returns:
-        Validated template dict with nested section structure.
-
-    Raises:
-        FileNotFoundError: If the template file does not exist.
-        ValueError: If any string field in the template is blank or None.
-    """
-    template_path = get_base_path() / "config" / "templates" / f"86box_{era}.yaml"
-    if not template_path.exists():
-        raise FileNotFoundError(
-            f"86Box hardware template not found: {template_path}. "
-            "Expected a template file per supported era under config/templates/."
-        )
-
-    with template_path.open("r", encoding="utf-8") as fh:
-        template = yaml.safe_load(fh)
-
-    if not isinstance(template, dict):
-        raise ValueError(
-            f"86Box template '{template_path.name}' is not a valid YAML mapping."
-        )
-
-    for section_name, section in template.items():
-        if not isinstance(section, dict):
-            continue
-        for key, value in section.items():
-            if value is None or (isinstance(value, str) and not value.strip()):
-                raise ValueError(
-                    f"86Box template '{template_path.name}' has a blank or missing "
-                    f"identifier at [{section_name}] {key}. "
-                    "Fill in the correct value for your installed 86Box version. "
-                    "Reference: https://86box.net"
-                )
-
-    return template
 
 
 def _resolve_rom_path(box86_binary: Path) -> Path:
@@ -165,17 +117,14 @@ def _prepare_config(platform: Platform, cfg_path: str, rom_path: Path) -> None:
 
     img_path = Path(str(platform.working_image_path))
     try:
-        with img_path.open("rb") as f:
-            f.seek(510)
-            mbr_sig = f.read(2)
-    except OSError as exc:
+        disk_has_mbr = has_valid_mbr(img_path)
+    except (ValueError, OSError) as exc:
         raise OSError(
             f"Cannot read disk image for platform '{platform.name}': {img_path}"
         ) from exc
-    disk_blank = mbr_sig != b"\x55\xaa"
 
     _ensure_section(parser, "General")
-    parser.set("General", "boot_order", "cdrom_fdd_hdd" if disk_blank else "hdd_cdrom_fdd")
+    parser.set("General", "boot_order", "hdd_cdrom_fdd" if disk_has_mbr else "cdrom_fdd_hdd")
 
     hw_profile = get_86box_profile(platform.hardware_profile or "standard")
     _ensure_section(parser, "Machine")
@@ -201,22 +150,28 @@ def _prepare_config(platform: Platform, cfg_path: str, rom_path: Path) -> None:
     parser.set("Mouse", "mouse_type", hw_profile["mouse_type"])
 
     _ensure_section(parser, "Hard disks")
-    parser.set("Hard disks", "hdd_01_fn", "disk.vhd")
+    parser.set("Hard disks", "hdd_01_fn", img_path.name)
     parser.set("Hard disks", "hdd_01_ide_channel", "0:0")
     parser.set("Hard disks", "hdd_01_parameters", "63, 16, 4161, 0, ide")
     parser.set("Hard disks", "hdd_01_speed", "ramdisk")
 
     cdrom_section = "Floppy and CD-ROM drives"
-    if disk_blank and platform.base_image_path is not None:
+    is_iso = (
+        not disk_has_mbr
+        and platform.base_image_path is not None
+        and Path(str(platform.base_image_path)).suffix.lower() in {".iso", ".cue"}
+        and Path(str(platform.base_image_path)).exists()
+    )
+    if is_iso:
         iso = Path(str(platform.base_image_path))
-        if iso.exists():
-            _ensure_section(parser, cdrom_section)
-            iso_fwd = str(iso.resolve()).replace("\\", "/")
-            parser.set(cdrom_section, "cdrom_02_image_path", iso_fwd)
-            parser.set(cdrom_section, "cdrom_02_parameters", "1, atapi")
-            parser.set(cdrom_section, "cdrom_02_ide_channel", "0:1")
-    elif parser.has_section(cdrom_section) and parser.has_option(cdrom_section, "cdrom_02_image_path"):
-        parser.remove_option(cdrom_section, "cdrom_02_image_path")
+        _ensure_section(parser, cdrom_section)
+        iso_fwd = str(iso.resolve()).replace("\\", "/")
+        parser.set(cdrom_section, "cdrom_02_image_path", iso_fwd)
+        parser.set(cdrom_section, "cdrom_02_parameters", "1, atapi")
+        parser.set(cdrom_section, "cdrom_02_ide_channel", "0:1")
+    else:
+        if parser.has_section(cdrom_section) and parser.has_option(cdrom_section, "cdrom_02_image_path"):
+            parser.remove_option(cdrom_section, "cdrom_02_image_path")
 
     _ensure_section(parser, "Paths")
     parser.set("Paths", "rompath", str(rom_path.resolve()))
@@ -294,9 +249,9 @@ def launch(
 ) -> tuple:
     """Launch 86Box in accuracy mode under Job Objects.
 
-    Validates platform state and environment, loads and validates the era
-    hardware template, patches the 86Box config for this launch, optionally
-    injects game media, then launches 86Box with resource limits applied.
+    Validates platform state and environment, patches the 86Box config for
+    this launch, optionally injects game media, then launches 86Box with
+    resource limits applied.
 
     Args:
         platform: Registered OSPlatform. ``era``, ``working_image_path``, and
@@ -308,8 +263,8 @@ def launch(
             by _prepare_config to allow network traffic.
 
     Raises:
-        ValueError: If the era is unsupported, required platform fields are
-            unset, or any template identifier is blank.
+        ValueError: If the era is unsupported or required platform fields are
+            unset.
         FileNotFoundError: If ``working_image_path``, ``config_path``,
             ``BOX86_PATH``, or ``ROM_PATH`` do not exist on disk.
         RuntimeError: If ``BOX86_PATH`` or ``ROM_PATH`` env vars are unset.
@@ -345,8 +300,6 @@ def launch(
             f"Platform '{platform.name}' has no config_path set. "
             "Complete platform registration before launching."
         )
-
-    load_template(platform.era)
 
     box86_path = get_binary_path("box86")
     if not box86_path:

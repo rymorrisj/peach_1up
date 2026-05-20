@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import configparser
 import os
+import shutil
 import struct
 import subprocess
 import time
@@ -261,24 +262,46 @@ def provision_86box_vm(
     cfg_dir = _resolve_within(vms_base, vm_name)
     cfg_dir.mkdir(parents=True, exist_ok=True)
     cfg_path = cfg_dir / "86box.cfg"
-    vhd_path = cfg_dir / "disk.vhd"
 
-    footer = _build_vhd_footer(size_bytes)
-    with vhd_path.open("wb") as f:
-        f.seek(size_bytes - 512 - 1)
-        f.write(b"\x00")
-        f.write(footer)
-
+    # Resolve base image and decide working image strategy.
+    effective_iso_path = None
     if platform.base_image_path:
         from backend.service.utils.path_utils import normalise_path
-        iso_path = normalise_path(platform.base_image_path)
-        if not iso_path.exists():
+        from backend.service.utils.disk_utils import has_valid_mbr
+        base_img = normalise_path(platform.base_image_path)
+        if not base_img.exists():
             raise FileNotFoundError(
-                f"Base image not found: {iso_path}. "
-                "Ensure base_image_path is set to a valid ISO before provisioning."
+                f"Base image not found: {base_img}. "
+                "Ensure base_image_path is set to a valid image before provisioning."
             )
+        try:
+            is_pre_installed = (
+                base_img.suffix.lower() not in {".iso", ".cue"}
+                and has_valid_mbr(base_img)
+            )
+        except (ValueError, OSError):
+            is_pre_installed = False
     else:
-        iso_path = None
+        base_img = None
+        is_pre_installed = False
+
+    if is_pre_installed:
+        vhd_path = cfg_dir / ("disk" + base_img.suffix.lower())
+        try:
+            shutil.copy2(str(base_img), str(vhd_path))
+        except OSError as exc:
+            raise OSError(
+                f"Failed to copy pre-installed image '{base_img}' to VM directory: {exc}"
+            ) from exc
+    else:
+        vhd_path = cfg_dir / "disk.vhd"
+        footer = _build_vhd_footer(size_bytes)
+        with vhd_path.open("wb") as f:
+            f.seek(size_bytes - 512 - 1)
+            f.write(b"\x00")
+            f.write(footer)
+        if base_img is not None and base_img.suffix.lower() in {".iso", ".cue"}:
+            effective_iso_path = base_img
 
     parser = configparser.RawConfigParser()
     parser.optionxform = str
@@ -313,13 +336,13 @@ def provision_86box_vm(
     parser.set("Mouse", "mouse_type", profile["mouse_type"])
 
     parser.add_section("Hard disks")
-    parser.set("Hard disks", "hdd_01_fn",          "disk.vhd")
+    parser.set("Hard disks", "hdd_01_fn",          vhd_path.name)
     parser.set("Hard disks", "hdd_01_ide_channel",  "0:0")
     parser.set("Hard disks", "hdd_01_parameters",   f"63, 16, {cylinders}, 0, ide")
     parser.set("Hard disks", "hdd_01_speed",         "ramdisk")
 
-    if iso_path is not None:
-        iso_fwd = Path(iso_path).resolve().as_posix()
+    if effective_iso_path is not None:
+        iso_fwd = effective_iso_path.resolve().as_posix()
         parser.add_section("Floppy and CD-ROM drives")
         parser.set("Floppy and CD-ROM drives", "cdrom_02_image_path", iso_fwd)
         parser.set("Floppy and CD-ROM drives", "cdrom_02_parameters",  "1, atapi")
@@ -334,7 +357,7 @@ def provision_86box_vm(
     with cfg_path.open("w", encoding="utf-8") as fh:
         parser.write(fh)
 
-    return str(iso_path) if iso_path else None, str(vhd_path), str(cfg_path)
+    return str(effective_iso_path) if effective_iso_path else None, str(vhd_path), str(cfg_path)
 
 
 def provision_xemu_vm(platform: Platform) -> tuple[str | None, str, str]:
