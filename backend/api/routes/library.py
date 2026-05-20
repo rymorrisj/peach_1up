@@ -21,6 +21,10 @@ class RestrictionsBody(BaseModel):
     user_ids: list[int]
 
 
+class RescanBody(BaseModel):
+    force: bool = False
+
+
 def _make_slug(title: str, db: Session) -> str:
     base = re.sub(r'[^a-z0-9-]', '', re.sub(r'\s+', '-', title.lower())).strip('-') or 'item'
     candidate = base
@@ -59,6 +63,30 @@ def _consume_confirm_token(token: str, item_id: int) -> bool:
     if now > expires_at:
         return False
     return expected_id == item_id
+
+
+def _bg_scan_item(item_id: int, media_path: str) -> None:
+    from backend.service.utils.executable_scanner import scan_executable_candidates
+    from backend.core.database import get_engine
+    from sqlalchemy.orm import Session as _Session
+
+    try:
+        candidates = scan_executable_candidates(Path(media_path))
+    except Exception as exc:
+        logger.warning("Executable scan failed for item %d: %s", item_id, exc)
+        return
+
+    try:
+        with _Session(get_engine()) as db:
+            item = db.get(LibraryItem, item_id)
+            if item is None:
+                return
+            item.scan_candidates = candidates
+            if item.executable_path is None and candidates:
+                item.executable_path = candidates[0]
+            db.commit()
+    except Exception as exc:
+        logger.warning("Failed to write scan results for item %d: %s", item_id, exc)
 
 
 def _validate_scan_directory(directory: str) -> Path:
@@ -145,6 +173,7 @@ def list_library(
 @router.post("", response_model=LibraryItemRead, status_code=201)
 def add_library_item(
     body: LibraryItemCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_library"),
     response: Response = None,
@@ -201,6 +230,7 @@ def add_library_item(
     db.add(item)
     db.commit()
     db.refresh(item)
+    background_tasks.add_task(_bg_scan_item, item.id, item.media_path)
     return item
 
 
@@ -277,6 +307,47 @@ def update_library_item(
         raise HTTPException(status_code=404, detail="Library item not found.")
     for key, value in body.model_dump(exclude_none=True).items():
         setattr(item, key, value)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.post("/{item_id}/rescan", response_model=LibraryItemRead)
+def rescan_item(
+    item_id: int,
+    body: RescanBody = RescanBody(),
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    from backend.service.utils.executable_scanner import scan_executable_candidates
+
+    item = db.get(LibraryItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Library item not found.")
+
+    try:
+        candidates = scan_executable_candidates(Path(item.media_path))
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    item.scan_candidates = candidates
+    if candidates and (item.executable_path is None or body.force):
+        item.executable_path = candidates[0]
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.post("/{item_id}/flag-launch", response_model=LibraryItemRead)
+def flag_launch(
+    item_id: int,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_launch_media"),
+):
+    item = db.get(LibraryItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Library item not found.")
+    item.launch_review_flagged = True
     db.commit()
     db.refresh(item)
     return item

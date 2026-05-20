@@ -143,7 +143,25 @@ def _validate_game_executable(game_executable: str, expected_drive: str) -> None
             )
 
 
-def write_launch_conf(media_path: Path, era: str, executable_path: Path, game_executable: str | None = None) -> Path:
+_EXEC_SUFFIXES = frozenset({".exe", ".bat", ".com"})
+
+
+def _validate_shell_line(line: str) -> None:
+    if "\n" in line or "\r" in line:
+        raise ValueError("launch_commands line must not contain newline characters")
+    if "\x00" in line:
+        raise ValueError("launch_commands line must not contain null bytes")
+    if "#" in line:
+        raise ValueError("launch_commands line must not contain '#' (DOSBox-X comment character)")
+
+
+def write_launch_conf(
+    media_path: Path,
+    era: str,
+    executable_path: Path,
+    game_executable: str | None = None,
+    launch_commands: list[str] | None = None,
+) -> Path:
     """Write a per-launch DOSBox-X conf to a temp directory and return its path.
 
     Reads the emulator's bundled dosbox-x.conf if present, strips its
@@ -199,7 +217,14 @@ def write_launch_conf(media_path: Path, era: str, executable_path: Path, game_ex
     content += "[sdl]\noutput=surface\n\n"
     content += "[dos]\nautomount=false\nmountwarning=false\n\n"
     autoexec = f"[autoexec]\n{mount_line}\n{drive_line}\n"
-    if game_executable:
+    if launch_commands:
+        for line in launch_commands:
+            if any(line.rstrip().lower().endswith(ext) for ext in _EXEC_SUFFIXES):
+                _validate_game_executable(line, drive_line)
+            else:
+                _validate_shell_line(line)
+            autoexec += f"{line}\n"
+    elif game_executable:
         _validate_game_executable(game_executable, drive_line)
         autoexec += f"{game_executable}\n"
     content += autoexec
@@ -265,6 +290,7 @@ def launch(
     executable_path: str,
     enable_networking: bool = False,
     game_executable: str | None = None,
+    launch_commands: list[str] | None = None,
 ) -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch DOSBox-X with the given media file under Job Object isolation.
 
@@ -294,7 +320,7 @@ def launch(
 
     validate_media(media_path)
 
-    conf_path = write_launch_conf(media_path, era, Path(executable_path), game_executable=game_executable)
+    conf_path = write_launch_conf(media_path, era, Path(executable_path), game_executable=game_executable, launch_commands=launch_commands)
     conf_tmpdir = conf_path.parent
     atexit.register(shutil.rmtree, str(conf_tmpdir), True)
 
