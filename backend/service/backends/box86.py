@@ -143,11 +143,12 @@ def _prepare_config(platform: Platform, cfg_path: str, rom_path: Path) -> None:
     _ensure_section(parser, "Sound")
     parser.set("Sound", "sndcard", hw_profile["sndcard"])
 
-    _ensure_section(parser, "Keyboard")
-    parser.set("Keyboard", "keyboard_type", hw_profile["keyboard_type"])
-
-    _ensure_section(parser, "Mouse")
-    parser.set("Mouse", "mouse_type", hw_profile["mouse_type"])
+    for _stale in ("Keyboard", "Mouse"):
+        if parser.has_section(_stale):
+            parser.remove_section(_stale)
+    _ensure_section(parser, "Input devices")
+    parser.set("Input devices", "mouse_type",    "ps2")
+    parser.set("Input devices", "keyboard_type", "keyboard_ps2")
 
     _ensure_section(parser, "Hard disks")
     parser.set("Hard disks", "hdd_01_fn", img_path.name)
