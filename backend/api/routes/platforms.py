@@ -143,7 +143,7 @@ def create_platform(body: PlatformCreate, db: Session = Depends(get_db), _: User
 
 
 @router.post("/health-all")
-def health_check_all(db: Session = Depends(get_db)):
+def health_check_all(db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
 
     platforms_to_check = db.query(Platform).filter(Platform.is_system == False).all()
     results = []
@@ -215,7 +215,7 @@ def delete_platform(
 
 
 @router.post("/{platform_id}/health")
-def platform_health(platform_id: int, db: Session = Depends(get_db)):
+def platform_health(platform_id: int, db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
 
     platform = db.get(Platform, platform_id)
     if not platform:

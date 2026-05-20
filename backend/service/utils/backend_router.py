@@ -15,18 +15,13 @@ from backend.service.utils.settings import get_binary_path
 
 
 def _load_eras_config() -> Dict[str, Any]:
-    """Load and parse ``config/eras.yaml``.
-
-    Returns:
-        Dictionary mapping era keys to their configuration values.
-
-    Raises:
-        FileNotFoundError: If ``eras.yaml`` cannot be found.
-        yaml.YAMLError: If the file exists but is not valid YAML.
-    """
+    """Load and parse ``config/eras.yaml``."""
     config_path = get_base_path() / "config" / "eras.yaml"
     with config_path.open('r') as f:
         return yaml.safe_load(f)
+
+
+_ERAS_CONFIG: Dict[str, Any] = _load_eras_config()
 
 
 def resolve_backend_name(era: Era) -> str:
@@ -45,12 +40,7 @@ def resolve_backend_name(era: Era) -> str:
         RuntimeError: If eras.yaml cannot be loaded or the era is not configured.
         ValueError: If the era has no resolvable backend.
     """
-    try:
-        eras_config = _load_eras_config()
-    except (FileNotFoundError, yaml.YAMLError) as e:
-        raise RuntimeError(f"Failed to load eras.yaml configuration: {e}")
-
-    era_config = eras_config.get(era.value)
+    era_config = _ERAS_CONFIG.get(era.value)
     if not era_config:
         raise ValueError(f"Era '{era.value}' not found in eras.yaml")
 

@@ -13,14 +13,19 @@ import re
 import shutil
 import sys
 import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import List, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
+from backend.core.logger import get_logger
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.job_objects import WindowsJobObject
+
+logger = get_logger(__name__)
 
 _DOSBOX_ERAS = {Era.DOS, Era.WIN31}
 SUPPORTED_ERAS = {e.value for e in _DOSBOX_ERAS}
@@ -205,6 +210,13 @@ def write_launch_conf(media_path: Path, era: str, executable_path: Path, game_ex
     return conf_path
 
 
+def _cleanup_temp_conf(tmpdir: Path) -> None:
+    try:
+        shutil.rmtree(str(tmpdir), ignore_errors=False)
+    except Exception as exc:
+        logger.warning("Failed to remove DOSBox temp conf %s: %s", tmpdir, exc)
+
+
 def build_args(media_path: Path, era: str, enable_networking: bool = False) -> List[str]:
     """Build DOSBox-X command-line arguments for the given media and era.
 
@@ -280,12 +292,13 @@ def launch(
     validate_media(media_path)
 
     conf_path = write_launch_conf(media_path, era, Path(executable_path), game_executable=game_executable)
-    atexit.register(shutil.rmtree, str(conf_path.parent), True)
+    conf_tmpdir = conf_path.parent
+    atexit.register(shutil.rmtree, str(conf_tmpdir), True)
 
     args = ["-conf", str(conf_path)] + build_args(media_path, era, enable_networking=enable_networking)
     job_name = f"peach1up_dosbox_{era}_{media_path.stem}"
 
-    return launch_under_job_object(
+    result = launch_under_job_object(
         executable_path=executable_path,
         args=args,
         media_paths=[str(media_path)],
@@ -293,3 +306,14 @@ def launch(
         job_name=job_name,
         slug="dosbox-x",
     )
+
+    proc = result[0] if isinstance(result, tuple) else result
+
+    def _deferred_cleanup() -> None:
+        while proc is not None and proc.poll() is None:
+            time.sleep(2)
+        _cleanup_temp_conf(conf_tmpdir)
+
+    threading.Thread(target=_deferred_cleanup, daemon=True, name="dosbox_conf_cleanup").start()
+
+    return result

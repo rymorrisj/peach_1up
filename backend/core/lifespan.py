@@ -122,32 +122,36 @@ def _sync_first_run_from_db(db) -> None:
         state["first_run_complete"] = True
 
 
-def _seed_system_platforms(db) -> None:
+def _seed_system_platforms(db) -> bool:
     try:
         from backend.models import Platform
         if db.query(Platform).filter(Platform.is_system.is_(True)).count() > 0:
-            return
+            return True
         for data in _SYSTEM_PLATFORMS:
             db.add(Platform(**data))
         db.flush()
         logger.info("Seeded %d system platforms", len(_SYSTEM_PLATFORMS))
+        return True
     except Exception as exc:
         db.rollback()
-        logger.warning("System platform seeding skipped: %s", exc)
+        logger.error("System platform seeding failed: %s", exc)
+        return False
 
 
-def _seed_default_profiles(db) -> None:
+def _seed_default_profiles(db) -> bool:
     try:
         from backend.models import Profile
         if db.query(Profile).filter(Profile.is_bundled.is_(True)).count() > 0:
-            return
+            return True
         for data in _DEFAULT_PROFILES:
             db.add(Profile(**data))
         db.flush()
         logger.info("Seeded %d default profiles", len(_DEFAULT_PROFILES))
+        return True
     except Exception as exc:
         db.rollback()
-        logger.warning("Default profile seeding skipped: %s", exc)
+        logger.error("Default profile seeding failed: %s", exc)
+        return False
 
 
 def _cleanup_stale_sessions(db) -> None:
@@ -422,11 +426,13 @@ async def lifespan(app: FastAPI):
     session_factory = sessionmaker(bind=get_engine())
     with session_factory() as db:
         _sync_first_run_from_db(db)
-        _seed_system_platforms(db)
-        _seed_default_profiles(db)
+        _platforms_seeded = _seed_system_platforms(db)
+        _profiles_seeded = _seed_default_profiles(db)
         _cleanup_stale_sessions(db)
         _flag_corrupt_platform_working_paths(db)
         db.commit()
+
+    app.state.seed_warnings = not (_platforms_seeded and _profiles_seeded)
 
     _scan_installed_emulators()
     _sync_detected_emulator_paths()

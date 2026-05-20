@@ -302,7 +302,7 @@ def get_launch(history_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/launches/{history_id}/stop", status_code=200)
-def stop_launch(history_id: int, db: Session = Depends(get_db)):
+def stop_launch(history_id: int, db: Session = Depends(get_db), _: User = require_permission("can_launch_media")):
     record = db.get(LaunchHistory, history_id)
     if not record:
         raise HTTPException(status_code=404, detail="Launch record not found.")
