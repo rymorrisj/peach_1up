@@ -1,0 +1,16 @@
+slug = "midi"
+display_name = "MIDI Music"
+description = "For strategy games with Roland MIDI soundtracks."
+best_for = ["win95", "win98"]
+machine = "p2bls"
+cpu_family = "pentium2_deschutes"
+cpu_speed = 300000000
+cpu_multi = 3.5
+cpu_use_dynarec = 1
+fpu_type = "internal"
+mem_size = 131072
+gfxcard = "s3_virge_dx"
+vid_renderer = "qt_software"
+sndcard = "sb16_pnp"
+keyboard_type = "keyboard_ps2"
+mouse_type = "ps2"

@@ -21,6 +21,7 @@ import yaml
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.models.platform import Platform
+from backend.service.utils.emulator_catalog import get_86box_profile
 from backend.service.utils.settings import get_binary_path, get_env_var
 
 logger = get_logger(__name__)
@@ -45,29 +46,6 @@ _VM_MEMORY_MB: dict[str, int] = {
 
 _WIN9X_ERAS = frozenset({"win95", "win98"})
 
-# Per-era base machine hardware for 86Box 5.x (cpu_speed in Hz)
-_MACHINE_BASE: dict[str, dict[str, str]] = {
-    "win98": {
-        "machine":    "prosignias31x_bx",
-        "cpu_family": "pentium2_deschutes",
-        "cpu_speed":  "350000000",
-    },
-    "win95": {
-        "machine":    "p55t2p4",
-        "cpu_family": "pentium_mmx",
-        "cpu_speed":  "200000000",
-    },
-}
-
-# Hardware profile → gfxcard / sndcard overrides
-_HARDWARE_PROFILES: dict[str, dict[str, str]] = {
-    "standard": {"gfxcard": "s3_virge_dx",          "sndcard": "sb16_pnp"},
-    "3dfx":     {"gfxcard": "voodoo3_3500_si_agp",   "sndcard": "sb16_pnp"},
-    "opl":      {"gfxcard": "s3_virge_dx",            "sndcard": "sb16"},
-    "midi":     {"gfxcard": "s3_virge_dx",            "sndcard": "sb_awe32"},
-}
-
-_MIDI_PROFILES = frozenset({"midi"})
 
 
 def _build_vhd_footer(size_bytes: int) -> bytes:
@@ -249,8 +227,8 @@ def provision_86box_vm(
             optionally ``base_image_path`` and ``machine_override`` set.
         box86_path: Absolute path to 86Box.exe, resolved from settings.
         rom_path: Absolute path to the 86Box ROM pack directory.
-        hardware_profile: One of the keys in ``_HARDWARE_PROFILES``.
-            Defaults to ``"standard"`` if the key is unrecognised.
+        hardware_profile: Slug of a profile defined in config/86box-profiles/.
+            Raises ValueError if the slug is not found.
 
     Returns:
         Tuple of (base_image_path, working_image_path, config_path).
@@ -272,9 +250,8 @@ def provision_86box_vm(
     size_bytes = disk_size_mb * 1024 * 1024
     cylinders = size_bytes // (16 * 63 * 512)
 
-    profile = _HARDWARE_PROFILES.get(hardware_profile, _HARDWARE_PROFILES["standard"])
-    machine_base = _MACHINE_BASE[era]
-    machine = getattr(platform, "machine_override", None) or machine_base["machine"]
+    profile = get_86box_profile(hardware_profile)
+    machine = getattr(platform, "machine_override", None) or profile["machine"]
 
     os_base = Path(get_env_var("OS_PATH")).resolve()
     vm_name = _vm_name(platform)
@@ -303,26 +280,36 @@ def provision_86box_vm(
     parser = configparser.RawConfigParser()
     parser.optionxform = str
 
+    parser.add_section("General")
+    parser.set("General", "boot_order", "cdrom_fdd_hdd")
+
     parser.add_section("Machine")
     parser.set("Machine", "machine",         machine)
-    parser.set("Machine", "cpu_family",      machine_base["cpu_family"])
-    parser.set("Machine", "cpu_speed",       machine_base["cpu_speed"])
-    parser.set("Machine", "mem_size",        "131072")
-    parser.set("Machine", "cpu_use_dynarec", "1")
-    parser.set("Machine", "fpu_type",        "internal")
+    parser.set("Machine", "cpu_family",      profile["cpu_family"])
+    parser.set("Machine", "cpu_speed",       str(profile["cpu_speed"]))
+    parser.set("Machine", "cpu_multi",       str(profile["cpu_multi"]))
+    parser.set("Machine", "mem_size",        str(profile["mem_size"]))
+    parser.set("Machine", "cpu_use_dynarec", str(profile["cpu_use_dynarec"]))
+    parser.set("Machine", "fpu_type",        profile["fpu_type"])
 
     parser.add_section("Video")
     parser.set("Video", "gfxcard",      profile["gfxcard"])
-    parser.set("Video", "vid_renderer", "qt_software")
+    parser.set("Video", "vid_renderer", profile["vid_renderer"])
 
     parser.add_section("Sound")
     parser.set("Sound", "sndcard", profile["sndcard"])
 
-    if hardware_profile in _MIDI_PROFILES:
+    if profile.get("slug") == "midi":
         parser.add_section("MIDI")
         parser.set("MIDI", "midi_device", "nuked_sc55")
 
-    vhd_fwd = str(vhd_path).replace("\\", "/")
+    parser.add_section("Keyboard")
+    parser.set("Keyboard", "keyboard_type", profile["keyboard_type"])
+
+    parser.add_section("Mouse")
+    parser.set("Mouse", "mouse_type", profile["mouse_type"])
+
+    vhd_fwd = Path(vhd_path).resolve().as_posix()
     parser.add_section("Hard disks")
     parser.set("Hard disks", "hdd_01_fn",          vhd_fwd)
     parser.set("Hard disks", "hdd_01_ide_channel",  "0:0")
@@ -330,7 +317,7 @@ def provision_86box_vm(
     parser.set("Hard disks", "hdd_01_speed",         "ramdisk")
 
     if iso_path is not None:
-        iso_fwd = str(iso_path).replace("\\", "/")
+        iso_fwd = Path(iso_path).resolve().as_posix()
         parser.add_section("Floppy and CD-ROM drives")
         parser.set("Floppy and CD-ROM drives", "cdrom_02_image_path", iso_fwd)
         parser.set("Floppy and CD-ROM drives", "cdrom_02_parameters",  "1, atapi")

@@ -2,7 +2,7 @@
 
 Handles Win95 and Win98 accuracy mode launches. Accepts a registered OSPlatform,
 loads the era hardware template, validates all identifiers, optionally injects
-media attachment into the config file, and launches 86Box under Job Objects.
+game media into the config file, and launches 86Box under Job Objects.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from backend.constants_generated import Era
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.models.platform import Platform
+from backend.service.utils.emulator_catalog import get_86box_profile
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.media_attach import build_86box_attachment
 from backend.service.utils.settings import get_binary_path
@@ -136,29 +137,106 @@ def _resolve_rom_path(box86_binary: Path) -> Path:
     )
 
 
-def _inject_install_iso(config_path: str, iso_path: Path) -> None:
-    """Inject confirmed CD-ROM section keys for a first-launch install ISO."""
-    cp = Path(config_path)
+def _ensure_section(parser: configparser.RawConfigParser, section: str) -> None:
+    if not parser.has_section(section):
+        parser.add_section(section)
+
+
+def _prepare_config(platform: Platform, cfg_path: str, rom_path: Path) -> None:
+    """Patch all required 86Box config keys before every launch.
+
+    Reads the existing config (BOM-tolerant), overwrites only the keys this
+    function manages, and writes back without BOM. All other sections and keys
+    that 86Box has written are preserved unchanged.
+
+    Idempotent: calling twice with the same inputs produces the same file.
+
+    Raises:
+        FileNotFoundError: If the config file or disk image does not exist.
+        OSError: If the disk image cannot be read or the atomic write fails.
+    """
+    logger.debug("_prepare_config called: cfg=%s exists=%s", cfg_path, Path(cfg_path).exists())
+    cp = Path(cfg_path)
     if not cp.exists():
         raise FileNotFoundError(f"86Box config not found: {cp}")
 
     parser = configparser.RawConfigParser()
     parser.optionxform = str
-    parser.read(str(cp), encoding="utf-8")
+    parser.read(str(cp), encoding="utf-8-sig")
 
-    section = "Floppy and CD-ROM drives"
-    if not parser.has_section(section):
-        parser.add_section(section)
-    iso_fwd = str(Path(iso_path).resolve()).replace("\\", "/")
-    parser.set(section, "cdrom_02_image_path", iso_fwd)
-    parser.set(section, "cdrom_02_parameters",  "1, atapi")
-    parser.set(section, "cdrom_02_ide_channel", "0:1")
+    img_path = Path(str(platform.working_image_path))
+    try:
+        with img_path.open("rb") as f:
+            f.seek(510)
+            mbr_sig = f.read(2)
+    except OSError as exc:
+        raise OSError(
+            f"Cannot read disk image for platform '{platform.name}': {img_path}"
+        ) from exc
+    disk_blank = mbr_sig != b"\x55\xaa"
+
+    _ensure_section(parser, "General")
+    parser.set("General", "boot_order", "cdrom_fdd_hdd" if disk_blank else "hdd_cdrom_fdd")
+
+    hw_profile = get_86box_profile(platform.hardware_profile or "standard")
+    _ensure_section(parser, "Machine")
+    parser.set("Machine", "machine",         hw_profile["machine"])
+    parser.set("Machine", "cpu_family",      hw_profile["cpu_family"])
+    parser.set("Machine", "cpu_speed",       str(hw_profile["cpu_speed"]))
+    parser.set("Machine", "cpu_multi",       str(hw_profile["cpu_multi"]))
+    parser.set("Machine", "mem_size",        str(hw_profile["mem_size"]))
+    parser.set("Machine", "cpu_use_dynarec", str(hw_profile["cpu_use_dynarec"]))
+    parser.set("Machine", "fpu_type",        hw_profile["fpu_type"])
+
+    _ensure_section(parser, "Video")
+    parser.set("Video", "gfxcard",      hw_profile["gfxcard"])
+    parser.set("Video", "vid_renderer", hw_profile["vid_renderer"])
+
+    _ensure_section(parser, "Sound")
+    parser.set("Sound", "sndcard", hw_profile["sndcard"])
+
+    _ensure_section(parser, "Keyboard")
+    parser.set("Keyboard", "keyboard_type", hw_profile["keyboard_type"])
+
+    _ensure_section(parser, "Mouse")
+    parser.set("Mouse", "mouse_type", hw_profile["mouse_type"])
+
+    disk_fwd = str(img_path.resolve()).replace("\\", "/")
+    _ensure_section(parser, "Hard disks")
+    parser.set("Hard disks", "hdd_01_fn", disk_fwd)
+    parser.set("Hard disks", "hdd_01_ide_channel", "0:0")
+    parser.set("Hard disks", "hdd_01_parameters", "63, 16, 4161, 0, ide")
+    parser.set("Hard disks", "hdd_01_speed", "ramdisk")
+
+    cdrom_section = "Floppy and CD-ROM drives"
+    if disk_blank and platform.base_image_path is not None:
+        iso = Path(str(platform.base_image_path))
+        if iso.exists():
+            _ensure_section(parser, cdrom_section)
+            iso_fwd = str(iso.resolve()).replace("\\", "/")
+            parser.set(cdrom_section, "cdrom_02_image_path", iso_fwd)
+            parser.set(cdrom_section, "cdrom_02_parameters", "1, atapi")
+            parser.set(cdrom_section, "cdrom_02_ide_channel", "0:1")
+    elif parser.has_section(cdrom_section) and parser.has_option(cdrom_section, "cdrom_02_image_path"):
+        parser.remove_option(cdrom_section, "cdrom_02_image_path")
+
+    _ensure_section(parser, "Paths")
+    parser.set("Paths", "rompath", str(rom_path.resolve()))
+
+    _ensure_section(parser, "Network")
+    parser.set("Network", "net_01_link", "0")
 
     tmp_path = cp.with_suffix(cp.suffix + ".tmp")
+    logger.debug("_prepare_config writing: gfxcard=%s sndcard=%s boot_order=%s hdd_fn=%s",
+        parser.get("Video", "gfxcard", fallback="MISSING"),
+        parser.get("Sound", "sndcard", fallback="MISSING"),
+        parser.get("General", "boot_order", fallback="MISSING"),
+        parser.get("Hard disks", "hdd_01_fn", fallback="MISSING"))
     try:
         with tmp_path.open("w", encoding="utf-8") as fh:
             parser.write(fh)
         os.replace(str(tmp_path), str(cp))
+        logger.debug("_prepare_config write complete: %s", cp)
     except Exception:
         try:
             if tmp_path.exists():
@@ -196,7 +274,7 @@ def _inject_media(attachment: dict) -> None:
 
     parser = configparser.RawConfigParser()
     parser.optionxform = str
-    parser.read(str(config_path), encoding="utf-8")
+    parser.read(str(config_path), encoding="utf-8-sig")
 
     section = attachment["section"]
     if not parser.has_section(section):
@@ -225,13 +303,8 @@ def launch(
     """Launch 86Box in accuracy mode under Job Objects.
 
     Validates platform state and environment, loads and validates the era
-    hardware template, optionally injects game media into the config, then
-    launches 86Box with resource limits applied.
-
-    When enable_networking is False (the default), the [Network] section of
-    the 86Box config is patched to set net_type = none before launch, removing
-    any network device from the machine config. When True, the config is left
-    at its current value.
+    hardware template, patches the 86Box config for this launch, optionally
+    injects game media, then launches 86Box with resource limits applied.
 
     Args:
         platform: Registered OSPlatform. ``era``, ``working_image_path``, and
@@ -239,9 +312,8 @@ def launch(
         media_path: Optional game media to attach at launch time. When
             provided, the cd_path key is injected into the 86Box config
             before launch.
-        enable_networking: When False (default), the network device is removed
-            from the machine config. Set True only for software that requires
-            a network connection.
+        enable_networking: When True, overrides the default net_01_link=0 set
+            by _prepare_config to allow network traffic.
 
     Raises:
         ValueError: If the era is unsupported, required platform fields are
@@ -295,48 +367,33 @@ def launch(
 
     effective_rom_path = _resolve_rom_path(Path(box86_path))
 
-    _inject_media({
-        "config_path": platform.config_path,
-        "section": "Paths",
-        "key": "rompath",
-        "value": str(effective_rom_path),
-    })
+    logger.debug("About to call _prepare_config: config_path=%s", platform.config_path)
+    _prepare_config(platform, platform.config_path, effective_rom_path)
+
+    if enable_networking:
+        _inject_media({
+            "config_path": platform.config_path,
+            "section": "Network",
+            "key": "net_01_link",
+            "value": "1",
+        })
+
+    job_paths = [str(platform.working_image_path)]
 
     if media_path is not None:
         attachment = build_86box_attachment(media_path, platform.config_path)
         _inject_media(attachment)
+        job_paths.append(str(media_path))
 
-    _inject_media({
-        "config_path": platform.config_path,
-        "section": "Network",
-        "key": "net_type",
-        "value": "ne2000" if enable_networking else "none",
-    })
+    if platform.base_image_path is not None:
+        iso = Path(str(platform.base_image_path))
+        if iso.exists():
+            job_paths.append(str(iso))
 
     args = [
         "--config", str(platform.config_path),
         "--rompath", str(effective_rom_path),
     ]
-
-    job_paths = [str(platform.working_image_path)]
-    if media_path is not None:
-        job_paths.append(str(media_path))
-
-    try:
-        with img_path.open("rb") as f:
-            f.seek(510)
-            mbr_sig = f.read(2)
-    except OSError as exc:
-        raise OSError(
-            f"Cannot read disk image for platform '{platform.name}': {img_path}"
-        ) from exc
-
-    if mbr_sig != b"\x55\xaa":
-        if platform.base_image_path is not None:
-            iso = Path(str(platform.base_image_path))
-            if iso.exists():
-                _inject_install_iso(str(platform.config_path), iso)
-                job_paths.append(str(iso))
 
     job_name = f"peach1up_86box_{platform.era}_{platform.slug}"
 
@@ -346,4 +403,5 @@ def launch(
         media_paths=job_paths,
         era=platform.era,
         job_name=job_name,
+        slug="86box",
     )

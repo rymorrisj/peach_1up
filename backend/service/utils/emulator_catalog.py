@@ -7,6 +7,8 @@ from backend.core.settings import get_base_path
 
 _CATALOG_PATH = get_base_path() / "config" / "emulators.toml"
 _BASE_DIR = get_base_path() / "emulators"
+_PROFILES_PATH = get_base_path() / "config" / "86box-profiles.toml"
+_PROFILES_DIR = get_base_path() / "config" / "86box-profiles"
 
 _SLUG_TO_SETTINGS_KEY: dict[str, str] = {
     "dosbox-x":    "DOSBOX_PATH",
@@ -18,6 +20,38 @@ _SLUG_TO_SETTINGS_KEY: dict[str, str] = {
     "mesen":       "MESEN_PATH",
     "project64":   "PROJECT64_PATH",
 }
+
+
+def get_86box_profile(slug: str) -> dict:
+    """Return the 86Box hardware profile dict for *slug*.
+
+    Reads from config/86box-profiles.toml if present; falls back to reading
+    individual files from config/86box-profiles/ for development use.
+
+    Raises:
+        ValueError: If the slug is not found in any profile file.
+        FileNotFoundError: If neither the merged TOML nor the source directory exists.
+    """
+    if _PROFILES_PATH.exists():
+        data = tomllib.loads(_PROFILES_PATH.read_text(encoding="utf-8"))
+        profiles = data.get("profiles", [])
+    elif _PROFILES_DIR.is_dir():
+        profiles = [
+            tomllib.loads(f.read_text(encoding="utf-8"))
+            for f in sorted(_PROFILES_DIR.glob("*.toml"))
+        ]
+    else:
+        raise FileNotFoundError(
+            f"86Box profiles not found — expected {_PROFILES_PATH} or {_PROFILES_DIR}. "
+            "Run scripts/merge_emulators.py to generate config/86box-profiles.toml."
+        )
+    for profile in profiles:
+        if profile.get("slug") == slug:
+            return profile
+    raise ValueError(
+        f"Unknown 86Box hardware profile: {slug!r}. "
+        "Available profiles are defined in config/86box-profiles/."
+    )
 
 
 def load_catalog() -> list[dict]:
@@ -191,6 +225,13 @@ def detect_and_sync_all() -> None:
                 configure_emulator(slug)
             except Exception:
                 pass
+
+
+def get_skip_memory_limit(slug: str) -> bool:
+    try:
+        return bool(get_emulator(slug).get("skip_memory_limit", False))
+    except ValueError:
+        return False
 
 
 def load_bios_requirements() -> list[dict]:

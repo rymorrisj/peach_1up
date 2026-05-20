@@ -1,0 +1,16 @@
+slug = "3d_glide"
+display_name = "3D / Glide"
+description = "For 3dfx titles: Tomb Raider, NFS, Quake."
+best_for = ["win98"]
+machine = "p2bls"
+cpu_family = "pentium2_deschutes"
+cpu_speed = 350000000
+cpu_multi = 3.5
+cpu_use_dynarec = 1
+fpu_type = "internal"
+mem_size = 131072
+gfxcard = "voodoo2"
+vid_renderer = "qt_software"
+sndcard = "sb16_pnp"
+keyboard_type = "keyboard_ps2"
+mouse_type = "ps2"
