@@ -124,6 +124,9 @@ def _validate_game_executable(game_executable: str, expected_drive: str) -> None
     if "\x00" in game_executable:
         raise ValueError("game_executable must not contain null bytes")
 
+    if "#" in game_executable:
+        raise ValueError("game_executable must not contain '#' (DOSBox-X comment character)")
+
     if game_executable[0] in ("[", "@"):
         raise ValueError(
             f"game_executable must not start with '[' or '@' (DOSBox-X meta-characters); "

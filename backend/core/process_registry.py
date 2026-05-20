@@ -68,21 +68,24 @@ def cleanup_exited() -> list[tuple[int, ProcessEntry]]:
     removed = []
     with _lock:
         for pid, entry in list(_registry.items()):
-            proc = entry.process_handle
-            poll_result = proc.poll() if proc is not None else "no-handle"
-            reaped = proc is not None and poll_result is not None and poll_result != "no-handle"
-            logger.debug(
-                "cleanup_exited: pid=%d poll=%s reaped=%s",
-                pid, poll_result, reaped,
-            )
-            if reaped:
-                _registry.pop(pid)
-                removed.append((pid, entry))
-                if entry.job_handle is not None:
-                    try:
-                        entry.job_handle.close()
-                    except Exception as exc:
-                        logger.error("Failed to close job handle for pid=%d: %s", pid, exc)
+            try:
+                proc = entry.process_handle
+                poll_result = proc.poll() if proc is not None else "no-handle"
+                reaped = proc is not None and poll_result is not None and poll_result != "no-handle"
+                logger.debug(
+                    "cleanup_exited: pid=%d poll=%s reaped=%s",
+                    pid, poll_result, reaped,
+                )
+                if reaped:
+                    _registry.pop(pid)
+                    removed.append((pid, entry))
+                    if entry.job_handle is not None:
+                        try:
+                            entry.job_handle.close()
+                        except Exception as exc:
+                            logger.warning("Failed to close job handle for pid=%d: %s", pid, exc)
+            except Exception as exc:
+                logger.warning("Failed to check/cleanup process pid=%d: %s", pid, exc)
     return removed
 
 
