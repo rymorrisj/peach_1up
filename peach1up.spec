@@ -81,7 +81,7 @@ a.datas = [
     for dest, src, kind in a.datas
     if "__pycache__" not in dest
     and not any(seg in dest for seg in ("test_", "_test.", "/tests/", "/test/"))
-    and not any(part in dest for part in ("roms", "bios", "saves"))
+    and not any(part in dest for part in ("roms", "bios", "saves", "vms"))
     and dest.replace("\\", "/") != "config/emulators.yaml"
     and not dest.replace("\\", "/").startswith("config/emulators/")
 ]

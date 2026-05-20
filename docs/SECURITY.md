@@ -284,6 +284,16 @@ after process creation. Kill-on-close and CPU rate control still apply.
 The skip_memory_limit flag in config/emulators/ controls this per
 emulator. See DECISIONS.md 2026-05-19 for full rationale.
 
+#### Job Object CPU rate control mutes host audio
+
+JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP causes Windows to deprioritise
+the host audio session while an emulator is running, muting system
+audio. This is a side effect of the interim Job Objects isolation
+model. AppContainer isolation (P9) removes this limitation. As a
+workaround, CPU rate control can be disabled per emulator via
+skip_cpu_limit = true in the emulator descriptor (not yet
+implemented — tracked for P9 pre-work).
+
 ### Linux sandbox implementation (planned)
 
 The current Linux process isolation description (cgroups and network namespaces) is

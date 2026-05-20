@@ -155,7 +155,6 @@ def _prepare_config(platform: Platform, cfg_path: str, rom_path: Path) -> None:
         FileNotFoundError: If the config file or disk image does not exist.
         OSError: If the disk image cannot be read or the atomic write fails.
     """
-    logger.debug("_prepare_config called: cfg=%s exists=%s", cfg_path, Path(cfg_path).exists())
     cp = Path(cfg_path)
     if not cp.exists():
         raise FileNotFoundError(f"86Box config not found: {cp}")
@@ -226,16 +225,10 @@ def _prepare_config(platform: Platform, cfg_path: str, rom_path: Path) -> None:
     parser.set("Network", "net_01_link", "0")
 
     tmp_path = cp.with_suffix(cp.suffix + ".tmp")
-    logger.debug("_prepare_config writing: gfxcard=%s sndcard=%s boot_order=%s hdd_fn=%s",
-        parser.get("Video", "gfxcard", fallback="MISSING"),
-        parser.get("Sound", "sndcard", fallback="MISSING"),
-        parser.get("General", "boot_order", fallback="MISSING"),
-        parser.get("Hard disks", "hdd_01_fn", fallback="MISSING"))
     try:
         with tmp_path.open("w", encoding="utf-8") as fh:
             parser.write(fh)
         os.replace(str(tmp_path), str(cp))
-        logger.debug("_prepare_config write complete: %s", cp)
     except Exception:
         try:
             if tmp_path.exists():
@@ -366,7 +359,6 @@ def launch(
 
     effective_rom_path = _resolve_rom_path(Path(box86_path))
 
-    logger.debug("About to call _prepare_config: config_path=%s", platform.config_path)
     _prepare_config(platform, platform.config_path, effective_rom_path)
 
     if enable_networking:
