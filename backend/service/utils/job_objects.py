@@ -97,14 +97,13 @@ class WindowsJobObject:
         self.pid = None
 
     def create(self) -> None:
-        """Create the Win32 Job Object and apply the CPU rate cap.
+        """Create the Win32 Job Object.
 
-        Memory limit and kill-on-close are applied by the launcher after
-        creation, conditionally on the emulator slug.
+        Memory limit, CPU rate cap, and kill-on-close are applied by the
+        launcher after creation, conditionally on the emulator slug.
 
         Raises:
-            RuntimeError: If ``CreateJobObjectW`` fails or the CPU limit
-                cannot be set.
+            RuntimeError: If ``CreateJobObjectW`` fails.
         """
         self.job_handle = ctypes.windll.kernel32.CreateJobObjectW(
             None,                        # default security attributes
@@ -116,8 +115,6 @@ class WindowsJobObject:
             raise RuntimeError(
                 f"Failed to create Job Object '{self.name}'. Error code: {error_code}"
             )
-
-        self.set_cpu_limit(self.cpu_limit_percent)
 
     def set_memory_limit(self, limit_mb: int) -> None:
         """Set the per-process memory cap and enable kill-on-close.

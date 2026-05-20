@@ -234,6 +234,13 @@ def get_skip_memory_limit(slug: str) -> bool:
         return False
 
 
+def get_skip_cpu_limit(slug: str) -> bool:
+    try:
+        return bool(get_emulator(slug).get("skip_cpu_limit", False))
+    except ValueError:
+        return False
+
+
 def load_bios_requirements() -> list[dict]:
     data = tomllib.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
     return data.get("bios_requirements", [])

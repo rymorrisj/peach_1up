@@ -69,6 +69,7 @@ portable_sentinel = ""
 sandbox_mode = "appcontainer"
 capabilities = []
 skip_memory_limit = false
+skip_cpu_limit = true
 description = "DOS and Windows 3.1 emulation"
 required = false
 install_type = "zip"
