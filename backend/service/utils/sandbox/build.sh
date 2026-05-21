@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SRC_DIR="$SCRIPT_DIR/src"
+OUT_NAME="${OUT_NAME:-sandbox_host.exe}"
+OUT="$SCRIPT_DIR/$OUT_NAME"
+
+SOURCES=(
+    "$SRC_DIR/main.cpp"
+    "$SRC_DIR/container.cpp"
+    "$SRC_DIR/job.cpp"
+    "$SRC_DIR/watchdog.cpp"
+    "$SRC_DIR/event.cpp"
+)
+
+echo "Building $OUT_NAME ..."
+
+g++ \
+    -std=c++20 \
+    -Wall -Wextra \
+    -O2 \
+    -I"$SRC_DIR" \
+    "${SOURCES[@]}" \
+    -o "$OUT" \
+    -luserenv \
+    -lole32 \
+    -ladvapi32 \
+    -lkernel32
+
+echo "Built: $OUT"
