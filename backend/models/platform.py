@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, func
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, func
 from sqlmodel import Field, SQLModel
 
 
@@ -21,6 +21,7 @@ class PlatformBase(SQLModel):
     installed_at: Optional[datetime] = None
     hardware_profile: str = "standard"
     machine_override: Optional[str] = None
+    launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
 
 
 class Platform(PlatformBase, table=True):
@@ -65,6 +66,7 @@ class PlatformUpdate(SQLModel):
     installed_at: Optional[datetime] = None
     hardware_profile: Optional[str] = None
     machine_override: Optional[str] = None
+    launch_commands: Optional[list[str]] = None
 
 
 class PlatformRead(PlatformBase):

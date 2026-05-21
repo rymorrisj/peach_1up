@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, func
+from sqlalchemy import JSON, Column, DateTime, func
 from sqlmodel import Field, SQLModel
 
 
@@ -16,6 +16,7 @@ class ProfileBase(SQLModel):
     enable_networking: bool = False
     notes: Optional[str] = None
     user_id: Optional[int] = None
+    launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
 
 
 class Profile(ProfileBase, table=True):
@@ -45,6 +46,7 @@ class ProfileUpdate(SQLModel):
     extra_args: Optional[str] = None
     enable_networking: Optional[bool] = None
     notes: Optional[str] = None
+    launch_commands: Optional[list[str]] = None
 
 
 class ProfileRead(ProfileBase):

@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button, FormField, Input, Modal, Textarea } from '@/ui'
 import PathInput from '@/components/common/PathInput'
 import FileUpload from '@/components/common/FileUpload'
 import FileBrowser from '@/components/common/FileBrowser'
+import LaunchCommandList from '@/components/LaunchCommandList'
 
 type PCEra = 'dos' | 'win31' | 'win95' | 'win98' | 'winxp'
 
@@ -64,6 +65,7 @@ export interface EnvironmentForm {
   hardware_profile: HardwareProfile
   machine_override: string
   notes: string
+  launch_commands: string[]
 }
 
 export const EMPTY_ENV_FORM: EnvironmentForm = {
@@ -74,6 +76,7 @@ export const EMPTY_ENV_FORM: EnvironmentForm = {
   hardware_profile: 'standard',
   machine_override: '',
   notes: '',
+  launch_commands: [],
 }
 
 export { ERA_TO_EMULATOR }
@@ -106,10 +109,12 @@ export default function EnvironmentModal({
   const showInstallMediaAbove = form.era !== null && INSTALL_MEDIA_ERAS.has(form.era) && mode === 'create'
   const hasAdvancedValues = !!(
     (!showInstallMediaAbove && form.base_image_path) ||
-    form.working_image_path || form.machine_override || form.notes
+    form.working_image_path || form.machine_override || form.notes ||
+    form.launch_commands.length > 0
   )
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const advancedOpen = showAdvanced || hasAdvancedValues
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) setShowAdvanced(hasAdvancedValues) }, [open])
   const [machineBrowserOpen, setMachineBrowserOpen] = useState(false)
 
   return (
@@ -250,11 +255,11 @@ export default function EnvironmentModal({
           onClick={() => setShowAdvanced((v) => !v)}
           className="flex items-center gap-1.5 text-sm font-medium text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
         >
-          <span>{advancedOpen ? '▾' : '▸'}</span>
+          <span>{showAdvanced ? '▾' : '▸'}</span>
           Advanced
         </button>
 
-        {advancedOpen && (
+        {showAdvanced && (
           <div className="mt-3 space-y-4">
             {!showInstallMediaAbove && (
             <FormField
@@ -356,6 +361,14 @@ export default function EnvironmentModal({
                 />
               </FormField>
             )}
+
+            <FormField label="Launch commands" hint="Commands run inside the environment when launching software">
+              <LaunchCommandList
+                value={form.launch_commands}
+                onChange={(v) => onFieldChange('launch_commands', v)}
+                disabled={submitting}
+              />
+            </FormField>
 
             <FormField label="Notes" htmlFor="env-notes">
               <Textarea

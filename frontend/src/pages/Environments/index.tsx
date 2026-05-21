@@ -19,7 +19,7 @@ type Platform = components['schemas']['PlatformRead']
 type EnvModalState = null | { mode: 'create' } | { mode: 'edit'; platform: Platform }
 
 function formFromPlatform(p: Platform): EnvironmentForm {
-  const ext = p as Platform & { hardware_profile?: string; machine_override?: string }
+  const ext = p as Platform & { hardware_profile?: string; machine_override?: string; launch_commands?: string[] | null }
   return {
     name: p.name,
     era: p.era as EnvironmentForm['era'],
@@ -28,6 +28,7 @@ function formFromPlatform(p: Platform): EnvironmentForm {
     hardware_profile: (ext.hardware_profile ?? 'standard') as EnvironmentForm['hardware_profile'],
     machine_override: ext.machine_override ?? '',
     notes: p.notes ?? '',
+    launch_commands: ext.launch_commands ?? [],
   }
 }
 
@@ -106,6 +107,7 @@ export default function Environments() {
         hardware_profile: form.hardware_profile,
         machine_override: form.machine_override.trim() || null,
         notes: form.notes.trim() || null,
+        launch_commands: form.launch_commands,
       }
       if (modal?.mode === 'create') {
         await apiFetch('/api/v1/platforms', { method: 'POST', body: JSON.stringify(body) })

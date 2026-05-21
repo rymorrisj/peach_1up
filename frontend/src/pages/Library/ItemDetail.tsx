@@ -113,7 +113,10 @@ export default function ItemDetail() {
   const [flagError, setFlagError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (item && launchCommands === null) setLaunchCommands(item.launch_commands ?? [])
+    if (item && launchCommands === null) {
+      const cmds = item.launch_commands ?? []
+      setLaunchCommands(cmds.length === 0 && item.executable_path ? [item.executable_path] : cmds)
+    }
   }, [item, launchCommands])
 
   async function handleRescan() {

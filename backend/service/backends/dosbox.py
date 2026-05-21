@@ -161,6 +161,7 @@ def write_launch_conf(
     executable_path: Path,
     game_executable: str | None = None,
     launch_commands: list[str] | None = None,
+    profile: object | None = None,
 ) -> Path:
     """Write a per-launch DOSBox-X conf to a temp directory and return its path.
 
@@ -170,6 +171,13 @@ def write_launch_conf(
     mount commands. If the bundled conf is absent, a minimal conf is generated
     with just the [sdl] and [dos] blocks.
 
+    The autoexec command list is assembled in two layers:
+      1. Profile-level commands (``profile.launch_commands``) run first.
+      2. Item-level commands (``launch_commands``) are appended after.
+    If the item layer is empty but ``game_executable`` is set, it is used as a
+    single-entry item layer. If both layers are empty the autoexec ends after
+    the drive switch, leaving a bare DOS prompt.
+
     The returned path is inside a mkdtemp directory. Callers are responsible
     for registering cleanup; launch() does this via atexit.
 
@@ -177,6 +185,12 @@ def write_launch_conf(
         media_path: Path to the media file to mount.
         era: Era name (unused; retained for call-site symmetry).
         executable_path: Path to the DOSBox-X executable.
+        game_executable: Fallback executable used when ``launch_commands`` is
+            absent; becomes a single-entry item layer.
+        launch_commands: Item-level command lines appended after profile
+            commands.
+        profile: Profile ORM object whose ``launch_commands`` field provides
+            the base (profile-level) command layer.
 
     Returns:
         Path to the written launch.conf file.
@@ -216,17 +230,22 @@ def write_launch_conf(
     # precedence over TTF mode; DOSBox-X uses the last value it reads per key.
     content += "[sdl]\noutput=surface\n\n"
     content += "[dos]\nautomount=false\nmountwarning=false\n\n"
+    # Layer 1: profile commands (base defaults, run first).
+    profile_cmds: list[str] = getattr(profile, 'launch_commands', None) or []
+    # Layer 2: item commands (item-specific paths, appended after).
+    item_cmds: list[str] = launch_commands or []
+    # If item layer is empty but a fallback executable was given, use it.
+    if not item_cmds and game_executable:
+        item_cmds = [game_executable]
+    merged = profile_cmds + item_cmds
+
     autoexec = f"[autoexec]\n{mount_line}\n{drive_line}\n"
-    if launch_commands:
-        for line in launch_commands:
-            if any(line.rstrip().lower().endswith(ext) for ext in _EXEC_SUFFIXES):
-                _validate_game_executable(line, drive_line)
-            else:
-                _validate_shell_line(line)
-            autoexec += f"{line}\n"
-    elif game_executable:
-        _validate_game_executable(game_executable, drive_line)
-        autoexec += f"{game_executable}\n"
+    for line in merged:
+        if any(line.rstrip().lower().endswith(ext) for ext in _EXEC_SUFFIXES):
+            _validate_game_executable(line, drive_line)
+        else:
+            _validate_shell_line(line)
+        autoexec += f"{line}\n"
     content += autoexec
 
     try:
@@ -291,6 +310,7 @@ def launch(
     enable_networking: bool = False,
     game_executable: str | None = None,
     launch_commands: list[str] | None = None,
+    profile: object | None = None,
 ) -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch DOSBox-X with the given media file under Job Object isolation.
 
@@ -305,6 +325,9 @@ def launch(
         enable_networking: When ``False`` (default), the NE2000 adapter is
             disabled. Set to ``True`` only for software that requires a
             network connection.
+        game_executable: Fallback executable when no item-level commands exist.
+        launch_commands: Item-level commands; merged after profile commands.
+        profile: Profile ORM object supplying profile-level launch_commands.
 
     Returns:
         Tuple of ``(process, job_object)``. The caller is responsible for
@@ -320,7 +343,7 @@ def launch(
 
     validate_media(media_path)
 
-    conf_path = write_launch_conf(media_path, era, Path(executable_path), game_executable=game_executable, launch_commands=launch_commands)
+    conf_path = write_launch_conf(media_path, era, Path(executable_path), game_executable=game_executable, launch_commands=launch_commands, profile=profile)
     conf_tmpdir = conf_path.parent
     atexit.register(shutil.rmtree, str(conf_tmpdir), True)
 

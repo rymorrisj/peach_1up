@@ -252,6 +252,11 @@ def launch_media(era, media_path, profile=None, platform=None, game_executable: 
             )
         return launch_fn(platform, media_path=media_path, enable_networking=enable_networking)
 
+    if profile is None:
+        raise RuntimeError(
+            f"A Profile record is required to launch era '{era.value}' "
+            "but none was provided."
+        )
     return launch_fn(
         media_path=media_path,
         era=era.value,
@@ -259,4 +264,5 @@ def launch_media(era, media_path, profile=None, platform=None, game_executable: 
         enable_networking=enable_networking,
         game_executable=game_executable,
         launch_commands=launch_commands,
+        profile=profile,
     )
