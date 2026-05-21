@@ -1,4 +1,6 @@
 import asyncio
+import threading
+import time
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,6 +27,40 @@ class LaunchRequest(BaseModel):
 class LaunchResponse(BaseModel):
     launch_history_id: int
     warnings: list[str] = []
+    launch_review_flagged: bool = False
+
+
+def _flag_short_lived_item(item_id: int) -> None:
+    from backend.core.database import get_engine
+    from sqlalchemy.orm import Session as _Session
+    try:
+        with _Session(get_engine()) as db:
+            item = db.get(LibraryItem, item_id)
+            if item is not None:
+                item.launch_review_flagged = True
+                db.commit()
+    except Exception as exc:
+        logger.warning("Failed to set launch_review_flagged for item %d: %s", item_id, exc)
+
+
+def _monitor_short_lived_launch(item_id: int, proc, launch_time: float, *, _timeout: float = 3.0) -> None:
+    deadline = launch_time + _timeout
+    exit_code = None
+    while time.monotonic() < deadline:
+        exit_code = proc.poll()
+        if exit_code is not None:
+            break
+        time.sleep(0.05)
+
+    if exit_code is None:
+        return
+
+    lifetime = time.monotonic() - launch_time
+    logger.warning(
+        "Short-lived DOS launch detected: item_id=%d exit_code=%r lifetime=%.2fs — flagging for review",
+        item_id, exit_code, lifetime,
+    )
+    _flag_short_lived_item(item_id)
 
 
 @router.post("/library/{item_id}/launch", status_code=202, response_model=LaunchResponse)
@@ -134,7 +170,25 @@ async def launch_item(
         history.sandbox_cpu_limit_percent = job.cpu_limit_percent
         db.commit()
 
-    return LaunchResponse(launch_history_id=history.id, warnings=warnings)
+        from backend.service.utils.backend_router import resolve_backend_name
+        from backend.constants_generated import BackendSlug, Era
+        try:
+            _backend_name = resolve_backend_name(Era(item.era))
+        except Exception:
+            _backend_name = ""
+        if _backend_name == BackendSlug.DOSBOX.value:
+            threading.Thread(
+                target=_monitor_short_lived_launch,
+                args=(item.id, proc, time.monotonic()),
+                daemon=True,
+                name=f"peach1up_shortlived_{item.id}",
+            ).start()
+
+    return LaunchResponse(
+        launch_history_id=history.id,
+        warnings=warnings,
+        launch_review_flagged=item.launch_review_flagged,
+    )
 
 
 @router.post("/environments/{platform_id}/launch", status_code=202, response_model=LaunchResponse)
