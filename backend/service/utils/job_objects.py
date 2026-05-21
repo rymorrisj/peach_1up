@@ -19,12 +19,14 @@ its network adapter when enable_networking is false on the active profile.
 import ctypes
 import ctypes.wintypes
 import os
+import sys
 
 from backend.service.utils.win32_types import (
     _JOB_OBJECT_LIMIT_PROCESS_MEMORY,
     _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     _JOB_OBJECT_CPU_RATE_CONTROL_ENABLE,
     _JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP,
+    _JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE,
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
     JOBOBJECT_CPU_RATE_CONTROL_INFORMATION,
     JOBOBJECT_BASIC_ACCOUNTING_INFORMATION,
@@ -184,48 +186,110 @@ class WindowsJobObject:
             )
 
     def set_cpu_limit(self, cpu_limit_percent: int) -> None:
-        """Apply a hard CPU rate cap via ``JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP``.
+        """Apply CPU rate control using MIN_MAX_RATE on Windows 10 1607+ or HARD_CAP as fallback.
 
-        ``CpuRate`` is expressed as cycles per 10,000 across all logical
-        processors, so a 50% cap on an 8-thread machine allows the job to
-        consume the equivalent of 4 threads' worth of CPU time per scheduling
-        interval.  Threads are throttled (not killed) when the budget is
-        exhausted within an interval.
+        MIN_MAX_RATE sets a floor of 500 (5% of all CPUs) to prevent WASAPI audio
+        thread starvation, and a ceiling of ``cpu_limit_percent * 100`` (hundredths
+        of a percent).  On Windows builds earlier than 14393, HARD_CAP is used
+        instead and a warning is logged; the launch is not aborted.
 
-        Requires Windows 8.1 or later (KB2898600 for Windows 8.0).
+        If MIN_MAX_RATE is available but ``SetInformationJobObject`` rejects it, a
+        warning is logged and the call is retried with HARD_CAP.  A ``RuntimeError``
+        is only raised if the HARD_CAP retry also fails.
 
         Args:
             cpu_limit_percent: CPU budget as a percentage of all logical
-                processors.  Clamped to [1, 100].
+                processors.  MaxRate is clamped so it is at least MinRate (500).
 
         Raises:
-            RuntimeError: If the job handle is not open or
-                ``SetInformationJobObject`` fails.
+            RuntimeError: If the job handle is not open or all
+                ``SetInformationJobObject`` attempts fail.
         """
         if not self.job_handle:
             raise RuntimeError("Job object not created. Call create() first.")
 
-        # CpuRate: units of 1/100 of a percent (10,000 == 100% of all CPUs).
-        cpu_rate = max(1, min(10000, cpu_limit_percent * 100))
+        _MIN_RATE = 500  # 5% floor — prevents WASAPI audio thread starvation
 
-        cpu_rate_info = JOBOBJECT_CPU_RATE_CONTROL_INFORMATION()
-        cpu_rate_info.ControlFlags = (
-            _JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | _JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP
-        )
-        cpu_rate_info.CpuRate = cpu_rate
-
-        result = ctypes.windll.kernel32.SetInformationJobObject(
-            self.job_handle,
-            ctypes.wintypes.DWORD(15),  # JobObjectCpuRateControlInformation
-            ctypes.byref(cpu_rate_info),
-            ctypes.sizeof(cpu_rate_info)
-        )
-
-        if not result:
-            error_code = ctypes.windll.kernel32.GetLastError()
-            raise RuntimeError(
-                f"Failed to set CPU limit to {cpu_limit_percent}%. Error code: {error_code}"
+        # MIN_MAX_RATE is available on Windows 10 version 1607 (build 14393)+.
+        win_build = sys.getwindowsversion().build
+        if win_build >= 14393:
+            configured_rate = cpu_limit_percent * 100
+            if configured_rate <= _MIN_RATE:
+                logger.warning(
+                    "CPU cap for '%s' (%d%%, %d/10000) is at or below the MinRate floor "
+                    "(%d/10000); MinRate floor will be used as MaxRate.",
+                    self.name,
+                    cpu_limit_percent,
+                    configured_rate,
+                    _MIN_RATE,
+                )
+            max_rate = max(_MIN_RATE, min(10000, configured_rate))
+            assert 0 <= _MIN_RATE <= 0xFFFF
+            assert 0 <= max_rate <= 0xFFFF
+            # MinRate (low WORD) and MaxRate (high WORD) are packed into the CpuRate DWORD.
+            cpu_rate_info = JOBOBJECT_CPU_RATE_CONTROL_INFORMATION()
+            cpu_rate_info.ControlFlags = (
+                _JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | _JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE
             )
+            cpu_rate_info.CpuRate = (_MIN_RATE & 0xFFFF) | ((max_rate & 0xFFFF) << 16)
+
+            result = ctypes.windll.kernel32.SetInformationJobObject(
+                self.job_handle,
+                ctypes.wintypes.DWORD(15),  # JobObjectCpuRateControlInformation
+                ctypes.byref(cpu_rate_info),
+                ctypes.sizeof(cpu_rate_info)
+            )
+
+            if result:
+                return
+
+            error_code = ctypes.windll.kernel32.GetLastError()
+            logger.warning(
+                "MIN_MAX_RATE SetInformationJobObject failed for '%s' (error %d); "
+                "retrying with HARD_CAP.",
+                self.name,
+                error_code,
+            )
+            cpu_rate_info.ControlFlags = (
+                _JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | _JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP
+            )
+            cpu_rate_info.CpuRate = max(1, min(10000, cpu_limit_percent * 100))
+
+            result = ctypes.windll.kernel32.SetInformationJobObject(
+                self.job_handle,
+                ctypes.wintypes.DWORD(15),
+                ctypes.byref(cpu_rate_info),
+                ctypes.sizeof(cpu_rate_info)
+            )
+            if not result:
+                error_code = ctypes.windll.kernel32.GetLastError()
+                raise RuntimeError(
+                    f"Failed to set CPU limit to {cpu_limit_percent}%. Error code: {error_code}"
+                )
+        else:
+            logger.warning(
+                "JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE unavailable (Windows build %d < 14393); "
+                "falling back to HARD_CAP for '%s'.",
+                win_build,
+                self.name,
+            )
+            cpu_rate_info = JOBOBJECT_CPU_RATE_CONTROL_INFORMATION()
+            cpu_rate_info.ControlFlags = (
+                _JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | _JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP
+            )
+            cpu_rate_info.CpuRate = max(1, min(10000, cpu_limit_percent * 100))
+
+            result = ctypes.windll.kernel32.SetInformationJobObject(
+                self.job_handle,
+                ctypes.wintypes.DWORD(15),  # JobObjectCpuRateControlInformation
+                ctypes.byref(cpu_rate_info),
+                ctypes.sizeof(cpu_rate_info)
+            )
+            if not result:
+                error_code = ctypes.windll.kernel32.GetLastError()
+                raise RuntimeError(
+                    f"Failed to set CPU limit to {cpu_limit_percent}%. Error code: {error_code}"
+                )
 
     def add_process(self, process: "SandboxProcess") -> None:
         """Assign a process to the job object.
