@@ -304,7 +304,7 @@ static int run_launch(const LaunchConfig& cfg) {
     ss.exit_code = static_cast<int>(exit_code);
     evt.signal(ss);
 
-    return 0;
+    return static_cast<int>(exit_code);
 }
 
 // ── entry point ───────────────────────────────────────────────────────────────
