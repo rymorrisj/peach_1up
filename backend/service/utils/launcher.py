@@ -32,6 +32,8 @@ from backend.service.utils.emulator_catalog import get_skip_memory_limit, get_sk
 
 logger = get_logger(__name__)
 
+_ERAS_YAML: Path = get_base_path() / "config" / "eras.yaml"
+
 
 def _load_era_limits(era: str) -> Tuple[int, int]:
     """Load memory_limit_mb and cpu_limit_percent for *era* from eras.yaml.
@@ -44,12 +46,11 @@ def _load_era_limits(era: str) -> Tuple[int, int]:
         RuntimeError: If parsing fails, the era is unknown, or either
             required field is absent.
     """
-    _eras_yaml = get_base_path() / "config" / "eras.yaml"
     try:
-        with _eras_yaml.open('r') as f:
+        with _ERAS_YAML.open('r') as f:
             eras_config = yaml.safe_load(f)
     except FileNotFoundError:
-        raise FileNotFoundError(f"eras.yaml not found at {_eras_yaml}")
+        raise FileNotFoundError(f"eras.yaml not found at {_ERAS_YAML}")
     except yaml.YAMLError as exc:
         raise RuntimeError(f"Failed to parse eras.yaml: {exc}")
 

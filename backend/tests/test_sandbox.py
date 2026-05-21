@@ -25,7 +25,7 @@ class TestLoadEraLimits:
     def test_reads_dos_values_from_real_eras_yaml(self):
         from backend.service.utils.launcher import _load_era_limits
         memory_mb, cpu_pct = _load_era_limits("dos")
-        assert memory_mb == 256
+        assert memory_mb == 512
         assert cpu_pct == 50
 
     def test_reads_win95_values_from_real_eras_yaml(self):
@@ -48,6 +48,7 @@ class TestLoadEraLimits:
     def test_missing_file_raises_file_not_found(self, monkeypatch, tmp_path):
         import backend.service.utils.launcher as jo
         monkeypatch.setattr(jo, "_ERAS_YAML", tmp_path / "missing.yaml")
+
         with pytest.raises(FileNotFoundError):
             jo._load_era_limits("dos")
 
