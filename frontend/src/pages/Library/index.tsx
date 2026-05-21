@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Trash2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { Button, FormField, Input, Modal, PageHeader } from '@/ui'
@@ -29,6 +30,37 @@ interface AddMediaForm {
 const EMPTY_ADD: AddMediaForm = { title: '', media_path: '', profile_id: null }
 
 const MEDIA_ACCEPT = '.iso,.img,.cue,.chd,.xiso'
+
+// ── Card design constants ──────────────────────────────────────────────────
+
+const ERA_CHIP_LABEL: Record<string, string> = {
+  dos: 'DOS', win31: 'WIN31', win95: 'WIN95', win98: 'WIN98', winxp: 'WINXP',
+  ps1: 'PS1', ps2: 'PS2', xbox: 'XBOX', nes: 'NES', n64: 'N64',
+  dreamcast: 'DC',
+}
+
+const ERA_PLACEHOLDER: Record<string, { bg: string; color: string }> = {
+  dos:   { bg: 'linear-gradient(155deg, #2b2316 0%, #16110a 100%)', color: '#d6a64a' },
+  win31: { bg: 'linear-gradient(155deg, #16292b 0%, #0a1517 100%)', color: '#4ec3c0' },
+  win95: { bg: 'linear-gradient(155deg, #20281a 0%, #11160c 100%)', color: '#b6d36b' },
+  win98: { bg: 'linear-gradient(155deg, #17202b 0%, #0c1118 100%)', color: '#6ea8d6' },
+  winxp: { bg: 'linear-gradient(155deg, #182617 0%, #0e150d 100%)', color: '#66b27a' },
+}
+const DEFAULT_PLACEHOLDER = { bg: 'linear-gradient(155deg, #1c2230 0%, #11141c 100%)', color: '#6aa9d6' }
+
+const RATING_BADGE: Record<string, string> = {
+  EC:        'text-emerald-300 border-emerald-500/40',
+  E:         'text-emerald-300 border-emerald-500/40',
+  'E10+':    'text-emerald-300 border-emerald-500/40',
+  T:         'text-amber-300 border-amber-500/40',
+  M:         'text-red-300 border-red-400/45',
+  AO:        'text-red-300 border-red-400/55',
+  'PEGI 3':  'text-emerald-300 border-emerald-500/40',
+  'PEGI 7':  'text-emerald-300 border-emerald-500/40',
+  'PEGI 12': 'text-emerald-300 border-emerald-500/40',
+  'PEGI 16': 'text-amber-300 border-amber-500/40',
+  'PEGI 18': 'text-red-300 border-red-400/55',
+}
 
 function isAbsolutePath(p: string) {
   return /^([A-Za-z]:[/\\]|\/)/.test(p)
@@ -419,39 +451,154 @@ interface ItemCardProps {
   onDelete: (item: LibraryItem) => void
 }
 
-function ItemCard({ item, profiles, onDelete }: ItemCardProps) {
-  const profile = item.profile_id != null ? profiles.find((p) => p.id === item.profile_id) : null
-  const eraLabel = ERA_LABELS[item.era] ?? (item.era === 'unknown' ? 'Unknown era' : item.era)
-  const detailHref = `/library/${item.slug ?? item.id}`
-
+function ArtPlaceholder({ item }: { item: LibraryItem }) {
+  const style = ERA_PLACEHOLDER[item.era] ?? DEFAULT_PLACEHOLDER
+  const label = ERA_CHIP_LABEL[item.era] ?? (item.era?.toUpperCase() ?? '—')
   return (
-    <div className="flex flex-col rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-surface-800">
-      <div className="mb-4 min-h-[4rem] flex-1">
-        <h3 className="truncate font-medium text-neutral-900 dark:text-neutral-100">
+    <div
+      className="absolute inset-0 flex flex-col overflow-hidden p-3.5"
+      style={{ background: style.bg, color: style.color }}
+    >
+      <div className="absolute bottom-0 left-0 top-0 w-[5px]" style={{ background: 'currentColor' }} />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.06]"
+        style={{
+          backgroundImage:
+            'repeating-linear-gradient(0deg, transparent 0 7px, currentColor 7px 8px),' +
+            'repeating-linear-gradient(90deg, transparent 0 7px, currentColor 7px 8px)',
+        }}
+      />
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em]">{label}</span>
+        {item.year && <span className="font-mono text-[10px] text-neutral-500">{item.year}</span>}
+      </div>
+      <div className="mt-auto">
+        <p
+          className="font-sans text-[15px] font-semibold leading-snug tracking-tight text-neutral-100"
+          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}
+        >
           {item.title}
-        </h3>
-        <p className="mt-0.5 text-xs text-neutral-400 dark:text-neutral-500">{eraLabel}</p>
-        {profile ? (
-          <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">{profile.name}</p>
-        ) : (
-          <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">No profile</p>
+        </p>
+        {item.publisher && (
+          <p className="mt-1 truncate font-mono text-[10px] tracking-[0.04em] text-neutral-500">
+            {item.publisher}
+          </p>
         )}
       </div>
-      <div className="flex gap-2">
-        <Link to={detailHref} className="flex-1">
-          <Button
-            variant={profile ? 'primary' : 'secondary'}
-            size="sm"
-            className="w-full justify-center"
-            tabIndex={-1}
+    </div>
+  )
+}
+
+function TagPills({ item }: { item: LibraryItem }) {
+  type Pill = { label: string; cls: string }
+  const pills: Pill[] = []
+  if (item.era && item.era !== 'unknown') {
+    pills.push({
+      label: ERA_CHIP_LABEL[item.era] ?? item.era.toUpperCase(),
+      cls: 'border-[#ff8a5c]/40 bg-[#ff8a5c]/10 text-[#ff8a5c]/80 tracking-[0.08em]',
+    })
+  }
+  if (item.category) {
+    pills.push({
+      label: item.category,
+      cls: 'border-blue-500/40 bg-blue-500/10 text-blue-300',
+    })
+  }
+  const visible = pills.slice(0, 3)
+  const extra = pills.length - visible.length
+  if (!visible.length) return null
+  return (
+    <div className="flex flex-nowrap gap-1.5 overflow-hidden">
+      {visible.map((p, i) => (
+        <span key={i} className={`inline-flex shrink-0 items-center rounded-[4px] border px-[7px] py-1 font-mono text-[10.5px] font-medium leading-none ${p.cls}`}>
+          {p.label}
+        </span>
+      ))}
+      {extra > 0 && (
+        <span className="inline-flex shrink-0 items-center rounded-[4px] border border-neutral-700 px-[7px] py-1 font-mono text-[10.5px] leading-none text-neutral-500">
+          +{extra}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function ItemCard({ item, profiles, onDelete }: ItemCardProps) {
+  const profile = item.profile_id != null ? profiles.find((p) => p.id === item.profile_id) : null
+  const detailHref = `/library/${item.slug ?? item.id}`
+  const hasCoverArt = !!item.cover_art_path
+  const ratingCls = item.content_rating
+    ? (RATING_BADGE[item.content_rating] ?? 'text-neutral-300 border-neutral-600/40')
+    : null
+
+  return (
+    <div className="group relative flex flex-col gap-2.5">
+      <Link
+        to={detailHref}
+        className="flex flex-col gap-2.5 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a5c] focus-visible:ring-offset-2 focus-visible:ring-offset-surface-950"
+      >
+        {/* 16:9 art area */}
+        <div className="relative aspect-video overflow-hidden rounded-xl border border-transparent bg-surface-800 shadow-[0_1px_2px_rgb(20_12_6/0.4)] transition-[transform,box-shadow] duration-200 ease-out group-hover:-translate-y-0.5 group-hover:shadow-[0_4px_12px_rgb(20_12_6/0.45)]">
+          {hasCoverArt ? (
+            <img
+              src={item.cover_art_path!}
+              alt={item.title}
+              loading="lazy"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <ArtPlaceholder item={item} />
+          )}
+
+          {!profile && (
+            <div className="absolute left-2 top-2 z-10 rounded-[4px] border border-white/10 bg-black/70 px-1.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-400 backdrop-blur-sm">
+              No profile
+            </div>
+          )}
+
+          {ratingCls && (
+            <div className={`absolute bottom-2 right-2 z-10 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-[4px] border bg-black/[0.78] px-[7px] font-mono text-[11px] font-bold uppercase tracking-[0.04em] backdrop-blur-[6px] ${ratingCls}`}>
+              {item.content_rating}
+            </div>
+          )}
+
+          {/* Hover overlay — play button */}
+          <div
+            className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-[180ms] ease-out group-hover:opacity-100"
+            aria-hidden="true"
+            style={{ background: 'linear-gradient(180deg, rgb(13 16 20 / 0) 30%, rgb(13 16 20 / 0.55) 100%)' }}
           >
-            Open
-          </Button>
-        </Link>
-        <Button variant="destructive" size="sm" onClick={() => onDelete(item)}>
-          Delete
-        </Button>
-      </div>
+            <div className="flex h-[52px] w-[52px] scale-[0.82] items-center justify-center rounded-full bg-[#ff8a5c] text-[#1d0a04] shadow-[0_6px_18px_rgb(20_12_6/0.55),0_0_0_1px_rgb(255_255_255/0.08)_inset] transition-transform duration-200 ease-out group-hover:scale-100">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path d="M5 3.5v13l11-6.5z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Title */}
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="min-w-0 flex-1 truncate font-sans text-sm font-semibold tracking-tight text-neutral-100">
+            {item.title}
+          </span>
+          {profile && (
+            <span className="shrink-0 text-xs text-emerald-400" aria-label="profile assigned">✓</span>
+          )}
+        </div>
+
+        {/* Tag pills */}
+        <TagPills item={item} />
+      </Link>
+
+      {/* Delete — hover-revealed, outside Link to avoid navigation */}
+      <button
+        type="button"
+        onClick={() => onDelete(item)}
+        className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-md border border-transparent bg-black/70 text-neutral-400 opacity-0 backdrop-blur-sm transition-opacity duration-[120ms] group-hover:opacity-100 hover:border-red-500/40 hover:text-red-400"
+        aria-label={`Delete ${item.title}`}
+      >
+        <Trash2 size={14} />
+      </button>
     </div>
   )
 }
@@ -588,7 +735,7 @@ export default function Library() {
               No items match the current filters.
             </p>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
               {filteredItems.map((item) => (
                 <ItemCard
                   key={item.id}

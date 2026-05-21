@@ -236,18 +236,19 @@ conversation and wait for an explicit decision before proceeding.
 **Mandatory.**
 
 - All emulator processes on Windows are launched under the current user account via
-  `CreateProcessW`. Account-level isolation (AppContainer or a dedicated low-privilege
-  account) is deferred to a later phase.
-- Every emulator launch is assigned to a fresh Job Object with:
-  - `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` — the entire emulator process tree is torn
-    down automatically if the backend exits, preventing orphaned processes.
-  - A per-era CPU hard cap sourced from `config/eras.yaml` (`cpu_limit_percent`).
-    Threads are throttled, not killed, when the budget is exhausted per scheduling
-    interval. Requires Windows 8.1 or later.
-  - A per-era per-process memory cap sourced from `config/eras.yaml`
-    (`memory_limit_mb`), applied via `JOB_OBJECT_LIMIT_PROCESS_MEMORY`.
-- If Job Object creation or assignment fails for any reason, **the launch is aborted**
-  and the error is surfaced to the user. There is no unsandboxed fallback path.
+  `CreateProcessW` inside a regular AppContainer (P9+). Account-level isolation via
+  separate user account is not used.
+- Every emulator launch follows this sequence: build `SECURITY_CAPABILITIES` with the
+  container SID → `CreateProcessW` with `CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT`
+  → nested-job breakaway retry if needed → `AssignProcessToJobObject` → apply Job limits
+  → `ResumeThread`.
+- Every emulator launch is assigned to a fresh Job Object with kill-on-close,
+  a per-era CPU rate floor and cap (`MIN_MAX_RATE`), and a per-era per-process memory
+  cap (Qt emulators exempt via `skip_memory_limit` — see Known Limitations).
+- If AppContainer provisioning, SID derivation, `CreateProcessW`, or `AssignProcessToJobObject`
+  fails for any reason, **the launch is aborted**. There is no unsandboxed fallback.
+- Emulators that have not yet passed the AppContainer test matrix ship with Job Object
+  only and a visible warning in the Emulators page. The no-fallback abort policy still applies.
 
 ---
 
@@ -293,6 +294,12 @@ model. AppContainer isolation (P9) removes this limitation. As a
 workaround, CPU rate control can be disabled per emulator via
 skip_cpu_limit = true in the emulator descriptor (not yet
 implemented — tracked for P9 pre-work).
+
+#### AppContainer not yet validated for all emulators
+
+Each emulator requires smoke test and full test matrix (OS × GPU × audio × controller ×
+install path × locale) before `container_enabled` is set to true. Until then, that emulator
+runs under Job Object only. See CONTEXT.md P9-6 for the test matrix definition.
 
 ### Linux sandbox implementation (planned)
 

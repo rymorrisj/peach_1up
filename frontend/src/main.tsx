@@ -14,6 +14,7 @@ import BiosSourcing from '@/pages/Guides/BiosSourcing'
 import Box86HardwareGuide from '@/pages/Guides/86BoxHardwareGuide'
 import Emulators from '@/pages/Emulators'
 import Environments from '@/pages/Environments'
+import Tags from '@/pages/Tags'
 import FirstRun from '@/pages/FirstRun'
 import NotFound from '@/pages/NotFound'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
@@ -66,6 +67,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/environments" element={<Environments />} />
                 <Route path="/emulators" element={<Emulators />} />
+                <Route path="/tags" element={<Tags />} />
                 <Route path="/guides" element={<GuidesIndex />} />
                 <Route path="/guides/cartridge-imaging" element={<CartridgeImaging />} />
                 <Route path="/guides/virtualbox-setup" element={<VirtualBoxSetup />} />

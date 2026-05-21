@@ -311,31 +311,29 @@ dependencies required for end users.
 
 ### Goal
 
-Replace the current Job Object + current-user launch model with AppContainer
-isolation for emulator processes on Windows. Emulators run in a restricted
-container with explicit capability grants for display, audio, and media access.
-
-**Research note:** The peach_sandbox account experiment demonstrated that
-restricted process contexts can silently block emulator access to audio
-devices, GPU resources, and display infrastructure. AppContainer isolation
-will require careful capability mapping per emulator before implementation
-— what each emulator needs from the host (audio session, D3D/OpenGL, file
-paths) must be established before any code is written. Implementation should
-not begin until capability requirements are fully understood.
+Layer AppContainer isolation on top of the existing Job Object wrapper for security
+containment (filesystem, network, inter-process). Regular AppContainer only — LPAC
+rejected. Per-emulator rollout via container_enabled flag; emulators that fail testing
+ship with Job Object only.
 
 ### CURRENT
 
-- [P9-1] Research capability requirements per emulator — audio device access,
-  display/GPU access, file system grants for media and config paths. Document
-  findings before any implementation begins.
-- [P9-2] Implement AppContainer provisioning at launch time — create container
-  profile, grant required capabilities, launch emulator inside container
-- [P9-3] Integrate AppContainer launch path into all emulator backends,
-  replacing current CreateProcessW path on Windows
-- [P9-4] Test on Windows 10 and Windows 11 — confirm audio, display, and
-  media access work correctly inside container for all supported emulators
-- [P9-5] Update SECURITY.md and DECISIONS.md
-- [P9-6] P9 committed and pushed to main.
+- [P9-1] Empirical validation gate — SDL2+WASAPI+D3D11, Qt 5.15 QPA, SDL2+OpenGL 4.5
+  test harnesses on Windows 10 22H2 and Windows 11 23H2. No production code until all pass.
+- [P9-2] CPU rate control fix — replace HARD_CAP with MIN_MAX_RATE; add MinRate floor
+  to prevent WASAPI audio thread starvation. Prerequisite for clean test matrix.
+- [P9-3] AppContainer provisioning module — new app_container.py; provision, get_sid,
+  grant_path. Moniker scheme: Peach1UP.<emulator_id>. No auto-deletion.
+- [P9-4] DACL grant table — add container_dacl_grants per emulator in emulators.yaml.
+  No hardcoded paths in Python.
+- [P9-5] Integrate AppContainer into launch sequence — update job_objects.py. Abort on
+  failure; no unsandboxed fallback.
+- [P9-6] Per-emulator smoke test and test matrix — OS × GPU × audio × controller ×
+  install path × locale. Set container_enabled per emulator on pass.
+- [P9-7] Settings and UI — sandbox tier display on Emulators page; Reset sandbox state
+  action in Advanced Settings.
+- [P9-8] Update SECURITY.md and DECISIONS.md.
+- [P9-9] P9 committed and pushed to main.
 
 ## P-Smart Scan — Executable Detection and LLM-Assisted Config
 

@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Library, Settings, BookOpen, ChevronLeft, ChevronRight, Cpu, Monitor } from 'lucide-react'
+import { Library, Settings, BookOpen, ChevronLeft, ChevronRight, Cpu, Monitor, Tag } from 'lucide-react'
 import { useAppContext } from '@/context/AppContext'
 
 const NAV_ITEMS = [
   { to: '/library', label: 'Library', Icon: Library, activeLaunchType: 'library_item' as const },
   { to: '/environments', label: 'Environments', Icon: Monitor, activeLaunchType: 'environment' as const },
   { to: '/emulators', label: 'Emulators', Icon: Cpu },
+  { to: '/tags', label: 'Tags', Icon: Tag },
   { to: '/settings', label: 'Settings', Icon: Settings },
   { to: '/guides', label: 'Guides', Icon: BookOpen },
 ] as const
