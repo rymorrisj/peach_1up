@@ -294,7 +294,7 @@ includes ROM packs, extensions, updating /guides to give user instructions and i
 Package Peach 1UP as a native installer for Windows and Linux. No runtime
 dependencies required for end users.
 
-### CURRENT
+### DONE
 
 - [P8-1] PyInstaller backend compilation — compile FastAPI backend and all
   dependencies into a standalone executable. Python runtime embedded. Tested
@@ -323,7 +323,7 @@ will require careful capability mapping per emulator before implementation
 paths) must be established before any code is written. Implementation should
 not begin until capability requirements are fully understood.
 
-### NEXT
+### CURRENT
 
 - [P9-1] Research capability requirements per emulator — audio device access,
   display/GPU access, file system grants for media and config paths. Document
@@ -336,6 +336,43 @@ not begin until capability requirements are fully understood.
   media access work correctly inside container for all supported emulators
 - [P9-5] Update SECURITY.md and DECISIONS.md
 - [P9-6] P9 committed and pushed to main.
+
+## P-Smart Scan — Executable Detection and LLM-Assisted Config
+
+### Goal
+
+Improve one-click launch accuracy for DOS and console software through a
+two-tier detection system: a bundled trained model using community datasets
+for offline accuracy, and an optional LLM-assisted config path for users who
+provide their own API key.
+
+### NEXT
+
+- [PSS-1] eXoDOS config extraction pipeline — parse DOSBox configs from
+  eXoDOS dataset to extract executable paths, mount commands, and launch
+  sequences per title. Output: structured dataset for model training.
+- [PSS-2] TOSEC and Redump DAT parsing — build a hash index from TOSEC and
+  Redump DAT files for disc image identity confirmation. Decide: bundled index
+  vs first-run download. Output: title and platform from ISO hash.
+- [PSS-3] Trained executable detection model — train a decision tree or
+  random forest on eXoDOS-derived features (file names, depths, extensions,
+  sizes, directory structure). Bundle compiled model with Peach 1UP. No
+  internet required at runtime.
+- [PSS-4] Hash-based title confirmation — integrate TOSEC/Redump hash lookup
+  into the scan flow. Confirmed title feeds the trained model as a strong
+  signal. Falls back to heuristic scan if no match.
+- [PSS-5] API key settings field — add encrypted ai_api_key field to settings
+  model. Never logged, never returned by API. UI field in Settings page.
+- [PSS-6] LLM-assisted scan path — when API key is present, offer optional
+  LLM scan that sends file listing, disc name, and era to the configured LLM
+  and returns an ordered launch_commands list. Degrades gracefully on failure.
+- [PSS-7] Improve heuristic scanner blocklist — add DEICE, PKUNZIP, LZMA,
+  EXPAND, MSCDEX, SMARTDRV, README, UNWISE to deprioritisation list as
+  stopgap until trained model ships.
+- [PSS-8] Default emulator configs — review and expand bundled default
+  configs per era to ensure out-of-box experience is solid regardless of
+  detection tier.
+- [PSS-9] PSS committed and pushed to main.
 
 ## PX-1 — Linux Namespace and cgroup Isolation (Scaffold)
 

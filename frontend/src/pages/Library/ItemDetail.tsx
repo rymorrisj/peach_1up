@@ -5,6 +5,7 @@ import { apiFetch, ApiError } from '@/api/client'
 import { Button, FormField, Input, Textarea, PageHeader } from '@/ui'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
+import LaunchCommandList from '@/components/LaunchCommandList'
 import { useAppContext } from '@/context/AppContext'
 import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
 import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal'
@@ -103,6 +104,46 @@ export default function ItemDetail() {
     if (item && !form) setForm(formFromItem(item))
   }, [item, form])
 
+  // ── Advanced ──
+  const [launchCommands, setLaunchCommands] = useState<string[] | null>(null)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [rescanning, setRescanning] = useState(false)
+  const [rescanError, setRescanError] = useState<string | null>(null)
+  const [flagging, setFlagging] = useState(false)
+  const [flagError, setFlagError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (item && launchCommands === null) setLaunchCommands(item.launch_commands ?? [])
+  }, [item, launchCommands])
+
+  async function handleRescan() {
+    if (!item) return
+    setRescanning(true)
+    setRescanError(null)
+    try {
+      await apiFetch(`/api/v1/library/${item.id}/rescan`, { method: 'POST' })
+      queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
+    } catch (err) {
+      setRescanError(err instanceof ApiError ? err.detail : 'Rescan failed.')
+    } finally {
+      setRescanning(false)
+    }
+  }
+
+  async function handleFlagLaunch() {
+    if (!item) return
+    setFlagging(true)
+    setFlagError(null)
+    try {
+      await apiFetch(`/api/v1/library/${item.id}/flag-launch`, { method: 'POST' })
+      queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
+    } catch (err) {
+      setFlagError(err instanceof ApiError ? err.detail : 'Failed to flag.')
+    } finally {
+      setFlagging(false)
+    }
+  }
+
   function setField<K extends keyof EditForm>(key: K, value: EditForm[K]) {
     setForm((prev) => prev && { ...prev, [key]: value })
     setSaveSuccess(false)
@@ -128,6 +169,7 @@ export default function ItemDetail() {
           era: form.era || null,
           platform_id: form.platform_id ? parseInt(form.platform_id, 10) : null,
           profile_id: form.profile_id ? parseInt(form.profile_id, 10) : null,
+          launch_commands: launchCommands ?? item.launch_commands ?? [],
         }),
       })
       queryClient.invalidateQueries({ queryKey: ['library'] })
@@ -481,6 +523,97 @@ export default function ItemDetail() {
             <p role="alert" className="text-sm text-red-600 dark:text-red-400">
               ❌ {saveError}
             </p>
+          )}
+        </section>
+
+        {/* ── Advanced ── */}
+        <section className="space-y-4">
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300"
+          >
+            <span>Advanced</span>
+            <span>{advancedOpen ? '▲' : '▼'}</span>
+          </button>
+
+          {advancedOpen && (
+            <div className="space-y-5">
+              {item.launch_review_flagged && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+                  ⚠ Launch commands may be incorrect — please review.
+                </div>
+              )}
+
+              <FormField label="Launch commands">
+                <LaunchCommandList
+                  value={launchCommands ?? []}
+                  onChange={setLaunchCommands}
+                />
+              </FormField>
+
+              <div>
+                <p className="mb-1 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  Executable path
+                </p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 font-mono text-xs text-neutral-600 break-all dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-400">
+                    {item.executable_path ?? '—'}
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={rescanning}
+                    onClick={handleRescan}
+                  >
+                    Rescan
+                  </Button>
+                </div>
+                {rescanError && (
+                  <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
+                    ❌ {rescanError}
+                  </p>
+                )}
+              </div>
+
+              {(item.scan_candidates ?? []).length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                    Scan candidates
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(item.scan_candidates ?? []).map((candidate) => (
+                      <button
+                        key={candidate}
+                        type="button"
+                        onClick={() =>
+                          setLaunchCommands([candidate, ...(launchCommands ?? []).slice(1)])
+                        }
+                        className="rounded-full bg-neutral-100 px-3 py-1 font-mono text-xs text-neutral-700 hover:bg-neutral-200 dark:bg-surface-700 dark:text-neutral-300 dark:hover:bg-surface-600"
+                      >
+                        {candidate}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={flagging}
+                  onClick={handleFlagLaunch}
+                >
+                  Flag broken launch
+                </Button>
+              </div>
+              {flagError && (
+                <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+                  ❌ {flagError}
+                </p>
+              )}
+            </div>
           )}
         </section>
 
