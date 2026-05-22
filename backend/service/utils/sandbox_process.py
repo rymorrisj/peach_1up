@@ -6,10 +6,17 @@ expected by WindowsJobObject.add_process(), process_registry, and the
 teardown paths in launch_under_job_object.
 """
 
+from __future__ import annotations
+
+import asyncio
 import ctypes
 import ctypes.wintypes
+from typing import TYPE_CHECKING
 
 from backend.service.utils.win32_types import _STILL_ACTIVE
+
+if TYPE_CHECKING:
+    from backend.service.utils.sandbox.sandbox import SandboxHandle
 
 
 class SandboxProcess:
@@ -31,6 +38,7 @@ class SandboxProcess:
         process_handle,
         thread_handle,
         args: list,
+        sandbox_handle: SandboxHandle | None = None,
     ):
         self.pid = pid
         self._process_handle = process_handle
@@ -38,6 +46,7 @@ class SandboxProcess:
         self.args = args
         self.returncode = None
         self.handle: int | None = process_handle
+        self.sandbox_handle: SandboxHandle | None = sandbox_handle
 
     def poll(self):
         """Return exit code if the process has exited, ``None`` if still running.
@@ -61,6 +70,8 @@ class SandboxProcess:
         """Send a termination signal to the process."""
         if self._process_handle:
             ctypes.windll.kernel32.TerminateProcess(self._process_handle, 1)
+        elif self.sandbox_handle is not None:
+            asyncio.run(self.sandbox_handle.terminate())
 
     def kill(self) -> None:
         """Terminate the process immediately (same as terminate on Windows)."""
@@ -119,3 +130,4 @@ class SandboxProcess:
             ctypes.windll.kernel32.CloseHandle(self._process_handle)
             self._process_handle = None
             self.handle = None  # same OS handle value — prevent use-after-close
+        self.sandbox_handle = None

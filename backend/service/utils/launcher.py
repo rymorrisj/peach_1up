@@ -11,6 +11,7 @@ launch and assignment; if Job Object assignment fails the process is terminated
 and the launch is aborted — there is no unsandboxed fallback.
 """
 
+import asyncio
 import ctypes
 import ctypes.wintypes
 import os
@@ -26,6 +27,9 @@ from backend.service.utils.win32_types import (
 )
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
+from backend.service.utils.sandbox import sandbox as _sandbox
+from backend.service.utils.sandbox.sandbox_config import SandboxConfig
+from backend.service.utils.sandbox.sandbox_error import SandboxError
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.job_objects import WindowsJobObject
 from backend.service.utils.emulator_catalog import get_skip_memory_limit, get_skip_cpu_limit
@@ -143,6 +147,73 @@ def _launch_process(
     return proc
 
 
+def _launch_process_in_container(
+    executable_path: str,
+    args: List[str],
+    creation_flags: int,
+    sandbox_config: SandboxConfig,
+    cwd: str | None = None,
+) -> SandboxProcess:
+    """Launch a process in a Windows AppContainer via the sandbox package.
+
+    Delegates CreateProcessW and STARTUPINFOEXW/PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES
+    setup to sandbox_host.exe through sandbox.launch().  The container is
+    provisioned and the process is created and resumed by sandbox_host.exe
+    before this function returns.
+
+    Args:
+        executable_path: Full path to the emulator executable (for logging
+            and SandboxProcess.args; the path in sandbox_config.exe_path
+            is what sandbox_host.exe actually launches).
+        args: Additional command-line arguments (logging only).
+        creation_flags: Process creation flags (logged; the sandbox package
+            controls the actual flags used for the contained process).
+        sandbox_config: Fully populated SandboxConfig passed to sandbox.launch().
+        cwd: Working directory (informational only).
+
+    Returns:
+        SandboxProcess with pid and Win32 process handle opened by
+        OpenProcess; thread_handle is None because the sandbox package
+        already resumed the process.
+
+    Raises:
+        SandboxError: Propagated directly from sandbox.launch() — not wrapped.
+        RuntimeError: If OpenProcess fails after sandbox.launch() succeeds.
+    """
+    logger.debug(
+        "launch_process_in_container: exe=%s cwd=%s flags=%#x args=%s",
+        executable_path, cwd, creation_flags, args,
+    )
+
+    sandbox_handle = _sandbox.launch(sandbox_config)
+
+    PROCESS_ALL_ACCESS = 0x001FFFFF
+    win32_handle = ctypes.windll.kernel32.OpenProcess(
+        PROCESS_ALL_ACCESS, False, sandbox_handle.pid
+    )
+    if not win32_handle:
+        error_code = ctypes.windll.kernel32.GetLastError()
+        try:
+            asyncio.run(sandbox_handle.terminate())
+        except Exception as te:
+            logger.warning(
+                "Failed to terminate container pid %d during OpenProcess cleanup: %s",
+                sandbox_handle.pid, te,
+            )
+        raise RuntimeError(
+            f"OpenProcess failed for container pid {sandbox_handle.pid} "
+            f"(error {error_code}) after sandbox.launch() succeeded."
+        )
+
+    return SandboxProcess(
+        pid=sandbox_handle.pid,
+        process_handle=win32_handle,
+        thread_handle=None,
+        args=[executable_path] + args,
+        sandbox_handle=sandbox_handle,
+    )
+
+
 def launch_under_job_object(
     executable_path: str,
     args: List[str],
@@ -151,6 +222,8 @@ def launch_under_job_object(
     job_name: str,
     slug: str = "",
     cwd: str | None = None,
+    container_enabled: bool = False,
+    sandbox_config: SandboxConfig | None = None,
 ) -> Tuple[SandboxProcess, "WindowsJobObject"]:
     """Launch an emulator under the current user account in a Windows Job Object.
 
@@ -185,12 +258,20 @@ def launch_under_job_object(
         FileNotFoundError: If ``eras.yaml`` is not found.
         RuntimeError: If any step in the startup sequence fails.
     """
+    if container_enabled and sandbox_config is None:
+        raise RuntimeError(
+            "container_enabled is True but sandbox_config is None — "
+            "pass a SandboxConfig to launch_under_job_object."
+        )
+
     job_object = None
     process = None
     base_flags = None
 
     # --- Phase 1: config, job creation, initial process launch ---
     # Any failure here tears down whatever was created and raises a clean RuntimeError.
+    # SandboxError from _launch_process_in_container is re-raised directly without
+    # wrapping — the no-unsandboxed-fallback policy applies.
     try:
         memory_limit_mb, cpu_limit_percent = _load_era_limits(era)
 
@@ -207,8 +288,20 @@ def launch_under_job_object(
 
         base_flags = subprocess.CREATE_NEW_PROCESS_GROUP
 
-        process = _launch_process(executable_path, args, base_flags, cwd=cwd)
+        if container_enabled:
+            process = _launch_process_in_container(
+                executable_path, args, base_flags, sandbox_config, cwd=cwd
+            )
+        else:
+            process = _launch_process(executable_path, args, base_flags, cwd=cwd)
 
+    except SandboxError:
+        if job_object:
+            try:
+                job_object.terminate_all()
+            except Exception:
+                pass
+        raise
     except Exception as e:
         cleanup_errors = []
         if process:
@@ -257,9 +350,22 @@ def launch_under_job_object(
         except Exception as exc:
             logger.error("kill failed for pid=%s during breakaway retry teardown: %s", process.pid, exc)
         try:
-            process = _launch_process(
-                executable_path, args, base_flags | _CREATE_BREAKAWAY_FROM_JOB, cwd=cwd
-            )
+            if container_enabled:
+                process = _launch_process_in_container(
+                    executable_path, args,
+                    base_flags | _CREATE_BREAKAWAY_FROM_JOB,
+                    sandbox_config, cwd=cwd
+                )
+            else:
+                process = _launch_process(
+                    executable_path, args, base_flags | _CREATE_BREAKAWAY_FROM_JOB, cwd=cwd
+                )
+        except SandboxError:
+            try:
+                job_object.terminate_all()
+            except Exception:
+                pass
+            raise
         except Exception as exc2:
             try:
                 job_object.terminate_all()

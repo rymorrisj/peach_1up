@@ -17,6 +17,10 @@ import yaml
 from backend.constants_generated import Era
 from backend.core.settings import get_base_path
 from backend.models.platform import Platform
+from backend.service.utils.emulator_catalog import (
+    get_container_enabled,
+    get_container_config as get_emulator_container_config,
+)
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.job_objects import WindowsJobObject
@@ -320,4 +324,6 @@ def launch(
         era=platform.era,
         job_name=job_name,
         slug="virtualbox",
+        container_enabled=get_container_enabled("virtualbox"),
+        sandbox_config=get_emulator_container_config("virtualbox", vboxvm),
     )

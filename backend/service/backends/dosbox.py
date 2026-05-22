@@ -21,6 +21,10 @@ from typing import List, Tuple
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
 from backend.core.logger import get_logger
+from backend.service.utils.emulator_catalog import (
+    get_container_enabled,
+    get_container_config as get_emulator_container_config,
+)
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.job_objects import WindowsJobObject
@@ -357,6 +361,8 @@ def launch(
         era=era,
         job_name=job_name,
         slug="dosbox-x",
+        container_enabled=get_container_enabled("dosbox-x"),
+        sandbox_config=get_emulator_container_config("dosbox-x", executable_path),
     )
 
     proc = result[0] if isinstance(result, tuple) else result

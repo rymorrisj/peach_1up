@@ -14,6 +14,10 @@ from typing import Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
+from backend.service.utils.emulator_catalog import (
+    get_container_enabled,
+    get_container_config as get_emulator_container_config,
+)
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.job_objects import WindowsJobObject
@@ -120,4 +124,6 @@ def launch(media_path: Path, era: str, executable_path: str) -> Tuple[SandboxPro
         era=era,
         job_name=job_name,
         slug="pcsx2",
+        container_enabled=get_container_enabled("pcsx2"),
+        sandbox_config=get_emulator_container_config("pcsx2", executable_path),
     )

@@ -17,7 +17,11 @@ from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.models.platform import Platform
 from backend.service.utils.disk_utils import has_valid_mbr
-from backend.service.utils.emulator_catalog import get_86box_profile
+from backend.service.utils.emulator_catalog import (
+    get_86box_profile,
+    get_container_enabled,
+    get_container_config as get_emulator_container_config,
+)
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.media_attach import build_86box_attachment
 from backend.service.utils.settings import get_binary_path
@@ -353,4 +357,6 @@ def launch(
         job_name=job_name,
         slug="86box",
         cwd=str(vm_dir),
+        container_enabled=get_container_enabled("86box"),
+        sandbox_config=get_emulator_container_config("86box", box86_path),
     )

@@ -241,6 +241,32 @@ def get_skip_cpu_limit(slug: str) -> bool:
         return False
 
 
+def get_container_enabled(slug: str) -> bool:
+    try:
+        return bool(get_emulator(slug).get("container_enabled", False))
+    except ValueError:
+        return False
+
+
+def get_container_config(slug: str, exe_path: str) -> "SandboxConfig | None":
+    """Return a SandboxConfig for *slug*, or None if container_enabled is false.
+
+    Calls app_container.get_container_config() internally.  Returns None
+    immediately (without importing app_container) when container_enabled is
+    false so the common case has zero overhead.
+
+    Raises:
+        SandboxError: stage=CONFIG_VALIDATION if any DACL path_key cannot be
+            resolved.  Propagated directly from app_container.
+    """
+    if not get_container_enabled(slug):
+        return None
+    from backend.service.utils.app_container import (
+        get_container_config as _build_config,
+    )
+    return _build_config(slug, exe_path)
+
+
 def load_bios_requirements() -> list[dict]:
     data = tomllib.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
     return data.get("bios_requirements", [])

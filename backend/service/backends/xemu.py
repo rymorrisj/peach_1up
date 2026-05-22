@@ -16,6 +16,10 @@ from typing import Optional, Tuple
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
 from backend.models.platform import Platform
+from backend.service.utils.emulator_catalog import (
+    get_container_enabled,
+    get_container_config as get_emulator_container_config,
+)
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.job_objects import WindowsJobObject
@@ -158,4 +162,6 @@ def launch(
         job_name=job_name,
         slug="xemu",
         cwd=str(vm_dir),
+        container_enabled=get_container_enabled("xemu"),
+        sandbox_config=get_emulator_container_config("xemu", executable_path),
     )
