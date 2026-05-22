@@ -67,6 +67,7 @@ def _render_bios_requirement(data: dict) -> str:
 def _render_emulator(data: dict) -> str:
     deps = data.pop("dependencies", [])
     grants = data.pop("filesystem_grants", [])
+    container_grants = data.pop("container_dacl_grants", [])
     parts = ["[[emulators]]"]
     parts.extend(_render_flat(data))
     for dep in deps:
@@ -76,6 +77,10 @@ def _render_emulator(data: dict) -> str:
     for grant in grants:
         parts.append("")
         parts.append("[[emulators.filesystem_grants]]")
+        parts.extend(_render_flat(grant))
+    for grant in container_grants:
+        parts.append("")
+        parts.append("[[emulators.container_dacl_grants]]")
         parts.extend(_render_flat(grant))
     return "\n".join(parts)
 
