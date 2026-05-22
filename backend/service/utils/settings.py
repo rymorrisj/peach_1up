@@ -45,6 +45,7 @@ _DEFAULTS: dict = {
     "PS1_BIOS_PATH": "",
     "PS2_BIOS_PATH": "",
     "XBOX_BIOS_PATH": "",
+    "DREAMCAST_BIOS_PATH": "",
     "suppress_confirmations": [],
 }
 
@@ -80,6 +81,7 @@ _PATH_KEYS: frozenset[str] = frozenset({
     "PS1_BIOS_PATH",
     "PS2_BIOS_PATH",
     "XBOX_BIOS_PATH",
+    "DREAMCAST_BIOS_PATH",
 })
 
 # Ordered emulator catalog used by compute_setup_status().
