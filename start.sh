@@ -63,6 +63,17 @@ else
   echo "[OK] config/settings.yaml found"
 fi
 
+# ── Sandbox build check ────────────────────────────────────────
+# sandbox_host.exe is a Windows-only artifact; no build step is run on Unix.
+if [ ! -f "backend/service/utils/sandbox/sandbox_host.exe" ]; then
+  echo
+  echo "NOTICE: backend/service/utils/sandbox/sandbox_host.exe not found."
+  echo "sandbox_host.exe is a Windows-only artifact and is not required on this platform."
+  echo "To build it for a Windows deployment, run build.sh from an MSYS2 UCRT64 shell."
+else
+  echo "[OK] sandbox_host.exe found"
+fi
+
 # ── Generate API types ─────────────────────────────────────────
 echo "Exporting OpenAPI spec..."
 python3 scripts/export_openapi.py

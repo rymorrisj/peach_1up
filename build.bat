@@ -137,6 +137,33 @@ xcopy /E /I /Y emulators dist\peach1up\emulators
 xcopy /E /I /Y library dist\peach1up\library
 xcopy /E /I /Y config dist\peach1up\config
 
+echo === Copying sandbox executables ===
+if not exist "backend\service\utils\sandbox\sandbox_host.exe" (
+    echo ERROR: backend\service\utils\sandbox\sandbox_host.exe not found.
+    echo Run build.sh from an MSYS2 UCRT64 shell first to compile the sandbox executables.
+    goto :error
+)
+if not exist "dist\peach1up\backend\service\utils\sandbox\" mkdir "dist\peach1up\backend\service\utils\sandbox\"
+copy /Y "backend\service\utils\sandbox\sandbox_host.exe" "dist\peach1up\backend\service\utils\sandbox\"
+if errorlevel 1 (
+    echo ERROR: Failed to copy sandbox_host.exe to dist.
+    goto :error
+)
+
+dir /b "backend\service\utils\sandbox_checker\src\*.exe" >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: No executables found in backend\service\utils\sandbox_checker\src\
+    echo Run build.sh from an MSYS2 UCRT64 shell first to compile the sandbox executables.
+    goto :error
+)
+if not exist "dist\peach1up\backend\service\utils\sandbox_checker\src\" mkdir "dist\peach1up\backend\service\utils\sandbox_checker\src\"
+copy /Y "backend\service\utils\sandbox_checker\src\*.exe" "dist\peach1up\backend\service\utils\sandbox_checker\src\"
+if errorlevel 1 (
+    echo ERROR: Failed to copy sandbox_checker executables to dist.
+    goto :error
+)
+echo [OK] sandbox exes copied
+
 echo === Stripping first_run_complete from dist settings.yaml ===
 python -c "import yaml,pathlib; p=pathlib.Path('dist/peach1up/config/settings.yaml'); d=yaml.safe_load(p.read_text()) or {}; d.pop('first_run_complete',None); p.write_text(yaml.dump(d))"
 
