@@ -15,16 +15,19 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 from pathlib import Path
 from typing import List, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
 from backend.core.logger import get_logger
+from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import (
     get_container_enabled,
     get_container_config as get_emulator_container_config,
 )
+from backend.service.utils.sandbox import DaclGrant
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.job_objects import WindowsJobObject
@@ -224,7 +227,8 @@ def write_launch_conf(
     else:
         base = ""
 
-    tmpdir = Path(tempfile.mkdtemp(prefix="peach1up_dosbox_"))
+    tmpdir = get_base_path() / "emulators" / "dosbox-x" / "temp" / uuid.uuid4().hex
+    tmpdir.mkdir(parents=True, exist_ok=True)
     conf_path = tmpdir / "launch.conf"
 
     content = base.rstrip("\n")
@@ -342,18 +346,29 @@ def launch(
         ValueError: If the era or media extension is unsupported.
         RuntimeError: If Job Object creation or process launch fails.
     """
+    logger.debug("TEMP_DEBUG dosbox.launch called: media=%s era=%s exe=%s", media_path, era, executable_path)  # TEMP_DEBUG
     if not os.path.exists(executable_path):
         raise FileNotFoundError(f"DOSBox-X executable not found: {executable_path}")
 
     validate_media(media_path)
 
     conf_path = write_launch_conf(media_path, era, Path(executable_path), game_executable=game_executable, launch_commands=launch_commands, profile=profile)
+    logger.debug("TEMP_DEBUG conf written to: %s", conf_path)  # TEMP_DEBUG
     conf_tmpdir = conf_path.parent
     atexit.register(shutil.rmtree, str(conf_tmpdir), True)
 
     args = ["-conf", str(conf_path)] + build_args(media_path, era, enable_networking=enable_networking)
     job_name = f"peach1up_dosbox_{era}_{media_path.stem}"
 
+    container_enabled = get_container_enabled("dosbox-x")
+    sandbox_config = get_emulator_container_config("dosbox-x", executable_path)
+
+    if container_enabled:
+        sandbox_config.dacl_grants.append(DaclGrant(path=str(conf_path.parent), access="r"))
+        sandbox_config.dacl_grants.append(DaclGrant(path=str(media_path.parent), access="r"))
+
+    logger.debug("TEMP_DEBUG grants: %s", [(g.path, g.access) for g in sandbox_config.dacl_grants])  # TEMP_DEBUG
+    logger.debug("TEMP_DEBUG conf exists: %s", conf_path.exists())  # TEMP_DEBUG
     result = launch_under_job_object(
         executable_path=executable_path,
         args=args,
@@ -361,8 +376,8 @@ def launch(
         era=era,
         job_name=job_name,
         slug="dosbox-x",
-        container_enabled=get_container_enabled("dosbox-x"),
-        sandbox_config=get_emulator_container_config("dosbox-x", executable_path),
+        container_enabled=container_enabled,
+        sandbox_config=sandbox_config,
     )
 
     proc = result[0] if isinstance(result, tuple) else result

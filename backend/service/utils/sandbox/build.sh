@@ -20,6 +20,7 @@ g++ \
     -std=c++20 \
     -Wall -Wextra \
     -O2 \
+    -static-libgcc -static-libstdc++ -static \
     -I"$SRC_DIR" \
     "${SOURCES[@]}" \
     -o "$OUT" \

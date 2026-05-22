@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import subprocess
+import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -226,30 +227,52 @@ def launch(config: SandboxConfig) -> SandboxHandle:
         ) from exc
 
     try:
-        stdout_raw, stderr_raw = proc.communicate(input=stdin_data, timeout=15)
-    except subprocess.TimeoutExpired:
+        proc.stdin.write(stdin_data)
+        proc.stdin.flush()
+        proc.stdin.close()
+    except OSError as exc:
         proc.kill()
         raise SandboxError(
-            message="peach_sandbox.exe did not respond within 15 seconds",
+            message=f"Failed to write to peach_sandbox.exe stdin: {exc}",
             stage=SandboxStage.PROCESS_CREATE,
-            suggestions=["Check for AppContainer provisioning delays or permission issues"],
-        )
+            suggestions=[],
+        ) from exc
+
+    _timed_out = threading.Event()
+
+    def _kill_on_timeout() -> None:
+        _timed_out.set()
+        proc.kill()
+
+    _timer = threading.Timer(15.0, _kill_on_timeout)
+    _timer.start()
+    try:
+        stdout_line = proc.stdout.readline()
     except OSError as exc:
         raise SandboxError(
             message=f"Communication with peach_sandbox.exe failed: {exc}",
             stage=SandboxStage.PROCESS_CREATE,
             suggestions=[],
         ) from exc
+    finally:
+        _timer.cancel()
 
-    if not stdout_raw:
-        stderr_text = stderr_raw.decode(errors="replace").strip()
+    if _timed_out.is_set():
         raise SandboxError(
-            message=f"peach_sandbox.exe produced no output. stderr: {stderr_text}",
+            message="peach_sandbox.exe did not respond within 15 seconds",
+            stage=SandboxStage.PROCESS_CREATE,
+            suggestions=["Check for AppContainer provisioning delays or permission issues"],
+        )
+
+    if not stdout_line:
+        proc.kill()
+        raise SandboxError(
+            message="peach_sandbox.exe produced no output",
             stage=SandboxStage.PROCESS_CREATE,
             suggestions=["Run peach_sandbox.exe manually to debug startup"],
         )
 
-    first_line = stdout_raw.split(b"\n", 1)[0].strip()
+    first_line = stdout_line.strip()
     try:
         response = json.loads(first_line)
     except json.JSONDecodeError as exc:
@@ -294,10 +317,18 @@ def launch(config: SandboxConfig) -> SandboxHandle:
     )
     _fire(handle, SandboxEvent.STARTED, started_payload)
 
-    loop = asyncio.get_event_loop()
-    loop.create_task(
-        _watch_event(response["event_name"], handle, proc)
-    )
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    def _run_watcher() -> None:
+        try:
+            loop.run_until_complete(
+                _watch_event(response["event_name"], handle, proc)
+            )
+        finally:
+            loop.close()
+
+    threading.Thread(target=_run_watcher, daemon=True).start()
 
     return handle
 
