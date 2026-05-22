@@ -41,6 +41,23 @@ rom_pack_url = "https://github.com/86Box/roms"
 supported_formats = [".iso", ".img", ".cue"]
 guidance_text = "Download the 86Box Windows release and extract it to emulators/86box/ so that 86Box.exe is inside."
 guidance_url = "https://86box.net"
+container_enabled = false
+
+[[emulators.container_dacl_grants]]
+path_key = "install_dir"
+access = "rx"
+
+[[emulators.container_dacl_grants]]
+path_key = "ROM_PATH"
+access = "r"
+
+[[emulators.container_dacl_grants]]
+path_key = "nvram"
+access = "rw"
+
+[[emulators.container_dacl_grants]]
+path_key = "config_dir"
+access = "rw"
 
 [[emulators.dependencies]]
 name = "86box-roms"
@@ -80,6 +97,15 @@ source_url = "https://github.com/joncampbell123/dosbox-x"
 supported_formats = [".iso", ".img", ".cue"]
 guidance_text = "Download the DOSBox-X Windows release and extract it to emulators/dosbox-x/ so that dosbox-x.exe is inside."
 guidance_url = "https://dosbox-x.com"
+container_enabled = false
+
+[[emulators.container_dacl_grants]]
+path_key = "install_dir"
+access = "rx"
+
+[[emulators.container_dacl_grants]]
+path_key = "config_dir"
+access = "rw"
 
 [[emulators]]
 slug = "duckstation"
@@ -107,6 +133,27 @@ source_url = "https://github.com/stenzek/duckstation"
 supported_formats = [".iso", ".bin", ".cue", ".chd"]
 guidance_text = "Download the DuckStation Windows installer and place it in emulators/duckstation/, then click Run Installer."
 guidance_url = "https://www.duckstation.org"
+container_enabled = false
+
+[[emulators.container_dacl_grants]]
+path_key = "install_dir"
+access = "rx"
+
+[[emulators.container_dacl_grants]]
+path_key = "PS1_BIOS_PATH"
+access = "r"
+
+[[emulators.container_dacl_grants]]
+path_key = "GAMES_PATH"
+access = "r"
+
+[[emulators.container_dacl_grants]]
+path_key = "memcards_dir"
+access = "rw"
+
+[[emulators.container_dacl_grants]]
+path_key = "cache_dir"
+access = "rw"
 
 [[emulators.dependencies]]
 name = "ps1-bios"
@@ -142,6 +189,23 @@ source_url = "https://github.com/flyinghead/flycast"
 supported_formats = [".iso", ".cdi", ".gdi", ".chd"]
 guidance_text = "Download the Flycast Windows release and extract it to emulators/flycast/ so that flycast.exe is inside."
 guidance_url = "https://github.com/flyinghead/flycast"
+container_enabled = false
+
+[[emulators.container_dacl_grants]]
+path_key = "install_dir"
+access = "rx"
+
+[[emulators.container_dacl_grants]]
+path_key = "DREAMCAST_BIOS_PATH"
+access = "r"
+
+[[emulators.container_dacl_grants]]
+path_key = "GAMES_PATH"
+access = "r"
+
+[[emulators.container_dacl_grants]]
+path_key = "saves_dir"
+access = "rw"
 
 [[emulators.dependencies]]
 name = "dc-bios"
@@ -177,6 +241,19 @@ source_url = "https://github.com/SourMesen/Mesen2"
 supported_formats = [".nes", ".chd"]
 guidance_text = "Download the Mesen Windows release and extract it to emulators/mesen/ so that Mesen.exe is inside."
 guidance_url = "https://www.mesen.ca"
+container_enabled = false
+
+[[emulators.container_dacl_grants]]
+path_key = "install_dir"
+access = "rx"
+
+[[emulators.container_dacl_grants]]
+path_key = "GAMES_PATH"
+access = "r"
+
+[[emulators.container_dacl_grants]]
+path_key = "saves_dir"
+access = "rw"
 
 [[emulators]]
 slug = "pcsx2"
@@ -201,6 +278,31 @@ source_url = "https://github.com/PCSX2/pcsx2"
 supported_formats = [".iso", ".bin", ".cue", ".chd"]
 guidance_text = "Download the PCSX2 Windows installer and run it. PCSX2 installs to Program Files automatically."
 guidance_url = "https://pcsx2.net"
+container_enabled = false
+
+[[emulators.container_dacl_grants]]
+path_key = "install_dir"
+access = "rx"
+
+[[emulators.container_dacl_grants]]
+path_key = "PS2_BIOS_PATH"
+access = "r"
+
+[[emulators.container_dacl_grants]]
+path_key = "GAMES_PATH"
+access = "r"
+
+[[emulators.container_dacl_grants]]
+path_key = "memcards_dir"
+access = "rw"
+
+[[emulators.container_dacl_grants]]
+path_key = "snaps_dir"
+access = "rw"
+
+[[emulators.container_dacl_grants]]
+path_key = "cache_dir"
+access = "rw"
 
 [[emulators.dependencies]]
 name = "ps2-bios"
@@ -238,6 +340,23 @@ source_url = "https://github.com/project64/project64"
 supported_formats = [".z64", ".n64", ".v64"]
 guidance_text = "Download the Project64 Windows installer and place it in emulators/project64/, then click Run Installer."
 guidance_url = "https://www.pj64-emu.com"
+container_enabled = false
+
+[[emulators.container_dacl_grants]]
+path_key = "install_dir"
+access = "rx"
+
+[[emulators.container_dacl_grants]]
+path_key = "GAMES_PATH"
+access = "r"
+
+[[emulators.container_dacl_grants]]
+path_key = "saves_dir"
+access = "rw"
+
+[[emulators.container_dacl_grants]]
+path_key = "plugin_dir"
+access = "rx"
 
 [[emulators]]
 slug = "scummvm"
@@ -262,6 +381,19 @@ source_url = "https://github.com/scummvm/scummvm"
 supported_formats = [".iso", ".img"]
 guidance_text = "Download the ScummVM Windows release and extract it to emulators/scummvm/ so that scummvm.exe is inside."
 guidance_url = "https://www.scummvm.org"
+container_enabled = false
+
+[[emulators.container_dacl_grants]]
+path_key = "install_dir"
+access = "rx"
+
+[[emulators.container_dacl_grants]]
+path_key = "GAMES_PATH"
+access = "r"
+
+[[emulators.container_dacl_grants]]
+path_key = "saves_dir"
+access = "rw"
 
 [[emulators]]
 slug = "xemu"
@@ -286,6 +418,23 @@ source_url = "https://github.com/xemu-project/xemu"
 supported_formats = [".iso", ".xiso"]
 guidance_text = "Download the xemu Windows release and extract it to emulators/xemu/ so that xemu.exe is inside."
 guidance_url = "https://xemu.app"
+container_enabled = false
+
+[[emulators.container_dacl_grants]]
+path_key = "install_dir"
+access = "rx"
+
+[[emulators.container_dacl_grants]]
+path_key = "XBOX_BIOS_PATH"
+access = "r"
+
+[[emulators.container_dacl_grants]]
+path_key = "hdd_image"
+access = "rw"
+
+[[emulators.container_dacl_grants]]
+path_key = "appdata_xemu"
+access = "rw"
 
 [[emulators.dependencies]]
 name = "xbox-bios"

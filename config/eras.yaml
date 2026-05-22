@@ -1,6 +1,8 @@
 # Peach 1UP Era Configuration
 # Era to backend mapping and defaults
 
+cpu_min_rate_percent: 5
+
 dos:
   backend: dosbox
   memory_limit_mb: 512

@@ -21,6 +21,9 @@ import ctypes.wintypes
 import os
 import sys
 
+import yaml
+
+from backend.core.settings import get_base_path
 from backend.service.utils.win32_types import (
     _JOB_OBJECT_LIMIT_PROCESS_MEMORY,
     _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
@@ -36,6 +39,24 @@ from backend.core.logger import get_logger
 from backend.service.utils.sandbox_process import SandboxProcess
 
 logger = get_logger(__name__)
+
+
+def _load_cpu_min_rate_percent() -> int:
+    try:
+        eras_path = get_base_path() / "config" / "eras.yaml"
+        eras = yaml.safe_load(eras_path.read_text(encoding="utf-8")) or {}
+        val = eras.get("cpu_min_rate_percent")
+        if val is not None:
+            return int(val)
+    except Exception:
+        pass
+    logger.warning(
+        "cpu_min_rate_percent not found in eras.yaml; defaulting to 5."
+    )
+    return 5
+
+
+_CPU_MIN_RATE_PERCENT: int = _load_cpu_min_rate_percent()
 
 
 def _process_in_job(pid: int) -> bool:
@@ -208,7 +229,7 @@ class WindowsJobObject:
         if not self.job_handle:
             raise RuntimeError("Job object not created. Call create() first.")
 
-        _MIN_RATE = 500  # 5% floor — prevents WASAPI audio thread starvation
+        _MIN_RATE = _CPU_MIN_RATE_PERCENT * 100  # floor in hundredths-of-percent units
 
         # MIN_MAX_RATE is available on Windows 10 version 1607 (build 14393)+.
         win_build = sys.getwindowsversion().build

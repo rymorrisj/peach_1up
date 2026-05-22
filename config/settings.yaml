@@ -7,6 +7,7 @@ GAMES_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/games
 OS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/os
 ROM_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/roms/86box
 BIOS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/bios
+DREAMCAST_BIOS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/bios/dreamcast
 TOOLS_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/library/tools
 PROFILES_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/profiles
 DUCKSTATION_PATH: C:/Users/ryanm/AppData/Local/Programs/DuckStation/duckstation-qt-x64-ReleaseLTCG.exe
