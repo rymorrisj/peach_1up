@@ -1,10 +1,10 @@
 """
 AppContainer provisioning module for Peach 1UP.
 
-Reads container_dacl_grants from the emulator descriptor in emulators.toml
+Reads container_broker_files from the emulator descriptor in emulators.toml
 and builds the SandboxConfig that is passed to sandbox.launch().  This is
 Python-side provisioning only — sandbox_host.exe handles AppContainer
-creation and DACL application at the Win32 level.
+creation and resource brokering at the Win32 level.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import get_emulator
 from backend.service.utils.sandbox import sandbox
-from backend.service.utils.sandbox.sandbox_config import DaclGrant, SandboxConfig
+from backend.service.utils.sandbox.sandbox_config import BrokerFile, SandboxConfig
 from backend.service.utils.sandbox.sandbox_error import SandboxError
 from backend.service.utils.sandbox.sandbox_event import SandboxStage
 
@@ -79,7 +79,7 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
     2. Derived path map keyed by descriptive name (install_dir, saves_dir, etc.).
 
     Args:
-        path_key: Value from ``container_dacl_grants[].path_key`` in emulators.toml.
+        path_key: Value from ``container_broker_files[].path_key`` in emulators.toml.
         slug: Emulator slug; used to derive slug-specific sub-paths.
 
     Raises:
@@ -140,7 +140,7 @@ def get_container_config(
 ) -> SandboxConfig:
     """Build a SandboxConfig for the given emulator.
 
-    Reads container_dacl_grants from the emulator descriptor, resolves each
+    Reads container_broker_files from the emulator descriptor, resolves each
     path_key, then combines the resolved paths with era-derived CPU and memory
     limits into a SandboxConfig ready to pass to sandbox.launch().
 
@@ -149,9 +149,7 @@ def get_container_config(
         exe_path: Absolute path to the emulator executable.
         launch_paths: Optional mapping of path_key → absolute path.  When a
             path_key appears in this dict, the provided value is used directly
-            instead of the normal resolution path.  Pass ``hdd_image`` here at
-            launch time to narrow the xemu DACL grant to the specific .qcow2
-            file rather than the directory placeholder.
+            instead of the normal resolution path.
 
     Returns:
         A fully populated SandboxConfig.
@@ -163,27 +161,28 @@ def get_container_config(
     descriptor = get_emulator(emulator_slug)
     era = _load_era(emulator_slug)
 
-    grants_raw = descriptor.get("container_dacl_grants", [])
+    files_raw = descriptor.get("container_broker_files", [])
 
-    if any(e["path_key"] == "hdd_image" for e in grants_raw):
+    if any(e["path_key"] == "hdd_image" for e in files_raw):
         if not launch_paths or "hdd_image" not in launch_paths:
             logger.warning(
-                "hdd_image grant for '%s' is using the directory placeholder "
+                "hdd_image broker_file for '%s' is using the directory placeholder "
                 "(library/bios/xbox/); pass hdd_image in launch_paths for a "
-                "tighter DACL grant targeting the specific .qcow2 file.",
+                "tighter grant targeting the specific .qcow2 file.",
                 emulator_slug,
             )
 
-    dacl_grants: list[DaclGrant] = [
-        DaclGrant(
+    broker_files: list[BrokerFile] = [
+        BrokerFile(
             path=(
                 launch_paths[entry["path_key"]]
                 if launch_paths and entry["path_key"] in launch_paths
                 else _resolve_path_key(entry["path_key"], emulator_slug)
             ),
             access=entry["access"],
+            mode=entry.get("mode", "grant"),
         )
-        for entry in grants_raw
+        for entry in files_raw
     ]
 
     cpu_max_rate: int = int(era.get("cpu_limit_percent", 50))
@@ -196,7 +195,7 @@ def get_container_config(
     return SandboxConfig(
         moniker=f"Peach1UP.{emulator_slug}",
         exe_path=exe_path,
-        dacl_grants=dacl_grants,
+        broker_files=broker_files,
         cpu_max_rate=cpu_max_rate,
         cpu_min_rate=_CPU_MIN_RATE,
         memory_limit_mb=memory_limit_mb,

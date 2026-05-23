@@ -57,21 +57,25 @@ acquire_url = "https://github.com/86Box/assets"
 acquire_tag = "v5.3"
 acquire_target = "emulators/86box/assets"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "install_dir"
-access = "rx"
+access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "ROM_PATH"
 access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "nvram"
 access = "rw"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "config_dir"
 access = "rw"
+mode = "grant"
 
 [[emulators]]
 slug = "dosbox-x"
@@ -99,13 +103,15 @@ supported_formats = [".iso", ".img", ".cue"]
 guidance_text = "Download the DOSBox-X Windows release and extract it to emulators/dosbox-x/ so that dosbox-x.exe is inside."
 guidance_url = "https://dosbox-x.com"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "install_dir"
-access = "rx"
+access = "r"
+mode = "secure"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "config_dir"
 access = "rw"
+mode = "grant"
 
 [[emulators]]
 slug = "duckstation"
@@ -146,25 +152,30 @@ bios_path = "library/bios/ps1"
 guidance_text = "Place your PS1 BIOS file (e.g. scph1001.bin) in library/bios/ps1/. DuckStation requires a BIOS image to boot PS1 games."
 guidance_url = "https://www.duckstation.org/wiki/BIOS"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "install_dir"
-access = "rx"
+access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "PS1_BIOS_PATH"
 access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "GAMES_PATH"
 access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "memcards_dir"
 access = "rw"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "cache_dir"
 access = "rw"
+mode = "grant"
 
 [[emulators]]
 slug = "flycast"
@@ -202,21 +213,25 @@ bios_path = "library/bios/dreamcast"
 guidance_text = "Place your Dreamcast BIOS files (dc_boot.bin, dc_flash.bin) in library/bios/dreamcast/. Flycast requires these files to boot."
 guidance_url = "https://github.com/flyinghead/flycast"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "install_dir"
-access = "rx"
+access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "DREAMCAST_BIOS_PATH"
 access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "GAMES_PATH"
 access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "saves_dir"
 access = "rw"
+mode = "grant"
 
 [[emulators]]
 slug = "mesen"
@@ -243,17 +258,20 @@ supported_formats = [".nes", ".chd"]
 guidance_text = "Download the Mesen Windows release and extract it to emulators/mesen/ so that Mesen.exe is inside."
 guidance_url = "https://www.mesen.ca"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "install_dir"
-access = "rx"
+access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "GAMES_PATH"
 access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "saves_dir"
 access = "rw"
+mode = "grant"
 
 [[emulators]]
 slug = "pcsx2"
@@ -291,29 +309,35 @@ bios_path = "library/bios/ps2"
 guidance_text = "Place your PS2 BIOS files in library/bios/ps2/. PCSX2 requires a PS2 BIOS image to run."
 guidance_url = "https://pcsx2.net/guides/basic-setup/"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "install_dir"
-access = "rx"
+access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "PS2_BIOS_PATH"
 access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "GAMES_PATH"
 access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "memcards_dir"
 access = "rw"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "snaps_dir"
 access = "rw"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "cache_dir"
 access = "rw"
+mode = "grant"
 
 [[emulators]]
 slug = "project64"
@@ -342,21 +366,25 @@ supported_formats = [".z64", ".n64", ".v64"]
 guidance_text = "Download the Project64 Windows installer and place it in emulators/project64/, then click Run Installer."
 guidance_url = "https://www.pj64-emu.com"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "install_dir"
-access = "rx"
+access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "GAMES_PATH"
 access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "saves_dir"
 access = "rw"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "plugin_dir"
-access = "rx"
+access = "r"
+mode = "grant"
 
 [[emulators]]
 slug = "scummvm"
@@ -383,17 +411,20 @@ supported_formats = [".iso", ".img"]
 guidance_text = "Download the ScummVM Windows release and extract it to emulators/scummvm/ so that scummvm.exe is inside."
 guidance_url = "https://www.scummvm.org"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "install_dir"
-access = "rx"
+access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "GAMES_PATH"
 access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "saves_dir"
 access = "rw"
+mode = "grant"
 
 [[emulators]]
 slug = "xemu"
@@ -431,21 +462,25 @@ bios_path = "library/bios/xbox"
 guidance_text = "Place your Xbox MCPX and BIOS files in library/bios/xbox/. See xemu.app for the exact files required."
 guidance_url = "https://xemu.app/docs/required-files/"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "install_dir"
-access = "rx"
+access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "XBOX_BIOS_PATH"
 access = "r"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "hdd_image"
 access = "rw"
+mode = "grant"
 
-[[emulators.container_dacl_grants]]
+[[emulators.container_broker_files]]
 path_key = "appdata_xemu"
 access = "rw"
+mode = "grant"
 
 [[bios_requirements]]
 slug = "ps1-bios"

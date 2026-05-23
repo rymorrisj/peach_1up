@@ -1,6 +1,6 @@
 from backend.service.utils.sandbox import sandbox as _sandbox_module
 from backend.service.utils.sandbox.sandbox import launch, reset_container, SandboxHandle
-from backend.service.utils.sandbox.sandbox_config import DaclGrant, SandboxConfig
+from backend.service.utils.sandbox.sandbox_config import BrokerFile, SandboxConfig
 from backend.service.utils.sandbox.sandbox_error import SandboxError
 from backend.service.utils.sandbox.sandbox_event import (
     SandboxEvent,
@@ -29,5 +29,5 @@ __all__ = [
     "SandboxPayload",
     "SandboxError",
     "SandboxStage",
-    "DaclGrant",
+    "BrokerFile",
 ]

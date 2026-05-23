@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from backend.service.utils.sandbox.sandbox_config import DaclGrant, SandboxConfig
+from backend.service.utils.sandbox.sandbox_config import BrokerFile, SandboxConfig
 from backend.service.utils.sandbox.sandbox_error import SandboxError
 from backend.service.utils.sandbox.sandbox_event import (
     SandboxEvent,
@@ -28,27 +28,17 @@ def _exe() -> Path:
         )
     return p
 
-_ACCESS_MASK: dict[str, int] = {
-    "r":  0x00120089,  # GENERIC_READ
-    "rx": 0x001200A9,  # GENERIC_READ | GENERIC_EXECUTE
-    "rw": 0x001201FF,  # GENERIC_READ | GENERIC_WRITE
-}
-
 
 def _build_stdin_payload(config: SandboxConfig) -> dict:
-    dacl_grants = []
-    for grant in config.dacl_grants:
-        dacl_grants.append({
-            "path": grant.path,
-            "access_mask": _ACCESS_MASK[grant.access],
-        })
-
     return {
         "moniker": config.moniker,
         "exe_path": config.exe_path,
         "args": config.args,
         "working_dir": config.working_dir or "",
-        "dacl_grants": dacl_grants,
+        "broker_files": [
+            {"path": bf.path, "access": bf.access, "mode": bf.mode}
+            for bf in config.broker_files
+        ],
         "job_config": {
             "cpu_max_rate": config.cpu_max_rate,
             "cpu_min_rate": config.cpu_min_rate,
@@ -76,9 +66,6 @@ def _validate(config: SandboxConfig) -> None:
         errors.append("cpu_min_rate must not exceed cpu_max_rate")
     if config.memory_limit_mb is not None and config.memory_limit_mb <= 0:
         errors.append("memory_limit_mb must be a positive integer or None")
-    for grant in config.dacl_grants:
-        if grant.access not in ("r", "rx", "rw"):
-            errors.append(f"invalid access '{grant.access}' for path {grant.path!r}")
 
     if errors:
         raise SandboxError(

@@ -45,6 +45,7 @@ class CatalogEntryResponse(BaseModel):
     installer_present: Optional[bool] = None
     git_available: Optional[bool] = None
     expert_mode_set: Optional[bool] = None
+    container_enabled: bool = False
 
 
 class DeleteRequest(BaseModel):
@@ -90,6 +91,7 @@ def list_emulators():
             "guidance_text": entry.get("guidance_text"),
             "guidance_url": entry.get("guidance_url"),
         }
+        item["container_enabled"] = bool(entry.get("container_enabled", False))
         if "install_note" in entry:
             item["install_note"] = entry["install_note"]
         if slug == "virtualbox":

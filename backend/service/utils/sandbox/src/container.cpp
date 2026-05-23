@@ -38,7 +38,7 @@ ContainerResult AppContainer::provision() {
     return ContainerResult::Failed;
 }
 
-HRESULT AppContainer::grant_path(const std::wstring& path, DWORD access_mask) {
+HRESULT AppContainer::secure_existing_file(const std::wstring& path, DWORD access_mask) {
     if (!sid_) return E_POINTER;
 
     PACL existing_acl = nullptr;
@@ -56,11 +56,52 @@ HRESULT AppContainer::grant_path(const std::wstring& path, DWORD access_mask) {
 
     EXPLICIT_ACCESS_W ea = {};
     ea.grfAccessPermissions = access_mask;
-    ea.grfAccessMode = GRANT_ACCESS;
-    ea.grfInheritance = SUB_CONTAINERS_AND_OBJECTS_INHERIT;
-    ea.Trustee.TrusteeForm = TRUSTEE_IS_SID;
-    ea.Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
-    ea.Trustee.ptstrName = reinterpret_cast<LPWSTR>(sid_);
+    ea.grfAccessMode        = GRANT_ACCESS;
+    ea.grfInheritance       = NO_INHERITANCE;
+    ea.Trustee.TrusteeForm  = TRUSTEE_IS_SID;
+    ea.Trustee.TrusteeType  = TRUSTEE_IS_WELL_KNOWN_GROUP;
+    ea.Trustee.ptstrName    = reinterpret_cast<LPWSTR>(sid_);
+
+    PACL new_acl = nullptr;
+    err = SetEntriesInAclW(1, &ea, existing_acl, &new_acl);
+    if (sd) LocalFree(sd);
+    if (err != ERROR_SUCCESS) return HRESULT_FROM_WIN32(err);
+
+    err = SetNamedSecurityInfoW(
+        const_cast<LPWSTR>(path.c_str()),
+        SE_FILE_OBJECT,
+        DACL_SECURITY_INFORMATION,
+        nullptr, nullptr,
+        new_acl, nullptr
+    );
+    if (new_acl) LocalFree(new_acl);
+
+    return HRESULT_FROM_WIN32(err);
+}
+
+HRESULT AppContainer::grant_directory(const std::wstring& path, DWORD access_mask) {
+    if (!sid_) return E_POINTER;
+
+    PACL existing_acl = nullptr;
+    PSECURITY_DESCRIPTOR sd = nullptr;
+
+    DWORD err = GetNamedSecurityInfoW(
+        path.c_str(),
+        SE_FILE_OBJECT,
+        DACL_SECURITY_INFORMATION,
+        nullptr, nullptr,
+        &existing_acl, nullptr,
+        &sd
+    );
+    if (err != ERROR_SUCCESS) return HRESULT_FROM_WIN32(err);
+
+    EXPLICIT_ACCESS_W ea = {};
+    ea.grfAccessPermissions = access_mask;
+    ea.grfAccessMode        = GRANT_ACCESS;
+    ea.grfInheritance       = OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE;
+    ea.Trustee.TrusteeForm  = TRUSTEE_IS_SID;
+    ea.Trustee.TrusteeType  = TRUSTEE_IS_WELL_KNOWN_GROUP;
+    ea.Trustee.ptstrName    = reinterpret_cast<LPWSTR>(sid_);
 
     PACL new_acl = nullptr;
     err = SetEntriesInAclW(1, &ea, existing_acl, &new_acl);
