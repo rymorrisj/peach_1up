@@ -2,6 +2,7 @@
 #include <sddl.h>
 #include <aclapi.h>
 #include <stdexcept>
+#include <vector>
 
 AppContainer::AppContainer(const std::wstring& moniker)
     : moniker_(moniker) {}
@@ -11,7 +12,7 @@ AppContainer::~AppContainer() {
         FreeSid(sid_);
         sid_ = nullptr;
     }
-    // Intentionally never calls DeleteAppContainerProfile — profile is stable
+    // Intentionally never calls DeleteAppContainerProfile. Profile is stable
     // across launches for the same emulator moniker.
 }
 
@@ -36,6 +37,58 @@ ContainerResult AppContainer::provision() {
     }
 
     return ContainerResult::Failed;
+}
+
+HRESULT AppContainer::grant_window_station() {
+    if (!sid_) return E_POINTER;
+
+    auto grant_obj = [this](HANDLE obj) -> HRESULT {
+        SECURITY_INFORMATION si = DACL_SECURITY_INFORMATION;
+        DWORD needed = 0;
+        GetUserObjectSecurity(obj, &si, nullptr, 0, &needed);
+
+        std::vector<BYTE> sd_buf(needed);
+        if (!GetUserObjectSecurity(obj, &si,
+                reinterpret_cast<PSECURITY_DESCRIPTOR>(sd_buf.data()),
+                needed, &needed))
+            return HRESULT_FROM_WIN32(GetLastError());
+
+        BOOL dacl_present = FALSE, dacl_defaulted = FALSE;
+        PACL existing_acl = nullptr;
+        if (!GetSecurityDescriptorDacl(
+                reinterpret_cast<PSECURITY_DESCRIPTOR>(sd_buf.data()),
+                &dacl_present, &existing_acl, &dacl_defaulted))
+            return HRESULT_FROM_WIN32(GetLastError());
+
+        EXPLICIT_ACCESS_W ea = {};
+        ea.grfAccessPermissions = GENERIC_ALL;
+        ea.grfAccessMode        = GRANT_ACCESS;
+        ea.grfInheritance       = NO_INHERITANCE;
+        ea.Trustee.TrusteeForm  = TRUSTEE_IS_SID;
+        ea.Trustee.TrusteeType  = TRUSTEE_IS_WELL_KNOWN_GROUP;
+        ea.Trustee.ptstrName    = reinterpret_cast<LPWSTR>(sid_);
+
+        PACL new_acl = nullptr;
+        DWORD err = SetEntriesInAclW(1, &ea, existing_acl, &new_acl);
+        if (err != ERROR_SUCCESS) return HRESULT_FROM_WIN32(err);
+
+        SECURITY_DESCRIPTOR new_sd;
+        InitializeSecurityDescriptor(&new_sd, SECURITY_DESCRIPTOR_REVISION);
+        SetSecurityDescriptorDacl(&new_sd, TRUE, new_acl, FALSE);
+
+        BOOL ok = SetUserObjectSecurity(obj, &si, &new_sd);
+        LocalFree(new_acl);
+        return ok ? S_OK : HRESULT_FROM_WIN32(GetLastError());
+    };
+
+    HWINSTA hwinsta = GetProcessWindowStation();
+    if (!hwinsta) return HRESULT_FROM_WIN32(GetLastError());
+    HRESULT hr = grant_obj(hwinsta);
+    if (FAILED(hr)) return hr;
+
+    HDESK hdesk = GetThreadDesktop(GetCurrentThreadId());
+    if (!hdesk) return HRESULT_FROM_WIN32(GetLastError());
+    return grant_obj(hdesk);
 }
 
 HRESULT AppContainer::secure_existing_file(const std::wstring& path, DWORD access_mask) {

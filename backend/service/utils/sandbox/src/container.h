@@ -18,6 +18,7 @@ public:
     AppContainer& operator=(const AppContainer&) = delete;
 
     ContainerResult provision();
+    HRESULT grant_window_station();
     HRESULT secure_existing_file(const std::wstring& path, DWORD access_mask);
     HRESULT grant_directory(const std::wstring& path, DWORD access_mask);
     PSID sid() const { return sid_; }

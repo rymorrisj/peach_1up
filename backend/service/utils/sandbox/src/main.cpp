@@ -156,6 +156,11 @@ static int run_launch(const LaunchConfig& cfg) {
         return 1;
     }
 
+    if (FAILED(container.grant_window_station())) {
+        emit_error("CONTAINER_PROVISION", "grant_window_station failed");
+        return 1;
+    }
+
     // 2. Process broker_files.
     std::vector<HANDLE>       inherit_handles;
     std::vector<std::wstring> sandbox_env_vars;
@@ -394,7 +399,14 @@ static int run_launch(const LaunchConfig& cfg) {
 
     CloseHandle(done_event);
 
-    // 13. Signal the named event so Python watcher unblocks.
+    // 13. Write exit JSON to stdout so the Python reader unblocks.
+    std::cout << JsonOut()
+        .set("stage",     std::string("exited"))
+        .set("exit_code", static_cast<long long>(exit_code))
+        .dump() << "\n";
+    std::cout.flush();
+
+    // 14. Signal the named event so Python watcher unblocks.
     SignalState ss;
     ss.state     = L"exited";
     ss.exit_code = static_cast<int>(exit_code);
