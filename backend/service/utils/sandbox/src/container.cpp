@@ -42,7 +42,7 @@ ContainerResult AppContainer::provision() {
 HRESULT AppContainer::grant_window_station() {
     if (!sid_) return E_POINTER;
 
-    auto grant_obj = [this](HANDLE obj) -> HRESULT {
+    auto grant_obj = [this](HANDLE obj, DWORD mask) -> HRESULT {
         SECURITY_INFORMATION si = DACL_SECURITY_INFORMATION;
         DWORD needed = 0;
         GetUserObjectSecurity(obj, &si, nullptr, 0, &needed);
@@ -61,7 +61,7 @@ HRESULT AppContainer::grant_window_station() {
             return HRESULT_FROM_WIN32(GetLastError());
 
         EXPLICIT_ACCESS_W ea = {};
-        ea.grfAccessPermissions = GENERIC_ALL;
+        ea.grfAccessPermissions = mask;
         ea.grfAccessMode        = GRANT_ACCESS;
         ea.grfInheritance       = NO_INHERITANCE;
         ea.Trustee.TrusteeForm  = TRUSTEE_IS_SID;
@@ -83,12 +83,12 @@ HRESULT AppContainer::grant_window_station() {
 
     HWINSTA hwinsta = GetProcessWindowStation();
     if (!hwinsta) return HRESULT_FROM_WIN32(GetLastError());
-    HRESULT hr = grant_obj(hwinsta);
+    HRESULT hr = grant_obj(hwinsta, 0x0000037F); // WINSTA_ALL_ACCESS
     if (FAILED(hr)) return hr;
 
     HDESK hdesk = GetThreadDesktop(GetCurrentThreadId());
     if (!hdesk) return HRESULT_FROM_WIN32(GetLastError());
-    return grant_obj(hdesk);
+    return grant_obj(hdesk, 0x000001FF); // DESKTOP_ALL_ACCESS
 }
 
 HRESULT AppContainer::secure_existing_file(const std::wstring& path, DWORD access_mask) {

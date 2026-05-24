@@ -12,10 +12,6 @@ import os
 import re
 import shutil
 import sys
-import tempfile
-import threading
-import time
-import uuid
 from pathlib import Path
 from typing import List, Tuple
 
@@ -170,13 +166,13 @@ def write_launch_conf(
     launch_commands: list[str] | None = None,
     profile: object | None = None,
 ) -> Path:
-    """Write a per-launch DOSBox-X conf to a temp directory and return its path.
+    """Write the DOSBox-X launch conf and return its path.
 
-    Reads the emulator's bundled dosbox-x.conf if present, strips its
-    [autoexec] section, then appends an [sdl] override block (output=surface
-    to suppress TTF mode), a [dos] suppression block, and Peach's [autoexec]
-    mount commands. If the bundled conf is absent, a minimal conf is generated
-    with just the [sdl] and [dos] blocks.
+    Reads config/templates/dosbox-x/base.conf, applies two in-place patches
+    (output=surface, working directory option=program), then appends a
+    generated [autoexec] block. Writes the result directly to
+    emulators/dosbox-x/dosbox-x.conf so DOSBox-X auto-loads it from its
+    working directory without a -conf flag.
 
     The autoexec command list is assembled in two layers:
       1. Profile-level commands (``profile.launch_commands``) run first.
@@ -185,13 +181,11 @@ def write_launch_conf(
     single-entry item layer. If both layers are empty the autoexec ends after
     the drive switch, leaving a bare DOS prompt.
 
-    The returned path is inside a mkdtemp directory. Callers are responsible
-    for registering cleanup; launch() does this via atexit.
-
     Args:
         media_path: Path to the media file to mount.
         era: Era name (unused; retained for call-site symmetry).
-        executable_path: Path to the DOSBox-X executable.
+        executable_path: Path to the DOSBox-X executable (unused; retained for
+            call-site symmetry).
         game_executable: Fallback executable used when ``launch_commands`` is
             absent; becomes a single-entry item layer.
         launch_commands: Item-level command lines appended after profile
@@ -200,9 +194,10 @@ def write_launch_conf(
             the base (profile-level) command layer.
 
     Returns:
-        Path to the written launch.conf file.
+        Path to emulators/dosbox-x/dosbox-x.conf.
 
     Raises:
+        FileNotFoundError: If base.conf does not exist.
         ValueError: If the media suffix is not handled by this backend.
     """
     suffix = media_path.suffix.lower()
@@ -219,25 +214,17 @@ def write_launch_conf(
             f"Unhandled media suffix '{suffix}'. This indicates a programming error."
         )
 
-    emulator_conf = executable_path.parent / "dosbox-x.conf"
-    if emulator_conf.exists():
-        base = _strip_autoexec(
-            emulator_conf.read_text(encoding="utf-8", errors="replace")
-        )
-    else:
-        base = ""
+    base_conf = get_base_path() / "config" / "templates" / "dosbox-x" / "base.conf"
+    if not base_conf.exists():
+        raise FileNotFoundError(f"DOSBox-X base.conf not found: {base_conf}")
+    base = base_conf.read_text(encoding="utf-8", errors="replace")
+    base = re.sub(r'output\s*=\s*ttf', 'output=surface', base, flags=re.IGNORECASE)
+    base = re.sub(r'working directory option\s*=\s*\S+', 'working directory option=program', base, flags=re.IGNORECASE)
 
-    tmpdir = get_base_path() / "emulators" / "dosbox-x" / "temp" / uuid.uuid4().hex
-    tmpdir.mkdir(parents=True, exist_ok=True)
-    conf_path = tmpdir / "launch.conf"
+    conf_path = get_base_path() / "emulators" / "dosbox-x" / "dosbox-x.conf"
 
-    content = base.rstrip("\n")
-    if content:
-        content += "\n\n"
-    # Appending [sdl] after the bundled conf ensures output=surface takes
-    # precedence over TTF mode; DOSBox-X uses the last value it reads per key.
-    content += "[sdl]\noutput=surface\n\n"
-    content += "[dos]\nautomount=false\nmountwarning=false\n\n"
+    content = base.rstrip("\n") + "\n\n"
+
     # Layer 1: profile commands (base defaults, run first).
     profile_cmds: list[str] = getattr(profile, 'launch_commands', None) or []
     # Layer 2: item commands (item-specific paths, appended after).
@@ -256,11 +243,7 @@ def write_launch_conf(
         autoexec += f"{line}\n"
     content += autoexec
 
-    try:
-        conf_path.write_text(content, encoding="utf-8")
-    except Exception:
-        shutil.rmtree(str(tmpdir), ignore_errors=True)
-        raise
+    conf_path.write_text(content, encoding="utf-8")
 
     return conf_path
 
@@ -308,7 +291,7 @@ def build_args(media_path: Path, era: str, enable_networking: bool = False) -> L
         )
 
     # Disable NE2000 adapter unless the profile explicitly enables networking.
-    return ["-noconfig"] if enable_networking else ["-noconfig", "-set", "ne2000=false"]
+    return [] if enable_networking else ["-set", "ne2000=false"]
 
 
 def launch(
@@ -352,10 +335,9 @@ def launch(
     validate_media(media_path)
 
     conf_path = write_launch_conf(media_path, era, Path(executable_path), game_executable=game_executable, launch_commands=launch_commands, profile=profile)
-    conf_tmpdir = conf_path.parent
-    atexit.register(shutil.rmtree, str(conf_tmpdir), True)
+    atexit.register(lambda: conf_path.unlink(missing_ok=True))
 
-    args = ["-conf", str(conf_path)] + build_args(media_path, era, enable_networking=enable_networking)
+    args = build_args(media_path, era, enable_networking=enable_networking)
     job_name = f"peach1up_dosbox_{era}_{media_path.stem}"
 
     container_enabled = get_container_enabled("dosbox-x")
@@ -363,28 +345,18 @@ def launch(
 
     if container_enabled:
         sandbox_config.broker_files.append(
-            BrokerFile(path=str(conf_path.parent), access="r", mode="grant"))
-        sandbox_config.broker_files.append(
-            BrokerFile(path=str(media_path.parent), access="r", mode="grant"))
+            BrokerFile(path=str(get_base_path() / "library"), access="r", mode="grant"))
 
     result = launch_under_job_object(
+        cwd=str(Path(executable_path).parent),
         executable_path=executable_path,
         args=args,
         media_paths=[str(media_path)],
         era=era,
         job_name=job_name,
         slug="dosbox-x",
-        container_enabled=container_enabled,
+        container_enabled=container_enabled, 
         sandbox_config=sandbox_config,
     )
-
-    proc = result[0] if isinstance(result, tuple) else result
-
-    def _deferred_cleanup() -> None:
-        while proc is not None and proc.poll() is None:
-            time.sleep(2)
-        _cleanup_temp_conf(conf_tmpdir)
-
-    threading.Thread(target=_deferred_cleanup, daemon=True, name="dosbox_conf_cleanup").start()
 
     return result

@@ -185,6 +185,9 @@ def _launch_process_in_container(
         executable_path, cwd, creation_flags, args,
     )
 
+    if cwd is not None:
+      sandbox_config.working_dir = cwd
+
     sandbox_handle = _sandbox.launch(sandbox_config)
 
     PROCESS_ALL_ACCESS = 0x001FFFFF

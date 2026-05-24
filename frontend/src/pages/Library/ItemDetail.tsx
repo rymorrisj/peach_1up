@@ -114,8 +114,7 @@ export default function ItemDetail() {
 
   useEffect(() => {
     if (item && launchCommands === null) {
-      const cmds = item.launch_commands ?? []
-      setLaunchCommands(cmds.length === 0 && item.executable_path ? [item.executable_path] : cmds)
+      setLaunchCommands(item.launch_commands ?? [])
     }
   }, [item, launchCommands])
 
