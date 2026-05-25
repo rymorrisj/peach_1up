@@ -218,8 +218,6 @@ def write_launch_conf(
     if not base_conf.exists():
         raise FileNotFoundError(f"DOSBox-X base.conf not found: {base_conf}")
     base = base_conf.read_text(encoding="utf-8", errors="replace")
-    base = re.sub(r'output\s*=\s*ttf', 'output=surface', base, flags=re.IGNORECASE)
-    base = re.sub(r'working directory option\s*=\s*\S+', 'working directory option=program', base, flags=re.IGNORECASE)
 
     conf_path = get_base_path() / "emulators" / "dosbox-x" / "dosbox-x.conf"
 
