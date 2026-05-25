@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import TopBar from '@/components/layout/TopBar'
 
 interface Platform {
   id: string
@@ -118,7 +119,8 @@ function PlatformSection({ platform }: { platform: Platform }) {
         {platform.hardware.map((hw) => (
           <li
             key={hw.name}
-            className="rounded-md border border-neutral-200 p-3 dark:border-neutral-800"
+            className="rounded-md p-3"
+          style={{ border: '1px solid var(--border)' }}
           >
             <span className="font-medium text-neutral-900 dark:text-neutral-100">{hw.name}</span>
             <span className="ml-2 text-sm text-neutral-500 dark:text-neutral-400">—</span>
@@ -209,7 +211,7 @@ function RomPackFallback() {
         </li>
       </ol>
 
-      <div className="rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
+      <div className="rounded-md p-3" style={{ border: '1px solid var(--border)' }}>
         <p className="text-xs text-neutral-500 dark:text-neutral-400">
           The ROM pack is maintained by the 86Box project and is redistributed under the terms of the
           individual firmware copyright holders. See the{' '}
@@ -230,29 +232,39 @@ function RomPackFallback() {
 
 export default function CartridgeImaging() {
   return (
-    <>
-      <div className="mb-6">
+    <div className="flex flex-col min-h-full">
+      <TopBar>
         <Link
           to="/guides"
-          className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+          style={{
+            color: 'var(--fg-2)',
+            fontFamily: 'var(--font-display)',
+            fontSize: 13,
+            fontWeight: 500,
+            textDecoration: 'none',
+            padding: '6px 10px',
+          }}
         >
           ← Guides
         </Link>
+        <span style={{ flex: 1 }} />
+      </TopBar>
+
+      <div className="p-6">
+        <h1 className="mb-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          Cartridge Imaging Guide
+        </h1>
+        <p className="mb-8 text-sm text-neutral-500 dark:text-neutral-400">
+          How to dump cartridge media from physical hardware for use with Peach 1UP. You are
+          responsible for sourcing the hardware and for ensuring you own any software you dump.
+        </p>
+
+        {PLATFORMS.map((platform) => (
+          <PlatformSection key={platform.id} platform={platform} />
+        ))}
+
+        <RomPackFallback />
       </div>
-
-      <h1 className="mb-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-        Cartridge Imaging Guide
-      </h1>
-      <p className="mb-8 text-sm text-neutral-500 dark:text-neutral-400">
-        How to dump cartridge media from physical hardware for use with Peach 1UP. You are
-        responsible for sourcing the hardware and for ensuring you own any software you dump.
-      </p>
-
-      {PLATFORMS.map((platform) => (
-        <PlatformSection key={platform.id} platform={platform} />
-      ))}
-
-      <RomPackFallback />
-    </>
+    </div>
   )
 }

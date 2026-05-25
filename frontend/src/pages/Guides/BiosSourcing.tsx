@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import TopBar from '@/components/layout/TopBar'
 
 interface BiosPlatform {
   id: string
@@ -101,7 +102,8 @@ function PlatformSection({ platform }: { platform: BiosPlatform }) {
         {platform.files.map((f) => (
           <li
             key={f.name}
-            className="rounded-md border border-neutral-200 p-3 dark:border-neutral-800"
+            className="rounded-md p-3"
+          style={{ border: '1px solid var(--border)' }}
           >
             <span className="font-mono text-xs font-medium text-neutral-900 dark:text-neutral-100">
               {f.name}
@@ -134,28 +136,38 @@ function PlatformSection({ platform }: { platform: BiosPlatform }) {
 
 export default function BiosSourcing() {
   return (
-    <>
-      <div className="mb-6">
+    <div className="flex flex-col min-h-full">
+      <TopBar>
         <Link
           to="/guides"
-          className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+          style={{
+            color: 'var(--fg-2)',
+            fontFamily: 'var(--font-display)',
+            fontSize: 13,
+            fontWeight: 500,
+            textDecoration: 'none',
+            padding: '6px 10px',
+          }}
         >
           ← Guides
         </Link>
+        <span style={{ flex: 1 }} />
+      </TopBar>
+
+      <div className="p-6">
+        <h1 className="mb-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          BIOS File Sourcing
+        </h1>
+        <p className="mb-8 text-sm text-neutral-500 dark:text-neutral-400">
+          Console emulators require BIOS files extracted from the original hardware. Peach 1UP does
+          not supply BIOS files. You must dump them from hardware you own. Downloading BIOS files from
+          the internet is a copyright violation regardless of whether you own the console.
+        </p>
+
+        {PLATFORMS.map((platform) => (
+          <PlatformSection key={platform.id} platform={platform} />
+        ))}
       </div>
-
-      <h1 className="mb-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-        BIOS File Sourcing
-      </h1>
-      <p className="mb-8 text-sm text-neutral-500 dark:text-neutral-400">
-        Console emulators require BIOS files extracted from the original hardware. Peach 1UP does
-        not supply BIOS files. You must dump them from hardware you own. Downloading BIOS files from
-        the internet is a copyright violation regardless of whether you own the console.
-      </p>
-
-      {PLATFORMS.map((platform) => (
-        <PlatformSection key={platform.id} platform={platform} />
-      ))}
-    </>
+    </div>
   )
 }

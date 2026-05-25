@@ -1,17 +1,27 @@
 import { Link } from 'react-router-dom'
+import TopBar from '@/components/layout/TopBar'
 
 export default function Box86HardwareGuide() {
   return (
-    <>
-      <div className="mb-6">
+    <div className="flex flex-col min-h-full">
+      <TopBar>
         <Link
           to="/guides"
-          className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+          style={{
+            color: 'var(--fg-2)',
+            fontFamily: 'var(--font-display)',
+            fontSize: 13,
+            fontWeight: 500,
+            textDecoration: 'none',
+            padding: '6px 10px',
+          }}
         >
           ← Guides
         </Link>
-      </div>
+        <span style={{ flex: 1 }} />
+      </TopBar>
 
+      <div className="p-6">
       <h1 className="mb-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
         86Box Hardware Profiles
       </h1>
@@ -47,17 +57,17 @@ export default function Box86HardwareGuide() {
           Profiles at a glance
         </h2>
 
-        <div className="overflow-x-auto rounded-md border border-neutral-200 dark:border-neutral-700">
+        <div className="overflow-x-auto rounded-md" style={{ border: '1px solid var(--border)' }}>
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-surface-800">
+              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                 <th className="px-4 py-2.5 text-left font-medium text-neutral-700 dark:text-neutral-300">Profile</th>
                 <th className="px-4 py-2.5 text-left font-medium text-neutral-700 dark:text-neutral-300">Graphics</th>
                 <th className="px-4 py-2.5 text-left font-medium text-neutral-700 dark:text-neutral-300">Sound</th>
                 <th className="px-4 py-2.5 text-left font-medium text-neutral-700 dark:text-neutral-300">Example software</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            <tbody style={{ borderTop: '1px solid var(--border)' }}>
               <tr>
                 <td className="px-4 py-2.5 font-medium text-neutral-900 dark:text-neutral-100">Standard</td>
                 <td className="px-4 py-2.5 text-neutral-600 dark:text-neutral-400">S3 ViRGE/DX</td>
@@ -131,7 +141,7 @@ export default function Box86HardwareGuide() {
           </a>
           .
         </p>
-        <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-surface-900">
+        <div className="rounded-md p-3" style={{ border: '1px solid var(--border)', background: 'var(--surface-1)' }}>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
             Example: Win98 with 3dfx custom machine
           </p>
@@ -155,7 +165,7 @@ sndcard         = sb16_pnp`}
       </section>
 
       <section aria-labelledby="tip" className="mb-4">
-        <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-surface-900">
+        <div className="rounded-md p-4" style={{ border: '1px solid var(--border)', background: 'var(--surface-1)' }}>
           <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
             When in doubt, start with Standard.
           </p>
@@ -166,6 +176,7 @@ sndcard         = sb16_pnp`}
           </p>
         </div>
       </section>
-    </>
+      </div>
+    </div>
   )
 }

@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
-import { Button, FormField, Input, Textarea, PageHeader } from '@/ui'
+import { Button, FormField, Input, Textarea } from '@/ui'
+import TopBar from '@/components/layout/TopBar'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
 import LaunchCommandList from '@/components/LaunchCommandList'
@@ -314,17 +315,17 @@ export default function ItemDetail() {
   const nonOwnerUsers = users.filter((u) => !u.is_owner)
 
   return (
-    <>
-      <PageHeader
-        title={item.title}
-        description={
-          <Link to="/library" className="text-sm text-[#ff8a5c] hover:underline">
+    <div className="flex flex-col min-h-full">
+      <TopBar title={item.title} />
+
+      <div className="p-6">
+        <div className="mb-6">
+          <Link to="/library" className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200">
             ← Library
           </Link>
-        }
-      />
+        </div>
 
-      <div className="max-w-xl space-y-10">
+        <div className="max-w-xl space-y-10">
 
         {/* ── Meta (read-only) ── */}
         <section className="space-y-1 text-sm text-neutral-600 dark:text-neutral-300">
@@ -813,7 +814,9 @@ export default function ItemDetail() {
           </section>
         )}
 
+        </div>
+
       </div>
-    </>
+    </div>
   )
 }

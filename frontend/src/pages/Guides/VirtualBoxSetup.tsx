@@ -1,17 +1,27 @@
 import { Link } from 'react-router-dom'
+import TopBar from '@/components/layout/TopBar'
 
 export default function VirtualBoxSetup() {
   return (
-    <>
-      <div className="mb-6">
+    <div className="flex flex-col min-h-full">
+      <TopBar>
         <Link
           to="/guides"
-          className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+          style={{
+            color: 'var(--fg-2)',
+            fontFamily: 'var(--font-display)',
+            fontSize: 13,
+            fontWeight: 500,
+            textDecoration: 'none',
+            padding: '6px 10px',
+          }}
         >
           ← Guides
         </Link>
-      </div>
+        <span style={{ flex: 1 }} />
+      </TopBar>
 
+      <div className="p-6">
       <h1 className="mb-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
         VirtualBox Environment Setup
       </h1>
@@ -144,10 +154,11 @@ export default function VirtualBoxSetup() {
           page to set this automatically via a single VBoxManage command. If you prefer to set it
           manually, run:
         </p>
-        <pre className="mt-3 rounded-md bg-neutral-100 px-3 py-2 font-mono text-xs text-neutral-700 dark:bg-surface-700 dark:text-neutral-300">
+        <pre className="mt-3 rounded-md px-3 py-2 font-mono text-xs dark:text-neutral-300" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)' }}>
           VBoxManage setextradata global GUI/ExperienceMode Expert
         </pre>
       </section>
-    </>
+      </div>
+    </div>
   )
 }

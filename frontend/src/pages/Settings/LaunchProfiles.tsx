@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
-import { Button, FormField, Input, Modal, PageHeader, Textarea } from '@/ui'
+import { Button, FormField, Input, Modal, Textarea } from '@/ui'
+import TopBar from '@/components/layout/TopBar'
 import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
@@ -242,12 +243,15 @@ export default function LaunchProfiles() {
   const modalTitle = modal?.mode === 'create' ? 'Add Launch Profile' : 'Edit Launch Profile'
 
   return (
-    <>
-      <PageHeader
-        title="Profiles"
-        description="Emulator configuration presets. Assign a profile to each library item to enable launch."
-        action={<Button onClick={openCreate}>+ Add Profile</Button>}
-      />
+    <div className="flex flex-col min-h-full">
+      <TopBar title="Profiles">
+        <Button onClick={openCreate}>+ Add Profile</Button>
+      </TopBar>
+
+      <div className="p-6">
+        <p className="mb-6 text-sm text-neutral-500 dark:text-neutral-400">
+          Emulator configuration presets. Assign a profile to each library item to enable launch.
+        </p>
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
@@ -528,6 +532,8 @@ export default function LaunchProfiles() {
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />
-    </>
+
+      </div>
+    </div>
   )
 }
