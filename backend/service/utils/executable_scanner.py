@@ -1,14 +1,28 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
-_DEPRIORITIZED_STEMS = frozenset({"setup", "install", "uninst", "autorun", "unwise", "readme"})
+_GAME_STEMS_BLOCKLIST = frozenset({
+    "deice", "pkunzip", "lzma", "expand", "mscdex", "smartdrv",
+})
+
+_SETUP_STEMS = frozenset({
+    "setup", "install", "uninst", "autorun",
+})
+
 _EXECUTABLE_EXTENSIONS = frozenset({".exe", ".bat", ".com"})
 _ISO_DRIVE_LETTER = "D"
 
 
-def scan_executable_candidates(media_path: Path) -> list[str]:
+@dataclass
+class ScanCandidate:
+    path: str
+    candidate_type: str  # "game" | "setup" | "utility"
+
+
+def scan_executable_candidates(media_path: Path) -> list[ScanCandidate]:
     suffix = media_path.suffix.lower()
     if suffix in {".iso", ".cue"}:
         return _scan_optical(media_path)
@@ -28,7 +42,9 @@ def _rank_key(path: str, media_stem_lower: str) -> tuple[int, str]:
         stem = fname.lower()
         ext = ""
 
-    if stem in _DEPRIORITIZED_STEMS:
+    if stem in _SETUP_STEMS:
+        return (4, fname.lower())
+    if stem in _GAME_STEMS_BLOCKLIST or stem.startswith("xx"):
         return (5, fname.lower())
 
     is_stem_match = stem == media_stem_lower
@@ -38,11 +54,21 @@ def _rank_key(path: str, media_stem_lower: str) -> tuple[int, str]:
     if ext == ".bat":
         return (2 if is_stem_match else 3, fname.lower())
     if ext == ".com":
-        return (4, fname.lower())
+        return (3, fname.lower())
     return (6, fname.lower())
 
 
-def _scan_optical(media_path: Path) -> list[str]:
+def _candidate_type(path: str) -> str:
+    fname = os.path.basename(path)
+    stem = fname.rsplit(".", 1)[0].lower() if "." in fname else fname.lower()
+    if stem in _SETUP_STEMS:
+        return "setup"
+    if stem in _GAME_STEMS_BLOCKLIST or stem.startswith("xx"):
+        return "utility"
+    return "game"
+
+
+def _scan_optical(media_path: Path) -> list[ScanCandidate]:
     # Security: all returned paths are constructed from pycdlib walk results only.
     try:
         import pycdlib
@@ -61,7 +87,7 @@ def _scan_optical(media_path: Path) -> list[str]:
         ) from exc
 
     try:
-        candidates: list[str] = []
+        paths: list[str] = []
         use_joliet = iso.has_joliet()
         walk_kwargs: dict = {"joliet_path": "/"} if use_joliet else {"iso_path": "/"}
 
@@ -75,26 +101,26 @@ def _scan_optical(media_path: Path) -> list[str]:
                     continue
                 iso_rel = f"/{fname}" if dirpath == "/" else f"{dirpath}/{fname}"
                 dos_path = f"{_ISO_DRIVE_LETTER}:" + iso_rel.replace("/", "\\")
-                candidates.append(dos_path)
+                paths.append(dos_path)
 
         media_stem_lower = media_path.stem.lower()
-        candidates.sort(key=lambda p: _rank_key(p, media_stem_lower))
-        return candidates
+        paths.sort(key=lambda p: _rank_key(p, media_stem_lower))
+        return [ScanCandidate(path=p, candidate_type=_candidate_type(p)) for p in paths]
 
     finally:
         iso.close()
 
 
-def _scan_directory(media_path: Path) -> list[str]:
-    candidates: list[str] = []
+def _scan_directory(media_path: Path) -> list[ScanCandidate]:
+    paths: list[str] = []
     for root, _dirs, files in os.walk(media_path):
         for fname in files:
             if "." not in fname:
                 continue
             ext = "." + fname.rsplit(".", 1)[1].lower()
             if ext in _EXECUTABLE_EXTENSIONS:
-                candidates.append(str(Path(root) / fname))
+                paths.append(str(Path(root) / fname))
 
     media_stem_lower = media_path.stem.lower()
-    candidates.sort(key=lambda p: _rank_key(p, media_stem_lower))
-    return candidates
+    paths.sort(key=lambda p: _rank_key(p, media_stem_lower))
+    return [ScanCandidate(path=p, candidate_type=_candidate_type(p)) for p in paths]

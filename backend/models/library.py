@@ -22,7 +22,7 @@ class LibraryItemBase(SQLModel):
     content_rating: Optional[str] = None
     executable_path: Optional[str] = None
     launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
-    scan_candidates: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
+    scan_candidates: Optional[list[dict]] = Field(default=None, sa_column=Column(JSON))
     launch_review_flagged: bool = Field(default=False)
     installed: bool = False
 
@@ -76,7 +76,7 @@ class LibraryItemUpdate(SQLModel):
     content_rating: Optional[str] = None
     executable_path: Optional[str] = None
     launch_commands: Optional[list[str]] = None
-    scan_candidates: Optional[list[str]] = None
+    scan_candidates: Optional[list[dict]] = None
     launch_review_flagged: Optional[bool] = None
     installed: Optional[bool] = None
 
@@ -91,6 +91,6 @@ class LibraryItemRead(LibraryItemBase):
     created_at: datetime
     updated_at: datetime
     launch_commands: Optional[list[str]] = None
-    scan_candidates: Optional[list[str]] = None
+    scan_candidates: Optional[list[dict]] = None
     launch_review_flagged: bool = False
     installed: bool = False

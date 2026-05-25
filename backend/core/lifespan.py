@@ -357,6 +357,32 @@ def _apply_schema_migrations() -> None:
             logger.info("Schema migration: backfilled slugs for %d library item(s)", len(items))
 
 
+def _migrate_scan_candidates_to_dicts() -> None:
+    try:
+        from backend.core.database import get_engine
+        from backend.models.library import LibraryItem
+        from sqlalchemy.orm import sessionmaker
+
+        session_factory = sessionmaker(bind=get_engine())
+        with session_factory() as db:
+            items = db.query(LibraryItem).filter(LibraryItem.scan_candidates.isnot(None)).all()
+            updated = 0
+            for item in items:
+                if not item.scan_candidates:
+                    continue
+                if any(isinstance(c, str) for c in item.scan_candidates):
+                    item.scan_candidates = [
+                        c if isinstance(c, dict) else {"path": c, "candidate_type": "utility"}
+                        for c in item.scan_candidates
+                    ]
+                    updated += 1
+            if updated:
+                db.commit()
+                logger.info("Data migration: converted scan_candidates strings to dicts for %d item(s)", updated)
+    except Exception as exc:
+        logger.warning("scan_candidates data migration failed: %s", exc)
+
+
 def _flag_corrupt_platform_working_paths(db) -> None:
     try:
         from backend.models import Platform
@@ -453,6 +479,7 @@ async def lifespan(app: FastAPI):
     init_db()
     create_tables()
     _apply_schema_migrations()
+    _migrate_scan_candidates_to_dicts()
     _ensure_owner_user()
 
     from backend.core.database import get_engine

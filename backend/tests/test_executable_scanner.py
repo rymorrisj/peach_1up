@@ -35,7 +35,8 @@ class TestScanExecutableCandidates:
         with __import__("unittest.mock", fromlist=["patch"]).patch.dict(sys.modules, mods):
             candidates = scan_executable_candidates(Path("DOOM.ISO"))
 
-        assert candidates[0] == "D:\\DOOM.EXE"
+        assert candidates[0].path == "D:\\DOOM.EXE"
+        assert candidates[0].candidate_type == "game"
 
     def test_game_exe_ranked_above_setup_exe(self):
         from backend.service.utils.executable_scanner import scan_executable_candidates
@@ -44,8 +45,10 @@ class TestScanExecutableCandidates:
         with __import__("unittest.mock", fromlist=["patch"]).patch.dict(sys.modules, mods):
             candidates = scan_executable_candidates(Path("GAME.ISO"))
 
-        assert candidates[0] == "D:\\GAME.EXE"
-        assert candidates[1] == "D:\\SETUP.EXE"
+        assert candidates[0].path == "D:\\GAME.EXE"
+        assert candidates[1].path == "D:\\SETUP.EXE"
+        assert candidates[0].candidate_type == "game"
+        assert candidates[1].candidate_type == "setup"
 
     def test_bat_matching_stem_ranked_above_deprioritized_exe(self):
         from backend.service.utils.executable_scanner import scan_executable_candidates
@@ -54,8 +57,8 @@ class TestScanExecutableCandidates:
         with __import__("unittest.mock", fromlist=["patch"]).patch.dict(sys.modules, mods):
             candidates = scan_executable_candidates(Path("GAME.ISO"))
 
-        assert candidates[0] == "D:\\GAME.BAT"
-        assert candidates[1] == "D:\\SETUP.EXE"
+        assert candidates[0].path == "D:\\GAME.BAT"
+        assert candidates[1].path == "D:\\SETUP.EXE"
 
     def test_com_files_rank_below_exe_and_bat(self):
         from backend.service.utils.executable_scanner import scan_executable_candidates
@@ -66,7 +69,7 @@ class TestScanExecutableCandidates:
         with __import__("unittest.mock", fromlist=["patch"]).patch.dict(sys.modules, mods):
             candidates = scan_executable_candidates(Path("GAME.ISO"))
 
-        exts = [os.path.splitext(c)[1].lower() for c in candidates]
+        exts = [os.path.splitext(c.path)[1].lower() for c in candidates]
         com_index = exts.index(".com")
         assert all(exts[i] in {".exe", ".bat"} for i in range(com_index))
 
@@ -98,7 +101,7 @@ class TestScanExecutableCandidates:
         candidates = scan_executable_candidates(tmp_path)
 
         assert len(candidates) == 1
-        assert os.path.basename(candidates[0]).upper() == "GAME.EXE"
+        assert os.path.basename(candidates[0].path).upper() == "GAME.EXE"
 
     def test_iso_subdirectory_path_is_preserved(self):
         from backend.service.utils.executable_scanner import scan_executable_candidates
@@ -107,7 +110,7 @@ class TestScanExecutableCandidates:
         with __import__("unittest.mock", fromlist=["patch"]).patch.dict(sys.modules, mods):
             candidates = scan_executable_candidates(Path("DOOM.ISO"))
 
-        assert candidates[0] == "D:\\DOOMCD\\DOOM.EXE"
+        assert candidates[0].path == "D:\\DOOMCD\\DOOM.EXE"
 
     def test_joliet_filenames_have_no_version_suffix_stripped(self):
         from backend.service.utils.executable_scanner import scan_executable_candidates
@@ -116,7 +119,7 @@ class TestScanExecutableCandidates:
         with __import__("unittest.mock", fromlist=["patch"]).patch.dict(sys.modules, mods):
             candidates = scan_executable_candidates(Path("DOOM.ISO"))
 
-        assert candidates[0] == "D:\\Doom.exe"
+        assert candidates[0].path == "D:\\Doom.exe"
 
     def test_case_insensitive_extension_matching(self, tmp_path):
         from backend.service.utils.executable_scanner import scan_executable_candidates
@@ -139,7 +142,7 @@ class TestScanExecutableCandidates:
         candidates = scan_executable_candidates(tmp_path)
 
         assert len(candidates) == 1
-        assert os.path.basename(candidates[0]).upper() == "GAME.EXE"
+        assert os.path.basename(candidates[0].path).upper() == "GAME.EXE"
 
     def test_iso_open_failure_raises_runtime_error(self):
         from backend.service.utils.executable_scanner import scan_executable_candidates
@@ -154,3 +157,26 @@ class TestScanExecutableCandidates:
 
         with pytest.raises(ValueError, match="Unsupported media"):
             scan_executable_candidates(Path("game.img"))
+
+    def test_blocklist_stems_classified_as_utility(self):
+        from backend.service.utils.executable_scanner import scan_executable_candidates
+
+        mods = _make_pycdlib_modules([("/", [], ["DEICE.EXE;1", "GAME.EXE;1"])])
+        with __import__("unittest.mock", fromlist=["patch"]).patch.dict(sys.modules, mods):
+            candidates = scan_executable_candidates(Path("GAME.ISO"))
+
+        assert candidates[0].path == "D:\\GAME.EXE"
+        assert candidates[0].candidate_type == "game"
+        deice = next(c for c in candidates if "DEICE" in c.path)
+        assert deice.candidate_type == "utility"
+
+    def test_xx_prefix_classified_as_utility(self):
+        from backend.service.utils.executable_scanner import scan_executable_candidates
+
+        mods = _make_pycdlib_modules([("/", [], ["XXDOOM.EXE;1", "GAME.EXE;1"])])
+        with __import__("unittest.mock", fromlist=["patch"]).patch.dict(sys.modules, mods):
+            candidates = scan_executable_candidates(Path("GAME.ISO"))
+
+        assert candidates[0].path == "D:\\GAME.EXE"
+        xxdoom = next(c for c in candidates if "XXDOOM" in c.path)
+        assert xxdoom.candidate_type == "utility"

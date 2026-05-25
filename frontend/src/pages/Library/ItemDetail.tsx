@@ -113,6 +113,8 @@ export default function ItemDetail() {
   const [rescanError, setRescanError] = useState<string | null>(null)
   const [flagging, setFlagging] = useState(false)
   const [flagError, setFlagError] = useState<string | null>(null)
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false)
+  const [markInstalled, setMarkInstalled] = useState(false)
 
   useEffect(() => {
     if (item && launchCommands === null) {
@@ -125,8 +127,8 @@ export default function ItemDetail() {
     setRescanning(true)
     setRescanError(null)
     try {
-      await apiFetch(`/api/v1/library/${item.id}/rescan`, { method: 'POST' })
-      queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
+      const updated = await apiFetch<LibraryItem>(`/api/v1/library/${item.id}/rescan`, { method: 'POST' })
+      queryClient.setQueryData(['library', 'by-slug', slug], updated)
     } catch (err) {
       setRescanError(err instanceof ApiError ? err.detail : 'Rescan failed.')
     } finally {
@@ -174,7 +176,7 @@ export default function ItemDetail() {
           platform_id: form.platform_id ? parseInt(form.platform_id, 10) : null,
           profile_id: form.profile_id ? parseInt(form.profile_id, 10) : null,
           launch_commands: launchCommands ?? item.launch_commands ?? [],
-          executable_path: form.executable_path.trim() || null,
+          ...(markInstalled ? { installed: true } : {}),
         }),
       })
       queryClient.invalidateQueries({ queryKey: ['library'] })
@@ -550,41 +552,51 @@ export default function ItemDetail() {
                 </div>
               )}
 
-              <FormField label="Launch commands">
+              <div>
+                <div className="mb-1 flex items-center gap-1.5">
+                  <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                    Autoexec commands
+                  </span>
+                  <span className="group relative inline-flex cursor-help">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      className="h-4 w-4 text-neutral-400 dark:text-neutral-500"
+                      aria-hidden="true"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <span className="pointer-events-none absolute bottom-full left-1/2 mb-1.5 w-64 -translate-x-1/2 rounded bg-neutral-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 dark:bg-neutral-700">
+                      Commands run in sequence when the game launches, like a DOS autoexec.bat. Use CD to navigate directories, then run your executable. Example: CD DOOMCD then DOOM.EXE
+                    </span>
+                  </span>
+                </div>
                 <LaunchCommandList
                   value={launchCommands ?? []}
                   onChange={setLaunchCommands}
                 />
-              </FormField>
+              </div>
 
-              <FormField
-                label="Executable path"
-                htmlFor="detail-exe-path"
-                hint="Override or clear the scanner result"
-              >
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="detail-exe-path"
-                    value={form.executable_path}
-                    onChange={(e) => setField('executable_path', e.target.value)}
-                    placeholder="e.g. C:\GAME\GAME.EXE"
-                    className="font-mono text-xs"
-                  />
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    loading={rescanning}
-                    onClick={handleRescan}
-                  >
-                    Rescan
-                  </Button>
-                </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={rescanning}
+                  onClick={handleRescan}
+                >
+                  Rescan
+                </Button>
                 {rescanError && (
-                  <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  <p role="alert" className="text-xs text-red-600 dark:text-red-400">
                     ❌ {rescanError}
                   </p>
                 )}
-              </FormField>
+              </div>
 
               {(item.scan_candidates ?? []).length > 0 && (
                 <div>
@@ -592,19 +604,49 @@ export default function ItemDetail() {
                     Scan candidates
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {(item.scan_candidates ?? []).map((candidate) => (
-                      <button
-                        key={candidate}
-                        type="button"
-                        onClick={() =>
-                          setLaunchCommands([candidate, ...(launchCommands ?? []).slice(1)])
-                        }
-                        className="rounded-full bg-neutral-100 px-3 py-1 font-mono text-xs text-neutral-700 hover:bg-neutral-200 dark:bg-surface-700 dark:text-neutral-300 dark:hover:bg-surface-600"
-                      >
-                        {candidate}
-                      </button>
-                    ))}
+                    {(item.scan_candidates ?? []).map((candidate) => {
+                      const isSetup = candidate.candidate_type === 'setup'
+                      const isUtility = candidate.candidate_type === 'utility'
+                      return (
+                        <button
+                          key={candidate.path}
+                          type="button"
+                          onClick={() => {
+                            setLaunchCommands([candidate.path, ...(launchCommands ?? []).slice(1)])
+                            if (isSetup) setShowInstallPrompt(true)
+                          }}
+                          className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-xs ${
+                            isUtility
+                              ? 'bg-neutral-50 text-neutral-400 dark:bg-surface-800 dark:text-neutral-600'
+                              : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-surface-700 dark:text-neutral-300 dark:hover:bg-surface-600'
+                          }`}
+                        >
+                          {candidate.path}
+                          {isSetup && (
+                            <span className="rounded bg-neutral-200 px-1 py-0.5 font-sans text-[10px] font-normal text-neutral-500 dark:bg-surface-600 dark:text-neutral-400">
+                              Setup
+                            </span>
+                          )}
+                          {isUtility && (
+                            <span className="rounded bg-neutral-100 px-1 py-0.5 font-sans text-[10px] font-normal text-neutral-400 dark:bg-surface-700 dark:text-neutral-500">
+                              Utility
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
+                  {showInstallPrompt && (
+                    <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+                      <input
+                        type="checkbox"
+                        checked={markInstalled}
+                        onChange={(e) => setMarkInstalled(e.target.checked)}
+                        className="h-4 w-4 rounded border-neutral-300 text-[#ff8a5c] focus:ring-[#ff8a5c] dark:border-neutral-600"
+                      />
+                      After running setup, mark this game as installed?
+                    </label>
+                  )}
                 </div>
               )}
 
