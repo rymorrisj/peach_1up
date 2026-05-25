@@ -15,6 +15,8 @@ import Box86HardwareGuide from '@/pages/Guides/86BoxHardwareGuide'
 import Emulators from '@/pages/Emulators'
 import EmulatorDetail from '@/pages/Emulators/EmulatorDetail'
 import Environments from '@/pages/Environments'
+import EnvironmentDetail from '@/pages/Environments/EnvironmentDetail'
+import DriveDetail from '@/pages/Drives/DriveDetail'
 import Tags from '@/pages/Tags'
 import Profiles from '@/pages/Profiles'
 import ProfileDetail from '@/pages/Profiles/ProfileDetail'
@@ -70,6 +72,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/library/:slug" element={<ItemDetail />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/environments" element={<Environments />} />
+                <Route path="/environments/:id" element={<EnvironmentDetail />} />
+                <Route path="/drives/:slug" element={<DriveDetail />} />
                 <Route path="/emulators" element={<Emulators />} />
                 <Route path="/emulators/:slug" element={<EmulatorDetail />} />
                 <Route path="/profiles" element={<Profiles />} />

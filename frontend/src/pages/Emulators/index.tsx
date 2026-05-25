@@ -43,7 +43,7 @@ function EmulatorCard({ entry, onClick }: { entry: CatalogEntry; onClick: () => 
     <button
       type="button"
       onClick={onClick}
-      className="rounded-xl p-[18px] text-left transition-colors duration-[120ms] w-full"
+      className="rounded-lg p-[18px] text-left transition-colors duration-[120ms] w-full"
       style={{
         background: 'var(--surface-1)',
         border: '1px solid var(--border)',

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/ui'
 import { ERA_LABELS } from '@/generated/constants'
@@ -33,6 +34,7 @@ export default function EnvironmentCard({
   onHealthCheck,
 }: EnvironmentCardProps) {
   const platform = platformBase as Platform
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const eraLabel = ERA_LABELS[platform.era] ?? platform.era
   const emulatorLabel = EMULATOR_LABELS[platform.emulator_slug] ?? platform.emulator_slug
@@ -65,7 +67,10 @@ export default function EnvironmentCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-medium text-neutral-900 dark:text-neutral-100">
-            {platform.name}
+            <button type="button" onClick={() => navigate(`/environments/${platform.id}`)}
+              className="hover:underline" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 'inherit', fontSize: 'inherit', color: 'inherit', fontFamily: 'inherit' }}>
+              {platform.name}
+            </button>
           </h3>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <span className="inline-flex rounded px-1.5 py-0.5 text-xs font-medium bg-neutral-100 text-neutral-600 dark:bg-surface-700 dark:text-neutral-300">
