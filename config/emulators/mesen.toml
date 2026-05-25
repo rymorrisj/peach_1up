@@ -1,0 +1,38 @@
+slug = "mesen"
+display_name = "Mesen"
+name = "Mesen"
+version = "PLACEHOLDER"
+binary = "Mesen.exe"
+sha256 = ""
+download_url = "https://www.mesen.ca"
+release_url = "https://github.com/SourMesen/Mesen2/releases"
+portable_sentinel = ""
+sandbox_mode = "appcontainer"
+container_enabled = false
+capabilities = []
+skip_memory_limit = false
+description = "NES emulation"
+required = false
+install_type = "zip"
+install_scope = "portable"
+license = "GPL-3.0"
+copyright = "Copyright 2014–2024 M. Bibeau and contributors"
+source_url = "https://github.com/SourMesen/Mesen2"
+supported_formats = [".nes", ".chd"]
+guidance_text = "Download the Mesen Windows release and extract it to emulators/mesen/ so that Mesen.exe is inside."
+guidance_url = "https://www.mesen.ca"
+
+[[container_broker_files]]
+path_key = "install_dir"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "GAMES_PATH"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "saves_dir"
+access = "rw"
+mode = "grant"

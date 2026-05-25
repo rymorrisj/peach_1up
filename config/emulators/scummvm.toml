@@ -1,0 +1,38 @@
+slug = "scummvm"
+display_name = "ScummVM"
+name = "ScummVM"
+version = "PLACEHOLDER"
+binary = "scummvm.exe"
+sha256 = ""
+download_url = "https://www.scummvm.org"
+release_url = "https://github.com/scummvm/scummvm/releases"
+portable_sentinel = "scummvm.ini"
+sandbox_mode = "appcontainer"
+container_enabled = false
+capabilities = []
+skip_memory_limit = false
+description = "Point-and-click adventure game emulation"
+required = false
+install_type = "zip"
+install_scope = "portable"
+license = "GPL-3.0"
+copyright = "Copyright 2001–2024 The ScummVM Team"
+source_url = "https://github.com/scummvm/scummvm"
+supported_formats = [".iso", ".img"]
+guidance_text = "Download the ScummVM Windows release and extract it to emulators/scummvm/ so that scummvm.exe is inside."
+guidance_url = "https://www.scummvm.org"
+
+[[container_broker_files]]
+path_key = "install_dir"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "GAMES_PATH"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "saves_dir"
+access = "rw"
+mode = "grant"

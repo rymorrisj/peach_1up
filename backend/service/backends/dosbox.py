@@ -19,10 +19,7 @@ from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
-from backend.service.utils.emulator_catalog import (
-    get_container_enabled,
-    get_container_config as get_emulator_container_config,
-)
+from backend.service.utils.emulator_catalog import get_container_enabled
 from backend.service.utils.sandbox import BrokerFile
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
@@ -165,6 +162,7 @@ def write_launch_conf(
     game_executable: str | None = None,
     launch_commands: list[str] | None = None,
     profile: object | None = None,
+    drive: object | None = None,
 ) -> Path:
     """Write the DOSBox-X launch conf and return its path.
 
@@ -174,12 +172,9 @@ def write_launch_conf(
     emulators/dosbox-x/dosbox-x.conf so DOSBox-X auto-loads it from its
     working directory without a -conf flag.
 
-    The autoexec command list is assembled in two layers:
-      1. Profile-level commands (``profile.launch_commands``) run first.
-      2. Item-level commands (``launch_commands``) are appended after.
-    If the item layer is empty but ``game_executable`` is set, it is used as a
-    single-entry item layer. If both layers are empty the autoexec ends after
-    the drive switch, leaving a bare DOS prompt.
+    When ``drive`` is provided and ``profile.use_drive`` is True, a persistent
+    HDD image is mounted as C: (created via IMGMAKE if absent). Media is then
+    mounted as D:. Without a drive, the existing single-mount behaviour applies.
 
     Args:
         media_path: Path to the media file to mount.
@@ -190,29 +185,69 @@ def write_launch_conf(
             absent; becomes a single-entry item layer.
         launch_commands: Item-level command lines appended after profile
             commands.
-        profile: Profile ORM object whose ``launch_commands`` field provides
-            the base (profile-level) command layer.
+        profile: Profile ORM object supplying launch_commands and use_drive.
+        drive: Drive ORM object supplying slug and size_mb for the persistent
+            HDD image. None means no persistent drive.
 
     Returns:
         Path to emulators/dosbox-x/dosbox-x.conf.
 
     Raises:
         FileNotFoundError: If base.conf does not exist.
-        ValueError: If the media suffix is not handled by this backend.
+        ValueError: If the media suffix is not handled or the drive path escapes
+            the drives directory.
     """
     suffix = media_path.suffix.lower()
     host = _dosbox_cmd_path(media_path)
 
-    if suffix == ".img":
-        mount_line = f"imgmount C {host} -t hdd"
+    use_drive = bool(getattr(profile, 'use_drive', True)) if profile is not None else True
+    has_persistent_drive = drive is not None and use_drive
+
+    drive_setup_lines: list[str] = []
+
+    if has_persistent_drive:
+        drives_dir = get_base_path() / "library" / "drives"
+        drive_path = drives_dir / f"{drive.slug}.img"
+        # Defence-in-depth: confirm the resolved path stays under drives_dir.
+        if not drive_path.resolve().is_relative_to(drives_dir.resolve()):
+            raise ValueError(
+                f"Drive path escaped drives directory (slug={drive.slug!r}). "
+                "This indicates a data integrity problem."
+            )
+        drive_cmd_path = _dosbox_cmd_path(drive_path)
+        if not drive_path.exists():
+            drive_setup_lines.append(f"IMGMAKE {drive_cmd_path} -t hd -size {drive.size_mb}")
+        drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
+
+        # Media goes to D: when a persistent C: drive is present.
+        if suffix == ".img":
+            mount_line = f"imgmount D {host} -t hdd"
+        elif suffix in {".iso", ".cue"}:
+            mount_line = f"imgmount D {host} -t iso -ro"
+        elif suffix == ".exe":
+            parent_dir = _dosbox_cmd_path(media_path.parent)
+            mount_line = f"MOUNT D {parent_dir}"
+        else:
+            raise ValueError(
+                f"Unhandled media suffix '{suffix}'. This indicates a programming error."
+            )
         drive_line = "C:"
-    elif suffix in {".iso", ".cue"}:
-        mount_line = f"imgmount D {host} -t iso -ro"
-        drive_line = "D:"
     else:
-        raise ValueError(
-            f"Unhandled media suffix '{suffix}'. This indicates a programming error."
-        )
+        # No persistent drive — single-mount behaviour.
+        if suffix == ".img":
+            mount_line = f"imgmount C {host} -t hdd"
+            drive_line = "C:"
+        elif suffix in {".iso", ".cue"}:
+            mount_line = f"imgmount D {host} -t iso -ro"
+            drive_line = "D:"
+        elif suffix == ".exe":
+            parent_dir = _dosbox_cmd_path(media_path.parent)
+            mount_line = f"MOUNT D {parent_dir}"
+            drive_line = "D:"
+        else:
+            raise ValueError(
+                f"Unhandled media suffix '{suffix}'. This indicates a programming error."
+            )
 
     base_conf = get_base_path() / "config" / "templates" / "dosbox-x" / "base.conf"
     if not base_conf.exists():
@@ -232,7 +267,10 @@ def write_launch_conf(
         item_cmds = [game_executable]
     merged = profile_cmds + item_cmds
 
-    autoexec = f"[autoexec]\n{mount_line}\n{drive_line}\n"
+    autoexec = "[autoexec]\n"
+    for setup_line in drive_setup_lines:
+        autoexec += f"{setup_line}\n"
+    autoexec += f"{mount_line}\n{drive_line}\n"
     for line in merged:
         if any(line.rstrip().lower().endswith(ext) for ext in _EXEC_SUFFIXES):
             _validate_game_executable(line, drive_line)
@@ -300,6 +338,7 @@ def launch(
     game_executable: str | None = None,
     launch_commands: list[str] | None = None,
     profile: object | None = None,
+    drive: object | None = None,
 ) -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch DOSBox-X with the given media file under Job Object isolation.
 
@@ -316,7 +355,9 @@ def launch(
             network connection.
         game_executable: Fallback executable when no item-level commands exist.
         launch_commands: Item-level commands; merged after profile commands.
-        profile: Profile ORM object supplying profile-level launch_commands.
+        profile: Profile ORM object supplying launch_commands, use_drive, and
+            an optional container_enabled override.
+        drive: Drive ORM object for the persistent HDD image, or None.
 
     Returns:
         Tuple of ``(process, job_object)``. The caller is responsible for
@@ -332,18 +373,38 @@ def launch(
 
     validate_media(media_path)
 
-    conf_path = write_launch_conf(media_path, era, Path(executable_path), game_executable=game_executable, launch_commands=launch_commands, profile=profile)
+    conf_path = write_launch_conf(
+        media_path, era, Path(executable_path),
+        game_executable=game_executable,
+        launch_commands=launch_commands,
+        profile=profile,
+        drive=drive,
+    )
     atexit.register(lambda: conf_path.unlink(missing_ok=True))
 
     args = build_args(media_path, era, enable_networking=enable_networking)
     job_name = f"peach1up_dosbox_{era}_{media_path.stem}"
 
-    container_enabled = get_container_enabled("dosbox-x")
-    sandbox_config = get_emulator_container_config("dosbox-x", executable_path)
+    # Resolve container_enabled: profile field overrides the emulator catalog value.
+    catalog_enabled = get_container_enabled("dosbox-x")
+    profile_override = getattr(profile, 'container_enabled', None)
+    container_enabled = profile_override if profile_override is not None else catalog_enabled
 
     if container_enabled:
+        from backend.service.utils.app_container import get_container_config as _build_cfg
+        sandbox_config = _build_cfg("dosbox-x", executable_path)
         sandbox_config.broker_files.append(
             BrokerFile(path=str(get_base_path() / "library"), access="r", mode="grant"))
+        use_drive = bool(getattr(profile, 'use_drive', True)) if profile is not None else True
+        if drive is not None and use_drive:
+            sandbox_config.broker_files.append(
+                BrokerFile(
+                    path=str(get_base_path() / "library" / "drives"),
+                    access="rw",
+                    mode="grant",
+                ))
+    else:
+        sandbox_config = None
 
     result = launch_under_job_object(
         cwd=str(Path(executable_path).parent),
@@ -353,7 +414,7 @@ def launch(
         era=era,
         job_name=job_name,
         slug="dosbox-x",
-        container_enabled=container_enabled, 
+        container_enabled=container_enabled,
         sandbox_config=sandbox_config,
     )
 

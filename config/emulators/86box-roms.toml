@@ -1,0 +1,16 @@
+slug = "86box-roms"
+name = "86Box ROM Pack"
+description = "ROM and firmware files required by 86Box for PC emulation"
+version = "v5.3"
+install_type = "rom_pack"
+install_scope = "portable"
+binary = "emulators/86box/roms"
+acquire_method = "git_clone"
+acquire_url = "https://github.com/86Box/roms"
+acquire_tag = "v5.3"
+required = false
+license = "Various"
+source_url = "https://github.com/86Box/roms"
+supported_formats = []
+guidance_text = "Click Clone ROM Pack to download via git, or manually download and extract to emulators/86box/roms/."
+guidance_url = "https://github.com/86Box/roms"

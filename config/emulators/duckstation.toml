@@ -1,0 +1,62 @@
+slug = "duckstation"
+display_name = "DuckStation"
+name = "DuckStation"
+version = "PLACEHOLDER"
+binary = "duckstation-qt-x64-ReleaseLTCG.exe"
+sha256 = ""
+download_url = "https://www.duckstation.org"
+release_url = "https://github.com/stenzek/duckstation/releases"
+portable_sentinel = "portable.txt"
+sandbox_mode = "appcontainer"
+container_enabled = false
+capabilities = []
+skip_memory_limit = true
+description = "PlayStation 1 emulation"
+required = false
+install_type = "installer"
+install_scope = "system"
+windows_installer_glob = "duckstation-*.exe"
+known_path_env = "LOCALAPPDATA"
+known_path_suffix = "Programs\\DuckStation\\duckstation-qt-x64-ReleaseLTCG.exe"
+license = "GPL-3.0"
+copyright = "Copyright 2019–2024 Connor McLaughlin and contributors"
+source_url = "https://github.com/stenzek/duckstation"
+supported_formats = [".iso", ".bin", ".cue", ".chd"]
+guidance_text = "Download the DuckStation Windows installer and place it in emulators/duckstation/, then click Run Installer."
+guidance_url = "https://www.duckstation.org"
+
+[[container_broker_files]]
+path_key = "install_dir"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "PS1_BIOS_PATH"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "GAMES_PATH"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "memcards_dir"
+access = "rw"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "cache_dir"
+access = "rw"
+mode = "grant"
+
+[[dependencies]]
+name = "ps1-bios"
+acquire_method = "user_supplied"
+required = true
+validation_type = "directory"
+display_name = "PS1 BIOS"
+platform = "ps1"
+bios_path = "library/bios/ps1"
+guidance_text = "Place your PS1 BIOS file (e.g. scph1001.bin) in library/bios/ps1/. DuckStation requires a BIOS image to boot PS1 games."
+guidance_url = "https://www.duckstation.org/wiki/BIOS"

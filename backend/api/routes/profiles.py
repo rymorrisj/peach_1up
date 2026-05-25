@@ -42,7 +42,7 @@ def update_profile(profile_id: int, body: ProfileUpdate, db: Session = Depends(g
     profile = db.get(Profile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
-    for key, value in body.model_dump(exclude_none=True).items():
+    for key, value in body.model_dump(exclude_unset=True).items():
         setattr(profile, key, value)
     db.commit()
     db.refresh(profile)

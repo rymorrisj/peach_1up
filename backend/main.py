@@ -19,7 +19,7 @@ def resource_path(relative: str) -> Path:
     return Path(__file__).resolve().parent.parent / relative
 
 from backend.api.middleware.security import FirstRunGuardMiddleware, SecurityMiddleware, configure_cors
-from backend.api.routes import auth, bios, emulators, filesystem, health, launches, library, media, platforms, profiles, settings, users
+from backend.api.routes import auth, bios, drives, emulators, filesystem, health, launches, library, media, platforms, profiles, settings, users
 from backend.core.lifespan import lifespan
 from backend.service.utils.settings import get_or_generate_session_secret
 _session_secret = get_or_generate_session_secret()
@@ -44,6 +44,7 @@ configure_cors(app)
 
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(drives.router)
 app.include_router(health.router)
 app.include_router(settings.router)
 app.include_router(emulators.router)

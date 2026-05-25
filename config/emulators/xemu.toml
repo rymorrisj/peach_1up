@@ -1,0 +1,54 @@
+slug = "xemu"
+display_name = "xemu"
+name = "xemu"
+version = "PLACEHOLDER"
+binary = "xemu.exe"
+sha256 = ""
+download_url = "https://xemu.app"
+release_url = "https://github.com/xemu-project/xemu/releases"
+portable_sentinel = "xemu.toml"
+sandbox_mode = "appcontainer"
+container_enabled = false
+capabilities = []
+skip_memory_limit = false
+description = "Original Xbox emulation"
+required = false
+install_type = "zip"
+install_scope = "portable"
+license = "GPL-2.0"
+copyright = "Copyright 2020–2024 Matt Borgerson and contributors"
+source_url = "https://github.com/xemu-project/xemu"
+supported_formats = [".iso", ".xiso"]
+guidance_text = "Download the xemu Windows release and extract it to emulators/xemu/ so that xemu.exe is inside."
+guidance_url = "https://xemu.app"
+
+[[container_broker_files]]
+path_key = "install_dir"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "XBOX_BIOS_PATH"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "hdd_image"
+access = "rw"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "appdata_xemu"
+access = "rw"
+mode = "grant"
+
+[[dependencies]]
+name = "xbox-bios"
+acquire_method = "user_supplied"
+required = true
+validation_type = "directory"
+display_name = "Xbox BIOS"
+platform = "xbox"
+bios_path = "library/bios/xbox"
+guidance_text = "Place your Xbox MCPX and BIOS files in library/bios/xbox/. See xemu.app for the exact files required."
+guidance_url = "https://xemu.app/docs/required-files/"

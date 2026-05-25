@@ -176,7 +176,7 @@ def get_executable_path(era: Era) -> tuple[str, str]:
     return get_binary_path(emulator_key), settings_key
 
 
-def launch_media(era, media_path, profile=None, platform=None, game_executable: str | None = None, launch_commands: list[str] | None = None):
+def launch_media(era, media_path, profile=None, platform=None, game_executable: str | None = None, launch_commands: list[str] | None = None, drive=None):
     """Resolve backend, validate executable, and launch media.
 
     Single entry point for FastAPI route handlers. Accepts era as either a
@@ -265,4 +265,5 @@ def launch_media(era, media_path, profile=None, platform=None, game_executable: 
         game_executable=game_executable,
         launch_commands=launch_commands,
         profile=profile,
+        drive=drive,
     )

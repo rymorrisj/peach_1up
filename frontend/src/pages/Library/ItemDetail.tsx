@@ -31,6 +31,7 @@ interface EditForm {
   era: string
   platform_id: string
   profile_id: string
+  executable_path: string
 }
 
 function formFromItem(item: LibraryItem): EditForm {
@@ -46,6 +47,7 @@ function formFromItem(item: LibraryItem): EditForm {
     era: item.era ?? '',
     platform_id: item.platform_id?.toString() ?? '',
     profile_id: item.profile_id?.toString() ?? '',
+    executable_path: item.executable_path ?? '',
   }
 }
 
@@ -172,6 +174,7 @@ export default function ItemDetail() {
           platform_id: form.platform_id ? parseInt(form.platform_id, 10) : null,
           profile_id: form.profile_id ? parseInt(form.profile_id, 10) : null,
           launch_commands: launchCommands ?? item.launch_commands ?? [],
+          executable_path: form.executable_path.trim() || null,
         }),
       })
       queryClient.invalidateQueries({ queryKey: ['library'] })
@@ -554,14 +557,19 @@ export default function ItemDetail() {
                 />
               </FormField>
 
-              <div>
-                <p className="mb-1 text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                  Executable path
-                </p>
+              <FormField
+                label="Executable path"
+                htmlFor="detail-exe-path"
+                hint="Override or clear the scanner result"
+              >
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 font-mono text-xs text-neutral-600 break-all dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-400">
-                    {item.executable_path ?? '—'}
-                  </div>
+                  <Input
+                    id="detail-exe-path"
+                    value={form.executable_path}
+                    onChange={(e) => setField('executable_path', e.target.value)}
+                    placeholder="e.g. C:\GAME\GAME.EXE"
+                    className="font-mono text-xs"
+                  />
                   <Button
                     variant="secondary"
                     size="sm"
@@ -576,7 +584,7 @@ export default function ItemDetail() {
                     ❌ {rescanError}
                   </p>
                 )}
-              </div>
+              </FormField>
 
               {(item.scan_candidates ?? []).length > 0 && (
                 <div>

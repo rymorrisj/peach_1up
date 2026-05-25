@@ -24,6 +24,7 @@ class LibraryItemBase(SQLModel):
     launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
     scan_candidates: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
     launch_review_flagged: bool = Field(default=False)
+    installed: bool = False
 
 
 class LibraryItem(LibraryItemBase, table=True):
@@ -77,6 +78,7 @@ class LibraryItemUpdate(SQLModel):
     launch_commands: Optional[list[str]] = None
     scan_candidates: Optional[list[str]] = None
     launch_review_flagged: Optional[bool] = None
+    installed: Optional[bool] = None
 
 
 class LibraryItemRead(LibraryItemBase):
@@ -91,3 +93,4 @@ class LibraryItemRead(LibraryItemBase):
     launch_commands: Optional[list[str]] = None
     scan_candidates: Optional[list[str]] = None
     launch_review_flagged: bool = False
+    installed: bool = False

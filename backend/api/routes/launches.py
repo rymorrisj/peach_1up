@@ -13,6 +13,7 @@ from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
 from backend.core.process_registry import ProcessEntry
 from backend.models import LaunchHistory, LibraryItem, Platform, Profile
+from backend.models.drive import Drive
 from backend.models.launch_history import LaunchHistoryRead
 from backend.models.user import User
 
@@ -107,6 +108,11 @@ async def launch_item(
 
     network_blocked = not bool(getattr(profile, 'enable_networking', False))
 
+    drive: Drive | None = None
+    drive_slug = getattr(profile, 'drive_slug', None)
+    if drive_slug:
+        drive = db.query(Drive).filter(Drive.slug == drive_slug).first()
+
     history = LaunchHistory(
         library_item_id=item.id,
         profile_id=profile.id if profile else None,
@@ -130,6 +136,7 @@ async def launch_item(
             platform_record,
             item.executable_path,
             launch_commands=item.launch_commands,
+            drive=drive,
         )
     except Exception as exc:
         logger.exception("Launch failed")

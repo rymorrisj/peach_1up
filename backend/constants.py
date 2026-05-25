@@ -9,8 +9,8 @@ from typing import Dict, Set
 from backend.constants_generated import Era
 
 ERA_MEDIA_TYPES: Dict[Era, Set[str]] = {
-    Era.DOS:   {'.iso', '.img', '.cue'},
-    Era.WIN31: {'.iso', '.img', '.cue'},
+    Era.DOS:   {'.iso', '.img', '.cue', '.exe'},
+    Era.WIN31: {'.iso', '.img', '.cue', '.exe'},
     Era.WIN95: {'.iso', '.cue'},
     Era.WIN98: {'.iso', '.cue'},
     Era.WINXP: {'.iso', '.cue'},

@@ -1,0 +1,59 @@
+slug = "86box"
+display_name = "86Box"
+name = "86Box"
+version = "PLACEHOLDER"
+binary = "86Box.exe"
+sha256 = ""
+download_url = "https://86box.net"
+release_url = "https://github.com/86Box/86Box/releases"
+portable_sentinel = ""
+sandbox_mode = "appcontainer"
+container_enabled = false
+capabilities = []
+skip_memory_limit = true
+description = "Windows 95/98 accuracy mode"
+required = false
+install_type = "zip"
+install_scope = "portable"
+license = "GPL-2.0"
+copyright = "Copyright 2015–2024 86Box contributors"
+source_url = "https://github.com/86Box/86Box"
+rom_pack_version = "5.3"
+rom_pack_url = "https://github.com/86Box/roms"
+supported_formats = [".iso", ".img", ".cue"]
+guidance_text = "Download the 86Box Windows release and extract it to emulators/86box/ so that 86Box.exe is inside."
+guidance_url = "https://86box.net"
+
+[[container_broker_files]]
+path_key = "install_dir"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "ROM_PATH"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "nvram"
+access = "rw"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "config_dir"
+access = "rw"
+mode = "grant"
+
+[[dependencies]]
+name = "86box-roms"
+acquire_method = "git_clone"
+acquire_url = "https://github.com/86Box/roms"
+acquire_tag = "v5.3"
+acquire_target = "emulators/86box/roms"
+
+[[dependencies]]
+name = "86box-assets"
+acquire_method = "git_clone"
+acquire_url = "https://github.com/86Box/assets"
+acquire_tag = "v5.3"
+acquire_target = "emulators/86box/assets"

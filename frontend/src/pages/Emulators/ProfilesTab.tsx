@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
-import { Button, FormField, Input, Modal, PageHeader, Textarea } from '@/ui'
+import { Button, FormField, Input, Modal, Textarea } from '@/ui'
 import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import LaunchCommandList from '@/components/LaunchCommandList'
 import { useConfirm } from '@/hooks/useConfirm'
 import { ERA_LABELS } from '@/generated/constants'
 import type { components } from '@shared/types'
+
 type LaunchProfile = components['schemas']['ProfileRead']
 type DriveRecord = components['schemas']['DriveRead']
 type EmulatorEntry = components['schemas']['CatalogEntryResponse']
@@ -20,6 +22,9 @@ const ERA_DEFAULT_DRIVE_SIZE: Record<string, number> = {
 
 type DriveMode = 'none' | 'existing' | 'create'
 
+const ERA_SELECT_CLASS =
+  'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
+
 const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
 
 interface ProfileForm {
@@ -30,6 +35,7 @@ interface ProfileForm {
   extra_args: string
   enable_networking: boolean
   notes: string
+  launch_commands: string[]
   container_enabled: boolean | null
   drive_mode: DriveMode
   drive_slug: string
@@ -37,7 +43,7 @@ interface ProfileForm {
   new_drive_size_mb: number
 }
 
-const EMPTY_FORM: ProfileForm = {
+const EMPTY_PROFILE_FORM: ProfileForm = {
   name: '',
   slug: '',
   emulator_slug: '',
@@ -45,6 +51,7 @@ const EMPTY_FORM: ProfileForm = {
   extra_args: '',
   enable_networking: false,
   notes: '',
+  launch_commands: [],
   container_enabled: null,
   drive_mode: 'none',
   drive_slug: '',
@@ -52,13 +59,13 @@ const EMPTY_FORM: ProfileForm = {
   new_drive_size_mb: 500,
 }
 
-type ModalState = null | { mode: 'create' } | { mode: 'edit'; profile: LaunchProfile }
+type ProfileModalState = null | { mode: 'create' } | { mode: 'edit'; profile: LaunchProfile }
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
 }
 
-function formatDate(iso: string) {
+function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
@@ -66,10 +73,7 @@ function formatDate(iso: string) {
   })
 }
 
-const LP_SELECT_CLASS =
-  'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
-
-export default function LaunchProfiles() {
+export default function ProfilesTab() {
   const queryClient = useQueryClient()
   const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm()
 
@@ -88,14 +92,14 @@ export default function LaunchProfiles() {
     queryFn: () => apiFetch<EmulatorEntry[]>('/api/v1/emulators'),
   })
 
-  const [modal, setModal] = useState<ModalState>(null)
-  const [form, setForm] = useState<ProfileForm>(EMPTY_FORM)
+  const [modal, setModal] = useState<ProfileModalState>(null)
+  const [form, setForm] = useState<ProfileForm>(EMPTY_PROFILE_FORM)
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof ProfileForm, string>>>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   function openCreate() {
-    setForm(EMPTY_FORM)
+    setForm(EMPTY_PROFILE_FORM)
     setFormErrors({})
     setSubmitError(null)
     setModal({ mode: 'create' })
@@ -103,6 +107,7 @@ export default function LaunchProfiles() {
 
   function openEdit(profile: LaunchProfile) {
     const ext = profile as LaunchProfile & {
+      launch_commands?: string[] | null
       container_enabled?: boolean | null
       drive_slug?: string | null
       use_drive?: boolean
@@ -116,6 +121,7 @@ export default function LaunchProfiles() {
       extra_args: profile.extra_args ?? '',
       enable_networking: profile.enable_networking,
       notes: profile.notes ?? '',
+      launch_commands: ext.launch_commands ?? [],
       container_enabled: ext.container_enabled ?? null,
       drive_mode: ext.use_drive === false ? 'none' : hasDrive ? 'existing' : 'none',
       drive_slug: ext.drive_slug ?? '',
@@ -194,6 +200,7 @@ export default function LaunchProfiles() {
         emulator_slug: form.emulator_slug.trim(),
         era: form.era,
         enable_networking: form.enable_networking,
+        launch_commands: form.launch_commands,
         container_enabled: form.container_enabled,
         drive_slug: resolvedDriveSlug,
         use_drive: resolvedUseDrive,
@@ -212,8 +219,7 @@ export default function LaunchProfiles() {
       await queryClient.invalidateQueries({ queryKey: ['profiles'] })
       closeModal()
     } catch (err) {
-      const msg = err instanceof ApiError ? err.detail : 'Something went wrong.'
-      setSubmitError(msg)
+      setSubmitError(err instanceof ApiError ? err.detail : 'Something went wrong.')
     } finally {
       setSubmitting(false)
     }
@@ -222,32 +228,32 @@ export default function LaunchProfiles() {
   async function handleDelete(profile: LaunchProfile) {
     const confirmed = await confirm({
       title: `Delete "${profile.name}"?`,
-      consequence: 'This launch profile will be permanently removed. Any library items using it will lose their profile assignment.',
+      consequence:
+        'This launch profile will be permanently removed. Any library items using it will lose their profile assignment.',
       destructive: true,
     })
     if (!confirmed) return
-
     try {
       await apiFetch(`/api/v1/profiles/${profile.id}`, { method: 'DELETE' })
       await queryClient.invalidateQueries({ queryKey: ['profiles'] })
     } catch (err) {
-      const msg = err instanceof ApiError ? err.detail : 'Delete failed.'
-      alert(msg)
+      alert(err instanceof ApiError ? err.detail : 'Delete failed.')
     }
   }
 
-  const eraLabel = (era: string) =>
-    ERA_OPTIONS.find((e) => e.value === era)?.label ?? era
-
+  const eraLabel = (era: string) => ERA_OPTIONS.find((e) => e.value === era)?.label ?? era
   const modalTitle = modal?.mode === 'create' ? 'Add Launch Profile' : 'Edit Launch Profile'
 
   return (
     <>
-      <PageHeader
-        title="Profiles"
-        description="Emulator configuration presets. Assign a profile to each library item to enable launch."
-        action={<Button onClick={openCreate}>+ Add Profile</Button>}
-      />
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">
+          Emulator configuration presets. Assign a profile to each library item to enable launch.
+        </p>
+        <Button size="sm" onClick={openCreate} className="shrink-0">
+          + Add Profile
+        </Button>
+      </div>
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
@@ -364,7 +370,7 @@ export default function LaunchProfiles() {
             id="lp-era"
             value={form.era}
             onChange={(e) => setField('era', e.target.value)}
-            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100"
+            className={ERA_SELECT_CLASS}
           >
             <option value="">— Select era —</option>
             {ERA_OPTIONS.map((e) => (
@@ -375,7 +381,11 @@ export default function LaunchProfiles() {
           </select>
         </FormField>
 
-        <FormField label="Extra Arguments" htmlFor="lp-args" hint="Additional command-line flags passed to the emulator">
+        <FormField
+          label="Extra Arguments"
+          htmlFor="lp-args"
+          hint="Additional command-line flags passed to the emulator"
+        >
           <Input
             id="lp-args"
             value={form.extra_args}
@@ -397,9 +407,7 @@ export default function LaunchProfiles() {
               aria-checked={form.enable_networking}
               onClick={() => setField('enable_networking', !form.enable_networking)}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#ff8a5c] focus:ring-offset-2 ${
-                form.enable_networking
-                  ? 'bg-[#ff8a5c]'
-                  : 'bg-neutral-300 dark:bg-neutral-600'
+                form.enable_networking ? 'bg-[#ff8a5c]' : 'bg-neutral-300 dark:bg-neutral-600'
               }`}
             >
               <span
@@ -424,6 +432,14 @@ export default function LaunchProfiles() {
           />
         </FormField>
 
+        <FormField label="Launch commands" hint="Default commands run when launching software with this profile">
+          <LaunchCommandList
+            value={form.launch_commands}
+            onChange={(v) => setField('launch_commands', v)}
+            disabled={submitting}
+          />
+        </FormField>
+
         {emulators.find((e) => e.slug === form.emulator_slug)?.container_enabled && (
           <FormField
             label="AppContainer"
@@ -437,7 +453,7 @@ export default function LaunchProfiles() {
                 const v = e.target.value
                 setField('container_enabled', v === '' ? null : v === 'true')
               }}
-              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100"
+              className={ERA_SELECT_CLASS}
             >
               <option value="">Default (use emulator setting)</option>
               <option value="true">Enabled</option>
@@ -458,7 +474,7 @@ export default function LaunchProfiles() {
                 setField('new_drive_size_mb', ERA_DEFAULT_DRIVE_SIZE[form.era] ?? 500)
               }
             }}
-            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100"
+            className={ERA_SELECT_CLASS}
           >
             <option value="none">No drive</option>
             <option value="existing">Use existing drive</option>
@@ -477,7 +493,7 @@ export default function LaunchProfiles() {
               id="lp-drive-slug"
               value={form.drive_slug}
               onChange={(e) => setField('drive_slug', e.target.value)}
-              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100"
+              className={ERA_SELECT_CLASS}
             >
               <option value="">— Select a drive —</option>
               {drives.map((d) => (

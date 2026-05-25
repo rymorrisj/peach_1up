@@ -1,0 +1,54 @@
+slug = "flycast"
+display_name = "Flycast"
+name = "Flycast"
+version = "PLACEHOLDER"
+binary = "flycast.exe"
+sha256 = ""
+download_url = "https://github.com/flyinghead/flycast"
+release_url = "https://github.com/flyinghead/flycast/releases"
+portable_sentinel = "emu.cfg"
+sandbox_mode = "appcontainer"
+container_enabled = false
+capabilities = []
+skip_memory_limit = false
+description = "Dreamcast emulation"
+required = false
+install_type = "zip"
+install_scope = "portable"
+license = "GPL-2.0"
+copyright = "Copyright 2018–2024 The Flycast Team"
+source_url = "https://github.com/flyinghead/flycast"
+supported_formats = [".iso", ".cdi", ".gdi", ".chd"]
+guidance_text = "Download the Flycast Windows release and extract it to emulators/flycast/ so that flycast.exe is inside."
+guidance_url = "https://github.com/flyinghead/flycast"
+
+[[container_broker_files]]
+path_key = "install_dir"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "DREAMCAST_BIOS_PATH"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "GAMES_PATH"
+access = "r"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "saves_dir"
+access = "rw"
+mode = "grant"
+
+[[dependencies]]
+name = "dc-bios"
+acquire_method = "user_supplied"
+required = true
+validation_type = "directory"
+display_name = "Dreamcast BIOS"
+platform = "dreamcast"
+bios_path = "library/bios/dreamcast"
+guidance_text = "Place your Dreamcast BIOS files (dc_boot.bin, dc_flash.bin) in library/bios/dreamcast/. Flycast requires these files to boot."
+guidance_url = "https://github.com/flyinghead/flycast"

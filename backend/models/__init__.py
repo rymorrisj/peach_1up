@@ -1,3 +1,4 @@
+from backend.models.drive import Drive, DriveBase, DriveCreate, DriveRead
 from backend.models.profile import Profile, ProfileBase, ProfileCreate, ProfileUpdate, ProfileRead
 from backend.models.platform import Platform, PlatformBase, PlatformCreate, PlatformUpdate, PlatformRead
 from backend.models.library import LibraryItem, LibraryItemBase, LibraryItemCreate, LibraryItemUpdate, LibraryItemRead

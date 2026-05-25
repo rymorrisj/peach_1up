@@ -13,6 +13,7 @@ from backend.core.logger import get_logger
 from backend.core.settings import get_base_path, init_settings
 import backend.models.user  # noqa: F401 — registers User with SQLModel.metadata
 import backend.models.media_restriction  # noqa: F401 — registers MediaRestriction with SQLModel.metadata
+import backend.models.drive  # noqa: F401 — registers Drive with SQLModel.metadata
 
 logger = get_logger(__name__)
 
@@ -154,6 +155,34 @@ def _seed_default_profiles(db) -> bool:
         return False
 
 
+_DEFAULT_DRIVES = [
+    {"slug": "dos-default",  "name": "DOS Default",      "size_mb": 500,  "era": "dos"},
+    {"slug": "win31-default","name": "Win 3.1 Default",  "size_mb": 500,  "era": "win31"},
+    {"slug": "win95-compat", "name": "Win 95 Compat",    "size_mb": 2048, "era": "win95"},
+    {"slug": "win98-compat", "name": "Win 98 Compat",    "size_mb": 4096, "era": "win98"},
+    {"slug": "winxp-default","name": "Win XP Default",   "size_mb": 8192, "era": "winxp"},
+]
+
+
+def _seed_default_drives(db) -> bool:
+    try:
+        from backend.models.drive import Drive
+        existing_slugs = {r.slug for r in db.query(Drive.slug).all()}
+        added = 0
+        for data in _DEFAULT_DRIVES:
+            if data["slug"] not in existing_slugs:
+                db.add(Drive(**data))
+                added += 1
+        if added:
+            db.flush()
+            logger.info("Seeded %d default drive record(s)", added)
+        return True
+    except Exception as exc:
+        db.rollback()
+        logger.error("Default drive seeding failed: %s", exc)
+        return False
+
+
 def _cleanup_stale_sessions(db) -> None:
     try:
         from backend.models import LaunchHistory
@@ -236,9 +265,13 @@ def _apply_schema_migrations() -> None:
         ("library_items", "slug", "TEXT"),
         ("library_items", "folder_path", "TEXT"),
         ("library_items", "cover_path", "TEXT"),
+        ("library_items", "installed", "INTEGER NOT NULL DEFAULT 0"),
         ("platforms", "installed_at", "DATETIME"),
         ("platforms", "hardware_profile", "TEXT DEFAULT 'standard'"),
         ("platforms", "machine_override", "TEXT"),
+        ("profiles", "drive_slug", "TEXT"),
+        ("profiles", "use_drive", "INTEGER NOT NULL DEFAULT 1"),
+        ("profiles", "container_enabled", "INTEGER"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)
@@ -365,6 +398,7 @@ def _ensure_default_paths() -> None:
         Path("saves") / "pcsx2",
         Path("saves") / "duckstation",
         Path("saves") / "xemu",
+        "drives",
     ]:
         (lib / subdir).mkdir(parents=True, exist_ok=True)
     Path(get_env_var("ROM_PATH")).mkdir(parents=True, exist_ok=True)
@@ -428,6 +462,7 @@ async def lifespan(app: FastAPI):
         _sync_first_run_from_db(db)
         _platforms_seeded = _seed_system_platforms(db)
         _profiles_seeded = _seed_default_profiles(db)
+        _seed_default_drives(db)
         _cleanup_stale_sessions(db)
         _flag_corrupt_platform_working_paths(db)
         db.commit()

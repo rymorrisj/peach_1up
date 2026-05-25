@@ -17,6 +17,9 @@ class ProfileBase(SQLModel):
     notes: Optional[str] = None
     user_id: Optional[int] = None
     launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
+    drive_slug: Optional[str] = None
+    use_drive: bool = True
+    container_enabled: Optional[bool] = None
 
 
 class Profile(ProfileBase, table=True):
@@ -47,6 +50,9 @@ class ProfileUpdate(SQLModel):
     enable_networking: Optional[bool] = None
     notes: Optional[str] = None
     launch_commands: Optional[list[str]] = None
+    drive_slug: Optional[str] = None
+    use_drive: Optional[bool] = None
+    container_enabled: Optional[bool] = None
 
 
 class ProfileRead(ProfileBase):
