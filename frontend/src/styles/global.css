@@ -4,12 +4,86 @@
 
 :root {
   font-size: 16px;
+
+  /* Design token bridge — matches Tailwind config values */
+  --surface-0: #0d1014;
+  --surface-1: #131820;
+  --surface-2: #1c2230;
+  --surface-3: #262e3e;
+  --border:    #2a3142;
+  --border-strong: #3b4358;
+
+  --fg-1: #f3eee7;
+  --fg-2: #b6b3ad;
+  --fg-3: #7a7a78;
+
+  --peach-300: #ffa97a;
+  --peach-400: #ff9469;
+  --peach-500: #ff8a5c;
+  --peach-600: #ed6f3f;
+  --peach-700: #c4552a;
+
+  --success: #6ed09a;
+  --warning: #ffb547;
+  --error:   #ff6a55;
+  --info:    #6aa9d6;
+
+  --era-dos:   #d6a64a;
+  --era-win31: #4ec3c0;
+  --era-win95: #b6d36b;
+  --era-win98: #6ea8d6;
+  --era-winxp: #66b27a;
+
+  --shadow-sm: 0 1px 2px rgb(20 12 6 / 0.4);
+  --shadow-md: 0 4px 12px rgb(20 12 6 / 0.45);
+  --shadow-lg: 0 12px 28px rgb(20 12 6 / 0.5);
+
+  --r-1: 4px;
+  --r-2: 8px;
+  --r-3: 12px;
+  --r-4: 20px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 320ms;
+
+  --font-display: "Space Grotesk", "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
 }
 
 body {
-  @apply bg-white text-neutral-900 font-sans antialiased;
+  @apply bg-surface-950 text-neutral-100 font-sans antialiased;
 }
 
-.dark body {
-  @apply bg-surface-950 text-neutral-100;
+/* Active/press state for interactive elements */
+button:active,
+a:active {
+  transform: scale(0.98);
+  transition: transform 100ms var(--ease-out);
+}
+
+/* Era chip shared base */
+.era-chip {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 6px;
+  border-radius: var(--r-1);
+}
+
+/* Health dot pulse */
+@keyframes health-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Launching pill pulse */
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
-import { Button, PageHeader } from '@/ui'
+import { Button } from '@/ui'
+import TopBar from '@/components/layout/TopBar'
 import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
@@ -173,25 +174,20 @@ export default function Environments() {
   }
 
   return (
-    <>
-      <PageHeader
-        title="Environments"
-        description="Manage PC environment registrations and OS disk images."
-        action={
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              onClick={handleHealthCheckAll}
-              loading={healthCheckAllRunning}
-              disabled={healthCheckAllRunning || isLoading}
-            >
-              Health Check All
-            </Button>
-            <Button onClick={openCreate}>+ Add Environment</Button>
-          </div>
-        }
-      />
+    <div className="flex flex-col min-h-full">
+      <TopBar title="Environments">
+        <Button
+          variant="secondary"
+          onClick={handleHealthCheckAll}
+          loading={healthCheckAllRunning}
+          disabled={healthCheckAllRunning || isLoading}
+        >
+          Health Check All
+        </Button>
+        <Button onClick={openCreate}>+ Add Environment</Button>
+      </TopBar>
 
+      <div className="p-6">
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
           <LoadingSpinner label="Loading environments…" />
@@ -218,6 +214,8 @@ export default function Environments() {
         </div>
       )}
 
+      </div>
+
       <EnvironmentModal
         open={modal !== null}
         mode={modal?.mode ?? 'create'}
@@ -238,6 +236,6 @@ export default function Environments() {
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />
-    </>
+    </div>
   )
 }

@@ -1,0 +1,65 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Peach 1UP">
+
+  <defs>
+    <linearGradient id="aiBody" x1="0.25" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0%" stop-color="#ffd9bc"></stop>
+      <stop offset="32%" stop-color="#ffa67b"></stop>
+      <stop offset="72%" stop-color="#ee6d3d"></stop>
+      <stop offset="100%" stop-color="#a8401c"></stop>
+    </linearGradient>
+    <radialGradient id="aiBlush" cx="0.65" cy="0.6" r="0.4">
+      <stop offset="0%" stop-color="#ff3d20" stop-opacity="0.55"></stop>
+      <stop offset="100%" stop-color="#ff3d20" stop-opacity="0"></stop>
+    </radialGradient>
+    <radialGradient id="aiGlow" cx="0.32" cy="0.3" r="0.32">
+      <stop offset="0%" stop-color="#fff8ee" stop-opacity="0.55"></stop>
+      <stop offset="100%" stop-color="#fff8ee" stop-opacity="0"></stop>
+    </radialGradient>
+    <linearGradient id="aiLeaf" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#b8d488"></stop>
+      <stop offset="55%" stop-color="#6ea14a"></stop>
+      <stop offset="100%" stop-color="#345a22"></stop>
+    </linearGradient>
+    <linearGradient id="aiTypeFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffd9b8"></stop>
+      <stop offset="55%" stop-color="#ff9469"></stop>
+      <stop offset="100%" stop-color="#d96135"></stop>
+    </linearGradient>
+    <filter id="aiTypeShadow" x="-10%" y="-10%" width="120%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.8" flood-color="#1a0805" flood-opacity="0.55"></feDropShadow>
+    </filter>
+  </defs>
+
+  <defs>
+    <radialGradient id="aiBgVignette" cx="0.5" cy="0.55" r="0.7">
+      <stop offset="0%" stop-color="#1a2230"></stop>
+      <stop offset="100%" stop-color="#080a0d"></stop>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#aiBgVignette)"></rect>
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="13.25" fill="none" stroke="rgb(255 138 92 / 0.18)" stroke-width="0.6"></rect>
+  <g transform="translate(6,5) scale(0.82)">
+
+  <ellipse cx="32" cy="59" rx="18" ry="2.6" fill="#1a0805" opacity="0.4"></ellipse>
+  <path d="M 32 13 C 30 10 27 8.5 23.5 8.5 C 16.5 8.5 11 13.5 10 20.5 C 9.5 24 10.5 27.5 12.5 29.5 C 8.5 31 6.5 35.5 7 40.5 C 7.8 47.5 13 53 20 56 C 24 57.5 28 58.2 32 58 C 36 58.2 40 57.5 44 56 C 51 53 56.2 47.5 57 40.5 C 57.5 35.5 55.5 31 51.5 29.5 C 53.5 27.5 54.5 24 54 20.5 C 53 13.5 47.5 8.5 40.5 8.5 C 37 8.5 34 10 32 13 Z" fill="url(#aiBody)" stroke="#1a0805" stroke-width="2.6" stroke-linejoin="round"></path>
+  <ellipse cx="40" cy="42" rx="15" ry="13" fill="url(#aiBlush)"></ellipse>
+  <ellipse cx="19" cy="22" rx="11" ry="7" fill="url(#aiGlow)"></ellipse>
+  <ellipse cx="16.5" cy="19" rx="2.8" ry="1.9" fill="#fffaf0" opacity="0.8"></ellipse>
+  <path d="M 31 17 C 29 22 28.5 28 30 34 C 30.8 38 30.8 44 30 50" fill="none" stroke="#5a1c08" stroke-width="1.8" stroke-linecap="round" opacity="0.55"></path>
+  <path d="M 30 18 C 28 23 27.5 28 28.5 34" fill="none" stroke="#ffeed5" stroke-width="0.9" stroke-linecap="round" opacity="0.7"></path>
+  <path d="M 27 12 C 30 14.5 34 14.5 37 12" fill="none" stroke="#7a2a10" stroke-width="1.4" stroke-linecap="round" opacity="0.35"></path>
+  <path d="M 36 10 C 38 7.5 41 6.5 43 6" fill="none" stroke="#1a0805" stroke-width="2.6" stroke-linecap="round"></path>
+  <path d="M 36 10 C 38 7.5 41 6.5 43 6" fill="none" stroke="#5a3a1a" stroke-width="1.4" stroke-linecap="round"></path>
+  <path d="M 43 6 C 48 2.5 56 2.5 59 6 C 58.5 11.5 52 14.5 45 13 C 43 11 42.5 8.5 43 6 Z" fill="url(#aiLeaf)" stroke="#1a0805" stroke-width="2.2" stroke-linejoin="round"></path>
+  <path d="M 44 10 C 49 8 54 7 58 7" fill="none" stroke="#243f15" stroke-width="1.1" stroke-linecap="round" opacity="0.8"></path>
+  <path d="M 46 5.5 C 50 4 53.5 3.8 56.5 4.5" fill="none" stroke="#d8eab4" stroke-width="0.8" stroke-linecap="round" opacity="0.7"></path>
+  <g transform="translate(16,40) rotate(-5)">
+    <rect x="-0.5" y="2.6" width="28" height="14" rx="2.5" fill="#1a0805" opacity="0.55"></rect>
+    <rect x="-0.5" y="0.5" width="28" height="14" rx="2.5" fill="#fff4e6" stroke="#1a0805" stroke-width="1.8"></rect>
+    <rect x="1" y="2" width="25" height="1.6" fill="#ffd9b8" opacity="0.95"></rect>
+    <text x="13.5" y="11.6" text-anchor="middle" font-family="'JetBrains Mono', ui-monospace, monospace" font-weight="800" font-size="10.5" letter-spacing="0.4" fill="#1a0805">1UP</text>
+  </g>
+
+  </g>
+</svg>

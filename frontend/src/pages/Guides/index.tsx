@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { BookOpen } from 'lucide-react'
+import TopBar from '@/components/layout/TopBar'
 
 interface GuideEntry {
   to: string
@@ -32,28 +33,29 @@ const GUIDES: GuideEntry[] = [
 
 export default function GuidesIndex() {
   return (
-    <>
-      <h1 className="mb-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Guides</h1>
-      <p className="mb-8 text-sm text-neutral-500 dark:text-neutral-400">
-        Step-by-step instructions for setting up emulators, sourcing assets, and preparing media.
-      </p>
-
-      <ul className="space-y-3">
-        {GUIDES.map((g) => (
-          <li key={g.to}>
-            <Link
-              to={g.to}
-              className="flex items-start gap-3 rounded-lg border border-neutral-200 p-4 transition-colors hover:border-[#ff8a5c]/50 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-surface-800"
-            >
-              <BookOpen size={18} className="mt-0.5 shrink-0 text-[#ff8a5c]" aria-hidden="true" />
-              <div>
-                <span className="font-medium text-neutral-900 dark:text-neutral-100">{g.title}</span>
-                <p className="mt-0.5 text-sm text-neutral-500 dark:text-neutral-400">{g.description}</p>
-              </div>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </>
+    <div className="flex flex-col min-h-full">
+      <TopBar title="Guides" />
+      <div className="p-6">
+        <ul className="space-y-3">
+          {GUIDES.map((g) => (
+            <li key={g.to}>
+              <Link
+                to={g.to}
+                className="flex items-start gap-3 rounded-xl p-4 transition-colors duration-[120ms]"
+                style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--surface-2)' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--surface-1)' }}
+              >
+                <BookOpen size={18} className="mt-0.5 shrink-0" style={{ color: 'var(--peach-500)' }} aria-hidden="true" />
+                <div>
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--fg-1)' }}>{g.title}</span>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)', marginTop: 4 }}>{g.description}</p>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   )
 }

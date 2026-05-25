@@ -1,30 +1,75 @@
-import { NavLink } from 'react-router-dom'
-import { Library, Settings, BookOpen, ChevronLeft, ChevronRight, Cpu, Monitor, Tag } from 'lucide-react'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useAppContext } from '@/context/AppContext'
 
+const ERA_ITEMS = [
+  { label: 'DOS', slug: 'dos', color: 'var(--era-dos)' },
+  { label: 'WIN31', slug: 'win31', color: 'var(--era-win31)' },
+  { label: 'WIN95', slug: 'win95', color: 'var(--era-win95)' },
+  { label: 'WIN98', slug: 'win98', color: 'var(--era-win98)' },
+  { label: 'WINXP', slug: 'winxp', color: 'var(--era-winxp)' },
+]
+
 const NAV_ITEMS = [
-  { to: '/library', label: 'Library', Icon: Library, activeLaunchType: 'library_item' as const },
-  { to: '/environments', label: 'Environments', Icon: Monitor, activeLaunchType: 'environment' as const },
-  { to: '/emulators', label: 'Emulators', Icon: Cpu },
-  { to: '/tags', label: 'Tags', Icon: Tag },
-  { to: '/settings', label: 'Settings', Icon: Settings },
-  { to: '/guides', label: 'Guides', Icon: BookOpen },
+  { to: '/library',         label: 'Library',          glyph: '📚', activeLaunchType: 'library_item' as const },
+  { to: '/emulators',       label: 'Emulators',        glyph: '🖥️' },
+  { to: '/environments',    label: 'Environments',     glyph: '💻', activeLaunchType: 'environment' as const },
+  { to: '/platform-health', label: 'Platform Health',  glyph: '🩺' },
+  { to: '/profiles',        label: 'Profiles',         glyph: '💾' },
+  { to: '/tags',            label: 'Tags',             glyph: '🏷️' },
+  { to: '/settings',        label: 'Settings',         glyph: '⚙️' },
 ] as const
 
 export default function Sidebar() {
-  const { state, dispatch } = useAppContext()
-  const collapsed = state.sidebarCollapsed
+  const { state } = useAppContext()
+  const navigate = useNavigate()
 
   return (
     <aside
-      id="main-sidebar"
-      className={`flex flex-col shrink-0 border-r border-neutral-200 bg-neutral-50 transition-all duration-200 dark:border-surface-400 dark:bg-surface-900 ${
-        collapsed ? 'w-14' : 'w-56'
-      }`}
+      className="flex shrink-0 flex-col"
+      style={{
+        width: 240,
+        background: 'var(--surface-0)',
+        borderRight: '1px solid var(--border)',
+      }}
     >
-      <nav className="flex-1 py-[0.75em]" aria-label="Main navigation">
-        <ul role="list" className="space-y-[0.25em] px-[0.5em]">
-          {NAV_ITEMS.map(({ to, label, Icon, ...rest }) => {
+      {/* Brand */}
+      <div className="flex items-center gap-3 px-[18px] pb-3.5 pt-[18px]">
+        <img
+          src="/app-icon.svg"
+          alt="Peach 1UP"
+          width={36}
+          height={36}
+          style={{ flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgb(0 0 0 / 0.4))' }}
+        />
+        <div
+          className="flex items-baseline gap-1.5"
+          style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 17, letterSpacing: '-0.015em', color: 'var(--fg-1)' }}
+        >
+          Peach
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 700,
+              fontSize: 12,
+              letterSpacing: '0.12em',
+              color: 'var(--peach-500)',
+              padding: '3px 5px',
+              border: '1px solid rgb(255 138 92 / 0.4)',
+              borderRadius: 'var(--r-1)',
+              background: 'rgb(255 138 92 / 0.08)',
+              transform: 'translateY(-1px)',
+              display: 'inline-block',
+            }}
+          >
+            1UP
+          </span>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto px-2 py-1">
+        <ul role="list" className="flex flex-col gap-0.5">
+          {NAV_ITEMS.map(({ to, label, glyph, ...rest }) => {
             const activeLaunchType = 'activeLaunchType' in rest ? rest.activeLaunchType : undefined
             const hasActiveLaunch = activeLaunchType
               ? Array.from(state.activeLaunches.values()).some(
@@ -37,46 +82,97 @@ export default function Sidebar() {
                 <NavLink
                   to={to}
                   className={({ isActive }) =>
-                    `flex items-center gap-[0.75em] rounded-md px-[0.75em] py-[0.5em] text-sm font-medium transition-colors ${
+                    `flex items-center gap-2.5 rounded-lg px-3 py-[9px] text-sm font-medium transition-colors duration-[120ms] ${
                       isActive
-                        ? 'bg-neutral-200 text-peach dark:bg-surface-700 dark:text-peach'
-                        : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-surface-800 dark:hover:text-neutral-100'
+                        ? 'text-fg-1'
+                        : 'hover:text-fg-1 text-neutral-400'
                     }`
                   }
-                  aria-label={collapsed ? label : undefined}
+                  style={({ isActive }) => ({
+                    fontFamily: 'var(--font-display)',
+                    color: isActive ? 'var(--fg-1)' : 'var(--fg-2)',
+                    background: isActive ? 'var(--surface-2)' : 'transparent',
+                    borderLeft: isActive ? '2px solid var(--peach-500)' : '2px solid transparent',
+                  })}
                 >
-                  <span className="relative shrink-0">
-                    <Icon size={18} aria-hidden="true" />
-                    {hasActiveLaunch && (
-                      <span
-                        className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-green-500"
-                        aria-hidden="true"
-                      />
-                    )}
+                  <span className="w-[18px] text-center text-base leading-none" aria-hidden="true">
+                    {glyph}
                   </span>
-                  {!collapsed && <span>{label}</span>}
+                  <span className="flex-1">{label}</span>
+                  {hasActiveLaunch && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-green-500" style={{ animation: 'dot-pulse 1.4s ease-in-out infinite' }} aria-hidden="true" />
+                  )}
                 </NavLink>
               </li>
             )
           })}
         </ul>
+
+        {/* Eras jump-list */}
+        <div
+          className="mt-3 px-3.5 pb-1.5 pt-3.5"
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 600,
+            fontSize: 11,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: 'var(--fg-3)',
+          }}
+        >
+          Eras
+        </div>
+        <ul role="list" className="flex flex-col gap-0.5">
+          {ERA_ITEMS.map(({ label, slug, color }) => (
+            <li key={slug}>
+              <button
+                type="button"
+                onClick={() => navigate(`/library?era=${slug}`)}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-[7px] transition-colors duration-[120ms] hover:text-neutral-200"
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+              >
+                <span
+                  className="inline-block rounded"
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: 600,
+                    fontSize: 11,
+                    letterSpacing: '0.08em',
+                    padding: '3px 5px',
+                    border: `1px solid ${color}`,
+                    color,
+                    minWidth: 44,
+                    textAlign: 'center',
+                  }}
+                >
+                  {label}
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+                  {label === 'DOS' && 'DOS 6.22'}
+                  {label === 'WIN31' && 'Windows 3.1'}
+                  {label === 'WIN95' && 'Windows 95'}
+                  {label === 'WIN98' && 'Windows 98'}
+                  {label === 'WINXP' && 'Windows XP'}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
       </nav>
 
-      <div className="px-[0.5em] pb-[0.75em]">
-        <button
-          type="button"
-          onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}
-          aria-expanded={!collapsed}
-          aria-controls="main-sidebar"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="flex w-full items-center justify-center rounded-md px-[0.75em] py-[0.5em] text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-surface-800 dark:hover:text-neutral-100"
-        >
-          {collapsed ? (
-            <ChevronRight size={18} aria-hidden="true" />
-          ) : (
-            <ChevronLeft size={18} aria-hidden="true" />
-          )}
-        </button>
+      {/* Sidebar bottom */}
+      <div
+        className="mt-auto px-4 py-3"
+        style={{
+          borderTop: '1px solid var(--border)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          lineHeight: 1.4,
+          color: 'var(--fg-3)',
+        }}
+      >
+        <span style={{ color: 'var(--fg-2)', display: 'block', fontWeight: 600 }}>Peach 1UP</span>
+        Retro Game Launcher
       </div>
     </aside>
   )

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PageHeader } from '@/ui'
+import TopBar from '@/components/layout/TopBar'
 import { ERA_LABELS } from '@/generated/constants'
 
 interface UserTag {
@@ -121,12 +121,10 @@ export default function Tags() {
   const eraItems = Object.entries(ERA_LABELS).map(([id, label]) => ({ id, label }))
 
   return (
-    <>
-      <PageHeader
-        title="🏷️ Tags"
-        description="Organise your library with user tags. System tags are managed automatically."
-      />
+    <div className="flex flex-col min-h-full">
+      <TopBar title="Tags" />
 
+      <div className="p-6">
       {/* ── User tags ──────────────────────────────────────────────────────── */}
       <div className="mb-3 flex items-baseline gap-3">
         <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Your tags</h2>
@@ -268,6 +266,7 @@ export default function Tags() {
         tagKind="content"
         items={SYSTEM_CONTENT_TAGS}
       />
-    </>
+      </div>
+    </div>
   )
 }

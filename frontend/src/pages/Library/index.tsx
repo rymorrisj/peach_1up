@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
-import { Button, FormField, Input, Modal, PageHeader } from '@/ui'
+import { Button, FormField, Input, Modal } from '@/ui'
+import TopBar from '@/components/layout/TopBar'
 import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
@@ -17,7 +18,7 @@ type LaunchProfile = components['schemas']['ProfileRead']
 const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
 
 const SELECT_CLASS =
-  'rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
+  'rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#ff8a5c] border'
 
 // ── Add Media modal ────────────────────────────────────────────────────────
 
@@ -666,88 +667,87 @@ export default function Library() {
   const hasActiveFilters = filters.era !== '' || filters.profileFilter !== 'all'
 
   return (
-    <>
-      <PageHeader
-        title="Library"
-        description="Your media collection. Assign a profile to each item to enable launch."
-        action={
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setScanOpen(true)}>
-              Scan Directory
-            </Button>
-            <Button onClick={() => setAddOpen(true)}>+ Add Media</Button>
-          </div>
-        }
-      />
+    <div className="flex flex-col min-h-full">
+      <TopBar title="Library">
+        <span style={{ flex: 1 }} />
+        <Button variant="secondary" onClick={() => setScanOpen(true)}>
+          Scan Directory
+        </Button>
+        <Button onClick={() => setAddOpen(true)}>+ Add Media</Button>
+      </TopBar>
 
-      {itemsLoading ? (
-        <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-          <LoadingSpinner label="Loading library…" />
-          <span aria-hidden="true">Loading library…</span>
-        </div>
-      ) : !items || items.length === 0 ? (
-        <EmptyState
-          heading="Your library is empty"
-          subtext="Add media files to get started, or scan a directory to import in bulk."
-          cta={{ label: 'Add Media', onClick: () => setAddOpen(true) }}
-        />
-      ) : (
-        <>
-          {/* Filter bar */}
-          <div className="mb-6 flex flex-wrap items-center gap-3">
-            <select
-              value={filters.era}
-              onChange={(e) => setFilters((f) => ({ ...f, era: e.target.value }))}
-              className={SELECT_CLASS}
-            >
-              <option value="">All eras</option>
-              {ERA_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            <select
-              value={filters.profileFilter}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, profileFilter: e.target.value as Filters['profileFilter'] }))
-              }
-              className={SELECT_CLASS}
-            >
-              <option value="all">All items</option>
-              <option value="assigned">Profile assigned</option>
-              <option value="unassigned">No profile</option>
-            </select>
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={() => setFilters({ era: '', profileFilter: 'all' })}
-                className="text-xs text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300"
+      <div className="p-6">
+        {itemsLoading ? (
+          <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--fg-3)' }}>
+            <LoadingSpinner label="Loading library…" />
+            <span aria-hidden="true">Loading library…</span>
+          </div>
+        ) : !items || items.length === 0 ? (
+          <EmptyState
+            heading="Your library is empty"
+            subtext="Add media files to get started, or scan a directory to import in bulk."
+            cta={{ label: 'Add Media', onClick: () => setAddOpen(true) }}
+          />
+        ) : (
+          <>
+            {/* Filter bar */}
+            <div className="mb-6 flex flex-wrap items-center gap-3">
+              <select
+                value={filters.era}
+                onChange={(e) => setFilters((f) => ({ ...f, era: e.target.value }))}
+                className={SELECT_CLASS}
+                style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--fg-1)' }}
               >
-                Clear filters
-              </button>
-            )}
-            <span className="ml-auto text-xs text-neutral-400 dark:text-neutral-500">
-              {filteredItems.length} of {items.length}
-            </span>
-          </div>
-
-          {filteredItems.length === 0 ? (
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              No items match the current filters.
-            </p>
-          ) : (
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
-              {filteredItems.map((item) => (
-                <ItemCard
-                  key={item.id}
-                  item={item}
-                  profiles={profiles}
-                  onDelete={handleDelete}
-                />
-              ))}
+                <option value="">All eras</option>
+                {ERA_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <select
+                value={filters.profileFilter}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, profileFilter: e.target.value as Filters['profileFilter'] }))
+                }
+                className={SELECT_CLASS}
+                style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--fg-1)' }}
+              >
+                <option value="all">All items</option>
+                <option value="assigned">Profile assigned</option>
+                <option value="unassigned">No profile</option>
+              </select>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={() => setFilters({ era: '', profileFilter: 'all' })}
+                  style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  Clear filters
+                </button>
+              )}
+              <span className="ml-auto" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)' }}>
+                {filteredItems.length} of {items.length}
+              </span>
             </div>
-          )}
-        </>
-      )}
+
+            {filteredItems.length === 0 ? (
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--fg-3)' }}>
+                No items match the current filters.
+              </p>
+            ) : (
+              <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+                {filteredItems.map((item) => (
+                  <ItemCard
+                    key={item.id}
+                    item={item}
+                    profiles={profiles}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       <AddMediaModal
         open={addOpen}
@@ -768,6 +768,6 @@ export default function Library() {
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />
-    </>
+    </div>
   )
 }

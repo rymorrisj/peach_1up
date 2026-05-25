@@ -13,8 +13,12 @@ import VirtualBoxSetup from '@/pages/Guides/VirtualBoxSetup'
 import BiosSourcing from '@/pages/Guides/BiosSourcing'
 import Box86HardwareGuide from '@/pages/Guides/86BoxHardwareGuide'
 import Emulators from '@/pages/Emulators'
+import EmulatorDetail from '@/pages/Emulators/EmulatorDetail'
 import Environments from '@/pages/Environments'
 import Tags from '@/pages/Tags'
+import Profiles from '@/pages/Profiles'
+import ProfileDetail from '@/pages/Profiles/ProfileDetail'
+import PlatformHealth from '@/pages/PlatformHealth'
 import FirstRun from '@/pages/FirstRun'
 import NotFound from '@/pages/NotFound'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
@@ -67,6 +71,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/environments" element={<Environments />} />
                 <Route path="/emulators" element={<Emulators />} />
+                <Route path="/emulators/:slug" element={<EmulatorDetail />} />
+                <Route path="/profiles" element={<Profiles />} />
+                <Route path="/profiles/:id" element={<ProfileDetail />} />
+                <Route path="/platform-health" element={<PlatformHealth />} />
                 <Route path="/tags" element={<Tags />} />
                 <Route path="/guides" element={<GuidesIndex />} />
                 <Route path="/guides/cartridge-imaging" element={<CartridgeImaging />} />

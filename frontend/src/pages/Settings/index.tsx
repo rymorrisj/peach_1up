@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PageHeader } from '@/ui'
+import TopBar from '@/components/layout/TopBar'
 import TabBar from '@/components/common/TabBar'
 import GeneralTab from '@/pages/Settings/GeneralTab'
 import UsersTab from '@/pages/Settings/UsersTab'
@@ -19,13 +19,15 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState<Tab>('general')
 
   return (
-    <>
-      <PageHeader title="Settings" description="Configure library paths and application settings." />
-      <TabBar tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
-      {activeTab === 'general' && <GeneralTab />}
-      {activeTab === 'users' && <UsersTab />}
-      {activeTab === 'attribution' && <AttributionTab />}
-      {activeTab === 'advanced' && <AdvancedTab />}
-    </>
+    <div className="flex flex-col min-h-full">
+      <TopBar title="Settings" />
+      <div className="p-6">
+        <TabBar tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
+        {activeTab === 'general' && <GeneralTab />}
+        {activeTab === 'users' && <UsersTab />}
+        {activeTab === 'attribution' && <AttributionTab />}
+        {activeTab === 'advanced' && <AdvancedTab />}
+      </div>
+    </div>
   )
 }

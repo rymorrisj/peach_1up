@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
-import Sidebar from './Sidebar'
-import TopBar from './TopBar'
+import Sidebar from '@/components/layout/Sidebar'
+import HelpBar from '@/components/layout/HelpBar'
 import { useAppContext } from '@/context/AppContext'
 import { apiFetch } from '@/api/client'
 import type { components } from '@shared/types'
@@ -13,17 +13,17 @@ export default function AppShell() {
   useEffect(() => {
     apiFetch<User>('/api/v1/auth/me')
       .then((user) => dispatch({ type: 'SET_ACTIVE_USER', payload: user }))
-      .catch(() => {/* auth not yet set up — silently ignore */})
+      .catch(() => {/* auth not yet set up */})
   }, [dispatch])
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white dark:bg-surface-950">
+    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--surface-0)' }}>
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar />
-        <main className="flex-1 overflow-auto p-[1.5em]">
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+        <main className="flex-1 overflow-auto" style={{ color: 'var(--fg-1)' }}>
           <Outlet />
         </main>
+        <HelpBar />
       </div>
     </div>
   )
