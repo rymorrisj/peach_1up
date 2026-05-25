@@ -104,7 +104,8 @@ def _validate_scan_directory(directory: str) -> Path:
     Per SECURITY.md mandatory input validation rules: every file path accepted
     from any source must be resolved, normalised, and validated against an
     allowlist of permitted base directories before any filesystem operation.
-    Permitted base directories are LIBRARY_PATH and PROFILES_PATH.
+    Only MEDIA_PATH (library/media/) is a permitted scan root — system files
+    in library/system/ are never exposed via the scan endpoint.
     """
     if "\x00" in directory:
         logger.warning("Scan directory rejected: contains null byte (raw=%r)", directory)
@@ -116,20 +117,19 @@ def _validate_scan_directory(directory: str) -> Path:
         from backend.core.settings import get_settings
         svc = get_settings()
         allowed_roots: list[Path] = []
-        for key in ("LIBRARY_PATH", "PROFILES_PATH"):
-            val = svc.get(key, "") or ""
-            if val:
-                allowed_roots.append(Path(val).resolve())
+        val = svc.get("MEDIA_PATH", "") or ""
+        if val:
+            allowed_roots.append(Path(val).resolve())
     except RuntimeError:
         allowed_roots = []
 
     if not allowed_roots:
-        logger.warning("Scan rejected: no allowed base directories are configured")
+        logger.warning("Scan rejected: MEDIA_PATH is not configured")
         raise HTTPException(
             status_code=400,
             detail=(
-                "No scan base directories are configured. "
-                "Set LIBRARY_PATH in Settings before scanning."
+                "No media library path is configured. "
+                "Set MEDIA_PATH in Settings before scanning."
             ),
         )
 
@@ -140,7 +140,7 @@ def _validate_scan_directory(directory: str) -> Path:
 
     if not within_allowed:
         logger.warning(
-            "Path traversal attempt on scan endpoint: directory=%r resolved=%s allowed=%s",
+            "Scan rejected: directory outside media library: directory=%r resolved=%s allowed=%s",
             directory,
             resolved,
             [str(r) for r in allowed_roots],
@@ -148,9 +148,8 @@ def _validate_scan_directory(directory: str) -> Path:
         raise HTTPException(
             status_code=400,
             detail=(
-                "Directory is outside the permitted scan locations "
-                "(LIBRARY_PATH, PROFILES_PATH). "
-                "Update your path settings to include this location."
+                "Directory is outside the media library (library/media/). "
+                "Only the media library may be scanned."
             ),
         )
 

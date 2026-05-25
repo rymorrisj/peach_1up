@@ -15,7 +15,7 @@ const PLATFORMS: BiosPlatform[] = [
     id: 'ps1',
     name: 'PlayStation 1',
     emulator: 'DuckStation',
-    path: 'library/bios/ps1/',
+    path: 'library/system/bios/ps1/',
     files: [
       {
         name: 'scph1001.bin',
@@ -30,7 +30,7 @@ const PLATFORMS: BiosPlatform[] = [
       'Connect your PS1 to a computer using a modchipped unit or a dedicated BIOS dumping tool.',
       'Use a PS1 BIOS dumper (e.g. the open-source caetla or a compatible flash cart) to read the BIOS ROM chip.',
       'Save the output as a .bin file matching one of the expected filenames listed above.',
-      'Place the file in library/bios/ps1/ inside your Peach 1UP folder.',
+      'Place the file in library/system/bios/ps1/ inside your Peach 1UP folder.',
       'The Emulators page BIOS section will update automatically once the file is present.',
     ],
     official_url: 'https://www.duckstation.org/wiki/BIOS',
@@ -39,7 +39,7 @@ const PLATFORMS: BiosPlatform[] = [
     id: 'ps2',
     name: 'PlayStation 2',
     emulator: 'PCSX2',
-    path: 'library/bios/ps2/',
+    path: 'library/system/bios/ps2/',
     files: [
       {
         name: 'SCPH-70012.BIN (or equivalent)',
@@ -48,7 +48,7 @@ const PLATFORMS: BiosPlatform[] = [
     ],
     steps: [
       'Follow the official PCSX2 BIOS dumping guide — it covers extracting the BIOS from your own PS2 using a PS2 memory card exploit or a FreeMCBoot setup.',
-      'The extracted BIOS folder will contain multiple .BIN and .NVM files — copy the entire set to library/bios/ps2/.',
+      'The extracted BIOS folder will contain multiple .BIN and .NVM files — copy the entire set to library/system/bios/ps2/.',
       'PCSX2 will detect the BIOS automatically on the next launch.',
     ],
     official_url: 'https://pcsx2.net/guides/basic-setup/',
@@ -57,7 +57,7 @@ const PLATFORMS: BiosPlatform[] = [
     id: 'xbox',
     name: 'Xbox (Original)',
     emulator: 'xemu',
-    path: 'library/bios/xbox/',
+    path: 'library/system/bios/xbox/',
     files: [
       {
         name: 'MCPX_1.0.bin',
@@ -72,7 +72,7 @@ const PLATFORMS: BiosPlatform[] = [
       'Read the xemu documentation for the exact files required and their expected checksums.',
       'The MCPX ROM is extracted from the MCPX chip on your Xbox motherboard using specialist hardware (e.g. a TSOP flash programmer).',
       'The BIOS ROM can be extracted from an original Xbox with a modchip installed using xenium or a compatible tool.',
-      'Place the extracted files in library/bios/xbox/.',
+      'Place the extracted files in library/system/bios/xbox/.',
     ],
     official_url: 'https://xemu.app/docs/required-files/',
   },

@@ -49,7 +49,7 @@ def validate_rom_path(rom_path: Path) -> None:
     if not rom_path.is_dir():
         raise ValueError(
             f"ROM path is not a directory: {rom_path}. "
-            "ROM_PATH must point to the directory containing 86Box ROM files."
+            "ROMS_PATH must point to the directory containing 86Box ROM files."
         )
 
 
@@ -271,8 +271,8 @@ def launch(
         ValueError: If the era is unsupported or required platform fields are
             unset.
         FileNotFoundError: If ``working_image_path``, ``config_path``,
-            ``BOX86_PATH``, or ``ROM_PATH`` do not exist on disk.
-        RuntimeError: If ``BOX86_PATH`` or ``ROM_PATH`` env vars are unset.
+            ``BOX86_PATH``, or ``ROMS_PATH`` do not exist on disk.
+        RuntimeError: If ``BOX86_PATH`` or ``ROMS_PATH`` env vars are unset.
         OSError: If config injection or Job Object launch fails.
     """
     if platform.era not in SUPPORTED_ERAS:

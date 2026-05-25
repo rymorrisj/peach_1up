@@ -92,7 +92,7 @@ def delete_drive(
     drive = db.query(Drive).filter(Drive.slug == slug).first()
     if not drive:
         raise HTTPException(status_code=404, detail="Drive not found.")
-    img_path = get_base_path() / "library" / "drives" / f"{slug}.img"
+    img_path = get_base_path() / "library" / "system" / "drives" / f"{slug}.img"
     if img_path.exists():
         img_path.unlink()
         logger.info("Deleted drive image: %s", img_path)

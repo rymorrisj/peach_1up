@@ -13,7 +13,7 @@ const mockStatus: FirstRunStatus = {
     { slug: '86box', name: '86Box', required: false, available: false, path: null },
   ],
   owner_exists: false,
-  paths: { library_path: null, profiles_path: null, rom_path: null },
+  paths: { library_path: null, profiles_path: null, roms_path: null },
 }
 
 const mockCatalog: CatalogEntry[] = [

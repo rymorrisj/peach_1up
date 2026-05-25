@@ -28,9 +28,20 @@ export function MergedEmulatorCard({
           <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">{entry.name}</h3>
           <p className="text-sm text-neutral-500 dark:text-neutral-400">{entry.description}</p>
         </div>
-        <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-neutral-500 dark:bg-surface-700 dark:text-neutral-400">
-          {entry.license}
-        </span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span
+            className={`rounded px-1.5 py-0.5 text-xs ${
+              entry.container_enabled
+                ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
+                : 'bg-neutral-100 text-neutral-500 dark:bg-surface-700 dark:text-neutral-400'
+            }`}
+          >
+            {entry.container_enabled ? 'AppContainer' : 'Job Object'}
+          </span>
+          <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-neutral-500 dark:bg-surface-700 dark:text-neutral-400">
+            {entry.license}
+          </span>
+        </div>
       </div>
 
       {entry.install_type === 'zip' && <ZipCard entry={entry} />}

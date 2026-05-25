@@ -5,7 +5,7 @@ import { FormField, Button } from '@/ui'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
 
-type LibraryKey = 'library_path' | 'profiles_path' | 'rom_path'
+type LibraryKey = 'library_path' | 'profiles_path' | 'roms_path'
 
 interface PathFieldState {
   value: string
@@ -28,9 +28,9 @@ const PATH_ENTRIES: { key: LibraryKey; settingsKey: string; label: string; hint:
     hint: 'Directory where game profiles are saved',
   },
   {
-    key: 'rom_path',
-    settingsKey: 'ROM_PATH',
-    label: 'ROM Path',
+    key: 'roms_path',
+    settingsKey: 'ROMS_PATH',
+    label: 'ROMs Path',
     hint: '86Box ROM pack directory — required for accuracy mode',
   },
 ]
@@ -46,7 +46,7 @@ export default function GeneralTab() {
   const [fields, setFields] = useState<Record<LibraryKey, PathFieldState>>({
     library_path: EMPTY_FIELD,
     profiles_path: EMPTY_FIELD,
-    rom_path: EMPTY_FIELD,
+    roms_path: EMPTY_FIELD,
   })
   const [initialized, setInitialized] = useState(false)
 
@@ -55,7 +55,7 @@ export default function GeneralTab() {
     setFields({
       library_path: { ...EMPTY_FIELD, value: settings['LIBRARY_PATH'] ?? '' },
       profiles_path: { ...EMPTY_FIELD, value: settings['PROFILES_PATH'] ?? '' },
-      rom_path: { ...EMPTY_FIELD, value: settings['ROM_PATH'] ?? '' },
+      roms_path: { ...EMPTY_FIELD, value: settings['ROMS_PATH'] ?? '' },
     })
     setInitialized(true)
   }, [settings, initialized])

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -407,27 +408,26 @@ def _flag_corrupt_platform_working_paths(db) -> None:
 
 
 def _ensure_default_paths() -> None:
-    from backend.service.utils.settings import get_env_var
-    lib = get_base_path() / "library"
-    for subdir in [
-        "games",
-        "os",
-        "profiles",
-        "tools",
-        "bios",
-        Path("bios") / "ps1",
-        Path("bios") / "ps2",
-        Path("bios") / "xbox",
-        "saves",
-        Path("saves") / "mesen",
-        Path("saves") / "project64",
-        Path("saves") / "pcsx2",
-        Path("saves") / "duckstation",
-        Path("saves") / "xemu",
-        "drives",
+    base = get_base_path()
+    lib = base / "library"
+    for d in [
+        lib / "media" / "games",
+        lib / "media" / "apps",
+        lib / "system" / "os",
+        lib / "system" / "drives",
+        lib / "system" / "roms" / "86box",
+        lib / "system" / "bios" / "ps1",
+        lib / "system" / "bios" / "ps2",
+        lib / "system" / "bios" / "xbox",
+        lib / "system" / "bios" / "dreamcast",
+        lib / "system" / "saves" / "mesen",
+        lib / "system" / "saves" / "project64",
+        lib / "system" / "saves" / "pcsx2",
+        lib / "system" / "saves" / "duckstation",
+        lib / "system" / "saves" / "xemu",
+        base / "library" / "system" / "profiles",
     ]:
-        (lib / subdir).mkdir(parents=True, exist_ok=True)
-    Path(get_env_var("ROM_PATH")).mkdir(parents=True, exist_ok=True)
+        d.mkdir(parents=True, exist_ok=True)
 
 
 def _sync_detected_emulator_paths() -> None:
@@ -476,6 +476,11 @@ def _export_openapi_spec(app: FastAPI) -> None:
 async def lifespan(app: FastAPI):
     init_settings()
     _ensure_default_paths()
+    if os.environ.get("RESET_DB", "").lower() == "true":
+        db_path = get_base_path() / "database" / "data" / "peach1up.db"
+        if db_path.exists():
+            db_path.unlink()
+            logger.info("RESET_DB: deleted %s", db_path)
     init_db()
     create_tables()
     _apply_schema_migrations()

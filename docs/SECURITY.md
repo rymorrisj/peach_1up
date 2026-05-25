@@ -295,7 +295,7 @@ workaround, CPU rate control can be disabled per emulator via
 skip_cpu_limit = true in the emulator descriptor (not yet
 implemented — tracked for P9 pre-work).
 
-#### AppContainer not yet validated for all emulators
+### AppContainer not yet validated for all emulators
 
 Each emulator requires smoke test and full test matrix (OS × GPU × audio × controller ×
 install path × locale) before `container_enabled` is set to true. Until then, that emulator
@@ -308,6 +308,13 @@ a design intent. A concrete implementation based on either nsjail or native
 namespaces + cgroups will be introduced in P8. Until then, Linux emulator launches
 do not have a hardened sandbox equivalent to the planned Windows low-privilege
 user + Job Object model.
+
+### Drive image path is user-controlled per profile
+
+Drive .img files are created at library/system/drives/{slug}.img. The slug
+is validated against [a-z0-9-]+ at creation time and at use time via
+is_relative_to() in write_launch_conf. IMGMAKE receives the absolute path
+derived from the slug — no user string reaches the IMGMAKE command directly.
 
 ---
 

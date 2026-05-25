@@ -206,7 +206,7 @@ def write_launch_conf(
     drive_setup_lines: list[str] = []
 
     if has_persistent_drive:
-        drives_dir = get_base_path() / "library" / "drives"
+        drives_dir = get_base_path() / "library" / "system" / "drives"
         drive_path = drives_dir / f"{drive.slug}.img"
         # Defence-in-depth: confirm the resolved path stays under drives_dir.
         if not drive_path.resolve().is_relative_to(drives_dir.resolve()):
@@ -399,7 +399,7 @@ def launch(
         if drive is not None and use_drive:
             sandbox_config.broker_files.append(
                 BrokerFile(
-                    path=str(get_base_path() / "library" / "drives"),
+                    path=str(get_base_path() / "library" / "system" / "drives"),
                     access="rw",
                     mode="grant",
                 ))

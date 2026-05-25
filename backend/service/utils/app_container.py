@@ -74,7 +74,7 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
 
     Resolution order:
     1. Direct settings key — ``settings.get(path_key)`` (covers uppercase keys
-       such as ROM_PATH, GAMES_PATH, PS1_BIOS_PATH, DREAMCAST_BIOS_PATH,
+       such as ROMS_PATH, GAMES_PATH, PS1_BIOS_PATH, DREAMCAST_BIOS_PATH,
        XBOX_BIOS_PATH, BIOS_PATH).
     2. Derived path map keyed by descriptive name (install_dir, saves_dir, etc.).
 
@@ -99,15 +99,15 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
     base = get_base_path()
     derived: dict[str, Path] = {
         "install_dir":  base / "emulators" / slug,
-        "games_dir":    base / "library" / "games",
-        "saves_dir":    base / "library" / "saves",
+        "games_dir":    base / "library" / "media" / "games",
+        "saves_dir":    base / "library" / "system" / "saves",
         "config_dir":   base / "emulators" / slug,
         "nvram":        base / "emulators" / slug / "vms",
         "cache_dir":    base / "emulators" / slug / "cache",
-        "memcards_dir": base / "library" / "saves" / slug,
-        "snaps_dir":    base / "library" / "saves" / slug / "snaps",
+        "memcards_dir": base / "library" / "system" / "saves" / slug,
+        "snaps_dir":    base / "library" / "system" / "saves" / slug / "snaps",
         "plugin_dir":   base / "emulators" / slug / "plugins",
-        "hdd_image":    base / "library" / "bios" / "xbox",
+        "hdd_image":    base / "library" / "system" / "bios" / "xbox",
     }
 
     if path_key in derived:
@@ -167,7 +167,7 @@ def get_container_config(
         if not launch_paths or "hdd_image" not in launch_paths:
             logger.warning(
                 "hdd_image broker_file for '%s' is using the directory placeholder "
-                "(library/bios/xbox/); pass hdd_image in launch_paths for a "
+                "(library/system/bios/xbox/); pass hdd_image in launch_paths for a "
                 "tighter grant targeting the specific .qcow2 file.",
                 emulator_slug,
             )

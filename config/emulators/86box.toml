@@ -30,7 +30,7 @@ access = "r"
 mode = "grant"
 
 [[container_broker_files]]
-path_key = "ROM_PATH"
+path_key = "ROMS_PATH"
 access = "r"
 mode = "grant"
 

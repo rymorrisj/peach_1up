@@ -187,11 +187,11 @@ function RomPackFallback() {
         <li>
           Copy all extracted files and subfolders into{' '}
           <code className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-xs dark:bg-surface-700">
-            library/roms/86box/
+            library/system/roms/86box/
           </code>{' '}
           inside your Peach 1UP folder. After copying, the path{' '}
           <code className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-xs dark:bg-surface-700">
-            library/roms/86box/
+            library/system/roms/86box/
           </code>{' '}
           should contain directories such as{' '}
           <code className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-xs dark:bg-surface-700">

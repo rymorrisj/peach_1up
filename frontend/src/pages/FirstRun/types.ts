@@ -9,7 +9,7 @@ export interface EmulatorStatus {
 export interface LibraryPaths {
   library_path: string | null
   profiles_path: string | null
-  rom_path: string | null
+  roms_path: string | null
 }
 
 export interface FirstRunStatus {
@@ -37,6 +37,7 @@ export interface CatalogEntry {
   is_placeholder?: boolean
   git_available: boolean | null
   expert_mode_set?: boolean
+  container_enabled?: boolean
   supported_formats?: string[]
   install_note?: string
   guidance_text?: string

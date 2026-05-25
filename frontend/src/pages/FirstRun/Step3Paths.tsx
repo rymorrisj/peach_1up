@@ -7,7 +7,7 @@ interface Step3PathsProps {
   onNext: () => void
 }
 
-type LibraryKey = 'library_path' | 'profiles_path' | 'rom_path'
+type LibraryKey = 'library_path' | 'profiles_path' | 'roms_path'
 
 interface PathConfig {
   label: string
@@ -31,7 +31,7 @@ const PATH_ROWS: PathConfig[] = [
   },
   {
     label: 'ROM pack folder',
-    key: 'rom_path',
+    key: 'roms_path',
     required: false,
     description: 'Required for 86Box accuracy mode only',
   },
@@ -58,9 +58,9 @@ export default function Step3Paths({ status, onNext }: Step3PathsProps) {
       error: null,
       saving: false,
     },
-    rom_path: {
-      inputPath: status.paths.rom_path ?? '',
-      saved: !!status.paths.rom_path,
+    roms_path: {
+      inputPath: status.paths.roms_path ?? '',
+      saved: !!status.paths.roms_path,
       error: null,
       saving: false,
     },

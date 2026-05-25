@@ -7,7 +7,9 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from backend.core import install_registry
+from backend.core.dependencies import require_permission
 from backend.core.logger import get_logger
+from backend.models.user import User
 from backend.service.utils.emulator_catalog import (
     get_emulator,
     get_install_path,
@@ -49,6 +51,10 @@ class CatalogEntryResponse(BaseModel):
 
 
 class DeleteRequest(BaseModel):
+    confirmation_token: str
+
+
+class SandboxResetRequest(BaseModel):
     confirmation_token: str
 
 
@@ -98,6 +104,38 @@ def list_emulators():
             item["expert_mode_set"] = bool(_settings.get("virtualbox_expert_mode_set", False))
         result.append(item)
     return result
+
+
+@router.get("/sandbox-state/confirm-token")
+def get_sandbox_reset_token(_: User = require_permission("is_admin")):
+    token = install_registry.generate_confirm_token("sandbox-state")
+    return {"token": token}
+
+
+@router.delete("/sandbox-state")
+def reset_sandbox_state(
+    body: SandboxResetRequest,
+    _: User = require_permission("is_admin"),
+):
+    if not install_registry.consume_confirm_token("sandbox-state", body.confirmation_token):
+        raise HTTPException(status_code=403, detail="Invalid or expired confirmation token.")
+
+    from backend.service.utils.app_container import reset_container as _reset_container
+
+    catalog = load_catalog()
+    reset_count = 0
+    errors: list[str] = []
+    for entry in catalog:
+        if entry.get("container_enabled", False):
+            slug = entry["slug"]
+            try:
+                _reset_container(slug)
+                reset_count += 1
+            except Exception as exc:
+                logger.warning("Failed to reset AppContainer for %s: %s", slug, exc)
+                errors.append(slug)
+
+    return {"reset": reset_count, "errors": errors}
 
 
 @router.post("/{slug}/install")

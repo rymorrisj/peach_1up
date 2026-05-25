@@ -29,7 +29,7 @@ interface AddMediaForm {
 
 const EMPTY_ADD: AddMediaForm = { title: '', media_path: '', profile_id: null }
 
-const MEDIA_ACCEPT = '.iso,.img,.cue,.chd,.xiso'
+const MEDIA_ACCEPT = '.iso,.img,.cue,.chd,.xiso,.exe,.bat'
 
 // ── Card design constants ──────────────────────────────────────────────────
 
@@ -174,7 +174,7 @@ function AddMediaModal({ open, profiles, onClose, onAdded }: AddMediaModalProps)
             : 'border-neutral-300 text-neutral-400 dark:border-neutral-700 dark:text-neutral-500'
         }`}
       >
-        Drop a media file here (.iso, .img, .cue, .chd, .xiso)
+        Drop a media file here (.iso, .img, .cue, .chd, .xiso, .exe, .bat)
       </div>
 
       <FormField
@@ -372,7 +372,7 @@ function ScanModal({ open, onClose, onImported }: ScanModalProps) {
       <FormField
         label="Directory"
         htmlFor="scan-dir"
-        hint="Must be within your configured Images, Profiles, or ROM path."
+        hint="Must be within your media library (library/media/)."
       >
         <PathInput
           id="scan-dir"
