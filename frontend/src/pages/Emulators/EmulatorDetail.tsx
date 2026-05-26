@@ -34,16 +34,6 @@ const ERA_COLOR: Record<string, string> = {
   N64:   '#60a0d0',
 }
 
-const SLUG_TO_SETTINGS_KEY: Record<string, string> = {
-  'dosbox-x':    'DOSBOX_PATH',
-  '86box':       'BOX86_PATH',
-  'virtualbox':  'VIRTUALBOX_PATH',
-  'duckstation': 'DUCKSTATION_PATH',
-  'pcsx2':       'PCSX2_PATH',
-  'xemu':        'XEMU_PATH',
-  'mesen':       'MESEN_PATH',
-  'project64':   'PROJECT64_PATH',
-}
 
 const EMULATOR_BIOS_PLATFORM: Record<string, string> = {
   'duckstation': 'ps1',
@@ -120,10 +110,29 @@ function GuidanceNote({ text, url }: { text?: string; url?: string }) {
   )
 }
 
-const INPUT_STYLE: React.CSSProperties = {
-  background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-2)',
-  padding: '7px 10px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-1)',
-  outline: 'none', width: '100%',
+function SandboxToggle({ label, value, disabled, onChange }: {
+  label: string; value: boolean; disabled?: boolean; onChange: (v: boolean) => void
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+      <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>{label}</span>
+      <button
+        type="button"
+        onClick={() => !disabled && onChange(!value)}
+        style={{
+          width: 36, height: 20, borderRadius: 10, border: 'none', cursor: disabled ? 'default' : 'pointer',
+          background: value ? 'var(--peach-500)' : 'var(--surface-3, var(--surface-2))',
+          position: 'relative', flexShrink: 0, opacity: disabled ? 0.5 : 1,
+          transition: 'background 150ms',
+        }}
+      >
+        <span style={{
+          position: 'absolute', top: 2, left: value ? 18 : 2, width: 16, height: 16,
+          borderRadius: '50%', background: '#fff', transition: 'left 150ms', display: 'block',
+        }} />
+      </button>
+    </div>
+  )
 }
 
 export default function EmulatorDetail() {
@@ -131,10 +140,7 @@ export default function EmulatorDetail() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('overview')
-  const [editPath, setEditPath] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [sandboxSaving, setSandboxSaving] = useState(false)
   const [isInstalling, setIsInstalling] = useState(false)
   const [installError, setInstallError] = useState<string | null>(null)
   const [isCloning, setIsCloning] = useState(false)
@@ -180,12 +186,6 @@ export default function EmulatorDetail() {
   const eras = slug ? (ERA_MAP[slug] ?? []) : []
   const emulatorProfiles = profiles.filter((p) => p.emulator_slug === slug)
   const isReady = entry?.is_installed && entry?.install_path
-  const canEdit = slug ? !!SLUG_TO_SETTINGS_KEY[slug] : false
-
-  useEffect(() => {
-    if (!entry) return
-    setEditPath(entry.install_path ?? '')
-  }, [entry?.slug])
 
   useEffect(() => {
     if (!installStatus) return
@@ -211,21 +211,20 @@ export default function EmulatorDetail() {
     }
   }, [cloneStatus])
 
-  async function handleSave() {
-    if (!slug || !canEdit) return
-    const key = SLUG_TO_SETTINGS_KEY[slug]
-    setSaving(true); setSaveError(null); setSaved(false)
+  async function handleSandboxToggle(
+    field: 'container_enabled' | 'skip_cpu_limit' | 'skip_memory_limit',
+    value: boolean,
+  ) {
+    if (!slug || sandboxSaving) return
+    setSandboxSaving(true)
     try {
-      await apiFetch('/api/v1/settings', {
+      await apiFetch(`/api/v1/emulators/${slug}/sandbox`, {
         method: 'PATCH',
-        body: JSON.stringify({ updates: { [key]: editPath } }),
+        body: JSON.stringify({ [field]: value }),
       })
       await queryClient.invalidateQueries({ queryKey: ['emulators-catalog'] })
-      setSaved(true); setTimeout(() => setSaved(false), 2000)
-    } catch (err) {
-      setSaveError(err instanceof ApiError ? err.detail : 'Save failed.')
     } finally {
-      setSaving(false)
+      setSandboxSaving(false)
     }
   }
 
@@ -297,16 +296,6 @@ export default function EmulatorDetail() {
           ← Emulators
         </button>
         <span style={{ flex: 1 }} />
-        {canEdit && (
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            style={{ ...BTN, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--fg-2)' }}
-          >
-            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save'}
-          </button>
-        )}
         <button
           type="button"
           onClick={handleDelete}
@@ -361,12 +350,6 @@ export default function EmulatorDetail() {
           </p>
         )}
 
-        {saveError && (
-          <div className="mb-4 rounded-md px-3 py-2.5" style={{ borderLeft: '3px solid var(--error)', background: 'rgb(255 106 85 / 0.08)', fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--error)' }}>
-            ❌ {saveError}
-          </div>
-        )}
-
         {/* Tabs */}
         <div className="flex gap-0" style={{ borderBottom: '1px solid var(--border)', marginBottom: 18 }}>
           <TabBtn id="overview" label="Overview" active={tab === 'overview'} onClick={() => setTab('overview')} />
@@ -383,23 +366,13 @@ export default function EmulatorDetail() {
                 <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 12 }}>
                   Configuration
                 </div>
-                {/* Executable — editable */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                   <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)', width: 140, flexShrink: 0 }}>
                     Executable
                   </span>
-                  {canEdit ? (
-                    <input
-                      value={editPath}
-                      onChange={(e) => setEditPath(e.target.value)}
-                      placeholder="Path to executable"
-                      style={{ ...INPUT_STYLE, flex: 1 }}
-                    />
-                  ) : (
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-2)' }}>
-                      {entry.install_path ?? '—'}
-                    </span>
-                  )}
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-2)' }}>
+                    {entry.install_path ?? '—'}
+                  </span>
                 </div>
                 <KVTable rows={[
                   { label: 'Version',      value: entry.version },
@@ -407,17 +380,28 @@ export default function EmulatorDetail() {
                   { label: 'Eras',         value: eras.join(' · ') || '—' },
                   { label: 'Status',       value: isReady ? 'Ready' : 'Not installed' },
                 ]} />
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>Sandbox isolation</span>
-                  <span style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
-                    padding: '4px 8px', borderRadius: 'var(--r-1)',
-                    background: entry.container_enabled ? 'color-mix(in srgb, var(--peach-500) 12%, transparent)' : 'var(--surface-2)',
-                    color: entry.container_enabled ? 'var(--peach-400)' : 'var(--fg-3)',
-                    border: `1px solid ${entry.container_enabled ? 'var(--peach-500)' : 'var(--border)'}`,
-                  }}>
-                    {entry.container_enabled ? 'AppContainer' : 'Job Object'}
-                  </span>
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 4 }}>
+                    Sandbox
+                  </div>
+                  <SandboxToggle
+                    label="AppContainer"
+                    value={entry.container_enabled ?? false}
+                    disabled={sandboxSaving}
+                    onChange={(v) => handleSandboxToggle('container_enabled', v)}
+                  />
+                  <SandboxToggle
+                    label="CPU limit enabled"
+                    value={!(entry.skip_cpu_limit ?? false)}
+                    disabled={sandboxSaving}
+                    onChange={(v) => handleSandboxToggle('skip_cpu_limit', !v)}
+                  />
+                  <SandboxToggle
+                    label="Memory limit enabled"
+                    value={!(entry.skip_memory_limit ?? false)}
+                    disabled={sandboxSaving}
+                    onChange={(v) => handleSandboxToggle('skip_memory_limit', !v)}
+                  />
                 </div>
                 {/* Install actions for installer-type emulators */}
                 {entry.install_type === 'installer' && (

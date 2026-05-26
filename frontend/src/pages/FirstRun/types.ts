@@ -38,6 +38,8 @@ export interface CatalogEntry {
   git_available: boolean | null
   expert_mode_set?: boolean
   container_enabled?: boolean
+  skip_cpu_limit?: boolean
+  skip_memory_limit?: boolean
   supported_formats?: string[]
   install_note?: string
   guidance_text?: string

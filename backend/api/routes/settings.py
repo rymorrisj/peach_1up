@@ -17,8 +17,8 @@ _KNOWN_BINARY_KEYS = {"DOSBOX_PATH", "BOX86_PATH", "VIRTUALBOX_PATH"}
 _ALL_PATH_KEYS = {
     "DOSBOX_PATH", "BOX86_PATH", "VIRTUALBOX_PATH",
     "DUCKSTATION_PATH", "PCSX2_PATH", "XEMU_PATH", "MESEN_PATH", "PROJECT64_PATH",
-    "LIBRARY_PATH", "MEDIA_PATH", "GAMES_PATH", "APPS_PATH", "OS_PATH",
-    "DRIVES_PATH", "ROMS_PATH", "BIOS_PATH", "SAVES_PATH", "PROFILES_PATH",
+    "LIBRARY_PATH", "MEDIA_PATH", "OS_PATH",
+    "DRIVES_PATH", "ROMS_PATH", "BIOS_PATH", "PROFILES_PATH",
 }
 
 _EMULATOR_SLUG_TO_KEY: dict[str, str] = {
@@ -35,13 +35,10 @@ _EMULATOR_SLUG_TO_KEY: dict[str, str] = {
 _LIBRARY_KEY_MAP: dict[str, str] = {
     "library_path":  "LIBRARY_PATH",
     "media_path":    "MEDIA_PATH",
-    "games_path":    "GAMES_PATH",
-    "apps_path":     "APPS_PATH",
     "os_path":       "OS_PATH",
     "drives_path":   "DRIVES_PATH",
     "roms_path":     "ROMS_PATH",
     "bios_path":     "BIOS_PATH",
-    "saves_path":    "SAVES_PATH",
     "profiles_path": "PROFILES_PATH",
 }
 
@@ -63,7 +60,7 @@ class EmulatorPathBody(BaseModel):
 
 
 class LibraryPathBody(BaseModel):
-    key: Literal["library_path", "media_path", "games_path", "apps_path", "os_path", "drives_path", "roms_path", "bios_path", "saves_path", "profiles_path"]
+    key: Literal["library_path", "media_path", "os_path", "drives_path", "roms_path", "bios_path", "profiles_path"]
     path: str
 
 
@@ -125,13 +122,10 @@ def get_first_run_status(db: Session = Depends(get_db)):
         "paths": {
             "library_path":  svc.get("LIBRARY_PATH") or None,
             "media_path":    svc.get("MEDIA_PATH") or None,
-            "games_path":    svc.get("GAMES_PATH") or None,
-            "apps_path":     svc.get("APPS_PATH") or None,
             "os_path":       svc.get("OS_PATH") or None,
             "drives_path":   svc.get("DRIVES_PATH") or None,
             "roms_path":     svc.get("ROMS_PATH") or None,
             "bios_path":     svc.get("BIOS_PATH") or None,
-            "saves_path":    svc.get("SAVES_PATH") or None,
             "profiles_path": svc.get("PROFILES_PATH") or None,
         },
     }

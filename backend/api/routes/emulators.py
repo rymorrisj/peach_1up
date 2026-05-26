@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from backend.core import install_registry
 from backend.core.dependencies import require_permission
@@ -18,6 +18,7 @@ from backend.service.utils.emulator_catalog import (
 )
 from backend.service.utils.emulator_installer import (
     clone_rom_pack,
+    detect_binary,
     launch_installer,
     remove_emulator,
 )
@@ -48,6 +49,15 @@ class CatalogEntryResponse(BaseModel):
     git_available: Optional[bool] = None
     expert_mode_set: Optional[bool] = None
     container_enabled: bool = False
+    skip_cpu_limit: bool = False
+    skip_memory_limit: bool = False
+
+
+class SandboxPatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    container_enabled: Optional[bool] = None
+    skip_cpu_limit: Optional[bool] = None
+    skip_memory_limit: Optional[bool] = None
 
 
 class DeleteRequest(BaseModel):
@@ -97,7 +107,10 @@ def list_emulators():
             "guidance_text": entry.get("guidance_text"),
             "guidance_url": entry.get("guidance_url"),
         }
-        item["container_enabled"] = bool(entry.get("container_enabled", False))
+        for _sf in ("container_enabled", "skip_cpu_limit", "skip_memory_limit"):
+            _toml_val = bool(entry.get(_sf, False))
+            _override = _settings.get(f"sandbox_{slug}_{_sf}", None)
+            item[_sf] = bool(_override) if _override is not None else _toml_val
         if "install_note" in entry:
             item["install_note"] = entry["install_note"]
         if slug == "virtualbox":
@@ -233,6 +246,20 @@ def get_confirm_token(slug: str):
         raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
     token = install_registry.generate_confirm_token(slug)
     return {"token": token}
+
+
+@router.patch("/{slug}/sandbox")
+def patch_sandbox(slug: str, body: SandboxPatchRequest):
+    try:
+        get_emulator(slug)
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
+
+    updates = body.model_dump(exclude_none=True)
+    for field, value in updates.items():
+        _settings.set_flag(f"sandbox_{slug}_{field}", value)
+
+    return {"slug": slug, "updated": list(updates.keys())}
 
 
 @router.delete("/{slug}")

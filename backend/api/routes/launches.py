@@ -2,10 +2,13 @@ import asyncio
 import threading
 import time
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+from backend.core.settings import get_base_path
 
 from backend.core import process_registry
 from backend.core.database import get_db
@@ -19,6 +22,33 @@ from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1", tags=["launches"])
 logger = get_logger(__name__)
+
+_ITEM_DRIVE_SIZE_MB = 500
+
+
+def _resolve_item_drive(item, profile, db):
+    """Return a drive-like object for the launch.
+
+    Decision tree (in order):
+    1. Per-item .img already on disk → use it (IMGMAKE skipped by write_launch_conf).
+    2. No .img + item has a setup/installer candidate → create .img on first launch.
+    3. Neither → return None (media mounted on D:, no C: image).
+    Falls back to profile drive_slug DB lookup when item has no slug.
+    """
+    if item.slug:
+        drives_dir = get_base_path() / "library" / "system" / "drives"
+        drive_path = drives_dir / f"{item.slug}.img"
+        has_installer = any(
+            c.get("candidate_type") == "setup"
+            for c in (item.scan_candidates or [])
+        )
+        if drive_path.exists() or has_installer:
+            return SimpleNamespace(slug=item.slug, size_mb=_ITEM_DRIVE_SIZE_MB)
+        return None
+    drive_slug = getattr(profile, 'drive_slug', None)
+    if drive_slug:
+        return db.query(Drive).filter(Drive.slug == drive_slug).first()
+    return None
 
 
 class LaunchRequest(BaseModel):
@@ -108,10 +138,7 @@ async def launch_item(
 
     network_blocked = not bool(getattr(profile, 'enable_networking', False))
 
-    drive: Drive | None = None
-    drive_slug = getattr(profile, 'drive_slug', None)
-    if drive_slug:
-        drive = db.query(Drive).filter(Drive.slug == drive_slug).first()
+    drive = _resolve_item_drive(item, profile, db)
 
     history = LaunchHistory(
         library_item_id=item.id,

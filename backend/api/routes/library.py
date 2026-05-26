@@ -211,9 +211,9 @@ def add_library_item(
     item.slug = generate_item_slug(item.title, item.era, db)
 
     svc = get_settings()
-    games_root_str = svc.get("GAMES_PATH", "") or ""
+    games_root_str = svc.get("MEDIA_PATH", "") or ""
     if games_root_str:
-        item_folder = Path(games_root_str) / item.era / item.slug
+        item_folder = Path(games_root_str) / item.slug
         try:
             item_folder.mkdir(parents=True, exist_ok=True)
             item.folder_path = str(item_folder)

@@ -3,6 +3,9 @@
 *.env
 !.env.template
 
+# Local settings (machine-specific paths; template is tracked)
+config/settings.yaml
+
 # Python
 __pycache__/
 *.py[cod]

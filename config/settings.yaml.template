@@ -1,0 +1,40 @@
+# Peach 1UP settings template.
+# Copy this file to config/settings.yaml and fill in system-installed paths.
+# Bundled paths are relative to the project root — leave them as-is unless
+# you have moved the emulators/ or library/ directories.
+# System-installed paths must be absolute (filled in per-machine).
+
+first_run_complete: false
+
+# Bundled emulator executables — relative to project root, resolved at startup.
+DOSBOX_PATH: emulators/dosbox-x/dosbox-x.exe
+BOX86_PATH: emulators/86box/86Box.exe
+PCSX2_PATH: emulators/pcsx2/pcsx2-qt.exe
+XEMU_PATH: emulators/xemu/xemu.exe
+MESEN_PATH: emulators/mesen/Mesen.exe
+
+# System-installed emulators — set the full absolute path for your machine.
+VIRTUALBOX_PATH: ''
+DUCKSTATION_PATH: ''
+PROJECT64_PATH: ''
+
+# Library paths — relative to project root.
+LIBRARY_PATH: library
+MEDIA_PATH: library/media
+GAMES_PATH: library/media/games
+APPS_PATH: library/media/apps
+OS_PATH: library/system/os
+DRIVES_PATH: library/system/drives
+ROMS_PATH: library/system/roms/86box
+BIOS_PATH: library/system/bios
+PROFILES_PATH: library/system/profiles
+
+# BIOS directories — set to full absolute path after placing BIOS files,
+# or leave empty to use the defaults under library/system/bios/.
+PS1_BIOS_PATH: ''
+PS2_BIOS_PATH: ''
+XBOX_BIOS_PATH: ''
+DREAMCAST_BIOS_PATH: library/system/bios/dreamcast
+
+suppress_confirmations: []
+PEACH_ENV: development

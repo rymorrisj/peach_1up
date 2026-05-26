@@ -51,7 +51,7 @@ async def upload_media(
     if media_type == "os":
         base = Path(svc.get_env_var("OS_PATH")).resolve()
     else:
-        base = Path(svc.get_env_var("GAMES_PATH")).resolve()
+        base = Path(svc.get_env_var("MEDIA_PATH")).resolve()
 
     slug = _make_slug(file.filename)
     dest_dir = base / era / slug

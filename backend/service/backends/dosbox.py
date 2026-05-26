@@ -253,7 +253,7 @@ def write_launch_conf(
     base_conf = get_base_path() / "config" / "templates" / "dosbox-x" / "base.conf"
     if not base_conf.exists():
         raise FileNotFoundError(f"DOSBox-X base.conf not found: {base_conf}")
-    base = base_conf.read_text(encoding="utf-8", errors="replace")
+    base = _strip_autoexec(base_conf.read_text(encoding="utf-8", errors="replace"))
 
     conf_path = get_base_path() / "emulators" / "dosbox-x" / "dosbox-x.conf"
 
