@@ -14,7 +14,7 @@ from typing import Optional
 from backend.constants_generated import Era
 
 
-_SCAN_EXTENSIONS: frozenset[str] = frozenset({".iso", ".img", ".cue"})
+_SCAN_EXTENSIONS: frozenset[str] = frozenset({".iso", ".img", ".cue", ".exe", ".bat"})
 
 _COVER_STEMS: frozenset[str] = frozenset({"cover"})
 _COVER_EXTENSIONS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".webp"})

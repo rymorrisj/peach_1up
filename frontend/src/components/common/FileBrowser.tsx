@@ -35,6 +35,7 @@ interface FileBrowserProps {
   extensions?: string
   title?: string
   mode?: 'file' | 'folder'
+  rootPath?: string | null
 }
 
 function formatSize(bytes: number): string {
@@ -51,20 +52,21 @@ export default function FileBrowser({
   extensions,
   title = 'Browse',
   mode = 'file',
+  rootPath,
 }: FileBrowserProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
-  const [currentPath, setCurrentPath] = useState<string | null>(null)
+  const [currentPath, setCurrentPath] = useState<string | null>(rootPath ?? null)
 
   useEffect(() => {
     const d = dialogRef.current
     if (!d) return
     if (open && !d.open) {
       d.showModal()
-      setCurrentPath(null)
+      setCurrentPath(rootPath ?? null)
     } else if (!open && d.open) {
       d.close()
     }
-  }, [open])
+  }, [open, rootPath])
 
   useEffect(() => {
     const d = dialogRef.current
@@ -129,15 +131,17 @@ export default function FileBrowser({
       {/* Navigation bar */}
       {currentPath ? (
         <div className="mb-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() =>
-              setCurrentPath(browseData?.parent_path ?? null)
-            }
-            className="shrink-0 text-xs text-[#ff8a5c] hover:underline"
-          >
-            ← Back
-          </button>
+          {(!rootPath || currentPath !== rootPath) && (
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentPath(browseData?.parent_path ?? rootPath ?? null)
+              }
+              className="shrink-0 text-xs text-[#ff8a5c] hover:underline"
+            >
+              ← Back
+            </button>
+          )}
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-neutral-500 dark:text-neutral-400">
             {currentPath}
           </span>
@@ -153,8 +157,8 @@ export default function FileBrowser({
         </p>
       )}
 
-      {/* Drive picker (Windows only, home view) */}
-      {!currentPath && drivesData?.drives && drivesData.drives.length > 0 && (
+      {/* Drive picker (Windows only, home view — hidden when scoped to a rootPath) */}
+      {!currentPath && !rootPath && drivesData?.drives && drivesData.drives.length > 0 && (
         <div className="mb-3">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
             Drives

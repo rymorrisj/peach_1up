@@ -72,9 +72,10 @@ interface AddMediaModalProps {
   profiles: LaunchProfile[]
   onClose: () => void
   onAdded: () => void
+  mediaRootPath?: string | null
 }
 
-function AddMediaModal({ open, profiles, onClose, onAdded }: AddMediaModalProps) {
+function AddMediaModal({ open, profiles, onClose, onAdded, mediaRootPath }: AddMediaModalProps) {
   const [form, setForm] = useState<AddMediaForm>(EMPTY_ADD)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -192,6 +193,7 @@ function AddMediaModal({ open, profiles, onClose, onAdded }: AddMediaModalProps)
           placeholder="C:\Games\mygame.iso"
           className="mt-1"
           hasError={!!error && !form.media_path}
+          rootPath={mediaRootPath}
         />
         {form.media_path && !isAbsolutePath(form.media_path) && (
           <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
@@ -630,6 +632,12 @@ export default function Library() {
     queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
   })
 
+  const { data: settingsData } = useQuery<{ paths: { media_path: string | null } }>({
+    queryKey: ['settings'],
+    queryFn: () => apiFetch('/api/v1/settings'),
+    staleTime: 60_000,
+  })
+
   const filteredItems = (items ?? []).filter((item) => {
     if (filters.era && item.era !== filters.era) return false
     if (filters.profileFilter === 'assigned' && item.profile_id === null) return false
@@ -754,6 +762,7 @@ export default function Library() {
         profiles={profiles}
         onClose={() => setAddOpen(false)}
         onAdded={invalidate}
+        mediaRootPath={settingsData?.paths?.media_path ?? null}
       />
       <ScanModal
         open={scanOpen}

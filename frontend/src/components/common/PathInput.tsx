@@ -12,6 +12,7 @@ interface PathInputProps {
   mode: 'folder' | 'file'
   accept?: string
   className?: string
+  rootPath?: string | null
 }
 
 export default function PathInput({
@@ -23,6 +24,7 @@ export default function PathInput({
   mode,
   accept,
   className,
+  rootPath,
 }: PathInputProps) {
   const [browserOpen, setBrowserOpen] = useState(false)
 
@@ -60,6 +62,7 @@ export default function PathInput({
         extensions={extensions}
         mode={mode}
         title={mode === 'folder' ? 'Select Folder' : 'Select File'}
+        rootPath={rootPath}
       />
     </div>
   )
