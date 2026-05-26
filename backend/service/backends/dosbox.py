@@ -224,7 +224,7 @@ def write_launch_conf(
             mount_line = f"imgmount D {host} -t hdd"
         elif suffix in {".iso", ".cue"}:
             mount_line = f"imgmount D {host} -t iso -ro"
-        elif suffix == ".exe":
+        elif suffix in {".exe", ".bat"}:
             parent_dir = _dosbox_cmd_path(media_path.parent)
             mount_line = f"MOUNT D {parent_dir}"
         else:
@@ -232,18 +232,22 @@ def write_launch_conf(
                 f"Unhandled media suffix '{suffix}'. This indicates a programming error."
             )
         drive_line = "C:"
+        media_drive = "D:"
     else:
         # No persistent drive — single-mount behaviour.
         if suffix == ".img":
             mount_line = f"imgmount C {host} -t hdd"
             drive_line = "C:"
+            media_drive = "C:"
         elif suffix in {".iso", ".cue"}:
             mount_line = f"imgmount D {host} -t iso -ro"
             drive_line = "D:"
-        elif suffix == ".exe":
+            media_drive = "D:"
+        elif suffix in {".exe", ".bat"}:
             parent_dir = _dosbox_cmd_path(media_path.parent)
             mount_line = f"MOUNT D {parent_dir}"
             drive_line = "D:"
+            media_drive = "D:"
         else:
             raise ValueError(
                 f"Unhandled media suffix '{suffix}'. This indicates a programming error."
@@ -262,9 +266,14 @@ def write_launch_conf(
     profile_cmds: list[str] = getattr(profile, 'launch_commands', None) or []
     # Layer 2: item commands (item-specific paths, appended after).
     item_cmds: list[str] = launch_commands or []
-    # If item layer is empty but a fallback executable was given, use it.
-    if not item_cmds and game_executable:
-        item_cmds = [game_executable]
+    # If item layer is empty, derive the fallback command.
+    # For direct-exe/bat media the parent directory is always mounted at D:;
+    # the scanner stores the host-absolute path which is not valid inside DOSBox.
+    if not item_cmds:
+        if suffix in {".exe", ".bat"}:
+            item_cmds = [f"D:\\{media_path.name}"]
+        elif game_executable:
+            item_cmds = [game_executable]
     merged = profile_cmds + item_cmds
 
     autoexec = "[autoexec]\n"
@@ -273,7 +282,7 @@ def write_launch_conf(
     autoexec += f"{mount_line}\n{drive_line}\n"
     for line in merged:
         if any(line.rstrip().lower().endswith(ext) for ext in _EXEC_SUFFIXES):
-            _validate_game_executable(line, drive_line)
+            _validate_game_executable(line, media_drive)
         else:
             _validate_shell_line(line)
         autoexec += f"{line}\n"
