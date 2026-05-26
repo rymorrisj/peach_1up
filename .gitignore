@@ -74,7 +74,7 @@ profiles/*.yaml
 profiles/conf/
 
 # Library (user data directories ignored; drives/ dir tracked but .img files are not)
-library/
+/library/
 
 # Bundled emulator binaries (drop-in, never committed — directories are tracked)
 /emulators/
