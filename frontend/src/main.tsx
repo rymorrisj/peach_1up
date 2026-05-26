@@ -77,7 +77,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/emulators" element={<Emulators />} />
                 <Route path="/emulators/:slug" element={<EmulatorDetail />} />
                 <Route path="/profiles" element={<Profiles />} />
-                <Route path="/profiles/:id" element={<ProfileDetail />} />
+                <Route path="/profiles/:slug" element={<ProfileDetail />} />
                 <Route path="/platform-health" element={<PlatformHealth />} />
                 <Route path="/tags" element={<Tags />} />
                 <Route path="/guides" element={<GuidesIndex />} />

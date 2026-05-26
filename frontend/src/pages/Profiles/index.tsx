@@ -174,7 +174,7 @@ export default function Profiles() {
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => navigate(`/profiles/${p.id}`)}
+                  onClick={() => navigate(`/profiles/${p.slug}`)}
                   className="grid w-full px-[18px] py-3.5 text-left transition-colors duration-[120ms]"
                   style={{
                     gridTemplateColumns: '1.7fr 0.7fr 0.9fr 0.6fr 0.8fr 0.5fr',

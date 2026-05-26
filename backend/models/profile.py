@@ -6,7 +6,7 @@ from sqlmodel import Field, SQLModel
 
 
 class ProfileBase(SQLModel):
-    name: str
+    name: str = Field(unique=True)
     slug: str = Field(unique=True)
     emulator_slug: str
     era: str

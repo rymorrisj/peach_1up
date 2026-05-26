@@ -29,17 +29,17 @@ def create_profile(body: ProfileCreate, db: Session = Depends(get_db), _: User =
     return profile
 
 
-@router.get("/{profile_id}", response_model=ProfileRead)
-def get_profile(profile_id: int, db: Session = Depends(get_db)):
-    profile = db.get(Profile, profile_id)
+@router.get("/{slug}", response_model=ProfileRead)
+def get_profile(slug: str, db: Session = Depends(get_db)):
+    profile = db.query(Profile).filter(Profile.slug == slug).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
     return profile
 
 
-@router.patch("/{profile_id}", response_model=ProfileRead)
-def update_profile(profile_id: int, body: ProfileUpdate, db: Session = Depends(get_db), _: User = require_permission("can_manage_profiles")):
-    profile = db.get(Profile, profile_id)
+@router.patch("/{slug}", response_model=ProfileRead)
+def update_profile(slug: str, body: ProfileUpdate, db: Session = Depends(get_db), _: User = require_permission("can_manage_profiles")):
+    profile = db.query(Profile).filter(Profile.slug == slug).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
     for key, value in body.model_dump(exclude_unset=True).items():
@@ -49,9 +49,9 @@ def update_profile(profile_id: int, body: ProfileUpdate, db: Session = Depends(g
     return profile
 
 
-@router.delete("/{profile_id}", status_code=204)
-def delete_profile(profile_id: int, db: Session = Depends(get_db), _: User = require_permission("can_manage_profiles")):
-    profile = db.get(Profile, profile_id)
+@router.delete("/{slug}", status_code=204)
+def delete_profile(slug: str, db: Session = Depends(get_db), _: User = require_permission("can_manage_profiles")):
+    profile = db.query(Profile).filter(Profile.slug == slug).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
     if profile.is_bundled:

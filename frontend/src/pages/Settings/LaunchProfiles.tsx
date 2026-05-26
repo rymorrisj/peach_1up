@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { Button, FormField, Input, Modal, Textarea } from '@/ui'
@@ -71,6 +72,7 @@ const LP_SELECT_CLASS =
   'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
 
 export default function LaunchProfiles() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm()
 
@@ -205,7 +207,7 @@ export default function LaunchProfiles() {
       if (modal?.mode === 'create') {
         await apiFetch('/api/v1/profiles', { method: 'POST', body: JSON.stringify(body) })
       } else if (modal?.mode === 'edit') {
-        await apiFetch(`/api/v1/profiles/${modal.profile.id}`, {
+        await apiFetch(`/api/v1/profiles/${modal.profile.slug}`, {
           method: 'PATCH',
           body: JSON.stringify(body),
         })
@@ -229,7 +231,7 @@ export default function LaunchProfiles() {
     if (!confirmed) return
 
     try {
-      await apiFetch(`/api/v1/profiles/${profile.id}`, { method: 'DELETE' })
+      await apiFetch(`/api/v1/profiles/${profile.slug}`, { method: 'DELETE' })
       await queryClient.invalidateQueries({ queryKey: ['profiles'] })
     } catch (err) {
       const msg = err instanceof ApiError ? err.detail : 'Delete failed.'
@@ -269,7 +271,12 @@ export default function LaunchProfiles() {
           {profiles.map((profile) => (
             <li key={profile.id} className="py-4">
               <div className="flex items-center justify-between gap-4">
-                <div>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/profiles/${profile.slug}`)}
+                  className="min-w-0 flex-1 text-left"
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                >
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-neutral-900 dark:text-neutral-100">
                       {profile.name}
@@ -289,7 +296,7 @@ export default function LaunchProfiles() {
                     {eraLabel(profile.era)} · {profile.emulator_slug}
                     {' · '}Created {formatDate(profile.created_at)}
                   </p>
-                </div>
+                </button>
                 <div className="flex shrink-0 items-center gap-2">
                   <Button variant="secondary" size="sm" onClick={() => openEdit(profile)}>
                     Edit

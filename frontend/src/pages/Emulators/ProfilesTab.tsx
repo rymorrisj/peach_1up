@@ -211,7 +211,7 @@ export default function ProfilesTab() {
       if (modal?.mode === 'create') {
         await apiFetch('/api/v1/profiles', { method: 'POST', body: JSON.stringify(body) })
       } else if (modal?.mode === 'edit') {
-        await apiFetch(`/api/v1/profiles/${modal.profile.id}`, {
+        await apiFetch(`/api/v1/profiles/${modal.profile.slug}`, {
           method: 'PATCH',
           body: JSON.stringify(body),
         })
@@ -234,7 +234,7 @@ export default function ProfilesTab() {
     })
     if (!confirmed) return
     try {
-      await apiFetch(`/api/v1/profiles/${profile.id}`, { method: 'DELETE' })
+      await apiFetch(`/api/v1/profiles/${profile.slug}`, { method: 'DELETE' })
       await queryClient.invalidateQueries({ queryKey: ['profiles'] })
     } catch (err) {
       alert(err instanceof ApiError ? err.detail : 'Delete failed.')

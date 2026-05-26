@@ -73,7 +73,7 @@ const INPUT_STYLE: React.CSSProperties = {
 }
 
 export default function ProfileDetail() {
-  const { id } = useParams<{ id: string }>()
+  const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('identity')
@@ -89,20 +89,20 @@ export default function ProfileDetail() {
     queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
   })
 
-  const profile = profiles.find((p) => String(p.id) === id)
+  const profile = profiles.find((p) => p.slug === slug)
 
   useEffect(() => {
     if (!profile) return
     setName(profile.name)
     setEnableNetworking(profile.enable_networking)
     setNotes(profile.notes ?? '')
-  }, [profile?.id])
+  }, [profile?.slug])
 
   async function handleSave() {
     if (!profile) return
     setSaving(true); setSaveError(null); setSaved(false)
     try {
-      await apiFetch(`/api/v1/profiles/${profile.id}`, {
+      await apiFetch(`/api/v1/profiles/${profile.slug}`, {
         method: 'PATCH',
         body: JSON.stringify({ name: name.trim(), enable_networking: enableNetworking, notes: notes.trim() || null }),
       })
@@ -130,7 +130,7 @@ export default function ProfileDetail() {
         }),
       })
       await queryClient.invalidateQueries({ queryKey: ['profiles'] })
-      navigate(`/profiles/${created.id}`)
+      navigate(`/profiles/${created.slug}`)
     } catch (err) {
       alert(err instanceof ApiError ? err.detail : 'Duplicate failed. The slug may already exist.')
     }
@@ -140,7 +140,7 @@ export default function ProfileDetail() {
     if (!profile || profile.is_bundled) return
     if (!window.confirm(`Delete profile "${profile.name}"? This cannot be undone.`)) return
     try {
-      await apiFetch(`/api/v1/profiles/${profile.id}`, { method: 'DELETE' })
+      await apiFetch(`/api/v1/profiles/${profile.slug}`, { method: 'DELETE' })
       await queryClient.invalidateQueries({ queryKey: ['profiles'] })
       navigate('/profiles')
     } catch (err) {
