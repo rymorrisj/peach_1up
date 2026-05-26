@@ -341,6 +341,21 @@ This gap is tracked and will be addressed in a future hardening pass, either by 
 a configurable allowlist with an opt-out flag or by surfacing an explicit warning at
 environment registration time.
 
+### Library path configuration requires direct settings.yaml edit
+
+The Library Paths settings panel was removed from the UI in session \[B4\]. LIBRARY_PATH, PROFILES_PATH, and ROMS_PATH can no longer be set through the frontend. Users with non-standard installs (library on a secondary drive, NAS share, or external volume) must edit config/settings.yaml directly to reconfigure these paths.
+
+The backend endpoint POST /api/v1/settings/library-path remains live and functional. A future admin settings UI or power user can call it directly.
+
+Highest-risk case: ROMS_PATH defaults to {project_root}/library/system/roms/86box. Users who supply 86Box ROMs from a zip extracted to a non-default location (the common case) will silently use the wrong ROM path after a clean install until they manually edit settings.yaml. The 86Box backend will raise a ROM path error at launch time rather than silently proceeding, so the failure is visible — but the fix path is not obvious without documentation.
+
+#### Mitigations
+
+- The README and first-run wizard should surface settings.yaml path configuration explicitly for non-standard installs.
+- The 86Box ROM path guidance card on the emulator detail page should include a note that the path can be overridden in settings.yaml if the
+  default is wrong.
+- GeneralTab.tsx is orphaned and can be deleted when convenient.
+
 ---
 
 ## Reporting Security Issues
