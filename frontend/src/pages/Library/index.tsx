@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
@@ -617,9 +617,14 @@ interface Filters {
 
 export default function Library() {
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [addOpen, setAddOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
-  const [filters, setFilters] = useState<Filters>({ era: '', profileFilter: 'all' })
+  const [filters, setFilters] = useState<Filters>({ era: searchParams.get('era') ?? '', profileFilter: 'all' })
+
+  useEffect(() => {
+    setFilters((f) => ({ ...f, era: searchParams.get('era') ?? '' }))
+  }, [searchParams])
   const { confirm, isOpen: confirmOpen, options: confirmOptions, handleConfirm, handleCancel } = useConfirm()
 
   const { data: items, isLoading: itemsLoading } = useQuery<LibraryItem[]>({
@@ -702,7 +707,11 @@ export default function Library() {
             <div className="mb-6 flex flex-wrap items-center gap-3">
               <select
                 value={filters.era}
-                onChange={(e) => setFilters((f) => ({ ...f, era: e.target.value }))}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setFilters((f) => ({ ...f, era: v }))
+                  setSearchParams((p) => { if (v) p.set('era', v); else p.delete('era'); return p })
+                }}
                 className={SELECT_CLASS}
                 style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--fg-1)' }}
               >
@@ -726,7 +735,10 @@ export default function Library() {
               {hasActiveFilters && (
                 <button
                   type="button"
-                  onClick={() => setFilters({ era: '', profileFilter: 'all' })}
+                  onClick={() => {
+                    setFilters({ era: '', profileFilter: 'all' })
+                    setSearchParams((p) => { p.delete('era'); return p })
+                  }}
                   style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}
                 >
                   Clear filters
