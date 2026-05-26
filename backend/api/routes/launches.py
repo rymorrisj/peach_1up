@@ -23,8 +23,6 @@ from backend.models.user import User
 router = APIRouter(prefix="/api/v1", tags=["launches"])
 logger = get_logger(__name__)
 
-_ITEM_DRIVE_SIZE_MB = 500
-
 
 def _resolve_item_drive(item, profile, db):
     """Return a drive-like object for the launch.
@@ -36,10 +34,12 @@ def _resolve_item_drive(item, profile, db):
     Falls back to profile drive_slug DB lookup when item has no slug.
     """
     if item.slug:
-        drives_dir = get_base_path() / "library" / "system" / "drives"
-        drive_path = drives_dir / f"{item.slug}.img"
+        drive_path = get_base_path() / "library" / "media" / item.slug / f"{item.slug}.img"
+        size_mb = item.drive_size_mb or 500
         if drive_path.exists():
-            return SimpleNamespace(slug=item.slug, size_mb=_ITEM_DRIVE_SIZE_MB)
+            return SimpleNamespace(slug=item.slug, size_mb=size_mb)
+        if item.requires_install:
+            return SimpleNamespace(slug=item.slug, size_mb=size_mb)
         return None
     drive_slug = getattr(profile, 'drive_slug', None)
     if drive_slug:

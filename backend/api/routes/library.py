@@ -196,6 +196,14 @@ def add_library_item(
         except OSError as exc:
             logger.warning("Could not create item folder %s: %s", item_folder, exc)
 
+    from backend.service.utils.media_attach import detect_media_type
+    media_type = detect_media_type(Path(item.media_path))
+    item.media_type = media_type
+    item.requires_install = media_type == "iso"
+    source_size_mb = Path(item.media_path).stat().st_size / (1024 * 1024)
+    multiplier = 1.5 if media_type == "iso" else 2.0
+    item.drive_size_mb = min(max(int(source_size_mb * multiplier), 50), 500)
+
     if not item.content_rating:
         from backend.utils.rating_detect import detect_rating
         item.content_rating = detect_rating(body.media_path)

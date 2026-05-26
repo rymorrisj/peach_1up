@@ -39,6 +39,8 @@ def detect_media_type(media_path: Path) -> str:
         return "iso"
     if suffix in {".img", ".vhd"}:
         return "hdd"
+    if suffix in {".exe", ".bat", ".com"}:
+        return "exe"
     return "unknown"
 
 

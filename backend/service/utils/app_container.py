@@ -99,7 +99,6 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
     base = get_base_path()
     derived: dict[str, Path] = {
         "install_dir":  base / "emulators" / slug,
-        "games_dir":    base / "library" / "media" / "games",
         # saves_dir/memcards_dir/snaps_dir removed — console emulators use native userdata; revisit at P9 DACL grant audit
         "config_dir":   base / "emulators" / slug,
         "nvram":        base / "emulators" / slug / "vms",

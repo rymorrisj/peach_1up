@@ -203,7 +203,7 @@ def write_launch_conf(
     drive_setup_lines: list[str] = []
 
     if has_persistent_drive:
-        drives_dir = get_base_path() / "library" / "system" / "drives"
+        drives_dir = get_base_path() / "library" / "media" / drive.slug
         drive_path = drives_dir / f"{drive.slug}.img"
         # Defence-in-depth: confirm the resolved path stays under drives_dir.
         if not drive_path.resolve().is_relative_to(drives_dir.resolve()):

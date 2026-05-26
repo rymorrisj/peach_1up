@@ -26,6 +26,8 @@ class LibraryItemBase(SQLModel):
     launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
     launch_review_flagged: bool = Field(default=False)
     installed: bool = False
+    requires_install: bool = False
+    drive_size_mb: Optional[int] = None
 
 
 class LibraryItem(LibraryItemBase, table=True):

@@ -385,10 +385,7 @@ def _ensure_default_paths() -> None:
     base = get_base_path()
     lib = base / "library"
     for d in [
-        lib / "media" / "games",
-        lib / "media" / "apps",
         lib / "system" / "os",
-        lib / "system" / "drives",
         lib / "system" / "roms" / "86box",
         lib / "system" / "bios" / "ps1",
         lib / "system" / "bios" / "ps2",
