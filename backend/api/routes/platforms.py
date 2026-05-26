@@ -86,7 +86,22 @@ def _consume_token(token: str, resource_id: int, action: str) -> bool:
 
 @router.get("", response_model=list[PlatformRead])
 def list_platforms(db: Session = Depends(get_db)):
-    return db.query(Platform).all()
+    platforms = db.query(Platform).all()
+    result = []
+    for p in platforms:
+        data = PlatformRead.model_validate(p)
+        if p.working_image_path:
+            try:
+                data.working_image_size_bytes = Path(p.working_image_path).stat().st_size
+            except OSError:
+                pass
+        if p.base_image_path:
+            try:
+                data.base_image_size_bytes = Path(p.base_image_path).stat().st_size
+            except OSError:
+                pass
+        result.append(data)
+    return result
 
 
 @router.post("", response_model=PlatformRead, status_code=201)
@@ -149,17 +164,21 @@ def health_check_all(db: Session = Depends(get_db), _: User = require_permission
     results = []
     for platform in platforms_to_check:
         working = platform.working_image_path
-        if working:
-            try:
-                _validate_image_path(working)
-                exists = Path(working).exists()
-            except HTTPException:
-                exists = False
+        base = platform.base_image_path
+        if not working and not base:
+            status = "unconfigured"
         else:
-            exists = False
-        platform.status = "ok" if exists else "missing"
+            working_ok = bool(working and Path(working).is_file())
+            base_ok = bool(base and Path(base).is_file())
+            if working_ok:
+                status = "healthy"
+            elif base_ok:
+                status = "degraded"
+            else:
+                status = "error"
+        platform.status = status
         platform.last_health_check = datetime.now(timezone.utc)
-        results.append({"id": platform.id, "status": platform.status})
+        results.append({"id": platform.id, "status": status})
     db.commit()
     return {"results": results, "checked": len(results)}
 

@@ -76,3 +76,5 @@ class PlatformRead(PlatformBase):
     last_health_check: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    working_image_size_bytes: Optional[int] = None
+    base_image_size_bytes: Optional[int] = None

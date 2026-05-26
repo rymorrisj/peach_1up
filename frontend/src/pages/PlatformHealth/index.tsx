@@ -209,36 +209,47 @@ export default function PlatformHealth() {
           </h2>
         </div>
 
-        <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-          <div className="grid grid-cols-4 gap-[18px]">
-            {[
-              { label: 'working images', color: 'var(--peach-500)', pct: '33%' },
-              { label: 'base images',   color: 'var(--peach-700)', pct: '50%' },
-              { label: 'snapshots',     color: 'var(--era-win98)', pct: '14%' },
-              { label: 'profiles + conf', color: 'var(--era-win95)', pct: '3%' },
-            ].map(({ label, color }) => (
-              <div key={label}>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full shrink-0" style={{ background: color }} />
-                </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginTop: 6 }}>
-                  {label}
-                </div>
+        {(() => {
+          const workingBytes = userPlatforms.reduce((s, p) => s + (p.working_image_size_bytes ?? 0), 0)
+          const baseBytes = userPlatforms.reduce((s, p) => s + (p.base_image_size_bytes ?? 0), 0)
+          const totalBytes = workingBytes + baseBytes
+          const pct = (n: number) => totalBytes > 0 ? `${((n / totalBytes) * 100).toFixed(1)}%` : '0%'
+          const cats = [
+            { label: 'working images',  color: 'var(--peach-500)', bytes: workingBytes },
+            { label: 'base images',     color: 'var(--peach-700)', bytes: baseBytes },
+          ]
+          return (
+            <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+              <div className="grid grid-cols-2 gap-[18px]">
+                {cats.map(({ label, color, bytes }) => (
+                  <div key={label}>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full shrink-0" style={{ background: color }} />
+                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 13, color: 'var(--fg-1)' }}>
+                        {bytes > 0 ? formatBytes(bytes) : '—'}
+                      </span>
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginTop: 6 }}>
+                      {label}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {/* Stacked bar */}
-          <div className="mt-4 flex overflow-hidden rounded" style={{ height: 8, background: 'var(--surface-2)' }}>
-            <span style={{ width: '33%', background: 'var(--peach-500)' }} />
-            <span style={{ width: '50%', background: 'var(--peach-700)' }} />
-            <span style={{ width: '14%', background: 'var(--era-win98)' }} />
-            <span style={{ width: '3%', background: 'var(--era-win95)' }} />
-          </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)', marginTop: 8 }}>
-            Storage breakdown — working images · base images · snapshots · profiles + config
-          </div>
-        </div>
+              {/* Stacked bar */}
+              <div className="mt-4 flex overflow-hidden rounded" style={{ height: 8, background: 'var(--surface-2)' }}>
+                {cats.map(({ label, color, bytes }) => (
+                  <span key={label} style={{ width: pct(bytes), background: color, transition: 'width 300ms ease' }} />
+                ))}
+              </div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)', marginTop: 8 }}>
+                {totalBytes > 0
+                  ? `${formatBytes(totalBytes)} total — working images · base images`
+                  : 'No storage data available — run a health check to update sizes'}
+              </div>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
