@@ -157,6 +157,54 @@ def create_platform(body: PlatformCreate, db: Session = Depends(get_db), _: User
     return platform
 
 
+@router.get("/health")
+def health_summary(db: Session = Depends(get_db)):
+    from sqlalchemy import func, distinct as sa_distinct
+    from backend.models.library import LibraryItem
+    from backend.models.drive import Drive
+    from backend.service.utils.emulator_catalog import (
+        load_catalog, get_install_path, load_bios_requirements, check_bios_presence,
+    )
+
+    user_platforms = db.query(Platform).filter(Platform.is_system == False).all()
+    platform_healthy = sum(1 for p in user_platforms if p.status in ("ok", "healthy", "unknown"))
+
+    library_count = db.query(LibraryItem).count()
+    drive_count = db.query(Drive).count()
+    extension_count = db.query(
+        func.count(sa_distinct(LibraryItem.media_type))
+    ).filter(LibraryItem.media_type.isnot(None)).scalar() or 0
+
+    catalog = load_catalog()
+    emulator_total = len(catalog)
+    emulator_installed = sum(1 for e in catalog if get_install_path(e["slug"]) is not None)
+
+    bios_reqs = load_bios_requirements()
+    bios_total = len(bios_reqs)
+    bios_present = sum(
+        1 for b in bios_reqs
+        if b.get("bios_path") and check_bios_presence(b["bios_path"])
+    )
+
+    rom_entries = [e for e in catalog if e.get("install_type") == "rom_pack"]
+    rom_total = len(rom_entries)
+    rom_installed = sum(1 for e in rom_entries if get_install_path(e["slug"]) is not None)
+
+    return {
+        "platforms": {
+            "total": len(user_platforms),
+            "healthy": platform_healthy,
+            "degraded": len(user_platforms) - platform_healthy,
+        },
+        "library": {"total": library_count},
+        "drives": {"total": drive_count},
+        "extensions": {"total": extension_count},
+        "emulators": {"total": emulator_total, "installed": emulator_installed},
+        "bios": {"total": bios_total, "present": bios_present},
+        "rom_packs": {"total": rom_total, "installed": rom_installed},
+    }
+
+
 @router.post("/health-all")
 def health_check_all(db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
 

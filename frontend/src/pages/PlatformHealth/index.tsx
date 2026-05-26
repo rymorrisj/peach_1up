@@ -5,6 +5,16 @@ import type { components } from '@shared/types'
 
 type Platform = components['schemas']['PlatformRead']
 
+interface HealthSummary {
+  platforms:  { total: number; healthy: number; degraded: number }
+  library:    { total: number }
+  drives:     { total: number }
+  extensions: { total: number }
+  emulators:  { total: number; installed: number }
+  bios:       { total: number; present: number }
+  rom_packs:  { total: number; installed: number }
+}
+
 const ERA_COLOR: Record<string, string> = {
   dos:   'var(--era-dos)',
   win31: 'var(--era-win31)',
@@ -81,6 +91,11 @@ export default function PlatformHealth() {
   const { data: platforms = [], isLoading } = useQuery<Platform[]>({
     queryKey: ['platforms'],
     queryFn: () => apiFetch<Platform[]>('/api/v1/platforms'),
+  })
+
+  const { data: summary } = useQuery<HealthSummary>({
+    queryKey: ['platforms-health-summary'],
+    queryFn: () => apiFetch<HealthSummary>('/api/v1/platforms/health'),
   })
 
   const userPlatforms = platforms.filter((p) => !p.is_system)
@@ -247,6 +262,71 @@ export default function PlatformHealth() {
                   ? `${formatBytes(totalBytes)} total — working images · base images`
                   : 'No storage data available — run a health check to update sizes'}
               </div>
+            </div>
+          )
+        })()}
+
+        {/* Inventory section */}
+        <div className="mb-3 mt-7 flex items-baseline gap-2.5">
+          <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 18, letterSpacing: '-0.01em', margin: 0, color: 'var(--fg-1)' }}>
+            Inventory
+          </h2>
+        </div>
+
+        {(() => {
+          const stats: { label: string; value: string; sub?: string }[] = summary ? [
+            {
+              label: 'library items',
+              value: summary.library.total.toString(),
+            },
+            {
+              label: 'emulators',
+              value: summary.emulators.installed.toString(),
+              sub: `of ${summary.emulators.total} in catalog`,
+            },
+            {
+              label: 'drives',
+              value: summary.drives.total.toString(),
+            },
+            {
+              label: 'media formats',
+              value: summary.extensions.total.toString(),
+            },
+            {
+              label: 'bios sets',
+              value: summary.bios.present.toString(),
+              sub: `of ${summary.bios.total} required`,
+            },
+            {
+              label: 'rom packs',
+              value: summary.rom_packs.installed.toString(),
+              sub: `of ${summary.rom_packs.total} in catalog`,
+            },
+          ] : []
+
+          return (
+            <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+              {!summary ? (
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--fg-3)' }}>Loading…</div>
+              ) : (
+                <div className="grid gap-x-[18px] gap-y-4" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                  {stats.map(({ label, value, sub }) => (
+                    <div key={label}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 22, lineHeight: 1, color: 'var(--fg-1)' }}>
+                        {value}
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+                        {label}
+                      </div>
+                      {sub && (
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-3)', opacity: 0.7, marginTop: 2 }}>
+                          {sub}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )
         })()}
