@@ -223,7 +223,7 @@ def write_launch_conf(
             mount_line = f"imgmount D {host} -t iso -ro"
         elif suffix in {".exe", ".bat"}:
             parent_dir = _dosbox_cmd_path(media_path.parent)
-            mount_line = f"MOUNT D {parent_dir}"
+            mount_line = f"MOUNT D {parent_dir} -freesize 1024"
         else:
             raise ValueError(
                 f"Unhandled media suffix '{suffix}'. This indicates a programming error."
@@ -242,7 +242,7 @@ def write_launch_conf(
             media_drive = "D:"
         elif suffix in {".exe", ".bat"}:
             parent_dir = _dosbox_cmd_path(media_path.parent)
-            mount_line = f"MOUNT D {parent_dir}"
+            mount_line = f"MOUNT D {parent_dir} -freesize 1024"
             drive_line = "D:"
             media_drive = "D:"
         else:
