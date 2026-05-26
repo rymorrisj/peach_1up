@@ -5,17 +5,19 @@
 :root {
   font-size: 16px;
 
-  /* Design token bridge — matches Tailwind config values */
-  --surface-0: #0d1014;
-  --surface-1: #131820;
-  --surface-2: #1c2230;
-  --surface-3: #262e3e;
-  --border:    #2a3142;
-  --border-strong: #3b4358;
+  /* Light theme */
+  --surface-0: #faf8f5;
+  --surface-1: #f2efea;
+  --surface-2: #e8e4dd;
+  --surface-3: #dedad2;
+  --border:    #cdc8bf;
+  --border-strong: #b8b2a8;
 
-  --fg-1: #f3eee7;
-  --fg-2: #b6b3ad;
-  --fg-3: #7a7a78;
+  --fg-1: #1c1a17;
+  --fg-2: #5e5b55;
+  --fg-3: #928e88;
+
+  --topbar-glass: rgb(250 248 245 / 0.85);
 
   --peach-300: #ffa97a;
   --peach-400: #ff9469;
@@ -34,9 +36,9 @@
   --era-win98: #6ea8d6;
   --era-winxp: #66b27a;
 
-  --shadow-sm: 0 1px 2px rgb(20 12 6 / 0.4);
-  --shadow-md: 0 4px 12px rgb(20 12 6 / 0.45);
-  --shadow-lg: 0 12px 28px rgb(20 12 6 / 0.5);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.08);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.10);
+  --shadow-lg: 0 12px 28px rgb(0 0 0 / 0.14);
 
   --r-1: 4px;
   --r-2: 8px;
@@ -53,8 +55,29 @@
   --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
 }
 
+html.dark {
+  --surface-0: #0d1014;
+  --surface-1: #131820;
+  --surface-2: #1c2230;
+  --surface-3: #262e3e;
+  --border:    #2a3142;
+  --border-strong: #3b4358;
+
+  --fg-1: #f3eee7;
+  --fg-2: #b6b3ad;
+  --fg-3: #7a7a78;
+
+  --topbar-glass: rgb(13 16 20 / 0.8);
+
+  --shadow-sm: 0 1px 2px rgb(20 12 6 / 0.4);
+  --shadow-md: 0 4px 12px rgb(20 12 6 / 0.45);
+  --shadow-lg: 0 12px 28px rgb(20 12 6 / 0.5);
+}
+
 body {
-  @apply bg-surface-950 text-neutral-100 font-sans antialiased;
+  background-color: var(--surface-0);
+  color: var(--fg-1);
+  @apply font-sans antialiased;
 }
 
 /* Active/press state for interactive elements */

@@ -29,7 +29,7 @@ export default function TopBar({ title, children }: TopBarProps) {
       className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 px-6"
       style={{
         borderBottom: '1px solid var(--border)',
-        background: 'rgb(13 16 20 / 0.8)',
+        background: 'var(--topbar-glass)',
         backdropFilter: 'blur(20px) saturate(1.4)',
       }}
     >
