@@ -134,7 +134,6 @@ async def launch_item(
             item.media_path,
             profile,
             platform_record,
-            item.executable_path,
             launch_commands=item.launch_commands,
             drive=drive,
         )

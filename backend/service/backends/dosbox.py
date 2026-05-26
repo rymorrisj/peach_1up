@@ -159,7 +159,6 @@ def write_launch_conf(
     media_path: Path,
     era: str,
     executable_path: Path,
-    game_executable: str | None = None,
     launch_commands: list[str] | None = None,
     profile: object | None = None,
     drive: object | None = None,
@@ -181,8 +180,6 @@ def write_launch_conf(
         era: Era name (unused; retained for call-site symmetry).
         executable_path: Path to the DOSBox-X executable (unused; retained for
             call-site symmetry).
-        game_executable: Fallback executable used when ``launch_commands`` is
-            absent; becomes a single-entry item layer.
         launch_commands: Item-level command lines appended after profile
             commands.
         profile: Profile ORM object supplying launch_commands and use_drive.
@@ -265,15 +262,9 @@ def write_launch_conf(
     # Layer 1: profile commands (base defaults, run first).
     profile_cmds: list[str] = getattr(profile, 'launch_commands', None) or []
     # Layer 2: item commands (item-specific paths, appended after).
+    # Scan candidates and executable_path are display-only — they must never
+    # reach this list. Only the user's explicit launch_commands field feeds here.
     item_cmds: list[str] = launch_commands or []
-    # If item layer is empty, derive the fallback command.
-    # For direct-exe/bat media the parent directory is always mounted at D:;
-    # the scanner stores the host-absolute path which is not valid inside DOSBox.
-    if not item_cmds:
-        if suffix in {".exe", ".bat"}:
-            item_cmds = [f"D:\\{media_path.name}"]
-        elif game_executable:
-            item_cmds = [game_executable]
     merged = profile_cmds + item_cmds
 
     autoexec = "[autoexec]\n"
@@ -344,7 +335,6 @@ def launch(
     era: str,
     executable_path: str,
     enable_networking: bool = False,
-    game_executable: str | None = None,
     launch_commands: list[str] | None = None,
     profile: object | None = None,
     drive: object | None = None,
@@ -362,7 +352,6 @@ def launch(
         enable_networking: When ``False`` (default), the NE2000 adapter is
             disabled. Set to ``True`` only for software that requires a
             network connection.
-        game_executable: Fallback executable when no item-level commands exist.
         launch_commands: Item-level commands; merged after profile commands.
         profile: Profile ORM object supplying launch_commands, use_drive, and
             an optional container_enabled override.
@@ -384,7 +373,6 @@ def launch(
 
     conf_path = write_launch_conf(
         media_path, era, Path(executable_path),
-        game_executable=game_executable,
         launch_commands=launch_commands,
         profile=profile,
         drive=drive,
