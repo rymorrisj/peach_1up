@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import TopBar from '@/components/layout/TopBar'
-import type { CatalogEntry } from '@/pages/FirstRun/types'
+import type { CatalogEntry, BiosRequirement, EmulatorStatusData } from '@/pages/FirstRun/types'
 import type { components } from '@shared/types'
 type LaunchProfile = components['schemas']['ProfileRead']
 
@@ -43,6 +43,17 @@ const SLUG_TO_SETTINGS_KEY: Record<string, string> = {
   'xemu':        'XEMU_PATH',
   'mesen':       'MESEN_PATH',
   'project64':   'PROJECT64_PATH',
+}
+
+const EMULATOR_BIOS_PLATFORM: Record<string, string> = {
+  'duckstation': 'ps1',
+  'pcsx2':       'ps2',
+  'xemu':        'xbox',
+  'flycast':     'dreamcast',
+}
+
+const EMULATOR_ROM_PACK_SLUG: Record<string, string> = {
+  '86box': '86box-roms',
 }
 
 type Tab = 'overview' | 'rom' | 'ext' | 'profiles'
@@ -89,6 +100,26 @@ function KVTable({ rows }: { rows: Array<{ label: string; value: string }> }) {
   )
 }
 
+function StatusDot({ ok }: { ok: boolean }) {
+  return (
+    <span style={{ color: ok ? '#4ade80' : '#fbbf24' }}>{ok ? '✓' : '✗'}</span>
+  )
+}
+
+function GuidanceNote({ text, url }: { text?: string; url?: string }) {
+  if (!text) return null
+  return (
+    <div style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)', lineHeight: 1.5 }}>
+      {text}{' '}
+      {url && (
+        <a href={url} target="_blank" rel="noreferrer" style={{ color: 'var(--peach-400)', textDecoration: 'underline' }}>
+          Download
+        </a>
+      )}
+    </div>
+  )
+}
+
 const INPUT_STYLE: React.CSSProperties = {
   background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-2)',
   padding: '7px 10px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-1)',
@@ -104,6 +135,10 @@ export default function EmulatorDetail() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [isInstalling, setIsInstalling] = useState(false)
+  const [installError, setInstallError] = useState<string | null>(null)
+  const [isCloning, setIsCloning] = useState(false)
+  const [cloneError, setCloneError] = useState<string | null>(null)
 
   const { data: catalog = [] } = useQuery<CatalogEntry[]>({
     queryKey: ['emulators-catalog'],
@@ -116,7 +151,32 @@ export default function EmulatorDetail() {
     queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
   })
 
+  const romPackSlug = slug ? EMULATOR_ROM_PACK_SLUG[slug] : undefined
+  const emulatorBiosPlatform = slug ? EMULATOR_BIOS_PLATFORM[slug] : undefined
+
+  const { data: allBios = [] } = useQuery<BiosRequirement[]>({
+    queryKey: ['bios-requirements'],
+    queryFn: () => apiFetch<BiosRequirement[]>('/api/v1/bios'),
+    enabled: !!emulatorBiosPlatform,
+  })
+
+  const { data: installStatus } = useQuery<EmulatorStatusData>({
+    queryKey: ['emulator-status', slug],
+    queryFn: () => apiFetch<EmulatorStatusData>(`/api/v1/emulators/${slug}/status`),
+    refetchInterval: isInstalling ? 3000 : false,
+    enabled: isInstalling && !!slug,
+  })
+
+  const { data: cloneStatus } = useQuery<EmulatorStatusData>({
+    queryKey: ['emulator-status', romPackSlug],
+    queryFn: () => apiFetch<EmulatorStatusData>(`/api/v1/emulators/${romPackSlug}/status`),
+    refetchInterval: isCloning ? 4000 : false,
+    enabled: isCloning && !!romPackSlug,
+  })
+
   const entry = catalog.find((e) => e.slug === slug)
+  const romPackEntry = romPackSlug ? catalog.find((e) => e.slug === romPackSlug) : undefined
+  const emulatorBios = allBios.filter((b) => b.platform === emulatorBiosPlatform)
   const eras = slug ? (ERA_MAP[slug] ?? []) : []
   const emulatorProfiles = profiles.filter((p) => p.emulator_slug === slug)
   const isReady = entry?.is_installed && entry?.install_path
@@ -126,6 +186,30 @@ export default function EmulatorDetail() {
     if (!entry) return
     setEditPath(entry.install_path ?? '')
   }, [entry?.slug])
+
+  useEffect(() => {
+    if (!installStatus) return
+    if (installStatus.binary_detected) {
+      setIsInstalling(false)
+      queryClient.invalidateQueries({ queryKey: ['emulators-catalog'] })
+    }
+    if (installStatus.status === 'error') {
+      setIsInstalling(false)
+      setInstallError(installStatus.error ?? 'Install failed.')
+    }
+  }, [installStatus])
+
+  useEffect(() => {
+    if (!cloneStatus) return
+    if (cloneStatus.status === 'complete') {
+      setIsCloning(false)
+      queryClient.invalidateQueries({ queryKey: ['emulators-catalog'] })
+    }
+    if (cloneStatus.status === 'error') {
+      setIsCloning(false)
+      setCloneError(cloneStatus.error ?? 'Clone failed.')
+    }
+  }, [cloneStatus])
 
   async function handleSave() {
     if (!slug || !canEdit) return
@@ -158,6 +242,30 @@ export default function EmulatorDetail() {
       navigate('/emulators')
     } catch (err) {
       alert(err instanceof ApiError ? err.detail : 'Remove failed.')
+    }
+  }
+
+  async function handleRunInstaller() {
+    if (!slug) return
+    setIsInstalling(true)
+    setInstallError(null)
+    try {
+      await apiFetch(`/api/v1/emulators/${slug}/install`, { method: 'POST' })
+    } catch (err) {
+      setIsInstalling(false)
+      setInstallError(err instanceof ApiError ? err.detail : 'Failed to launch installer.')
+    }
+  }
+
+  async function handleCloneRomPack() {
+    if (!romPackSlug) return
+    setIsCloning(true)
+    setCloneError(null)
+    try {
+      await apiFetch(`/api/v1/emulators/${romPackSlug}/install`, { method: 'POST' })
+    } catch (err) {
+      setIsCloning(false)
+      setCloneError(err instanceof ApiError ? err.detail : 'Failed to start clone.')
     }
   }
 
@@ -269,79 +377,202 @@ export default function EmulatorDetail() {
 
         {/* Overview tab */}
         {tab === 'overview' && entry && (
-          <div className="grid gap-3.5" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 12 }}>
-                Configuration
-              </div>
-              {/* Executable — editable */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)', width: 140, flexShrink: 0 }}>
-                  Executable
-                </span>
-                {canEdit ? (
-                  <input
-                    value={editPath}
-                    onChange={(e) => setEditPath(e.target.value)}
-                    placeholder="Path to executable"
-                    style={{ ...INPUT_STYLE, flex: 1 }}
-                  />
-                ) : (
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-2)' }}>
-                    {entry.install_path ?? '—'}
+          <div>
+            <div className="grid gap-3.5" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 12 }}>
+                  Configuration
+                </div>
+                {/* Executable — editable */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)', width: 140, flexShrink: 0 }}>
+                    Executable
                   </span>
+                  {canEdit ? (
+                    <input
+                      value={editPath}
+                      onChange={(e) => setEditPath(e.target.value)}
+                      placeholder="Path to executable"
+                      style={{ ...INPUT_STYLE, flex: 1 }}
+                    />
+                  ) : (
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-2)' }}>
+                      {entry.install_path ?? '—'}
+                    </span>
+                  )}
+                </div>
+                <KVTable rows={[
+                  { label: 'Version',      value: entry.version },
+                  { label: 'Install type', value: entry.install_type },
+                  { label: 'Eras',         value: eras.join(' · ') || '—' },
+                  { label: 'Status',       value: isReady ? 'Ready' : 'Not installed' },
+                ]} />
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>Sandbox isolation</span>
+                  <span style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
+                    padding: '4px 8px', borderRadius: 'var(--r-1)',
+                    background: entry.container_enabled ? 'color-mix(in srgb, var(--peach-500) 12%, transparent)' : 'var(--surface-2)',
+                    color: entry.container_enabled ? 'var(--peach-400)' : 'var(--fg-3)',
+                    border: `1px solid ${entry.container_enabled ? 'var(--peach-500)' : 'var(--border)'}`,
+                  }}>
+                    {entry.container_enabled ? 'AppContainer' : 'Job Object'}
+                  </span>
+                </div>
+                {/* Install actions for installer-type emulators */}
+                {entry.install_type === 'installer' && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
+                        <StatusDot ok={entry.installer_present} />
+                        {entry.installer_present ? 'Installer ready' : 'Installer not placed'}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
+                        <StatusDot ok={!!isReady} />
+                        {isReady ? 'Installed' : isInstalling ? 'Waiting for install…' : 'Not installed'}
+                      </div>
+                      {entry.installer_present && !isReady && (
+                        <button
+                          type="button"
+                          onClick={handleRunInstaller}
+                          disabled={isInstalling}
+                          style={{ ...BTN, background: 'var(--peach-500)', color: '#fff', opacity: isInstalling ? 0.5 : 1 }}
+                        >
+                          {isInstalling ? 'Running…' : 'Run Installer'}
+                        </button>
+                      )}
+                    </div>
+                    {!entry.installer_present && (
+                      <GuidanceNote text={entry.guidance_text} url={entry.guidance_url} />
+                    )}
+                    {installError && (
+                      <div style={{ marginTop: 6, fontSize: 12, color: 'var(--error)', fontFamily: 'var(--font-display)' }}>
+                        {installError}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Guidance for zip-type emulators not yet installed */}
+                {entry.install_type === 'zip' && !isReady && entry.guidance_text && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                    <GuidanceNote text={entry.guidance_text} url={entry.guidance_url} />
+                  </div>
                 )}
               </div>
-              <KVTable rows={[
-                { label: 'Version',      value: entry.version },
-                { label: 'Install type', value: entry.install_type },
-                { label: 'Eras',         value: eras.join(' · ') || '—' },
-                { label: 'Status',       value: isReady ? 'Ready' : 'Not installed' },
-              ]} />
-              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>Sandbox isolation</span>
-                <span style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
-                  padding: '4px 8px', borderRadius: 'var(--r-1)',
-                  background: entry.container_enabled ? 'color-mix(in srgb, var(--peach-500) 12%, transparent)' : 'var(--surface-2)',
-                  color: entry.container_enabled ? 'var(--peach-400)' : 'var(--fg-3)',
-                  border: `1px solid ${entry.container_enabled ? 'var(--peach-500)' : 'var(--border)'}`,
-                }}>
-                  {entry.container_enabled ? 'AppContainer' : 'Job Object'}
-                </span>
+              <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 12 }}>
+                  At a glance
+                </div>
+                <div className="grid grid-cols-2 gap-3.5">
+                  {[
+                    { value: String(emulatorProfiles.length), label: 'profiles' },
+                    { value: eras.length > 0 ? String(eras.length) : '—', label: 'eras' },
+                    { value: entry.license ?? '—', label: 'license' },
+                    { value: isReady ? '✓' : '✗', label: 'installed' },
+                  ].map(({ value, label }) => (
+                    <div key={label}>
+                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, lineHeight: 1, color: 'var(--fg-1)' }}>
+                        {value}
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+                        {label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-            <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 12 }}>
-                At a glance
-              </div>
-              <div className="grid grid-cols-2 gap-3.5">
-                {[
-                  { value: String(emulatorProfiles.length), label: 'profiles' },
-                  { value: eras.length > 0 ? String(eras.length) : '—', label: 'eras' },
-                  { value: entry.license ?? '—', label: 'license' },
-                  { value: isReady ? '✓' : '✗', label: 'installed' },
-                ].map(({ value, label }) => (
-                  <div key={label}>
-                    <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, lineHeight: 1, color: 'var(--fg-1)' }}>
-                      {value}
+
+            {/* Required BIOS assets */}
+            {emulatorBios.length > 0 && (
+              <div style={{ marginTop: 18 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 10 }}>
+                  Required Assets
+                </div>
+                <div className="rounded-xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                  {emulatorBios.map((bios, i) => (
+                    <div
+                      key={bios.slug}
+                      style={{ padding: '14px 18px', borderBottom: i < emulatorBios.length - 1 ? '1px solid var(--border)' : 'none' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--fg-1)' }}>
+                          {bios.name}
+                        </span>
+                        <span style={{
+                          fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-3)',
+                          border: '1px solid var(--border)', borderRadius: 'var(--r-1)', padding: '2px 6px',
+                        }}>
+                          required
+                        </span>
+                        <StatusDot ok={bios.is_present} />
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>
+                        {bios.bios_path}/
+                      </div>
+                      {bios.is_present ? (
+                        <div style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: '#4ade80' }}>
+                          Files detected
+                        </div>
+                      ) : (
+                        <GuidanceNote text={bios.guidance_text} url={bios.guidance_url} />
+                      )}
                     </div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
-                      {label}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
         {/* ROM Packs tab */}
         {tab === 'rom' && (
           <div className="rounded-xl overflow-hidden" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-            <div style={{ color: 'var(--fg-3)', fontFamily: 'var(--font-display)', fontSize: 13, padding: '16px 18px' }}>
-              ROM pack management is available from the Emulators settings. Check your emulator's ROM pack directory for installed packs.
-            </div>
+            {romPackEntry ? (
+              <div style={{ padding: '16px 18px' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--fg-1)', marginBottom: 12 }}>
+                  {romPackEntry.name}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
+                    <StatusDot ok={romPackEntry.is_installed} />
+                    {romPackEntry.is_installed ? 'ROM pack present' : 'ROM pack missing'}
+                  </div>
+                  {!romPackEntry.is_installed && romPackEntry.git_available !== false && (
+                    <button
+                      type="button"
+                      onClick={handleCloneRomPack}
+                      disabled={isCloning}
+                      style={{ ...BTN, background: 'var(--peach-500)', color: '#fff', opacity: isCloning ? 0.5 : 1 }}
+                    >
+                      {isCloning ? 'Cloning…' : 'Clone ROM Pack'}
+                    </button>
+                  )}
+                  {!romPackEntry.is_installed && romPackEntry.git_available === false && (
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: '#fbbf24' }}>
+                      git not found on PATH
+                    </span>
+                  )}
+                </div>
+                {!romPackEntry.is_installed && (
+                  <GuidanceNote text={romPackEntry.guidance_text} url={romPackEntry.guidance_url} />
+                )}
+                {cloneError && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: 'var(--error)', fontFamily: 'var(--font-display)' }}>
+                    {cloneError}
+                  </div>
+                )}
+                {romPackEntry.is_installed && (
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: '#4ade80', marginTop: 4 }}>
+                    ROM pack installed and ready.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ color: 'var(--fg-3)', fontFamily: 'var(--font-display)', fontSize: 13, padding: '16px 18px' }}>
+                No ROM packs required for this emulator.
+              </div>
+            )}
           </div>
         )}
 
