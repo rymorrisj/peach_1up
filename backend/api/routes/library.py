@@ -21,9 +21,6 @@ class RestrictionsBody(BaseModel):
     user_ids: list[int]
 
 
-class RescanBody(BaseModel):
-    force: bool = False
-
 
 def _make_slug(title: str, db: Session) -> str:
     base = re.sub(r'[^a-z0-9-]', '', re.sub(r'\s+', '-', title.lower())).strip('-') or 'item'
@@ -63,39 +60,6 @@ def _consume_confirm_token(token: str, item_id: int) -> bool:
     if now > expires_at:
         return False
     return expected_id == item_id
-
-
-def _normalize_item(item: LibraryItem) -> LibraryItem:
-    if item.scan_candidates:
-        item.scan_candidates = [
-            c if isinstance(c, dict) else {"path": c, "candidate_type": "utility"}
-            for c in item.scan_candidates
-        ]
-    return item
-
-
-def _bg_scan_item(item_id: int, media_path: str) -> None:
-    from backend.service.utils.executable_scanner import scan_executable_candidates
-    from backend.core.database import get_engine
-    from sqlalchemy.orm import Session as _Session
-
-    try:
-        candidates = scan_executable_candidates(Path(media_path))
-    except Exception as exc:
-        logger.warning("Executable scan failed for item %d: %s", item_id, exc)
-        return
-
-    try:
-        with _Session(get_engine()) as db:
-            item = db.get(LibraryItem, item_id)
-            if item is None:
-                return
-            item.scan_candidates = [{"path": c.path, "candidate_type": c.candidate_type} for c in candidates]
-            if item.executable_path is None and candidates:
-                item.executable_path = candidates[0].path
-            db.commit()
-    except Exception as exc:
-        logger.warning("Failed to write scan results for item %d: %s", item_id, exc)
 
 
 def _validate_scan_directory(directory: str) -> Path:
@@ -175,7 +139,7 @@ def list_library(
         q = q.filter(LibraryItem.category == category)
     if platform_id is not None:
         q = q.filter(LibraryItem.platform_id == platform_id)
-    return [_normalize_item(i) for i in q.all()]
+    return q.all()
 
 
 @router.post("", response_model=LibraryItemRead, status_code=201)
@@ -193,7 +157,7 @@ def add_library_item(
     for stored_path, item_id in db.query(LibraryItem.media_path, LibraryItem.id).all():
         if stored_path and Path(stored_path).resolve().as_posix() == incoming_norm:
             response.status_code = 200
-            return _normalize_item(db.get(LibraryItem, item_id))
+            return db.get(LibraryItem, item_id)
 
     for base_path, working_path in db.query(Platform.base_image_path, Platform.working_image_path).all():
         if (base_path and Path(base_path).resolve().as_posix() == incoming_norm) or (
@@ -238,8 +202,7 @@ def add_library_item(
     db.add(item)
     db.commit()
     db.refresh(item)
-    background_tasks.add_task(_bg_scan_item, item.id, item.media_path)
-    return _normalize_item(item)
+    return item
 
 
 @router.get("/scan/status")
@@ -292,7 +255,7 @@ def get_library_item_by_slug(slug: str, db: Session = Depends(get_db)):
     item = db.query(LibraryItem).filter(LibraryItem.slug == slug).first()
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found.")
-    return _normalize_item(item)
+    return item
 
 
 @router.get("/{item_id}", response_model=LibraryItemRead)
@@ -300,7 +263,7 @@ def get_library_item(item_id: int, db: Session = Depends(get_db)):
     item = db.get(LibraryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found.")
-    return _normalize_item(item)
+    return item
 
 
 @router.patch("/{item_id}", response_model=LibraryItemRead)
@@ -317,33 +280,7 @@ def update_library_item(
         setattr(item, key, value)
     db.commit()
     db.refresh(item)
-    return _normalize_item(item)
-
-
-@router.post("/{item_id}/rescan", response_model=LibraryItemRead)
-def rescan_item(
-    item_id: int,
-    body: RescanBody = RescanBody(),
-    db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
-):
-    from backend.service.utils.executable_scanner import scan_executable_candidates
-
-    item = db.get(LibraryItem, item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Library item not found.")
-
-    try:
-        candidates = scan_executable_candidates(Path(item.media_path))
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
-
-    item.scan_candidates = [{"path": c.path, "candidate_type": c.candidate_type} for c in candidates]
-    if candidates and (item.executable_path is None or body.force):
-        item.executable_path = candidates[0].path
-    db.commit()
-    db.refresh(item)
-    return _normalize_item(item)
+    return item
 
 
 @router.post("/{item_id}/flag-launch", response_model=LibraryItemRead)
@@ -358,7 +295,7 @@ def flag_launch(
     item.launch_review_flagged = True
     db.commit()
     db.refresh(item)
-    return _normalize_item(item)
+    return item
 
 
 @router.post("/{item_id}/confirm-delete")

@@ -38,11 +38,7 @@ def _resolve_item_drive(item, profile, db):
     if item.slug:
         drives_dir = get_base_path() / "library" / "system" / "drives"
         drive_path = drives_dir / f"{item.slug}.img"
-        has_installer = any(
-            c.get("candidate_type") == "setup"
-            for c in (item.scan_candidates or [])
-        )
-        if drive_path.exists() or has_installer:
+        if drive_path.exists():
             return SimpleNamespace(slug=item.slug, size_mb=_ITEM_DRIVE_SIZE_MB)
         return None
     drive_slug = getattr(profile, 'drive_slug', None)

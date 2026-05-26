@@ -114,9 +114,6 @@ export default function ItemDetail() {
   const [rescanError, setRescanError] = useState<string | null>(null)
   const [flagging, setFlagging] = useState(false)
   const [flagError, setFlagError] = useState<string | null>(null)
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false)
-  const [markInstalled, setMarkInstalled] = useState(false)
-
   useEffect(() => {
     if (item && launchCommands === null) {
       setLaunchCommands(item.launch_commands ?? [])
@@ -177,7 +174,6 @@ export default function ItemDetail() {
           platform_id: form.platform_id ? parseInt(form.platform_id, 10) : null,
           profile_id: form.profile_id ? parseInt(form.profile_id, 10) : null,
           launch_commands: launchCommands ?? item.launch_commands ?? [],
-          ...(markInstalled ? { installed: true } : {}),
         }),
       })
       queryClient.invalidateQueries({ queryKey: ['library'] })
@@ -599,57 +595,6 @@ export default function ItemDetail() {
                 )}
               </div>
 
-              {(item.scan_candidates ?? []).length > 0 && (
-                <div>
-                  <p className="mb-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                    Scan candidates
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {(item.scan_candidates ?? []).map((candidate) => {
-                      const isSetup = candidate.candidate_type === 'setup'
-                      const isUtility = candidate.candidate_type === 'utility'
-                      return (
-                        <button
-                          key={candidate.path}
-                          type="button"
-                          onClick={() => {
-                            setLaunchCommands([candidate.path, ...(launchCommands ?? []).slice(1)])
-                            if (isSetup) setShowInstallPrompt(true)
-                          }}
-                          className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-xs ${
-                            isUtility
-                              ? 'bg-neutral-50 text-neutral-400 dark:bg-surface-800 dark:text-neutral-600'
-                              : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-surface-700 dark:text-neutral-300 dark:hover:bg-surface-600'
-                          }`}
-                        >
-                          {candidate.path}
-                          {isSetup && (
-                            <span className="rounded bg-neutral-200 px-1 py-0.5 font-sans text-[10px] font-normal text-neutral-500 dark:bg-surface-600 dark:text-neutral-400">
-                              Setup
-                            </span>
-                          )}
-                          {isUtility && (
-                            <span className="rounded bg-neutral-100 px-1 py-0.5 font-sans text-[10px] font-normal text-neutral-400 dark:bg-surface-700 dark:text-neutral-500">
-                              Utility
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  {showInstallPrompt && (
-                    <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
-                      <input
-                        type="checkbox"
-                        checked={markInstalled}
-                        onChange={(e) => setMarkInstalled(e.target.checked)}
-                        className="h-4 w-4 rounded border-neutral-300 text-[#ff8a5c] focus:ring-[#ff8a5c] dark:border-neutral-600"
-                      />
-                      After running setup, mark this game as installed?
-                    </label>
-                  )}
-                </div>
-              )}
 
               <div className="flex items-center gap-3">
                 <Button
