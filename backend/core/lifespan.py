@@ -420,11 +420,6 @@ def _ensure_default_paths() -> None:
         lib / "system" / "bios" / "ps2",
         lib / "system" / "bios" / "xbox",
         lib / "system" / "bios" / "dreamcast",
-        lib / "system" / "saves" / "mesen",
-        lib / "system" / "saves" / "project64",
-        lib / "system" / "saves" / "pcsx2",
-        lib / "system" / "saves" / "duckstation",
-        lib / "system" / "saves" / "xemu",
         base / "library" / "system" / "profiles",
     ]:
         d.mkdir(parents=True, exist_ok=True)

@@ -172,7 +172,6 @@ def configure_emulator(slug: str) -> None:
 
     elif slug == "duckstation":
         (exe_dir / "portable.txt").touch()
-        (exe_dir / "saves").mkdir(exist_ok=True)
 
     elif slug == "xemu":
         toml_path = exe_dir / "xemu.toml"
@@ -185,18 +184,6 @@ def configure_emulator(slug: str) -> None:
                 'bios_path = "emulators/xemu/Complex_4627v1.03.bin"\n'
                 "[storage]\n"
                 'hdd_path = "emulators/xemu/xbox_hdd.qcow2"\n',
-                encoding="utf-8",
-            )
-
-    elif slug == "project64":
-        cfg_path = exe_dir / "Project64.cfg"
-        if not cfg_path.exists():
-            saves_dir = get_base_path() / "library" / "saves" / "project64"
-            screenshots_dir = saves_dir / "screenshots"
-            cfg_path.write_text(
-                "[Directory]\n"
-                f"Saves={saves_dir}/\n"
-                f"Screenshots={screenshots_dir}/\n",
                 encoding="utf-8",
             )
 
