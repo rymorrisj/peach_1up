@@ -212,6 +212,18 @@ export default function EmulatorDetail() {
                 { label: 'Eras',       value: eras.join(' · ') || '—' },
                 { label: 'Status',     value: isReady ? 'Ready' : 'Not installed' },
               ]} />
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>Sandbox isolation</span>
+                <span style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
+                  padding: '4px 8px', borderRadius: 'var(--r-1)',
+                  background: entry.container_enabled ? 'color-mix(in srgb, var(--peach-500) 12%, transparent)' : 'var(--surface-2)',
+                  color: entry.container_enabled ? 'var(--peach-400)' : 'var(--fg-3)',
+                  border: `1px solid ${entry.container_enabled ? 'var(--peach-500)' : 'var(--border)'}`,
+                }}>
+                  {entry.container_enabled ? 'AppContainer' : 'Job Object'}
+                </span>
+              </div>
             </div>
             <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
               <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 12 }}>

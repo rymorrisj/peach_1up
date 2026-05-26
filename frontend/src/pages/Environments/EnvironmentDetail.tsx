@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import TopBar from '@/components/layout/TopBar'
+import { ERA_LABELS } from '@/generated/constants'
 import type { components } from '@shared/types'
 
 type Platform = components['schemas']['PlatformRead']
@@ -49,6 +50,24 @@ function ReadRow({ label, value, last = false }: { label: string; value: string;
   )
 }
 
+function EditRow({ label, children, last = false }: { label: string; children: React.ReactNode; last?: boolean }) {
+  return (
+    <div className="flex items-center px-[18px] py-2.5"
+      style={{ borderBottom: last ? 'none' : '1px solid var(--border)', gap: 12 }}>
+      <div style={{ minWidth: 190, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
+        {label}
+      </div>
+      <div style={{ flex: 1 }}>{children}</div>
+    </div>
+  )
+}
+
+const INPUT: React.CSSProperties = {
+  width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)',
+  borderRadius: 'var(--r-2)', padding: '7px 10px', fontFamily: 'var(--font-mono)',
+  fontSize: 12, color: 'var(--fg-1)', outline: 'none',
+}
+
 export default function EnvironmentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -59,6 +78,12 @@ export default function EnvironmentDetail() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [launching, setLaunching] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editForm, setEditForm] = useState({
+    name: '', era: '', emulator_slug: '', base_image_path: '', working_image_path: '', config_path: '',
+  })
+  const [editSaving, setEditSaving] = useState(false)
+  const [editSaveError, setEditSaveError] = useState<string | null>(null)
 
   const { data: platform } = useQuery<Platform>({
     queryKey: ['platform', id],
@@ -91,6 +116,50 @@ export default function EnvironmentDetail() {
     }
   }
 
+  function startEditing() {
+    if (!platform) return
+    setEditForm({
+      name: platform.name,
+      era: platform.era,
+      emulator_slug: platform.emulator_slug,
+      base_image_path: platform.base_image_path ?? '',
+      working_image_path: platform.working_image_path ?? '',
+      config_path: platform.config_path ?? '',
+    })
+    setEditSaveError(null)
+    setTab('overview')
+    setEditing(true)
+  }
+
+  async function handleEditSave() {
+    if (!platform) return
+    setEditSaving(true); setEditSaveError(null)
+    try {
+      await apiFetch(`/api/v1/platforms/${platform.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: editForm.name.trim(),
+          era: editForm.era,
+          emulator_slug: editForm.emulator_slug.trim(),
+          base_image_path: editForm.base_image_path.trim() || null,
+          working_image_path: editForm.working_image_path.trim() || null,
+          config_path: editForm.config_path.trim() || null,
+        }),
+      })
+      await queryClient.invalidateQueries({ queryKey: ['platforms'] })
+      await queryClient.invalidateQueries({ queryKey: ['platform', id] })
+      setEditing(false)
+    } catch (err) {
+      setEditSaveError(err instanceof ApiError ? err.detail : 'Save failed.')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  function setField(key: keyof typeof editForm, value: string) {
+    setEditForm(f => ({ ...f, [key]: value }))
+  }
+
   async function handleLaunch() {
     if (!platform) return
     setLaunching(true)
@@ -121,14 +190,29 @@ export default function EnvironmentDetail() {
           ← Environments
         </button>
         <span style={{ flex: 1 }} />
-        <button type="button" onClick={handleLaunch} disabled={launching}
-          style={{ ...BTN, background: 'var(--peach-500)', color: '#1d0a04' }}>
-          {launching ? 'Launching…' : 'Launch'}
-        </button>
-        <button type="button"
-          style={{ ...BTN, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--fg-2)' }}>
-          ⚙
-        </button>
+        {!editing && (
+          <button type="button" onClick={handleLaunch} disabled={launching}
+            style={{ ...BTN, background: 'var(--peach-500)', color: '#1d0a04' }}>
+            {launching ? 'Launching…' : 'Launch'}
+          </button>
+        )}
+        {editing ? (
+          <>
+            <button type="button" onClick={() => setEditing(false)}
+              style={{ ...BTN, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--fg-2)' }}>
+              Cancel
+            </button>
+            <button type="button" onClick={handleEditSave} disabled={editSaving}
+              style={{ ...BTN, background: 'var(--peach-500)', color: '#1d0a04' }}>
+              {editSaving ? 'Saving…' : 'Save'}
+            </button>
+          </>
+        ) : (
+          <button type="button" onClick={startEditing}
+            style={{ ...BTN, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--fg-2)' }}>
+            Edit
+          </button>
+        )}
       </TopBar>
 
       <div className="p-6">
@@ -154,12 +238,46 @@ export default function EnvironmentDetail() {
                 <div style={{ padding: '14px 18px 8px', fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)' }}>
                   Configuration
                 </div>
-                <ReadRow label="Name" value={platform.name} />
-                <ReadRow label="Era" value={eraKey} />
-                <ReadRow label="Emulator backend" value={platform.emulator_slug} />
-                <ReadRow label="Base image path" value={platform.base_image_path ?? '—'} />
-                <ReadRow label="Working image path" value={platform.working_image_path ?? '—'} />
-                <ReadRow label="Config path" value={platform.config_path ?? '—'} last />
+                {editing ? (
+                  <>
+                    <EditRow label="Name">
+                      <input value={editForm.name} onChange={e => setField('name', e.target.value)} style={INPUT} />
+                    </EditRow>
+                    <EditRow label="Era">
+                      <select value={editForm.era} onChange={e => setField('era', e.target.value)} style={INPUT}>
+                        {Object.entries(ERA_LABELS).map(([k, v]) => (
+                          <option key={k} value={k}>{v}</option>
+                        ))}
+                      </select>
+                    </EditRow>
+                    <EditRow label="Emulator backend">
+                      <input value={editForm.emulator_slug} onChange={e => setField('emulator_slug', e.target.value)} style={INPUT} />
+                    </EditRow>
+                    <EditRow label="Base image path">
+                      <input value={editForm.base_image_path} onChange={e => setField('base_image_path', e.target.value)} style={INPUT} placeholder="optional" />
+                    </EditRow>
+                    <EditRow label="Working image path">
+                      <input value={editForm.working_image_path} onChange={e => setField('working_image_path', e.target.value)} style={INPUT} placeholder="optional" />
+                    </EditRow>
+                    <EditRow label="Config path" last>
+                      <input value={editForm.config_path} onChange={e => setField('config_path', e.target.value)} style={INPUT} placeholder="optional" />
+                    </EditRow>
+                    {editSaveError && (
+                      <div className="px-[18px] py-3" style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--error)' }}>
+                        ❌ {editSaveError}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <ReadRow label="Name" value={platform.name} />
+                    <ReadRow label="Era" value={eraKey} />
+                    <ReadRow label="Emulator backend" value={platform.emulator_slug} />
+                    <ReadRow label="Base image path" value={platform.base_image_path ?? '—'} />
+                    <ReadRow label="Working image path" value={platform.working_image_path ?? '—'} />
+                    <ReadRow label="Config path" value={platform.config_path ?? '—'} last />
+                  </>
+                )}
               </div>
             )}
 
