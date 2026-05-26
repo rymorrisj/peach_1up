@@ -102,12 +102,12 @@ export default function ProfileDetail() {
     if (!profile) return
     setSaving(true); setSaveError(null); setSaved(false)
     try {
-      await apiFetch(`/api/v1/profiles/${profile.slug}`, {
+      const updated = await apiFetch<LaunchProfile>(`/api/v1/profiles/${profile.slug}`, {
         method: 'PATCH',
         body: JSON.stringify({ name: name.trim(), enable_networking: enableNetworking, notes: notes.trim() || null }),
       })
       await queryClient.invalidateQueries({ queryKey: ['profiles'] })
-      setSaved(true); setTimeout(() => setSaved(false), 2000)
+      navigate(`/profiles/${updated.slug}`, { replace: true })
     } catch (err) {
       setSaveError(err instanceof ApiError ? err.detail : 'Save failed.')
     } finally {

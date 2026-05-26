@@ -206,14 +206,17 @@ export default function LaunchProfiles() {
 
       if (modal?.mode === 'create') {
         await apiFetch('/api/v1/profiles', { method: 'POST', body: JSON.stringify(body) })
+        await queryClient.invalidateQueries({ queryKey: ['profiles'] })
+        closeModal()
       } else if (modal?.mode === 'edit') {
-        await apiFetch(`/api/v1/profiles/${modal.profile.slug}`, {
+        const updated = await apiFetch<LaunchProfile>(`/api/v1/profiles/${modal.profile.slug}`, {
           method: 'PATCH',
           body: JSON.stringify(body),
         })
+        await queryClient.invalidateQueries({ queryKey: ['profiles'] })
+        closeModal()
+        navigate(`/profiles/${updated.slug}`)
       }
-      await queryClient.invalidateQueries({ queryKey: ['profiles'] })
-      closeModal()
     } catch (err) {
       const msg = err instanceof ApiError ? err.detail : 'Something went wrong.'
       setSubmitError(msg)

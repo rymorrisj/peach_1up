@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,20 @@ from backend.models.profile import Profile, ProfileCreate, ProfileRead, ProfileU
 from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1/profiles", tags=["profiles"])
+
+
+def _slugify(name: str) -> str:
+    s = re.sub(r'\s+', '-', name.lower())
+    return re.sub(r'[^a-z0-9-]', '', s)
+
+
+def _unique_slug(base: str, exclude_id: int, db: Session) -> str:
+    candidate = base
+    n = 2
+    while db.query(Profile).filter(Profile.slug == candidate, Profile.id != exclude_id).first():
+        candidate = f"{base}-{n}"
+        n += 1
+    return candidate
 
 
 @router.get("", response_model=list[ProfileRead])
@@ -42,8 +58,11 @@ def update_profile(slug: str, body: ProfileUpdate, db: Session = Depends(get_db)
     profile = db.query(Profile).filter(Profile.slug == slug).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
-    for key, value in body.model_dump(exclude_unset=True).items():
+    updates = body.model_dump(exclude_unset=True)
+    for key, value in updates.items():
         setattr(profile, key, value)
+    if 'name' in updates:
+        profile.slug = _unique_slug(_slugify(profile.name), profile.id, db)
     db.commit()
     db.refresh(profile)
     return profile
