@@ -348,19 +348,24 @@ export default function LaunchProfiles() {
         </FormField>
 
         <FormField
-          label="Emulator Slug"
+          label="Emulator"
           htmlFor="lp-emulator"
           required
-          hint="e.g. dosbox, box86, virtualbox, duckstation"
           error={formErrors.emulator_slug}
         >
-          <Input
+          <select
             id="lp-emulator"
             value={form.emulator_slug}
             onChange={(e) => setField('emulator_slug', e.target.value)}
-            placeholder="dosbox"
-            hasError={!!formErrors.emulator_slug}
-          />
+            className={LP_SELECT_CLASS}
+          >
+            <option value="">— Select emulator —</option>
+            {emulators.map((e) => (
+              <option key={e.slug} value={e.slug}>
+                {e.slug}
+              </option>
+            ))}
+          </select>
         </FormField>
 
         <FormField label="Era" htmlFor="lp-era" required error={formErrors.era}>
