@@ -56,6 +56,11 @@ app.include_router(platforms.router)
 app.include_router(filesystem.router)
 app.include_router(media.router)
 
+from backend.service.utils import settings as _peach_settings
+_library_root = Path(_peach_settings.get("LIBRARY_PATH"))
+if _library_root.exists() and _library_root.is_dir():
+    app.mount("/media", StaticFiles(directory=str(_library_root)), name="library-media")
+
 frontend_dist = resource_path("frontend/dist")
 logger.debug("[PEACH] frozen=%s", getattr(sys, 'frozen', False))
 logger.debug("[PEACH] _MEIPASS=%s", getattr(sys, '_MEIPASS', 'N/A'))

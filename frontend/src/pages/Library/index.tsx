@@ -529,7 +529,7 @@ function TagPills({ item }: { item: LibraryItem }) {
 function ItemCard({ item, profiles, onDelete }: ItemCardProps) {
   const profile = item.profile_id != null ? profiles.find((p) => p.id === item.profile_id) : null
   const detailHref = `/library/${item.slug ?? item.id}`
-  const hasCoverArt = !!item.cover_art_path
+  const hasCoverArt = !!item.cover_art_url
   const ratingCls = item.content_rating
     ? (RATING_BADGE[item.content_rating] ?? 'text-neutral-300 border-neutral-600/40')
     : null
@@ -544,7 +544,7 @@ function ItemCard({ item, profiles, onDelete }: ItemCardProps) {
         <div className="relative aspect-video overflow-hidden rounded-xl border border-transparent bg-surface-800 shadow-[0_1px_2px_rgb(20_12_6/0.4)] transition-[transform,box-shadow] duration-200 ease-out group-hover:-translate-y-0.5 group-hover:shadow-[0_4px_12px_rgb(20_12_6/0.45)]">
           {hasCoverArt ? (
             <img
-              src={item.cover_art_path!}
+              src={item.cover_art_url!}
               alt={item.title}
               loading="lazy"
               className="h-full w-full object-cover"

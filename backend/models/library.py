@@ -1,6 +1,8 @@
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
+from pydantic import model_validator
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, func
 from sqlmodel import Field, SQLModel
 
@@ -94,3 +96,17 @@ class LibraryItemRead(LibraryItemBase):
     scan_candidates: Optional[list[dict]] = None
     launch_review_flagged: bool = False
     installed: bool = False
+    cover_art_url: Optional[str] = None
+
+    @model_validator(mode='after')
+    def _compute_cover_art_url(self) -> 'LibraryItemRead':
+        if not self.cover_art_path:
+            return self
+        try:
+            from backend.service.utils import settings as _s
+            lib_root = Path(_s.get("LIBRARY_PATH"))
+            rel = Path(self.cover_art_path).resolve().relative_to(lib_root.resolve())
+            self.cover_art_url = '/media/' + rel.as_posix()
+        except ValueError:
+            pass
+        return self
