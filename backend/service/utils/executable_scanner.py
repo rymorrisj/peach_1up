@@ -28,8 +28,10 @@ def scan_executable_candidates(media_path: Path) -> list[ScanCandidate]:
         return _scan_optical(media_path)
     if media_path.is_dir():
         return _scan_directory(media_path)
+    if suffix in _EXECUTABLE_EXTENSIONS:
+        return [ScanCandidate(path=str(media_path), candidate_type=_candidate_type(media_path.name))]
     raise ValueError(
-        f"Unsupported media: '{media_path}'. Expected .iso, .cue, or a directory."
+        f"Unsupported media: '{media_path}'. Expected .iso, .cue, a directory, or an executable."
     )
 
 

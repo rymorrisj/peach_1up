@@ -1,4 +1,4 @@
-first_run_complete: False
+first_run_complete: false
 DOSBOX_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/dosbox-x/dosbox-x.exe
 BOX86_PATH: C:/Users/ryanm/Desktop/AI Projects/peach_1up/emulators/86box/86Box.exe
 VIRTUALBOX_PATH: C:/Program Files/Oracle/VirtualBox/VBoxManage.exe
