@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from backend.core.settings import get_base_path
@@ -280,10 +281,14 @@ async def launch_environment(
     if platform.working_image_path is None and platform.era in {"win95", "win98", "winxp"}:
         try:
             from backend.service.utils.vm_provisioner import provision_platform
-            # NOTE: provision_platform uses db inside a worker thread. SQLAlchemy sessions
-            # are not thread-safe; this path should be refactored to perform the db write
-            # in the calling thread after the thread returns.
-            _iso_path, working_path, config_path = await asyncio.to_thread(provision_platform, platform, db)
+            _iso_path, working_path, config_path = await asyncio.to_thread(provision_platform, platform)
+            if _iso_path and not platform.base_image_path:
+                db.execute(
+                    update(Platform)
+                    .where(Platform.id == platform.id)
+                    .values(base_image_path=str(_iso_path))
+                )
+                db.flush()
             if working_path:
                 platform.working_image_path = working_path
             if config_path:

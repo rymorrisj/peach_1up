@@ -21,9 +21,6 @@ import ctypes.wintypes
 import os
 import sys
 
-import yaml
-
-from backend.core.settings import get_base_path
 from backend.service.utils.win32_types import (
     _JOB_OBJECT_LIMIT_PROCESS_MEMORY,
     _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
@@ -35,27 +32,12 @@ from backend.service.utils.win32_types import (
     JOBOBJECT_BASIC_ACCOUNTING_INFORMATION,
 )
 from backend.core.logger import get_logger
+from backend.service.utils.eras_config import get_cpu_min_rate
 from backend.service.utils.sandbox_process import SandboxProcess
 
 logger = get_logger(__name__)
 
-
-def _load_cpu_min_rate_percent() -> int:
-    try:
-        eras_path = get_base_path() / "config" / "eras.yaml"
-        eras = yaml.safe_load(eras_path.read_text(encoding="utf-8")) or {}
-        val = eras.get("cpu_min_rate_percent")
-        if val is not None:
-            return int(val)
-    except Exception:
-        pass
-    logger.warning(
-        "cpu_min_rate_percent not found in eras.yaml; defaulting to 5."
-    )
-    return 5
-
-
-_CPU_MIN_RATE_PERCENT: int = _load_cpu_min_rate_percent()
+_CPU_MIN_RATE_PERCENT: int = get_cpu_min_rate("")
 
 
 def _process_in_job(pid: int) -> bool:

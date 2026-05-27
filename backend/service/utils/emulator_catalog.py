@@ -10,6 +10,21 @@ _BASE_DIR = get_base_path() / "emulators"
 _PROFILES_PATH = get_base_path() / "config" / "86box-profiles.toml"
 _PROFILES_DIR = get_base_path() / "config" / "86box-profiles"
 
+_catalog_cache: dict | None = None
+
+
+def _load_raw_catalog() -> dict:
+    global _catalog_cache
+    if _catalog_cache is None:
+        _catalog_cache = tomllib.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
+    return _catalog_cache
+
+
+def reset_catalog_cache() -> None:
+    global _catalog_cache
+    _catalog_cache = None
+
+
 _SLUG_TO_SETTINGS_KEY: dict[str, str] = {
     "dosbox-x":    "DOSBOX_PATH",
     "86box":       "BOX86_PATH",
@@ -55,8 +70,7 @@ def get_86box_profile(slug: str) -> dict:
 
 
 def load_catalog() -> list[dict]:
-    data = tomllib.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
-    return data.get("emulators", [])
+    return _load_raw_catalog().get("emulators", [])
 
 
 def get_emulator(slug: str) -> dict:
@@ -255,8 +269,7 @@ def get_container_config(slug: str, exe_path: str) -> "SandboxConfig | None":
 
 
 def load_bios_requirements() -> list[dict]:
-    data = tomllib.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
-    return data.get("bios_requirements", [])
+    return _load_raw_catalog().get("bios_requirements", [])
 
 
 def check_bios_presence(bios_path: str) -> bool:

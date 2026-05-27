@@ -410,7 +410,7 @@ def provision_xemu_vm(platform: Platform) -> tuple[str | None, str, str]:
     return None, str(vm_dir / "xbox_hdd.qcow2"), str(toml_path)
 
 
-def provision_platform(platform: Platform, db: Session) -> tuple[str | None, str | None, str | None]:
+def provision_platform(platform: Platform, db: Session | None = None) -> tuple[str | None, str | None, str | None]:
     """Provision a working image for a platform, selecting the backend by era.
 
     Provisions 86Box for win95/win98 (the new default), VirtualBox for winxp.
@@ -444,7 +444,7 @@ def provision_platform(platform: Platform, db: Session) -> tuple[str | None, str
         rom_dir = _resolve_rom_path(Path(box86_path))
         hw_profile = getattr(platform, "hardware_profile", None) or "standard"
         iso_path, img_path, cfg_path = provision_86box_vm(platform, box86_path, str(rom_dir), hw_profile)
-        if iso_path and not platform.base_image_path:
+        if iso_path and not platform.base_image_path and db is not None:
             # Explicit ORM update — avoids relying on session change-tracking for
             # a destructive write. db.commit() is the caller's responsibility.
             db.execute(

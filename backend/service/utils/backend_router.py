@@ -21,7 +21,29 @@ def _load_eras_config() -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
-_ERAS_CONFIG: Dict[str, Any] = _load_eras_config()
+_ERAS_CONFIG: Dict[str, Any] | None = None
+
+
+def _get_eras_config() -> Dict[str, Any]:
+    global _ERAS_CONFIG
+    if _ERAS_CONFIG is None:
+        _ERAS_CONFIG = _load_eras_config()
+    return _ERAS_CONFIG
+
+
+_CONSOLE_BACKENDS: frozenset[str] = frozenset({
+    BackendSlug.DUCKSTATION.value,
+    BackendSlug.PCSX2.value,
+    BackendSlug.MESEN.value,
+    BackendSlug.PROJECT64.value,
+    BackendSlug.FLYCAST.value,
+})
+
+_PLATFORM_BACKENDS: frozenset[str] = frozenset({
+    BackendSlug.BOX86.value,
+    BackendSlug.VIRTUALBOX.value,
+    BackendSlug.XEMU.value,
+})
 
 
 def resolve_backend_name(era: Era) -> str:
@@ -40,7 +62,7 @@ def resolve_backend_name(era: Era) -> str:
         RuntimeError: If eras.yaml cannot be loaded or the era is not configured.
         ValueError: If the era has no resolvable backend.
     """
-    era_config = _ERAS_CONFIG.get(era.value)
+    era_config = _get_eras_config().get(era.value)
     if not era_config:
         raise ValueError(f"Era '{era.value}' not found in eras.yaml")
 
@@ -226,23 +248,10 @@ def launch_media(era, media_path, profile=None, platform=None, launch_commands: 
     launch_fn = get_launch_fn(era)
     backend_name = resolve_backend_name(era)
 
-    _console_backends = {
-        BackendSlug.DUCKSTATION.value,
-        BackendSlug.PCSX2.value,
-        BackendSlug.MESEN.value,
-        BackendSlug.PROJECT64.value,
-        BackendSlug.FLYCAST.value,
-    }
-    _platform_backends = {
-        BackendSlug.BOX86.value,
-        BackendSlug.VIRTUALBOX.value,
-        BackendSlug.XEMU.value,
-    }
-
-    if backend_name in _console_backends:
+    if backend_name in _CONSOLE_BACKENDS:
         return launch_fn(media_path=media_path, era=era.value, executable_path=executable_path)
 
-    if backend_name in _platform_backends:
+    if backend_name in _PLATFORM_BACKENDS:
         if platform is None:
             raise RuntimeError(
                 f"A Platform record is required to launch era '{era.value}' "

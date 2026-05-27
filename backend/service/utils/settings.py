@@ -49,16 +49,16 @@ _DEFAULTS: dict = {
     "suppress_confirmations": [],
 }
 
-# Maps emulator key → (env_var_name, settings_yaml_key)
-_ENV_BINARY_VARS: dict[str, tuple[str, str]] = {
-    "dosbox":       ("DOSBOX_PATH",       "DOSBOX_PATH"),
-    "virtualbox":   ("VIRTUALBOX_PATH",   "VIRTUALBOX_PATH"),
-    "box86":        ("BOX86_PATH",        "BOX86_PATH"),
-    "duckstation":  ("DUCKSTATION_PATH",  "DUCKSTATION_PATH"),
-    "pcsx2":        ("PCSX2_PATH",        "PCSX2_PATH"),
-    "xemu":         ("XEMU_PATH",         "XEMU_PATH"),
-    "mesen":        ("MESEN_PATH",        "MESEN_PATH"),
-    "project64":    ("PROJECT64_PATH",    "PROJECT64_PATH"),
+# Maps emulator key → settings key (env var name and yaml key are always identical).
+_ENV_BINARY_VARS: dict[str, str] = {
+    "dosbox":       "DOSBOX_PATH",
+    "virtualbox":   "VIRTUALBOX_PATH",
+    "box86":        "BOX86_PATH",
+    "duckstation":  "DUCKSTATION_PATH",
+    "pcsx2":        "PCSX2_PATH",
+    "xemu":         "XEMU_PATH",
+    "mesen":        "MESEN_PATH",
+    "project64":    "PROJECT64_PATH",
 }
 
 # Path keys whose values are normalised to forward slashes on save.
@@ -107,6 +107,18 @@ _BUNDLED: dict[str, Path] = {
     "virtualbox":  _PROJECT_ROOT / "emulators" / "virtualbox" / "VBoxManage.exe",
 }
 
+_PATH_DEFAULTS: dict[str, str] = {
+    "LIBRARY_PATH":  str((_PROJECT_ROOT / "library").resolve()),
+    "MEDIA_PATH":    str((_PROJECT_ROOT / "library" / "media").resolve()),
+    "OS_PATH":       str((_PROJECT_ROOT / "library" / "system" / "os").resolve()),
+    "DRIVES_PATH":   str((_PROJECT_ROOT / "library" / "system" / "drives").resolve()),
+    "ROMS_PATH":     str((_PROJECT_ROOT / "library" / "system" / "roms" / "86box").resolve()),
+    "BIOS_PATH":     str((_PROJECT_ROOT / "library" / "system" / "bios").resolve()),
+    "PROFILES_PATH": str((_PROJECT_ROOT / "library" / "system" / "profiles").resolve()),
+    "DOSBOX_PATH":   str((_PROJECT_ROOT / "emulators" / "dosbox-x" / "dosbox-x.exe").resolve()),
+    "BOX86_PATH":    str((_PROJECT_ROOT / "emulators" / "86box" / "86Box.exe").resolve()),
+}
+
 # None until init() is called; dict thereafter
 _state: Optional[dict] = None
 
@@ -151,26 +163,15 @@ def init() -> None:
             if not _pp.is_absolute():
                 state[_pkey] = str((_project_root / _pp).resolve())
 
-    _root = _get_project_root()
-    for _key, _default in {
-        "LIBRARY_PATH":  _root / "library",
-        "MEDIA_PATH":    _root / "library" / "media",
-        "OS_PATH":       _root / "library" / "system" / "os",
-        "DRIVES_PATH":   _root / "library" / "system" / "drives",
-        "ROMS_PATH":     _root / "library" / "system" / "roms" / "86box",
-        "BIOS_PATH":     _root / "library" / "system" / "bios",
-        "PROFILES_PATH": _root / "library" / "system" / "profiles",
-        "DOSBOX_PATH":   _root / "emulators" / "dosbox-x" / "dosbox-x.exe",
-        "BOX86_PATH":    _root / "emulators" / "86box" / "86Box.exe",
-    }.items():
+    for _key, _default in _PATH_DEFAULTS.items():
         if not state.get(_key):
-            state[_key] = str(_default)
+            state[_key] = _default
 
     # Snapshot .env values after load_dotenv() so path resolution never calls
     # os.getenv() at call time. settings.yaml values are already in state;
     # these .env values take precedence when non-empty.
     _env: dict[str, str] = {}
-    for _emulator, (env_var, _yaml_key) in _ENV_BINARY_VARS.items():
+    for _emulator, env_var in _ENV_BINARY_VARS.items():
         _env[env_var] = os.getenv(env_var, "")
     _env["LIBRARY_PATH"] = os.getenv("LIBRARY_PATH", "")
     _env["MEDIA_PATH"] = os.getenv("MEDIA_PATH", "")
@@ -213,21 +214,7 @@ def get_env_var(key: str) -> str:
     yaml_val = state.get(key, "") or ""
     if yaml_val:
         return str(yaml_val)
-    if key == "PROFILES_PATH":
-        return str((_PROJECT_ROOT / "library" / "system" / "profiles").resolve())
-    if key == "LIBRARY_PATH":
-        return str((_PROJECT_ROOT / "library").resolve())
-    if key == "MEDIA_PATH":
-        return str((_PROJECT_ROOT / "library" / "media").resolve())
-    if key == "OS_PATH":
-        return str((_PROJECT_ROOT / "library" / "system" / "os").resolve())
-    if key == "DRIVES_PATH":
-        return str((_PROJECT_ROOT / "library" / "system" / "drives").resolve())
-    if key == "ROMS_PATH":
-        return str((_PROJECT_ROOT / "library" / "system" / "roms" / "86box").resolve())
-    if key == "BIOS_PATH":
-        return str((_PROJECT_ROOT / "library" / "system" / "bios").resolve())
-    return ""
+    return _PATH_DEFAULTS.get(key, "")
 
 
 def _require_init() -> dict:
@@ -266,11 +253,11 @@ def get_binary_path(emulator: str) -> str:
             f"Valid values: {', '.join(sorted(_ENV_BINARY_VARS))}"
         )
 
-    env_var, yaml_key = _ENV_BINARY_VARS[emulator]
-    env_val = state["_env"].get(env_var, "") or ""
+    settings_key = _ENV_BINARY_VARS[emulator]
+    env_val = state["_env"].get(settings_key, "") or ""
     if env_val:
         return env_val
-    yaml_val = state.get(yaml_key, "") or ""
+    yaml_val = state.get(settings_key, "") or ""
     if yaml_val:
         return yaml_val
     bundled = _BUNDLED.get(emulator)
@@ -402,7 +389,7 @@ def set_override_path(emulator: str, path: str) -> None:
         except ValueError as exc:
             raise ValueError(f"Invalid path: {exc}") from exc
 
-    _, yaml_key = _ENV_BINARY_VARS[emulator]
+    yaml_key = _ENV_BINARY_VARS[emulator]
     state[yaml_key] = path
     _save()
 

@@ -17,6 +17,7 @@ import yaml
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import get_emulator
+from backend.service.utils.eras_config import get_cpu_min_rate
 from backend.service.utils.sandbox import sandbox
 from backend.service.utils.sandbox.sandbox_config import BrokerFile, SandboxConfig
 from backend.service.utils.sandbox.sandbox_error import SandboxError
@@ -43,22 +44,8 @@ _SLUG_TO_ERA: dict[str, str] = {
     "flycast":     "dreamcast",
 }
 
-def _load_cpu_min_rate() -> int:
-    try:
-        eras = yaml.safe_load(_ERAS_PATH.read_text(encoding="utf-8")) or {}
-        val = eras.get("cpu_min_rate_percent")
-        if val is not None:
-            return int(val)
-    except Exception:
-        pass
-    logger.warning(
-        "cpu_min_rate_percent not found in eras.yaml; defaulting to 5."
-    )
-    return 5
-
-
 # Floor mirrors MinRate in job_objects.py (cpu_min_rate_percent * 100 / 10000).
-_CPU_MIN_RATE: int = _load_cpu_min_rate()
+_CPU_MIN_RATE: int = get_cpu_min_rate("")
 
 
 def _load_era(slug: str) -> dict:
