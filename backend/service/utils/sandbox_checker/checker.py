@@ -55,7 +55,7 @@ async def _async_run_one(
             affects=affects,
         )
 
-    exit_code = handle._proc.returncode
+    exit_code = await asyncio.to_thread(handle._proc.wait)
     if exit_code == 0:
         return CheckResult(
             name=name,
@@ -97,12 +97,7 @@ def _run_one(
         cpu_min_rate=5,
     )
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(_async_run_one(name, config, pass_message, affects))
-    finally:
-        loop.close()
+    return asyncio.run(_async_run_one(name, config, pass_message, affects))
 
 
 def run_checks() -> list[CheckResult]:
