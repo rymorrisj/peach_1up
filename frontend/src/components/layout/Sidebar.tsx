@@ -12,6 +12,7 @@ const ERA_ITEMS = [
 const NAV_ITEMS = [
   { to: '/library',         label: 'Library',          glyph: '📚', activeLaunchType: 'library_item' as const },
   { to: '/emulators',       label: 'Emulators',        glyph: '🖥️' },
+  { to: '/guides',          label: 'Guides',           glyph: '📖' },
   { to: '/environments',    label: 'Environments',     glyph: '💻', activeLaunchType: 'environment' as const },
   { to: '/platform-health', label: 'Platform Health',  glyph: '🩺' },
   { to: '/profiles',        label: 'Profiles',         glyph: '💾' },
