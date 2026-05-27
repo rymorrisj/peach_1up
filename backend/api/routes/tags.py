@@ -18,7 +18,7 @@ def _tag_read(tag: Tag, db: Session) -> TagRead:
         .scalar()
         or 0
     )
-    return TagRead(id=tag.id, name=tag.name, item_count=count)
+    return TagRead(id=tag.id, name=tag.name, color=tag.color, item_count=count)
 
 
 @router.get("", response_model=list[TagRead])
@@ -38,7 +38,7 @@ def create_tag(
         raise HTTPException(status_code=422, detail="Tag name cannot be blank.")
     if db.query(Tag).filter(Tag.name == name).first():
         raise HTTPException(status_code=409, detail="A tag with that name already exists.")
-    tag = Tag(name=name)
+    tag = Tag(name=name, color=body.color)
     db.add(tag)
     db.commit()
     db.refresh(tag)

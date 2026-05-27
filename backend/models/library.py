@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Optional
 from pydantic import model_validator
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, func
 from sqlmodel import Field, Relationship, SQLModel
-from backend.models.tag import LibraryItemTag
+from backend.models.tag import LibraryItemTag, TagRead
 
 if TYPE_CHECKING:
     from backend.models.drive import Drive
@@ -119,6 +119,7 @@ class LibraryItemRead(LibraryItemBase):
     launch_review_flagged: bool = False
     installed: bool = False
     cover_art_url: Optional[str] = None
+    tags: list[TagRead] = []
 
     @model_validator(mode='after')
     def _compute_cover_art_url(self) -> 'LibraryItemRead':

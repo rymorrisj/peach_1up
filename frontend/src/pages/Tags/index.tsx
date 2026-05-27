@@ -2,23 +2,14 @@ import { useEffect, useState } from 'react'
 import TopBar from '@/components/layout/TopBar'
 import { ERA_LABELS } from '@/generated/constants'
 import { apiFetch } from '@/api/client'
+import { TAG_SWATCHES, swatchHex } from '@/components/Tags'
 
 interface UserTag {
   id: number
   name: string
   item_count: number
-  swatch: string
+  color: string
 }
-
-const TAG_SWATCHES = [
-  { id: 'slate',  hex: '#7a8499' },
-  { id: 'coral',  hex: '#e07463' },
-  { id: 'amber',  hex: '#d4954a' },
-  { id: 'mint',   hex: '#59b87a' },
-  { id: 'sky',    hex: '#5ba4cf' },
-  { id: 'violet', hex: '#8b6dc4' },
-  { id: 'rose',   hex: '#c46d8b' },
-]
 
 const SYSTEM_HARDWARE_TAGS = [
   { id: 'mt32',    label: 'MT-32' },
@@ -36,10 +27,6 @@ const SYSTEM_CONTENT_TAGS = [
   { id: 'demo',        label: 'Demo' },
   { id: 'rom-pack',    label: 'ROM Pack' },
 ]
-
-function swatchFromId(id: number): string {
-  return TAG_SWATCHES[id % TAG_SWATCHES.length].id
-}
 
 function SwatchPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   return (
@@ -108,13 +95,13 @@ export default function Tags() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    apiFetch<{ id: number; name: string; item_count: number }[]>('/api/v1/tags')
+    apiFetch<{ id: number; name: string; color: string; item_count: number }[]>('/api/v1/tags')
       .then((tags) => {
         setUserTags(tags.map((t) => ({
           id: t.id,
           name: t.name,
           item_count: t.item_count,
-          swatch: swatchFromId(t.id),
+          color: t.color,
         })))
       })
       .catch(() => {})
@@ -125,13 +112,13 @@ export default function Tags() {
     const name = newName.trim()
     if (!name) return
     try {
-      const tag = await apiFetch<{ id: number; name: string; item_count: number }>('/api/v1/tags', {
+      const tag = await apiFetch<{ id: number; name: string; color: string; item_count: number }>('/api/v1/tags', {
         method: 'POST',
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, color: newSwatch }),
       })
       setUserTags((prev) => [
         ...prev,
-        { id: tag.id, name: tag.name, item_count: tag.item_count, swatch: swatchFromId(tag.id) },
+        { id: tag.id, name: tag.name, item_count: tag.item_count, color: tag.color },
       ])
       setNewName('')
       setNewSwatch('slate')
@@ -149,8 +136,6 @@ export default function Tags() {
       // error surfacing left to a future toast layer
     }
   }
-
-  const swatchHex = (swatchId: string) => TAG_SWATCHES.find((s) => s.id === swatchId)?.hex ?? '#7a8499'
 
   const eraItems = Object.entries(ERA_LABELS).map(([id, label]) => ({ id, label }))
 
@@ -202,7 +187,7 @@ export default function Tags() {
           </div>
         ) : (
           userTags.map((t) => {
-            const hex = swatchHex(t.swatch)
+            const hex = swatchHex(t.color)
             const confirming = confirmId === t.id
             return (
               <div

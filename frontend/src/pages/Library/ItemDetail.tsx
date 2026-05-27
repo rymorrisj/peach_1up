@@ -7,6 +7,7 @@ import TopBar from '@/components/layout/TopBar'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
 import LaunchCommandList from '@/components/LaunchCommandList'
+import { TagChips, TagCombobox } from '@/components/Tags'
 import { useAppContext } from '@/context/AppContext'
 import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
 import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal'
@@ -260,6 +261,31 @@ export default function ItemDetail() {
     }
   }
 
+  // ── Tags ──
+  const [tagError, setTagError] = useState<string | null>(null)
+
+  async function handleRemoveTag(tagId: number) {
+    if (!item) return
+    setTagError(null)
+    try {
+      await apiFetch(`/api/v1/tags/${tagId}/items/${item.id}`, { method: 'DELETE' })
+      queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
+    } catch (err) {
+      setTagError(err instanceof ApiError ? err.detail : 'Failed to remove tag.')
+    }
+  }
+
+  async function handleAssignTag(tagId: number) {
+    if (!item) return
+    setTagError(null)
+    try {
+      await apiFetch(`/api/v1/tags/${tagId}/items/${item.id}`, { method: 'POST' })
+      queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
+    } catch (err) {
+      setTagError(err instanceof ApiError ? err.detail : 'Failed to add tag.')
+    }
+  }
+
   // ── Installed toggle ──
   const installedDialogRef = useRef<HTMLDialogElement>(null)
   const [installedModalTarget, setInstalledModalTarget] = useState<boolean | null>(null)
@@ -391,6 +417,32 @@ export default function ItemDetail() {
                 </span>
               </div>
             </>
+          )}
+        </section>
+
+        {/* ── Tags ── */}
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+            Tags
+          </h2>
+
+          <TagChips
+            tags={item.tags ?? []}
+            onRemove={isAdminOrOwner ? handleRemoveTag : undefined}
+          />
+
+          {isAdminOrOwner && (
+            <TagCombobox
+              itemId={item.id}
+              assignedTagIds={(item.tags ?? []).map((t) => t.id)}
+              onAssign={handleAssignTag}
+            />
+          )}
+
+          {tagError && (
+            <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+              ❌ {tagError}
+            </p>
           )}
         </section>
 
