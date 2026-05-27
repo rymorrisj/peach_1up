@@ -6,6 +6,7 @@ import { Button, FormField, Input, Textarea } from '@/ui'
 import TopBar from '@/components/layout/TopBar'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
+import FileBrowser from '@/components/common/FileBrowser'
 import LaunchCommandList from '@/components/LaunchCommandList'
 import { TagChips, TagCombobox } from '@/components/Tags'
 import { useAppContext } from '@/context/AppContext'
@@ -103,6 +104,7 @@ export default function ItemDetail() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [execBrowserOpen, setExecBrowserOpen] = useState(false)
 
   useEffect(() => {
     if (item && !form) setForm(formFromItem(item))
@@ -158,6 +160,7 @@ export default function ItemDetail() {
           era: form.era || null,
           platform_id: form.platform_id ? parseInt(form.platform_id, 10) : null,
           profile_id: form.profile_id ? parseInt(form.profile_id, 10) : null,
+          executable_path: form.executable_path.trim() || null,
           launch_commands: launchCommands ?? item.launch_commands ?? [],
         }),
       })
@@ -540,6 +543,40 @@ export default function ItemDetail() {
               onChange={(v) => setField('cover_art_path', v)}
               placeholder="C:\Images\cover.png"
             />
+          </FormField>
+
+          <FormField label="Launch File" htmlFor="detail-executable">
+            <div className="flex items-center gap-2">
+              <span
+                className="min-w-0 flex-1 truncate rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-surface-800"
+                title={form.executable_path || undefined}
+              >
+                {form.executable_path
+                  ? <span className="font-mono text-neutral-700 dark:text-neutral-300">{form.executable_path.split(/[\\/]/).pop()}</span>
+                  : <span className="italic text-neutral-400 dark:text-neutral-500">No launch file detected — browse to set one.</span>
+                }
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setExecBrowserOpen(true)}
+              >
+                Browse…
+              </Button>
+            </div>
+            <FileBrowser
+              open={execBrowserOpen}
+              onClose={() => setExecBrowserOpen(false)}
+              onSelect={(path) => { setField('executable_path', path); setExecBrowserOpen(false) }}
+              mode="file"
+              extensions="cue,iso,chd,xiso,exe"
+              title="Select Launch File"
+              rootPath={item.folder_path ?? null}
+            />
+            <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+              The file Peach 1UP will launch. Auto-detected from your media folder — override if incorrect.
+            </p>
           </FormField>
 
           <div className="grid grid-cols-2 gap-4">

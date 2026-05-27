@@ -390,6 +390,12 @@ def delete_library_item(
     item = db.get(LibraryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found.")
+    from backend.models.drive import Drive
+    if item.drive_id is not None:
+        item.drive_id = None
+        db.flush()
+    db.query(Drive).filter(Drive.library_item_id == item_id).delete()
+    db.flush()
     db.delete(item)
     db.commit()
 

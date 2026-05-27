@@ -157,6 +157,19 @@ async def launch_item(
         db.add(item)
         db.commit()
 
+    # Prefer the item's explicitly set launch file over the raw media_path.
+    # For folder-based items (scanned from a folder), media_path is the
+    # folder — executable_path is the detected or user-set launch file.
+    effective_media_path = item.executable_path if item.executable_path else item.media_path
+    if Path(effective_media_path).is_dir() and drive is None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "No launch file is set for this item. "
+                "Open the item detail page and browse to select the file to launch."
+            ),
+        )
+
     history = LaunchHistory(
         library_item_id=item.id,
         profile_id=profile.id if profile else None,
@@ -175,7 +188,7 @@ async def launch_item(
         result = await asyncio.to_thread(
             launch_media,
             item.era,
-            item.media_path,
+            effective_media_path,
             profile,
             platform_record,
             launch_commands=item.launch_commands,
