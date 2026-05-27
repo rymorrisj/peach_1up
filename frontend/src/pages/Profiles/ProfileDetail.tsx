@@ -6,6 +6,7 @@ import TopBar from '@/components/layout/TopBar'
 import type { components } from '@shared/types'
 
 type LaunchProfile = components['schemas']['ProfileRead']
+type LibraryItem = components['schemas']['LibraryItemRead']
 
 const ERA_COLOR: Record<string, string> = {
   DOS: 'var(--era-dos)', WIN31: 'var(--era-win31)', WIN95: 'var(--era-win95)',
@@ -13,7 +14,7 @@ const ERA_COLOR: Record<string, string> = {
   PS2: '#6090d0', XBOX: '#6db36d', DC: '#d0a060', NES: '#d06060', N64: '#60a0d0',
 }
 
-type Tab = 'identity' | 'emulator' | 'media' | 'performance'
+type Tab = 'identity' | 'emulator' | 'media' | 'performance' | 'library'
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -90,6 +91,12 @@ export default function ProfileDetail() {
   })
 
   const profile = profiles.find((p) => p.slug === slug)
+
+  const { data: items = [] } = useQuery<LibraryItem[]>({
+    queryKey: ['profile-items', slug],
+    queryFn: () => apiFetch<LibraryItem[]>(`/api/v1/profiles/${slug}/items`),
+    enabled: !!slug,
+  })
 
   useEffect(() => {
     if (!profile) return
@@ -203,6 +210,7 @@ export default function ProfileDetail() {
           <TabBtn label="Emulator" active={tab === 'emulator'} onClick={() => setTab('emulator')} />
           <TabBtn label="Media" active={tab === 'media'} onClick={() => setTab('media')} />
           <TabBtn label="Performance" active={tab === 'performance'} onClick={() => setTab('performance')} />
+          <TabBtn label="Library" active={tab === 'library'} onClick={() => setTab('library')} />
         </div>
 
         <div className="grid gap-3.5" style={{ gridTemplateColumns: '1fr 300px' }}>
@@ -280,6 +288,35 @@ export default function ProfileDetail() {
                 </FieldRow>
               </SectionCard>
             )}
+
+            {tab === 'library' && (
+              <SectionCard title="Bound items">
+                {items.length === 0 ? (
+                  <div className="px-[18px] py-4" style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
+                    No library items bound to this profile.
+                  </div>
+                ) : items.map((item, i) => (
+                  <div key={item.id} className="flex items-center px-[18px] py-3"
+                    style={{ borderBottom: i < items.length - 1 ? '1px solid var(--border)' : 'none', gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 13, color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.title}
+                      </div>
+                      {item.year && (
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>{item.year}</div>
+                      )}
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', whiteSpace: 'nowrap' }}>
+                      {item.launch_count > 0 ? `${item.launch_count} launch${item.launch_count !== 1 ? 'es' : ''}` : 'never launched'}
+                    </div>
+                    <button type="button" onClick={() => navigate(`/library/${item.slug ?? item.id}`)}
+                      style={{ background: 'none', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--peach-500)', cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}>
+                      View →
+                    </button>
+                  </div>
+                ))}
+              </SectionCard>
+            )}
           </div>
 
           <div className="flex flex-col gap-3.5">
@@ -288,9 +325,9 @@ export default function ProfileDetail() {
                 At a glance
               </div>
               {[
-                { label: 'launches', value: '—' },
-                { label: 'playtime', value: '—' },
-                { label: 'last launch', value: '—' },
+                { label: 'launches', value: profile.total_launches > 0 ? String(profile.total_launches) : '—' },
+                { label: 'items', value: profile.item_count > 0 ? String(profile.item_count) : '—' },
+                { label: 'last launch', value: profile.last_launched_at ? new Date(profile.last_launched_at).toLocaleDateString() : '—' },
               ].map(({ label, value }) => (
                 <div key={label} className="mb-3.5">
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, lineHeight: 1, color: 'var(--fg-1)' }}>{value}</div>

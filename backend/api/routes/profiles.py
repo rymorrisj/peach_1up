@@ -1,14 +1,30 @@
 import re
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
+from backend.models.launch_history import LaunchHistory
+from backend.models.library import LibraryItem, LibraryItemRead
 from backend.models.profile import Profile, ProfileCreate, ProfileRead, ProfileUpdate
 from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1/profiles", tags=["profiles"])
+
+
+def _with_stats(profile: Profile, db: Session) -> ProfileRead:
+    (item_count,) = db.query(func.count(LibraryItem.id)).filter(LibraryItem.profile_id == profile.id).one()
+    total_launches, last_launched_at = db.query(
+        func.count(LaunchHistory.id),
+        func.max(LaunchHistory.started_at),
+    ).filter(LaunchHistory.profile_id == profile.id).one()
+    read = ProfileRead.model_validate(profile)
+    read.item_count = item_count or 0
+    read.total_launches = int(total_launches or 0)
+    read.last_launched_at = last_launched_at
+    return read
 
 
 def _slugify(name: str) -> str:
@@ -30,7 +46,7 @@ def list_profiles(era: str | None = None, db: Session = Depends(get_db)):
     q = db.query(Profile)
     if era:
         q = q.filter(Profile.era == era)
-    return q.all()
+    return [_with_stats(p, db) for p in q.all()]
 
 
 @router.post("", response_model=ProfileRead, status_code=201)
@@ -50,7 +66,15 @@ def get_profile(slug: str, db: Session = Depends(get_db)):
     profile = db.query(Profile).filter(Profile.slug == slug).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
-    return profile
+    return _with_stats(profile, db)
+
+
+@router.get("/{slug}/items", response_model=list[LibraryItemRead])
+def get_profile_items(slug: str, db: Session = Depends(get_db)):
+    profile = db.query(Profile).filter(Profile.slug == slug).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found.")
+    return db.query(LibraryItem).filter(LibraryItem.profile_id == profile.id).all()
 
 
 @router.patch("/{slug}", response_model=ProfileRead)
@@ -65,7 +89,7 @@ def update_profile(slug: str, body: ProfileUpdate, db: Session = Depends(get_db)
         profile.slug = _unique_slug(_slugify(profile.name), profile.id, db)
     db.commit()
     db.refresh(profile)
-    return profile
+    return _with_stats(profile, db)
 
 
 @router.delete("/{slug}", status_code=204)

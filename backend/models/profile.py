@@ -60,3 +60,6 @@ class ProfileRead(ProfileBase):
     user_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
+    item_count: int = 0
+    total_launches: int = 0
+    last_launched_at: Optional[datetime] = None
