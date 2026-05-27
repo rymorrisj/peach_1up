@@ -534,31 +534,35 @@ def _build_boot_sector(geo: dict) -> bytes:
 def format_fat16(img_path: Path, size_mb: int) -> None:
     """Create a blank FAT16 image file at img_path with a capacity of size_mb MiB.
 
-    The file is zero-filled first (making every directory slot "never used" and
-    every cluster free), then the boot sector and both FAT copies are written on
-    top.  The root directory region does not need explicit initialisation because
-    the zero-fill already sets the first byte of each entry to 0x00, which FAT
-    interprets as "end of directory" and skips on reads.
+    The file is created as a sparse file (seek to end, write one null byte) so
+    that the full image size is not allocated in heap. The boot sector and both
+    FAT copies are then written into the sparse file. All unwritten regions read
+    back as zeros, which FAT16 interprets as free clusters and end-of-directory
+    markers.
 
     Raises:
         RuntimeError: If img_path already exists (never overwrites).
-        RuntimeError: If size_mb is outside the supported range 10–2048.
+        ValueError: If size_mb is outside the supported range 10–1024 (FAT16 maximum).
     """
     if img_path.exists():
         raise RuntimeError(
             f"format_fat16: {img_path} already exists — refusing to overwrite"
         )
-    if not (10 <= size_mb <= 2048):
-        raise RuntimeError(
-            f"format_fat16: size_mb={size_mb} is outside the supported range 10–2048"
+    if not (10 <= size_mb <= 1024):
+        raise ValueError(
+            f"format_fat16: size_mb={size_mb} exceeds the FAT16 maximum of 1024 MB "
+            f"(supported range: 10–1024)"
         )
 
     geo         = _calc_geometry(size_mb)
     total_bytes = size_mb * 1024 * 1024
 
-    # Zero-fill the entire image so all FAT entries, directory slots, and
-    # data-area slack are clean even if write_file_to_image never touches them.
-    img_path.write_bytes(b"\x00" * total_bytes)
+    # Create a sparse file: seek to the last byte and write one null byte.
+    # Unwritten regions read back as zeros — free clusters and end-of-directory
+    # markers — without allocating the full image in heap.
+    with img_path.open("wb") as f:
+        f.seek(total_bytes - 1)
+        f.write(b"\x00")
 
     with img_path.open("r+b") as f:
         # Boot sector at byte 0 (sector 0).

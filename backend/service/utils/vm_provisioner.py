@@ -21,6 +21,8 @@ import uuid
 from pathlib import Path
 
 import yaml
+from sqlalchemy import update
+from sqlalchemy.orm import Session
 
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
@@ -408,7 +410,7 @@ def provision_xemu_vm(platform: Platform) -> tuple[str | None, str, str]:
     return None, str(vm_dir / "xbox_hdd.qcow2"), str(toml_path)
 
 
-def provision_platform(platform: Platform) -> tuple[str | None, str | None, str | None]:
+def provision_platform(platform: Platform, db: Session) -> tuple[str | None, str | None, str | None]:
     """Provision a working image for a platform, selecting the backend by era.
 
     Provisions 86Box for win95/win98 (the new default), VirtualBox for winxp.
@@ -443,7 +445,14 @@ def provision_platform(platform: Platform) -> tuple[str | None, str | None, str 
         hw_profile = getattr(platform, "hardware_profile", None) or "standard"
         iso_path, img_path, cfg_path = provision_86box_vm(platform, box86_path, str(rom_dir), hw_profile)
         if iso_path and not platform.base_image_path:
-            platform.base_image_path = iso_path
+            # Explicit ORM update — avoids relying on session change-tracking for
+            # a destructive write. db.commit() is the caller's responsibility.
+            db.execute(
+                update(Platform)
+                .where(Platform.id == platform.id)
+                .values(base_image_path=str(iso_path))
+            )
+            db.flush()
         return iso_path, img_path, cfg_path
 
     if era == "xbox":

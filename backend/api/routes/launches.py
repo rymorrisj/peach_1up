@@ -280,7 +280,10 @@ async def launch_environment(
     if platform.working_image_path is None and platform.era in {"win95", "win98", "winxp"}:
         try:
             from backend.service.utils.vm_provisioner import provision_platform
-            working_path, config_path = await asyncio.to_thread(provision_platform, platform)
+            # NOTE: provision_platform uses db inside a worker thread. SQLAlchemy sessions
+            # are not thread-safe; this path should be refactored to perform the db write
+            # in the calling thread after the thread returns.
+            _iso_path, working_path, config_path = await asyncio.to_thread(provision_platform, platform, db)
             if working_path:
                 platform.working_image_path = working_path
             if config_path:
