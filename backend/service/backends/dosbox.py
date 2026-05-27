@@ -172,12 +172,16 @@ def _build_drive_mount_lines(
     drive_setup_lines: list[str] = []
 
     if has_persistent_drive:
-        drives_dir = get_base_path() / "library" / "media" / drive.slug
-        drive_path = drives_dir / f"{drive.slug}.img"
-        # Defence-in-depth: confirm the resolved path stays under drives_dir.
-        if not drive_path.resolve().is_relative_to(drives_dir.resolve()):
+        if not drive.image_path:
             raise ValueError(
-                f"Drive path escaped drives directory (slug={drive.slug!r}). "
+                f"Drive id={drive.id!r} has no image_path configured. "
+                "Re-add the library item to regenerate the drive record."
+            )
+        drive_path = Path(drive.image_path)
+        lib_media = get_base_path() / "library" / "media"
+        if not drive_path.resolve().is_relative_to(lib_media.resolve()):
+            raise ValueError(
+                f"Drive image path escaped library/media (id={drive.id!r}). "
                 "This indicates a data integrity problem."
             )
         drive_cmd_path = _dosbox_cmd_path(drive_path)
@@ -435,10 +439,10 @@ def launch(
         sandbox_config.broker_files.append(
             BrokerFile(path=str(get_base_path() / "library"), access="r", mode="grant"))
         use_drive = bool(getattr(profile, 'use_drive', True)) if profile is not None else True
-        if drive is not None and use_drive:
+        if drive is not None and use_drive and drive.image_path is not None:
             sandbox_config.broker_files.append(
                 BrokerFile(
-                    path=str(get_base_path() / "library" / "media" / drive.slug),
+                    path=str(Path(drive.image_path).parent),
                     access="rw",
                     mode="grant",
                 ))

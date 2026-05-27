@@ -1,10 +1,13 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from pydantic import model_validator
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, func
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
+
+if TYPE_CHECKING:
+    from backend.models.drive import Drive
 
 
 class LibraryItemBase(SQLModel):
@@ -27,7 +30,6 @@ class LibraryItemBase(SQLModel):
     launch_review_flagged: bool = Field(default=False)
     installed: bool = False
     requires_install: bool = False
-    drive_size_mb: Optional[int] = None
 
 
 class LibraryItem(LibraryItemBase, table=True):
@@ -43,6 +45,10 @@ class LibraryItem(LibraryItemBase, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
     )
+    drive_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("drives.id"), nullable=True),
+    )
     last_launched_at: Optional[datetime] = None
     launch_count: int = 0
     created_at: Optional[datetime] = Field(
@@ -52,6 +58,14 @@ class LibraryItem(LibraryItemBase, table=True):
     updated_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False),
+    )
+
+    drive: Optional["Drive"] = Relationship(
+        back_populates="library_item",
+        sa_relationship_kwargs={
+            "foreign_keys": "[Drive.library_item_id]",
+            "uselist": False,
+        },
     )
 
 
@@ -88,6 +102,7 @@ class LibraryItemRead(LibraryItemBase):
     slug: Optional[str] = None
     platform_id: Optional[int] = None
     profile_id: Optional[int] = None
+    drive_id: Optional[int] = None
     last_launched_at: Optional[datetime] = None
     launch_count: int
     created_at: datetime

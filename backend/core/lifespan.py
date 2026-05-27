@@ -156,33 +156,6 @@ def _seed_default_profiles(db) -> bool:
         return False
 
 
-_DEFAULT_DRIVES = [
-    {"slug": "dos-default",  "name": "DOS Default",      "size_mb": 500,  "era": "dos"},
-    {"slug": "win31-default","name": "Win 3.1 Default",  "size_mb": 500,  "era": "win31"},
-    {"slug": "win95-compat", "name": "Win 95 Compat",    "size_mb": 2048, "era": "win95"},
-    {"slug": "win98-compat", "name": "Win 98 Compat",    "size_mb": 4096, "era": "win98"},
-    {"slug": "winxp-default","name": "Win XP Default",   "size_mb": 8192, "era": "winxp"},
-]
-
-
-def _seed_default_drives(db) -> bool:
-    try:
-        from backend.models.drive import Drive
-        existing_slugs = {r.slug for r in db.query(Drive.slug).all()}
-        added = 0
-        for data in _DEFAULT_DRIVES:
-            if data["slug"] not in existing_slugs:
-                db.add(Drive(**data))
-                added += 1
-        if added:
-            db.flush()
-            logger.info("Seeded %d default drive record(s)", added)
-        return True
-    except Exception as exc:
-        db.rollback()
-        logger.error("Default drive seeding failed: %s", exc)
-        return False
-
 
 def _cleanup_stale_sessions(db) -> None:
     try:
@@ -274,7 +247,6 @@ def _apply_schema_migrations() -> None:
         ("profiles", "use_drive", "INTEGER NOT NULL DEFAULT 1"),
         ("profiles", "container_enabled", "INTEGER"),
         ("library_items", "requires_install", "INTEGER NOT NULL DEFAULT 0"),
-        ("library_items", "drive_size_mb", "INTEGER"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)
@@ -461,7 +433,6 @@ async def lifespan(app: FastAPI):
         _sync_first_run_from_db(db)
         _platforms_seeded = _seed_system_platforms(db)
         _profiles_seeded = _seed_default_profiles(db)
-        _seed_default_drives(db)
         _cleanup_stale_sessions(db)
         _flag_corrupt_platform_working_paths(db)
         db.commit()

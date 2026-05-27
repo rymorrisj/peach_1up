@@ -1,34 +1,50 @@
-import re
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Column, DateTime, func
-from sqlmodel import Field, SQLModel
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, UniqueConstraint, func
+from sqlmodel import Field, Relationship, SQLModel
 
-_SLUG_RE = re.compile(r"^[a-z0-9-]+$")
+if TYPE_CHECKING:
+    from backend.models.library import LibraryItem
 
 
 class DriveBase(SQLModel):
-    slug: str = Field(unique=True)
     name: str
     size_mb: int = 500
-    era: str
+    image_path: Optional[str] = None
 
 
 class Drive(DriveBase, table=True):
     __tablename__ = "drives"
+    __table_args__ = (UniqueConstraint("library_item_id"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    library_item_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("library_items.id", ondelete="CASCADE"),
+            nullable=False,
+        )
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=False),
     )
 
+    library_item: Optional["LibraryItem"] = Relationship(
+        back_populates="drive",
+        sa_relationship_kwargs={
+            "foreign_keys": "[Drive.library_item_id]",
+            "uselist": False,
+        },
+    )
+
 
 class DriveCreate(DriveBase):
-    pass
+    library_item_id: int
 
 
 class DriveRead(DriveBase):
     id: int
+    library_item_id: int
     created_at: datetime

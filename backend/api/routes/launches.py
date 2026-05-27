@@ -4,7 +4,6 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -28,12 +27,7 @@ logger = get_logger(__name__)
 
 
 def _resolve_item_drive(item, profile, db):
-    if item.slug:
-        return SimpleNamespace(slug=item.slug, size_mb=item.drive_size_mb or 500)
-    drive_slug = getattr(profile, 'drive_slug', None)
-    if drive_slug:
-        return db.query(Drive).filter(Drive.slug == drive_slug).first()
-    return None
+    return db.query(Drive).filter(Drive.library_item_id == item.id).first()
 
 
 def _copy_loose_files_to_drive(src_dir: Path, img_path: Path, size_mb: int) -> None:
@@ -152,7 +146,9 @@ async def launch_item(
         and not item.requires_install
         and Path(item.media_path).is_dir()
     ):
-        img_path = get_base_path() / "library" / "media" / drive.slug / f"{drive.slug}.img"
+        if not drive.image_path:
+            raise RuntimeError(f"Drive id={drive.id!r} has no image_path — re-add the library item.")
+        img_path = Path(drive.image_path)
         if not img_path.exists():
             format_fat16(img_path, drive.size_mb)
         _copy_loose_files_to_drive(Path(item.media_path), img_path, drive.size_mb)

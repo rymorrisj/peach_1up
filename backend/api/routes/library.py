@@ -215,12 +215,29 @@ def add_library_item(
     else:
         computed = min(int(source_size_mb * 1.5) + 3, 100)
 
-    item.drive_size_mb = item.drive_size_mb or computed
-
     if not item.content_rating:
         from backend.utils.rating_detect import detect_rating
         item.content_rating = detect_rating(body.media_path)
+
     db.add(item)
+    db.flush()
+
+    from backend.models.drive import Drive
+    image_path = (
+        str(Path(item.folder_path) / f"{item.slug}.img")
+        if item.folder_path
+        else None
+    )
+    drive = Drive(
+        library_item_id=item.id,
+        name=item.title,
+        size_mb=computed,
+        image_path=image_path,
+    )
+    db.add(drive)
+    db.flush()
+    item.drive_id = drive.id
+
     db.commit()
     db.refresh(item)
     return item
