@@ -155,6 +155,108 @@ def _validate_shell_line(line: str) -> None:
         raise ValueError("launch_commands line must not contain '#' (DOSBox-X comment character)")
 
 
+def _build_drive_mount_lines(
+    drive: object | None,
+    use_drive: bool,
+    media_path: Path,
+) -> tuple[list[str], str | None, str, str]:
+    """Return (drive_setup_lines, mount_line, drive_line, media_drive).
+
+    mount_line is None when media_path is a directory on a persistent drive
+    (files are already on C:, so no additional mount is needed).
+    """
+    suffix = media_path.suffix.lower()
+    host = _dosbox_cmd_path(media_path)
+    has_persistent_drive = drive is not None and use_drive
+
+    drive_setup_lines: list[str] = []
+
+    if has_persistent_drive:
+        drives_dir = get_base_path() / "library" / "media" / drive.slug
+        drive_path = drives_dir / f"{drive.slug}.img"
+        # Defence-in-depth: confirm the resolved path stays under drives_dir.
+        if not drive_path.resolve().is_relative_to(drives_dir.resolve()):
+            raise ValueError(
+                f"Drive path escaped drives directory (slug={drive.slug!r}). "
+                "This indicates a data integrity problem."
+            )
+        drive_cmd_path = _dosbox_cmd_path(drive_path)
+        if not drive_path.exists():
+            drive_setup_lines.append(f"IMGMAKE {drive_cmd_path} -t hd -size {drive.size_mb}")
+        drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
+
+        if media_path.is_dir():
+            mount_line = None
+            drive_line = "C:"
+            media_drive = "C:"
+        elif suffix == ".img":
+            mount_line = f"imgmount D {host} -t hdd"
+            drive_line = "C:"
+            media_drive = "D:"
+        elif suffix in {".iso", ".cue"}:
+            mount_line = f"imgmount D {host} -t iso -ro"
+            drive_line = "C:"
+            media_drive = "D:"
+        elif suffix in {".exe", ".bat"}:
+            parent_dir = _dosbox_cmd_path(media_path.parent)
+            mount_line = f"MOUNT D {parent_dir} -freesize 1024"
+            drive_line = "C:"
+            media_drive = "D:"
+        else:
+            raise ValueError(
+                f"Unhandled media suffix '{suffix}'. This indicates a programming error."
+            )
+    else:
+        if media_path.is_dir():
+            raise ValueError(
+                "Directory media requires a persistent drive. This indicates a misconfiguration."
+            )
+        elif suffix == ".img":
+            mount_line = f"imgmount C {host} -t hdd"
+            drive_line = "C:"
+            media_drive = "C:"
+        elif suffix in {".iso", ".cue"}:
+            mount_line = f"imgmount D {host} -t iso -ro"
+            drive_line = "D:"
+            media_drive = "D:"
+        elif suffix in {".exe", ".bat"}:
+            parent_dir = _dosbox_cmd_path(media_path.parent)
+            mount_line = f"MOUNT D {parent_dir} -freesize 1024"
+            drive_line = "D:"
+            media_drive = "D:"
+        else:
+            raise ValueError(
+                f"Unhandled media suffix '{suffix}'. This indicates a programming error."
+            )
+
+    return drive_setup_lines, mount_line, drive_line, media_drive
+
+
+def _build_autoexec(
+    drive_setup_lines: list[str],
+    mount_line: str | None,
+    drive_line: str,
+    media_drive: str,
+    profile_cmds: list[str],
+    item_cmds: list[str],
+) -> str:
+    """Return the full [autoexec] block as a string."""
+    merged = profile_cmds + item_cmds
+    autoexec = "[autoexec]\n"
+    for setup_line in drive_setup_lines:
+        autoexec += f"{setup_line}\n"
+    if mount_line is not None:
+        autoexec += f"{mount_line}\n"
+    autoexec += f"{drive_line}\n"
+    for line in merged:
+        if any(line.rstrip().lower().endswith(ext) for ext in _EXEC_SUFFIXES):
+            _validate_game_executable(line, media_drive)
+        else:
+            _validate_shell_line(line)
+        autoexec += f"{line}\n"
+    return autoexec
+
+
 def write_launch_conf(
     media_path: Path,
     era: str,
@@ -194,70 +296,11 @@ def write_launch_conf(
         ValueError: If the media suffix is not handled or the drive path escapes
             the drives directory.
     """
-    suffix = media_path.suffix.lower()
-    host = _dosbox_cmd_path(media_path)
-
     use_drive = bool(getattr(profile, 'use_drive', True)) if profile is not None else True
-    has_persistent_drive = drive is not None and use_drive
 
-    drive_setup_lines: list[str] = []
-
-    if has_persistent_drive:
-        drives_dir = get_base_path() / "library" / "media" / drive.slug
-        drive_path = drives_dir / f"{drive.slug}.img"
-        # Defence-in-depth: confirm the resolved path stays under drives_dir.
-        if not drive_path.resolve().is_relative_to(drives_dir.resolve()):
-            raise ValueError(
-                f"Drive path escaped drives directory (slug={drive.slug!r}). "
-                "This indicates a data integrity problem."
-            )
-        drive_cmd_path = _dosbox_cmd_path(drive_path)
-        if not drive_path.exists():
-            drive_setup_lines.append(f"IMGMAKE {drive_cmd_path} -t hd -size {drive.size_mb}")
-        drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
-
-        # Media goes to D: when a persistent C: drive is present.
-        if suffix == ".img":
-            mount_line = f"imgmount D {host} -t hdd"
-        elif suffix in {".iso", ".cue"}:
-            mount_line = f"imgmount D {host} -t iso -ro"
-        elif suffix in {".exe", ".bat"}:
-            parent_dir = _dosbox_cmd_path(media_path.parent)
-            mount_line = f"MOUNT D {parent_dir} -freesize 1024"
-        else:
-            raise ValueError(
-                f"Unhandled media suffix '{suffix}'. This indicates a programming error."
-            )
-        drive_line = "C:"
-        media_drive = "D:"
-    else:
-        # No persistent drive — single-mount behaviour.
-        if suffix == ".img":
-            mount_line = f"imgmount C {host} -t hdd"
-            drive_line = "C:"
-            media_drive = "C:"
-        elif suffix in {".iso", ".cue"}:
-            mount_line = f"imgmount D {host} -t iso -ro"
-            drive_line = "D:"
-            media_drive = "D:"
-        elif suffix in {".exe", ".bat"}:
-            parent_dir = _dosbox_cmd_path(media_path.parent)
-            mount_line = f"MOUNT D {parent_dir} -freesize 1024"
-            drive_line = "D:"
-            media_drive = "D:"
-        else:
-            raise ValueError(
-                f"Unhandled media suffix '{suffix}'. This indicates a programming error."
-            )
-
-    base_conf = get_base_path() / "config" / "templates" / "dosbox-x" / "base.conf"
-    if not base_conf.exists():
-        raise FileNotFoundError(f"DOSBox-X base.conf not found: {base_conf}")
-    base = _strip_autoexec(base_conf.read_text(encoding="utf-8", errors="replace"))
-
-    conf_path = get_base_path() / "emulators" / "dosbox-x" / "dosbox-x.conf"
-
-    content = base.rstrip("\n") + "\n\n"
+    drive_setup_lines, mount_line, drive_line, media_drive = _build_drive_mount_lines(
+        drive, use_drive, media_path
+    )
 
     # Layer 1: profile commands (base defaults, run first).
     profile_cmds: list[str] = getattr(profile, 'launch_commands', None) or []
@@ -265,19 +308,18 @@ def write_launch_conf(
     # Scan candidates and executable_path are display-only — they must never
     # reach this list. Only the user's explicit launch_commands field feeds here.
     item_cmds: list[str] = launch_commands or []
-    merged = profile_cmds + item_cmds
 
-    autoexec = "[autoexec]\n"
-    for setup_line in drive_setup_lines:
-        autoexec += f"{setup_line}\n"
-    autoexec += f"{mount_line}\n{drive_line}\n"
-    for line in merged:
-        if any(line.rstrip().lower().endswith(ext) for ext in _EXEC_SUFFIXES):
-            _validate_game_executable(line, media_drive)
-        else:
-            _validate_shell_line(line)
-        autoexec += f"{line}\n"
-    content += autoexec
+    autoexec = _build_autoexec(
+        drive_setup_lines, mount_line, drive_line, media_drive, profile_cmds, item_cmds
+    )
+
+    base_conf = get_base_path() / "config" / "templates" / "dosbox-x" / "base.conf"
+    if not base_conf.exists():
+        raise FileNotFoundError(f"DOSBox-X base.conf not found: {base_conf}")
+    base = _strip_autoexec(base_conf.read_text(encoding="utf-8", errors="replace"))
+
+    conf_path = get_base_path() / "emulators" / "dosbox-x" / "dosbox-x.conf"
+    content = base.rstrip("\n") + "\n\n" + autoexec
 
     conf_path.write_text(content, encoding="utf-8")
 
