@@ -110,8 +110,6 @@ export default function ItemDetail() {
   // ── Advanced ──
   const [launchCommands, setLaunchCommands] = useState<string[] | null>(null)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [rescanning, setRescanning] = useState(false)
-  const [rescanError, setRescanError] = useState<string | null>(null)
   const [flagging, setFlagging] = useState(false)
   const [flagError, setFlagError] = useState<string | null>(null)
   useEffect(() => {
@@ -119,20 +117,6 @@ export default function ItemDetail() {
       setLaunchCommands(item.launch_commands ?? [])
     }
   }, [item, launchCommands])
-
-  async function handleRescan() {
-    if (!item) return
-    setRescanning(true)
-    setRescanError(null)
-    try {
-      const updated = await apiFetch<LibraryItem>(`/api/v1/library/${item.id}/rescan`, { method: 'POST' })
-      queryClient.setQueryData(['library', 'by-slug', slug], updated)
-    } catch (err) {
-      setRescanError(err instanceof ApiError ? err.detail : 'Rescan failed.')
-    } finally {
-      setRescanning(false)
-    }
-  }
 
   async function handleFlagLaunch() {
     if (!item) return
@@ -578,23 +562,6 @@ export default function ItemDetail() {
                   onChange={setLaunchCommands}
                 />
               </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  loading={rescanning}
-                  onClick={handleRescan}
-                >
-                  Rescan
-                </Button>
-                {rescanError && (
-                  <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-                    ❌ {rescanError}
-                  </p>
-                )}
-              </div>
-
 
               <div className="flex items-center gap-3">
                 <Button
