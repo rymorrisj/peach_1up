@@ -5,9 +5,11 @@ from typing import TYPE_CHECKING, Optional
 from pydantic import model_validator
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, func
 from sqlmodel import Field, Relationship, SQLModel
+from backend.models.tag import LibraryItemTag
 
 if TYPE_CHECKING:
     from backend.models.drive import Drive
+    from backend.models.tag import Tag
 
 
 class LibraryItemBase(SQLModel):
@@ -66,6 +68,11 @@ class LibraryItem(LibraryItemBase, table=True):
             "foreign_keys": "[Drive.library_item_id]",
             "uselist": False,
         },
+    )
+
+    tags: list["Tag"] = Relationship(
+        back_populates="library_items",
+        link_model=LibraryItemTag,
     )
 
 

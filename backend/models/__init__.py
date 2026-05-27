@@ -7,5 +7,6 @@ from backend.models.launch_history import LaunchHistory, LaunchHistoryBase, Laun
 from backend.models.settings import Settings, SettingsRead, SettingsPatch
 from backend.models.user import User, UserBase, UserRead
 from backend.models.media_restriction import MediaRestriction
+from backend.models.tag import LibraryItemTag, Tag, TagCreate, TagRead
 
 # We do not maintain a __all__ as * wildcard imports are to be avoided per project practices

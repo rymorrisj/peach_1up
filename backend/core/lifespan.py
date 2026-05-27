@@ -15,6 +15,7 @@ from backend.core.settings import get_base_path, init_settings
 import backend.models.user  # noqa: F401 — registers User with SQLModel.metadata
 import backend.models.media_restriction  # noqa: F401 — registers MediaRestriction with SQLModel.metadata
 import backend.models.drive  # noqa: F401 — registers Drive with SQLModel.metadata
+import backend.models.tag  # noqa: F401 — registers Tag and LibraryItemTag with SQLModel.metadata
 
 logger = get_logger(__name__)
 

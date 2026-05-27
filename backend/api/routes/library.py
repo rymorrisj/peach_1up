@@ -140,7 +140,9 @@ def list_library(
         q = q.filter(LibraryItem.category == category)
     if platform_id is not None:
         q = q.filter(LibraryItem.platform_id == platform_id)
-    # TODO: LibraryItem has no tags relationship yet — tag filter skipped until added
+    if tag:
+        from backend.models.tag import Tag
+        q = q.join(LibraryItem.tags).filter(Tag.name == tag)
     return q.all()
 
 

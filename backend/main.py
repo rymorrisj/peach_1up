@@ -19,7 +19,7 @@ def resource_path(relative: str) -> Path:
     return Path(__file__).resolve().parent.parent / relative
 
 from backend.api.middleware.security import FirstRunGuardMiddleware, SecurityMiddleware, configure_cors
-from backend.api.routes import auth, bios, drives, emulators, filesystem, health, launches, library, media, platforms, profiles, settings, users
+from backend.api.routes import auth, bios, drives, emulators, filesystem, health, launches, library, media, platforms, profiles, settings, tags, users
 from backend.core.lifespan import lifespan
 from backend.service.utils.settings import get_or_generate_session_secret
 _session_secret = get_or_generate_session_secret()
@@ -55,6 +55,7 @@ app.include_router(launches.router)
 app.include_router(platforms.router)
 app.include_router(filesystem.router)
 app.include_router(media.router)
+app.include_router(tags.router)
 
 from backend.service.utils import settings as _peach_settings
 _library_root = Path(_peach_settings.get("LIBRARY_PATH"))

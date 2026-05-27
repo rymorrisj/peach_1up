@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import TopBar from '@/components/layout/TopBar'
 import { ERA_LABELS } from '@/generated/constants'
+import { apiFetch } from '@/api/client'
 
 interface UserTag {
-  id: string
-  label: string
+  id: number
+  name: string
+  item_count: number
   swatch: string
-  count: number
 }
 
 const TAG_SWATCHES = [
@@ -35,6 +36,10 @@ const SYSTEM_CONTENT_TAGS = [
   { id: 'demo',        label: 'Demo' },
   { id: 'rom-pack',    label: 'ROM Pack' },
 ]
+
+function swatchFromId(id: number): string {
+  return TAG_SWATCHES[id % TAG_SWATCHES.length].id
+}
 
 function SwatchPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   return (
@@ -99,24 +104,53 @@ export default function Tags() {
   const [userTags, setUserTags] = useState<UserTag[]>([])
   const [newName, setNewName] = useState('')
   const [newSwatch, setNewSwatch] = useState('slate')
-  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  function addTag() {
+  useEffect(() => {
+    apiFetch<{ id: number; name: string; item_count: number }[]>('/api/v1/tags')
+      .then((tags) => {
+        setUserTags(tags.map((t) => ({
+          id: t.id,
+          name: t.name,
+          item_count: t.item_count,
+          swatch: swatchFromId(t.id),
+        })))
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function addTag() {
     const name = newName.trim()
     if (!name) return
-    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    if (userTags.some((t) => t.id === id)) return
-    setUserTags([...userTags, { id, label: name, swatch: newSwatch, count: 0 }])
-    setNewName('')
-    setNewSwatch('slate')
+    try {
+      const tag = await apiFetch<{ id: number; name: string; item_count: number }>('/api/v1/tags', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      })
+      setUserTags((prev) => [
+        ...prev,
+        { id: tag.id, name: tag.name, item_count: tag.item_count, swatch: swatchFromId(tag.id) },
+      ])
+      setNewName('')
+      setNewSwatch('slate')
+    } catch {
+      // error surfacing left to a future toast layer
+    }
   }
 
-  function removeTag(id: string) {
-    setUserTags(userTags.filter((t) => t.id !== id))
-    setConfirmId(null)
+  async function removeTag(id: number) {
+    try {
+      await apiFetch(`/api/v1/tags/${id}`, { method: 'DELETE' })
+      setUserTags((prev) => prev.filter((t) => t.id !== id))
+      setConfirmId(null)
+    } catch {
+      // error surfacing left to a future toast layer
+    }
   }
 
-  const swatchHex = (id: string) => TAG_SWATCHES.find((s) => s.id === id)?.hex ?? '#7a8499'
+  const swatchHex = (swatchId: string) => TAG_SWATCHES.find((s) => s.id === swatchId)?.hex ?? '#7a8499'
 
   const eraItems = Object.entries(ERA_LABELS).map(([id, label]) => ({ id, label }))
 
@@ -158,7 +192,11 @@ export default function Tags() {
         </div>
 
         {/* Tag list */}
-        {userTags.length === 0 ? (
+        {loading ? (
+          <div className="px-4 py-8 text-center font-sans text-sm text-neutral-400 dark:text-neutral-500">
+            Loading tags…
+          </div>
+        ) : userTags.length === 0 ? (
           <div className="px-4 py-8 text-center font-sans text-sm text-neutral-400 dark:text-neutral-500">
             No user tags yet. Create one above.
           </div>
@@ -181,8 +219,8 @@ export default function Tags() {
                   style={{ background: hex, boxShadow: '0 0 0 1px rgba(255,255,255,0.06) inset' }}
                 />
                 <div>
-                  <div className="font-sans text-sm font-medium text-neutral-900 dark:text-neutral-100">{t.label}</div>
-                  <div className="font-mono text-[11px] text-neutral-400 dark:text-neutral-500">{t.id}</div>
+                  <div className="font-sans text-sm font-medium text-neutral-900 dark:text-neutral-100">{t.name}</div>
+                  <div className="font-mono text-[11px] text-neutral-400 dark:text-neutral-500">#{t.id}</div>
                 </div>
                 <div>
                   <span
@@ -193,16 +231,16 @@ export default function Tags() {
                       className="mr-1.5 inline-block h-[6px] w-[6px] rounded-full"
                       style={{ background: hex }}
                     />
-                    <span className="text-neutral-600 dark:text-neutral-300">{t.label}</span>
+                    <span className="text-neutral-600 dark:text-neutral-300">{t.name}</span>
                   </span>
                 </div>
                 <div className="text-right font-mono text-xs text-neutral-400 dark:text-neutral-500">
-                  {t.count} item{t.count === 1 ? '' : 's'}
+                  {t.item_count} item{t.item_count === 1 ? '' : 's'}
                 </div>
                 <button
                   type="button"
                   onClick={() => setConfirmId(confirming ? null : t.id)}
-                  aria-label={`Delete tag ${t.label}`}
+                  aria-label={`Delete tag ${t.name}`}
                   className="flex h-7 w-7 items-center justify-center rounded-lg border border-transparent text-neutral-400 transition-colors hover:border-red-500/40 hover:text-red-400 dark:text-neutral-500"
                 >
                   ×
@@ -211,9 +249,9 @@ export default function Tags() {
                 {confirming && (
                   <div className="col-span-5 flex items-center gap-3 pt-2 font-sans text-sm text-neutral-500 dark:text-neutral-400">
                     <span>
-                      Delete <strong className="text-neutral-900 dark:text-neutral-100">{t.label}</strong>?
-                      {t.count > 0 && (
-                        <> It will be removed from <strong className="text-neutral-900 dark:text-neutral-100">{t.count}</strong> item{t.count === 1 ? '' : 's'}.</>
+                      Delete <strong className="text-neutral-900 dark:text-neutral-100">{t.name}</strong>?
+                      {t.item_count > 0 && (
+                        <> It will be removed from <strong className="text-neutral-900 dark:text-neutral-100">{t.item_count}</strong> item{t.item_count === 1 ? '' : 's'}.</>
                       )}
                     </span>
                     <div className="flex-1" />
