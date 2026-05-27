@@ -197,7 +197,7 @@ def add_library_item(
             logger.warning("Could not create item folder %s: %s", item_folder, exc)
 
     from backend.service.utils.media_detect import detect_media_type
-    media_type = detect_media_type(str(item.media_path))
+    media_type = detect_media_type(Path(item.media_path))
     item.media_type = media_type
     item.requires_install = media_type in ("iso", "cue", "floppy")
 

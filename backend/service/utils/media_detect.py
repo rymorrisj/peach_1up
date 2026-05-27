@@ -56,6 +56,10 @@ def _list_files(path: str) -> List[Path]:
         return []
 
 
+_BLOCKED_EXTENSIONS = frozenset({".img"})
+_BLOCKED_FILENAMES = frozenset({"setup.exe", "setup.bat", "install.exe", "install.bat"})
+
+
 def get_compatible_media(era: Era, path: str) -> List[Path]:
     """
     Find media files compatible with the specified gaming era.
@@ -70,18 +74,38 @@ def get_compatible_media(era: Era, path: str) -> List[Path]:
 
     Notes:
         - Filters files by ERA_MEDIA_TYPES[era] extensions
+        - Excludes .img files and common setup/installer filenames
         - Uses _list_files internally for consistent sorting
-        - Case-insensitive extension matching
+        - Case-insensitive extension and filename matching
     """
     all_files = _list_files(path)
-    allowed_extensions = ERA_MEDIA_TYPES[era]
+    allowed_extensions = ERA_MEDIA_TYPES[era] - _BLOCKED_EXTENSIONS
 
     compatible_files = []
     for file_path in all_files:
         if file_path.suffix.lower() in allowed_extensions:
-            compatible_files.append(file_path)
+            if file_path.name.lower() not in _BLOCKED_FILENAMES:
+                compatible_files.append(file_path)
 
     return compatible_files
+
+
+def detect_media_type(path: Path) -> str:
+    if path.is_dir():
+        return "directory"
+    suffix = path.suffix.lower()
+    if suffix == ".iso":
+        return "iso"
+    if suffix == ".cue":
+        return "cue"
+    if suffix == ".img":
+        try:
+            return "floppy" if path.stat().st_size < 2 * 1024 * 1024 else "hdd"
+        except OSError:
+            return "hdd"
+    if suffix in {".exe", ".bat", ".com"}:
+        return "exe"
+    return "unknown"
 
 
 def detect_era(media_path: Path) -> Optional[Era]:
