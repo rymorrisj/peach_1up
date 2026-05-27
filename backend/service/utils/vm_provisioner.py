@@ -3,7 +3,6 @@
 Creates 86Box configs for Win95/Win98/WinXP platforms and xemu configs for
 Xbox platforms on first launch or platform creation. 86Box VM files are placed
 under emulators/86box/vms/{slug}/; xemu VM files under emulators/xemu/vms/{slug}/.
-VirtualBox VMs are provisioned under OS_PATH for legacy/fallback use.
 All output paths are resolved and validated before use. Subprocess args are
 constructed from validated, computed values only — no user input reaches a
 subprocess call directly.
@@ -15,7 +14,6 @@ import configparser
 import os
 import shutil
 import struct
-import subprocess
 import time
 import uuid
 from pathlib import Path
@@ -31,24 +29,6 @@ from backend.service.utils.emulator_catalog import get_86box_profile
 from backend.service.utils.settings import get_binary_path, get_env_var
 
 logger = get_logger(__name__)
-
-_VDI_SIZE_MB: dict[str, int] = {
-    "win95": 4096,
-    "win98": 4096,
-    "winxp": 10240,
-}
-
-_OS_TYPES: dict[str, str] = {
-    "win95": "Windows95",
-    "win98": "Windows98",
-    "winxp": "WindowsXP",
-}
-
-_VM_MEMORY_MB: dict[str, int] = {
-    "win95": 64,
-    "win98": 128,
-    "winxp": 512,
-}
 
 _86BOX_ERAS = frozenset({"win95", "win98", "winxp"})
 
@@ -102,14 +82,6 @@ def _load_default_disk_size_mb(era: str) -> int:
     return int(size)
 
 
-def _run_vbm(vbox_path: str, args: list[str], desc: str) -> None:
-    result = subprocess.run([vbox_path] + args, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"VBoxManage {desc} failed (exit {result.returncode}): {result.stderr.strip()}"
-        )
-
-
 def _resolve_within(base: Path, *parts: str) -> Path:
     """Resolve a sub-path and assert it has not escaped base via traversal."""
     base_resolved = base.resolve()
@@ -126,94 +98,6 @@ def _resolve_within(base: Path, *parts: str) -> Path:
 def _vm_name(platform: Platform) -> str:
     return platform.slug or f"p{platform.id}"
 
-
-
-def provision_virtualbox_vm(platform: Platform, vbox_path: str) -> str:
-    """Create a VDI and register a VirtualBox VM for a Win9x/WinXP platform.
-
-    Controller names ("SATA", "IDE") match those used by the virtualbox.py
-    backend so that _ensure_registered's idempotency check is compatible.
-
-    Args:
-        platform: Platform record with ``era``, ``slug`` (or ``id``), and
-            optionally ``base_image_path`` set.
-        vbox_path: Absolute path to VBoxManage.exe, resolved from settings.
-
-    Returns:
-        Absolute path to the created VDI file as a string.
-
-    Raises:
-        ValueError: If era is unsupported or path validation fails.
-        FileNotFoundError: If base_image_path does not exist on disk.
-        RuntimeError: If any VBoxManage command fails (stderr included).
-    """
-    era = platform.era
-    if era not in _VDI_SIZE_MB:
-        raise ValueError(f"provision_virtualbox_vm: unsupported era '{era}'")
-
-    os_base = Path(get_env_var("OS_PATH")).resolve()
-    vm_name = _vm_name(platform)
-
-    vdi_dir = _resolve_within(os_base, era, vm_name)
-    vdi_dir.mkdir(parents=True, exist_ok=True)
-    vdi_path = vdi_dir / "working.vdi"
-
-    os_type = _OS_TYPES[era]
-    size_mb = _VDI_SIZE_MB[era]
-    memory_mb = _VM_MEMORY_MB[era]
-
-    _run_vbm(vbox_path, [
-        "createvm", "--name", vm_name, "--ostype", os_type, "--register",
-    ], "createvm")
-
-    _run_vbm(vbox_path, [
-        "modifyvm", vm_name,
-        "--memory", str(memory_mb),
-        "--cpus", "1",
-        "--nic1", "null",
-    ], "modifyvm")
-
-    _run_vbm(vbox_path, [
-        "createhd", "--filename", str(vdi_path), "--size", str(size_mb),
-    ], "createhd")
-
-    _run_vbm(vbox_path, [
-        "storagectl", vm_name,
-        "--name", "SATA",
-        "--add", "sata",
-        "--bootable", "on",
-    ], "storagectl SATA")
-
-    _run_vbm(vbox_path, [
-        "storageattach", vm_name,
-        "--storagectl", "SATA",
-        "--port", "0",
-        "--device", "0",
-        "--type", "hdd",
-        "--medium", str(vdi_path),
-    ], "storageattach HDD")
-
-    _run_vbm(vbox_path, [
-        "storagectl", vm_name,
-        "--name", "IDE",
-        "--add", "ide",
-    ], "storagectl IDE")
-
-    if platform.base_image_path:
-        from backend.service.utils.path_utils import normalise_path
-        iso_path = normalise_path(platform.base_image_path)
-        if not iso_path.exists():
-            raise FileNotFoundError(f"Base image not found: {iso_path}")
-        _run_vbm(vbox_path, [
-            "storageattach", vm_name,
-            "--storagectl", "IDE",
-            "--port", "0",
-            "--device", "0",
-            "--type", "dvddrive",
-            "--medium", str(iso_path),
-        ], "storageattach DVD")
-
-    return str(vdi_path)
 
 
 def provision_86box_vm(
@@ -413,7 +297,7 @@ def provision_xemu_vm(platform: Platform) -> tuple[str | None, str, str]:
 def provision_platform(platform: Platform, db: Session | None = None) -> tuple[str | None, str | None, str | None]:
     """Provision a working image for a platform, selecting the backend by era.
 
-    Provisions 86Box for win95/win98 (the new default), VirtualBox for winxp.
+    Provisions 86Box for win95/win98/winxp, xemu for Xbox.
     Returns (None, None, None) for eras that do not need provisioning or when
     the required emulator paths are not configured.
 
@@ -423,8 +307,8 @@ def provision_platform(platform: Platform, db: Session | None = None) -> tuple[s
 
     Returns:
         ``(base_image_path, working_image_path, config_path)`` — all None if
-        provisioning was skipped. base_image_path is the resolved ISO path for
-        86Box, or None for VirtualBox. config_path is None for VirtualBox.
+        provisioning was skipped. base_image_path is the resolved ISO path, or
+        None if no ISO was attached.
 
     Raises:
         RuntimeError: If required emulator paths are not configured.

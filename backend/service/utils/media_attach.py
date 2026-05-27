@@ -17,28 +17,9 @@ from pathlib import Path
 from typing import Optional
 
 from backend.core.logger import get_logger
+from backend.service.utils.media_detect import detect_media_type
 
 logger = get_logger(__name__)
-
-
-def detect_media_type(media_path: Path) -> str:
-    """Return the media type based on file extension.
-
-    Args:
-        media_path: Path to the media file.
-
-    Returns:
-        ``"iso"`` for .iso and .cue; ``"hdd"`` for .img and .vhd;
-        ``"unknown"`` for anything else.
-    """
-    suffix = media_path.suffix.lower()
-    if suffix in {".iso", ".cue"}:
-        return "iso"
-    if suffix in {".img", ".vhd"}:
-        return "hdd"
-    if suffix in {".exe", ".bat", ".com"}:
-        return "exe"
-    return "unknown"
 
 
 def find_autorun(media_path: Path) -> Optional[str]:
@@ -115,6 +96,10 @@ def build_dosbox_attachment(media_path: Path, drive_letter: str = "D") -> dict:
     Returns:
         Dict with ``media_path``, ``drive_letter``, and ``mount_type``.
     """
+    # BEHAVIOUR NOTE: detect_media_type (media_detect) differs from the old
+    # media_attach version — .img is now size-inspected (floppy/<2 MB, hdd/≥2 MB)
+    # rather than unconditionally "hdd"; .vhd returns "unknown" (was "hdd");
+    # .cue returns "cue" (was "iso"). DOSBox-X backend must handle all three.
     return {
         "media_path": str(media_path),
         "drive_letter": drive_letter,

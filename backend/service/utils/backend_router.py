@@ -102,9 +102,6 @@ def get_launch_fn(era: Era) -> Callable:
         elif backend_name == BackendSlug.BOX86.value:
             from backend.service.backends.box86 import launch
             return launch
-        elif backend_name == BackendSlug.VIRTUALBOX.value:
-            from backend.service.backends.virtualbox import launch
-            return launch
         elif backend_name == BackendSlug.DUCKSTATION.value:
             from backend.service.backends.duckstation import launch
             return launch
