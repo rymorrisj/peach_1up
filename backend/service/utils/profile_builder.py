@@ -14,8 +14,6 @@ from typing import Optional
 from backend.constants_generated import Era
 
 
-_SCAN_EXTENSIONS: frozenset[str] = frozenset({".iso", ".img", ".cue", ".exe", ".bat"})
-
 _COVER_STEMS: frozenset[str] = frozenset({"cover"})
 _COVER_EXTENSIONS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 
@@ -74,7 +72,7 @@ def _find_cover(folder: Path) -> Optional[Path]:
     return None
 
 
-def scan_directory(base: Path) -> list[ScanEntry]:
+def scan_directory(base: Path, era: Era) -> list[ScanEntry]:
     """Walk ``base`` recursively and return a ``ScanEntry`` for each media file.
 
     Recognises the library/games/{era}/{slug}/ layout: when a media file is
@@ -88,24 +86,33 @@ def scan_directory(base: Path) -> list[ScanEntry]:
 
     Args:
         base: Directory to scan recursively.
+        era: Gaming era used to determine compatible extensions and apply the
+            blocklist defined in ``get_compatible_media``.
 
     Returns:
-        Sorted list of ``ScanEntry`` objects for every ``.iso``, ``.img``,
-        and ``.cue`` file found. Empty if none are found or ``base`` is
-        unreadable.
+        Sorted list of ``ScanEntry`` objects for compatible media files.
+        Empty if none are found or ``base`` is unreadable.
     """
-    from backend.service.utils.media_detect import detect_era
+    from backend.service.utils.media_detect import detect_era, get_compatible_media
 
-    found: list[Path] = []
+    all_dirs: list[Path] = [base]
     try:
         for p in base.rglob("*"):
             try:
-                if p.is_file() and p.suffix.lower() in _SCAN_EXTENSIONS:
-                    found.append(p)
+                if p.is_dir():
+                    all_dirs.append(p)
             except (OSError, PermissionError):
                 continue
     except (OSError, PermissionError):
         pass
+
+    seen: set[Path] = set()
+    found: list[Path] = []
+    for d in all_dirs:
+        for f in get_compatible_media(era, str(d)):
+            if f not in seen:
+                seen.add(f)
+                found.append(f)
     found.sort()
 
     entries: list[ScanEntry] = []
