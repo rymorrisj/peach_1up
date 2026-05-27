@@ -231,6 +231,39 @@ def health_check_all(db: Session = Depends(get_db), _: User = require_permission
     return {"results": results, "checked": len(results)}
 
 
+@router.get("/storage-stats")
+def storage_stats(db: Session = Depends(get_db)):
+    import os
+    from backend.models.library import LibraryItem
+    from backend.models.drive import Drive
+
+    def safe_size(path: str | None) -> int:
+        if not path:
+            return 0
+        try:
+            return os.path.getsize(path) if os.path.isfile(path) else 0
+        except OSError:
+            return 0
+
+    drive_images_bytes = sum(safe_size(d.image_path) for d in db.query(Drive).all())
+    source_media_bytes = sum(safe_size(item.media_path) for item in db.query(LibraryItem).all())
+    os_images_bytes = sum(
+        safe_size(p.base_image_path) + safe_size(p.working_image_path)
+        for p in db.query(Platform).all()
+    )
+    emulator_binaries_bytes = sum(
+        safe_size(get_binary_path(key))
+        for key in set(_EMULATOR_SLUG_TO_BINARY_KEY.values())
+    )
+
+    return {
+        "drive_images_bytes": drive_images_bytes,
+        "source_media_bytes": source_media_bytes,
+        "os_images_bytes": os_images_bytes,
+        "emulator_binaries_bytes": emulator_binaries_bytes,
+    }
+
+
 @router.get("/{platform_id}", response_model=PlatformRead)
 def get_platform(platform_id: int, db: Session = Depends(get_db)):
     platform = db.get(Platform, platform_id)

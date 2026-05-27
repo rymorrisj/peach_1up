@@ -7,6 +7,8 @@ from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, func
 from sqlmodel import Field, Relationship, SQLModel
 from backend.models.tag import LibraryItemTag, TagRead
 
+from backend.models.drive import DriveRead
+
 if TYPE_CHECKING:
     from backend.models.drive import Drive
     from backend.models.tag import Tag
@@ -119,6 +121,7 @@ class LibraryItemRead(LibraryItemBase):
     launch_review_flagged: bool = False
     installed: bool = False
     cover_art_url: Optional[str] = None
+    drive: Optional[DriveRead] = None
     tags: list[TagRead] = []
 
     @model_validator(mode='after')

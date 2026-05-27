@@ -5,6 +5,13 @@ import type { components } from '@shared/types'
 
 type Platform = components['schemas']['PlatformRead']
 
+interface StorageStats {
+  drive_images_bytes: number
+  source_media_bytes: number
+  os_images_bytes: number
+  emulator_binaries_bytes: number
+}
+
 interface HealthSummary {
   platforms:  { total: number; healthy: number; degraded: number }
   library:    { total: number }
@@ -91,6 +98,11 @@ export default function PlatformHealth() {
   const { data: platforms = [], isLoading } = useQuery<Platform[]>({
     queryKey: ['platforms'],
     queryFn: () => apiFetch<Platform[]>('/api/v1/platforms'),
+  })
+
+  const { data: storageStats } = useQuery<StorageStats>({
+    queryKey: ['platforms-storage-stats'],
+    queryFn: () => apiFetch<StorageStats>('/api/v1/platforms/storage-stats'),
   })
 
   const { data: summary, isError: summaryError, isLoading: summaryLoading } = useQuery<HealthSummary>({
@@ -225,14 +237,14 @@ export default function PlatformHealth() {
         </div>
 
         {(() => {
-          const workingBytes = userPlatforms.reduce((s, p) => s + (p.working_image_size_bytes ?? 0), 0)
-          const baseBytes = userPlatforms.reduce((s, p) => s + (p.base_image_size_bytes ?? 0), 0)
-          const totalBytes = workingBytes + baseBytes
-          const pct = (n: number) => totalBytes > 0 ? `${((n / totalBytes) * 100).toFixed(1)}%` : '0%'
           const cats = [
-            { label: 'working images',  color: 'var(--peach-500)', bytes: workingBytes },
-            { label: 'base images',     color: 'var(--peach-700)', bytes: baseBytes },
+            { label: 'drive images',       color: 'var(--peach-500)', bytes: storageStats?.drive_images_bytes ?? 0 },
+            { label: 'source media',        color: 'var(--peach-600)', bytes: storageStats?.source_media_bytes ?? 0 },
+            { label: 'OS images',           color: 'var(--peach-700)', bytes: storageStats?.os_images_bytes ?? 0 },
+            { label: 'emulator binaries',   color: 'var(--peach-800)', bytes: storageStats?.emulator_binaries_bytes ?? 0 },
           ]
+          const totalBytes = cats.reduce((s, c) => s + c.bytes, 0)
+          const pct = (n: number) => totalBytes > 0 ? `${((n / totalBytes) * 100).toFixed(1)}%` : '0%'
           return (
             <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
               <div className="grid grid-cols-2 gap-[18px]">
@@ -258,9 +270,11 @@ export default function PlatformHealth() {
                 ))}
               </div>
               <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)', marginTop: 8 }}>
-                {totalBytes > 0
-                  ? `${formatBytes(totalBytes)} total — working images · base images`
-                  : 'No storage data available — run a health check to update sizes'}
+                {storageStats
+                  ? totalBytes > 0
+                    ? `${formatBytes(totalBytes)} total — drive images · source media · OS images · emulator binaries`
+                    : 'No storage data yet'
+                  : 'Loading storage stats…'}
               </div>
             </div>
           )

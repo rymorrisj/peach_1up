@@ -413,7 +413,7 @@ export default function ItemDetail() {
               <div>
                 <span className="font-medium">Drive size:</span>{' '}
                 <span className="text-neutral-500 dark:text-neutral-400">
-                  {item.drive_size_mb != null ? `${item.drive_size_mb} MB` : '—'}
+                  {item.drive?.size_mb != null ? `${item.drive.size_mb} MB` : '—'}
                 </span>
               </div>
             </>
@@ -860,10 +860,10 @@ export default function ItemDetail() {
                     library/media/{item.slug}/{item.slug}.img
                   </span>
                 </div>
-                {item.drive_size_mb != null && (
+                {item.drive?.size_mb != null && (
                   <div>
                     <span className="font-medium text-neutral-700 dark:text-neutral-300">Drive size:</span>{' '}
-                    {item.drive_size_mb} MB
+                    {item.drive.size_mb} MB
                   </div>
                 )}
               </div>
