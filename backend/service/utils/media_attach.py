@@ -2,14 +2,13 @@
 
 Builds attachment descriptor dicts consumed by backends at launch time.
 Most functions are pure descriptors with no I/O. ``detect_optical_drives``
-is the exception — it runs a fixed WMIC subprocess to enumerate host drives.
+is the exception — it runs a PowerShell CIM query to enumerate host drives.
 Backends assemble the final commands from the returned descriptors.
 """
 
 from __future__ import annotations
 
 import configparser
-import csv
 import io
 import re
 import subprocess
@@ -157,57 +156,62 @@ def build_86box_attachment(media_path: Path, config_path: Path) -> dict:
 
 
 def detect_optical_drives() -> list[dict]:
-    """Enumerate optical drives on the Windows host via WMIC.
+    """Enumerate optical drives on the Windows host via PowerShell CIM.
 
-    Runs ``wmic logicaldisk where drivetype=5 get deviceid,volumename
-    /format:csv`` with a fixed, hardcoded command — no user input reaches
-    the subprocess, so there is no injection risk. The args-list form is
-    used; ``shell=True`` is never passed.
+    Runs ``Get-CimInstance -ClassName Win32_CDROMDrive`` via PowerShell.
+    No user input reaches the subprocess; args-list form only, no shell=True.
 
     Returns:
         List of dicts, each with ``device_id`` (e.g. ``"D:"``) and
-        ``volume_name`` (e.g. ``"GAME DISC"`` or ``""`` if no disc is
-        present). Returns an empty list if no optical drives are found or
-        if the WMIC call fails for any reason.
+        ``volume_name`` (always ``""`` — Win32_CDROMDrive does not expose
+        a volume label; callers that need the label must query
+        Win32_LogicalDisk separately). Returns an empty list when no
+        optical drives are present (returncode 0, empty output).
+
+    Raises:
+        RuntimeError: If PowerShell is unavailable, times out, or exits
+            with a non-zero return code — distinguishes enumeration failure
+            from a valid "no drives" result.
     """
+    _PS_QUERY = (
+        "Get-CimInstance -ClassName Win32_CDROMDrive"
+        " | Select-Object -ExpandProperty Drive"
+    )
     try:
         result = subprocess.run(
             [
-                "wmic",
-                "logicaldisk",
-                "where",
-                "drivetype=5",
-                "get",
-                "deviceid,volumename",
-                "/format:csv",
+                "powershell",
+                "-NonInteractive",
+                "-NoProfile",
+                "-Command",
+                _PS_QUERY,
             ],
             capture_output=True,
             text=True,
             timeout=10,
         )
-    except Exception as exc:
-        logger.warning("WMIC optical drive enumeration failed: %s", exc)
-        return []
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "Optical drive enumeration failed: powershell.exe not found"
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            "Optical drive enumeration failed: PowerShell query timed out"
+        ) from exc
 
     if result.returncode != 0:
-        logger.warning(
-            "WMIC exited with code %d: %s",
-            result.returncode,
-            result.stderr.strip(),
+        stderr = result.stderr.strip()
+        raise RuntimeError(
+            f"Optical drive enumeration failed: PowerShell exited with"
+            f" code {result.returncode}"
+            + (f" — {stderr}" if stderr else "")
         )
-        return []
 
     drives = []
-    non_blank = [line for line in result.stdout.splitlines() if line.strip()]
-    if len(non_blank) < 2:
-        return []
-
-    reader = csv.DictReader(non_blank)
-    for row in reader:
-        device_id = row.get("DeviceID", "").strip()
-        volume_name = row.get("VolumeName", "").strip()
+    for line in result.stdout.splitlines():
+        device_id = line.strip()
         if device_id:
-            drives.append({"device_id": device_id, "volume_name": volume_name})
+            drives.append({"device_id": device_id, "volume_name": ""})
 
     return drives
 
