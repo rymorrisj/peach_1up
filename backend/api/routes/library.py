@@ -140,6 +140,7 @@ def list_library(
         q = q.filter(LibraryItem.category == category)
     if platform_id is not None:
         q = q.filter(LibraryItem.platform_id == platform_id)
+    # TODO: LibraryItem has no tags relationship yet — tag filter skipped until added
     return q.all()
 
 
@@ -193,7 +194,7 @@ def add_library_item(
             from backend.service.utils.profile_builder import _find_cover
             cover = _find_cover(item_folder)
             if cover:
-                item.cover_path = str(cover)
+                item.cover_art_path = str(cover)
         except OSError as exc:
             logger.warning("Could not create item folder %s: %s", item_folder, exc)
 

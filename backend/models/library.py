@@ -95,6 +95,7 @@ class LibraryItemUpdate(SQLModel):
     launch_commands: Optional[list[str]] = None
     launch_review_flagged: Optional[bool] = None
     installed: Optional[bool] = None
+    drive_size_mb: Optional[int] = None
 
 
 class LibraryItemRead(LibraryItemBase):
