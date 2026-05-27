@@ -72,7 +72,7 @@ def _find_cover(folder: Path) -> Optional[Path]:
     return None
 
 
-def scan_directory(base: Path, era: Era) -> list[ScanEntry]:
+def scan_directory(base: Path) -> list[ScanEntry]:
     """Walk ``base`` recursively and return a ``ScanEntry`` for each media file.
 
     Recognises the library/games/{era}/{slug}/ layout: when a media file is
@@ -82,18 +82,17 @@ def scan_directory(base: Path, era: Era) -> list[ScanEntry]:
     inside a two-level slug folder) leave both fields as ``None``.
 
     Skips files and directories that raise ``OSError`` or ``PermissionError``
-    rather than aborting the scan. Returns results sorted by path.
+    rather than aborting the scan. Skips files whose era cannot be detected.
+    Returns results sorted by path.
 
     Args:
         base: Directory to scan recursively.
-        era: Gaming era used to determine compatible extensions and apply the
-            blocklist defined in ``get_compatible_media``.
 
     Returns:
         Sorted list of ``ScanEntry`` objects for compatible media files.
         Empty if none are found or ``base`` is unreadable.
     """
-    from backend.service.utils.media_detect import detect_era, get_compatible_media
+    from backend.service.utils.media_detect import detect_era, get_all_compatible_media
 
     all_dirs: list[Path] = [base]
     try:
@@ -109,7 +108,7 @@ def scan_directory(base: Path, era: Era) -> list[ScanEntry]:
     seen: set[Path] = set()
     found: list[Path] = []
     for d in all_dirs:
-        for f in get_compatible_media(era, str(d)):
+        for f in get_all_compatible_media(d):
             if f not in seen:
                 seen.add(f)
                 found.append(f)
@@ -117,6 +116,9 @@ def scan_directory(base: Path, era: Era) -> list[ScanEntry]:
 
     entries: list[ScanEntry] = []
     for p in found:
+        detected_era = detect_era(p)
+        if detected_era is None:
+            continue
         # Check whether the file sits at base/{era}/{slug}/media — two levels deep.
         try:
             rel = p.relative_to(base)
@@ -132,7 +134,7 @@ def scan_directory(base: Path, era: Era) -> list[ScanEntry]:
         entries.append(
             ScanEntry(
                 path=p,
-                era=detect_era(p),
+                era=detected_era,
                 name=sanitize_name(p.stem),
                 folder_path=folder_path,
                 cover_path=cover_path,

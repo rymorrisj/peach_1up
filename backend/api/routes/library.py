@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, get_filtered_library, require_permission
 from backend.core.logger import get_logger
-from backend.constants_generated import Era
 from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
@@ -254,7 +253,7 @@ def scan_status():
 
 
 @router.post("/scan")
-def trigger_scan(directory: str = Query(...), era: Era = Query(...), background_tasks: BackgroundTasks = BackgroundTasks()):
+def trigger_scan(directory: str = Query(...), background_tasks: BackgroundTasks = BackgroundTasks()):
     with _scan_lock:
         if _scan_state["running"]:
             raise HTTPException(status_code=409, detail="A scan is already running.")
@@ -267,14 +266,14 @@ def trigger_scan(directory: str = Query(...), era: Era = Query(...), background_
         _scan_state["total"] = 0
         _scan_state["results"] = []
 
-    background_tasks.add_task(_run_scan, str(validated_path), era)
+    background_tasks.add_task(_run_scan, str(validated_path))
     return {"started": True, "directory": str(validated_path)}
 
 
-def _run_scan(directory: str, era: Era) -> None:
+def _run_scan(directory: str) -> None:
     from backend.service.utils.profile_builder import scan_directory
     try:
-        results = scan_directory(Path(directory), era)
+        results = scan_directory(Path(directory))
         serialisable = [
             {
                 "path": str(e.path),
