@@ -30,7 +30,6 @@ interface AddMediaForm {
 
 const EMPTY_ADD: AddMediaForm = { title: '', media_path: '', profile_id: null }
 
-const MEDIA_ACCEPT = '.iso,.img,.cue,.chd,.xiso,.exe,.bat'
 
 // ── Card design constants ──────────────────────────────────────────────────
 
@@ -79,8 +78,6 @@ function AddMediaModal({ open, profiles, onClose, onAdded, mediaRootPath }: AddM
   const [form, setForm] = useState<AddMediaForm>(EMPTY_ADD)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const dropRef = useRef<HTMLDivElement>(null)
-  const [dragging, setDragging] = useState(false)
 
   useEffect(() => {
     if (!open) {
@@ -93,32 +90,24 @@ function AddMediaModal({ open, profiles, onClose, onAdded, mediaRootPath }: AddM
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  function handleFilePicked(filename: string) {
-    setField('media_path', filename)
-    if (!form.title && filename) {
-      const stem = filename.split(/[/\\]/).pop()?.replace(/\.[^.]+$/, '') ?? ''
-      setField('title', stem)
+  function handleFolderPicked(folderPath: string) {
+    setField('media_path', folderPath)
+    if (!form.title && folderPath) {
+      const folderName = folderPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? ''
+      setField('title', folderName.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
     }
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
-    setDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (!file) return
-    handleFilePicked(file.name)
   }
 
   async function handleSubmit() {
     if (!form.media_path.trim()) {
-      setError('A media file path is required.')
+      setError('A folder path is required.')
       return
     }
     if (!isAbsolutePath(form.media_path.trim())) {
       setError(
         'The path does not look like an absolute path. ' +
         'Browser security prevents reading the full path from the file picker — ' +
-        'please type or paste the complete path (e.g. C:\\Games\\mygame.iso).',
+        'please type or paste the complete path (e.g. C:\\library\\media\\my-game).',
       )
       return
     }
@@ -165,32 +154,17 @@ function AddMediaModal({ open, profiles, onClose, onAdded, mediaRootPath }: AddM
         </>
       }
     >
-      <div
-        ref={dropRef}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={handleDrop}
-        className={`flex items-center justify-center rounded-lg border-2 border-dashed py-8 text-sm transition-colors ${
-          dragging
-            ? 'border-[#ff8a5c] bg-[#ff8a5c]/10 text-[#ff8a5c]'
-            : 'border-neutral-300 text-neutral-400 dark:border-neutral-700 dark:text-neutral-500'
-        }`}
-      >
-        Drop a media file here (.iso, .img, .cue, .chd, .xiso, .exe, .bat)
-      </div>
-
       <FormField
-        label="File Path"
+        label="Folder"
         htmlFor="add-path"
-        hint="Full path to the media file. Browser security limits what the picker can provide — type or paste the complete path if needed."
+        hint="Select a folder inside your media library. Each folder is one library item."
       >
         <PathInput
           id="add-path"
-          mode="file"
-          accept={MEDIA_ACCEPT}
+          mode="folder"
           value={form.media_path}
-          onChange={handleFilePicked}
-          placeholder="C:\Games\mygame.iso"
+          onChange={handleFolderPicked}
+          placeholder="C:\library\media\my-game"
           className="mt-1"
           hasError={!!error && !form.media_path}
           rootPath={mediaRootPath}
@@ -240,9 +214,9 @@ function AddMediaModal({ open, profiles, onClose, onAdded, mediaRootPath }: AddM
 // ── Scan modal ─────────────────────────────────────────────────────────────
 
 interface ScanResult {
-  path: string
-  era: string | null
+  folder_path: string
   name: string
+  executable_path: string | null
 }
 
 interface ScanStatus {
@@ -259,11 +233,8 @@ interface ScanModalProps {
 }
 
 function ScanModal({ open, onClose, onImported }: ScanModalProps) {
-  const [directory, setDirectory] = useState('')
   const [scanning, setScanning] = useState(false)
   const [status, setStatus] = useState<ScanStatus | null>(null)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -271,27 +242,19 @@ function ScanModal({ open, onClose, onImported }: ScanModalProps) {
 
   useEffect(() => {
     if (!open) {
-      setDirectory('')
       setScanning(false)
       setStatus(null)
-      setSelected(new Set())
       setError(null)
       if (pollRef.current) clearInterval(pollRef.current)
     }
   }, [open])
 
   async function handleScan() {
-    if (!directory.trim()) {
-      setError('Enter a directory path to scan.')
-      return
-    }
     setError(null)
     setScanning(true)
     setStatus(null)
     try {
-      await apiFetch(`/api/v1/library/scan?directory=${encodeURIComponent(directory.trim())}`, {
-        method: 'POST',
-      })
+      await apiFetch('/api/v1/library/scan', { method: 'POST' })
       pollRef.current = setInterval(async () => {
         try {
           const s = await apiFetch<ScanStatus>('/api/v1/library/scan/status')
@@ -299,7 +262,7 @@ function ScanModal({ open, onClose, onImported }: ScanModalProps) {
           if (!s.running) {
             clearInterval(pollRef.current!)
             setScanning(false)
-            setSelected(new Set(s.results.map((r) => r.path)))
+            if (s.results.length > 0) onImported()
           }
         } catch {
           clearInterval(pollRef.current!)
@@ -312,58 +275,18 @@ function ScanModal({ open, onClose, onImported }: ScanModalProps) {
     }
   }
 
-  async function handleImport() {
-    if (!status || selected.size === 0) return
-    setImporting(true)
-    setError(null)
-    const toImport = status.results.filter((r) => selected.has(r.path))
-    let failed = 0
-    for (const entry of toImport) {
-      try {
-        await apiFetch('/api/v1/library', {
-          method: 'POST',
-          body: JSON.stringify({
-            title: entry.name,
-            media_path: entry.path,
-            era: entry.era ?? 'unknown',
-          }),
-        })
-      } catch {
-        failed++
-      }
-    }
-    setImporting(false)
-    if (failed > 0) setError(`${failed} item(s) failed to import.`)
-    onImported()
-    if (failed === 0) onClose()
-  }
-
-  function toggleSelect(path: string) {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
-      return next
-    })
-  }
-
-  const hasDone = status && !status.running && status.results.length > 0
+  const hasDone = status && !status.running
 
   return (
     <Modal
       open={open}
-      title="Scan Directory"
+      title="Scan Library"
       onClose={onClose}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={scanning || importing}>
+          <Button variant="ghost" onClick={onClose} disabled={scanning}>
             {hasDone ? 'Close' : 'Cancel'}
           </Button>
-          {hasDone && (
-            <Button onClick={handleImport} loading={importing} disabled={selected.size === 0}>
-              Import Selected ({selected.size})
-            </Button>
-          )}
           {!hasDone && (
             <Button onClick={handleScan} loading={scanning} disabled={scanning}>
               Scan
@@ -372,21 +295,6 @@ function ScanModal({ open, onClose, onImported }: ScanModalProps) {
         </>
       }
     >
-      <FormField
-        label="Directory"
-        htmlFor="scan-dir"
-        hint="Must be within your media library (library/media/)."
-      >
-        <PathInput
-          id="scan-dir"
-          mode="folder"
-          value={directory}
-          onChange={setDirectory}
-          placeholder="C:\Games"
-          className="mt-1"
-        />
-      </FormField>
-
       {scanning && (
         <div className="flex items-center gap-2 text-sm text-neutral-500">
           <LoadingSpinner label="Scanning…" />
@@ -394,47 +302,24 @@ function ScanModal({ open, onClose, onImported }: ScanModalProps) {
         </div>
       )}
 
-      {status && !status.running && status.results.length === 0 && (
-        <p className="text-sm text-neutral-500">No media files found in that directory.</p>
+      {hasDone && status.results.length === 0 && (
+        <p className="text-sm text-neutral-500">No new folders found in the media library.</p>
       )}
 
-      {hasDone && (
+      {hasDone && status.results.length > 0 && (
         <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs text-neutral-400 dark:text-neutral-500">
-            <span>Found {status.results.length} file(s)</span>
-            <button
-              type="button"
-              className="hover:underline"
-              onClick={() =>
-                setSelected(
-                  selected.size === status.results.length
-                    ? new Set()
-                    : new Set(status.results.map((r) => r.path)),
-                )
-              }
-            >
-              {selected.size === status.results.length ? 'Deselect all' : 'Select all'}
-            </button>
-          </div>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">
+            Imported {status.results.length} item{status.results.length !== 1 ? 's' : ''}
+          </p>
           <ul className="max-h-64 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700">
             {status.results.map((r) => (
-              <li key={r.path}>
-                <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-neutral-50 dark:hover:bg-surface-800">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(r.path)}
-                    onChange={() => toggleSelect(r.path)}
-                    className="h-4 w-4 rounded"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                      {r.name}
-                    </span>
-                    <span className="block truncate text-xs text-neutral-400 dark:text-neutral-500">
-                      {ERA_LABELS[r.era ?? ''] ?? r.era ?? 'Unknown era'} · {r.path}
-                    </span>
-                  </span>
-                </label>
+              <li key={r.folder_path} className="px-3 py-2">
+                <span className="block truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                  {r.name}
+                </span>
+                <span className="block truncate text-xs text-neutral-400 dark:text-neutral-500">
+                  {r.executable_path ?? 'No launchable file found'} · {r.folder_path}
+                </span>
               </li>
             ))}
           </ul>

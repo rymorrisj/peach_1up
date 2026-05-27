@@ -62,66 +62,6 @@ def _consume_confirm_token(token: str, item_id: int) -> bool:
     return expected_id == item_id
 
 
-def _validate_scan_directory(directory: str) -> Path:
-    """Resolve and validate a scan directory against the allowlisted base directories.
-
-    Per SECURITY.md mandatory input validation rules: every file path accepted
-    from any source must be resolved, normalised, and validated against an
-    allowlist of permitted base directories before any filesystem operation.
-    Only MEDIA_PATH (library/media/) is a permitted scan root — system files
-    in library/system/ are never exposed via the scan endpoint.
-    """
-    if "\x00" in directory:
-        logger.warning("Scan directory rejected: contains null byte (raw=%r)", directory)
-        raise HTTPException(status_code=400, detail="Invalid path: contains a null byte.")
-
-    resolved = Path(directory).resolve()
-
-    try:
-        from backend.core.settings import get_settings
-        svc = get_settings()
-        allowed_roots: list[Path] = []
-        val = svc.get("MEDIA_PATH", "") or ""
-        if val:
-            allowed_roots.append(Path(val).resolve())
-    except RuntimeError:
-        allowed_roots = []
-
-    if not allowed_roots:
-        logger.warning("Scan rejected: MEDIA_PATH is not configured")
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "No media library path is configured. "
-                "Set MEDIA_PATH in Settings before scanning."
-            ),
-        )
-
-    within_allowed = any(
-        resolved == root or resolved.is_relative_to(root)
-        for root in allowed_roots
-    )
-
-    if not within_allowed:
-        logger.warning(
-            "Scan rejected: directory outside media library: directory=%r resolved=%s allowed=%s",
-            directory,
-            resolved,
-            [str(r) for r in allowed_roots],
-        )
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Directory is outside the media library (library/media/). "
-                "Only the media library may be scanned."
-            ),
-        )
-
-    if not resolved.is_dir():
-        raise HTTPException(status_code=400, detail="Path does not exist or is not a directory.")
-
-    return resolved
-
 
 @router.get("", response_model=list[LibraryItemRead])
 def list_library(
@@ -179,7 +119,41 @@ def add_library_item(
 
     svc = get_settings()
     games_root_str = svc.get("MEDIA_PATH", "") or ""
-    if games_root_str:
+    media_src = Path(body.media_path).resolve()
+
+    if media_src.is_dir():
+        # Folder-as-item: validate path is within MEDIA_PATH per SECURITY.md, then use directly.
+        if games_root_str:
+            media_root = Path(games_root_str).resolve()
+            if not (media_src == media_root or media_src.is_relative_to(media_root)):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Folder is outside the media library (library/media/).",
+                )
+        item.media_path = str(media_src)
+        item.folder_path = str(media_src)
+        from backend.service.utils.profile_builder import _EXECUTABLE_PRIORITY, _find_cover
+        folder_name = media_src.name
+        drive_img_lower = f"{folder_name}.img".lower()
+        try:
+            candidates = [
+                f for f in media_src.iterdir()
+                if f.is_file() and f.name.lower() != drive_img_lower
+            ]
+        except OSError:
+            candidates = []
+        for ext in _EXECUTABLE_PRIORITY:
+            for f in candidates:
+                if f.suffix.lower() == ext:
+                    item.executable_path = str(f)
+                    break
+            if item.executable_path:
+                break
+        cover = _find_cover(media_src)
+        if cover:
+            item.cover_art_path = str(cover)
+    elif games_root_str:
+        # File-based: create a slug subfolder and optionally copy the file into it.
         item_folder = Path(games_root_str) / item.slug
         try:
             item_folder.mkdir(parents=True, exist_ok=True)
@@ -253,12 +227,27 @@ def scan_status():
 
 
 @router.post("/scan")
-def trigger_scan(directory: str = Query(...), background_tasks: BackgroundTasks = BackgroundTasks()):
+def trigger_scan(background_tasks: BackgroundTasks = BackgroundTasks()):
     with _scan_lock:
         if _scan_state["running"]:
             raise HTTPException(status_code=409, detail="A scan is already running.")
 
-    validated_path = _validate_scan_directory(directory)
+    try:
+        from backend.core.settings import get_settings
+        svc = get_settings()
+        media_path = svc.get("MEDIA_PATH", "") or ""
+    except RuntimeError:
+        media_path = ""
+
+    if not media_path:
+        raise HTTPException(
+            status_code=400,
+            detail="No media library path is configured. Set MEDIA_PATH in Settings before scanning.",
+        )
+
+    resolved = Path(media_path).resolve()
+    if not resolved.is_dir():
+        raise HTTPException(status_code=400, detail="Media library path does not exist or is not a directory.")
 
     with _scan_lock:
         _scan_state["running"] = True
@@ -266,26 +255,63 @@ def trigger_scan(directory: str = Query(...), background_tasks: BackgroundTasks 
         _scan_state["total"] = 0
         _scan_state["results"] = []
 
-    background_tasks.add_task(_run_scan, str(validated_path))
-    return {"started": True, "directory": str(validated_path)}
+    background_tasks.add_task(_run_scan, str(resolved))
+    return {"started": True, "directory": str(resolved)}
 
 
 def _run_scan(directory: str) -> None:
-    from backend.service.utils.profile_builder import scan_directory
+    from backend.service.utils.profile_builder import scan_media_folders
+    from backend.core.database import get_engine
+    from backend.models.library import LibraryItem
+    from backend.service.utils.slug_generator import generate_item_slug
+    from sqlalchemy.orm import Session
+
+    created: list[dict] = []
     try:
-        results = scan_directory(Path(directory))
-        serialisable = [
-            {
-                "path": str(e.path),
-                "era": e.era.value if e.era is not None else None,
-                "name": e.name,
+        entries = scan_media_folders(Path(directory))
+        db = Session(get_engine())
+        try:
+            existing: set[str] = {
+                str(Path(fp).resolve())
+                for (fp,) in db.query(LibraryItem.folder_path)
+                .filter(LibraryItem.folder_path.isnot(None))
+                .all()
             }
-            for e in results
-        ]
+            for entry in entries:
+                folder_str = str(entry.folder_path.resolve())
+                if folder_str in existing:
+                    continue
+                item = LibraryItem(
+                    title=entry.name,
+                    era="unknown",
+                    media_path=str(entry.folder_path),
+                    folder_path=str(entry.folder_path),
+                    executable_path=str(entry.executable_path) if entry.executable_path else None,
+                    cover_art_path=str(entry.cover_path) if entry.cover_path else None,
+                )
+                item.slug = generate_item_slug(item.title, db)
+                db.add(item)
+                db.flush()
+                existing.add(folder_str)
+                created.append({
+                    "folder_path": str(entry.folder_path),
+                    "name": entry.name,
+                    "executable_path": str(entry.executable_path) if entry.executable_path else None,
+                })
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
         with _scan_lock:
-            _scan_state["results"] = serialisable
-            _scan_state["total"] = len(serialisable)
-            _scan_state["progress"] = len(serialisable)
+            _scan_state["results"] = created
+            _scan_state["total"] = len(created)
+            _scan_state["progress"] = len(created)
+
+    except Exception as exc:
+        logger.error("Scan failed: %s", exc, exc_info=True)
     finally:
         with _scan_lock:
             _scan_state["running"] = False

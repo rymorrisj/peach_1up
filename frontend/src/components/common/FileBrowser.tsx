@@ -102,6 +102,7 @@ export default function FileBrowser({
       return apiFetch<BrowseResult>(`/api/v1/filesystem/browse?${p}`)
     },
     enabled: open,
+    gcTime: 0,
   })
 
   function handleSelectFolder() {

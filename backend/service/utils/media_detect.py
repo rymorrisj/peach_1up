@@ -60,18 +60,6 @@ _BLOCKED_EXTENSIONS = frozenset({".img"})
 _BLOCKED_FILENAMES = frozenset({"setup.exe", "setup.bat", "install.exe", "install.bat"})
 
 
-def get_all_compatible_media(directory: "str | Path") -> List[Path]:
-    all_files = _list_files(str(directory))
-    allowed_extensions = (
-        frozenset().union(*ERA_MEDIA_TYPES.values()) - _BLOCKED_EXTENSIONS
-    )
-    return [
-        f for f in all_files
-        if f.suffix.lower() in allowed_extensions
-        and f.name.lower() not in _BLOCKED_FILENAMES
-    ]
-
-
 def get_compatible_media(era: Era, path: str) -> List[Path]:
     """
     Find media files compatible with the specified gaming era.

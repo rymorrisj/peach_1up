@@ -6,55 +6,31 @@ callable from FastAPI route handlers.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-
-from backend.constants_generated import Era
 
 
 _COVER_STEMS: frozenset[str] = frozenset({"cover"})
 _COVER_EXTENSIONS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 
-
-def sanitize_name(stem: str) -> str:
-    """Produce a safe profile name from a filename stem.
-
-    Strips characters invalid in a YAML filename stem, collapses runs of
-    whitespace and hyphens to underscores, and truncates to 50 characters.
-
-    Args:
-        stem: The filename stem to sanitise (no extension).
-
-    Returns:
-        A non-empty safe profile name string.
-    """
-    name = re.sub(r"[^\w\s\-]", "", stem).strip()
-    name = re.sub(r"[\s\-]+", "_", name)
-    return name[:50] or "unnamed"
+_EXECUTABLE_PRIORITY: list[str] = [".cue", ".iso", ".chd", ".xiso", ".exe"]
 
 
 @dataclass
-class ScanEntry:
-    """A single media file found during a library scan.
+class FolderScanEntry:
+    """One item candidate found during a media folder scan.
 
     Attributes:
-        path: Absolute path to the media file.
-        era: Detected era, or ``None`` if detection was uncertain.
-        name: Sanitised profile name derived from the filename stem.
-        folder_path: Absolute path to the item's folder (library/games/{era}/{slug}/),
-            or ``None`` when scanning a flat directory.
-        cover_path: Absolute path to cover.{jpg,jpeg,png,webp} found in
-            ``folder_path``, or ``None`` if absent.
-        selected: Whether this entry is marked for import. Defaults to True.
+        folder_path:     Absolute path to the item's folder under library/media/.
+        name:            Display name derived from the folder name (hyphens to spaces, title-cased).
+        executable_path: Highest-priority launchable file in the folder, or None.
+        cover_path:      Cover image found in the folder, or None.
     """
-    path: Path
-    era: Optional[Era]
+    folder_path: Path
     name: str
-    folder_path: Optional[Path] = None
-    cover_path: Optional[Path] = None
-    selected: bool = True
+    executable_path: Optional[Path]
+    cover_path: Optional[Path]
 
 
 def _find_cover(folder: Path) -> Optional[Path]:
@@ -72,74 +48,60 @@ def _find_cover(folder: Path) -> Optional[Path]:
     return None
 
 
-def scan_directory(base: Path) -> list[ScanEntry]:
-    """Walk ``base`` recursively and return a ``ScanEntry`` for each media file.
+def scan_media_folders(base: Path) -> list[FolderScanEntry]:
+    """Walk one level deep under ``base`` and return one entry per direct subfolder.
 
-    Recognises the library/games/{era}/{slug}/ layout: when a media file is
-    found directly inside a two-level subdirectory of ``base``, the slug
-    folder is recorded as ``folder_path`` and any cover.{jpg,jpeg,png,webp}
-    in that folder is recorded as ``cover_path``. Flat layouts (media not
-    inside a two-level slug folder) leave both fields as ``None``.
-
-    Skips files and directories that raise ``OSError`` or ``PermissionError``
-    rather than aborting the scan. Skips files whose era cannot be detected.
-    Returns results sorted by path.
+    Each non-hidden subfolder of ``base`` is treated as one library item. The
+    best-guess launchable file is chosen from the folder's direct contents using
+    the priority order defined in ``_EXECUTABLE_PRIORITY``
+    (.cue > .iso > .chd > .xiso > .exe). The file matching ``{folder_name}.img``
+    is always excluded — it is a drive image, not launchable media. Subdirectories
+    that raise ``OSError`` or ``PermissionError`` are skipped silently.
 
     Args:
-        base: Directory to scan recursively.
+        base: Root directory to scan one level deep (library/media/).
 
     Returns:
-        Sorted list of ``ScanEntry`` objects for compatible media files.
-        Empty if none are found or ``base`` is unreadable.
+        List of ``FolderScanEntry`` objects sorted by folder name (case-insensitive).
+        Empty if ``base`` is unreadable or has no qualifying subdirectories.
     """
-    from backend.service.utils.media_detect import detect_era, get_all_compatible_media
-
-    all_dirs: list[Path] = [base]
+    entries: list[FolderScanEntry] = []
     try:
-        for p in base.rglob("*"):
-            try:
-                if p.is_dir():
-                    all_dirs.append(p)
-            except (OSError, PermissionError):
-                continue
-    except (OSError, PermissionError):
-        pass
-
-    seen: set[Path] = set()
-    found: list[Path] = []
-    for d in all_dirs:
-        for f in get_all_compatible_media(d):
-            if f not in seen:
-                seen.add(f)
-                found.append(f)
-    found.sort()
-
-    entries: list[ScanEntry] = []
-    for p in found:
-        detected_era = detect_era(p)
-        if detected_era is None:
-            continue
-        # Check whether the file sits at base/{era}/{slug}/media — two levels deep.
-        try:
-            rel = p.relative_to(base)
-        except ValueError:
-            rel = None
-        folder_path: Optional[Path] = None
-        cover_path: Optional[Path] = None
-        if rel is not None and len(rel.parts) == 3:
-            slug_folder = base / rel.parts[0] / rel.parts[1]
-            if slug_folder.is_dir():
-                folder_path = slug_folder
-                cover_path = _find_cover(slug_folder)
-        entries.append(
-            ScanEntry(
-                path=p,
-                era=detected_era,
-                name=sanitize_name(p.stem),
-                folder_path=folder_path,
-                cover_path=cover_path,
-            )
+        subdirs = sorted(
+            (p for p in base.iterdir() if p.is_dir() and not p.name.startswith(".")),
+            key=lambda p: p.name.lower(),
         )
+    except (OSError, PermissionError):
+        return []
+
+    for folder in subdirs:
+        folder_name = folder.name
+        drive_img_lower = f"{folder_name}.img".lower()
+
+        try:
+            all_files = [f for f in folder.iterdir() if f.is_file()]
+        except (OSError, PermissionError):
+            all_files = []
+
+        candidates = [f for f in all_files if f.name.lower() != drive_img_lower]
+
+        executable: Optional[Path] = None
+        for ext in _EXECUTABLE_PRIORITY:
+            for f in candidates:
+                if f.suffix.lower() == ext:
+                    executable = f
+                    break
+            if executable is not None:
+                break
+
+        name = folder_name.replace("-", " ").title()
+        cover = _find_cover(folder)
+
+        entries.append(FolderScanEntry(
+            folder_path=folder,
+            name=name,
+            executable_path=executable,
+            cover_path=cover,
+        ))
+
     return entries
-
-
