@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from backend.core.logger import get_logger
 from backend.service.utils.sandbox.sandbox_config import BrokerFile, SandboxConfig
 from backend.service.utils.sandbox.sandbox_error import SandboxError
 from backend.service.utils.sandbox.sandbox_event import (
@@ -17,6 +18,8 @@ from backend.service.utils.sandbox.sandbox_event import (
     SandboxPayload,
     SandboxStage,
 )
+
+logger = get_logger(__name__)
 
 EXE_NAME: str = "sandbox_host.exe"
 
@@ -75,7 +78,7 @@ def _validate(config: SandboxConfig) -> None:
         )
 
 
-@dataclass(frozen=True)
+@dataclass
 class SandboxHandle:
     moniker: str
     container_sid: str
@@ -191,7 +194,12 @@ def _fire(
         try:
             cb(payload)
         except Exception:
-            pass
+            logger.error(
+                "Callback raised an unhandled exception [event=%s, callback=%r]",
+                event,
+                cb,
+                exc_info=True,
+            )
 
 
 def launch(config: SandboxConfig) -> SandboxHandle:
