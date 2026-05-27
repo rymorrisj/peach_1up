@@ -93,10 +93,10 @@ class TestWindowsJobObjectPreCreate:
         assert job.job_handle is None
         assert job.pid is None
 
-    def test_is_active_before_create_returns_false(self):
+    def test_handle_is_open_before_create_returns_false(self):
         from backend.service.utils.job_objects import WindowsJobObject
         job = WindowsJobObject("test_job", 256, 50)
-        assert job.is_active() is False
+        assert job.handle_is_open() is False
 
     def test_set_memory_limit_before_create_raises(self):
         from backend.service.utils.job_objects import WindowsJobObject
@@ -132,17 +132,17 @@ class TestWindowsJobObjectLifecycle:
         try:
             assert job.job_handle is not None
         finally:
-            job.terminate_all()
+            job.teardown()
 
     @requires_windows
-    def test_is_active_returns_true_after_create(self):
+    def test_handle_is_open_returns_true_after_create(self):
         from backend.service.utils.job_objects import WindowsJobObject
         job = WindowsJobObject("PeachTest_IsActive", 256, 50)
         job.create()
         try:
-            assert job.is_active() is True
+            assert job.handle_is_open() is True
         finally:
-            job.terminate_all()
+            job.teardown()
 
     @requires_windows
     def test_memory_limit_reapplied_without_error(self):
@@ -152,7 +152,7 @@ class TestWindowsJobObjectLifecycle:
         try:
             job.set_memory_limit(768)
         finally:
-            job.terminate_all()
+            job.teardown()
 
     @requires_windows
     def test_cpu_limit_reapplied_without_error(self):
@@ -162,31 +162,31 @@ class TestWindowsJobObjectLifecycle:
         try:
             job.set_cpu_limit(60)
         finally:
-            job.terminate_all()
+            job.teardown()
 
     @requires_windows
-    def test_terminate_all_sets_handle_to_none(self):
+    def test_teardown_sets_handle_to_none(self):
         from backend.service.utils.job_objects import WindowsJobObject
         job = WindowsJobObject("PeachTest_Terminate", 256, 50)
         job.create()
-        job.terminate_all()
+        job.teardown()
         assert job.job_handle is None
 
     @requires_windows
-    def test_is_active_returns_false_after_terminate(self):
+    def test_handle_is_open_returns_false_after_terminate(self):
         from backend.service.utils.job_objects import WindowsJobObject
         job = WindowsJobObject("PeachTest_PostTerminate", 256, 50)
         job.create()
-        job.terminate_all()
-        assert job.is_active() is False
+        job.teardown()
+        assert job.handle_is_open() is False
 
     @requires_windows
-    def test_terminate_all_is_idempotent(self):
+    def test_teardown_is_idempotent(self):
         from backend.service.utils.job_objects import WindowsJobObject
         job = WindowsJobObject("PeachTest_Idempotent", 256, 50)
         job.create()
-        job.terminate_all()
-        job.terminate_all()  # no handle — must not raise
+        job.teardown()
+        job.teardown()  # no handle — must not raise
 
     @requires_windows
     def test_create_applies_era_limits_from_eras_yaml(self):
@@ -197,11 +197,11 @@ class TestWindowsJobObjectLifecycle:
         job = WindowsJobObject("PeachTest_EraLimits", memory_mb, cpu_pct)
         job.create()
         try:
-            assert job.is_active() is True
+            assert job.handle_is_open() is True
             assert job.memory_limit_mb == memory_mb
             assert job.cpu_limit_percent == cpu_pct
         finally:
-            job.terminate_all()
+            job.teardown()
 
 
 # ---------------------------------------------------------------------------
@@ -261,8 +261,8 @@ class TestSandboxProcess:
     reason=(
         "manual: requires a real emulator binary at DOSBOX_PATH and Windows 10/11. "
         "Steps: (1) Call launch_under_job_object(dosbox_path, [], [], 'dos', 'PeachManualTest'). "
-        "(2) Verify process.pid > 0 and job.is_active() is True. "
-        "(3) Call job.terminate_all() and verify the process is gone. "
+        "(2) Verify process.pid > 0 and job.handle_is_open() is True. "
+        "(3) Call job.teardown() and verify the process is gone. "
         "Expected: no RuntimeError; pid > 0; job active after launch; inactive after terminate."
     )
 )

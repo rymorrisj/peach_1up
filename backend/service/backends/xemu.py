@@ -106,7 +106,7 @@ def launch(
 
     Returns:
         Tuple of (SandboxProcess, WindowsJobObject instance).
-        Caller is responsible for cleanup via job_object.terminate_all().
+        Caller is responsible for cleanup via job_object.teardown().
 
     Raises:
         FileNotFoundError: If the executable, media file, or BIOS path is missing.
@@ -146,18 +146,11 @@ def launch(
     if media_path is not None:
         args += build_args(media_path)
 
-    media_paths = []
-    if media_path is not None:
-        media_paths.append(str(media_path))
-    if platform.working_image_path:
-        media_paths.append(str(platform.working_image_path))
-
     job_name = f"peach1up_xemu_{platform.era}_{platform.slug}"
 
     return launch_under_job_object(
         executable_path=executable_path,
         args=args,
-        media_paths=media_paths,
         era=platform.era,
         job_name=job_name,
         slug="xemu",

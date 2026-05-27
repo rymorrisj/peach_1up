@@ -175,7 +175,7 @@ def add_library_item(
     from backend.service.utils.slug_generator import generate_item_slug
 
     item = LibraryItem(**body.model_dump())
-    item.slug = generate_item_slug(item.title, item.era, db)
+    item.slug = generate_item_slug(item.title, db)
 
     svc = get_settings()
     games_root_str = svc.get("MEDIA_PATH", "") or ""

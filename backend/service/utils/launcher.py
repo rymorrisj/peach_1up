@@ -18,7 +18,6 @@ import os
 import subprocess
 import yaml
 from pathlib import Path
-from typing import List, Tuple
 
 from backend.service.utils.win32_types import (
     _CREATE_BREAKAWAY_FROM_JOB,
@@ -39,7 +38,7 @@ logger = get_logger(__name__)
 _ERAS_YAML: Path = get_base_path() / "config" / "eras.yaml"
 
 
-def _load_era_limits(era: str) -> Tuple[int, int]:
+def _load_era_limits(era: str) -> tuple[int, int]:
     """Load memory_limit_mb and cpu_limit_percent for *era* from eras.yaml.
 
     Returns:
@@ -82,7 +81,7 @@ def _load_era_limits(era: str) -> Tuple[int, int]:
 
 def _launch_process(
     executable_path: str,
-    args: List[str],
+    args: list[str],
     creation_flags: int,
     cwd: str | None = None,
 ) -> SandboxProcess:
@@ -149,7 +148,7 @@ def _launch_process(
 
 def _launch_process_in_container(
     executable_path: str,
-    args: List[str],
+    args: list[str],
     creation_flags: int,
     sandbox_config: SandboxConfig,
     cwd: str | None = None,
@@ -219,15 +218,14 @@ def _launch_process_in_container(
 
 def launch_under_job_object(
     executable_path: str,
-    args: List[str],
-    media_paths: List[str],
+    args: list[str],
     era: str,
     job_name: str,
     slug: str = "",
     cwd: str | None = None,
     container_enabled: bool = False,
     sandbox_config: SandboxConfig | None = None,
-) -> Tuple[SandboxProcess, "WindowsJobObject"]:
+) -> tuple[SandboxProcess, "WindowsJobObject"]:
     """Launch an emulator under the current user account in a Windows Job Object.
 
     Orchestrates the full startup sequence:
@@ -247,15 +245,13 @@ def launch_under_job_object(
     Args:
         executable_path: Full path to the emulator executable.
         args: Additional command-line arguments for the emulator.
-        media_paths: Media paths passed to the emulator (informational only —
-            Job Objects cannot restrict filesystem access on Windows).
         era: Era key (e.g. ``"dos"``) used to look up limits in ``eras.yaml``.
         job_name: Unique name for the Win32 Job Object.
 
     Returns:
         ``(process, job_object)`` — the running ``SandboxProcess`` and the
         ``WindowsJobObject`` that owns it.  The caller must call
-        ``job_object.terminate_all()`` when the emulator exits.
+        ``job_object.teardown()`` when the emulator exits.
 
     Raises:
         FileNotFoundError: If ``eras.yaml`` is not found.
@@ -301,7 +297,7 @@ def launch_under_job_object(
     except SandboxError:
         if job_object:
             try:
-                job_object.terminate_all()
+                job_object.teardown()
             except Exception:
                 pass
         raise
@@ -315,7 +311,7 @@ def launch_under_job_object(
                 logger.error("kill failed for pid=%s during phase 1 cleanup: %s", process.pid, exc)
         if job_object:
             try:
-                job_object.terminate_all()
+                job_object.teardown()
             except Exception as ce:
                 cleanup_errors.append(str(ce))
         msg = f"Failed to launch {executable_path} under job object: {str(e)}"
@@ -340,7 +336,7 @@ def launch_under_job_object(
             except Exception as exc2:
                 logger.error("kill failed for pid=%s during job assignment cleanup: %s", process.pid, exc2)
             try:
-                job_object.terminate_all()
+                job_object.teardown()
             except Exception:
                 pass
             raise RuntimeError(f"Failed to assign process to job object: {exc}")
@@ -365,13 +361,13 @@ def launch_under_job_object(
                 )
         except SandboxError:
             try:
-                job_object.terminate_all()
+                job_object.teardown()
             except Exception:
                 pass
             raise
         except Exception as exc2:
             try:
-                job_object.terminate_all()
+                job_object.teardown()
             except Exception:
                 pass
             raise RuntimeError(
@@ -387,7 +383,7 @@ def launch_under_job_object(
             except Exception as exc4:
                 logger.error("kill failed for pid=%s during post-breakaway assignment cleanup: %s", process.pid, exc4)
             try:
-                job_object.terminate_all()
+                job_object.teardown()
             except Exception:
                 pass
             raise RuntimeError(

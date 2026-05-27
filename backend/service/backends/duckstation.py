@@ -97,7 +97,7 @@ def launch(media_path: Path, era: str, executable_path: str) -> Tuple[SandboxPro
 
     Returns:
         Tuple of (subprocess.Popen process, WindowsJobObject instance).
-        Caller is responsible for cleanup via job_object.terminate_all().
+        Caller is responsible for cleanup via job_object.teardown().
 
     Raises:
         FileNotFoundError: If the executable, media file, or BIOS path is missing.
@@ -124,7 +124,6 @@ def launch(media_path: Path, era: str, executable_path: str) -> Tuple[SandboxPro
     return launch_under_job_object(
         executable_path=executable_path,
         args=args,
-        media_paths=[str(media_path)],
         era=era,
         job_name=job_name,
         slug="duckstation",

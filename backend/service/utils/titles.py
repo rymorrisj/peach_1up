@@ -58,7 +58,7 @@ def load_titles(titles_path: Path) -> list[dict]:
         if era not in {"win95", "win98"}:
             raise ValueError(
                 f"known_titles.yaml entry {i} ('{entry['name']}') has invalid era "
-                f"'{era}'. Valid values: {', '.join(sorted(_VALID_ERAS))}"
+                f"'{era}'. Valid values: {', '.join(sorted({'win95', 'win98'}))}"
             )
 
         if not isinstance(entry["requires_86box"], bool):

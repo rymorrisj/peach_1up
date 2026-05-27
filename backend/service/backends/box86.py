@@ -327,17 +327,9 @@ def launch(
             "value": "1",
         })
 
-    job_paths = [str(platform.working_image_path)]
-
     if media_path is not None:
         attachment = build_86box_attachment(media_path, platform.config_path)
         _inject_media(attachment)
-        job_paths.append(str(media_path))
-
-    if platform.base_image_path is not None:
-        iso = Path(str(platform.base_image_path))
-        if iso.exists():
-            job_paths.append(str(iso))
 
     vm_dir = Path(str(platform.config_path)).parent.resolve()
 
@@ -352,7 +344,6 @@ def launch(
     return launch_under_job_object(
         executable_path=box86_path,
         args=args,
-        media_paths=job_paths,
         era=platform.era,
         job_name=job_name,
         slug="86box",

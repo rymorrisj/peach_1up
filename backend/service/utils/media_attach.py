@@ -16,9 +16,6 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-import pycdlib
-from pycdlib.pycdlibexception import PyCdlibException
-
 from backend.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -63,6 +60,9 @@ def find_autorun(media_path: Path) -> Optional[str]:
     """
     if media_path.suffix.lower() != ".iso":
         return None
+
+    import pycdlib
+    from pycdlib.pycdlibexception import PyCdlibException
 
     iso = pycdlib.PyCdlib()
     try:

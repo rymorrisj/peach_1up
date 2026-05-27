@@ -33,7 +33,6 @@ from backend.service.utils.win32_types import (
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
     JOBOBJECT_CPU_RATE_CONTROL_INFORMATION,
     JOBOBJECT_BASIC_ACCOUNTING_INFORMATION,
-    THREADENTRY32,
 )
 from backend.core.logger import get_logger
 from backend.service.utils.sandbox_process import SandboxProcess
@@ -89,7 +88,7 @@ class WindowsJobObject:
         job.create()
         job.add_process(sandbox_process)
         # ... emulator runs ...
-        job.terminate_all()
+        job.teardown()
 
     ``launch_under_job_object`` in launcher.py handles this sequence and is
     the preferred entry point for callers outside this file.
@@ -100,7 +99,6 @@ class WindowsJobObject:
         cpu_limit_percent: CPU hard cap as a percentage of all logical
             processors (1–100), applied at creation.
         job_handle: Raw Win32 handle; ``None`` until ``create()`` is called.
-        process_name: Basename of the emulator executable (no extension).
         pid: PID of the emulator process added via ``add_process``.
     """
 
@@ -116,7 +114,6 @@ class WindowsJobObject:
         self.memory_limit_mb = memory_limit_mb
         self.cpu_limit_percent = cpu_limit_percent
         self.job_handle = None
-        self.process_name = None
         self.pid = None
 
     def create(self) -> None:
@@ -336,11 +333,6 @@ class WindowsJobObject:
             raise RuntimeError("Invalid process or process not started.")
 
         self.pid = process.pid
-        if hasattr(process, 'args') and process.args:
-            executable_path = process.args[0] if isinstance(process.args, list) else str(process.args)
-            self.process_name = os.path.basename(executable_path).replace('.exe', '')
-        else:
-            self.process_name = f"process_{self.pid}"
 
         using_stored_handle = process.handle is not None
 
@@ -403,10 +395,10 @@ class WindowsJobObject:
             if not using_stored_handle:
                 ctypes.windll.kernel32.CloseHandle(proc_handle)
 
-    # NAMING: terminate_all also closes the job handle — it is a full resource
+    # NAMING: teardown also closes the job handle — it is a full resource
     # teardown, not just process termination.  Consider renaming to shutdown()
     # or teardown() at the next refactor pass.
-    def terminate_all(self) -> None:
+    def teardown(self) -> None:
         """Terminate all processes in the job object and release all associated resources.
 
         Performs two cleanup steps in order, collecting errors from each so
@@ -416,7 +408,7 @@ class WindowsJobObject:
           2. Close the job object handle.
 
         ``self.job_handle`` is set to ``None`` regardless of success or failure
-        so that ``is_active()`` returns ``False`` after this call.
+        so that ``handle_is_open()`` returns ``False`` after this call.
 
         Raises:
             RuntimeError: If any step fails.  The error message lists all
@@ -443,7 +435,7 @@ class WindowsJobObject:
             except Exception as e:
                 termination_errors.append(f"Failed to close job handle: {str(e)}")
 
-        # Always null the handle so callers relying on is_active() get False after teardown
+        # Always null the handle so callers relying on handle_is_open() get False after teardown
         self.job_handle = None
 
         if termination_errors:
@@ -464,15 +456,15 @@ class WindowsJobObject:
             ctypes.windll.kernel32.CloseHandle(self.job_handle)
             self.job_handle = None
 
-    # NAMING: is_active checks only that the job handle is open and queryable —
+    # NAMING: handle_is_open checks only that the job handle is open and queryable —
     # it does NOT check whether any processes are currently running in the job.
     # A handle can be valid with zero live processes.  The name implies otherwise.
-    def is_active(self) -> bool:
+    def handle_is_open(self) -> bool:
         """Check whether the job object handle is open and queryable.
 
         Uses a lightweight ``QueryInformationJobObject`` call to verify handle
         validity without modifying any state.  Returns ``False`` before
-        ``create()`` is called, after ``terminate_all()``, or if the handle
+        ``create()`` is called, after ``teardown()``, or if the handle
         has been closed externally.
 
         Returns:
@@ -498,59 +490,3 @@ class WindowsJobObject:
         except Exception:
             return False
 
-    def _resume_suspended_process(self, process) -> None:
-        """Resume the main thread of a process launched in a suspended state.
-
-        Finds the first thread belonging to the process in a system-wide
-        thread snapshot and calls ``ResumeThread``.  Used as a fallback for
-        process types that do not expose a thread handle directly.
-
-        Args:
-            process: An object with a ``pid`` attribute.
-
-        Raises:
-            RuntimeError: If the thread snapshot fails, the main thread cannot
-                be found, ``OpenThread`` fails, or ``ResumeThread`` fails.
-        """
-        TH32CS_SNAPTHREAD = 0x00000004
-        THREAD_SUSPEND_RESUME = 0x0002
-
-        snapshot = ctypes.windll.kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0)
-        if snapshot == -1:
-            raise RuntimeError("Failed to create thread snapshot")
-
-        try:
-            te32 = THREADENTRY32()
-            te32.dwSize = ctypes.sizeof(THREADENTRY32)
-
-            main_thread_id = None
-            if ctypes.windll.kernel32.Thread32First(snapshot, ctypes.byref(te32)):
-                while True:
-                    if te32.th32OwnerProcessID == process.pid:
-                        main_thread_id = te32.th32ThreadID
-                        break  # first thread found is the main thread
-                    if not ctypes.windll.kernel32.Thread32Next(snapshot, ctypes.byref(te32)):
-                        break
-
-            if not main_thread_id:
-                raise RuntimeError(
-                    f"Could not find main thread for process {process.pid}"
-                )
-
-            thread_handle = ctypes.windll.kernel32.OpenThread(
-                THREAD_SUSPEND_RESUME,
-                False,
-                main_thread_id
-            )
-            if not thread_handle:
-                raise RuntimeError(f"Failed to open main thread {main_thread_id}")
-
-            try:
-                result = ctypes.windll.kernel32.ResumeThread(thread_handle)
-                if result == -1:
-                    raise RuntimeError("Failed to resume main thread")
-            finally:
-                ctypes.windll.kernel32.CloseHandle(thread_handle)
-
-        finally:
-            ctypes.windll.kernel32.CloseHandle(snapshot)

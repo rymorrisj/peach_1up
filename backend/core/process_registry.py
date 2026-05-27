@@ -58,7 +58,7 @@ def terminate(pid: int) -> bool:
         _registry.pop(pid, None)
         if entry.job_handle is not None:
             try:
-                entry.job_handle.terminate_all()
+                entry.job_handle.teardown()
             except Exception as exc:
                 logger.warning("Failed to terminate job handle for pid=%d: %s", pid, exc)
         return True

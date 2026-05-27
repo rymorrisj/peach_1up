@@ -405,7 +405,7 @@ def launch(
 
     Returns:
         Tuple of ``(process, job_object)``. The caller is responsible for
-        cleanup via ``job_object.terminate_all()``.
+        cleanup via ``job_object.teardown()``.
 
     Raises:
         FileNotFoundError: If ``executable_path`` or ``media_path`` does not exist.
@@ -453,7 +453,6 @@ def launch(
         cwd=str(Path(executable_path).parent),
         executable_path=executable_path,
         args=args,
-        media_paths=[str(media_path)],
         era=era,
         job_name=job_name,
         slug="dosbox-x",

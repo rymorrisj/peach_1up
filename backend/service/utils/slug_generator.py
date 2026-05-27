@@ -12,12 +12,11 @@ import re
 from sqlalchemy.orm import Session
 
 
-def generate_item_slug(name: str, era: str, db: Session) -> str:  # noqa: ARG001 — era reserved for future per-era folders
+def generate_item_slug(name: str, db: Session) -> str:
     """Return a unique slug for a library item.
 
     Args:
         name: Human-readable title of the item.
-        era:  Era string (reserved; uniqueness is checked globally).
         db:   Active database session used for collision detection.
 
     Returns:

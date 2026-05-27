@@ -267,7 +267,7 @@ def launch(
     Returns:
         ``(process, job_object)`` — the running ``Popen`` and the
         ``WindowsJobObject`` that owns it. Caller must call
-        ``job_object.terminate_all()`` when the VM exits.
+        ``job_object.teardown()`` when the VM exits.
 
     Raises:
         ValueError: If the era is unsupported or required platform fields are unset.
@@ -311,16 +311,11 @@ def launch(
 
     vboxvm = _virtualboxvm_path(vbm)
 
-    media_paths = [str(platform.working_image_path)]
-    if media_path is not None:
-        media_paths.append(str(media_path))
-
     job_name = f"peach1up_virtualbox_{platform.era}_{platform.slug}"
 
     return launch_under_job_object(
         executable_path=vboxvm,
         args=["--startvm", platform.slug],
-        media_paths=media_paths,
         era=platform.era,
         job_name=job_name,
         slug="virtualbox",
