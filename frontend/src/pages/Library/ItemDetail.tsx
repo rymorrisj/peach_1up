@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
@@ -260,6 +260,43 @@ export default function ItemDetail() {
     }
   }
 
+  // ── Installed toggle ──
+  const installedDialogRef = useRef<HTMLDialogElement>(null)
+  const [installedModalTarget, setInstalledModalTarget] = useState<boolean | null>(null)
+  const [installedPatching, setInstalledPatching] = useState(false)
+  const [installedPatchError, setInstalledPatchError] = useState<string | null>(null)
+  const [localInstalled, setLocalInstalled] = useState(false)
+
+  useEffect(() => {
+    if (item) setLocalInstalled(item.installed)
+  }, [item])
+
+  useEffect(() => {
+    const dialog = installedDialogRef.current
+    if (!dialog) return
+    if (installedModalTarget !== null && !dialog.open) dialog.showModal()
+    else if (installedModalTarget === null && dialog.open) dialog.close()
+  }, [installedModalTarget])
+
+  async function handleConfirmInstalled() {
+    if (!item || installedModalTarget === null) return
+    setInstalledPatching(true)
+    setInstalledPatchError(null)
+    try {
+      await apiFetch(`/api/v1/library/${item.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ installed: installedModalTarget }),
+      })
+      setLocalInstalled(installedModalTarget)
+      setInstalledModalTarget(null)
+      queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
+    } catch (err) {
+      setInstalledPatchError(err instanceof ApiError ? err.detail : 'Failed to update.')
+    } finally {
+      setInstalledPatching(false)
+    }
+  }
+
   // ── Render ──
   if (itemLoading) {
     return (
@@ -331,6 +368,29 @@ export default function ItemDetail() {
                 <> · Last {new Date(item.last_launched_at).toLocaleDateString()}</>
               )}
             </div>
+          )}
+          {item.era === 'dos' && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="font-medium shrink-0">Installed:</span>
+                <span className="text-neutral-500 dark:text-neutral-400">
+                  {localInstalled ? '● Yes' : '○ No'}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setInstalledModalTarget(!localInstalled)}
+                >
+                  {localInstalled ? 'Mark as not installed' : 'Mark as installed'}
+                </Button>
+              </div>
+              <div>
+                <span className="font-medium">Drive size:</span>{' '}
+                <span className="text-neutral-500 dark:text-neutral-400">
+                  {item.drive_size_mb != null ? `${item.drive_size_mb} MB` : '—'}
+                </span>
+              </div>
+            </>
           )}
         </section>
 
@@ -729,6 +789,65 @@ export default function ItemDetail() {
         </div>
 
       </div>
+
+      {/* ── Installed toggle modal ── */}
+      <dialog
+        ref={installedDialogRef}
+        className="w-full max-w-[32rem] rounded-lg border border-neutral-200 bg-white p-6 shadow-xl backdrop:bg-black/50 dark:border-surface-400 dark:bg-surface-900"
+      >
+        <h2 className="mb-4 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+          {installedModalTarget ? 'Mark as installed?' : 'Mark as not installed?'}
+        </h2>
+        <div className="space-y-3 text-sm text-neutral-600 dark:text-neutral-400">
+          {installedModalTarget ? (
+            <>
+              <div className="space-y-1">
+                <div>
+                  <span className="font-medium text-neutral-700 dark:text-neutral-300">Drive image:</span>{' '}
+                  <span className="font-mono text-xs">
+                    library/media/{item.slug}/{item.slug}.img
+                  </span>
+                </div>
+                {item.drive_size_mb != null && (
+                  <div>
+                    <span className="font-medium text-neutral-700 dark:text-neutral-300">Drive size:</span>{' '}
+                    {item.drive_size_mb} MB
+                  </div>
+                )}
+              </div>
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+                Only confirm if your game files are already copied to this drive. Peach 1UP will skip the copy step and boot directly.
+              </p>
+            </>
+          ) : (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+              This will re-run the copy step on next launch. Any changes made inside the drive will be preserved but source files will be copied again.
+            </p>
+          )}
+          {installedPatchError && (
+            <p role="alert" className="text-red-600 dark:text-red-400">
+              ❌ {installedPatchError}
+            </p>
+          )}
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => { setInstalledModalTarget(null); setInstalledPatchError(null) }}
+            className="rounded-md border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-100 dark:border-surface-400 dark:text-neutral-300 dark:hover:bg-surface-800"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={installedPatching}
+            onClick={handleConfirmInstalled}
+            className="rounded-md bg-peach px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {installedPatching ? 'Saving…' : 'Confirm'}
+          </button>
+        </div>
+      </dialog>
     </div>
   )
 }
