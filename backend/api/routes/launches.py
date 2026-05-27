@@ -1,7 +1,9 @@
 import asyncio
+import hashlib
 import threading
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.settings import get_base_path
+from backend.service.utils.fat_writer import format_fat16, write_file_to_image, read_file_from_image
 
 from backend.core import process_registry
 from backend.core.database import get_db
@@ -25,26 +28,32 @@ logger = get_logger(__name__)
 
 
 def _resolve_item_drive(item, profile, db):
-    """Return a drive-like object for the launch.
-
-    Decision tree (in order):
-    1. Per-item .img already on disk → use it (IMGMAKE skipped by write_launch_conf).
-    2. No .img + item has a setup/installer candidate → create .img on first launch.
-    3. Neither → return None (media mounted on D:, no C: image).
-    Falls back to profile drive_slug DB lookup when item has no slug.
-    """
     if item.slug:
-        drive_path = get_base_path() / "library" / "media" / item.slug / f"{item.slug}.img"
-        size_mb = item.drive_size_mb or 500
-        if drive_path.exists():
-            return SimpleNamespace(slug=item.slug, size_mb=size_mb)
-        if item.requires_install:
-            return SimpleNamespace(slug=item.slug, size_mb=size_mb)
-        return None
+        return SimpleNamespace(slug=item.slug, size_mb=item.drive_size_mb or 500)
     drive_slug = getattr(profile, 'drive_slug', None)
     if drive_slug:
         return db.query(Drive).filter(Drive.slug == drive_slug).first()
     return None
+
+
+def _copy_loose_files_to_drive(src_dir: Path, img_path: Path, size_mb: int) -> None:
+    if not src_dir.is_dir():
+        raise RuntimeError(f"src_dir is not a directory: {src_dir}")
+    files = [f for f in src_dir.rglob("*") if f.is_file()]
+    if not files:
+        raise RuntimeError(f"No files found under {src_dir}")
+    for f in files:
+        data = f.read_bytes()
+        src_md5 = hashlib.md5(data).hexdigest()
+        rel = f.relative_to(src_dir)
+        dest = str(rel).replace("\\", "/")
+        write_file_to_image(img_path, dest, data)
+        read_back = read_file_from_image(img_path, dest)
+        img_md5 = hashlib.md5(read_back).hexdigest()
+        if src_md5 != img_md5:
+            raise RuntimeError(
+                f"MD5 mismatch for {f}: src={src_md5} img={img_md5}"
+            )
 
 
 class LaunchRequest(BaseModel):
@@ -135,6 +144,21 @@ async def launch_item(
     network_blocked = not bool(getattr(profile, 'enable_networking', False))
 
     drive = _resolve_item_drive(item, profile, db)
+
+    # First-launch copy for loose-file DOS items
+    if (
+        drive is not None
+        and not item.installed
+        and not item.requires_install
+        and Path(item.media_path).is_dir()
+    ):
+        img_path = get_base_path() / "library" / "media" / drive.slug / f"{drive.slug}.img"
+        if not img_path.exists():
+            format_fat16(img_path, drive.size_mb)
+        _copy_loose_files_to_drive(Path(item.media_path), img_path, drive.size_mb)
+        item.installed = True
+        db.add(item)
+        db.commit()
 
     history = LaunchHistory(
         library_item_id=item.id,

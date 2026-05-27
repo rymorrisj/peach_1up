@@ -438,7 +438,7 @@ def launch(
         if drive is not None and use_drive:
             sandbox_config.broker_files.append(
                 BrokerFile(
-                    path=str(get_base_path() / "library" / "system" / "drives"),
+                    path=str(get_base_path() / "library" / "media" / drive.slug),
                     access="rw",
                     mode="grant",
                 ))
