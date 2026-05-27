@@ -93,12 +93,12 @@ export default function PlatformHealth() {
     queryFn: () => apiFetch<Platform[]>('/api/v1/platforms'),
   })
 
-  const { data: summary } = useQuery<HealthSummary>({
+  const { data: summary, isError: summaryError, isLoading: summaryLoading } = useQuery<HealthSummary>({
     queryKey: ['platforms-health-summary'],
     queryFn: () => apiFetch<HealthSummary>('/api/v1/platforms/health'),
   })
 
-  const userPlatforms = platforms.filter((p) => !p.is_system)
+  const userPlatforms = platforms
   const healthy = userPlatforms.filter(isHealthy)
   const degraded = userPlatforms.filter((p) => !isHealthy(p))
 
@@ -306,8 +306,12 @@ export default function PlatformHealth() {
 
           return (
             <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-              {!summary ? (
+              {summaryLoading ? (
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--fg-3)' }}>Loading…</div>
+              ) : summaryError || !summary ? (
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--fg-3)' }}>
+                  Inventory unavailable — run a health check to refresh.
+                </div>
               ) : (
                 <div className="grid gap-x-[18px] gap-y-4" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
                   {stats.map(({ label, value, sub }) => (
