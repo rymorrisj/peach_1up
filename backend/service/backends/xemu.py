@@ -28,6 +28,9 @@ from backend.service.utils.settings import get_binary_path, get_env_var
 SUPPORTED_ERAS = {Era.XBOX.value}
 SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.XBOX]
 
+_MCPX_ROM = "mcpx_1.0.bin"
+_BIOS_ROM = "Complex_4627v1.03.bin"
+
 
 def validate_media(media_path: Path) -> None:
     """Validate that the disc image exists and has a supported extension.
@@ -74,6 +77,25 @@ def validate_bios_path(bios_path: Path) -> None:
         raise ValueError(
             f"Xbox BIOS path is not a directory: {bios_path}. "
             "XBOX_BIOS_PATH must point to a directory containing your dumped BIOS files."
+        )
+    if not any(bios_path.iterdir()):
+        raise FileNotFoundError(
+            f"Xbox BIOS directory is empty: {bios_path}. "
+            "Xbox BIOS files (MCPX ROM and BIOS ROM) must be dumped from "
+            "original Xbox hardware you own. "
+            "Place your dumped BIOS files in the directory configured as XBOX_BIOS_PATH."
+        )
+    mcpx = bios_path / _MCPX_ROM
+    if not mcpx.exists():
+        raise FileNotFoundError(
+            f"Xbox MCPX ROM not found: {mcpx}. "
+            f"{_MCPX_ROM} must be present in the XBOX_BIOS_PATH directory."
+        )
+    bios_rom = bios_path / _BIOS_ROM
+    if not bios_rom.exists():
+        raise FileNotFoundError(
+            f"Xbox BIOS ROM not found: {bios_rom}. "
+            f"{_BIOS_ROM} must be present in the XBOX_BIOS_PATH directory."
         )
 
 

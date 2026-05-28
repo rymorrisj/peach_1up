@@ -4,6 +4,7 @@ import tomllib
 from pathlib import Path
 
 from backend.core.settings import get_base_path
+from backend.service.utils.settings import get_env_var
 
 _CATALOG_PATH = get_base_path() / "config" / "emulators.toml"
 _BASE_DIR = get_base_path() / "emulators"
@@ -188,16 +189,25 @@ def configure_emulator(slug: str) -> None:
         (exe_dir / "portable.txt").touch()
 
     elif slug == "xemu":
+        from backend.service.backends.xemu import _MCPX_ROM, _BIOS_ROM
+
+        bios_path_str = get_env_var("XBOX_BIOS_PATH")
+        if not bios_path_str:
+            raise RuntimeError(
+                "XBOX_BIOS_PATH is not configured. "
+                "Set it in config/settings.yaml before configuring xemu."
+            )
+        bios_dir = Path(bios_path_str)
         toml_path = exe_dir / "xemu.toml"
         if not toml_path.exists():
             toml_path.write_text(
                 "[general]\n"
                 "show_welcome = false\n"
                 "[system]\n"
-                'flash_path = "emulators/xemu/mcpx_1.0.bin"\n'
-                'bios_path = "emulators/xemu/Complex_4627v1.03.bin"\n'
+                f'flash_path = "{bios_dir / _MCPX_ROM}"\n'
+                f'bios_path = "{bios_dir / _BIOS_ROM}"\n'
                 "[storage]\n"
-                'hdd_path = "emulators/xemu/xbox_hdd.qcow2"\n',
+                f'hdd_path = "{exe_dir / "xbox_hdd.qcow2"}"\n',
                 encoding="utf-8",
             )
 

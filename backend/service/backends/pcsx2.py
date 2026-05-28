@@ -69,6 +69,12 @@ def validate_bios_path(bios_path: Path) -> None:
             f"PS2 BIOS path is not a directory: {bios_path}. "
             "PS2_BIOS_PATH must point to a directory containing your dumped BIOS files."
         )
+    if not any(bios_path.iterdir()):
+        raise FileNotFoundError(
+            f"PS2 BIOS directory is empty: {bios_path}. "
+            "PS2 BIOS files must be dumped from PlayStation 2 hardware you own. "
+            "Place your dumped BIOS files in the directory configured as PS2_BIOS_PATH."
+        )
 
 
 def build_args(media_path: Path) -> list[str]:
