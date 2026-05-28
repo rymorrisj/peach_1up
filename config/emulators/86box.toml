@@ -21,6 +21,7 @@ source_url = "https://github.com/86Box/86Box"
 rom_pack_version = "5.3"
 rom_pack_url = "https://github.com/86Box/roms"
 supported_formats = [".iso", ".img", ".cue"]
+net_card = "rtl8029as"
 guidance_text = "Download the 86Box Windows release and extract it to emulators/86box/ so that 86Box.exe is inside."
 guidance_url = "https://86box.net"
 

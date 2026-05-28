@@ -19,6 +19,7 @@ from backend.models.platform import Platform
 from backend.service.utils.disk_utils import has_valid_mbr
 from backend.service.utils.emulator_catalog import (
     get_86box_profile,
+    get_emulator,
     get_container_enabled,
     get_container_config as get_emulator_container_config,
 )
@@ -188,7 +189,6 @@ def _prepare_config(platform: Platform, cfg_path: str, rom_path: Path) -> None:
 
     _ensure_section(parser, "Network")
     parser.set("Network", "net_card", "none")
-    parser.set("Network", "net_type", "none")
     parser.set("Network", "net_01_link", "0")
 
     tmp_path = cp.with_suffix(cp.suffix + ".tmp")
@@ -327,6 +327,19 @@ def launch(
     _prepare_config(platform, platform.config_path, effective_rom_path)
 
     if enable_networking:
+        catalog_entry = get_emulator("86box")
+        net_card_value = catalog_entry.get("net_card", "")
+        if not net_card_value:
+            raise RuntimeError(
+                "Networking requested but no net_card is configured for 86Box. "
+                "Add a net_card value to config/emulators/86box.toml."
+            )
+        _inject_media({
+            "config_path": platform.config_path,
+            "section": "Network",
+            "key": "net_card",
+            "value": net_card_value,
+        })
         _inject_media({
             "config_path": platform.config_path,
             "section": "Network",
