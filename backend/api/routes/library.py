@@ -32,6 +32,22 @@ def _make_slug(title: str, db: Session) -> str:
         candidate = f"{base}-{n}"
         n += 1
 
+_MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com"}
+
+
+def _best_detect_path(folder: Path, executable_path: str | None) -> Path:
+    if executable_path and Path(executable_path).suffix.lower() != ".img":
+        return Path(executable_path)
+    try:
+        hit = next(
+            (f for f in folder.iterdir() if f.is_file() and f.suffix.lower() in _MEDIA_SUFFIXES),
+            None,
+        )
+    except OSError:
+        hit = None
+    return hit if hit is not None else folder
+
+
 router = APIRouter(prefix="/api/v1/library", tags=["library"])
 logger = get_logger(__name__)
 
@@ -178,6 +194,26 @@ def add_library_item(
     item.media_type = media_type
     item.requires_install = media_type in ("iso", "cue", "floppy")
 
+    from backend.service.utils.era_detect import detect_era as _detect_era
+    _era_folder = Path(item.media_path) if item.media_path else media_src
+    _era_path = _best_detect_path(_era_folder, item.executable_path)
+    _era_slug, _era_reason = _detect_era(_era_path)
+
+    if _era_slug is not None and item.era == "unknown":
+        item.era = _era_slug
+    if hasattr(item, "detection_reason"):
+        item.detection_reason = _era_reason if _era_slug is not None else None
+
+    if _era_slug is not None:
+        from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
+        _emulator_slug, _profile_era = defaults_for_era(_era_slug)
+        if _emulator_slug and _profile_era:
+            _def_platform_id, _def_profile_id = lookup_platform_and_profile(_emulator_slug, _profile_era, db)
+            if item.platform_id is None and _def_platform_id is not None:
+                item.platform_id = _def_platform_id
+            if item.profile_id is None and _def_profile_id is not None:
+                item.profile_id = _def_profile_id
+
     if not item.content_rating:
         from backend.utils.rating_detect import detect_rating
         item.content_rating = detect_rating(body.media_path)
@@ -237,6 +273,7 @@ def _run_scan(directory: str) -> None:
     from backend.core.database import get_engine
     from backend.models.library import LibraryItem
     from backend.service.utils.slug_generator import generate_item_slug
+    from backend.service.utils.era_detect import detect_era as _detect_era
     from sqlalchemy.orm import Session
 
     created: list[dict] = []
@@ -263,6 +300,26 @@ def _run_scan(directory: str) -> None:
                     cover_art_path=str(entry.cover_path) if entry.cover_path else None,
                 )
                 item.slug = generate_item_slug(item.title, db)
+                _detect_path = _best_detect_path(
+                    Path(entry.folder_path),
+                    str(entry.executable_path) if entry.executable_path else None,
+                )
+                _era_slug, _era_reason = _detect_era(_detect_path)
+                if _era_slug is not None:
+                    item.era = _era_slug
+                if hasattr(item, "detection_reason"):
+                    item.detection_reason = _era_reason if _era_slug is not None else None
+
+                if _era_slug is not None:
+                    from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
+                    _emulator_slug, _profile_era = defaults_for_era(_era_slug)
+                    if _emulator_slug and _profile_era:
+                        _def_platform_id, _def_profile_id = lookup_platform_and_profile(_emulator_slug, _profile_era, db)
+                        if item.platform_id is None and _def_platform_id is not None:
+                            item.platform_id = _def_platform_id
+                        if item.profile_id is None and _def_profile_id is not None:
+                            item.profile_id = _def_profile_id
+
                 db.add(item)
                 db.flush()
                 existing.add(folder_str)

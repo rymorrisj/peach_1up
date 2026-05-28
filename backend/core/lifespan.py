@@ -248,6 +248,7 @@ def _apply_schema_migrations() -> None:
         ("profiles", "use_drive", "INTEGER NOT NULL DEFAULT 1"),
         ("profiles", "container_enabled", "INTEGER"),
         ("library_items", "requires_install", "INTEGER NOT NULL DEFAULT 0"),
+        ("library_items", "detection_reason", "TEXT"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)

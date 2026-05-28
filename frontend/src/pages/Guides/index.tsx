@@ -29,6 +29,11 @@ const GUIDES: GuideEntry[] = [
     title: 'Cartridge Imaging',
     description: 'How to dump NES and N64 cartridges from physical hardware using recommended USB dumpers.',
   },
+  {
+    to: '/guides/era-detection',
+    title: 'Era Detection',
+    description: 'What each era means, which file formats belong to it, and how automatic era detection works.',
+  },
 ]
 
 export default function GuidesIndex() {

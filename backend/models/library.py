@@ -34,6 +34,7 @@ class LibraryItemBase(SQLModel):
     launch_review_flagged: bool = Field(default=False)
     installed: bool = False
     requires_install: bool = False
+    detection_reason: Optional[str] = None
 
 
 class LibraryItem(LibraryItemBase, table=True):
@@ -120,6 +121,7 @@ class LibraryItemRead(LibraryItemBase):
     launch_commands: Optional[list[str]] = None
     launch_review_flagged: bool = False
     installed: bool = False
+    detection_reason: Optional[str] = None
     cover_art_url: Optional[str] = None
     drive: Optional[DriveRead] = None
     tags: list[TagRead] = []

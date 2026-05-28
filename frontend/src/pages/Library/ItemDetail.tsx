@@ -390,6 +390,11 @@ export default function ItemDetail() {
           </div>
           <div>
             <span className="font-medium">Era:</span> {eraLabel}
+            {item.detection_reason && (
+              <span className="ml-1 text-xs text-neutral-400 dark:text-neutral-500 italic">
+                — {item.detection_reason}
+              </span>
+            )}
           </div>
           {item.launch_count > 0 && (
             <div>
@@ -595,6 +600,16 @@ export default function ItemDetail() {
                   </option>
                 ))}
               </select>
+              {item.detection_reason ? (
+                <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+                  Era was detected automatically from your media. You can change it if the detection was wrong.
+                  {' '}<span className="italic">Detected because: {item.detection_reason}</span>
+                </p>
+              ) : (item.era === 'unknown' || !item.era) ? (
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                  Era could not be detected automatically. Please select one.
+                </p>
+              ) : null}
             </FormField>
 
             <FormField label="Platform" htmlFor="detail-platform">

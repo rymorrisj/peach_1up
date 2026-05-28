@@ -189,7 +189,7 @@ function AddMediaModal({ open, profiles, onClose, onAdded, mediaRootPath }: AddM
       <FormField
         label="Launch Profile"
         htmlFor="add-profile"
-        hint="Optional — era is derived from the selected profile. You can change it from the detail view."
+        hint="Optional — era is auto-detected from your media, or falls back to the selected profile. You can change it from the detail view."
       >
         <select
           id="add-profile"
