@@ -1,4 +1,4 @@
-"""Run all test suites: backend (pytest via .venv) and frontend (vitest)."""
+"""Run all test suites: backend (pytest via .venv) and frontend (vitest). A script for local testing"""
 
 import subprocess
 import sys
@@ -28,7 +28,7 @@ def main():
 
     results["frontend"] = run(
         "Frontend tests (vitest)",
-        ["npm", "run", "test", "--", "--run"],
+        ["npx.cmd", "vitest", "run"],
         FRONTEND_DIR,
     )
 
