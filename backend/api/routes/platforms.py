@@ -1,7 +1,4 @@
-import re
-import secrets
 import shutil
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,13 +11,13 @@ from backend.core.logger import get_logger
 from backend.models.platform import Platform, PlatformCreate, PlatformRead, PlatformUpdate
 from backend.models.snapshot import Snapshot, SnapshotCreate, SnapshotRead
 from backend.models.user import User
+from backend.service.utils import confirmation_tokens
+from backend.service.utils.confirmation_tokens import TOKEN_TTL
 from backend.service.utils.settings import get_binary_path
+from backend.service.utils.slug_generator import unique_slug
 
 router = APIRouter(prefix="/api/v1/platforms", tags=["platforms"], redirect_slashes=False)
 logger = get_logger(__name__)
-
-_TOKEN_TTL = 60
-_confirm_tokens: dict[str, tuple[int, str, float]] = {}
 
 # Maps emulator_slug (as stored on Platform) to the key expected by get_binary_path().
 # dosbox-x and 86box differ from their slug because get_binary_path() uses the shorter
@@ -40,16 +37,6 @@ _PLATFORM_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp", "xbox"})
 _PROVISIONABLE_ERAS = frozenset({"win95", "win98", "winxp", "xbox"})
 
 
-def _generate_slug(name: str, db: Session) -> str:
-    base = re.sub(r'[^a-z0-9-]', '', re.sub(r'\s+', '-', name.lower())).strip('-') or 'platform'
-    candidate = base
-    n = 2
-    while db.query(Platform).filter(Platform.slug == candidate).first():
-        candidate = f"{base}-{n}"
-        n += 1
-    return candidate
-
-
 def _validate_image_path(path_str: str) -> Path:
     """Normalise and validate an image path."""
     from backend.service.utils.path_utils import normalise_path
@@ -62,26 +49,6 @@ def _validate_image_path(path_str: str) -> Path:
     if not resolved.is_file():
         raise HTTPException(status_code=400, detail="Path is not a file.")
     return resolved
-
-
-def _issue_token(resource_id: int, action: str) -> str:
-    token = secrets.token_urlsafe(32)
-    _confirm_tokens[token] = (resource_id, action, time.monotonic() + _TOKEN_TTL)
-    return token
-
-
-def _consume_token(token: str, resource_id: int, action: str) -> bool:
-    now = time.monotonic()
-    expired = [k for k, (_, _, exp) in _confirm_tokens.items() if exp < now]
-    for k in expired:
-        _confirm_tokens.pop(k, None)
-    entry = _confirm_tokens.pop(token, None)
-    if entry is None:
-        return False
-    rid, act, expires_at = entry
-    if now > expires_at:
-        return False
-    return rid == resource_id and act == action
 
 
 @router.get("", response_model=list[PlatformRead])
@@ -114,7 +81,11 @@ def create_platform(body: PlatformCreate, db: Session = Depends(get_db), _: User
         _validate_image_path(body.working_image_path)
     platform = Platform(**body.model_dump())
     if not platform.slug:
-        platform.slug = _generate_slug(platform.name, db)
+        platform.slug = unique_slug(
+            platform.name,
+            lambda s: db.query(Platform).filter(Platform.slug == s).first() is not None,
+            fallback="platform",
+        )
     db.add(platform)
     db.commit()
     db.refresh(platform)
@@ -293,7 +264,7 @@ def update_platform(platform_id: int, body: PlatformUpdate, db: Session = Depend
 def issue_delete_token(platform_id: int, db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
     if not db.get(Platform, platform_id):
         raise HTTPException(status_code=404, detail="Platform not found.")
-    return {"confirmation_token": _issue_token(platform_id, "delete"), "expires_in_seconds": _TOKEN_TTL}
+    return {"confirmation_token": confirmation_tokens.issue("platform", platform_id, "delete"), "expires_in_seconds": TOKEN_TTL}
 
 
 @router.delete("/{platform_id}", status_code=204)
@@ -303,7 +274,7 @@ def delete_platform(
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_platforms"),
 ):
-    if not _consume_token(confirmation_token, platform_id, "delete"):
+    if not confirmation_tokens.consume(confirmation_token, "platform", platform_id, "delete"):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
     platform = db.get(Platform, platform_id)
     if not platform:
@@ -393,7 +364,7 @@ def issue_restore_token(platform_id: int, snapshot_id: int, db: Session = Depend
     snap = db.get(Snapshot, snapshot_id)
     if not snap or snap.platform_id != platform_id:
         raise HTTPException(status_code=404, detail="Snapshot not found.")
-    return {"confirmation_token": _issue_token(snapshot_id, "restore"), "expires_in_seconds": _TOKEN_TTL}
+    return {"confirmation_token": confirmation_tokens.issue("snapshot", snapshot_id, "restore"), "expires_in_seconds": TOKEN_TTL}
 
 
 @router.post("/{platform_id}/snapshots/{snapshot_id}/restore", status_code=200)
@@ -404,7 +375,7 @@ def restore_snapshot(
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_platforms"),
 ):
-    if not _consume_token(confirmation_token, snapshot_id, "restore"):
+    if not confirmation_tokens.consume(confirmation_token, "snapshot", snapshot_id, "restore"):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
     snap = db.get(Snapshot, snapshot_id)
     if not snap or snap.platform_id != platform_id:
@@ -423,7 +394,7 @@ def issue_snap_delete_token(platform_id: int, snapshot_id: int, db: Session = De
     snap = db.get(Snapshot, snapshot_id)
     if not snap or snap.platform_id != platform_id:
         raise HTTPException(status_code=404, detail="Snapshot not found.")
-    return {"confirmation_token": _issue_token(snapshot_id, "snap-delete"), "expires_in_seconds": _TOKEN_TTL}
+    return {"confirmation_token": confirmation_tokens.issue("snapshot", snapshot_id, "snap-delete"), "expires_in_seconds": TOKEN_TTL}
 
 
 @router.delete("/{platform_id}/snapshots/{snapshot_id}", status_code=204)
@@ -434,7 +405,7 @@ def delete_snapshot(
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_platforms"),
 ):
-    if not _consume_token(confirmation_token, snapshot_id, "snap-delete"):
+    if not confirmation_tokens.consume(confirmation_token, "snapshot", snapshot_id, "snap-delete"):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
     snap = db.get(Snapshot, snapshot_id)
     if not snap or snap.platform_id != platform_id:

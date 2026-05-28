@@ -1,20 +1,15 @@
-import re
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 
 from backend.core.dependencies import require_permission
 from backend.models.user import User
+from backend.service.utils.slug_generator import slugify
 
 router = APIRouter(prefix="/api/v1/media", tags=["media"])
 
 _PC_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
 _DEFAULT_MAX_BYTES = 25 * 1024 ** 3  # 25 GB
-
-
-def _make_slug(filename: str) -> str:
-    stem = Path(filename).stem
-    return re.sub(r"[^a-z0-9-]", "", stem.lower().replace(" ", "-")).strip("-") or "upload"
 
 
 @router.post("/upload")
@@ -53,7 +48,7 @@ async def upload_media(
     else:
         base = Path(svc.get_env_var("MEDIA_PATH")).resolve()
 
-    slug = _make_slug(file.filename)
+    slug = slugify(Path(file.filename).stem, fallback="upload")
     dest_dir = base / era / slug
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_path = dest_dir / file.filename

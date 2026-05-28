@@ -10,8 +10,6 @@ subprocess call directly.
 
 from __future__ import annotations
 
-import configparser
-import os
 import shutil
 import struct
 import time
@@ -26,6 +24,7 @@ from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.models.platform import Platform
 from backend.service.utils.emulator_catalog import get_86box_profile
+from backend.service.utils.ini_writer import patch_ini
 from backend.service.utils.settings import get_binary_path, get_env_var
 
 logger = get_logger(__name__)
@@ -189,59 +188,46 @@ def provision_86box_vm(
         if base_img is not None and base_img.suffix.lower() in {".iso", ".cue"}:
             effective_iso_path = base_img
 
-    parser = configparser.RawConfigParser()
-    parser.optionxform = str
-
-    parser.add_section("General")
-    parser.set("General", "boot_order", "cdrom_fdd_hdd")
-
-    parser.add_section("Machine")
-    parser.set("Machine", "machine",         machine)
-    parser.set("Machine", "cpu_family",      profile["cpu_family"])
-    parser.set("Machine", "cpu_speed",       str(profile["cpu_speed"]))
-    parser.set("Machine", "cpu_multi",       str(profile["cpu_multi"]))
-    parser.set("Machine", "mem_size",        str(profile["mem_size"]))
-    parser.set("Machine", "cpu_use_dynarec", str(profile["cpu_use_dynarec"]))
-    parser.set("Machine", "fpu_type",        profile["fpu_type"])
-
-    parser.add_section("Video")
-    parser.set("Video", "gfxcard",      profile["gfxcard"])
-    parser.set("Video", "vid_renderer", profile["vid_renderer"])
-
-    parser.add_section("Sound")
-    parser.set("Sound", "sndcard", profile["sndcard"])
+    edits: dict[str, dict[str, str]] = {
+        "General": {"boot_order": "cdrom_fdd_hdd"},
+        "Machine": {
+            "machine":         machine,
+            "cpu_family":      profile["cpu_family"],
+            "cpu_speed":       str(profile["cpu_speed"]),
+            "cpu_multi":       str(profile["cpu_multi"]),
+            "mem_size":        str(profile["mem_size"]),
+            "cpu_use_dynarec": str(profile["cpu_use_dynarec"]),
+            "fpu_type":        profile["fpu_type"],
+        },
+        "Video": {
+            "gfxcard":      profile["gfxcard"],
+            "vid_renderer": profile["vid_renderer"],
+        },
+        "Sound": {"sndcard": profile["sndcard"]},
+        "Keyboard": {"keyboard_type": profile["keyboard_type"]},
+        "Mouse":    {"mouse_type":    profile["mouse_type"]},
+        "Hard disks": {
+            "hdd_01_fn":         vhd_path.name,
+            "hdd_01_ide_channel": "0:0",
+            "hdd_01_parameters":  f"63, 16, {cylinders}, 0, ide",
+            "hdd_01_speed":       "ramdisk",
+        },
+        "Paths":   {"rompath":    str(Path(rom_path)).replace("\\", "/")},
+        "Network": {"net_01_link": "0"},
+    }
 
     if profile.get("slug") == "midi":
-        parser.add_section("MIDI")
-        parser.set("MIDI", "midi_device", "nuked_sc55")
-
-    parser.add_section("Keyboard")
-    parser.set("Keyboard", "keyboard_type", profile["keyboard_type"])
-
-    parser.add_section("Mouse")
-    parser.set("Mouse", "mouse_type", profile["mouse_type"])
-
-    parser.add_section("Hard disks")
-    parser.set("Hard disks", "hdd_01_fn",          vhd_path.name)
-    parser.set("Hard disks", "hdd_01_ide_channel",  "0:0")
-    parser.set("Hard disks", "hdd_01_parameters",   f"63, 16, {cylinders}, 0, ide")
-    parser.set("Hard disks", "hdd_01_speed",         "ramdisk")
+        edits["MIDI"] = {"midi_device": "nuked_sc55"}
 
     if effective_iso_path is not None:
         iso_fwd = effective_iso_path.resolve().as_posix()
-        parser.add_section("Floppy and CD-ROM drives")
-        parser.set("Floppy and CD-ROM drives", "cdrom_02_image_path", iso_fwd)
-        parser.set("Floppy and CD-ROM drives", "cdrom_02_parameters",  "1, atapi")
-        parser.set("Floppy and CD-ROM drives", "cdrom_02_ide_channel", "0:1")
+        edits["Floppy and CD-ROM drives"] = {
+            "cdrom_02_image_path": iso_fwd,
+            "cdrom_02_parameters":  "1, atapi",
+            "cdrom_02_ide_channel": "0:1",
+        }
 
-    parser.add_section("Paths")
-    parser.set("Paths", "rompath", str(Path(rom_path)).replace("\\", "/"))
-
-    parser.add_section("Network")
-    parser.set("Network", "net_01_link", "0")
-
-    with cfg_path.open("w", encoding="utf-8") as fh:
-        parser.write(fh)
+    patch_ini(cfg_path, edits)
 
     return str(effective_iso_path) if effective_iso_path else None, str(vhd_path), str(cfg_path)
 

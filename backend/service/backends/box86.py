@@ -8,7 +8,6 @@ game media into the config file, and launches 86Box under Job Objects.
 from __future__ import annotations
 
 import configparser
-import os
 from pathlib import Path
 from typing import Optional
 
@@ -23,6 +22,7 @@ from backend.service.utils.emulator_catalog import (
     get_container_enabled,
     get_container_config as get_emulator_container_config,
 )
+from backend.service.utils.ini_writer import patch_ini, write_ini
 from backend.service.utils.launcher import launch_under_job_object
 from backend.service.utils.media_attach import build_86box_attachment
 from backend.service.utils.settings import get_binary_path
@@ -191,30 +191,11 @@ def _prepare_config(platform: Platform, cfg_path: str, rom_path: Path) -> None:
     parser.set("Network", "net_card", "none")
     parser.set("Network", "net_01_link", "0")
 
-    tmp_path = cp.with_suffix(cp.suffix + ".tmp")
-    try:
-        with tmp_path.open("w", encoding="utf-8") as fh:
-            parser.write(fh)
-        os.replace(str(tmp_path), str(cp))
-    except Exception:
-        try:
-            if tmp_path.exists():
-                tmp_path.unlink()
-        except OSError:
-            pass
-        raise
+    write_ini(cp, parser)
 
 
 def _inject_media(attachment: dict) -> None:
     """Inject a media path into an 86Box config file atomically.
-
-    Reads the existing config, sets the attachment section/key, then writes to
-    a temp file and renames it into place via os.replace(). If the rename fails
-    the temp file is cleaned up and the original config is left untouched — a
-    missing or corrupt config is a hard launch failure with no recovery path.
-
-    RawConfigParser(optionxform=str) preserves the mixed-case section names and
-    keys that 86Box expects (e.g. the CD-ROM section header).
 
     Args:
         attachment: Dict from ``build_86box_attachment`` — must contain
@@ -230,28 +211,7 @@ def _inject_media(attachment: dict) -> None:
             f"86Box config file not found: {config_path}. "
             "Ensure the platform config_path is set correctly."
         )
-
-    parser = configparser.RawConfigParser()
-    parser.optionxform = str
-    parser.read(str(config_path), encoding="utf-8-sig")
-
-    section = attachment["section"]
-    if not parser.has_section(section):
-        parser.add_section(section)
-    parser.set(section, attachment["key"], attachment["value"])
-
-    tmp_path = config_path.with_suffix(config_path.suffix + ".tmp")
-    try:
-        with tmp_path.open("w", encoding="utf-8") as fh:
-            parser.write(fh)
-        os.replace(str(tmp_path), str(config_path))
-    except Exception:
-        try:
-            if tmp_path.exists():
-                tmp_path.unlink()
-        except OSError:
-            pass
-        raise
+    patch_ini(config_path, {attachment["section"]: {attachment["key"]: attachment["value"]}})
 
 
 def launch(

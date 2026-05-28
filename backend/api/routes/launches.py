@@ -56,6 +56,48 @@ class LaunchResponse(BaseModel):
     warnings: list[str] = []
     launch_review_flagged: bool = False
 
+def _finalize_launch(
+    history: LaunchHistory,
+    result,
+    db: Session,
+    *,
+    network_blocked: bool,
+    item_id: int | None = None,
+    profile_id: int | None = None,
+) -> None:
+    proc = result[0] if isinstance(result, tuple) else result
+    job = result[1] if isinstance(result, tuple) and len(result) > 1 else None
+
+    if proc is not None:
+        if job is None or getattr(job, "job_handle", None) is None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            history.error_message = "Launch aborted: Job Object isolation is required but unavailable."
+            history.ended_at = datetime.now(timezone.utc)
+            history.exit_code = -1
+            db.commit()
+            raise HTTPException(
+                status_code=500,
+                detail="Launch failed: Job Object isolation is required but unavailable on this system.",
+            )
+        entry = ProcessEntry(
+            process_handle=proc,
+            job_handle=job,
+            library_item_id=item_id,
+            profile_id=profile_id,
+            launch_history_id=history.id,
+        )
+        process_registry.register(proc.pid, entry)
+        history.job_isolated = True
+        history.sandboxed = True
+        history.sandbox_memory_limit_mb = job.memory_limit_mb
+        history.sandbox_cpu_limit_percent = job.cpu_limit_percent
+        history.network_blocked = network_blocked
+        db.commit()
+
+
 def _flag_short_lived_item(item_id: int) -> None:
     from backend.core.database import get_engine
     from sqlalchemy.orm import Session as _Session
@@ -212,37 +254,14 @@ async def launch_item(
         raise HTTPException(status_code=500, detail=f"Launch failed: {exc}")
 
     proc = result[0] if isinstance(result, tuple) else result
-    job = result[1] if isinstance(result, tuple) and len(result) > 1 else None
+    _finalize_launch(
+        history, result, db,
+        network_blocked=network_blocked,
+        item_id=item.id,
+        profile_id=profile.id if profile else None,
+    )
 
     if proc is not None:
-        if job is None or getattr(job, 'job_handle', None) is None:
-            try:
-                proc.kill()
-            except Exception:
-                pass
-            history.error_message = "Launch aborted: Job Object isolation is required but unavailable."
-            history.ended_at = datetime.now(timezone.utc)
-            history.exit_code = -1
-            db.commit()
-            raise HTTPException(
-                status_code=500,
-                detail="Launch failed: Job Object isolation is required but unavailable on this system.",
-            )
-        entry = ProcessEntry(
-            process_handle=proc,
-            job_handle=job,
-            library_item_id=item.id,
-            profile_id=profile.id if profile else None,
-            launch_history_id=history.id,
-        )
-        process_registry.register(proc.pid, entry)
-        history.job_isolated = True
-        history.sandboxed = True
-        history.sandbox_memory_limit_mb = job.memory_limit_mb
-        history.sandbox_cpu_limit_percent = job.cpu_limit_percent
-        history.network_blocked = network_blocked
-        db.commit()
-
         from backend.service.utils.backend_router import resolve_backend_name
         from backend.constants_generated import BackendSlug, Era
         try:
@@ -366,37 +385,7 @@ async def launch_environment(
         db.commit()
         raise HTTPException(status_code=500, detail=f"Launch failed: {exc}")
 
-    proc = result[0] if isinstance(result, tuple) else result
-    job = result[1] if isinstance(result, tuple) and len(result) > 1 else None
-
-    if proc is not None:
-        if job is None or getattr(job, 'job_handle', None) is None:
-            try:
-                proc.kill()
-            except Exception:
-                pass
-            history.error_message = "Launch aborted: Job Object isolation is required but unavailable."
-            history.ended_at = datetime.now(timezone.utc)
-            history.exit_code = -1
-            db.commit()
-            raise HTTPException(
-                status_code=500,
-                detail="Launch failed: Job Object isolation is required but unavailable on this system.",
-            )
-        entry = ProcessEntry(
-            process_handle=proc,
-            job_handle=job,
-            library_item_id=None,
-            profile_id=profile.id,
-            launch_history_id=history.id,
-        )
-        process_registry.register(proc.pid, entry)
-        history.job_isolated = True
-        history.sandboxed = True
-        history.sandbox_memory_limit_mb = job.memory_limit_mb
-        history.sandbox_cpu_limit_percent = job.cpu_limit_percent
-        history.network_blocked = network_blocked
-        db.commit()
+    _finalize_launch(history, result, db, network_blocked=network_blocked, profile_id=profile.id)
 
     return LaunchResponse(launch_history_id=history.id, warnings=warnings)
 

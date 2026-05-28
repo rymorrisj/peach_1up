@@ -1,16 +1,12 @@
 import threading
-import time
-import uuid
 from typing import Literal
+
+from backend.service.utils import confirmation_tokens
 
 InstallStatus = Literal["idle", "complete", "error", "installer_launched", "cloning"]
 
 _registry: dict[str, dict] = {}
 _lock = threading.Lock()
-
-_confirm_tokens: dict[str, tuple[str, float]] = {}
-_tokens_lock = threading.Lock()
-_TOKEN_TTL = 60.0
 
 
 def set_status(
@@ -44,22 +40,8 @@ def get_all() -> dict[str, dict]:
 
 
 def generate_confirm_token(slug: str) -> str:
-    token = str(uuid.uuid4())
-    with _tokens_lock:
-        _confirm_tokens[slug] = (token, time.monotonic() + _TOKEN_TTL)
-    return token
+    return confirmation_tokens.issue("emulator", slug)
 
 
 def consume_confirm_token(slug: str, token: str) -> bool:
-    with _tokens_lock:
-        entry = _confirm_tokens.get(slug)
-        if entry is None:
-            return False
-        stored_token, expires_at = entry
-        if time.monotonic() > expires_at:
-            del _confirm_tokens[slug]
-            return False
-        if stored_token != token:
-            return False
-        del _confirm_tokens[slug]
-        return True
+    return confirmation_tokens.consume(token, "emulator", slug)

@@ -1,7 +1,4 @@
-import re
-import secrets
 import threading
-import time
 from pathlib import Path
 from typing import Any
 
@@ -15,22 +12,13 @@ from backend.core.logger import get_logger
 from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
+from backend.service.utils import confirmation_tokens
+from backend.service.utils.confirmation_tokens import TOKEN_TTL
 
 
 class RestrictionsBody(BaseModel):
     user_ids: list[int]
 
-
-
-def _make_slug(title: str, db: Session) -> str:
-    base = re.sub(r'[^a-z0-9-]', '', re.sub(r'\s+', '-', title.lower())).strip('-') or 'item'
-    candidate = base
-    n = 2
-    while True:
-        if not db.query(LibraryItem).filter(LibraryItem.slug == candidate).first():
-            return candidate
-        candidate = f"{base}-{n}"
-        n += 1
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com"}
 
@@ -53,29 +41,6 @@ logger = get_logger(__name__)
 
 _scan_lock = threading.Lock()
 _scan_state: dict[str, Any] = {"running": False, "progress": 0, "total": 0, "results": []}
-
-_confirm_tokens: dict[str, tuple[int, float]] = {}
-_TOKEN_TTL = 60
-
-
-def _issue_confirm_token(item_id: int) -> str:
-    token = secrets.token_urlsafe(32)
-    _confirm_tokens[token] = (item_id, time.monotonic() + _TOKEN_TTL)
-    return token
-
-
-def _consume_confirm_token(token: str, item_id: int) -> bool:
-    now = time.monotonic()
-    expired = [k for k, (_, exp) in _confirm_tokens.items() if exp < now]
-    for k in expired:
-        _confirm_tokens.pop(k, None)
-    entry = _confirm_tokens.pop(token, None)
-    if entry is None:
-        return False
-    expected_id, expires_at = entry
-    if now > expires_at:
-        return False
-    return expected_id == item_id
 
 
 
@@ -404,8 +369,8 @@ def issue_delete_token(
     item = db.get(LibraryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found.")
-    token = _issue_confirm_token(item_id)
-    return {"confirmation_token": token, "expires_in_seconds": _TOKEN_TTL}
+    token = confirmation_tokens.issue("library", item_id)
+    return {"confirmation_token": token, "expires_in_seconds": TOKEN_TTL}
 
 
 @router.delete("/{item_id}", status_code=204)
@@ -415,7 +380,7 @@ def delete_library_item(
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_library"),
 ):
-    if not _consume_confirm_token(confirmation_token, item_id):
+    if not confirmation_tokens.consume(confirmation_token, "library", item_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
     item = db.get(LibraryItem, item_id)
     if not item:
