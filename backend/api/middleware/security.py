@@ -50,8 +50,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
 
-        # Inject request ID on every response for traceability
-        response.headers["X-Request-ID"] = str(uuid.uuid4())
+        # Preserve client-supplied correlation ID; generate one if absent
+        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        response.headers["X-Request-ID"] = request_id
         return response
 
 

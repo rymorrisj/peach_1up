@@ -7,11 +7,12 @@ emulator's bundled dosbox-x.conf with Peach's [autoexec] and SDL overrides
 appended. The temp file is cleaned up via atexit when the service exits.
 """
 
-import atexit
 import os
 import re
 import shutil
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import List, Tuple
 
@@ -112,23 +113,23 @@ def _validate_game_executable(game_executable: str, expected_drive: str) -> None
     """Validate game_executable before inserting into a DOSBox-X autoexec section.
 
     Raises:
-        ValueError: If the value is empty, contains unsafe characters, starts
-                    with a DOSBox-X meta-character, or references the wrong drive.
+        RuntimeError: If the value is empty, contains unsafe characters, starts
+                      with a DOSBox-X meta-character, or references the wrong drive.
     """
     if not game_executable:
-        raise ValueError("game_executable must be a non-empty string")
+        raise RuntimeError("game_executable must be a non-empty string")
 
     if "\n" in game_executable or "\r" in game_executable:
-        raise ValueError("game_executable must not contain newline characters")
+        raise RuntimeError("game_executable must not contain newline characters")
 
     if "\x00" in game_executable:
-        raise ValueError("game_executable must not contain null bytes")
+        raise RuntimeError("game_executable must not contain null bytes")
 
     if "#" in game_executable:
-        raise ValueError("game_executable must not contain '#' (DOSBox-X comment character)")
+        raise RuntimeError("game_executable must not contain '#' (DOSBox-X comment character)")
 
     if game_executable[0] in ("[", "@"):
-        raise ValueError(
+        raise RuntimeError(
             f"game_executable must not start with '[' or '@' (DOSBox-X meta-characters); "
             f"got '{game_executable[0]}'"
         )
@@ -138,7 +139,7 @@ def _validate_game_executable(game_executable: str, expected_drive: str) -> None
     if len(game_executable) >= 2 and game_executable[1] == ":":
         specified = game_executable[0].upper() + ":"
         if specified != expected_drive.upper():
-            raise ValueError(
+            raise RuntimeError(
                 f"game_executable references drive '{specified}' but media is mounted at '{expected_drive}'"
             )
 
@@ -342,6 +343,15 @@ def _cleanup_temp_conf(tmpdir: Path) -> None:
         logger.warning("Failed to remove DOSBox temp conf %s: %s", tmpdir, exc)
 
 
+def _delete_conf_on_exit(proc, conf_path: Path) -> None:
+    try:
+        while proc.poll() is None:
+            time.sleep(0.5)
+    except Exception:
+        pass
+    conf_path.unlink(missing_ok=True)
+
+
 def build_args(media_path: Path, era: str, enable_networking: bool = False) -> List[str]:
     """Build DOSBox-X command-line arguments for the given media and era.
 
@@ -428,7 +438,6 @@ def launch(
         profile=profile,
         drive=drive,
     )
-    atexit.register(lambda: conf_path.unlink(missing_ok=True))
 
     args = build_args(media_path, era, enable_networking=enable_networking)
     job_name = f"peach1up_dosbox_{era}_{media_path.stem}"
@@ -464,5 +473,12 @@ def launch(
         container_enabled=container_enabled,
         sandbox_config=sandbox_config,
     )
+
+    threading.Thread(
+        target=_delete_conf_on_exit,
+        args=(result[0], conf_path),
+        daemon=True,
+        name=f"dosbox_conf_cleanup_{result[0].pid}",
+    ).start()
 
     return result

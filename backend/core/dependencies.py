@@ -29,7 +29,7 @@ def _load_rating_ordinals() -> dict[str, int]:
         custom = get_settings().get("rating_ordinals")
         if isinstance(custom, dict):
             return {str(k): int(v) for k, v in custom.items()}
-    except (RuntimeError, TypeError, ValueError):
+    except (TypeError, ValueError):
         pass
     return dict(_DEFAULT_RATING_ORDINALS)
 

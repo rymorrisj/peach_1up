@@ -67,7 +67,7 @@ def _validate_pin(pin: str) -> None:
 @router.get("", response_model=list[UserRead])
 def list_users(
     db: Session = Depends(get_db),
-    _active: User = Depends(get_active_user),
+    _: User = require_permission("is_admin"),
 ):
     return db.query(User).all()
 

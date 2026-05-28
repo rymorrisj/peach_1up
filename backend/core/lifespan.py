@@ -440,9 +440,20 @@ async def lifespan(app: FastAPI):
         db.commit()
 
     app.state.seed_warnings = not (_platforms_seeded and _profiles_seeded)
+    if not _platforms_seeded or not _profiles_seeded:
+        raise RuntimeError(
+            "Startup aborted: required seed data could not be created — see logs above."
+        )
 
     _scan_installed_emulators()
     _sync_detected_emulator_paths()
+
+    try:
+        from backend.service.utils.backend_router import _get_eras_config as _warm_eras
+        _warm_eras()
+    except Exception as exc:
+        logger.warning("Failed to preload eras.yaml at startup: %s", exc)
+
     _export_openapi_spec(app)
 
     _tray_stop_fn = None

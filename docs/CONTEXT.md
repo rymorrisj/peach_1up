@@ -316,7 +316,7 @@ containment (filesystem, network, inter-process). Regular AppContainer only — 
 rejected. Per-emulator rollout via container_enabled flag; emulators that fail testing
 ship with Job Object only.
 
-### CURRENT
+### DONE
 
 - [P9-1] Empirical validation gate — SDL2+WASAPI+D3D11, Qt 5.15 QPA, SDL2+OpenGL 4.5
   test harnesses on Windows 10 22H2 and Windows 11 23H2. No production code until all pass.
@@ -334,6 +334,12 @@ ship with Job Object only.
   action in Advanced Settings.
 - [P9-8] Update SECURITY.md and DECISIONS.md.
 - [P9-9] P9 committed and pushed to main.
+
+## Fixes
+
+As a note, right after P9, I implemented a series of fixes which you can see in the commit history
+marked as C/H/M/L or descending letters or marked with fix(). I did not add these to cnotext because they were found
+during smoke testing and fixed in place. I also refactored some code marked as refactor().
 
 ## P-Smart Scan — Executable Detection and LLM-Assisted Config
 
@@ -395,7 +401,6 @@ per-launch CPU/memory caps.
 
 ## PX — Nice to Haves
 
-- [!important] When a user supplies their own installer for a supported emulator, detect install_scope from emulators.yaml and mark the entry appropriately in the registry so uninstall guidance is correct.
 - GitHub Actions release pipeline — on version tag: build Windows and
   Linux installers, sign with OSS certificate via ossign.org, attach to GitHub
   release automatically.
@@ -427,3 +432,4 @@ per-launch CPU/memory caps.
   config/emulators/<slug>.toml. Opens a draft PR with the diff if a
   newer version is found. Runs offline (no emulator binaries, no downloads).
   One action per emulator slug, driven by release_url in the TOML.
+- Launch history needs to be pruned or a delete flow of some sort

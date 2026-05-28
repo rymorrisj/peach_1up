@@ -156,7 +156,7 @@ def create_platform(body: PlatformCreate, db: Session = Depends(get_db), _: User
 
 
 @router.get("/health")
-def health_summary(db: Session = Depends(get_db)):
+def health_summary(db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
     from sqlalchemy import func, distinct as sa_distinct
     from backend.models.library import LibraryItem
     from backend.models.drive import Drive
@@ -230,7 +230,7 @@ def health_check_all(db: Session = Depends(get_db), _: User = require_permission
 
 
 @router.get("/storage-stats")
-def storage_stats(db: Session = Depends(get_db)):
+def storage_stats(db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
     import os
     from backend.models.library import LibraryItem
     from backend.models.drive import Drive

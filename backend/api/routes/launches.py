@@ -106,10 +106,12 @@ async def launch_item(
         from backend.core.lifespan import _write_session_ends
         await asyncio.to_thread(_write_session_ends, _exited)
 
-    # Enforce one active launch per user profile
-    if body.profile_id is not None:
+    # Enforce one active launch per user profile.
+    # Fall back to item.profile_id so the gate fires even when the caller omits profile_id.
+    _gate_profile_id = body.profile_id if body.profile_id is not None else item.profile_id
+    if _gate_profile_id is not None:
         for _, entry in process_registry.get_all().items():
-            if entry.profile_id == body.profile_id:
+            if entry.profile_id == _gate_profile_id:
                 raise HTTPException(status_code=409, detail="A launch is already active for this profile.")
 
     # Resolve profile — binary path comes from settings, not request
@@ -182,7 +184,7 @@ async def launch_item(
         profile_id=profile.id if profile else None,
         emulator_slug=profile.emulator_slug if profile else "",
         started_at=datetime.now(timezone.utc),
-        network_blocked=network_blocked,
+        network_blocked=False,
         job_isolated=False,
     )
     db.add(history)
@@ -238,6 +240,7 @@ async def launch_item(
         history.sandboxed = True
         history.sandbox_memory_limit_mb = job.memory_limit_mb
         history.sandbox_cpu_limit_percent = job.cpu_limit_percent
+        history.network_blocked = network_blocked
         db.commit()
 
         from backend.service.utils.backend_router import resolve_backend_name
@@ -277,9 +280,10 @@ async def launch_environment(
         from backend.core.lifespan import _write_session_ends
         await asyncio.to_thread(_write_session_ends, _exited)
 
-    if body.profile_id is not None:
+    _gate_profile_id = body.profile_id if body.profile_id is not None else platform.profile_id
+    if _gate_profile_id is not None:
         for _, entry in process_registry.get_all().items():
-            if entry.profile_id == body.profile_id:
+            if entry.profile_id == _gate_profile_id:
                 raise HTTPException(status_code=409, detail="A launch is already active for this profile.")
 
     profile: Profile | None = None
@@ -337,7 +341,7 @@ async def launch_environment(
         profile_id=profile.id,
         emulator_slug=profile.emulator_slug,
         started_at=datetime.now(timezone.utc),
-        network_blocked=network_blocked,
+        network_blocked=False,
         job_isolated=False,
     )
     db.add(history)
@@ -391,18 +395,7 @@ async def launch_environment(
         history.sandboxed = True
         history.sandbox_memory_limit_mb = job.memory_limit_mb
         history.sandbox_cpu_limit_percent = job.cpu_limit_percent
-        db.commit()
-
-    old_records = (
-        db.query(LaunchHistory)
-        .filter(LaunchHistory.platform_id == platform.id, LaunchHistory.target_type == "environment")
-        .order_by(LaunchHistory.started_at.desc())
-        .offset(10)
-        .all()
-    )
-    for old in old_records:
-        db.delete(old)
-    if old_records:
+        history.network_blocked = network_blocked
         db.commit()
 
     return LaunchResponse(launch_history_id=history.id, warnings=warnings)
@@ -430,10 +423,17 @@ def get_launch(history_id: int, db: Session = Depends(get_db)):
     return record
 
 @router.post("/launches/{history_id}/stop", status_code=200)
-def stop_launch(history_id: int, db: Session = Depends(get_db), _: User = require_permission("can_launch_media")):
+def stop_launch(history_id: int, db: Session = Depends(get_db), active_user: User = require_permission("can_launch_media")):
     record = db.get(LaunchHistory, history_id)
     if not record:
         raise HTTPException(status_code=404, detail="Launch record not found.")
+
+    if not active_user.is_owner and not active_user.is_admin:
+        if record.profile_id is not None:
+            from backend.models.profile import Profile as _Profile
+            prof = db.get(_Profile, record.profile_id)
+            if prof is not None and prof.user_id is not None and prof.user_id != active_user.id:
+                raise HTTPException(status_code=403, detail="Permission denied: you can only stop your own launches.")
 
     stopped = False
     for pid, entry in process_registry.get_all().items():
