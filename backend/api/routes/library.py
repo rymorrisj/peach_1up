@@ -178,20 +178,6 @@ def add_library_item(
     item.media_type = media_type
     item.requires_install = media_type in ("iso", "cue", "floppy")
 
-    p = Path(item.media_path)
-    source_size_mb = (
-        p.stat().st_size / (1024 * 1024)
-        if p.is_file()
-        else sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) / (1024 * 1024)
-    )
-
-    if media_type in ("iso", "cue"):
-        computed = max(50, min(int(source_size_mb * 1.5), 2048))
-    elif media_type == "floppy":
-        computed = max(20, min(int(source_size_mb * 2), 40))
-    else:
-        computed = min(int(source_size_mb * 1.5) + 3, 100)
-
     if not item.content_rating:
         from backend.utils.rating_detect import detect_rating
         item.content_rating = detect_rating(body.media_path)
@@ -199,21 +185,8 @@ def add_library_item(
     db.add(item)
     db.flush()
 
-    from backend.models.drive import Drive
-    image_path = (
-        str(Path(item.folder_path) / f"{item.slug}.img")
-        if item.folder_path
-        else None
-    )
-    drive = Drive(
-        library_item_id=item.id,
-        name=item.title,
-        size_mb=computed,
-        image_path=image_path,
-    )
-    db.add(drive)
-    db.flush()
-    item.drive_id = drive.id
+    from backend.service.utils.drive_utils import create_drive_for_item
+    create_drive_for_item(item, db)
 
     db.commit()
     db.refresh(item)

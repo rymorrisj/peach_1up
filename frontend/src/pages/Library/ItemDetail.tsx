@@ -216,6 +216,7 @@ export default function ItemDetail() {
       setLaunchSuccess(true)
       setLaunchWarnings(res.warnings ?? [])
       setActiveHistoryId(res.launch_history_id)
+      queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
     } catch (err) {
       setLaunchError(err instanceof ApiError ? err.detail : 'Launch failed.')
     } finally {
@@ -416,7 +417,7 @@ export default function ItemDetail() {
               <div>
                 <span className="font-medium">Drive size:</span>{' '}
                 <span className="text-neutral-500 dark:text-neutral-400">
-                  {item.drive?.size_mb != null ? `${item.drive.size_mb} MB` : '—'}
+                  {item.drive?.size_mb != null ? `${item.drive.size_mb} MB` : <span className="italic text-neutral-400 dark:text-neutral-500">Drive created on first launch</span>}
                 </span>
               </div>
             </>

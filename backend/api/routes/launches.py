@@ -11,7 +11,7 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from backend.core.settings import get_base_path
-from backend.service.utils.fat_writer import format_fat16, write_file_to_image, read_file_from_image
+from backend.service.utils.fat_writer import FAT16_SIZE_MIN_MB, FAT16_SIZE_MAX_MB, format_fat16, write_file_to_image, read_file_from_image
 
 from backend.core import process_registry
 from backend.core.database import get_db
@@ -26,10 +26,8 @@ from backend.models.user import User
 router = APIRouter(prefix="/api/v1", tags=["launches"])
 logger = get_logger(__name__)
 
-
 def _resolve_item_drive(item, profile, db):
     return db.query(Drive).filter(Drive.library_item_id == item.id).first()
-
 
 def _copy_loose_files_to_drive(src_dir: Path, img_path: Path, size_mb: int) -> None:
     if not src_dir.is_dir():
@@ -50,16 +48,13 @@ def _copy_loose_files_to_drive(src_dir: Path, img_path: Path, size_mb: int) -> N
                 f"MD5 mismatch for {f}: src={src_md5} img={img_md5}"
             )
 
-
 class LaunchRequest(BaseModel):
     profile_id: int | None = None
-
 
 class LaunchResponse(BaseModel):
     launch_history_id: int
     warnings: list[str] = []
     launch_review_flagged: bool = False
-
 
 def _flag_short_lived_item(item_id: int) -> None:
     from backend.core.database import get_engine
@@ -72,7 +67,6 @@ def _flag_short_lived_item(item_id: int) -> None:
                 db.commit()
     except Exception as exc:
         logger.warning("Failed to set launch_review_flagged for item %d: %s", item_id, exc)
-
 
 def _monitor_short_lived_launch(item_id: int, proc, launch_time: float, *, _timeout: float = 3.0) -> None:
     deadline = launch_time + _timeout
@@ -92,7 +86,6 @@ def _monitor_short_lived_launch(item_id: int, proc, launch_time: float, *, _time
         item_id, exit_code, lifetime,
     )
     _flag_short_lived_item(item_id)
-
 
 @router.post("/library/{item_id}/launch", status_code=202, response_model=LaunchResponse)
 async def launch_item(
@@ -139,6 +132,9 @@ async def launch_item(
     network_blocked = not bool(getattr(profile, 'enable_networking', False))
 
     drive = _resolve_item_drive(item, profile, db)
+    if drive is None:
+        from backend.service.utils.drive_utils import create_drive_for_item
+        drive = create_drive_for_item(item, db)
 
     # First-launch copy for loose-file DOS items
     if (
@@ -150,9 +146,20 @@ async def launch_item(
         if not drive.image_path:
             raise RuntimeError(f"Drive id={drive.id!r} has no image_path — re-add the library item.")
         img_path = Path(drive.image_path)
-        if not img_path.exists():
-            format_fat16(img_path, drive.size_mb)
-        _copy_loose_files_to_drive(Path(item.media_path), img_path, drive.size_mb)
+        # item.installed is False → any existing image is from a prior failed attempt; remove it.
+        if img_path.exists():
+            img_path.unlink()
+        from backend.service.utils.drive_utils import compute_drive_size_mb
+        fresh_size = max(FAT16_SIZE_MIN_MB, min(
+            compute_drive_size_mb(Path(item.media_path), item.media_type or ""),
+            FAT16_SIZE_MAX_MB,
+        ))
+        if fresh_size != drive.size_mb:
+            drive.size_mb = fresh_size
+            db.add(drive)
+            db.commit()
+        format_fat16(img_path, fresh_size)
+        _copy_loose_files_to_drive(Path(item.media_path), img_path, fresh_size)
         item.installed = True
         db.add(item)
         db.commit()
@@ -252,7 +259,6 @@ async def launch_item(
         warnings=warnings,
         launch_review_flagged=item.launch_review_flagged,
     )
-
 
 @router.post("/environments/{platform_id}/launch", status_code=202, response_model=LaunchResponse)
 async def launch_environment(
@@ -401,7 +407,6 @@ async def launch_environment(
 
     return LaunchResponse(launch_history_id=history.id, warnings=warnings)
 
-
 @router.get("/library/{item_id}/launches", response_model=list[LaunchHistoryRead])
 def list_item_launches(item_id: int, db: Session = Depends(get_db)):
     return (
@@ -411,7 +416,6 @@ def list_item_launches(item_id: int, db: Session = Depends(get_db)):
         .limit(20)
         .all()
     )
-
 
 @router.get("/launches", response_model=list[LaunchHistoryRead])
 def list_launches(db: Session = Depends(get_db)):
@@ -424,7 +428,6 @@ def get_launch(history_id: int, db: Session = Depends(get_db)):
     if not record:
         raise HTTPException(status_code=404, detail="Launch record not found.")
     return record
-
 
 @router.post("/launches/{history_id}/stop", status_code=200)
 def stop_launch(history_id: int, db: Session = Depends(get_db), _: User = require_permission("can_launch_media")):

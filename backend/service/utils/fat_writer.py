@@ -21,6 +21,9 @@ from pathlib import Path
 # Module-level constants
 # ---------------------------------------------------------------------------
 
+FAT16_SIZE_MIN_MB  = 10
+FAT16_SIZE_MAX_MB  = 1024
+
 _BYTES_PER_SECTOR  = 512
 _RESERVED_SECTORS  = 4
 _FAT_COUNT         = 2
@@ -548,10 +551,15 @@ def format_fat16(img_path: Path, size_mb: int) -> None:
         raise RuntimeError(
             f"format_fat16: {img_path} already exists — refusing to overwrite"
         )
-    if not (10 <= size_mb <= 1024):
+    if not (FAT16_SIZE_MIN_MB <= size_mb <= FAT16_SIZE_MAX_MB):
+        _reason = (
+            f"below minimum of {FAT16_SIZE_MIN_MB} MB"
+            if size_mb < FAT16_SIZE_MIN_MB
+            else f"exceeds maximum of {FAT16_SIZE_MAX_MB} MB"
+        )
         raise ValueError(
-            f"format_fat16: size_mb={size_mb} exceeds the FAT16 maximum of 1024 MB "
-            f"(supported range: 10–1024)"
+            f"format_fat16: size_mb={size_mb} is {_reason} "
+            f"(supported range: {FAT16_SIZE_MIN_MB}–{FAT16_SIZE_MAX_MB})"
         )
 
     geo         = _calc_geometry(size_mb)
