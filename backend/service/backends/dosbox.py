@@ -268,6 +268,7 @@ def write_launch_conf(
     launch_commands: list[str] | None = None,
     profile: object | None = None,
     drive: object | None = None,
+    game_executable: str | None = None,
 ) -> Path:
     """Write the DOSBox-X launch conf and return its path.
 
@@ -311,7 +312,11 @@ def write_launch_conf(
     # Layer 2: item commands (item-specific paths, appended after).
     # Scan candidates and executable_path are display-only — they must never
     # reach this list. Only the user's explicit launch_commands field feeds here.
-    item_cmds: list[str] = launch_commands or []
+    exe_cmds: list[str] = []
+    if game_executable:
+        _validate_game_executable(game_executable, media_drive)
+        exe_cmds = [game_executable]
+    item_cmds: list[str] = (launch_commands or []) + exe_cmds
 
     autoexec = _build_autoexec(
         drive_setup_lines, mount_line, drive_line, media_drive, profile_cmds, item_cmds
@@ -322,7 +327,7 @@ def write_launch_conf(
         raise FileNotFoundError(f"DOSBox-X base.conf not found: {base_conf}")
     base = _strip_autoexec(base_conf.read_text(encoding="utf-8", errors="replace"))
 
-    conf_path = get_base_path() / "emulators" / "dosbox-x" / "dosbox-x.conf"
+    conf_path = executable_path.parent / "dosbox-x.conf"
     content = base.rstrip("\n") + "\n\n" + autoexec
 
     conf_path.write_text(content, encoding="utf-8")

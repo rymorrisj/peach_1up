@@ -544,8 +544,7 @@ def format_fat16(img_path: Path, size_mb: int) -> None:
     markers.
 
     Raises:
-        RuntimeError: If img_path already exists (never overwrites).
-        ValueError: If size_mb is outside the supported range 10–1024 (FAT16 maximum).
+        RuntimeError: If img_path already exists or size_mb is outside the supported range 10–1024.
     """
     if img_path.exists():
         raise RuntimeError(
@@ -557,7 +556,7 @@ def format_fat16(img_path: Path, size_mb: int) -> None:
             if size_mb < FAT16_SIZE_MIN_MB
             else f"exceeds maximum of {FAT16_SIZE_MAX_MB} MB"
         )
-        raise ValueError(
+        raise RuntimeError(
             f"format_fat16: size_mb={size_mb} is {_reason} "
             f"(supported range: {FAT16_SIZE_MIN_MB}–{FAT16_SIZE_MAX_MB})"
         )
