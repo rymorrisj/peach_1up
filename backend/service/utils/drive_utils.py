@@ -124,4 +124,5 @@ def update_drive_for_item(item: "LibraryItem", db: "Session", **kwargs) -> "Driv
 
     Not yet implemented.
     """
+    # Stub — intentional. Implement before drive-edit UI ships.
     raise NotImplementedError("Drive editing is not yet implemented")

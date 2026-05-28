@@ -149,11 +149,11 @@ _EXEC_SUFFIXES = frozenset({".exe", ".bat", ".com"})
 
 def _validate_shell_line(line: str) -> None:
     if "\n" in line or "\r" in line:
-        raise ValueError("launch_commands line must not contain newline characters")
+        raise RuntimeError("launch_commands line must not contain newline characters")
     if "\x00" in line:
-        raise ValueError("launch_commands line must not contain null bytes")
+        raise RuntimeError("launch_commands line must not contain null bytes")
     if "#" in line:
-        raise ValueError("launch_commands line must not contain '#' (DOSBox-X comment character)")
+        raise RuntimeError("launch_commands line must not contain '#' (DOSBox-X comment character)")
 
 
 def _build_drive_mount_lines(
