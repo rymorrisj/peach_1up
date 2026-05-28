@@ -375,7 +375,7 @@ provide their own API key.
   stopgap until trained model ships.
 - [PSS-8] Default emulator configs — review and expand bundled default
   configs per era to ensure out-of-box experience is solid regardless of
-  detection tier.
+  detection tier. (NOTE: 86Box base.conf machine/cpu/gfxcard/sndcard fields are intentionally commented — must be populated from 86Box hardware documentation before the template is wired into the launch path)
 - [PSS-9] PSS committed and pushed to main.
 
 ## PX-1 — Linux Namespace and cgroup Isolation (Scaffold)
@@ -433,3 +433,5 @@ per-launch CPU/memory caps.
   newer version is found. Runs offline (no emulator binaries, no downloads).
   One action per emulator slug, driven by release_url in the TOML.
 - Launch history needs to be pruned or a delete flow of some sort
+- Metadata enrichment via TheGamesDB API — after hash-based title confirmation, optionally fetch cover art, description, genre, and release date from TheGamesDB API (see RGSX scraper.py pattern). Requires user-supplied API key. Enriches LibraryItem on scan. Never blocks launch.
+- LLM-assisted emulator navigation (OpenClaw), more complex but an interesting idea
