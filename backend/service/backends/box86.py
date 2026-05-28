@@ -28,7 +28,7 @@ from backend.service.utils.settings import get_binary_path
 
 logger = get_logger(__name__)
 
-SUPPORTED_ERAS = {Era.WIN95.value, Era.WIN98.value}
+SUPPORTED_ERAS = {Era.WIN95.value, Era.WIN98.value, Era.WINXP.value}
 
 
 def validate_rom_path(rom_path: Path) -> None:
@@ -98,6 +98,11 @@ def _ensure_section(parser: configparser.RawConfigParser, section: str) -> None:
         parser.add_section(section)
 
 
+def _set_if_absent(parser: configparser.RawConfigParser, section: str, key: str, value: str) -> None:
+    if not parser.has_option(section, key) or parser.get(section, key) == "":
+        parser.set(section, key, value)
+
+
 def _prepare_config(platform: Platform, cfg_path: str, rom_path: Path) -> None:
     """Patch all required 86Box config keys before every launch.
 
@@ -132,27 +137,27 @@ def _prepare_config(platform: Platform, cfg_path: str, rom_path: Path) -> None:
 
     hw_profile = get_86box_profile(platform.hardware_profile or "standard")
     _ensure_section(parser, "Machine")
-    parser.set("Machine", "machine",         hw_profile["machine"])
-    parser.set("Machine", "cpu_family",      hw_profile["cpu_family"])
-    parser.set("Machine", "cpu_speed",       str(hw_profile["cpu_speed"]))
-    parser.set("Machine", "cpu_multi",       str(hw_profile["cpu_multi"]))
-    parser.set("Machine", "mem_size",        str(hw_profile["mem_size"]))
-    parser.set("Machine", "cpu_use_dynarec", str(hw_profile["cpu_use_dynarec"]))
-    parser.set("Machine", "fpu_type",        hw_profile["fpu_type"])
+    _set_if_absent(parser, "Machine", "machine",         hw_profile["machine"])
+    _set_if_absent(parser, "Machine", "cpu_family",      hw_profile["cpu_family"])
+    _set_if_absent(parser, "Machine", "cpu_speed",       str(hw_profile["cpu_speed"]))
+    _set_if_absent(parser, "Machine", "cpu_multi",       str(hw_profile["cpu_multi"]))
+    _set_if_absent(parser, "Machine", "mem_size",        str(hw_profile["mem_size"]))
+    _set_if_absent(parser, "Machine", "cpu_use_dynarec", str(hw_profile["cpu_use_dynarec"]))
+    _set_if_absent(parser, "Machine", "fpu_type",        hw_profile["fpu_type"])
 
     _ensure_section(parser, "Video")
-    parser.set("Video", "gfxcard",      hw_profile["gfxcard"])
-    parser.set("Video", "vid_renderer", hw_profile["vid_renderer"])
+    _set_if_absent(parser, "Video", "gfxcard",      hw_profile["gfxcard"])
+    _set_if_absent(parser, "Video", "vid_renderer", hw_profile["vid_renderer"])
 
     _ensure_section(parser, "Sound")
-    parser.set("Sound", "sndcard", hw_profile["sndcard"])
+    _set_if_absent(parser, "Sound", "sndcard", hw_profile["sndcard"])
 
     for _stale in ("Keyboard", "Mouse"):
         if parser.has_section(_stale):
             parser.remove_section(_stale)
     _ensure_section(parser, "Input devices")
-    parser.set("Input devices", "mouse_type",    "ps2")
-    parser.set("Input devices", "keyboard_type", "keyboard_ps2")
+    _set_if_absent(parser, "Input devices", "mouse_type",    "ps2")
+    _set_if_absent(parser, "Input devices", "keyboard_type", "keyboard_ps2")
 
     _ensure_section(parser, "Hard disks")
     parser.set("Hard disks", "hdd_01_fn", img_path.name)
@@ -182,6 +187,8 @@ def _prepare_config(platform: Platform, cfg_path: str, rom_path: Path) -> None:
     parser.set("Paths", "rompath", str(rom_path.resolve()))
 
     _ensure_section(parser, "Network")
+    parser.set("Network", "net_card", "none")
+    parser.set("Network", "net_type", "none")
     parser.set("Network", "net_01_link", "0")
 
     tmp_path = cp.with_suffix(cp.suffix + ".tmp")
