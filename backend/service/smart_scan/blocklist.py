@@ -1,9 +1,14 @@
 BLOCK_PREFIXES: tuple[str, ...] = (
+    "ins",
     "inst",
+    "insta",
+    "instal",
+    "iset",
+    "set",
+    "setu",
     "setup",
     "setp",
     "set_",
-    "instal",
     "arcinst",
     "uninst",
     "unstall",
@@ -11,6 +16,8 @@ BLOCK_PREFIXES: tuple[str, ...] = (
 )
 
 BLOCK_EXACT: frozenset[str] = frozenset({
+    "install",
+    "setup",
     "deice",
     "pkunzip",
     "pkzip",
@@ -32,6 +39,7 @@ BLOCK_SUFFIXES: tuple[str, ...] = (
     "_ins",
     "_set",
     "_inst",
+    "_setup",
 )
 
 
