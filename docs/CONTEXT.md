@@ -350,7 +350,7 @@ two-tier detection system: a bundled trained model using community datasets
 for offline accuracy, and an optional LLM-assisted config path for users who
 provide their own API key.
 
-### NEXT
+### DONE
 
 - [PSS-1] eXoDOS config extraction pipeline — parse DOSBox configs from
   eXoDOS dataset to extract executable paths, mount commands, and launch
@@ -377,8 +377,54 @@ provide their own API key.
   configs per era to ensure out-of-box experience is solid regardless of
   detection tier. (NOTE: 86Box base.conf machine/cpu/gfxcard/sndcard fields are intentionally commented — must be populated from 86Box hardware documentation before the template is wired into the launch path)
 - [PSS-9] PSS committed and pushed to main.
+- NOTE: 6-7 are on hold as is 3. For 3, we were going to use the eXoDOS database to train the model
+  however the torrents are down as is The Eye. 6-7 are not needed for alpha testing.
 
-## PX-1 — Linux Namespace and cgroup Isolation (Scaffold)
+## PX-1 — Era and Console Completion
+
+### Goal
+
+Close remaining gaps in supported eras and verify all console backends
+launch cleanly end-to-end. Nothing in P4 or 86Box is confirmed working.
+Backend existence is not the same as confirmed launch.
+
+### CURRENT
+
+- [PX-1-1] Fix 86Box PnP hardware detection loop
+  \_prepare_config rewrites machine/cpu/gfxcard/sndcard on every launch.
+  Windows treats any config change as a hardware change and fires PnP.
+  Fix: write hardware fields only on first boot (fields absent from config),
+  leave them untouched on subsequent launches. Also add net_card = none and
+  net_type = none to [Network] on every launch. Add Era.WINXP.value to
+  SUPPORTED_ERAS in box86.py. Confirm Win95, Win98, XP all boot persistently
+  with no driver prompts before moving on.
+
+- [PX-1-2] Verify console backends end-to-end
+  Test each in order: Mesen (NES), Project64 (N64), DuckStation (PS1),
+  PCSX2 (PS2), xemu (Xbox OG). For each: confirm launch, confirm media
+  loads, confirm process is tracked under Job Objects, confirm clean exit.
+  Fix whatever breaks. Do not move to the next until the current passes.
+
+- [PX-1-3] Add Windows ME era via DOSBox-X
+  New era slug: winme. Routes to DOSBox-X. No ROM required. Add to
+  SUPPORTED_ERAS in dosbox.py, era selector in frontend, and eras.yaml.
+  Low effort — DOSBox-X already handles it.
+
+- [PX-1-4] Surface networking toggle in profile UI
+  enable_networking exists on the profile model. Needs a toggle in the
+  profile edit UI. Off by default. No backend changes required.
+
+- [PX-1-5] Controller remapping UI
+  Frontend only. No backend changes required.
+
+- [PX-1-6] PX-1 committed and pushed to main.
+
+### NEXT
+
+- dgVoodoo2 injection for 3D-era Win9x games
+- Flycast/Dreamcast verification
+
+## PX-2 — Linux Namespace and cgroup Isolation (Scaffold)
 
 ### Goal
 
@@ -389,15 +435,15 @@ per-launch CPU/memory caps.
 
 ### NEXT
 
-- [PX-1-1] Select Linux isolation backend (nsjail vs native namespaces+cgroups)
-- [PX-1-2] Define per-launch sandbox filesystem layout and allowed mounts
-- [PX-1-3] Implement CPU and memory limits via cgroup v2
-- [PX-1-4] Integrate Linux sandboxed launch into emulator backends
-- [PX-1-5] Update SECURITY.md and DECISIONS.md and any other documentation for Linux isolation
-- [PX-1-6] Linux packages — fpm produces .deb and AppImage. Registers systemd
+- [PX-2-1] Select Linux isolation backend (nsjail vs native namespaces+cgroups)
+- [PX-2-2] Define per-launch sandbox filesystem layout and allowed mounts
+- [PX-2-3] Implement CPU and memory limits via cgroup v2
+- [PX-2-4] Integrate Linux sandboxed launch into emulator backends
+- [PX-2-5] Update SECURITY.md and DECISIONS.md and any other documentation for Linux isolation
+- [PX-2-6] Linux packages — fpm produces .deb and AppImage. Registers systemd
   service on deb install. AppImage runs standalone.
-- [PX-1-7] Include Linux in the native installation and distribution flow (depends on P8 Windows installer being stable)
-- [PX-1-8] PX-1 committed and pushed to main.
+- [PX-2-7] Include Linux in the native installation and distribution flow (depends on P8 Windows installer being stable)
+- [PX-2-8] PX-2 committed and pushed to main.
 
 ## PX — Nice to Haves
 
@@ -406,15 +452,11 @@ per-launch CPU/memory caps.
   release automatically.
 - Docusaurus documentation site — technical docs, user guide,
   contributor guide. Versioned, MDX, full-text search.
-- Windows ME support via DOSBox-X
-- Multiplayer / networking toggle per profile
-- Controller remapping UI
+- PS3 support via RPCS3
+- Xbox 360 support via Xenia
 - Plugin system for additional emulator backends
 - Auto-update for emulator binaries
 - Linux runtime packaging — ship a minimal Linux environment with all emulators pre-configured
-- dgVoodoo2 injection for 3D-era Win9x games
-- PS3 support via RPCS3
-- Xbox 360 support via Xenia
 - Platform image compression — working copies and save backups will accumulate
   and consume significant disk space over time. Add compression, deduplication,
   and storage management tooling to reduce bloat. Warn users at registration
@@ -424,9 +466,7 @@ per-launch CPU/memory caps.
 - Platform snapshot management — compression, auto-snapshots before risky installs,
   snapshot history, and storage cleanup tooling. Basic create/restore ships in P2.
 - Support a key,value (emulator, path) for users to add and configure their own emulators/eras in settings.yaml
-- Add a Check All Health button to Platform page so user can check all platforms at once instead of one at a time
 - Drag drop jsut adds image name not path so Users see a warning anyway. (drag drop may present security concerns)
-- Add a note in the UI and docs: "if you change media paths, restart the backend to apply permissions."
 - GitHub Action — weekly scheduled job that checks each emulator's
   release page for a version newer than the pinned version in its
   config/emulators/<slug>.toml. Opens a draft PR with the diff if a
