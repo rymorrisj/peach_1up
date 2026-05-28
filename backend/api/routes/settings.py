@@ -21,17 +21,6 @@ _ALL_PATH_KEYS = {
     "DRIVES_PATH", "ROMS_PATH", "BIOS_PATH", "PROFILES_PATH",
 }
 
-_EMULATOR_SLUG_TO_KEY: dict[str, str] = {
-    "dosbox-x":    "DOSBOX_PATH",
-    "86box":       "BOX86_PATH",
-    "virtualbox":  "VIRTUALBOX_PATH",
-    "duckstation": "DUCKSTATION_PATH",
-    "pcsx2":       "PCSX2_PATH",
-    "xemu":        "XEMU_PATH",
-    "mesen":       "MESEN_PATH",
-    "project64":   "PROJECT64_PATH",
-}
-
 _LIBRARY_KEY_MAP: dict[str, str] = {
     "library_path":  "LIBRARY_PATH",
     "media_path":    "MEDIA_PATH",
@@ -133,7 +122,13 @@ def get_first_run_status(db: Session = Depends(get_db)):
 
 @router.post("/emulator-path")
 def set_emulator_path(body: EmulatorPathBody, _: User = require_permission("can_edit_settings")):
-    if body.slug not in _EMULATOR_SLUG_TO_KEY:
+    from backend.service.utils.emulator_catalog import get_settings_key as _get_settings_key, get_emulator as _get_emulator
+    try:
+        _get_emulator(body.slug)
+        settings_key = _get_settings_key(body.slug)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Unknown emulator slug: {body.slug!r}")
+    if settings_key not in _ALL_PATH_KEYS:
         raise HTTPException(status_code=400, detail=f"Unknown emulator slug: {body.slug!r}")
 
     try:
@@ -146,7 +141,6 @@ def set_emulator_path(body: EmulatorPathBody, _: User = require_permission("can_
     if not resolved.is_file():
         raise HTTPException(status_code=400, detail="Path is not a file.")
 
-    settings_key = _EMULATOR_SLUG_TO_KEY[body.slug]
     svc = get_settings()
     svc.set_path(settings_key, str(resolved))
 

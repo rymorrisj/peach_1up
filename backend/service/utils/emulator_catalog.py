@@ -2,6 +2,9 @@ import glob as _glob
 import os
 import tomllib
 from pathlib import Path
+from typing import Dict, Any
+
+import yaml as _yaml
 
 from backend.core.settings import get_base_path
 from backend.service.utils.settings import get_env_var
@@ -12,6 +15,7 @@ _PROFILES_PATH = get_base_path() / "config" / "86box-profiles.toml"
 _PROFILES_DIR = get_base_path() / "config" / "86box-profiles"
 
 _catalog_cache: dict | None = None
+_ERAS_CONFIG_CACHE: Dict[str, Any] | None = None
 
 
 def _load_raw_catalog() -> dict:
@@ -26,16 +30,46 @@ def reset_catalog_cache() -> None:
     _catalog_cache = None
 
 
-_SLUG_TO_SETTINGS_KEY: dict[str, str] = {
-    "dosbox-x":    "DOSBOX_PATH",
-    "86box":       "BOX86_PATH",
-    "virtualbox":  "VIRTUALBOX_PATH",
-    "duckstation": "DUCKSTATION_PATH",
-    "pcsx2":       "PCSX2_PATH",
-    "xemu":        "XEMU_PATH",
-    "mesen":       "MESEN_PATH",
-    "project64":   "PROJECT64_PATH",
-}
+def _get_eras_config() -> Dict[str, Any]:
+    global _ERAS_CONFIG_CACHE
+    if _ERAS_CONFIG_CACHE is None:
+        config_path = get_base_path() / "config" / "eras.yaml"
+        with config_path.open("r", encoding="utf-8") as f:
+            _ERAS_CONFIG_CACHE = _yaml.safe_load(f) or {}
+    return _ERAS_CONFIG_CACHE
+
+
+def get_settings_key(slug: str) -> str:
+    """Return the settings key for a given emulator slug.
+
+    Reads the ``settings_key`` field from emulators.toml if present;
+    otherwise derives it as ``slug.upper().replace("-", "") + "_PATH"``.
+
+    Raises:
+        ValueError: If the slug is not found in the emulator catalog.
+    """
+    entry = get_emulator(slug)
+    if "settings_key" in entry:
+        return entry["settings_key"]
+    return slug.upper().replace("-", "") + "_PATH"
+
+
+def get_backend_for_era(era: str) -> str:
+    """Return the backend slug for a given era from eras.yaml.
+
+    Reads the ``backend`` field from the era's config block.
+
+    Raises:
+        ValueError: If the era is not in eras.yaml or has no ``backend`` key.
+    """
+    config = _get_eras_config()
+    era_config = config.get(era)
+    if not era_config or not isinstance(era_config, dict):
+        raise ValueError(f"Era '{era}' not found in eras.yaml")
+    backend = era_config.get("backend")
+    if not backend:
+        raise ValueError(f"Era '{era}' has no 'backend' key in eras.yaml")
+    return str(backend)
 
 
 def get_86box_profile(slug: str) -> dict:
@@ -82,9 +116,14 @@ def get_emulator(slug: str) -> dict:
 
 
 def get_install_path(slug: str) -> Path | None:
+    entry = get_emulator(slug)
+    install_type = entry.get("install_type", "zip")
+    install_scope = entry.get("install_scope", "portable")
+    binary = entry.get("binary", "")
+
     # Check settings.yaml user override first — user path always wins.
-    settings_key = _SLUG_TO_SETTINGS_KEY.get(slug)
-    if settings_key:
+    if install_type != "rom_pack":
+        settings_key = get_settings_key(slug)
         try:
             from backend.service.utils import settings as _settings_mod
             val = _settings_mod.get(settings_key, "")
@@ -94,11 +133,6 @@ def get_install_path(slug: str) -> Path | None:
                     return p
         except Exception:
             pass
-
-    entry = get_emulator(slug)
-    install_type = entry.get("install_type", "zip")
-    install_scope = entry.get("install_scope", "portable")
-    binary = entry.get("binary", "")
 
     if install_type == "rom_pack":
         if binary:
@@ -216,9 +250,9 @@ def detect_and_sync_all() -> None:
     from backend.service.utils import settings as _settings_mod
     for entry in load_catalog():
         slug = entry["slug"]
-        settings_key = _SLUG_TO_SETTINGS_KEY.get(slug)
-        if not settings_key:
+        if entry.get("install_type") == "rom_pack":
             continue
+        settings_key = get_settings_key(slug)
         # Never overwrite an existing user override.
         try:
             existing = _settings_mod.get(settings_key, "")

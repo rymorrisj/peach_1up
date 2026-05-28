@@ -1,4 +1,5 @@
 slug = "dosbox-x"
+settings_key = "DOSBOX_PATH"
 display_name = "DOSBox-X"
 name = "DOSBox-X"
 version = "PLACEHOLDER"

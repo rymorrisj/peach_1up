@@ -449,7 +449,7 @@ async def lifespan(app: FastAPI):
     _sync_detected_emulator_paths()
 
     try:
-        from backend.service.utils.backend_router import _get_eras_config as _warm_eras
+        from backend.service.utils.emulator_catalog import _get_eras_config as _warm_eras
         _warm_eras()
     except Exception as exc:
         logger.warning("Failed to preload eras.yaml at startup: %s", exc)

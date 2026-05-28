@@ -13,25 +13,10 @@ from backend.models.snapshot import Snapshot, SnapshotCreate, SnapshotRead
 from backend.models.user import User
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
-from backend.service.utils.settings import get_binary_path
 from backend.service.utils.slug_generator import unique_slug
 
 router = APIRouter(prefix="/api/v1/platforms", tags=["platforms"], redirect_slashes=False)
 logger = get_logger(__name__)
-
-# Maps emulator_slug (as stored on Platform) to the key expected by get_binary_path().
-# dosbox-x and 86box differ from their slug because get_binary_path() uses the shorter
-# legacy keys ("dosbox", "box86") that predate the platform slug scheme.
-_EMULATOR_SLUG_TO_BINARY_KEY: dict[str, str] = {
-    "dosbox-x":    "dosbox",
-    "86box":       "box86",
-    "virtualbox":  "virtualbox",
-    "duckstation": "duckstation",
-    "pcsx2":       "pcsx2",
-    "xemu":        "xemu",
-    "mesen":       "mesen",
-    "project64":   "project64",
-}
 
 _PLATFORM_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp", "xbox"})
 _PROVISIONABLE_ERAS = frozenset({"win95", "win98", "winxp", "xbox"})
@@ -220,9 +205,12 @@ def storage_stats(db: Session = Depends(get_db), _: User = require_permission("c
         safe_size(p.base_image_path) + safe_size(p.working_image_path)
         for p in db.query(Platform).all()
     )
+    from backend.service.utils.emulator_catalog import load_catalog as _load_catalog, get_settings_key as _get_settings_key
+    from backend.service.utils import settings as _settings
     emulator_binaries_bytes = sum(
-        safe_size(get_binary_path(key))
-        for key in set(_EMULATOR_SLUG_TO_BINARY_KEY.values())
+        safe_size(_settings.get(_get_settings_key(e["slug"])) or "")
+        for e in _load_catalog()
+        if e.get("install_type") != "rom_pack"
     )
 
     return {
@@ -291,9 +279,10 @@ def platform_health(platform_id: int, db: Session = Depends(get_db), _: User = r
         raise HTTPException(status_code=404, detail="Platform not found.")
 
     if platform.is_system:
-        emulator_key = _EMULATOR_SLUG_TO_BINARY_KEY.get(platform.emulator_slug, "")
-        binary_path = get_binary_path(emulator_key) if emulator_key else ""
-        exists = bool(binary_path and Path(binary_path).is_file())
+        from backend.service.utils.emulator_catalog import get_install_path as _get_install_path
+        install_path = _get_install_path(platform.emulator_slug) if platform.emulator_slug else None
+        exists = install_path is not None
+        binary_path = str(install_path) if install_path else ""
         platform.status = "ok" if exists else "missing"
         platform.last_health_check = datetime.now(timezone.utc)
         db.commit()

@@ -1,5 +1,6 @@
 """Tests for backend routing — era → backend mapping and routing invariants."""
 
+import functools
 import inspect
 import sys
 from unittest.mock import MagicMock
@@ -47,17 +48,18 @@ _EXEC_CASES = [
 _EXEC_IDS = ["dos", "win31", "win95", "win98", "winxp",
              "ps1", "ps2", "xbox", "nes", "n64", "dreamcast"]
 
+# Console backends now dispatch through console.py; others keep per-module paths.
 _LAUNCH_FN_CASES = [
     (Era.DOS,   "backend.service.backends.dosbox"),
     (Era.WIN31, "backend.service.backends.dosbox"),
     (Era.WIN95, "backend.service.backends.box86"),
     (Era.WIN98, "backend.service.backends.box86"),
     (Era.WINXP, "backend.service.backends.box86"),
-    (Era.PS1,   "backend.service.backends.duckstation"),
-    (Era.PS2,   "backend.service.backends.pcsx2"),
+    (Era.PS1,   "backend.service.backends.console"),
+    (Era.PS2,   "backend.service.backends.console"),
     (Era.XBOX,  "backend.service.backends.xemu"),
-    (Era.NES,       "backend.service.backends.mesen"),
-    (Era.N64,       "backend.service.backends.project64"),
+    (Era.NES,   "backend.service.backends.console"),
+    (Era.N64,   "backend.service.backends.console"),
     (Era.DREAMCAST, "backend.service.backends.flycast"),
 ]
 
@@ -87,40 +89,34 @@ class TestResolveBackendName:
 
 
 # ---------------------------------------------------------------------------
-# _BACKEND_TO_EMULATOR — explicit mapping present for every routed backend
-# (H5 fix: no else-fallthrough for DOSBox-X)
+# Settings key invariants — get_settings_key must return correct key per slug
 # ---------------------------------------------------------------------------
 
-class TestBackendToEmulatorMapping:
-    def test_dosbox_has_explicit_entry(self):
-        from backend.service.utils.backend_router import _BACKEND_TO_EMULATOR
-        assert BackendSlug.DOSBOX.value in _BACKEND_TO_EMULATOR
-
-    @pytest.mark.parametrize("slug", [
-        BackendSlug.DOSBOX.value,
-        BackendSlug.BOX86.value,
-        BackendSlug.DUCKSTATION.value,
-        BackendSlug.PCSX2.value,
-        BackendSlug.XEMU.value,
-        BackendSlug.MESEN.value,
-        BackendSlug.PROJECT64.value,
-        BackendSlug.FLYCAST.value,
+class TestSettingsKeyMapping:
+    @pytest.mark.parametrize("slug,expected_key", [
+        ("dosbox-x",    "DOSBOX_PATH"),
+        ("86box",       "BOX86_PATH"),
+        ("virtualbox",  "VIRTUALBOX_PATH"),
+        ("duckstation", "DUCKSTATION_PATH"),
+        ("pcsx2",       "PCSX2_PATH"),
+        ("xemu",        "XEMU_PATH"),
+        ("mesen",       "MESEN_PATH"),
+        ("project64",   "PROJECT64_PATH"),
+        ("flycast",     "FLYCAST_PATH"),
     ])
-    def test_each_routed_backend_has_emulator_entry(self, slug):
-        from backend.service.utils.backend_router import _BACKEND_TO_EMULATOR
-        assert slug in _BACKEND_TO_EMULATOR
+    def test_get_settings_key_returns_correct_key(self, slug, expected_key):
+        from backend.service.utils.emulator_catalog import get_settings_key
+        assert get_settings_key(slug) == expected_key
 
-    def test_dosbox_entry_uses_correct_keys(self):
-        from backend.service.utils.backend_router import _BACKEND_TO_EMULATOR
-        settings_key, emulator_key = _BACKEND_TO_EMULATOR[BackendSlug.DOSBOX.value]
-        assert settings_key == "DOSBOX_PATH"
-        assert emulator_key == "dosbox"
+    def test_dosbox_x_uses_toml_settings_key_not_derived(self):
+        from backend.service.utils.emulator_catalog import get_settings_key
+        # Derived would give "DOSBOXX_PATH"; TOML override gives "DOSBOX_PATH"
+        assert get_settings_key("dosbox-x") == "DOSBOX_PATH"
 
-    def test_86box_entry_uses_correct_keys(self):
-        from backend.service.utils.backend_router import _BACKEND_TO_EMULATOR
-        settings_key, emulator_key = _BACKEND_TO_EMULATOR[BackendSlug.BOX86.value]
-        assert settings_key == "BOX86_PATH"
-        assert emulator_key == "box86"
+    def test_86box_uses_toml_settings_key_not_derived(self):
+        from backend.service.utils.emulator_catalog import get_settings_key
+        # Derived would give "86BOX_PATH"; TOML override gives "BOX86_PATH"
+        assert get_settings_key("86box") == "BOX86_PATH"
 
 
 # ---------------------------------------------------------------------------
@@ -149,8 +145,9 @@ class TestUnknownEraHandling:
             launch_media("not_a_real_era", "/fake/game.iso")
 
     def test_get_launch_fn_raises_runtime_error_when_era_absent_from_config(self, monkeypatch):
+        import backend.service.utils.emulator_catalog as catalog_mod
+        monkeypatch.setattr(catalog_mod, "_ERAS_CONFIG_CACHE", {})
         import backend.service.utils.backend_router as router_mod
-        monkeypatch.setattr(router_mod, "_ERAS_CONFIG", {})
         with pytest.raises(RuntimeError):
             router_mod.get_launch_fn(Era.DOS)
 
@@ -173,7 +170,12 @@ class TestGetLaunchFn:
         monkeypatch.setitem(sys.modules, module_path, fake)
         import backend.service.utils.backend_router as router_mod
         fn = router_mod.get_launch_fn(era)
-        assert fn is fake.launch
+        if module_path == "backend.service.backends.console":
+            # Console backends return a partial wrapping console.launch
+            assert isinstance(fn, functools.partial)
+            assert fn.func is fake.launch
+        else:
+            assert fn is fake.launch
 
     def test_win95_returns_86box_launch_not_virtualbox(self, monkeypatch):
         fake_vbox = _fake_backend("virtualbox")

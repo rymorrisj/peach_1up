@@ -5,30 +5,12 @@ Maps eras to their corresponding backend launch functions. 86Box eras
 to their dedicated backends. No accuracy-mode conditional exists.
 """
 
-import yaml
+import functools
 from pathlib import Path
-from typing import Callable, Dict, Any
+from typing import Callable
 
 from backend.constants_generated import BackendSlug, Era
-from backend.core.settings import get_base_path
 from backend.service.utils.settings import get_binary_path
-
-
-def _load_eras_config() -> Dict[str, Any]:
-    """Load and parse ``config/eras.yaml``."""
-    config_path = get_base_path() / "config" / "eras.yaml"
-    with config_path.open('r') as f:
-        return yaml.safe_load(f)
-
-
-_ERAS_CONFIG: Dict[str, Any] | None = None
-
-
-def _get_eras_config() -> Dict[str, Any]:
-    global _ERAS_CONFIG
-    if _ERAS_CONFIG is None:
-        _ERAS_CONFIG = _load_eras_config()
-    return _ERAS_CONFIG
 
 
 _CONSOLE_BACKENDS: frozenset[str] = frozenset({
@@ -62,15 +44,13 @@ def resolve_backend_name(era: Era) -> str:
         RuntimeError: If eras.yaml cannot be loaded or the era is not configured.
         ValueError: If the era has no resolvable backend.
     """
-    era_config = _get_eras_config().get(era.value)
-    if not era_config:
-        raise ValueError(f"Era '{era.value}' not found in eras.yaml")
+    from backend.service.utils.emulator_catalog import get_backend_for_era as _get_backend_for_era
+    try:
+        return _get_backend_for_era(era.value)
+    except ValueError:
+        pass
 
-    # Flat backend key — DOS, Win31, and all console eras use this.
-    if 'backend' in era_config:
-        return era_config['backend']
-
-    # 86Box eras (win95, win98, winxp) always route to 86Box.
+    # win95/win98/winxp have no flat 'backend' key — they always route to 86Box.
     if era.value in ('win95', 'win98', 'winxp'):
         return BackendSlug.BOX86.value
 
@@ -102,24 +82,12 @@ def get_launch_fn(era: Era) -> Callable:
         elif backend_name == BackendSlug.BOX86.value:
             from backend.service.backends.box86 import launch
             return launch
-        elif backend_name == BackendSlug.DUCKSTATION.value:
-            from backend.service.backends.duckstation import launch
-            return launch
-        elif backend_name == BackendSlug.PCSX2.value:
-            from backend.service.backends.pcsx2 import launch
-            return launch
         elif backend_name == BackendSlug.XEMU.value:
             from backend.service.backends.xemu import launch
             return launch
-        elif backend_name == BackendSlug.MESEN.value:
-            from backend.service.backends.mesen import launch
-            return launch
-        elif backend_name == BackendSlug.PROJECT64.value:
-            from backend.service.backends.project64 import launch
-            return launch
-        elif backend_name == BackendSlug.FLYCAST.value:
-            from backend.service.backends.flycast import launch
-            return launch
+        elif backend_name in _CONSOLE_BACKENDS:
+            from backend.service.backends.console import launch as _console_launch
+            return functools.partial(_console_launch, backend_name)
         else:
             raise ValueError(f"Unknown backend '{backend_name}' for era '{era.value}'")
     except Exception as e:
@@ -138,35 +106,12 @@ def get_backend_name(era: Era) -> str:
     Returns:
         Display name string, or ``"Unknown"`` if the era is not configured.
     """
+    from backend.constants_generated import BACKEND_LABELS
     try:
         backend_name = resolve_backend_name(era)
-        return {
-            BackendSlug.DOSBOX.value: 'DOSBox-X',
-            BackendSlug.BOX86.value: '86Box',
-            BackendSlug.VIRTUALBOX.value: 'VirtualBox',
-            BackendSlug.DUCKSTATION.value: 'DuckStation',
-            BackendSlug.PCSX2.value: 'PCSX2',
-            BackendSlug.XEMU.value: 'xemu',
-            BackendSlug.MESEN.value: 'Mesen',
-            BackendSlug.PROJECT64.value: 'Project64',
-            BackendSlug.FLYCAST.value: 'Flycast',
-        }.get(backend_name, 'Unknown')
+        return BACKEND_LABELS.get(backend_name, 'Unknown')
     except Exception:
         return 'Unknown'
-
-
-# Maps BackendSlug value → (settings_key, emulator_key_for_get_binary_path)
-_BACKEND_TO_EMULATOR: Dict[str, tuple[str, str]] = {
-    BackendSlug.DOSBOX.value:      ('DOSBOX_PATH',      'dosbox'),
-    BackendSlug.BOX86.value:       ('BOX86_PATH',       'box86'),
-    BackendSlug.VIRTUALBOX.value:  ('VIRTUALBOX_PATH',  'virtualbox'),
-    BackendSlug.DUCKSTATION.value: ('DUCKSTATION_PATH', 'duckstation'),
-    BackendSlug.PCSX2.value:       ('PCSX2_PATH',       'pcsx2'),
-    BackendSlug.XEMU.value:        ('XEMU_PATH',        'xemu'),
-    BackendSlug.MESEN.value:       ('MESEN_PATH',       'mesen'),
-    BackendSlug.PROJECT64.value:   ('PROJECT64_PATH',   'project64'),
-    BackendSlug.FLYCAST.value:     ('FLYCAST_PATH',     'flycast'),
-}
 
 
 def get_executable_path(era: Era) -> tuple[str, str]:
@@ -183,16 +128,22 @@ def get_executable_path(era: Era) -> tuple[str, str]:
     Raises:
         RuntimeError: If the era cannot be resolved or has no emulator mapping.
     """
+    from backend.service.utils.emulator_catalog import get_settings_key as _get_settings_key
     backend_name = resolve_backend_name(era)
 
-    if backend_name not in _BACKEND_TO_EMULATOR:
+    # Derive catalog slug: BackendSlug.DOSBOX = "dosbox" but catalog slug is "dosbox-x".
+    catalog_slug = "dosbox-x" if backend_name == BackendSlug.DOSBOX.value else backend_name
+    try:
+        settings_key = _get_settings_key(catalog_slug)
+    except ValueError:
         raise RuntimeError(
             f"No executable mapping for backend '{backend_name}' (era '{era.value}'). "
-            "Add an entry to _BACKEND_TO_EMULATOR in backend_router.py."
+            "Ensure the emulator is registered in config/emulators.toml."
         )
 
-    settings_key, emulator_key = _BACKEND_TO_EMULATOR[backend_name]
-    return get_binary_path(emulator_key), settings_key
+    # get_binary_path() uses legacy short keys; "86box" backend → "box86" legacy key.
+    legacy_key = "box86" if backend_name == BackendSlug.BOX86.value else backend_name
+    return get_binary_path(legacy_key), settings_key
 
 
 def launch_media(era, media_path, profile=None, platform=None, launch_commands: list[str] | None = None, drive=None):
