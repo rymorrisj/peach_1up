@@ -386,6 +386,18 @@ def delete_library_item(
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found.")
     from backend.models.drive import Drive
+    drives = db.query(Drive).filter(Drive.library_item_id == item_id).all()
+    for drive in drives:
+        if drive.image_path:
+            img = Path(drive.image_path)
+            if img.exists():
+                try:
+                    img.unlink()
+                except OSError as exc:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Could not delete drive image {drive.image_path}: {exc}",
+                    )
     if item.drive_id is not None:
         item.drive_id = None
         db.flush()
