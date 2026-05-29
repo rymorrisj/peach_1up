@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemUpdate
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.drive_utils import create_drive_for_item
+from backend.service.utils.path_utils import normalise_path
 from backend.service.utils.slug_generator import generate_item_slug
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com"}
@@ -171,11 +172,24 @@ def delete_library_item(item_id: int, token: str, db: Session) -> None:
     db.commit()
 
 
+_PATH_FIELDS = {"media_path", "executable_path", "folder_path", "cover_art_path"}
+_EXISTENCE_FIELDS = {"media_path", "executable_path"}
+
+
 def update_library_item(item_id: int, body: LibraryItemUpdate, db: Session) -> LibraryItem:
     item = db.get(LibraryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found.")
-    for key, value in body.model_dump(exclude_none=True).items():
+    fields = body.model_dump(exclude_none=True)
+    for key in _PATH_FIELDS & fields.keys():
+        try:
+            resolved = normalise_path(fields[key])
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"{key}: {e}")
+        if key in _EXISTENCE_FIELDS and not resolved.exists():
+            raise HTTPException(status_code=400, detail=f"{key} does not exist: {resolved}")
+        fields[key] = str(resolved)
+    for key, value in fields.items():
         setattr(item, key, value)
     db.commit()
     db.refresh(item)
