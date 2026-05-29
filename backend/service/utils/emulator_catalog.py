@@ -44,13 +44,15 @@ def get_settings_key(slug: str) -> str:
 
     Reads the ``settings_key`` field from emulators.toml if present;
     otherwise derives it as ``slug.upper().replace("-", "") + "_PATH"``.
-
-    Raises:
-        ValueError: If the slug is not found in the emulator catalog.
+    Falls back to the derived key for slugs not present in the catalog
+    (e.g. emulators managed outside the TOML registry).
     """
-    entry = get_emulator(slug)
-    if "settings_key" in entry:
-        return entry["settings_key"]
+    try:
+        entry = get_emulator(slug)
+        if "settings_key" in entry:
+            return entry["settings_key"]
+    except ValueError:
+        pass
     return slug.upper().replace("-", "") + "_PATH"
 
 

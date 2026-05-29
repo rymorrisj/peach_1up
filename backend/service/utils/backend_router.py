@@ -18,7 +18,6 @@ _CONSOLE_BACKENDS: frozenset[str] = frozenset({
     BackendSlug.PCSX2.value,
     BackendSlug.MESEN.value,
     BackendSlug.PROJECT64.value,
-    BackendSlug.FLYCAST.value,
 })
 
 _PLATFORM_BACKENDS: frozenset[str] = frozenset({
@@ -84,6 +83,9 @@ def get_launch_fn(era: Era) -> Callable:
             return launch
         elif backend_name == BackendSlug.XEMU.value:
             from backend.service.backends.xemu import launch
+            return launch
+        elif backend_name == BackendSlug.FLYCAST.value:
+            from backend.service.backends.flycast import launch
             return launch
         elif backend_name in _CONSOLE_BACKENDS:
             from backend.service.backends.console import launch as _console_launch

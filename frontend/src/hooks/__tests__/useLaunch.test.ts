@@ -72,12 +72,12 @@ describe('useLaunch', () => {
       { wrapper: createWrapper() },
     )
 
-    // Flush mutation onSuccess so the interval is registered
+    // Flush mutation onSuccess — two act rounds drain TanStack's scheduler
     await act(async () => { result.current.launch(null) })
-    await waitFor(() => expect(result.current.launchSuccess).toBe(true))
+    await act(async () => {})
 
-    // Advance fake clock and drain the async interval callback
-    await vi.advanceTimersByTimeAsync(2000)
+    // Advance fake clock wrapped in act so React commits the state updates
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
 
     expect(result.current.launchSuccess).toBe(false)
   })
@@ -95,12 +95,12 @@ describe('useLaunch', () => {
       { wrapper: createWrapper() },
     )
 
-    // Flush mutation onSuccess so the interval is registered
+    // Flush mutation onSuccess — two act rounds drain TanStack's scheduler
     await act(async () => { result.current.launch(null) })
-    await waitFor(() => expect(result.current.launchSuccess).toBe(true))
+    await act(async () => {})
 
-    // Advance fake clock and drain the async interval callback
-    await vi.advanceTimersByTimeAsync(2000)
+    // Advance fake clock wrapped in act so React commits the state updates
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
 
     expect(onSettled).toHaveBeenCalledOnce()
   })

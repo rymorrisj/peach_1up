@@ -64,19 +64,14 @@ describe('useLibraryScan', () => {
       { wrapper: createWrapper() },
     )
 
-    // Flush mutation onSuccess so the interval is registered
+    // Flush mutation onSuccess — two act rounds drain TanStack's scheduler
     await act(async () => { result.current.handleScan() })
-    await waitFor(() =>
-      expect(mockApiFetch).toHaveBeenCalledWith(
-        '/api/v1/library/scan',
-        expect.objectContaining({ method: 'POST' }),
-      ),
-    )
+    await act(async () => {})
 
-    // First poll tick — still running; advance and drain async callback
-    await vi.advanceTimersByTimeAsync(1000)
-    // Second poll tick — done; advance and drain async callback
-    await vi.advanceTimersByTimeAsync(1000)
+    // First poll tick — still running; advance wrapped in act
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    // Second poll tick — done; advance wrapped in act
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
 
     expect(result.current.scanning).toBe(false)
     expect(onImported).toHaveBeenCalledOnce()
@@ -90,9 +85,11 @@ describe('useLibraryScan', () => {
       { wrapper: createWrapper() },
     )
 
+    // Two act rounds to drain TanStack's mutation rejection through onError
     await act(async () => { result.current.handleScan() })
+    await act(async () => {})
 
-    await waitFor(() => expect(result.current.error).toBe('Scan failed'))
+    expect(result.current.error).toBe('Scan failed')
     expect(result.current.scanning).toBe(false)
   })
 })

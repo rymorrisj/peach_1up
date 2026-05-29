@@ -114,23 +114,23 @@ def _validate_game_executable(game_executable: str, expected_drive: str) -> None
     """Validate game_executable before inserting into a DOSBox-X autoexec section.
 
     Raises:
-        RuntimeError: If the value is empty, contains unsafe characters, starts
-                      with a DOSBox-X meta-character, or references the wrong drive.
+        ValueError: If the value is empty, contains unsafe characters, starts
+                    with a DOSBox-X meta-character, or references the wrong drive.
     """
     if not game_executable:
-        raise RuntimeError("game_executable must be a non-empty string")
+        raise ValueError("game_executable must be a non-empty string")
 
     if "\n" in game_executable or "\r" in game_executable:
-        raise RuntimeError("game_executable must not contain newline characters")
+        raise ValueError("game_executable must not contain newline characters")
 
     if "\x00" in game_executable:
-        raise RuntimeError("game_executable must not contain null bytes")
+        raise ValueError("game_executable must not contain null bytes")
 
     if "#" in game_executable:
-        raise RuntimeError("game_executable must not contain '#' (DOSBox-X comment character)")
+        raise ValueError("game_executable must not contain '#' (DOSBox-X comment character)")
 
     if game_executable[0] in ("[", "@"):
-        raise RuntimeError(
+        raise ValueError(
             f"game_executable must not start with '[' or '@' (DOSBox-X meta-characters); "
             f"got '{game_executable[0]}'"
         )
@@ -140,7 +140,7 @@ def _validate_game_executable(game_executable: str, expected_drive: str) -> None
     if len(game_executable) >= 2 and game_executable[1] == ":":
         specified = game_executable[0].upper() + ":"
         if specified != expected_drive.upper():
-            raise RuntimeError(
+            raise ValueError(
                 f"game_executable references drive '{specified}' but media is mounted at '{expected_drive}'"
             )
 
