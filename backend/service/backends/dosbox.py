@@ -17,15 +17,15 @@ from pathlib import Path
 from typing import List, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
-from backend.service.utils.fat_writer import _read_geometry
+from backend.service.utils.fat.geometry import _read_geometry
 from backend.constants_generated import Era
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import get_container_enabled
 from backend.service.utils.sandbox import BrokerFile
-from backend.service.utils.launcher import launch_under_job_object
+from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
-from backend.service.utils.job_objects import WindowsJobObject
+from backend.service.utils.process.job_objects import WindowsJobObject
 
 logger = get_logger(__name__)
 

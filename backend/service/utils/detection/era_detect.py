@@ -319,8 +319,6 @@ def _detect_from_directory(root: Path) -> tuple[str | None, str]:
     except OSError:
         return None, "cannot list directory"
 
-    # ── Windows / PlayStation signals (return early, no Windows-indicator guard needed) ──
-
     if "XPSP" in entries or "I386" in entries:
         return "winxp", "directory contains Windows XP installer structure (XPSP or I386)"
 
@@ -342,13 +340,9 @@ def _detect_from_directory(root: Path) -> tuple[str | None, str]:
             return "ps2", "directory contains SYSTEM.CNF and total size suggests DVD (PS2)"
         return "ps1", "directory contains SYSTEM.CNF (PlayStation boot descriptor)"
 
-    # ── DOS signals — all checks below this point have no Windows indicators ──
-
-    # INSTALL.BAT / INSTALL.COM at root
     if "INSTALL.BAT" in entries or "INSTALL.COM" in entries:
         return "dos", "directory contains INSTALL.BAT or INSTALL.COM at root"
 
-    # DOS decompression tools and .WAD files — scan root + immediate subdirectories
     depth2_names: set[str] = set(entries)
     try:
         for entry in root.iterdir():
@@ -368,16 +362,13 @@ def _detect_from_directory(root: Path) -> tuple[str | None, str]:
     if any(n.endswith(".WAD") for n in depth2_names):
         return "dos", "directory contains .WAD file (DOS game data)"
 
-    # Split archive pattern: *.1 / *.2 / *.3 alongside *.DAT at root
     root_exts_all = {Path(e).suffix.lower() for e in entries}
     if root_exts_all.intersection({".1", ".2", ".3"}) and ".dat" in root_exts_all:
         return "dos", "directory contains split archive files (.1/.2/.3) with .DAT — DOS installer"
 
-    # Any .BAT at root, no Windows indicators
     if any(e.endswith(".BAT") for e in entries) and not entries.intersection(_WINDOWS_MARKERS):
         return "dos", "directory contains .BAT file at root with no Windows indicators"
 
-    # Extension-only fallback: all root files are DOS-era types, no Windows folders
     root_exts = {Path(e).suffix.lower() for e in entries if "." in e}
     dos_only = root_exts.issubset({".exe", ".com", ".bat", ".cfg", ".txt", ".ini", ""})
     if root_exts and dos_only and not entries.intersection(_WINDOWS_MARKERS):

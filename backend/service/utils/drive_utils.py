@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from backend.service.utils.fat_writer import FAT16_SIZE_MIN_MB
+from backend.service.utils.fat import FAT16_SIZE_MIN_MB
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session

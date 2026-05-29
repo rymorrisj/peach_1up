@@ -11,7 +11,7 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from backend.core.settings import get_base_path
-from backend.service.utils.fat_writer import FAT16_SIZE_MIN_MB, FAT16_SIZE_MAX_MB, format_fat16, write_file_to_image, read_file_from_image
+from backend.service.utils.fat import FAT16_SIZE_MIN_MB, FAT16_SIZE_MAX_MB, format_fat16, write_file_to_image, read_file_from_image
 
 from backend.core import process_registry
 from backend.core.database import get_db
@@ -322,7 +322,7 @@ async def launch_environment(
 
     if platform.working_image_path is None and platform.era in {"win95", "win98", "winxp"}:
         try:
-            from backend.service.utils.vm_provisioner import provision_platform
+            from backend.service.utils.vm import provision_platform
             _iso_path, working_path, config_path = await asyncio.to_thread(provision_platform, platform)
             if _iso_path and not platform.base_image_path:
                 db.execute(

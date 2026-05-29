@@ -41,12 +41,7 @@ _CPU_MIN_RATE_PERCENT: int = get_cpu_min_rate("")
 
 
 def _process_in_job(pid: int) -> bool:
-    """Return True if the process with *pid* is inside any Windows Job Object.
-
-    Opens the process with ``PROCESS_QUERY_INFORMATION`` (0x0400), calls
-    ``IsProcessInJob``, then closes the handle.  Returns ``False`` on any
-    error rather than raising so callers can treat it as a safe boolean check.
-    """
+    """Return True if the process with *pid* is inside any Windows Job Object."""
 
     # SAFETY: handle is closed by wait(); do not call add_process after kill/wait
     handle = ctypes.windll.kernel32.OpenProcess(0x0400, False, pid)
@@ -85,13 +80,6 @@ class WindowsJobObject:
     """
 
     def __init__(self, name: str, memory_limit_mb: int, cpu_limit_percent: int):
-        """
-        Args:
-            name: Unique name for the job object.
-            memory_limit_mb: Memory limit in MB (sourced from eras.yaml).
-            cpu_limit_percent: CPU hard cap as a percentage of all logical
-                processors (sourced from eras.yaml).  Must be 1–100.
-        """
         self.name = name
         self.memory_limit_mb = memory_limit_mb
         self.cpu_limit_percent = cpu_limit_percent
@@ -99,17 +87,10 @@ class WindowsJobObject:
         self.pid = None
 
     def create(self) -> None:
-        """Create the Win32 Job Object.
-
-        Memory limit, CPU rate cap, and kill-on-close are applied by the
-        launcher after creation, conditionally on the emulator slug.
-
-        Raises:
-            RuntimeError: If ``CreateJobObjectW`` fails.
-        """
+        """Create the Win32 Job Object."""
         self.job_handle = ctypes.windll.kernel32.CreateJobObjectW(
-            None,                        # default security attributes
-            ctypes.c_wchar_p(self.name)  # job object name (Unicode)
+            None,
+            ctypes.c_wchar_p(self.name)
         )
 
         if not self.job_handle:
@@ -119,20 +100,7 @@ class WindowsJobObject:
             )
 
     def set_memory_limit(self, limit_mb: int) -> None:
-        """Set the per-process memory cap and enable kill-on-close.
-
-        Applies ``JOB_OBJECT_LIMIT_PROCESS_MEMORY`` and
-        ``JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`` together via a single
-        ``SetInformationJobObject`` call.  Kill-on-close guarantees the
-        entire emulator process tree is terminated if the backend exits.
-
-        Args:
-            limit_mb: Memory limit in megabytes.
-
-        Raises:
-            RuntimeError: If the job handle is not open or
-                ``SetInformationJobObject`` fails.
-        """
+        """Set the per-process memory cap and enable kill-on-close."""
         if not self.job_handle:
             raise RuntimeError("Job object not created. Call create() first.")
 
@@ -140,11 +108,11 @@ class WindowsJobObject:
         limit_info.BasicLimitInformation.LimitFlags = (
             _JOB_OBJECT_LIMIT_PROCESS_MEMORY | _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
         )
-        limit_info.ProcessMemoryLimit = limit_mb * 1024 * 1024  # MB → bytes
+        limit_info.ProcessMemoryLimit = limit_mb * 1024 * 1024
 
         result = ctypes.windll.kernel32.SetInformationJobObject(
             self.job_handle,
-            ctypes.wintypes.DWORD(9),   # JobObjectExtendedLimitInformation
+            ctypes.wintypes.DWORD(9),
             ctypes.byref(limit_info),
             ctypes.sizeof(limit_info)
         )
@@ -156,16 +124,7 @@ class WindowsJobObject:
             )
 
     def set_kill_on_close(self) -> None:
-        """Set kill-on-close without a process memory cap.
-
-        Used when ``JOB_OBJECT_LIMIT_PROCESS_MEMORY`` must be skipped (e.g.
-        Qt-based emulators that fast-fail on that flag) while still ensuring
-        the process tree is torn down when the backend exits.
-
-        Raises:
-            RuntimeError: If the job handle is not open or
-                ``SetInformationJobObject`` fails.
-        """
+        """Set kill-on-close without a process memory cap."""
         if not self.job_handle:
             raise RuntimeError("Job object not created. Call create() first.")
 
@@ -174,7 +133,7 @@ class WindowsJobObject:
 
         result = ctypes.windll.kernel32.SetInformationJobObject(
             self.job_handle,
-            ctypes.wintypes.DWORD(9),   # JobObjectExtendedLimitInformation
+            ctypes.wintypes.DWORD(9),
             ctypes.byref(limit_info),
             ctypes.sizeof(limit_info)
         )
@@ -186,31 +145,12 @@ class WindowsJobObject:
             )
 
     def set_cpu_limit(self, cpu_limit_percent: int) -> None:
-        """Apply CPU rate control using MIN_MAX_RATE on Windows 10 1607+ or HARD_CAP as fallback.
-
-        MIN_MAX_RATE sets a floor of 500 (5% of all CPUs) to prevent WASAPI audio
-        thread starvation, and a ceiling of ``cpu_limit_percent * 100`` (hundredths
-        of a percent).  On Windows builds earlier than 14393, HARD_CAP is used
-        instead and a warning is logged; the launch is not aborted.
-
-        If MIN_MAX_RATE is available but ``SetInformationJobObject`` rejects it, a
-        warning is logged and the call is retried with HARD_CAP.  A ``RuntimeError``
-        is only raised if the HARD_CAP retry also fails.
-
-        Args:
-            cpu_limit_percent: CPU budget as a percentage of all logical
-                processors.  MaxRate is clamped so it is at least MinRate (500).
-
-        Raises:
-            RuntimeError: If the job handle is not open or all
-                ``SetInformationJobObject`` attempts fail.
-        """
+        """Apply CPU rate control using MIN_MAX_RATE on Windows 10 1607+ or HARD_CAP as fallback."""
         if not self.job_handle:
             raise RuntimeError("Job object not created. Call create() first.")
 
-        _MIN_RATE = _CPU_MIN_RATE_PERCENT * 100  # floor in hundredths-of-percent units
+        _MIN_RATE = _CPU_MIN_RATE_PERCENT * 100
 
-        # MIN_MAX_RATE is available on Windows 10 version 1607 (build 14393)+.
         win_build = sys.getwindowsversion().build
         if win_build >= 14393:
             configured_rate = cpu_limit_percent * 100
@@ -226,7 +166,6 @@ class WindowsJobObject:
             max_rate = max(_MIN_RATE, min(10000, configured_rate))
             assert 0 <= _MIN_RATE <= 0xFFFF
             assert 0 <= max_rate <= 0xFFFF
-            # MinRate (low WORD) and MaxRate (high WORD) are packed into the CpuRate DWORD.
             cpu_rate_info = JOBOBJECT_CPU_RATE_CONTROL_INFORMATION()
             cpu_rate_info.ControlFlags = (
                 _JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | _JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE
@@ -235,7 +174,7 @@ class WindowsJobObject:
 
             result = ctypes.windll.kernel32.SetInformationJobObject(
                 self.job_handle,
-                ctypes.wintypes.DWORD(15),  # JobObjectCpuRateControlInformation
+                ctypes.wintypes.DWORD(15),
                 ctypes.byref(cpu_rate_info),
                 ctypes.sizeof(cpu_rate_info)
             )
@@ -281,7 +220,7 @@ class WindowsJobObject:
 
             result = ctypes.windll.kernel32.SetInformationJobObject(
                 self.job_handle,
-                ctypes.wintypes.DWORD(15),  # JobObjectCpuRateControlInformation
+                ctypes.wintypes.DWORD(15),
                 ctypes.byref(cpu_rate_info),
                 ctypes.sizeof(cpu_rate_info)
             )
@@ -292,22 +231,7 @@ class WindowsJobObject:
                 )
 
     def add_process(self, process: "SandboxProcess") -> None:
-        """Assign a process to the job object.
-
-        If ``process.handle`` is set (populated by ``_launch_process``),
-        it is used directly for ``AssignProcessToJobObject`` — no ``OpenProcess``
-        or ``CloseHandle`` call is made; handle lifecycle is managed by the
-        caller via ``launch_under_job_object``.  If ``process.handle`` is
-        ``None``, falls back to opening a minimal-permission handle.
-
-        Args:
-            process: A ``SandboxProcess`` instance that has already been launched.
-
-        Raises:
-            RuntimeError: If the job handle is not open, the process is
-                invalid, ``OpenProcess`` fails, or ``AssignProcessToJobObject``
-                fails.
-        """
+        """Assign a process to the job object."""
         if not self.job_handle:
             raise RuntimeError("Job object not created. Call create() first.")
 
@@ -321,9 +245,9 @@ class WindowsJobObject:
         if using_stored_handle:
             proc_handle = process.handle
         else:
-            # Fallback: process handle was not retained by the caller.
+            # SAFETY: handle is closed by wait(); do not call add_process after kill/wait
             proc_handle = ctypes.windll.kernel32.OpenProcess(
-                0x0201,  # PROCESS_SET_QUOTA | PROCESS_TERMINATE — minimum for AssignProcessToJobObject
+                0x0201,
                 False,
                 process.pid
             )
@@ -334,9 +258,6 @@ class WindowsJobObject:
                 )
 
         try:
-            # Informational check — captured to produce a richer error message
-            # if AssignProcessToJobObject still fails after the breakaway re-launch
-            # performed in launch_under_job_object().
             _in_job = ctypes.wintypes.BOOL(False)
             ctypes.windll.kernel32.IsProcessInJob(
                 proc_handle, None, ctypes.byref(_in_job)
@@ -372,8 +293,6 @@ class WindowsJobObject:
                 f"Unexpected error assigning process {self.pid} to job object: {exc}"
             ) from exc
         finally:
-            # Only close if we opened the handle ourselves; stored handle lifecycle
-            # is managed by launch_under_job_object after resume() completes.
             if not using_stored_handle:
                 ctypes.windll.kernel32.CloseHandle(proc_handle)
 
@@ -381,28 +300,14 @@ class WindowsJobObject:
     # teardown, not just process termination.  Consider renaming to shutdown()
     # or teardown() at the next refactor pass.
     def teardown(self) -> None:
-        """Terminate all processes in the job object and release all associated resources.
-
-        Performs two cleanup steps in order, collecting errors from each so
-        that a failure in one step does not skip the rest:
-
-          1. Call ``TerminateJobObject`` to kill all processes in the job.
-          2. Close the job object handle.
-
-        ``self.job_handle`` is set to ``None`` regardless of success or failure
-        so that ``handle_is_open()`` returns ``False`` after this call.
-
-        Raises:
-            RuntimeError: If any step fails.  The error message lists all
-                failures and notes that manual cleanup may be required.
-        """
+        """Terminate all processes in the job object and release all associated resources."""
         termination_errors = []
 
         if self.job_handle:
             try:
                 result = ctypes.windll.kernel32.TerminateJobObject(
                     self.job_handle,
-                    1  # exit code for terminated processes
+                    1
                 )
                 if not result:
                     error_code = ctypes.windll.kernel32.GetLastError()
@@ -417,7 +322,6 @@ class WindowsJobObject:
             except Exception as e:
                 termination_errors.append(f"Failed to close job handle: {str(e)}")
 
-        # Always null the handle so callers relying on handle_is_open() get False after teardown
         self.job_handle = None
 
         if termination_errors:
@@ -428,12 +332,7 @@ class WindowsJobObject:
             )
 
     def close(self) -> None:
-        """Close the job object handle without terminating any processes.
-
-        Use this when the process has already exited and the handle only needs
-        to be released.  Does not call ``TerminateJobObject``.  Safe to call
-        multiple times — no-op if the handle is already closed.
-        """
+        """Close the job object handle without terminating any processes."""
         if self.job_handle:
             ctypes.windll.kernel32.CloseHandle(self.job_handle)
             self.job_handle = None
@@ -442,20 +341,7 @@ class WindowsJobObject:
     # it does NOT check whether any processes are currently running in the job.
     # A handle can be valid with zero live processes.  The name implies otherwise.
     def handle_is_open(self) -> bool:
-        """Check whether the job object handle is open and queryable.
-
-        Uses a lightweight ``QueryInformationJobObject`` call to verify handle
-        validity without modifying any state.  Returns ``False`` before
-        ``create()`` is called, after ``teardown()``, or if the handle
-        has been closed externally.
-
-        Returns:
-            ``True`` if the handle is valid and queryable; ``False`` otherwise.
-
-        Notes:
-            Never raises — returns ``False`` on any error so callers can use
-            this as a simple boolean guard.
-        """
+        """Check whether the job object handle is open and queryable."""
         if not self.job_handle:
             return False
 
@@ -463,12 +349,11 @@ class WindowsJobObject:
             accounting_info = JOBOBJECT_BASIC_ACCOUNTING_INFORMATION()
             result = ctypes.windll.kernel32.QueryInformationJobObject(
                 self.job_handle,
-                ctypes.wintypes.DWORD(1),   # JobObjectBasicAccountingInformation
+                ctypes.wintypes.DWORD(1),
                 ctypes.byref(accounting_info),
                 ctypes.sizeof(accounting_info),
-                None  # return length not needed
+                None
             )
             return bool(result)
         except Exception:
             return False
-

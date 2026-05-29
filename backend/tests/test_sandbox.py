@@ -23,30 +23,30 @@ requires_windows = pytest.mark.skipif(not WINDOWS, reason="Windows only")
 
 class TestLoadEraLimits:
     def test_reads_dos_values_from_real_eras_yaml(self):
-        from backend.service.utils.launcher import _load_era_limits
+        from backend.service.utils.process.launcher import _load_era_limits
         memory_mb, cpu_pct = _load_era_limits("dos")
         assert memory_mb == 512
         assert cpu_pct == 50
 
     def test_reads_win95_values_from_real_eras_yaml(self):
-        from backend.service.utils.launcher import _load_era_limits
+        from backend.service.utils.process.launcher import _load_era_limits
         memory_mb, cpu_pct = _load_era_limits("win95")
         assert memory_mb == 512
         assert cpu_pct == 75
 
     def test_reads_winxp_values_from_real_eras_yaml(self):
-        from backend.service.utils.launcher import _load_era_limits
+        from backend.service.utils.process.launcher import _load_era_limits
         memory_mb, cpu_pct = _load_era_limits("winxp")
         assert memory_mb == 1024
         assert cpu_pct == 80
 
     def test_unknown_era_raises_runtime_error(self):
-        from backend.service.utils.launcher import _load_era_limits
+        from backend.service.utils.process.launcher import _load_era_limits
         with pytest.raises(RuntimeError, match="not found in eras.yaml"):
             _load_era_limits("nonexistent_era_xyz")
 
     def test_missing_file_raises_file_not_found(self, monkeypatch, tmp_path):
-        import backend.service.utils.launcher as jo
+        import backend.service.utils.process.launcher as jo
         monkeypatch.setattr(jo, "_ERAS_YAML", tmp_path / "missing.yaml")
 
         with pytest.raises(FileNotFoundError):
@@ -54,7 +54,7 @@ class TestLoadEraLimits:
 
     def test_missing_memory_field_raises_runtime_error(self, monkeypatch, tmp_path):
         import yaml
-        import backend.service.utils.launcher as jo
+        import backend.service.utils.process.launcher as jo
         data = {"dos": {"cpu_limit_percent": 50}}
         p = tmp_path / "eras.yaml"
         p.write_text(yaml.safe_dump(data), encoding="utf-8")
@@ -64,7 +64,7 @@ class TestLoadEraLimits:
 
     def test_missing_cpu_field_raises_runtime_error(self, monkeypatch, tmp_path):
         import yaml
-        import backend.service.utils.launcher as jo
+        import backend.service.utils.process.launcher as jo
         data = {"dos": {"memory_limit_mb": 256}}
         p = tmp_path / "eras.yaml"
         p.write_text(yaml.safe_dump(data), encoding="utf-8")
@@ -73,7 +73,7 @@ class TestLoadEraLimits:
             jo._load_era_limits("dos")
 
     def test_returns_integers_not_strings(self):
-        from backend.service.utils.launcher import _load_era_limits
+        from backend.service.utils.process.launcher import _load_era_limits
         memory_mb, cpu_pct = _load_era_limits("dos")
         assert isinstance(memory_mb, int)
         assert isinstance(cpu_pct, int)
@@ -85,7 +85,7 @@ class TestLoadEraLimits:
 
 class TestWindowsJobObjectPreCreate:
     def test_init_stores_attributes(self):
-        from backend.service.utils.job_objects import WindowsJobObject
+        from backend.service.utils.process.job_objects import WindowsJobObject
         job = WindowsJobObject("test_job", 512, 75)
         assert job.name == "test_job"
         assert job.memory_limit_mb == 512
@@ -94,24 +94,24 @@ class TestWindowsJobObjectPreCreate:
         assert job.pid is None
 
     def test_handle_is_open_before_create_returns_false(self):
-        from backend.service.utils.job_objects import WindowsJobObject
+        from backend.service.utils.process.job_objects import WindowsJobObject
         job = WindowsJobObject("test_job", 256, 50)
         assert job.handle_is_open() is False
 
     def test_set_memory_limit_before_create_raises(self):
-        from backend.service.utils.job_objects import WindowsJobObject
+        from backend.service.utils.process.job_objects import WindowsJobObject
         job = WindowsJobObject("test_job", 256, 50)
         with pytest.raises(RuntimeError, match="Job object not created"):
             job.set_memory_limit(256)
 
     def test_set_cpu_limit_before_create_raises(self):
-        from backend.service.utils.job_objects import WindowsJobObject
+        from backend.service.utils.process.job_objects import WindowsJobObject
         job = WindowsJobObject("test_job", 256, 50)
         with pytest.raises(RuntimeError, match="Job object not created"):
             job.set_cpu_limit(50)
 
     def test_add_process_before_create_raises(self):
-        from backend.service.utils.job_objects import WindowsJobObject
+        from backend.service.utils.process.job_objects import WindowsJobObject
         from backend.service.utils.sandbox_process import SandboxProcess
         job = WindowsJobObject("test_job", 256, 50)
         proc = SandboxProcess(pid=1234, process_handle=None, thread_handle=None, args=["x.exe"])
@@ -126,7 +126,7 @@ class TestWindowsJobObjectPreCreate:
 class TestWindowsJobObjectLifecycle:
     @requires_windows
     def test_create_succeeds_and_handle_is_set(self):
-        from backend.service.utils.job_objects import WindowsJobObject
+        from backend.service.utils.process.job_objects import WindowsJobObject
         job = WindowsJobObject("PeachTest_Create", 256, 50)
         job.create()
         try:
@@ -136,7 +136,7 @@ class TestWindowsJobObjectLifecycle:
 
     @requires_windows
     def test_handle_is_open_returns_true_after_create(self):
-        from backend.service.utils.job_objects import WindowsJobObject
+        from backend.service.utils.process.job_objects import WindowsJobObject
         job = WindowsJobObject("PeachTest_IsActive", 256, 50)
         job.create()
         try:
@@ -146,7 +146,7 @@ class TestWindowsJobObjectLifecycle:
 
     @requires_windows
     def test_memory_limit_reapplied_without_error(self):
-        from backend.service.utils.job_objects import WindowsJobObject
+        from backend.service.utils.process.job_objects import WindowsJobObject
         job = WindowsJobObject("PeachTest_MemLimit", 512, 50)
         job.create()
         try:
@@ -156,7 +156,7 @@ class TestWindowsJobObjectLifecycle:
 
     @requires_windows
     def test_cpu_limit_reapplied_without_error(self):
-        from backend.service.utils.job_objects import WindowsJobObject
+        from backend.service.utils.process.job_objects import WindowsJobObject
         job = WindowsJobObject("PeachTest_CpuLimit", 256, 75)
         job.create()
         try:
@@ -166,7 +166,7 @@ class TestWindowsJobObjectLifecycle:
 
     @requires_windows
     def test_teardown_sets_handle_to_none(self):
-        from backend.service.utils.job_objects import WindowsJobObject
+        from backend.service.utils.process.job_objects import WindowsJobObject
         job = WindowsJobObject("PeachTest_Terminate", 256, 50)
         job.create()
         job.teardown()
@@ -174,7 +174,7 @@ class TestWindowsJobObjectLifecycle:
 
     @requires_windows
     def test_handle_is_open_returns_false_after_terminate(self):
-        from backend.service.utils.job_objects import WindowsJobObject
+        from backend.service.utils.process.job_objects import WindowsJobObject
         job = WindowsJobObject("PeachTest_PostTerminate", 256, 50)
         job.create()
         job.teardown()
@@ -182,7 +182,7 @@ class TestWindowsJobObjectLifecycle:
 
     @requires_windows
     def test_teardown_is_idempotent(self):
-        from backend.service.utils.job_objects import WindowsJobObject
+        from backend.service.utils.process.job_objects import WindowsJobObject
         job = WindowsJobObject("PeachTest_Idempotent", 256, 50)
         job.create()
         job.teardown()
@@ -191,8 +191,8 @@ class TestWindowsJobObjectLifecycle:
     @requires_windows
     def test_create_applies_era_limits_from_eras_yaml(self):
         """End-to-end: limits from eras.yaml are applied to a real Job Object."""
-        from backend.service.utils.job_objects import WindowsJobObject
-        from backend.service.utils.launcher import _load_era_limits
+        from backend.service.utils.process.job_objects import WindowsJobObject
+        from backend.service.utils.process.launcher import _load_era_limits
         memory_mb, cpu_pct = _load_era_limits("dos")
         job = WindowsJobObject("PeachTest_EraLimits", memory_mb, cpu_pct)
         job.create()

@@ -3,7 +3,7 @@ from pathlib import Path
 from backend.service.smart_scan import hash_lookup, llm_scan, model
 from backend.service.smart_scan.blocklist import score_executable
 from backend.service.smart_scan.types import ScanResult
-from backend.service.utils.era_detect import detect_era
+from backend.service.utils.detection.era_detect import detect_era
 
 _INDEX_PATH = Path(__file__).parent / "hash_index.json"
 _EXE_EXTENSIONS = frozenset({".exe", ".com", ".bat"})

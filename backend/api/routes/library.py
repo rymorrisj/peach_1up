@@ -159,7 +159,7 @@ def add_library_item(
     item.media_type = media_type
     item.requires_install = media_type in ("iso", "cue", "floppy")
 
-    from backend.service.utils.era_detect import detect_era as _detect_era
+    from backend.service.utils.detection.era_detect import detect_era as _detect_era
     _era_folder = Path(item.media_path) if item.media_path else media_src
     _era_path = _best_detect_path(_era_folder, item.executable_path)
     _era_slug, _era_reason = _detect_era(_era_path)
@@ -238,7 +238,7 @@ def _run_scan(directory: str) -> None:
     from backend.core.database import get_engine
     from backend.models.library import LibraryItem
     from backend.service.utils.slug_generator import generate_item_slug
-    from backend.service.utils.era_detect import detect_era as _detect_era
+    from backend.service.utils.detection.era_detect import detect_era as _detect_era
     from sqlalchemy.orm import Session
 
     created: list[dict] = []

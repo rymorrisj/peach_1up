@@ -30,7 +30,7 @@ from backend.service.utils.sandbox import sandbox as _sandbox
 from backend.service.utils.sandbox.sandbox_config import SandboxConfig
 from backend.service.utils.sandbox.sandbox_error import SandboxError
 from backend.service.utils.sandbox_process import SandboxProcess
-from backend.service.utils.job_objects import WindowsJobObject
+from backend.service.utils.process.job_objects import WindowsJobObject
 from backend.service.utils.emulator_catalog import get_skip_memory_limit, get_skip_cpu_limit
 
 logger = get_logger(__name__)
@@ -39,16 +39,7 @@ _ERAS_YAML: Path = get_base_path() / "config" / "eras.yaml"
 
 
 def _load_era_limits(era: str) -> tuple[int, int]:
-    """Load memory_limit_mb and cpu_limit_percent for *era* from eras.yaml.
-
-    Returns:
-        (memory_limit_mb, cpu_limit_percent)
-
-    Raises:
-        FileNotFoundError: If eras.yaml is missing.
-        RuntimeError: If parsing fails, the era is unknown, or either
-            required field is absent.
-    """
+    """Load memory_limit_mb and cpu_limit_percent for *era* from eras.yaml."""
     try:
         with _ERAS_YAML.open('r') as f:
             eras_config = yaml.safe_load(f)
@@ -85,23 +76,7 @@ def _launch_process(
     creation_flags: int,
     cwd: str | None = None,
 ) -> SandboxProcess:
-    """Launch a process under the current user account via CreateProcessW.
-
-    The process is created with ``creation_flags``.
-
-    Args:
-        executable_path: Full path to the emulator executable.
-        args: Additional command-line arguments.
-        creation_flags: Windows process creation flags.
-        cwd: Working directory for the process. Defaults to the executable's
-            parent directory when None.
-
-    Returns:
-        ``SandboxProcess`` with pid, process handle, and thread handle.
-
-    Raises:
-        RuntimeError: If ``CreateProcessW`` fails.
-    """
+    """Launch a process under the current user account via CreateProcessW."""
     cmd_line = subprocess.list2cmdline([executable_path] + args)
     cmd_buf = ctypes.create_unicode_buffer(cmd_line)
 
@@ -153,32 +128,7 @@ def _launch_process_in_container(
     sandbox_config: SandboxConfig,
     cwd: str | None = None,
 ) -> SandboxProcess:
-    """Launch a process in a Windows AppContainer via the sandbox package.
-
-    Delegates CreateProcessW and STARTUPINFOEXW/PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES
-    setup to sandbox_host.exe through sandbox.launch().  The container is
-    provisioned and the process is created and resumed by sandbox_host.exe
-    before this function returns.
-
-    Args:
-        executable_path: Full path to the emulator executable (for logging
-            and SandboxProcess.args; the path in sandbox_config.exe_path
-            is what sandbox_host.exe actually launches).
-        args: Additional command-line arguments (logging only).
-        creation_flags: Process creation flags (logged; the sandbox package
-            controls the actual flags used for the contained process).
-        sandbox_config: Fully populated SandboxConfig passed to sandbox.launch().
-        cwd: Working directory (informational only).
-
-    Returns:
-        SandboxProcess with pid and Win32 process handle opened by
-        OpenProcess; thread_handle is None because the sandbox package
-        already resumed the process.
-
-    Raises:
-        SandboxError: Propagated directly from sandbox.launch() — not wrapped.
-        RuntimeError: If OpenProcess fails after sandbox.launch() succeeds.
-    """
+    """Launch a process in a Windows AppContainer via the sandbox package."""
     logger.debug(
         "launch_process_in_container: exe=%s cwd=%s flags=%#x args=%s",
         executable_path, cwd, creation_flags, args,
@@ -226,37 +176,7 @@ def launch_under_job_object(
     container_enabled: bool = False,
     sandbox_config: SandboxConfig | None = None,
 ) -> tuple[SandboxProcess, "WindowsJobObject"]:
-    """Launch an emulator under the current user account in a Windows Job Object.
-
-    Orchestrates the full startup sequence:
-      1. Load memory_limit_mb and cpu_limit_percent for ``era`` from eras.yaml.
-      2. Create a ``WindowsJobObject`` and apply both limits plus kill-on-close.
-      3. Launch the emulator as the current user without CREATE_SUSPENDED.
-      4. Immediately assign the process to the job object after CreateProcessW returns.
-         If assignment fails with ERROR_ACCESS_DENIED (5), terminate and relaunch with
-         CREATE_BREAKAWAY_FROM_JOB, then assign to the job object normally.
-
-    The launch is aborted and an error surfaced if:
-      - ``CreateProcessW`` fails for any reason.
-      - Job Object creation or assignment fails.
-
-    There is no unsandboxed fallback.
-
-    Args:
-        executable_path: Full path to the emulator executable.
-        args: Additional command-line arguments for the emulator.
-        era: Era key (e.g. ``"dos"``) used to look up limits in ``eras.yaml``.
-        job_name: Unique name for the Win32 Job Object.
-
-    Returns:
-        ``(process, job_object)`` — the running ``SandboxProcess`` and the
-        ``WindowsJobObject`` that owns it.  The caller must call
-        ``job_object.teardown()`` when the emulator exits.
-
-    Raises:
-        FileNotFoundError: If ``eras.yaml`` is not found.
-        RuntimeError: If any step in the startup sequence fails.
-    """
+    """Launch an emulator under the current user account in a Windows Job Object."""
     if container_enabled and sandbox_config is None:
         raise RuntimeError(
             "container_enabled is True but sandbox_config is None — "
@@ -267,10 +187,6 @@ def launch_under_job_object(
     process = None
     base_flags = None
 
-    # --- Phase 1: config, job creation, initial process launch ---
-    # Any failure here tears down whatever was created and raises a clean RuntimeError.
-    # SandboxError from _launch_process_in_container is re-raised directly without
-    # wrapping — the no-unsandboxed-fallback policy applies.
     try:
         memory_limit_mb, cpu_limit_percent = _load_era_limits(era)
 
@@ -318,11 +234,6 @@ def launch_under_job_object(
         if cleanup_errors:
             msg += f" (Cleanup errors: {'; '.join(cleanup_errors)})"
         raise RuntimeError(msg)
-
-    # --- Phase 2: assign to job, breakaway retry if needed, resume ---
-    # Runs entirely outside Phase 1's except handler.  retry_with_breakaway is caught
-    # and handled here — it never reaches Phase 1's cleanup block.  Each error path
-    # below performs its own teardown before raising a clean RuntimeError.
 
     # SAFETY: handle is closed by wait(); do not call add_process after kill/wait
     _needs_breakaway_retry = False

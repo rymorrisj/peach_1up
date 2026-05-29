@@ -16,9 +16,9 @@ from backend.service.utils.emulator_catalog import (
     get_container_enabled,
     get_container_config as get_emulator_container_config,
 )
-from backend.service.utils.launcher import launch_under_job_object
+from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
-from backend.service.utils.job_objects import WindowsJobObject
+from backend.service.utils.process.job_objects import WindowsJobObject
 from backend.service.utils.settings import get_env_var
 
 
