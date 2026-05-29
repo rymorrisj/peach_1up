@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -10,6 +10,8 @@ import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import PathInput from '@/components/common/PathInput'
 import { useConfirm } from '@/hooks/useConfirm'
+import { useLibraryScan } from '@/hooks/useLibraryScan'
+import { useConfirmToken } from '@/hooks/useConfirmToken'
 import { ERA_LABELS } from '@/generated/constants'
 import type { components } from '@shared/types'
 type LibraryItem = components['schemas']['LibraryItemRead']
@@ -213,19 +215,6 @@ function AddMediaModal({ open, profiles, onClose, onAdded, mediaRootPath }: AddM
 
 // ── Scan modal ─────────────────────────────────────────────────────────────
 
-interface ScanResult {
-  folder_path: string
-  name: string
-  executable_path: string | null
-}
-
-interface ScanStatus {
-  running: boolean
-  progress: number
-  total: number
-  results: ScanResult[]
-}
-
 interface ScanModalProps {
   open: boolean
   onClose: () => void
@@ -233,47 +222,7 @@ interface ScanModalProps {
 }
 
 function ScanModal({ open, onClose, onImported }: ScanModalProps) {
-  const [scanning, setScanning] = useState(false)
-  const [status, setStatus] = useState<ScanStatus | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
-
-  useEffect(() => {
-    if (!open) {
-      setScanning(false)
-      setStatus(null)
-      setError(null)
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
-  }, [open])
-
-  async function handleScan() {
-    setError(null)
-    setScanning(true)
-    setStatus(null)
-    try {
-      await apiFetch('/api/v1/library/scan', { method: 'POST' })
-      pollRef.current = setInterval(async () => {
-        try {
-          const s = await apiFetch<ScanStatus>('/api/v1/library/scan/status')
-          setStatus(s)
-          if (!s.running) {
-            clearInterval(pollRef.current!)
-            setScanning(false)
-            if (s.results.length > 0) onImported()
-          }
-        } catch {
-          clearInterval(pollRef.current!)
-          setScanning(false)
-        }
-      }, 1000)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.detail : 'Scan failed.')
-      setScanning(false)
-    }
-  }
+  const { scanning, status, error, handleScan } = useLibraryScan({ open, onImported })
 
   const hasDone = status && !status.running
 
@@ -511,6 +460,7 @@ export default function Library() {
     setFilters((f) => ({ ...f, era: searchParams.get('era') ?? '' }))
   }, [searchParams])
   const { confirm, isOpen: confirmOpen, options: confirmOptions, handleConfirm, handleCancel } = useConfirm()
+  const { issue: issueToken, consume: consumeToken } = useConfirmToken()
 
   const { data: items, isLoading: itemsLoading } = useQuery<LibraryItem[]>({
     queryKey: ['library'],
@@ -547,14 +497,8 @@ export default function Library() {
     })
     if (!confirmed) return
     try {
-      const { confirmation_token } = await apiFetch<{ confirmation_token: string }>(
-        `/api/v1/library/${item.id}/confirm-delete`,
-        { method: 'POST' },
-      )
-      await apiFetch(
-        `/api/v1/library/${item.id}?confirmation_token=${encodeURIComponent(confirmation_token)}`,
-        { method: 'DELETE' },
-      )
+      const token = await issueToken(`/api/v1/library/${item.id}/confirm-delete`)
+      await consumeToken(`/api/v1/library/${item.id}`, token)
       queryClient.invalidateQueries({ queryKey: ['library'] })
     } catch (err) {
       const msg = err instanceof ApiError ? err.detail : 'Delete failed.'

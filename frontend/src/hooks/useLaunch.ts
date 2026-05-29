@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import type { components } from '@shared/types'
 
 type LaunchResponse = components['schemas']['LaunchResponse']
 
-export function useLaunch(targetId: number, targetType: string) {
-  const [isLaunching, setIsLaunching] = useState(false)
+interface UseLaunchOptions {
+  targetId: number
+  targetType: string
+  onSettled?: () => void
+}
+
+export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions) {
   const [launchId, setLaunchId] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [warnings, setWarnings] = useState<string[]>([])
+  const [launchSuccess, setLaunchSuccess] = useState(false)
+  const [launchWarnings, setLaunchWarnings] = useState<string[]>([])
 
   useEffect(() => {
     if (!launchId) return
@@ -16,36 +22,40 @@ export function useLaunch(targetId: number, targetType: string) {
       try {
         const rec = await apiFetch<{ ended_at: string | null }>(`/api/v1/launches/${launchId}`)
         if (rec.ended_at != null) {
-          setIsLaunching(false)
+          setLaunchSuccess(false)
           setLaunchId(null)
+          onSettled?.()
         }
       } catch {
         // poll errors are non-fatal
       }
-    }, 3000)
+    }, 2000)
     return () => clearInterval(id)
-  }, [launchId])
+  }, [launchId, onSettled])
 
-  async function launch() {
-    setIsLaunching(true)
-    setError(null)
-    setWarnings([])
-    try {
+  const launchMutation = useMutation<LaunchResponse, Error, number | null>({
+    mutationFn: (profileId) => {
       const path =
         targetType === 'environment'
           ? `/api/v1/environments/${targetId}/launch`
           : `/api/v1/library/${targetId}/launch`
-      const res = await apiFetch<LaunchResponse>(path, {
+      return apiFetch<LaunchResponse>(path, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile_id: null }),
+        body: JSON.stringify({ profile_id: profileId }),
       })
+    },
+    onSuccess: (res) => {
       setLaunchId(res.launch_history_id)
-      setWarnings(res.warnings)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.detail : 'Launch failed.')
-      setIsLaunching(false)
-    }
+      setLaunchWarnings(res.warnings)
+      setLaunchSuccess(true)
+    },
+  })
+
+  function launch(profileId: number | null = null) {
+    setLaunchSuccess(false)
+    setLaunchWarnings([])
+    setLaunchId(null)
+    launchMutation.mutate(profileId)
   }
 
   async function stop() {
@@ -55,10 +65,14 @@ export function useLaunch(targetId: number, targetType: string) {
     } catch {
       // ignore
     } finally {
-      setIsLaunching(false)
       setLaunchId(null)
     }
   }
 
-  return { launch, stop, isLaunching, error, warnings }
+  const isLaunching = launchMutation.isPending || launchId !== null
+  const error = launchMutation.isError
+    ? (launchMutation.error instanceof ApiError ? launchMutation.error.detail : 'Launch failed.')
+    : null
+
+  return { launch, stop, isLaunching, error, warnings: launchWarnings, launchSuccess, launchWarnings }
 }

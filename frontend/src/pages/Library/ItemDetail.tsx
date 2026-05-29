@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { Button, FormField, Input, Textarea } from '@/ui'
 import TopBar from '@/components/layout/TopBar'
@@ -10,9 +10,15 @@ import FileBrowser from '@/components/common/FileBrowser'
 import LaunchCommandList from '@/components/LaunchCommandList'
 import { TagChips, TagCombobox } from '@/components/Tags'
 import { useAppContext } from '@/context/AppContext'
+import { useEditForm } from '@/hooks/useEditForm'
+import { useLaunch } from '@/hooks/useLaunch'
+import { useItemRestrictions } from '@/hooks/useItemRestrictions'
+import { useConfirm } from '@/hooks/useConfirm'
+import ConfirmModal from '@/components/common/ConfirmModal'
 import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
 import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal'
 import type { components } from '@shared/types'
+
 type LibraryItem = components['schemas']['LibraryItemRead']
 type LaunchProfile = components['schemas']['ProfileRead']
 type Platform = components['schemas']['PlatformRead']
@@ -22,38 +28,6 @@ type LaunchHistory = components['schemas']['LaunchHistoryRead']
 const SELECT_CLASS =
   'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
 
-interface EditForm {
-  title: string
-  sort_title: string
-  description: string
-  publisher: string
-  year: string
-  category: string
-  cover_art_path: string
-  content_rating: string
-  era: string
-  platform_id: string
-  profile_id: string
-  executable_path: string
-}
-
-function formFromItem(item: LibraryItem): EditForm {
-  return {
-    title: item.title,
-    sort_title: item.sort_title ?? '',
-    description: item.description ?? '',
-    publisher: item.publisher ?? '',
-    year: item.year?.toString() ?? '',
-    category: item.category ?? '',
-    cover_art_path: item.cover_art_path ?? '',
-    content_rating: item.content_rating ?? '',
-    era: item.era ?? '',
-    platform_id: item.platform_id?.toString() ?? '',
-    profile_id: item.profile_id?.toString() ?? '',
-    executable_path: item.executable_path ?? '',
-  }
-}
-
 export default function ItemDetail() {
   const { slug } = useParams<{ slug: string }>()
   const queryClient = useQueryClient()
@@ -62,6 +36,7 @@ export default function ItemDetail() {
   const isAdminOrOwner =
     (appState.activeUser?.is_admin ?? false) || (appState.activeUser?.is_owner ?? false)
 
+  // ── Queries (all six stay inline) ──
   const { data: item, isLoading: itemLoading } = useQuery<LibraryItem>({
     queryKey: ['library', 'by-slug', slug],
     queryFn: () => apiFetch<LibraryItem>(`/api/v1/library/by-slug/${slug}`),
@@ -100,26 +75,23 @@ export default function ItemDetail() {
   })
 
   // ── Edit form ──
-  const [form, setForm] = useState<EditForm | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-  const [execBrowserOpen, setExecBrowserOpen] = useState(false)
-
-  useEffect(() => {
-    if (item && !form) setForm(formFromItem(item))
-  }, [item, form])
+  const {
+    form,
+    setField,
+    handleSave,
+    saving,
+    saveError,
+    saveSuccess,
+    execBrowserOpen,
+    setExecBrowserOpen,
+    launchCommands,
+    setLaunchCommands,
+  } = useEditForm({ item, slug })
 
   // ── Advanced ──
-  const [launchCommands, setLaunchCommands] = useState<string[] | null>(null)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [flagging, setFlagging] = useState(false)
   const [flagError, setFlagError] = useState<string | null>(null)
-  useEffect(() => {
-    if (item && launchCommands === null) {
-      setLaunchCommands(item.launch_commands ?? [])
-    }
-  }, [item, launchCommands])
 
   async function handleFlagLaunch() {
     if (!item) return
@@ -135,135 +107,38 @@ export default function ItemDetail() {
     }
   }
 
-  function setField<K extends keyof EditForm>(key: K, value: EditForm[K]) {
-    setForm((prev) => prev && { ...prev, [key]: value })
-    setSaveSuccess(false)
-  }
-
-  async function handleSave() {
-    if (!item || !form) return
-    setSaving(true)
-    setSaveError(null)
-    setSaveSuccess(false)
-    try {
-      await apiFetch(`/api/v1/library/${item.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          title: form.title.trim() || undefined,
-          sort_title: form.sort_title.trim() || null,
-          description: form.description.trim() || null,
-          publisher: form.publisher.trim() || null,
-          year: form.year ? parseInt(form.year, 10) : null,
-          category: form.category.trim() || null,
-          cover_art_path: form.cover_art_path.trim() || null,
-          content_rating: form.content_rating || null,
-          era: form.era || null,
-          platform_id: form.platform_id ? parseInt(form.platform_id, 10) : null,
-          profile_id: form.profile_id ? parseInt(form.profile_id, 10) : null,
-          executable_path: form.executable_path.trim() || null,
-          launch_commands: launchCommands ?? item.launch_commands ?? [],
-        }),
-      })
-      queryClient.invalidateQueries({ queryKey: ['library'] })
-      queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
-      setSaveSuccess(true)
-    } catch (err) {
-      setSaveError(err instanceof ApiError ? err.detail : 'Failed to save.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   // ── Launch ──
-  const [launching, setLaunching] = useState(false)
-  const [launchError, setLaunchError] = useState<string | null>(null)
-  const [launchSuccess, setLaunchSuccess] = useState(false)
-  const [launchWarnings, setLaunchWarnings] = useState<string[]>([])
-  const [activeHistoryId, setActiveHistoryId] = useState<number | null>(null)
+  const {
+    launch,
+    isLaunching: launching,
+    error: launchError,
+    launchSuccess,
+    launchWarnings,
+  } = useLaunch({
+    targetId: item?.id ?? 0,
+    targetType: 'library',
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['launches', item?.id] })
+      queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
+    },
+  })
 
-  // Poll the active launch record until ended_at is set, then clear the success banner.
-  useEffect(() => {
-    if (activeHistoryId === null) return
-    const intervalId = setInterval(async () => {
-      try {
-        const record = await apiFetch<LaunchHistory>(`/api/v1/launches/${activeHistoryId}`)
-        if (record.ended_at !== null) {
-          setLaunchSuccess(false)
-          setActiveHistoryId(null)
-          queryClient.invalidateQueries({ queryKey: ['launches', item?.id] })
-        }
-      } catch {
-        setActiveHistoryId(null)
-      }
-    }, 2000)
-    return () => clearInterval(intervalId)
-  }, [activeHistoryId, item?.id, queryClient])
-
-  async function handleLaunch() {
+  function handleLaunch() {
     if (!item || !form) return
     const profileId = form.profile_id ? parseInt(form.profile_id, 10) : null
     if (!profileId) return
-    setLaunching(true)
-    setLaunchError(null)
-    setLaunchSuccess(false)
-    setLaunchWarnings([])
-    setActiveHistoryId(null)
-    try {
-      const res = await apiFetch<{ launch_history_id: number; warnings: string[] }>(
-        `/api/v1/library/${item.id}/launch`,
-        { method: 'POST', body: JSON.stringify({ profile_id: profileId }) },
-      )
-      setLaunchSuccess(true)
-      setLaunchWarnings(res.warnings ?? [])
-      setActiveHistoryId(res.launch_history_id)
-      queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
-    } catch (err) {
-      setLaunchError(err instanceof ApiError ? err.detail : 'Launch failed.')
-    } finally {
-      setLaunching(false)
-    }
+    launch(profileId)
   }
 
   // ── Restrictions ──
-  const [restrictedIds, setRestrictedIds] = useState<Set<number>>(new Set())
-  const [restrictionsDirty, setRestrictionsDirty] = useState(false)
-  const [savingRestrictions, setSavingRestrictions] = useState(false)
-  const [restrictionsError, setRestrictionsError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (restrictionsData && !restrictionsDirty) {
-      setRestrictedIds(new Set(restrictionsData.restricted_user_ids))
-    }
-  }, [restrictionsData, restrictionsDirty])
-
-  function toggleRestriction(userId: number) {
-    setRestrictedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(userId)) next.delete(userId)
-      else next.add(userId)
-      return next
-    })
-    setRestrictionsDirty(true)
-  }
-
-  async function handleSaveRestrictions() {
-    if (!item) return
-    setSavingRestrictions(true)
-    setRestrictionsError(null)
-    try {
-      await apiFetch(`/api/v1/library/${item.id}/restrictions`, {
-        method: 'PUT',
-        body: JSON.stringify({ user_ids: Array.from(restrictedIds) }),
-      })
-      setRestrictionsDirty(false)
-      queryClient.invalidateQueries({ queryKey: ['library'] })
-      refetchRestrictions()
-    } catch (err) {
-      setRestrictionsError(err instanceof ApiError ? err.detail : 'Failed to save restrictions.')
-    } finally {
-      setSavingRestrictions(false)
-    }
-  }
+  const {
+    restrictedIds,
+    restrictionsDirty,
+    toggleRestriction,
+    handleSaveRestrictions,
+    savingRestrictions,
+    restrictionsError,
+  } = useItemRestrictions({ item, isAdminOrOwner, restrictionsData, refetchRestrictions })
 
   // ── Tags ──
   const [tagError, setTagError] = useState<string | null>(null)
@@ -291,40 +166,46 @@ export default function ItemDetail() {
   }
 
   // ── Installed toggle ──
-  const installedDialogRef = useRef<HTMLDialogElement>(null)
-  const [installedModalTarget, setInstalledModalTarget] = useState<boolean | null>(null)
-  const [installedPatching, setInstalledPatching] = useState(false)
-  const [installedPatchError, setInstalledPatchError] = useState<string | null>(null)
   const [localInstalled, setLocalInstalled] = useState(false)
 
   useEffect(() => {
     if (item) setLocalInstalled(item.installed)
   }, [item])
 
-  useEffect(() => {
-    const dialog = installedDialogRef.current
-    if (!dialog) return
-    if (installedModalTarget !== null && !dialog.open) dialog.showModal()
-    else if (installedModalTarget === null && dialog.open) dialog.close()
-  }, [installedModalTarget])
+  const {
+    confirm: confirmInstalled,
+    isOpen: installedConfirmOpen,
+    options: installedConfirmOptions,
+    handleConfirm: handleInstalledConfirm,
+    handleCancel: handleInstalledCancel,
+  } = useConfirm()
 
-  async function handleConfirmInstalled() {
-    if (!item || installedModalTarget === null) return
-    setInstalledPatching(true)
-    setInstalledPatchError(null)
-    try {
-      await apiFetch(`/api/v1/library/${item.id}`, {
+  const installedMutation = useMutation<void, Error, boolean>({
+    mutationFn: (value) => {
+      if (!item) return Promise.resolve()
+      return apiFetch(`/api/v1/library/${item.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ installed: installedModalTarget }),
+        body: JSON.stringify({ installed: value }),
       })
-      setLocalInstalled(installedModalTarget)
-      setInstalledModalTarget(null)
+    },
+    onSuccess: (_, value) => {
+      setLocalInstalled(value)
       queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
-    } catch (err) {
-      setInstalledPatchError(err instanceof ApiError ? err.detail : 'Failed to update.')
-    } finally {
-      setInstalledPatching(false)
-    }
+    },
+  })
+
+  async function handleToggleInstalled() {
+    if (!item) return
+    const target = !localInstalled
+    const consequence = target
+      ? 'Only confirm if your game files are already copied to this drive. Peach 1UP will skip the copy step and boot directly.'
+      : 'This will re-run the copy step on next launch. Any changes made inside the drive will be preserved but source files will be copied again.'
+    const confirmed = await confirmInstalled({
+      title: target ? 'Mark as installed?' : 'Mark as not installed?',
+      consequence,
+      destructive: !target,
+    })
+    if (confirmed) installedMutation.mutate(target)
   }
 
   // ── Render ──
@@ -414,7 +295,8 @@ export default function ItemDetail() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => setInstalledModalTarget(!localInstalled)}
+                  onClick={handleToggleInstalled}
+                  loading={installedMutation.isPending}
                 >
                   {localInstalled ? 'Mark as not installed' : 'Mark as installed'}
                 </Button>
@@ -892,67 +774,25 @@ export default function ItemDetail() {
         )}
 
         </div>
-
       </div>
 
-      {/* ── Installed toggle modal ── */}
-      <dialog
-        ref={installedDialogRef}
-        className="w-full max-w-[32rem] rounded-lg border border-neutral-200 bg-white p-6 shadow-xl backdrop:bg-black/50 dark:border-surface-400 dark:bg-surface-900"
-      >
-        <h2 className="mb-4 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-          {installedModalTarget ? 'Mark as installed?' : 'Mark as not installed?'}
-        </h2>
-        <div className="space-y-3 text-sm text-neutral-600 dark:text-neutral-400">
-          {installedModalTarget ? (
-            <>
-              <div className="space-y-1">
-                <div>
-                  <span className="font-medium text-neutral-700 dark:text-neutral-300">Drive image:</span>{' '}
-                  <span className="font-mono text-xs">
-                    library/media/{item.slug}/{item.slug}.img
-                  </span>
-                </div>
-                {item.drive?.size_mb != null && (
-                  <div>
-                    <span className="font-medium text-neutral-700 dark:text-neutral-300">Drive size:</span>{' '}
-                    {item.drive.size_mb} MB
-                  </div>
-                )}
-              </div>
-              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
-                Only confirm if your game files are already copied to this drive. Peach 1UP will skip the copy step and boot directly.
-              </p>
-            </>
-          ) : (
-            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
-              This will re-run the copy step on next launch. Any changes made inside the drive will be preserved but source files will be copied again.
-            </p>
-          )}
-          {installedPatchError && (
-            <p role="alert" className="text-red-600 dark:text-red-400">
-              ❌ {installedPatchError}
-            </p>
-          )}
-        </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={() => { setInstalledModalTarget(null); setInstalledPatchError(null) }}
-            className="rounded-md border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-100 dark:border-surface-400 dark:text-neutral-300 dark:hover:bg-surface-800"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={installedPatching}
-            onClick={handleConfirmInstalled}
-            className="rounded-md bg-peach px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            {installedPatching ? 'Saving…' : 'Confirm'}
-          </button>
-        </div>
-      </dialog>
+      {/* ── Installed toggle confirmation ── */}
+      <ConfirmModal
+        open={installedConfirmOpen}
+        title={installedConfirmOptions?.title ?? ''}
+        consequence={installedConfirmOptions?.consequence ?? ''}
+        destructive={installedConfirmOptions?.destructive}
+        onConfirm={handleInstalledConfirm}
+        onCancel={handleInstalledCancel}
+      />
+
+      {installedMutation.isError && (
+        <p role="alert" className="sr-only">
+          {installedMutation.error instanceof ApiError
+            ? installedMutation.error.detail
+            : 'Failed to update.'}
+        </p>
+      )}
     </div>
   )
 }
