@@ -9,7 +9,8 @@ from backend.core.logger import get_logger
 logger = get_logger(__name__)
 
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, Response
+from fastapi.requests import Request
 from starlette.middleware.sessions import SessionMiddleware
 
 
@@ -18,7 +19,7 @@ def resource_path(relative: str) -> Path:
         return Path(sys._MEIPASS) / relative
     return Path(__file__).resolve().parent.parent / relative
 
-from backend.api.middleware.security import FirstRunGuardMiddleware, SecurityMiddleware, configure_cors
+from backend.api.middleware.security import FirstRunGuardMiddleware, SecurityMiddleware, _LOCALHOST_ORIGINS, configure_cors
 from backend.api.routes import auth, bios, drives, emulators, filesystem, health, launches, library, media, platforms, profiles, settings, tags, users
 from backend.core.lifespan import lifespan
 from backend.service.utils.settings import get_or_generate_session_secret
@@ -58,17 +59,32 @@ app.include_router(media.router)
 app.include_router(tags.router)
 
 from backend.service.utils import settings as _peach_settings
-_library_root = Path(_peach_settings.get("LIBRARY_PATH"))
-if _library_root.exists() and _library_root.is_dir():
-    app.mount("/media", StaticFiles(directory=str(_library_root)), name="library-media")
+from backend.service.utils.path_utils import normalise_path
+
+_library_root = Path(_peach_settings.get("LIBRARY_PATH")).resolve()
+
+
+@app.get("/media/{file_path:path}", include_in_schema=False)
+async def serve_media(file_path: str, request: Request):
+    from backend.core.settings import get_settings
+    svc = get_settings()
+    allow_network = svc.get("ALLOW_NETWORK_ACCESS", False)
+    client_host = request.client.host if request.client else "unknown"
+    if client_host not in _LOCALHOST_ORIGINS and not allow_network:
+        return Response(status_code=403, content="Remote access is disabled.")
+    try:
+        resolved = normalise_path(str(_library_root / file_path))
+    except ValueError:
+        return Response(status_code=404)
+    if not resolved.is_relative_to(_library_root) or not resolved.exists():
+        return Response(status_code=404)
+    return FileResponse(resolved)
 
 frontend_dist = resource_path("frontend/dist")
 logger.debug("[PEACH] frozen=%s", getattr(sys, 'frozen', False))
 logger.debug("[PEACH] _MEIPASS=%s", getattr(sys, '_MEIPASS', 'N/A'))
 logger.debug("[PEACH] frontend_dist=%s", frontend_dist)
 logger.debug("[PEACH] exists=%s", frontend_dist.exists())
-
-from fastapi.responses import FileResponse
 
 @app.get("/{full_path:path}", include_in_schema=False)
 async def spa_fallback(full_path: str):
