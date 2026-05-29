@@ -32,7 +32,7 @@ def _resolve_item_drive(item, profile, db):
 def _copy_loose_files_to_drive(src_dir: Path, img_path: Path, size_mb: int) -> None:
     if not src_dir.is_dir():
         raise RuntimeError(f"src_dir is not a directory: {src_dir}")
-    files = [f for f in src_dir.rglob("*") if f.is_file()]
+    files = [f for f in src_dir.rglob("*") if f.is_file() and f.resolve() != img_path.resolve()]
     if not files:
         raise RuntimeError(f"No files found under {src_dir}")
     for f in files:

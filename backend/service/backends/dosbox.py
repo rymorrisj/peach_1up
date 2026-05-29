@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
+from backend.service.utils.fat_writer import _read_geometry
 from backend.constants_generated import Era
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
@@ -188,7 +189,13 @@ def _build_drive_mount_lines(
         drive_cmd_path = _dosbox_cmd_path(drive_path)
         if not drive_path.exists():
             drive_setup_lines.append(f"IMGMAKE {drive_cmd_path} -t hd -size {drive.size_mb}")
-        drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
+            drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
+        else:
+            geo = _read_geometry(drive_path)
+            spc = geo["sectors_per_cluster"]
+            hpc = 255
+            cyl = geo["total_sectors"] // (spc * hpc)
+            drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd -size 512,{spc},{hpc},{cyl}")
 
         if media_path.is_dir():
             mount_line = None
