@@ -16,7 +16,7 @@ import yaml
 
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
-from backend.service.utils.emulator_catalog import get_emulator
+from backend.service.utils.emulator_catalog import get_emulator, get_emulator_era
 from backend.service.utils.eras_config import get_cpu_min_rate
 from backend.service.utils.sandbox import sandbox
 from backend.service.utils.sandbox.sandbox_config import BrokerFile, SandboxConfig
@@ -29,28 +29,14 @@ EXE_NAME: str = "sandbox_host.exe"
 
 _ERAS_PATH: Path = get_base_path() / "config" / "eras.yaml"
 
-# Maps emulator slug → the era used to derive CPU and memory limits.
-# For emulators that serve multiple eras (86box: win95/win98/winxp), the
-# most-demanding era is used so the container is never under-resourced.
-_SLUG_TO_ERA: dict[str, str] = {
-    "dosbox-x":    "dos",
-    "86box":       "winxp",
-    "scummvm":     "dos",
-    "duckstation": "ps1",
-    "pcsx2":       "ps2",
-    "xemu":        "xbox",
-    "mesen":       "nes",
-    "project64":   "n64",
-    "flycast":     "dreamcast",
-}
-
 # Floor mirrors MinRate in job_objects.py (cpu_min_rate_percent * 100 / 10000).
 _CPU_MIN_RATE: int = get_cpu_min_rate("")
 
 
 def _load_era(slug: str) -> dict:
-    era_key = _SLUG_TO_ERA.get(slug)
-    if not era_key:
+    try:
+        era_key = get_emulator_era(slug)
+    except (ValueError, Exception):
         return {}
     eras = yaml.safe_load(_ERAS_PATH.read_text(encoding="utf-8")) or {}
     return eras.get(era_key, {})

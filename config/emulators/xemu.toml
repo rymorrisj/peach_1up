@@ -1,4 +1,5 @@
 slug = "xemu"
+era = "xbox"
 display_name = "xemu"
 name = "xemu"
 version = "PLACEHOLDER"

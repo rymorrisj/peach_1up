@@ -1,4 +1,5 @@
 slug = "pcsx2"
+era = "ps2"
 display_name = "PCSX2"
 name = "PCSX2"
 version = "PLACEHOLDER"

@@ -272,6 +272,23 @@ def detect_and_sync_all() -> None:
                 pass
 
 
+def get_emulator_era(slug: str) -> str:
+    """Return the era key for a given emulator slug from emulators.toml.
+
+    The era is used to look up CPU and memory limits in eras.yaml.  For
+    emulators that span multiple eras (e.g. 86box), the most-demanding era
+    is recorded so AppContainer limits are never under-resourced.
+
+    Raises:
+        ValueError: If the slug is not found or has no ``era`` field.
+    """
+    entry = get_emulator(slug)
+    era = entry.get("era")
+    if not era:
+        raise ValueError(f"Emulator '{slug}' has no 'era' field in emulators.toml")
+    return str(era)
+
+
 def get_skip_memory_limit(slug: str) -> bool:
     try:
         return bool(get_emulator(slug).get("skip_memory_limit", False))

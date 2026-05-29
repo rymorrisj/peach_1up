@@ -1,4 +1,5 @@
 slug = "duckstation"
+era = "ps1"
 display_name = "DuckStation"
 name = "DuckStation"
 version = "PLACEHOLDER"

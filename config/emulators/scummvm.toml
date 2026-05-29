@@ -1,4 +1,5 @@
 slug = "scummvm"
+era = "dos"
 display_name = "ScummVM"
 name = "ScummVM"
 version = "PLACEHOLDER"
