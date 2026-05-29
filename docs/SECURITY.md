@@ -136,13 +136,13 @@ Permission flags on sub-accounts:
   Authelia) in front of this service. Peach 1UP does not manage TLS termination or
   external routing.
 
-**Network isolation is emulator-native**
+### Network isolation is emulator-native
 
 Network blocking is enforced at the emulator level, not via host OS firewall rules.
 Each emulator is launched with its network adapter disabled or absent when
 enable_networking is false on the active profile (the default). DOSBox-X launches
-with the NE2000 adapter disabled via config. 86Box omits the network device from
-the machine config entirely. VirtualBox sets --nic1 null via VBoxManage at launch
+with the NE2000 adapter disabled via config. 86Box sets net_type = none to disable
+connectivity without removing the emulated NIC. VirtualBox sets --nic1 null via VBoxManage at launch
 time. Console emulators (DuckStation, PCSX2, xemu, Mesen, Project64) have no
 meaningful network capability and require no explicit blocking.
 
@@ -150,6 +150,17 @@ This approach requires no host elevation, cannot be accidentally bypassed by a
 COM availability issue, and is harder for emulated software to work around than
 a host firewall rule. Users who need network access for specific software can
 enable it explicitly per profile.
+
+### Emulator-specific
+
+#### 86Box
+
+Network connectivity is controlled via `net_type` in `[Network]` — written on every
+launch. `none` disables connectivity without removing the emulated NIC (avoiding
+Windows PnP re-detection). `slirp` enables user-mode NAT when `enable_networking = true`.
+`pcap` (bridged, full IPX/NetBEUI support) is not currently exposed — see 86Box
+documentation if you need it. `net_card` is never written by Peach 1UP; changing it
+triggers Windows hardware detection.
 
 ---
 

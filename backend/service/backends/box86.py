@@ -125,8 +125,7 @@ def _prepare_config(platform, cfg_path: str, rom_path: Path) -> None:
     parser.set("Paths", "rompath", str(rom_path.resolve()))
 
     _ensure_section(parser, "Network")
-    parser.set("Network", "net_card", "none")
-    parser.set("Network", "net_01_link", "0")
+    parser.set("Network", "net_type", "none")
 
     write_ini(cp, parser)
 
@@ -287,25 +286,10 @@ def launch(
     _prepare_config(platform, platform.config_path, effective_rom_path)
 
     if enable_networking:
-        catalog_entry = get_emulator("86box")
-        net_card_value = catalog_entry.get("net_card", "")
-        if not net_card_value:
-            raise RuntimeError(
-                "Networking requested but no net_card is configured for 86Box. "
-                "Add a net_card value to config/emulators/86box.toml."
-            )
-        _inject_media({
-            "config_path": platform.config_path,
-            "section": "Network",
-            "key": "net_card",
-            "value": net_card_value,
-        })
-        _inject_media({
-            "config_path": platform.config_path,
-            "section": "Network",
-            "key": "net_01_link",
-            "value": "1",
-        })
+        patch_ini(
+            Path(str(platform.config_path)),
+            {"Network": {"net_type": "slirp"}},
+        )
 
     if media_path is not None:
         attachment = build_86box_attachment(media_path, platform.config_path)
