@@ -30,7 +30,7 @@ export function formFromItem(item: LibraryItem): EditForm {
     category: item.category ?? '',
     cover_art_path: item.cover_art_path ?? '',
     content_rating: item.content_rating ?? '',
-    era: item.era ?? '',
+    era: (item.era && item.era !== 'unknown') ? item.era : '',
     platform_id: item.platform_id?.toString() ?? '',
     profile_id: item.profile_id?.toString() ?? '',
     executable_path: item.executable_path ?? '',

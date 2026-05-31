@@ -12,7 +12,7 @@ from backend.service.utils.drive_utils import create_drive_for_item
 from backend.service.utils.path_utils import normalise_path
 from backend.service.utils.slug_generator import generate_item_slug
 
-_MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com"}
+_MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
 
 
 def best_detect_path(folder: Path, executable_path: str | None) -> Path:

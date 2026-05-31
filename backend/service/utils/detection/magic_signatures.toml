@@ -1,0 +1,96 @@
+# Peach 1UP — Magic Number Signature Table
+# Each entry identifies a platform from binary signatures at known offsets.
+# Fields:
+#   era        — era slug matched against known eras in the system
+#   offset     — byte offset to seek to before reading
+#   magic      — hex string of expected bytes (space-separated octets, case-insensitive)
+#   reason     — human-readable string shown in the UI
+#   applies_to — list of file extensions this signature applies to (without dot)
+#   note       — optional, for community contributors
+#
+# To add a new signature: append a [[signatures]] block and restart the backend.
+# Magic bytes must match exactly at the given offset — no wildcards.
+# Community contributions welcome via pull request.
+
+# ── Xbox Original ────────────────────────────────────────────────────────────
+
+[[signatures]]
+era = "xbox"
+offset = 0x8001
+magic = "4D 53 58 42 4F 58 44 56 44"
+reason = "XDVDFS magic bytes at 0x8001 — Original Xbox disc image"
+applies_to = ["iso", "bin"]
+note = "XDVDFS = Microsoft Xbox DVD Filesystem. Unique to Xbox OG disc images."
+
+# ── PlayStation 1 ────────────────────────────────────────────────────────────
+
+[[signatures]]
+era = "ps1"
+offset = 0x00
+magic = "00 FF FF FF FF FF FF FF FF FF FF 00"
+reason = "CD-ROM Mode 2 sector sync pattern — PlayStation 1 disc image"
+applies_to = ["bin"]
+note = "PS1 discs use Mode 2 Form 1/2. Sync pattern at offset 0 of raw BIN."
+
+# ── PlayStation 2 ────────────────────────────────────────────────────────────
+# PS2 uses the same sector sync as PS1 for CD-based games.
+# DVD-based PS2 games do not have the sync pattern — use PVD + SYSTEM.CNF BOOT2 key.
+# The PS1/PS2 distinction for BIN files is resolved in _detect_system_cnf after magic match.
+
+[[signatures]]
+era = "ps2"
+offset = 0x00
+magic = "00 FF FF FF FF FF FF FF FF FF FF 00"
+reason = "CD-ROM sector sync — could be PS1 or PS2, resolved by SYSTEM.CNF"
+applies_to = ["bin"]
+note = "Ambiguous with PS1. Detection code must check SYSTEM.CNF BOOT vs BOOT2 to resolve."
+
+# ── Dreamcast ────────────────────────────────────────────────────────────────
+
+[[signatures]]
+era = "dreamcast"
+offset = 0x10
+magic = "53 45 47 41 20 53 45 47 41 4B 41 54 41 4E 41"
+reason = "Sega GD-ROM magic 'SEGA SEGAKATANA' at 0x10"
+applies_to = ["bin", "gdi", "cdi"]
+note = "GD-ROM IP.BIN header. Present on all licensed Dreamcast discs."
+
+# ── Nintendo 64 ──────────────────────────────────────────────────────────────
+
+[[signatures]]
+era = "n64"
+offset = 0x00
+magic = "80 37 12 40"
+reason = "N64 ROM magic — big-endian format (.z64)"
+applies_to = ["bin", "n64", "z64"]
+note = "Big-endian is the native N64 format."
+
+[[signatures]]
+era = "n64"
+offset = 0x00
+magic = "37 80 40 12"
+reason = "N64 ROM magic — byteswapped format (.v64)"
+applies_to = ["bin", "v64"]
+note = "Byteswapped format produced by some dumping tools."
+
+[[signatures]]
+era = "n64"
+offset = 0x00
+magic = "40 12 37 80"
+reason = "N64 ROM magic — little-endian format"
+applies_to = ["bin"]
+note = "Little-endian format, less common."
+
+# ── NES ──────────────────────────────────────────────────────────────────────
+
+[[signatures]]
+era = "nes"
+offset = 0x00
+magic = "4E 45 53 1A"
+reason = "iNES ROM header magic 'NES' + EOF marker"
+applies_to = ["bin", "nes"]
+note = "Standard iNES format used by all major NES ROM dumps."
+
+# ── DOS / PC CD-ROM ───────────────────────────────────────────────────────────
+# No reliable magic number for generic DOS ISOs — use PVD publisher/volume label instead.
+# Size-based DOS fallback removed; ambiguous cases return no signal.

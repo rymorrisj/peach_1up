@@ -6,7 +6,7 @@ Public function: detect_era(path) -> (slug, reason)
 import struct
 from pathlib import Path
 
-# FUTURE: hash-based Redump/TOSEC lookup goes here before signal detection
+from backend.service.utils.detection.magic_detect import detect_from_magic
 
 _DOS_PUBLISHERS = frozenset({
     "GT INTERACTIVE", "ID SOFTWARE", "APOGEE", "3D REALMS", "SIERRA ON-LINE",
@@ -38,26 +38,42 @@ def detect_era(path: Path) -> tuple[str | None, str]:
             if suffix == ".nes":
                 return "nes", "file extension indicates NES ROM"
             if suffix in {".gdi", ".cdi"}:
+                era, reason = detect_from_magic(path, suffix[1:])
+                if era is not None:
+                    return era, reason
                 return "dreamcast", "file extension suggests Dreamcast disc image"
 
             if suffix == ".iso":
+                era, reason = detect_from_magic(path, "iso")
+                if era is not None:
+                    return era, reason
                 result = _detect_from_pvd(path)
                 if result[0] is not None:
                     return result
                 return _iso_size_fallback(path)
 
             if suffix == ".bin":
+                era, reason = detect_from_magic(path, "bin")
+                if era is not None:
+                    return era, reason
                 result = _detect_from_pvd(path)
                 if result[0] is not None:
                     return result
 
             if suffix == ".cue":
                 bin_path = _cue_bin_path(path)
+                if bin_path is None:
+                    candidate = path.with_suffix(".bin")
+                    if candidate.exists():
+                        bin_path = candidate
                 if bin_path is not None:
+                    era, reason = detect_from_magic(bin_path, "bin")
+                    if era is not None:
+                        return era, reason
                     result = _detect_from_pvd(bin_path)
                     if result[0] is not None:
                         return result
-                    return _cue_size_fallback(bin_path)
+                    return None, "no signal found"
                 return None, "no signal found"
 
             if suffix == ".img":
@@ -140,10 +156,49 @@ def _detect_from_pvd(iso_path: Path) -> tuple[str | None, str]:
                 return "ps2", f"ISO volume label '{vol_id}' matches PS2 pattern (DVD size)"
             return "ps1", f"ISO volume label '{vol_id}', publisher '{publisher[:30]}' match PS1"
 
+        xbe = _detect_from_xbe_scan(iso_path)
+        if xbe[0] is not None:
+            return xbe
+
         return None, "ISO 9660 PVD present but no era signal matched"
 
     except Exception as exc:
         return None, f"ISO PVD read error: {exc}"
+
+
+def _detect_from_xbe_scan(iso_path: Path) -> tuple[str | None, str]:
+    try:
+        with iso_path.open("rb") as fh:
+            fh.seek(32768)
+            pvd = fh.read(2048)
+        if len(pvd) < 190 or pvd[0] != 1:
+            return None, ""
+        root_lba = struct.unpack_from("<I", pvd, 158)[0]
+        root_size = struct.unpack_from("<I", pvd, 166)[0]
+        if root_lba == 0 or root_size == 0 or root_size > 65536:
+            return None, ""
+        with iso_path.open("rb") as fh:
+            fh.seek(root_lba * 2048)
+            dir_data = fh.read(root_size)
+        i = 0
+        while i < len(dir_data):
+            rec_len = dir_data[i]
+            if rec_len == 0:
+                i = (i | 2047) + 1
+                continue
+            if i + 33 > len(dir_data):
+                break
+            name_len = dir_data[i + 32]
+            if i + 33 + name_len > len(dir_data):
+                break
+            raw_name = dir_data[i + 33: i + 33 + name_len].decode("ascii", errors="replace")
+            name = raw_name.split(";")[0].upper()
+            if name.endswith(".XBE"):
+                return "xbox", "ISO filesystem contains .xbe — Original Xbox executable"
+            i += rec_len
+        return None, ""
+    except Exception:
+        return None, ""
 
 
 def _iso_size_fallback(path: Path) -> tuple[str | None, str]:
@@ -155,16 +210,6 @@ def _iso_size_fallback(path: Path) -> tuple[str | None, str]:
         return None, "ISO exceeds 4 GB but no PVD signal — could be PS2 or Xbox OG, please select era manually"
     if size < 800 * 1024 * 1024:
         return None, "ISO under 800 MB but no PVD signal — era ambiguous, please select era manually"
-    return None, "no signal found"
-
-
-def _cue_size_fallback(path: Path) -> tuple[str | None, str]:
-    try:
-        size = path.stat().st_size
-    except OSError:
-        return None, "no signal found"
-    if size < 800 * 1024 * 1024:
-        return "dos", "CUE file under 800 MB with no other signals — DOS (low confidence)"
     return None, "no signal found"
 
 
