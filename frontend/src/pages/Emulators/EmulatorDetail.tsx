@@ -9,8 +9,7 @@ type LaunchProfile = components['schemas']['ProfileRead']
 
 const ERA_MAP: Record<string, string[]> = {
   'dosbox-x':   ['DOS', 'WIN31'],
-  '86box':       ['WIN95', 'WIN98'],
-  'virtualbox':  ['WIN95', 'WIN98', 'WINXP'],
+  '86box':       ['WIN95', 'WIN98', 'WINXP'],
   'duckstation': ['PS1'],
   'pcsx2':       ['PS2'],
   'xemu':        ['XBOX'],

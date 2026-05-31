@@ -19,7 +19,6 @@ class Era(Enum):
 class BackendSlug(Enum):
     DOSBOX = "dosbox"
     BOX86 = "86box"
-    VIRTUALBOX = "virtualbox"
     DUCKSTATION = "duckstation"
     PCSX2 = "pcsx2"
     XEMU = "xemu"
@@ -45,7 +44,6 @@ ERA_LABELS: dict[str, str] = {
 BACKEND_LABELS: dict[str, str] = {
     "dosbox": "DOSBox-X",
     "86box": "86Box",
-    "virtualbox": "VirtualBox",
     "duckstation": "DuckStation",
     "pcsx2": "PCSX2",
     "xemu": "xemu",

@@ -217,50 +217,6 @@ export function RomPackCard({ entry }: { entry: CatalogEntry }) {
   )
 }
 
-export function VBoxExpertCard({ entry, onDone }: { entry: CatalogEntry; onDone: () => void }) {
-  const [running, setRunning] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleSet() {
-    setRunning(true)
-    setError(null)
-    try {
-      await apiFetch(`/api/v1/emulators/${entry.slug}/configure`, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'set_expert_mode' }),
-      })
-      onDone()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.detail : 'Failed to configure VirtualBox.')
-      setRunning(false)
-    }
-  }
-
-  return (
-    <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800/40 dark:bg-amber-900/10">
-      <p className="mb-2 text-sm font-medium text-amber-900 dark:text-amber-200">
-        Set VirtualBox to Expert Mode
-      </p>
-      <p className="mb-3 text-xs text-amber-700 dark:text-amber-300">
-        Required for Environment management. Peach 1UP will run one VBoxManage command to configure this.
-      </p>
-      <button
-        type="button"
-        onClick={handleSet}
-        disabled={running}
-        className="rounded-md bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 dark:bg-amber-700"
-      >
-        {running ? 'Configuring…' : 'Set Expert Mode'}
-      </button>
-      {error && (
-        <p role="alert" className="mt-2 text-xs text-[#ff6a55]">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
-
 export function BiosCard({ bios }: { bios: BiosRequirement }) {
   return (
     <div className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">

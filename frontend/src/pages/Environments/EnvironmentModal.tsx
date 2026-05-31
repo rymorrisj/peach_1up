@@ -20,16 +20,15 @@ const ERA_TO_EMULATOR: Record<PCEra, string> = {
   win31: 'dosbox-x',
   win95: '86box',
   win98: '86box',
-  winxp: 'virtualbox',
+  winxp: '86box',
 }
 
 const EMULATOR_LABELS: Record<string, string> = {
   'dosbox-x': 'DOSBox-X',
   '86box': '86Box',
-  virtualbox: 'VirtualBox',
 }
 
-const BOX86_ERAS = new Set<PCEra>(['win95', 'win98'])
+const BOX86_ERAS = new Set<PCEra>(['win95', 'win98', 'winxp'])
 const INSTALL_MEDIA_ERAS = new Set<PCEra>(['win95', 'win98', 'winxp'])
 
 type HardwareProfile = 'standard' | '3dfx' | 'opl' | 'midi'

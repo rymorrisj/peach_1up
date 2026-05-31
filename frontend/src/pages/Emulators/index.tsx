@@ -7,8 +7,7 @@ import type { CatalogEntry } from '@/pages/FirstRun/types'
 
 const ERA_MAP: Record<string, string[]> = {
   'dosbox-x':   ['DOS', 'WIN31'],
-  '86box':       ['WIN95', 'WIN98'],
-  'virtualbox':  ['WIN95', 'WIN98', 'WINXP'],
+  '86box':       ['WIN95', 'WIN98', 'WINXP'],
   'duckstation': ['PS1'],
   'pcsx2':       ['PS2'],
   'xemu':        ['XBOX'],
@@ -35,7 +34,6 @@ const ERA_COLOR: Record<string, string> = {
 const SLUG_TO_SETTINGS_KEY: Record<string, string> = {
   'dosbox-x':    'DOSBOX_PATH',
   '86box':       'BOX86_PATH',
-  'virtualbox':  'VIRTUALBOX_PATH',
   'duckstation': 'DUCKSTATION_PATH',
   'pcsx2':       'PCSX2_PATH',
   'xemu':        'XEMU_PATH',

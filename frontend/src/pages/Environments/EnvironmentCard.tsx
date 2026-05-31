@@ -15,7 +15,6 @@ type Platform = PlatformBase & { installed_at?: string | null }
 const EMULATOR_LABELS: Record<string, string> = {
   'dosbox-x': 'DOSBox-X',
   '86box': '86Box',
-  virtualbox: 'VirtualBox',
 }
 
 interface EnvironmentCardProps {

@@ -22,7 +22,6 @@ _CONSOLE_BACKENDS: frozenset[str] = frozenset({
 
 _PLATFORM_BACKENDS: frozenset[str] = frozenset({
     BackendSlug.BOX86.value,
-    BackendSlug.VIRTUALBOX.value,
     BackendSlug.XEMU.value,
 })
 

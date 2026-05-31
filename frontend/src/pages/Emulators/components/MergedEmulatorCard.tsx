@@ -1,4 +1,4 @@
-import { ZipCard, InstallerCard, RomPackCard, VBoxExpertCard } from './EmulatorCards'
+import { ZipCard, InstallerCard, RomPackCard } from './EmulatorCards'
 import { useAppContext } from '@/context/AppContext'
 import type { CatalogEntry } from '@/pages/FirstRun/types'
 
@@ -10,7 +10,6 @@ export function MergedEmulatorCard({
   onCatalogRefresh: () => void
 }) {
   const { state } = useAppContext()
-  const showExpertCard = entry.slug === 'virtualbox' && entry.is_installed && !entry.expert_mode_set
   const hasActiveLaunch = Array.from(state.activeLaunches.values()).some(
     (e) => e.target_type === 'emulator' && e.ended_at === null,
   )
@@ -48,7 +47,6 @@ export function MergedEmulatorCard({
       {entry.install_type === 'installer' && <InstallerCard entry={entry} />}
       {entry.install_type === 'rom_pack' && <RomPackCard entry={entry} />}
 
-      {showExpertCard && <VBoxExpertCard entry={entry} onDone={onCatalogRefresh} />}
     </div>
   )
 }

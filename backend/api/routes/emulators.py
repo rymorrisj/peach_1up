@@ -1,5 +1,4 @@
 import asyncio
-import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -72,9 +71,7 @@ class ConfigureRequest(BaseModel):
     action: str
 
 
-_CONFIGURE_ACTIONS: dict[str, list[str]] = {
-    "virtualbox": ["set_expert_mode"],
-}
+_CONFIGURE_ACTIONS: dict[str, list[str]] = {}
 
 
 @router.get("", response_model=list[CatalogEntryResponse])
@@ -113,8 +110,6 @@ def list_emulators():
             item[_sf] = bool(_override) if _override is not None else _toml_val
         if "install_note" in entry:
             item["install_note"] = entry["install_note"]
-        if slug == "virtualbox":
-            item["expert_mode_set"] = bool(_settings.get("virtualbox_expert_mode_set", False))
         result.append(item)
     return result
 
@@ -289,28 +284,4 @@ def configure_emulator(slug: str, body: ConfigureRequest):
     if body.action not in allowed_actions:
         raise HTTPException(status_code=400, detail=f"Unknown action '{body.action}' for '{slug}'.")
 
-    if slug == "virtualbox" and body.action == "set_expert_mode":
-        binary = detect_binary("virtualbox")
-        if binary is None:
-            raise HTTPException(
-                status_code=404,
-                detail="VBoxManage not found. Install VirtualBox first.",
-            )
-        try:
-            result = subprocess.run(
-                [str(binary), "setextradata", "global", "GUI/ExperienceMode", "Expert"],
-                capture_output=True,
-                text=True,
-                timeout=15,
-            )
-        except subprocess.TimeoutExpired:
-            raise HTTPException(status_code=500, detail="VBoxManage timed out.")
-        except OSError as exc:
-            raise HTTPException(status_code=500, detail=f"Failed to run VBoxManage: {exc}")
-
-        if result.returncode != 0:
-            detail = result.stderr.strip() or result.stdout.strip() or "Unknown error"
-            raise HTTPException(status_code=500, detail=f"VBoxManage failed: {detail}")
-
-        _settings.set_flag("virtualbox_expert_mode_set", True)
-        return {"slug": slug, "action": body.action, "status": "ok"}
+    raise HTTPException(status_code=400, detail=f"Unhandled action '{body.action}' for '{slug}'.")

@@ -29,7 +29,6 @@ _DEFAULTS: dict = {
     "first_run_complete": False,
     "DOSBOX_PATH": "",
     "BOX86_PATH": "",
-    "VIRTUALBOX_PATH": "",
     "LIBRARY_PATH": "",
     "MEDIA_PATH": "",
     "OS_PATH": "",
@@ -52,7 +51,6 @@ _DEFAULTS: dict = {
 # Maps emulator key → settings key (env var name and yaml key are always identical).
 _ENV_BINARY_VARS: dict[str, str] = {
     "dosbox":       "DOSBOX_PATH",
-    "virtualbox":   "VIRTUALBOX_PATH",
     "box86":        "BOX86_PATH",
     "duckstation":  "DUCKSTATION_PATH",
     "pcsx2":        "PCSX2_PATH",
@@ -65,7 +63,6 @@ _ENV_BINARY_VARS: dict[str, str] = {
 _PATH_KEYS: frozenset[str] = frozenset({
     "DOSBOX_PATH",
     "BOX86_PATH",
-    "VIRTUALBOX_PATH",
     "LIBRARY_PATH",
     "MEDIA_PATH",
     "OS_PATH",
@@ -88,7 +85,6 @@ _PATH_KEYS: frozenset[str] = frozenset({
 _EMULATOR_CATALOG: list[tuple[str, str, bool, str]] = [
     ("dosbox-x",    "DOSBox-X",   True,  "DOSBOX_PATH"),
     ("86box",       "86Box",      False, "BOX86_PATH"),
-    ("virtualbox",  "VirtualBox", False, "VIRTUALBOX_PATH"),
     ("duckstation", "DuckStation",False, "DUCKSTATION_PATH"),
     ("pcsx2",       "PCSX2",      False, "PCSX2_PATH"),
     ("xemu",        "xemu",       False, "XEMU_PATH"),
@@ -104,7 +100,6 @@ _PROJECT_ROOT: Path = _get_project_root()
 _BUNDLED: dict[str, Path] = {
     "dosbox":      _PROJECT_ROOT / "emulators" / "dosbox-x" / "dosbox-x.exe",
     "box86":       _PROJECT_ROOT / "emulators" / "86box" / "86Box.exe",
-    "virtualbox":  _PROJECT_ROOT / "emulators" / "virtualbox" / "VBoxManage.exe",
 }
 
 _PATH_DEFAULTS: dict[str, str] = {
@@ -235,7 +230,7 @@ def get_binary_path(emulator: str) -> str:
     value captured at init() time. Never calls os.getenv() at call time.
 
     Args:
-        emulator: One of ``'dosbox'``, ``'virtualbox'``, ``'box86'``.
+        emulator: One of ``'dosbox'``, ``'box86'``.
 
     Returns:
         Resolved path string, or empty string if neither override nor
@@ -323,7 +318,7 @@ def set_flag(key: str, value: bool) -> None:
     """Persist a boolean flag to settings.yaml.
 
     Args:
-        key: Settings key to set (e.g. ``'virtualbox_expert_mode_set'``).
+        key: Settings key to set (e.g. ``'suppress_confirmations'``).
         value: Boolean value to store.
 
     Raises:
@@ -367,7 +362,7 @@ def set_override_path(emulator: str, path: str) -> None:
     """Write a binary override path to settings.yaml and update state.
 
     Args:
-        emulator: One of ``'dosbox'``, ``'virtualbox'``, ``'box86'``.
+        emulator: One of ``'dosbox'``, ``'box86'``.
         path: Absolute path to the emulator executable.
 
     Raises:
@@ -398,7 +393,7 @@ def set_path(key: str, value: str) -> None:
     """Write a path value to settings.yaml and update state.
 
     Covers all keys in ``_PATH_KEYS``: ``DOSBOX_PATH``, ``BOX86_PATH``,
-    ``VIRTUALBOX_PATH``, ``LIBRARY_PATH``, ``MEDIA_PATH``, ``OS_PATH``,
+    ``LIBRARY_PATH``, ``MEDIA_PATH``, ``OS_PATH``,
     ``DRIVES_PATH``, ``ROMS_PATH``, ``BIOS_PATH``,
     ``PROFILES_PATH``.
     For emulator binary paths, ``set_override_path()`` accepts a short

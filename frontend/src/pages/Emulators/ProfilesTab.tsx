@@ -353,7 +353,7 @@ export default function ProfilesTab() {
           label="Emulator Slug"
           htmlFor="lp-emulator"
           required
-          hint="e.g. dosbox, box86, virtualbox, duckstation"
+          hint="e.g. dosbox, box86, duckstation"
           error={formErrors.emulator_slug}
         >
           <Input

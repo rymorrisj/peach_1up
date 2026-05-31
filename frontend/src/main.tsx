@@ -9,7 +9,6 @@ import ItemDetail from '@/pages/Library/ItemDetail'
 import Settings from '@/pages/Settings'
 import GuidesIndex from '@/pages/Guides'
 import CartridgeImaging from '@/pages/Guides/CartridgeImaging'
-import VirtualBoxSetup from '@/pages/Guides/VirtualBoxSetup'
 import BiosSourcing from '@/pages/Guides/BiosSourcing'
 import Box86HardwareGuide from '@/pages/Guides/86BoxHardwareGuide'
 import EraGuide from '@/pages/Guides/EraGuide'
@@ -83,7 +82,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/tags" element={<Tags />} />
                 <Route path="/guides" element={<GuidesIndex />} />
                 <Route path="/guides/cartridge-imaging" element={<CartridgeImaging />} />
-                <Route path="/guides/virtualbox-setup" element={<VirtualBoxSetup />} />
                 <Route path="/guides/bios-sourcing" element={<BiosSourcing />} />
                 <Route path="/guides/86box-hardware" element={<Box86HardwareGuide />} />
                 <Route path="/guides/era-detection" element={<EraGuide />} />

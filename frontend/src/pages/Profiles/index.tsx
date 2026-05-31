@@ -271,7 +271,7 @@ export default function Profiles() {
         <FormField label="Slug" htmlFor="np-slug" required hint="Auto-filled from name" error={errors.slug}>
           <Input id="np-slug" value={form.slug} onChange={(e) => setField('slug', e.target.value)} placeholder="dos-486-sb16" hasError={!!errors.slug} />
         </FormField>
-        <FormField label="Emulator" htmlFor="np-emu" required hint="e.g. dosbox-x, 86box, virtualbox" error={errors.emulator_slug}>
+        <FormField label="Emulator" htmlFor="np-emu" required hint="e.g. dosbox-x, 86box" error={errors.emulator_slug}>
           <Input id="np-emu" value={form.emulator_slug} onChange={(e) => setField('emulator_slug', e.target.value)} placeholder="dosbox-x" hasError={!!errors.emulator_slug} />
         </FormField>
         <FormField label="Era" htmlFor="np-era" required error={errors.era}>

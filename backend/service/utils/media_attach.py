@@ -106,27 +106,6 @@ def build_dosbox_attachment(media_path: Path, drive_letter: str = "D") -> dict:
     }
 
 
-def build_virtualbox_attachment(media_path: Path, platform_id: str) -> dict:
-    """Return VBoxManage storageattach parameters for VirtualBox media attachment.
-
-    The VirtualBox backend assembles the final VBoxManage command from this dict.
-
-    Args:
-        media_path: Path to the media file.
-        platform_id: UUID string identifying the target platform VM.
-
-    Returns:
-        Dict with ``media_path``, ``platform_id``, and ``controller``.
-        ``controller`` is ``"IDE"`` for .iso files, ``"SATA"`` for .img/.vhd.
-    """
-    controller = "IDE" if media_path.suffix.lower() == ".iso" else "SATA"
-    return {
-        "media_path": str(media_path),
-        "platform_id": platform_id,
-        "controller": controller,
-    }
-
-
 def build_86box_attachment(media_path: Path, config_path: Path) -> dict:
     """Return config injection parameters for 86Box media attachment.
 
@@ -222,16 +201,9 @@ _DEVICE_ID_RE = re.compile(r"^[A-Z]:$")
 def build_physical_drive_attachment(device_id: str, platform_id: str) -> dict:
     """Return a passthrough attachment descriptor for a physical optical drive.
 
-    The VirtualBox backend consumes this descriptor to call
-    ``VBoxManage storageattach --medium host:{device_id}``. Physical drive
-    attachment must be handled via a dedicated ``_attach_physical_drive``
-    path in the backend — the ``attachment_type: "physical"`` key
-    distinguishes it from image-file attachments handled by ``_attach_media``.
-
-    Note:
-        The VirtualBox backend (backends/virtualbox.py) does not yet implement
-        ``_attach_physical_drive``. This descriptor is the contract it must
-        satisfy when that path is added.
+    The ``attachment_type: "physical"`` key distinguishes it from image-file
+    attachments. Backends that support physical drive passthrough consume this
+    descriptor to mount the host drive into the VM.
 
     Args:
         device_id: Windows drive letter and colon, e.g. ``"D:"``. Must match

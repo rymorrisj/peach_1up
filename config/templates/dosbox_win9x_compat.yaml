@@ -1,7 +1,7 @@
 # Template — do not add user-specific paths or values.
 # Consumed by the DOSBox-X backend at launch time and merged with runtime values.
 # Compatibility fallback for DOS applications running under a Win9x shell.
-# Not intended for native Win32 software — use VirtualBox or 86Box for that.
+# Not intended for native Win32 software — use 86Box for that.
 
 dosbox:
   machine: svga_s3

@@ -10,11 +10,6 @@ interface GuideEntry {
 
 const GUIDES: GuideEntry[] = [
   {
-    to: '/guides/virtualbox-setup',
-    title: 'VirtualBox Environment Setup',
-    description: 'How to source a pre-installed HDD image, register it as an Environment, and launch software from it.',
-  },
-  {
     to: '/guides/86box-hardware',
     title: '86Box Hardware Profiles',
     description: 'Which hardware profile to choose for Win95/98 games — 3dfx, OPL music, MIDI, or the standard setup.',

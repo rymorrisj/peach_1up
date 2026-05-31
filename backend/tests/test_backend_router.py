@@ -78,11 +78,6 @@ class TestResolveBackendName:
         assert resolve_backend_name(era) == expected
 
     @pytest.mark.parametrize("era", [Era.WIN95, Era.WIN98, Era.WINXP])
-    def test_win9x_does_not_route_to_virtualbox(self, era):
-        from backend.service.utils.backend_router import resolve_backend_name
-        assert resolve_backend_name(era) != BackendSlug.VIRTUALBOX.value
-
-    @pytest.mark.parametrize("era", [Era.WIN95, Era.WIN98, Era.WINXP])
     def test_win9x_does_not_route_to_dosbox(self, era):
         from backend.service.utils.backend_router import resolve_backend_name
         assert resolve_backend_name(era) != BackendSlug.DOSBOX.value
@@ -96,7 +91,6 @@ class TestSettingsKeyMapping:
     @pytest.mark.parametrize("slug,expected_key", [
         ("dosbox-x",    "DOSBOX_PATH"),
         ("86box",       "BOX86_PATH"),
-        ("virtualbox",  "VIRTUALBOX_PATH"),
         ("duckstation", "DUCKSTATION_PATH"),
         ("pcsx2",       "PCSX2_PATH"),
         ("xemu",        "XEMU_PATH"),
@@ -177,25 +171,19 @@ class TestGetLaunchFn:
         else:
             assert fn is fake.launch
 
-    def test_win95_returns_86box_launch_not_virtualbox(self, monkeypatch):
-        fake_vbox = _fake_backend("virtualbox")
+    def test_win95_routes_to_86box(self, monkeypatch):
         fake_box86 = _fake_backend("box86")
-        monkeypatch.setitem(sys.modules, "backend.service.backends.virtualbox", fake_vbox)
         monkeypatch.setitem(sys.modules, "backend.service.backends.box86", fake_box86)
         import backend.service.utils.backend_router as router_mod
         fn = router_mod.get_launch_fn(Era.WIN95)
         assert fn is fake_box86.launch
-        assert fn is not fake_vbox.launch
 
-    def test_win98_returns_86box_launch_not_virtualbox(self, monkeypatch):
-        fake_vbox = _fake_backend("virtualbox")
+    def test_win98_routes_to_86box(self, monkeypatch):
         fake_box86 = _fake_backend("box86")
-        monkeypatch.setitem(sys.modules, "backend.service.backends.virtualbox", fake_vbox)
         monkeypatch.setitem(sys.modules, "backend.service.backends.box86", fake_box86)
         import backend.service.utils.backend_router as router_mod
         fn = router_mod.get_launch_fn(Era.WIN98)
         assert fn is fake_box86.launch
-        assert fn is not fake_vbox.launch
 
 
 # ---------------------------------------------------------------------------

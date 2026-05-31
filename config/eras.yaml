@@ -19,7 +19,6 @@ win31:
 
 win95:
   primary: box86
-  secondary: virtualbox
   compat: dosbox
   memory_limit_mb: 512
   cpu_limit_percent: 75
@@ -29,7 +28,6 @@ win95:
 
 win98:
   primary: box86
-  secondary: virtualbox
   compat: dosbox
   memory_limit_mb: 512
   cpu_limit_percent: 75
