@@ -44,3 +44,13 @@ backend_slugs:
   mesen:       "Mesen"
   project64:   "Project64"
   flycast:     "Flycast"
+
+backend_system_labels:
+  dosbox:      "DOS, Windows 3.1"
+  86box:       "Windows 95, 98, XP"
+  duckstation: "PlayStation 1"
+  pcsx2:       "PlayStation 2"
+  xemu:        "Xbox OG"
+  mesen:       "NES"
+  project64:   "Nintendo 64"
+  flycast:     "Dreamcast"

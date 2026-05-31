@@ -40,6 +40,7 @@ def _enum_name(slug: str) -> str:
 def generate_python(data: dict) -> str:
     eras: dict[str, str] = data["eras"]
     backends: dict[str, str] = data["backend_slugs"]
+    system_labels: dict[str, str] = data["backend_system_labels"]
     ratings: list[dict[str, str]] = data["content_ratings"]
 
     lines: list[str] = [HEADER_PY, "from enum import Enum\n\n\n"]
@@ -68,6 +69,12 @@ def generate_python(data: dict) -> str:
         lines.append(f'    "{slug}": "{label}",\n')
     lines.append("}\n\n")
 
+    # BACKEND_SYSTEM_LABELS
+    lines.append("BACKEND_SYSTEM_LABELS: dict[str, str] = {\n")
+    for slug, label in system_labels.items():
+        lines.append(f'    "{slug}": "{label}",\n')
+    lines.append("}\n\n")
+
     # CONTENT_RATINGS
     lines.append("CONTENT_RATINGS: list[dict[str, str]] = [\n")
     for r in ratings:
@@ -80,6 +87,7 @@ def generate_python(data: dict) -> str:
 def generate_typescript(data: dict) -> str:
     eras: dict[str, str] = data["eras"]
     backends: dict[str, str] = data["backend_slugs"]
+    system_labels: dict[str, str] = data["backend_system_labels"]
     ratings: list[dict[str, str]] = data["content_ratings"]
 
     lines: list[str] = [HEADER_TS, "\n"]
@@ -94,6 +102,13 @@ def generate_typescript(data: dict) -> str:
     lines.append("export const BACKEND_LABELS: Record<string, string> = {\n")
     for slug, label in backends.items():
         # '86box' is not a valid bare identifier — quote it
+        key = f'"{slug}"' if not slug.isidentifier() else slug
+        lines.append(f"  {key}: \"{label}\",\n")
+    lines.append("}\n\n")
+
+    # BACKEND_SYSTEM_LABELS
+    lines.append("export const BACKEND_SYSTEM_LABELS: Record<string, string> = {\n")
+    for slug, label in system_labels.items():
         key = f'"{slug}"' if not slug.isidentifier() else slug
         lines.append(f"  {key}: \"{label}\",\n")
     lines.append("}\n\n")

@@ -52,6 +52,17 @@ BACKEND_LABELS: dict[str, str] = {
     "flycast": "Flycast",
 }
 
+BACKEND_SYSTEM_LABELS: dict[str, str] = {
+    "dosbox": "DOS, Windows 3.1",
+    "86box": "Windows 95, 98, XP",
+    "duckstation": "PlayStation 1",
+    "pcsx2": "PlayStation 2",
+    "xemu": "Xbox OG",
+    "mesen": "NES",
+    "project64": "Nintendo 64",
+    "flycast": "Dreamcast",
+}
+
 CONTENT_RATINGS: list[dict[str, str]] = [
     {"value": "EC", "label": "EC — Early Childhood"},
     {"value": "E", "label": "E — Everyone"},

@@ -15,7 +15,7 @@ import { useLaunch } from '@/hooks/useLaunch'
 import { useItemRestrictions } from '@/hooks/useItemRestrictions'
 import { useConfirm } from '@/hooks/useConfirm'
 import ConfirmModal from '@/components/common/ConfirmModal'
-import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
+import { ERA_LABELS, RATING_OPTIONS, BACKEND_SYSTEM_LABELS } from '@/generated/constants'
 import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal'
 import type { components } from '@shared/types'
 
@@ -504,7 +504,7 @@ export default function ItemDetail() {
                 <option value="">— No platform —</option>
                 {platforms.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name}
+                    {p.name}{BACKEND_SYSTEM_LABELS[p.emulator_slug] ? ` (${BACKEND_SYSTEM_LABELS[p.emulator_slug]})` : ''}
                   </option>
                 ))}
               </select>

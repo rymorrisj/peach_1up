@@ -57,7 +57,8 @@ def detect_era(path: Path) -> tuple[str | None, str]:
                     result = _detect_from_pvd(bin_path)
                     if result[0] is not None:
                         return result
-                return _cue_size_fallback(path)
+                    return _cue_size_fallback(bin_path)
+                return None, "no signal found"
 
             if suffix == ".img":
                 try:
@@ -151,9 +152,9 @@ def _iso_size_fallback(path: Path) -> tuple[str | None, str]:
     except OSError:
         return None, "no signal found"
     if size > 4 * 1024 ** 3:
-        return "ps2", "ISO file exceeds 4 GB, likely PS2 DVD image (low confidence)"
+        return None, "ISO exceeds 4 GB but no PVD signal — could be PS2 or Xbox OG, please select era manually"
     if size < 800 * 1024 * 1024:
-        return "dos", "ISO under 800 MB with no other signals — DOS (low confidence)"
+        return None, "ISO under 800 MB but no PVD signal — era ambiguous, please select era manually"
     return None, "no signal found"
 
 
