@@ -1,8 +1,7 @@
 """VM provisioning for Peach 1UP.
 
-Creates 86Box configs for Win95/Win98/WinXP platforms and xemu configs for
-Xbox platforms on first launch or platform creation. 86Box VM files are placed
-under emulators/86box/vms/{slug}/; xemu VM files under emulators/xemu/vms/{slug}/.
+Creates 86Box configs for Win95/Win98/WinXP platforms on first launch or
+platform creation. 86Box VM files are placed under emulators/86box/vms/{slug}/.
 All output paths are resolved and validated before use. Subprocess args are
 constructed from validated, computed values only — no user input reaches a
 subprocess call directly.
@@ -173,53 +172,6 @@ def provision_86box_vm(
     return str(effective_iso_path) if effective_iso_path else None, str(vhd_path), str(cfg_path)
 
 
-def provision_xemu_vm(platform: Platform) -> tuple[str | None, str, str]:
-    """Create a VM directory and xemu.toml config for an Xbox platform."""
-    vm_name = _vm_name(platform)
-    vms_base = (get_base_path() / "emulators" / "xemu" / "vms").resolve()
-    vm_dir = _resolve_within(vms_base, vm_name)
-    vm_dir.mkdir(parents=True, exist_ok=True)
-
-    base = get_base_path()
-    global_toml = base / "emulators" / "xemu" / "xemu.toml"
-    flash_path = ""
-    bios_path = ""
-    if global_toml.exists():
-        try:
-            import tomllib as _tomllib
-            _cfg = _tomllib.loads(global_toml.read_text(encoding="utf-8"))
-            _sys = _cfg.get("system", {})
-            for _key, _attr in (("flash_path", "flash_path"), ("bios_path", "bios_path")):
-                _raw = _sys.get(_key, "")
-                if _raw:
-                    _p = Path(_raw)
-                    _resolved = str((_p if _p.is_absolute() else (base / _p).resolve()).as_posix())
-                    if _key == "flash_path":
-                        flash_path = _resolved
-                    else:
-                        bios_path = _resolved
-        except Exception:
-            pass
-
-    global_hdd = base / "emulators" / "xemu" / "xbox_hdd.qcow2"
-    vm_hdd = vm_dir / "xbox_hdd.qcow2"
-    if not vm_hdd.exists() and global_hdd.exists():
-        shutil.copy2(str(global_hdd), str(vm_hdd))
-    hdd_path = vm_hdd.resolve().as_posix()
-
-    toml_path = vm_dir / "xemu.toml"
-    if not toml_path.exists():
-        with toml_path.open("w", encoding="utf-8") as fh:
-            fh.write("[system]\n")
-            fh.write(f'flash_path = "{flash_path}"\n')
-            fh.write(f'bios_path = "{bios_path}"\n')
-            fh.write("[storage]\n")
-            fh.write(f'hdd_path = "{hdd_path}"\n')
-            fh.write('dvd_path = ""\n')
-            fh.write("\n[net]\nenabled = false\n")
-
-    return None, str(vm_hdd), str(toml_path)
-
 
 def provision_platform(platform: Platform, db: Session | None = None) -> tuple[str | None, str | None, str | None]:
     """Provision a working image for a platform, selecting the backend by era."""
@@ -243,10 +195,6 @@ def provision_platform(platform: Platform, db: Session | None = None) -> tuple[s
                 .values(base_image_path=str(iso_path))
             )
             db.flush()
-        return iso_path, img_path, cfg_path
-
-    if era == "xbox":
-        iso_path, img_path, cfg_path = provision_xemu_vm(platform)
         return iso_path, img_path, cfg_path
 
     return None, None, None
