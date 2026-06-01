@@ -1,10 +1,7 @@
-import time
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.constants_generated import BackendSlug
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
@@ -12,7 +9,6 @@ from backend.models import LaunchHistory, LibraryItem, Platform
 from backend.models.launch_history import LaunchHistoryRead
 from backend.models.user import User
 from backend.service.launch import coordinator as svc
-from backend.service.launch.monitor import register_short_lived_check
 
 logger = get_logger(__name__)
 
@@ -39,20 +35,6 @@ async def launch_item(
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found.")
     result = await svc.launch_item(item, body.profile_id, db)
-
-    try:
-        from backend.constants_generated import Era
-        from backend.service.utils.backend_router import resolve_backend_name
-        era_enum = Era(item.era) if item.era else None
-        backend_name = resolve_backend_name(era_enum) if era_enum else None
-    except Exception:
-        backend_name = None
-
-    if backend_name == BackendSlug.DOSBOX.value:
-        proc = getattr(result, "process", None)
-        if proc is not None:
-            register_short_lived_check(item.id, proc, time.monotonic())
-
     return LaunchResponse(
         launch_history_id=result.history_id,
         warnings=result.warnings,

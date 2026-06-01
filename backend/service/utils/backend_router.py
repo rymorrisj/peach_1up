@@ -1,30 +1,36 @@
 """Backend routing utilities for Peach 1UP.
 
-Maps eras to their corresponding backend launch functions. 86Box eras
-(win95, win98, winxp) always route to 86Box. DOS and console eras route
-to their dedicated backends. No accuracy-mode conditional exists.
+Maps slugs to their corresponding backend launch modules. Dispatch is
+data-driven: a single dict keyed by BackendSlug.value → module path.
+No if/elif chain, no frozensets, no ORM objects.
 """
 
-import functools
+from __future__ import annotations
+
+import importlib
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING
 
 from backend.constants_generated import BackendSlug, Era
 from backend.service.utils.settings import get_binary_path
 
+if TYPE_CHECKING:
+    from backend.service.launch.launch_spec import LaunchSpec
 
-_CONSOLE_BACKENDS: frozenset[str] = frozenset({
-    BackendSlug.DUCKSTATION.value,
-    BackendSlug.FLYCAST.value,
-    BackendSlug.MESEN.value,
-    BackendSlug.PCSX2.value,
-    BackendSlug.PROJECT64.value,
-})
 
-_PLATFORM_BACKENDS: frozenset[str] = frozenset({
-    BackendSlug.BOX86.value,
-    BackendSlug.XEMU.value,
-})
+# Slug → importable module path. Backends that share a module (console
+# emulators) all point to the same module; dispatch uses spec.slug to
+# select the right ConsoleBackend inside that module.
+_BACKEND_MODULES: dict[str, str] = {
+    BackendSlug.DOSBOX.value:      "backend.service.backends.dosbox",
+    BackendSlug.BOX86.value:       "backend.service.backends.box86",
+    BackendSlug.XEMU.value:        "backend.service.backends.xemu",
+    BackendSlug.FLYCAST.value:     "backend.service.backends.flycast",
+    BackendSlug.DUCKSTATION.value: "backend.service.backends.console",
+    BackendSlug.PCSX2.value:       "backend.service.backends.console",
+    BackendSlug.MESEN.value:       "backend.service.backends.console",
+    BackendSlug.PROJECT64.value:   "backend.service.backends.console",
+}
 
 
 def resolve_backend_name(era: Era) -> str:
@@ -56,44 +62,34 @@ def resolve_backend_name(era: Era) -> str:
     raise ValueError(f"Cannot resolve backend for era '{era.value}'")
 
 
-def get_launch_fn(era: Era) -> Callable:
-    """Return the ``launch`` callable for the backend that handles ``era``.
+def dispatch(spec: "LaunchSpec") -> tuple:
+    """Import the backend module for spec.slug and call its launch(spec).
 
     Args:
-        era: The gaming era to resolve.
+        spec: Fully resolved LaunchSpec. slug must match a BackendSlug value.
 
     Returns:
-        The ``launch`` function from the resolved backend module.
+        ``(process, job_object)`` tuple from the backend launch call.
 
     Raises:
-        RuntimeError: If eras.yaml cannot be loaded, the era is not
-            configured, or the backend module cannot be imported.
+        ValueError: If spec.slug is not a known backend slug.
+        ImportError: If the backend module cannot be imported (surfaced clearly,
+            not swallowed).
+        Any exception raised by the backend launch function.
     """
+    module_path = _BACKEND_MODULES.get(spec.slug)
+    if module_path is None:
+        raise ValueError(
+            f"Unknown backend slug: {spec.slug!r}. "
+            f"Valid slugs: {', '.join(sorted(_BACKEND_MODULES))}"
+        )
     try:
-        backend_name = resolve_backend_name(era)
-    except (ValueError, RuntimeError) as e:
-        raise RuntimeError(f"Failed to resolve backend for era '{era.value}': {e}")
-
-    try:
-        if backend_name == BackendSlug.DOSBOX.value:
-            from backend.service.backends.dosbox import launch
-            return launch
-        elif backend_name == BackendSlug.BOX86.value:
-            from backend.service.backends.box86 import launch
-            return launch
-        elif backend_name == BackendSlug.XEMU.value:
-            from backend.service.backends.xemu import launch
-            return launch
-        elif backend_name == BackendSlug.FLYCAST.value:
-            from backend.service.backends.flycast import launch
-            return launch
-        elif backend_name in _CONSOLE_BACKENDS:
-            from backend.service.backends.console import launch as _console_launch
-            return functools.partial(_console_launch, backend_name)
-        else:
-            raise ValueError(f"Unknown backend '{backend_name}' for era '{era.value}'")
-    except Exception as e:
-        raise RuntimeError(f"Failed to load backend for era '{era.value}': {e}")
+        module = importlib.import_module(module_path)
+    except ImportError as exc:
+        raise ImportError(
+            f"Backend module '{module_path}' could not be imported: {exc}"
+        ) from exc
+    return module.launch(spec)
 
 
 def get_backend_name(era: Era) -> str:
@@ -146,80 +142,3 @@ def get_executable_path(era: Era) -> tuple[str, str]:
     # get_binary_path() uses legacy short keys; "86box" backend → "box86" legacy key.
     legacy_key = "box86" if backend_name == BackendSlug.BOX86.value else backend_name
     return get_binary_path(legacy_key), settings_key
-
-
-def launch_media(era, media_path, profile=None, platform=None, launch_commands: list[str] | None = None, drive=None):
-    """Resolve backend, validate executable, and launch media.
-
-    Single entry point for FastAPI route handlers. Accepts era as either a
-    string or an Era enum, and media_path as either a string or a Path, to
-    match the types stored in the database.
-
-    Args:
-        era: Gaming era as an Era enum or a string matching an Era value.
-        media_path: Path to the media file — string or Path object.
-        profile: Optional Profile ORM object used for enable_networking.
-        platform: Optional Platform ORM object required for Win9x/WinXP eras.
-    Returns:
-        ``(process, job_object)`` from the backend launch call.
-
-    Raises:
-        ValueError: If the era string does not match a known Era value.
-        RuntimeError: If the executable path is not configured or the era
-            cannot be resolved.
-        FileNotFoundError: If the configured executable does not exist on disk.
-        Any exception raised by the backend launch function.
-    """
-    # Coerce era string → Era enum (DB stores eras as strings).
-    if isinstance(era, str):
-        try:
-            era = Era(era)
-        except ValueError:
-            raise ValueError(
-                f"Unknown era '{era}'. "
-                f"Valid values: {', '.join(e.value for e in Era)}"
-            )
-
-    # Coerce media_path string → Path (DB stores paths as strings).
-    if isinstance(media_path, str):
-        media_path = Path(media_path)
-
-    enable_networking = False
-    if profile is not None and hasattr(profile, 'enable_networking'):
-        enable_networking = bool(profile.enable_networking)
-
-    executable_path, settings_key = get_executable_path(era)
-    if not executable_path:
-        raise RuntimeError(
-            f"The emulator path for '{settings_key}' is not configured. "
-            "Set it in config/settings.yaml or via the Settings page."
-        )
-
-    launch_fn = get_launch_fn(era)
-    backend_name = resolve_backend_name(era)
-
-    if backend_name in _CONSOLE_BACKENDS:
-        return launch_fn(media_path=media_path, era=era.value, executable_path=executable_path)
-
-    if backend_name in _PLATFORM_BACKENDS:
-        if platform is None:
-            raise RuntimeError(
-                f"A Platform record is required to launch era '{era.value}' "
-                "but none was provided."
-            )
-        return launch_fn(platform, media_path=media_path, enable_networking=enable_networking)
-
-    if profile is None:
-        raise RuntimeError(
-            f"A Profile record is required to launch era '{era.value}' "
-            "but none was provided."
-        )
-    return launch_fn(
-        media_path=media_path,
-        era=era.value,
-        executable_path=executable_path,
-        enable_networking=enable_networking,
-        launch_commands=launch_commands,
-        profile=profile,
-        drive=drive,
-    )

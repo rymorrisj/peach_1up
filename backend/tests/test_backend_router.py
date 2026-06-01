@@ -1,7 +1,5 @@
 """Tests for backend routing — era → backend mapping and routing invariants."""
 
-import functools
-import inspect
 import sys
 from unittest.mock import MagicMock
 
@@ -48,23 +46,23 @@ _EXEC_CASES = [
 _EXEC_IDS = ["dos", "win31", "win95", "win98", "winxp",
              "ps1", "ps2", "xbox", "nes", "n64", "dreamcast"]
 
-# Console backends now dispatch through console.py; others keep per-module paths.
-_LAUNCH_FN_CASES = [
-    (Era.DOS,   "backend.service.backends.dosbox"),
-    (Era.WIN31, "backend.service.backends.dosbox"),
-    (Era.WIN95, "backend.service.backends.box86"),
-    (Era.WIN98, "backend.service.backends.box86"),
-    (Era.WINXP, "backend.service.backends.box86"),
-    (Era.PS1,   "backend.service.backends.console"),
-    (Era.PS2,   "backend.service.backends.console"),
-    (Era.XBOX,  "backend.service.backends.xemu"),
-    (Era.NES,   "backend.service.backends.console"),
-    (Era.N64,   "backend.service.backends.console"),
-    (Era.DREAMCAST, "backend.service.backends.flycast"),
+# Slug → module path for dispatch tests.
+_DISPATCH_CASES = [
+    (Era.DOS,   BackendSlug.DOSBOX.value,      "backend.service.backends.dosbox"),
+    (Era.WIN31, BackendSlug.DOSBOX.value,      "backend.service.backends.dosbox"),
+    (Era.WIN95, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
+    (Era.WIN98, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
+    (Era.WINXP, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
+    (Era.PS1,   BackendSlug.DUCKSTATION.value, "backend.service.backends.console"),
+    (Era.PS2,   BackendSlug.PCSX2.value,       "backend.service.backends.console"),
+    (Era.XBOX,  BackendSlug.XEMU.value,        "backend.service.backends.xemu"),
+    (Era.NES,   BackendSlug.MESEN.value,       "backend.service.backends.console"),
+    (Era.N64,   BackendSlug.PROJECT64.value,   "backend.service.backends.console"),
+    (Era.DREAMCAST, BackendSlug.FLYCAST.value, "backend.service.backends.flycast"),
 ]
 
-_LAUNCH_FN_IDS = ["dos", "win31", "win95", "win98", "winxp",
-                  "ps1", "ps2", "xbox", "nes", "n64", "dreamcast"]
+_DISPATCH_IDS = ["dos", "win31", "win95", "win98", "winxp",
+                 "ps1", "ps2", "xbox", "nes", "n64", "dreamcast"]
 
 
 # ---------------------------------------------------------------------------
@@ -81,6 +79,13 @@ class TestResolveBackendName:
     def test_win9x_does_not_route_to_dosbox(self, era):
         from backend.service.utils.backend_router import resolve_backend_name
         assert resolve_backend_name(era) != BackendSlug.DOSBOX.value
+
+    def test_resolve_raises_value_error_for_missing_era_in_config(self, monkeypatch):
+        import backend.service.utils.emulator_catalog as catalog_mod
+        monkeypatch.setattr(catalog_mod, "_ERAS_CONFIG_CACHE", {})
+        from backend.service.utils.backend_router import resolve_backend_name
+        with pytest.raises((ValueError, RuntimeError)):
+            resolve_backend_name(Era.DOS)
 
 
 # ---------------------------------------------------------------------------
@@ -119,6 +124,7 @@ class TestSettingsKeyMapping:
 
 class TestNoAccuracyMode:
     def test_routing_module_source_does_not_contain_accuracy_mode(self):
+        import inspect
         import backend.service.utils.backend_router as router_mod
         assert "accuracy_mode" not in inspect.getsource(router_mod)
 
@@ -129,61 +135,80 @@ class TestNoAccuracyMode:
 
 
 # ---------------------------------------------------------------------------
-# H3 fix — unknown era raises, does not silently misfire
-# ---------------------------------------------------------------------------
-
-class TestUnknownEraHandling:
-    def test_launch_media_raises_value_error_for_unknown_era_string(self):
-        from backend.service.utils.backend_router import launch_media
-        with pytest.raises(ValueError, match="Unknown era"):
-            launch_media("not_a_real_era", "/fake/game.iso")
-
-    def test_get_launch_fn_raises_runtime_error_when_era_absent_from_config(self, monkeypatch):
-        import backend.service.utils.emulator_catalog as catalog_mod
-        monkeypatch.setattr(catalog_mod, "_ERAS_CONFIG_CACHE", {})
-        import backend.service.utils.backend_router as router_mod
-        with pytest.raises(RuntimeError):
-            router_mod.get_launch_fn(Era.DOS)
-
-
-# ---------------------------------------------------------------------------
-# get_launch_fn — returns the correct launch callable per era
-# Backend modules are stubbed in sys.modules so no real binaries are needed.
+# dispatch — data-driven routing to the correct backend module
 # ---------------------------------------------------------------------------
 
 def _fake_backend(label: str) -> MagicMock:
     mod = MagicMock(name=label)
-    mod.launch = MagicMock(name=f"{label}.launch")
+    mod.launch = MagicMock(name=f"{label}.launch", return_value=(MagicMock(), MagicMock()))
     return mod
 
 
-class TestGetLaunchFn:
-    @pytest.mark.parametrize("era,module_path", _LAUNCH_FN_CASES, ids=_LAUNCH_FN_IDS)
-    def test_returns_launch_callable_for_era(self, era, module_path, monkeypatch):
+class TestDispatch:
+    @pytest.mark.parametrize("era,slug,module_path", _DISPATCH_CASES, ids=_DISPATCH_IDS)
+    def test_dispatch_routes_to_correct_module(self, era, slug, module_path, monkeypatch):
+        from backend.service.launch.launch_spec import LaunchSpec
+        from backend.service.utils.backend_router import dispatch
+
         fake = _fake_backend(module_path)
         monkeypatch.setitem(sys.modules, module_path, fake)
-        import backend.service.utils.backend_router as router_mod
-        fn = router_mod.get_launch_fn(era)
-        if module_path == "backend.service.backends.console":
-            # Console backends return a partial wrapping console.launch
-            assert isinstance(fn, functools.partial)
-            assert fn.func is fake.launch
-        else:
-            assert fn is fake.launch
 
-    def test_win95_routes_to_86box(self, monkeypatch):
-        fake_box86 = _fake_backend("box86")
-        monkeypatch.setitem(sys.modules, "backend.service.backends.box86", fake_box86)
-        import backend.service.utils.backend_router as router_mod
-        fn = router_mod.get_launch_fn(Era.WIN95)
-        assert fn is fake_box86.launch
+        spec = LaunchSpec(slug=slug, era=era.value)
+        dispatch(spec)
+        fake.launch.assert_called_once_with(spec)
 
-    def test_win98_routes_to_86box(self, monkeypatch):
-        fake_box86 = _fake_backend("box86")
-        monkeypatch.setitem(sys.modules, "backend.service.backends.box86", fake_box86)
+    def test_dispatch_raises_value_error_for_unknown_slug(self):
+        from backend.service.launch.launch_spec import LaunchSpec
+        from backend.service.utils.backend_router import dispatch
+
+        spec = LaunchSpec(slug="ghost_backend", era="dos")
+        with pytest.raises(ValueError, match="Unknown backend slug"):
+            dispatch(spec)
+
+    def test_dispatch_surfaces_import_error_clearly(self, monkeypatch):
+        from backend.service.launch.launch_spec import LaunchSpec
         import backend.service.utils.backend_router as router_mod
-        fn = router_mod.get_launch_fn(Era.WIN98)
-        assert fn is fake_box86.launch
+        import importlib as _importlib
+
+        original_import_module = _importlib.import_module
+
+        def failing_import(name):
+            if name == "backend.service.backends.dosbox":
+                raise ImportError("dosbox module unavailable in test")
+            return original_import_module(name)
+
+        monkeypatch.setattr(router_mod.importlib, "import_module", failing_import)
+
+        # Also remove from cache so the patched import is actually called.
+        monkeypatch.delitem(sys.modules, "backend.service.backends.dosbox", raising=False)
+
+        spec = LaunchSpec(slug="dosbox", era="dos")
+        with pytest.raises(ImportError, match="could not be imported"):
+            router_mod.dispatch(spec)
+
+    def test_flycast_is_reachable_via_dispatch(self, monkeypatch):
+        """Flycast was previously unreachable due to missing settings entry."""
+        from backend.service.launch.launch_spec import LaunchSpec
+        from backend.service.utils.backend_router import dispatch
+
+        fake = _fake_backend("backend.service.backends.flycast")
+        monkeypatch.setitem(sys.modules, "backend.service.backends.flycast", fake)
+
+        spec = LaunchSpec(slug=BackendSlug.FLYCAST.value, era=Era.DREAMCAST.value)
+        dispatch(spec)
+        fake.launch.assert_called_once_with(spec)
+
+    def test_win95_routes_to_86box_via_dispatch(self, monkeypatch):
+        from backend.service.launch.launch_spec import LaunchSpec
+        from backend.service.utils.backend_router import dispatch, resolve_backend_name
+
+        slug = resolve_backend_name(Era.WIN95)
+        fake_box86 = _fake_backend("backend.service.backends.box86")
+        monkeypatch.setitem(sys.modules, "backend.service.backends.box86", fake_box86)
+
+        spec = LaunchSpec(slug=slug, era=Era.WIN95.value)
+        dispatch(spec)
+        fake_box86.launch.assert_called_once_with(spec)
 
 
 # ---------------------------------------------------------------------------

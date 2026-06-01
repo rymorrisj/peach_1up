@@ -14,7 +14,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, TYPE_CHECKING, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.service.utils.fat.geometry import _read_geometry
@@ -26,6 +26,9 @@ from backend.service.utils.sandbox import BrokerFile
 from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.process.job_objects import WindowsJobObject
+
+if TYPE_CHECKING:
+    from backend.service.launch.launch_spec import LaunchSpec
 
 logger = get_logger(__name__)
 
@@ -158,7 +161,8 @@ def _validate_shell_line(line: str) -> None:
 
 
 def _build_drive_mount_lines(
-    drive: object | None,
+    drive_image_path: Path | None,
+    drive_size_mb: int | None,
     use_drive: bool,
     media_path: Path,
 ) -> tuple[list[str], str | None, str, str]:
@@ -166,32 +170,29 @@ def _build_drive_mount_lines(
 
     mount_line is None when media_path is a directory on a persistent drive
     (files are already on C:, so no additional mount is needed).
+
+    SECURITY: drive_image_path is validated against library/media to prevent
+    path traversal. This check must not be removed or weakened.
     """
     suffix = media_path.suffix.lower()
     host = _dosbox_cmd_path(media_path)
-    has_persistent_drive = drive is not None and use_drive
+    has_persistent_drive = drive_image_path is not None and use_drive
 
     drive_setup_lines: list[str] = []
 
     if has_persistent_drive:
-        if not drive.image_path:
-            raise ValueError(
-                f"Drive id={drive.id!r} has no image_path configured. "
-                "Re-add the library item to regenerate the drive record."
-            )
-        drive_path = Path(drive.image_path)
         lib_media = get_base_path() / "library" / "media"
-        if not drive_path.resolve().is_relative_to(lib_media.resolve()):
+        if not drive_image_path.resolve().is_relative_to(lib_media.resolve()):
             raise ValueError(
-                f"Drive image path escaped library/media (id={drive.id!r}). "
+                f"Drive image path escaped library/media: {drive_image_path}. "
                 "This indicates a data integrity problem."
             )
-        drive_cmd_path = _dosbox_cmd_path(drive_path)
-        if not drive_path.exists():
-            drive_setup_lines.append(f"IMGMAKE {drive_cmd_path} -t hd -size {drive.size_mb}")
+        drive_cmd_path = _dosbox_cmd_path(drive_image_path)
+        if not drive_image_path.exists():
+            drive_setup_lines.append(f"IMGMAKE {drive_cmd_path} -t hd -size {drive_size_mb}")
             drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
         else:
-            geo = _read_geometry(drive_path)
+            geo = _read_geometry(drive_image_path)
             spc = geo["sectors_per_cluster"]
             hpc = 255
             cyl = geo["total_sectors"] // (spc * hpc)
@@ -270,12 +271,7 @@ def _build_autoexec(
 
 
 def write_launch_conf(
-    media_path: Path,
-    era: str,
-    executable_path: Path,
-    launch_commands: list[str] | None = None,
-    profile: object | None = None,
-    drive: object | None = None,
+    spec: "LaunchSpec",
     game_executable: str | None = None,
 ) -> Path:
     """Write the DOSBox-X launch conf and return its path.
@@ -286,37 +282,34 @@ def write_launch_conf(
     emulators/dosbox-x/dosbox-x.conf so DOSBox-X auto-loads it from its
     working directory without a -conf flag.
 
-    When ``drive`` is provided and ``profile.use_drive`` is True, a persistent
-    HDD image is mounted as C: (created via IMGMAKE if absent). Media is then
-    mounted as D:. Without a drive, the existing single-mount behaviour applies.
+    When ``spec.drive_image_path`` is set and ``spec.use_drive`` is True, a
+    persistent HDD image is mounted as C: (created via IMGMAKE if absent).
+    Media is then mounted as D:.
 
     Args:
-        media_path: Path to the media file to mount.
-        era: Era name (unused; retained for call-site symmetry).
-        executable_path: Path to the DOSBox-X executable (unused; retained for
-            call-site symmetry).
-        launch_commands: Item-level command lines appended after profile
-            commands.
-        profile: Profile ORM object supplying launch_commands and use_drive.
-        drive: Drive ORM object supplying slug and size_mb for the persistent
-            HDD image. None means no persistent drive.
+        spec: LaunchSpec providing media_path, executable_path, era,
+            use_drive, profile_launch_commands, launch_commands,
+            drive_image_path, and drive_size_mb.
+        game_executable: Optional single DOS executable command appended after
+            item-level launch_commands.
 
     Returns:
-        Path to emulators/dosbox-x/dosbox-x.conf.
+        Path to the written dosbox-x.conf file.
 
     Raises:
         FileNotFoundError: If base.conf does not exist.
         ValueError: If the media suffix is not handled or the drive path escapes
             the drives directory.
     """
-    use_drive = bool(getattr(profile, 'use_drive', True)) if profile is not None else True
+    media_path = spec.media_path
+    executable_path = Path(spec.executable_path)
 
     drive_setup_lines, mount_line, drive_line, media_drive = _build_drive_mount_lines(
-        drive, use_drive, media_path
+        spec.drive_image_path, spec.drive_size_mb, spec.use_drive, media_path
     )
 
     # Layer 1: profile commands (base defaults, run first).
-    profile_cmds: list[str] = getattr(profile, 'launch_commands', None) or []
+    profile_cmds: list[str] = list(spec.profile_launch_commands)
     # Layer 2: item commands (item-specific paths, appended after).
     # Scan candidates and executable_path are display-only — they must never
     # reach this list. Only the user's explicit launch_commands field feeds here.
@@ -324,7 +317,7 @@ def write_launch_conf(
     if game_executable:
         _validate_game_executable(game_executable, media_drive)
         exe_cmds = [game_executable]
-    item_cmds: list[str] = (launch_commands or []) + exe_cmds
+    item_cmds: list[str] = list(spec.launch_commands) + exe_cmds
 
     autoexec = _build_autoexec(
         drive_setup_lines, mount_line, drive_line, media_drive, profile_cmds, item_cmds
@@ -398,32 +391,16 @@ def build_args(media_path: Path, era: str, enable_networking: bool = False) -> L
     return [] if enable_networking else ["-set", "ne2000=false"]
 
 
-def launch(
-    media_path: Path,
-    era: str,
-    executable_path: str,
-    enable_networking: bool = False,
-    launch_commands: list[str] | None = None,
-    profile: object | None = None,
-    drive: object | None = None,
-) -> Tuple[SandboxProcess, WindowsJobObject]:
+def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch DOSBox-X with the given media file under Job Object isolation.
 
-    Writes a per-launch conf to a user-private temp directory, passes it to
-    DOSBox-X via -conf, and registers an atexit handler to clean up the temp
-    directory when the service exits.
+    Writes a per-launch conf to the DOSBox-X executable directory, passes
+    it to DOSBox-X via auto-load, and registers a cleanup thread.
 
     Args:
-        media_path: Path to the media file to mount.
-        era: Era name (``'dos'`` or ``'win31'``).
-        executable_path: Full path to the DOSBox-X executable.
-        enable_networking: When ``False`` (default), the NE2000 adapter is
-            disabled. Set to ``True`` only for software that requires a
-            network connection.
-        launch_commands: Item-level commands; merged after profile commands.
-        profile: Profile ORM object supplying launch_commands, use_drive, and
-            an optional container_enabled override.
-        drive: Drive ORM object for the persistent HDD image, or None.
+        spec: LaunchSpec with media_path, era, executable_path,
+            enable_networking, launch_commands, profile_launch_commands,
+            use_drive, container_enabled, drive_image_path, drive_size_mb set.
 
     Returns:
         Tuple of ``(process, job_object)``. The caller is responsible for
@@ -434,36 +411,29 @@ def launch(
         ValueError: If the era or media extension is unsupported.
         RuntimeError: If Job Object creation or process launch fails.
     """
-    if not os.path.exists(executable_path):
-        raise FileNotFoundError(f"DOSBox-X executable not found: {executable_path}")
+    if not spec.executable_path or not os.path.exists(spec.executable_path):
+        raise FileNotFoundError(f"DOSBox-X executable not found: {spec.executable_path}")
 
-    validate_media(media_path)
+    validate_media(spec.media_path)
 
-    conf_path = write_launch_conf(
-        media_path, era, Path(executable_path),
-        launch_commands=launch_commands,
-        profile=profile,
-        drive=drive,
-    )
+    conf_path = write_launch_conf(spec)
 
-    args = build_args(media_path, era, enable_networking=enable_networking)
-    job_name = f"peach1up_dosbox_{era}_{media_path.stem}"
+    args = build_args(spec.media_path, spec.era, enable_networking=spec.enable_networking)
+    job_name = f"peach1up_dosbox_{spec.era}_{spec.media_path.stem}"
 
     # Resolve container_enabled: profile field overrides the emulator catalog value.
     catalog_enabled = get_container_enabled("dosbox-x")
-    profile_override = getattr(profile, 'container_enabled', None)
-    container_enabled = profile_override if profile_override is not None else catalog_enabled
+    container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
 
     if container_enabled:
         from backend.service.utils.app_container import get_container_config as _build_cfg
-        sandbox_config = _build_cfg("dosbox-x", executable_path)
+        sandbox_config = _build_cfg("dosbox-x", spec.executable_path)
         sandbox_config.broker_files.append(
             BrokerFile(path=str(get_base_path() / "library"), access="r", mode="grant"))
-        use_drive = bool(getattr(profile, 'use_drive', True)) if profile is not None else True
-        if drive is not None and use_drive and drive.image_path is not None:
+        if spec.drive_image_path is not None and spec.use_drive:
             sandbox_config.broker_files.append(
                 BrokerFile(
-                    path=str(Path(drive.image_path).parent),
+                    path=str(spec.drive_image_path.parent),
                     access="rw",
                     mode="grant",
                 ))
@@ -471,10 +441,10 @@ def launch(
         sandbox_config = None
 
     result = launch_under_job_object(
-        cwd=str(Path(executable_path).parent),
-        executable_path=executable_path,
+        cwd=str(Path(spec.executable_path).parent),
+        executable_path=spec.executable_path,
         args=args,
-        era=era,
+        era=spec.era,
         job_name=job_name,
         slug="dosbox-x",
         container_enabled=container_enabled,

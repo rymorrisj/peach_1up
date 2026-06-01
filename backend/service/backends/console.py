@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
@@ -19,6 +19,10 @@ from backend.service.utils.emulator_catalog import (
 from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.process.job_objects import WindowsJobObject
+
+if TYPE_CHECKING:
+    from backend.service.launch.launch_spec import LaunchSpec
+
 
 @dataclass
 class ConsoleBackend:
@@ -110,14 +114,12 @@ def _validate_bios_path(desc: ConsoleBackend, bios_path: Path) -> None:
         )
 
 
-def launch(slug: str, media_path: Path, era: str, executable_path: str) -> Tuple[SandboxProcess, WindowsJobObject]:
-    """Launch a console emulator by slug under Job Object isolation.
+def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
+    """Launch a console emulator under Job Object isolation.
 
     Args:
-        slug: Emulator slug — one of 'mesen', 'project64', 'duckstation', 'pcsx2'.
-        media_path: Path to the ROM or disc image.
-        era: Era string matching the slug's supported era.
-        executable_path: Full path to the emulator executable.
+        spec: LaunchSpec with slug, era, media_path, executable_path set.
+            slug must be one of 'mesen', 'project64', 'duckstation', 'pcsx2'.
 
     Returns:
         Tuple of (SandboxProcess, WindowsJobObject).
@@ -128,28 +130,28 @@ def launch(slug: str, media_path: Path, era: str, executable_path: str) -> Tuple
         ValueError: If the media extension is unsupported.
         RuntimeError: If process launch fails.
     """
-    desc = _BACKENDS.get(slug)
+    desc = _BACKENDS.get(spec.slug)
     if desc is None:
-        raise ValueError(f"Unknown console backend slug: {slug!r}")
+        raise ValueError(f"Unknown console backend slug: {spec.slug!r}")
 
-    if not Path(executable_path).exists():
-        raise FileNotFoundError(f"{desc.display_name} executable not found: {executable_path}")
+    if not spec.executable_path or not Path(spec.executable_path).exists():
+        raise FileNotFoundError(f"{desc.display_name} executable not found: {spec.executable_path}")
 
-    _validate_media(desc, media_path)
+    _validate_media(desc, spec.media_path)
 
     if desc.bios_subpath is not None:
-        bios_path = Path(executable_path).parent / desc.bios_subpath
+        bios_path = Path(spec.executable_path).parent / desc.bios_subpath
         _validate_bios_path(desc, bios_path)
 
-    args = desc.cli_args_prefix + [str(media_path)]
-    job_name = f"peach1up_{slug}_{media_path.stem}"
+    args = desc.cli_args_prefix + [str(spec.media_path)]
+    job_name = f"peach1up_{spec.slug}_{spec.media_path.stem}"
 
     return launch_under_job_object(
-        executable_path=executable_path,
+        executable_path=spec.executable_path,
         args=args,
-        era=era,
+        era=spec.era,
         job_name=job_name,
-        slug=slug,
-        container_enabled=get_container_enabled(slug),
-        sandbox_config=get_emulator_container_config(slug, executable_path),
+        slug=spec.slug,
+        container_enabled=get_container_enabled(spec.slug),
+        sandbox_config=get_emulator_container_config(spec.slug, spec.executable_path),
     )

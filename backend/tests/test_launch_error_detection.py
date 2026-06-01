@@ -198,15 +198,15 @@ class TestEnvironmentLaunchNoMonitor:
 # ---------------------------------------------------------------------------
 
 class TestNonDosboxBackendNoMonitor:
-    def test_launch_item_gates_monitor_on_dosbox_backend(self):
-        """launch_item source shows monitor is conditional on DOSBox backend."""
-        import backend.api.routes.launches as mod
-        src = inspect.getsource(mod.launch_item)
-        assert "_monitor_short_lived_launch" in src
+    def test_coordinator_launch_gates_monitor_on_dosbox_backend(self):
+        """coordinator.launch() shows short-lived check is gated on DOSBox slug."""
+        import backend.service.launch.coordinator as coord
+        src = inspect.getsource(coord.launch)
         assert "BackendSlug.DOSBOX" in src
+        assert "register_short_lived_check" in src
 
-    def test_launch_item_uses_resolve_backend_name(self):
-        """launch_item resolves backend dynamically rather than hardcoding era."""
-        import backend.api.routes.launches as mod
-        src = inspect.getsource(mod.launch_item)
+    def test_coordinator_uses_resolve_backend_name(self):
+        """Backend selection is dynamic via resolve_backend_name in the coordinator."""
+        import backend.service.launch.coordinator as coord
+        src = inspect.getsource(coord._build_spec_for_item)
         assert "resolve_backend_name" in src

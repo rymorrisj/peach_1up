@@ -1,6 +1,6 @@
 """86Box backend for Peach 1UP.
 
-Handles Win95 and Win98 accuracy mode launches. Accepts a registered OSPlatform,
+Handles Win95 and Win98 accuracy mode launches. Accepts a resolved LaunchSpec,
 loads the era hardware template, validates all identifiers, optionally injects
 game media into the config file, and launches 86Box under Job Objects.
 """
@@ -9,11 +9,10 @@ from __future__ import annotations
 
 import configparser
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from backend.constants_generated import Era
 from backend.core.logger import get_logger
-from backend.models.platform import Platform
 from backend.service.utils.disk_utils import has_valid_mbr
 from backend.service.utils.emulator_catalog import (
     get_emulator,
@@ -25,6 +24,9 @@ from backend.service.utils.ini_writer import patch_ini, write_ini
 from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.media_attach import build_86box_attachment
 from backend.service.utils.settings import get_binary_path
+
+if TYPE_CHECKING:
+    from backend.service.launch.launch_spec import LaunchSpec
 
 logger = get_logger(__name__)
 
@@ -41,7 +43,14 @@ def _set_if_absent(parser: configparser.RawConfigParser, section: str, key: str,
         parser.set(section, key, value)
 
 
-def _prepare_config(platform, cfg_path: str, rom_path: Path) -> None:
+def _prepare_config(
+    working_image_path: Path,
+    config_path: Path,
+    rom_path: Path,
+    hardware_profile: str,
+    platform_name: str,
+    base_image_path: Optional[Path],
+) -> None:
     """Patch all required 86Box config keys before every launch.
 
     Reads the existing config (BOM-tolerant), overwrites only the keys this
@@ -50,30 +59,36 @@ def _prepare_config(platform, cfg_path: str, rom_path: Path) -> None:
 
     Idempotent: calling twice with the same inputs produces the same file.
 
+    Args:
+        working_image_path: Resolved path to the working disk image.
+        config_path: Path to the 86Box config file.
+        rom_path: Path to the 86Box ROM pack directory.
+        hardware_profile: Profile slug for machine/CPU/GPU selection.
+        platform_name: Human-readable platform name for error messages.
+        base_image_path: Optional path to a base ISO used for CD-ROM boot.
+
     Raises:
         FileNotFoundError: If the config file or disk image does not exist.
         OSError: If the disk image cannot be read or the atomic write fails.
     """
-    cp = Path(cfg_path)
-    if not cp.exists():
-        raise FileNotFoundError(f"86Box config not found: {cp}")
+    if not config_path.exists():
+        raise FileNotFoundError(f"86Box config not found: {config_path}")
 
     parser = configparser.RawConfigParser()
     parser.optionxform = str
-    parser.read(str(cp), encoding="utf-8-sig")
+    parser.read(str(config_path), encoding="utf-8-sig")
 
-    img_path = Path(str(platform.working_image_path))
     try:
-        disk_has_mbr = has_valid_mbr(img_path)
+        disk_has_mbr = has_valid_mbr(working_image_path)
     except (ValueError, OSError) as exc:
         raise OSError(
-            f"Cannot read disk image for platform '{platform.name}': {img_path}"
+            f"Cannot read disk image for platform '{platform_name}': {working_image_path}"
         ) from exc
 
     _ensure_section(parser, "General")
     parser.set("General", "boot_order", "hdd_cdrom_fdd" if disk_has_mbr else "cdrom_fdd_hdd")
 
-    hw_profile = get_86box_profile(platform.hardware_profile or "standard")
+    hw_profile = get_86box_profile(hardware_profile or "standard")
     _ensure_section(parser, "Machine")
     _set_if_absent(parser, "Machine", "machine",         hw_profile["machine"])
     _set_if_absent(parser, "Machine", "cpu_family",      hw_profile["cpu_family"])
@@ -98,7 +113,7 @@ def _prepare_config(platform, cfg_path: str, rom_path: Path) -> None:
     _set_if_absent(parser, "Input devices", "keyboard_type", "keyboard_ps2")
 
     _ensure_section(parser, "Hard disks")
-    parser.set("Hard disks", "hdd_01_fn", img_path.name)
+    parser.set("Hard disks", "hdd_01_fn", working_image_path.name)
     parser.set("Hard disks", "hdd_01_ide_channel", "0:0")
     parser.set("Hard disks", "hdd_01_parameters", "63, 16, 4161, 0, ide")
     parser.set("Hard disks", "hdd_01_speed", "ramdisk")
@@ -106,14 +121,13 @@ def _prepare_config(platform, cfg_path: str, rom_path: Path) -> None:
     cdrom_section = "Floppy and CD-ROM drives"
     is_iso = (
         not disk_has_mbr
-        and platform.base_image_path is not None
-        and Path(str(platform.base_image_path)).suffix.lower() in {".iso", ".cue"}
-        and Path(str(platform.base_image_path)).exists()
+        and base_image_path is not None
+        and base_image_path.suffix.lower() in {".iso", ".cue"}
+        and base_image_path.exists()
     )
     if is_iso:
-        iso = Path(str(platform.base_image_path))
         _ensure_section(parser, cdrom_section)
-        iso_fwd = str(iso.resolve()).replace("\\", "/")
+        iso_fwd = str(base_image_path.resolve()).replace("\\", "/")
         parser.set(cdrom_section, "cdrom_02_image_path", iso_fwd)
         parser.set(cdrom_section, "cdrom_02_parameters", "1, atapi")
         parser.set(cdrom_section, "cdrom_02_ide_channel", "0:1")
@@ -127,7 +141,7 @@ def _prepare_config(platform, cfg_path: str, rom_path: Path) -> None:
     _ensure_section(parser, "Network")
     parser.set("Network", "net_type", "none")
 
-    write_ini(cp, parser)
+    write_ini(config_path, parser)
 
 
 def validate_rom_path(rom_path: Path) -> None:
@@ -162,8 +176,6 @@ def _resolve_rom_path(box86_binary: Path) -> Path:
     Raises:
         FileNotFoundError: If no single ROM subdirectory is found.
     """
-    from backend.service.utils.emulator_catalog import get_emulator
-
     base = box86_binary.parent
     try:
         entries = list(base.iterdir())
@@ -192,7 +204,6 @@ def _resolve_rom_path(box86_binary: Path) -> Path:
     )
 
 
-
 def _inject_media(attachment: dict) -> None:
     """Inject a media path into an 86Box config file atomically.
 
@@ -213,11 +224,7 @@ def _inject_media(attachment: dict) -> None:
     patch_ini(config_path, {attachment["section"]: {attachment["key"]: attachment["value"]}})
 
 
-def launch(
-    platform: Platform,
-    media_path: Optional[Path] = None,
-    enable_networking: bool = False,
-) -> tuple:
+def launch(spec: "LaunchSpec") -> tuple:
     """Launch 86Box in accuracy mode under Job Objects.
 
     Validates platform state and environment, patches the 86Box config for
@@ -225,50 +232,45 @@ def launch(
     resource limits applied.
 
     Args:
-        platform: Registered OSPlatform. ``era``, ``working_image_path``, and
-            ``config_path`` must all be set before calling.
-        media_path: Optional game media to attach at launch time. When
-            provided, the cd_path key is injected into the 86Box config
-            before launch.
-        enable_networking: When True, overrides the default net_01_link=0 set
-            by _prepare_config to allow network traffic.
+        spec: LaunchSpec with era, working_image_path, config_path, vm_dir,
+            hardware_profile, platform_name, platform_slug, media_path, and
+            enable_networking set.
 
     Raises:
-        ValueError: If the era is unsupported or required platform fields are
-            unset.
-        FileNotFoundError: If ``working_image_path``, ``config_path``,
-            ``BOX86_PATH``, or ``ROMS_PATH`` do not exist on disk.
-        RuntimeError: If ``BOX86_PATH`` or ``ROMS_PATH`` env vars are unset.
+        ValueError: If the era is unsupported or required fields are unset.
+        FileNotFoundError: If working_image_path, config_path, or the 86Box
+            binary does not exist on disk.
+        RuntimeError: If BOX86_PATH is not configured.
         OSError: If config injection or Job Object launch fails.
     """
-    if platform.era not in SUPPORTED_ERAS:
+    if spec.era not in SUPPORTED_ERAS:
         raise ValueError(
-            f"86Box backend does not support era '{platform.era}'. "
+            f"86Box backend does not support era '{spec.era}'. "
             f"Supported: {', '.join(sorted(SUPPORTED_ERAS))}"
         )
 
-    if platform.working_image_path is None:
+    if spec.working_image_path is None:
         raise ValueError(
-            f"Platform '{platform.name}' has no working_image_path set. "
+            f"Platform '{spec.platform_name}' has no working_image_path set. "
             "Complete platform registration (including image copy) before launching."
         )
 
-    img_path = Path(str(platform.working_image_path))
-    if not img_path.exists():
+    if not spec.working_image_path.exists():
         raise ValueError(
-            f"Platform '{platform.name}' working_image_path does not exist on disk: {img_path}. "
+            f"Platform '{spec.platform_name}' working_image_path does not exist on disk: "
+            f"{spec.working_image_path}. "
             "Re-register the platform to provision a new disk image."
         )
-    if img_path.suffix.lower() not in {".img", ".vhd"}:
+    if spec.working_image_path.suffix.lower() not in {".img", ".vhd"}:
         raise ValueError(
-            f"Platform '{platform.name}' working_image_path must be a disk image "
-            f"(.img or .vhd), not '{img_path.suffix}': {img_path}. "
+            f"Platform '{spec.platform_name}' working_image_path must be a disk image "
+            f"(.img or .vhd), not '{spec.working_image_path.suffix}': {spec.working_image_path}. "
             "working_image_path is set to a config file — re-register the platform."
         )
 
-    if platform.config_path is None:
+    if spec.config_path is None:
         raise ValueError(
-            f"Platform '{platform.name}' has no config_path set. "
+            f"Platform '{spec.platform_name}' has no config_path set. "
             "Complete platform registration before launching."
         )
 
@@ -283,32 +285,39 @@ def launch(
 
     effective_rom_path = _resolve_rom_path(Path(box86_path))
 
-    _prepare_config(platform, platform.config_path, effective_rom_path)
+    _prepare_config(
+        working_image_path=spec.working_image_path,
+        config_path=spec.config_path,
+        rom_path=effective_rom_path,
+        hardware_profile=spec.hardware_profile,
+        platform_name=spec.platform_name or "",
+        base_image_path=spec.base_image_path,
+    )
 
-    if enable_networking:
+    if spec.enable_networking:
         patch_ini(
-            Path(str(platform.config_path)),
+            spec.config_path,
             {"Network": {"net_type": "slirp"}},
         )
 
-    if media_path is not None:
-        attachment = build_86box_attachment(media_path, platform.config_path)
+    if spec.media_path is not None:
+        attachment = build_86box_attachment(spec.media_path, str(spec.config_path))
         _inject_media(attachment)
 
-    vm_dir = Path(str(platform.config_path)).parent.resolve()
+    vm_dir = spec.vm_dir
 
     args = [
-        "--config", str(platform.config_path),
+        "--config", str(spec.config_path),
         "--rompath", str(effective_rom_path),
         "--vmpath", str(vm_dir),
     ]
 
-    job_name = f"peach1up_86box_{platform.era}_{platform.slug}"
+    job_name = f"peach1up_86box_{spec.era}_{spec.platform_slug}"
 
     return launch_under_job_object(
         executable_path=box86_path,
         args=args,
-        era=platform.era,
+        era=spec.era,
         job_name=job_name,
         slug="86box",
         cwd=str(vm_dir),

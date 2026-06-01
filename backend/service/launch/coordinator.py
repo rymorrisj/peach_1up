@@ -17,11 +17,11 @@ from backend.core.process_registry import ProcessEntry
 from backend.models import LaunchHistory, LibraryItem, Platform, Profile
 from backend.service.launch.drive_hydration import hydrate_drive_for_item
 from backend.service.launch.history import write_session_ends
+from backend.service.launch.launch_spec import LaunchSpec
 from backend.service.launch.monitor import register_short_lived_check
-from backend.service.utils.backend_router import launch_media, resolve_backend_name
 
 if TYPE_CHECKING:
-    pass
+    from backend.models.drive import Drive
 
 logger = get_logger(__name__)
 
@@ -114,9 +114,186 @@ def _gate_single_active_launch(gate_profile_id: int | None) -> None:
             raise HTTPException(status_code=409, detail="A launch is already active for this profile.")
 
 
-async def launch_item(item: LibraryItem, profile_id: int | None, db: Session) -> LaunchResult:
+def _build_spec_for_item(
+    item: LibraryItem,
+    profile: Profile,
+    platform: Platform | None,
+    drive: Drive | None,
+    effective_media_path: str,
+) -> LaunchSpec:
+    """Resolve all ORM fields to plain values and construct a LaunchSpec."""
     from backend.constants_generated import BackendSlug, Era
+    from backend.service.utils.backend_router import resolve_backend_name, get_executable_path
 
+    era_enum = Era(item.era)
+    slug = resolve_backend_name(era_enum)
+
+    # box86 and xemu resolve their own binary paths internally.
+    executable_path: str | None = None
+    if slug not in (BackendSlug.BOX86.value, BackendSlug.XEMU.value):
+        path, settings_key = get_executable_path(era_enum)
+        if not path:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"The emulator path for '{settings_key}' is not configured. "
+                    "Set it in config/settings.yaml or via the Settings page."
+                ),
+            )
+        executable_path = path
+
+    drive_id: int | None = None
+    drive_image_path: Path | None = None
+    drive_size_mb: int | None = None
+    if drive is not None:
+        drive_id = drive.id
+        if drive.image_path:
+            drive_image_path = Path(drive.image_path)
+        drive_size_mb = drive.size_mb
+
+    vm_dir: Path | None = None
+    config_path: Path | None = None
+    working_image_path: Path | None = None
+    base_image_path: Path | None = None
+    hardware_profile = "standard"
+    platform_name: str | None = None
+    platform_slug_val: str | None = None
+
+    if platform is not None:
+        if platform.config_path:
+            config_path = Path(platform.config_path)
+            vm_dir = config_path.parent.resolve()
+        if platform.working_image_path:
+            working_image_path = Path(platform.working_image_path)
+        if platform.base_image_path:
+            base_image_path = Path(platform.base_image_path)
+        hardware_profile = platform.hardware_profile or "standard"
+        platform_name = platform.name
+        platform_slug_val = platform.slug
+
+    return LaunchSpec(
+        slug=slug,
+        era=item.era,
+        emulator_slug=profile.emulator_slug,
+        media_path=Path(effective_media_path),
+        executable_path=executable_path,
+        enable_networking=bool(profile.enable_networking),
+        launch_commands=list(item.launch_commands or []),
+        profile_id=profile.id,
+        profile_launch_commands=list(profile.launch_commands or []),
+        use_drive=bool(profile.use_drive),
+        container_enabled=profile.container_enabled,
+        drive_id=drive_id,
+        drive_image_path=drive_image_path,
+        drive_size_mb=drive_size_mb,
+        vm_dir=vm_dir,
+        config_path=config_path,
+        working_image_path=working_image_path,
+        base_image_path=base_image_path,
+        hardware_profile=hardware_profile,
+        platform_name=platform_name,
+        platform_slug=platform_slug_val,
+        item_id=item.id,
+        launch_review_flagged=bool(item.launch_review_flagged),
+    )
+
+
+def _build_spec_for_environment(
+    platform: Platform,
+    profile: Profile,
+) -> LaunchSpec:
+    """Resolve all ORM fields to plain values and construct a LaunchSpec."""
+    from backend.constants_generated import Era
+    from backend.service.utils.backend_router import resolve_backend_name
+
+    slug = resolve_backend_name(Era(platform.era))
+
+    config_path = Path(platform.config_path)
+    vm_dir = config_path.parent.resolve()
+
+    return LaunchSpec(
+        slug=slug,
+        era=platform.era,
+        emulator_slug=profile.emulator_slug,
+        media_path=None,
+        executable_path=None,
+        enable_networking=bool(profile.enable_networking),
+        profile_id=profile.id,
+        vm_dir=vm_dir,
+        config_path=config_path,
+        working_image_path=Path(platform.working_image_path) if platform.working_image_path else None,
+        base_image_path=Path(platform.base_image_path) if platform.base_image_path else None,
+        hardware_profile=platform.hardware_profile or "standard",
+        platform_name=platform.name,
+        platform_slug=platform.slug,
+        platform_id=platform.id,
+    )
+
+
+async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
+    """Execute a fully resolved LaunchSpec under Job Object isolation.
+
+    ORM resolution must be complete before constructing the spec.
+    Use launch_item() or launch_environment() as convenience entry points
+    that handle resolution and pre-launch gates.
+
+    Args:
+        spec: Fully resolved LaunchSpec with all plain-value fields set.
+        db: Database session for history writes.
+
+    Returns:
+        LaunchResult with history_id and any warnings.
+    """
+    from backend.constants_generated import BackendSlug
+    from backend.service.utils.backend_router import dispatch
+
+    network_blocked = not spec.enable_networking
+    # item_id is set for item launches; environment launches have platform_id only.
+    is_environment = spec.item_id is None
+
+    history = LaunchHistory(
+        target_type="environment" if is_environment else "library_item",
+        library_item_id=spec.item_id,
+        platform_id=spec.platform_id,
+        profile_id=spec.profile_id,
+        emulator_slug=spec.emulator_slug,
+        started_at=datetime.now(timezone.utc),
+        network_blocked=False,
+        job_isolated=False,
+    )
+    db.add(history)
+    db.commit()
+    db.refresh(history)
+
+    try:
+        result = await asyncio.to_thread(dispatch, spec)
+    except Exception as exc:
+        logger.exception("Launch failed")
+        history.error_message = str(exc)
+        history.ended_at = datetime.now(timezone.utc)
+        history.exit_code = -1
+        db.commit()
+        raise HTTPException(status_code=500, detail=f"Launch failed: {exc}")
+
+    proc = result[0] if isinstance(result, tuple) else result
+    _finalize_launch(
+        history, result, db,
+        network_blocked=network_blocked,
+        item_id=spec.item_id,
+        profile_id=spec.profile_id,
+    )
+
+    if proc is not None and spec.slug == BackendSlug.DOSBOX.value:
+        register_short_lived_check(spec.item_id, proc, time.monotonic())
+
+    return LaunchResult(
+        history_id=history.id,
+        warnings=[],
+        launch_review_flagged=spec.launch_review_flagged,
+    )
+
+
+async def launch_item(item: LibraryItem, profile_id: int | None, db: Session) -> LaunchResult:
     exited = process_registry.cleanup_exited()
     if exited:
         await asyncio.to_thread(write_session_ends, exited)
@@ -125,7 +302,6 @@ async def launch_item(item: LibraryItem, profile_id: int | None, db: Session) ->
 
     profile = _resolve_profile_for_item(item, profile_id, db)
     platform_record = db.query(Platform).filter(Platform.profile_id == profile.id).first()
-    network_blocked = not bool(getattr(profile, "enable_networking", False))
 
     drive = hydrate_drive_for_item(item, db)
 
@@ -139,52 +315,8 @@ async def launch_item(item: LibraryItem, profile_id: int | None, db: Session) ->
             ),
         )
 
-    history = LaunchHistory(
-        library_item_id=item.id,
-        profile_id=profile.id,
-        emulator_slug=profile.emulator_slug,
-        started_at=datetime.now(timezone.utc),
-        network_blocked=False,
-        job_isolated=False,
-    )
-    db.add(history)
-    db.commit()
-    db.refresh(history)
-
-    try:
-        result = await asyncio.to_thread(
-            launch_media,
-            item.era,
-            effective_media_path,
-            profile,
-            platform_record,
-            launch_commands=item.launch_commands,
-            drive=drive,
-        )
-    except Exception as exc:
-        logger.exception("Launch failed")
-        history.error_message = str(exc)
-        history.ended_at = datetime.now(timezone.utc)
-        history.exit_code = -1
-        db.commit()
-        raise HTTPException(status_code=500, detail=f"Launch failed: {exc}")
-
-    proc = result[0] if isinstance(result, tuple) else result
-    _finalize_launch(history, result, db, network_blocked=network_blocked, item_id=item.id, profile_id=profile.id)
-
-    if proc is not None:
-        try:
-            backend_name = resolve_backend_name(Era(item.era))
-        except Exception:
-            backend_name = ""
-        if backend_name == BackendSlug.DOSBOX.value:
-            register_short_lived_check(item.id, proc, time.monotonic())
-
-    return LaunchResult(
-        history_id=history.id,
-        warnings=[],
-        launch_review_flagged=item.launch_review_flagged,
-    )
+    spec = _build_spec_for_item(item, profile, platform_record, drive, effective_media_path)
+    return await launch(spec, db)
 
 
 async def launch_environment(platform: Platform, profile_id: int | None, db: Session) -> LaunchResult:
@@ -195,7 +327,6 @@ async def launch_environment(platform: Platform, profile_id: int | None, db: Ses
     _gate_single_active_launch(profile_id if profile_id is not None else platform.profile_id)
 
     profile = _resolve_profile_for_environment(platform, profile_id, db)
-    network_blocked = not bool(getattr(profile, "enable_networking", False))
 
     if platform.working_image_path is None and platform.era in {"win95", "win98", "winxp"}:
         try:
@@ -227,38 +358,8 @@ async def launch_environment(platform: Platform, profile_id: int | None, db: Ses
             detail="Environment has no working image. Provisioning is not available for this era.",
         )
 
-    history = LaunchHistory(
-        target_type="environment",
-        platform_id=platform.id,
-        profile_id=profile.id,
-        emulator_slug=profile.emulator_slug,
-        started_at=datetime.now(timezone.utc),
-        network_blocked=False,
-        job_isolated=False,
-    )
-    db.add(history)
-    db.commit()
-    db.refresh(history)
-
-    try:
-        result = await asyncio.to_thread(
-            launch_media,
-            platform.era,
-            None,
-            profile,
-            platform,
-        )
-    except Exception as exc:
-        logger.exception("Environment launch failed")
-        history.error_message = str(exc)
-        history.ended_at = datetime.now(timezone.utc)
-        history.exit_code = -1
-        db.commit()
-        raise HTTPException(status_code=500, detail=f"Launch failed: {exc}")
-
-    _finalize_launch(history, result, db, network_blocked=network_blocked, profile_id=profile.id)
-
-    return LaunchResult(history_id=history.id, warnings=[])
+    spec = _build_spec_for_environment(platform, profile)
+    return await launch(spec, db)
 
 
 def stop_launch(history_id: int, active_user, db: Session) -> dict:

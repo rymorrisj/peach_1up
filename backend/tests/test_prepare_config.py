@@ -1,7 +1,6 @@
 import configparser
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -59,13 +58,14 @@ def _run(tmp_path: Path, monkeypatch, *, mbr: bool, iso: bool = False):
         iso_path = tmp_path / "install.iso"
         iso_path.write_bytes(b"\x00" * 2048)
 
-    platform = SimpleNamespace(
-        working_image_path=str(img),
-        base_image_path=str(iso_path) if iso_path else None,
+    box86_mod._prepare_config(
+        working_image_path=img,
+        config_path=cfg,
+        rom_path=rom_dir,
         hardware_profile="standard",
-        name="test-platform",
+        platform_name="test-platform",
+        base_image_path=iso_path,
     )
-    box86_mod._prepare_config(platform, str(cfg), rom_dir)
     return cfg, img, iso_path
 
 

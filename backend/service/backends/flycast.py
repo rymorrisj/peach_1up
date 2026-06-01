@@ -6,7 +6,7 @@ Handles Dreamcast emulation via Flycast.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
@@ -18,6 +18,9 @@ from backend.service.utils.emulator_catalog import (
 from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.process.job_objects import WindowsJobObject
+
+if TYPE_CHECKING:
+    from backend.service.launch.launch_spec import LaunchSpec
 
 logger = get_logger(__name__)
 
@@ -43,19 +46,13 @@ def validate_bios_path(executable_path: str) -> None:
         )
 
 
-def launch(
-    media_path: Path,
-    era: str,
-    executable_path: str,
-    enable_networking: bool = False,
-) -> Tuple[SandboxProcess, WindowsJobObject]:
+def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch Flycast with the given Dreamcast media under Job Object isolation.
 
     Args:
-        media_path: Path to the disc image (.iso, .cdi, .gdi, .chd).
-        era: Era name (must be ``'dreamcast'``).
-        executable_path: Full path to the Flycast executable.
-        enable_networking: Ignored; reserved for interface symmetry.
+        spec: LaunchSpec with slug, era, media_path, executable_path set.
+            enable_networking is accepted but ignored (no meaningful network
+            capability per SECURITY.md).
 
     Returns:
         Tuple of ``(process, job_object)``.
@@ -65,36 +62,36 @@ def launch(
         ValueError: If the era or media format is unsupported.
         RuntimeError: If BIOS files are missing from the data/ subdirectory.
     """
-    if era not in SUPPORTED_ERAS:
+    if spec.era not in SUPPORTED_ERAS:
         raise ValueError(
-            f"Flycast backend does not support era '{era}'. "
+            f"Flycast backend does not support era '{spec.era}'. "
             f"Supported: {', '.join(sorted(SUPPORTED_ERAS))}"
         )
 
-    if not Path(executable_path).exists():
-        raise FileNotFoundError(f"Flycast executable not found: {executable_path}")
+    if not spec.executable_path or not Path(spec.executable_path).exists():
+        raise FileNotFoundError(f"Flycast executable not found: {spec.executable_path}")
 
-    validate_bios_path(executable_path)
+    validate_bios_path(spec.executable_path)
 
-    if not media_path.exists():
-        raise FileNotFoundError(f"Media file not found: {media_path}")
+    if spec.media_path is None or not spec.media_path.exists():
+        raise FileNotFoundError(f"Media file not found: {spec.media_path}")
 
-    if media_path.suffix.lower() not in SUPPORTED_MEDIA:
+    if spec.media_path.suffix.lower() not in SUPPORTED_MEDIA:
         raise ValueError(
-            f"Unsupported media format '{media_path.suffix}'. "
+            f"Unsupported media format '{spec.media_path.suffix}'. "
             f"Flycast supports: {', '.join(sorted(SUPPORTED_MEDIA))}"
         )
 
-    args: list[str] = [str(media_path)]
-    job_name = f"peach1up_flycast_{era}_{media_path.stem}"
+    args: list[str] = [str(spec.media_path)]
+    job_name = f"peach1up_flycast_{spec.era}_{spec.media_path.stem}"
 
     return launch_under_job_object(
-        executable_path=executable_path,
+        executable_path=spec.executable_path,
         args=args,
-        era=era,
+        era=spec.era,
         job_name=job_name,
         slug="flycast",
-        cwd=str(Path(executable_path).parent),
+        cwd=str(Path(spec.executable_path).parent),
         container_enabled=get_container_enabled("flycast"),
-        sandbox_config=get_emulator_container_config("flycast", executable_path),
+        sandbox_config=get_emulator_container_config("flycast", spec.executable_path),
     )

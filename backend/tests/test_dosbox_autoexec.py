@@ -9,6 +9,7 @@ import shutil
 import pytest
 
 from backend.service.backends.dosbox import _validate_game_executable, write_launch_conf
+from backend.service.launch.launch_spec import LaunchSpec
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +71,13 @@ class TestWriteLaunchConfGameExecutable:
     def _conf_content(self, tmp_path, game_executable=None, suffix=".img"):
         media = tmp_path / f"game{suffix}"
         exe = tmp_path / "dosbox-x.exe"
-        conf_path = write_launch_conf(media, "dos", exe, game_executable=game_executable)
+        spec = LaunchSpec(
+            slug="dosbox",
+            era="dos",
+            media_path=media,
+            executable_path=str(exe),
+        )
+        conf_path = write_launch_conf(spec, game_executable=game_executable)
         try:
             return conf_path.read_text(encoding="utf-8")
         finally:

@@ -11,11 +11,10 @@ acquiring BIOS files.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
-from backend.models.platform import Platform
 from backend.service.utils.emulator_catalog import (
     get_container_enabled,
     get_container_config as get_emulator_container_config,
@@ -25,6 +24,9 @@ from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.process.job_objects import WindowsJobObject
 from backend.core.settings import get_base_path
 from backend.service.utils.settings import get_binary_path
+
+if TYPE_CHECKING:
+    from backend.service.launch.launch_spec import LaunchSpec
 
 SUPPORTED_ERAS = {Era.XBOX.value}
 SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.XBOX]
@@ -113,20 +115,14 @@ def build_args(media_path: Path) -> list[str]:
     return ["-dvd_path", str(media_path)]
 
 
-def launch(
-    platform: Platform,
-    media_path: Optional[Path] = None,
-    enable_networking: bool = False,
-) -> Tuple[SandboxProcess, WindowsJobObject]:
+def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch xemu with the given Xbox disc image under Job Object isolation.
 
     Args:
-        platform: Registered Platform record for the Xbox environment.
-            ``config_path`` must point to the VM directory's xemu.toml so the
-            VM directory can be resolved and used as the process CWD.
-        media_path: Optional path to the Xbox disc image to mount.
-        enable_networking: Accepted for interface compatibility; ignored for
-            xemu (no meaningful network capability per SECURITY.md).
+        spec: LaunchSpec with config_path, vm_dir, era, platform_slug set.
+            media_path is optional — omit to launch the bare environment.
+            enable_networking is accepted but ignored (no meaningful network
+            capability per SECURITY.md).
 
     Returns:
         Tuple of (SandboxProcess, WindowsJobObject instance).
@@ -137,9 +133,9 @@ def launch(
         ValueError: If the media extension is unsupported or config_path is unset.
         RuntimeError: If XEMU_PATH is not configured or launch fails.
     """
-    if platform.config_path is None:
+    if spec.config_path is None:
         raise ValueError(
-            f"Platform '{platform.name}' has no config_path set. "
+            f"Platform '{spec.platform_name}' has no config_path set. "
             "Complete platform registration before launching."
         )
 
@@ -152,23 +148,23 @@ def launch(
     if not Path(executable_path).exists():
         raise FileNotFoundError(f"xemu executable not found: {executable_path}")
 
-    if media_path is not None:
-        validate_media(media_path)
+    if spec.media_path is not None:
+        validate_media(spec.media_path)
 
-    validate_bios_path(Path(platform.config_path))
+    validate_bios_path(spec.config_path)
 
-    vm_dir = Path(str(platform.config_path)).parent.resolve()
+    vm_dir = spec.vm_dir
 
-    args = ["-config_path", str(platform.config_path)]
-    if media_path is not None:
-        args += build_args(media_path)
+    args = ["-config_path", str(spec.config_path)]
+    if spec.media_path is not None:
+        args += build_args(spec.media_path)
 
-    job_name = f"peach1up_xemu_{platform.era}_{platform.slug}"
+    job_name = f"peach1up_xemu_{spec.era}_{spec.platform_slug}"
 
     return launch_under_job_object(
         executable_path=executable_path,
         args=args,
-        era=platform.era,
+        era=spec.era,
         job_name=job_name,
         slug="xemu",
         cwd=str(vm_dir),

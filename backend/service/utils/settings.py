@@ -40,6 +40,7 @@ _DEFAULTS: dict = {
     "XEMU_PATH": "",
     "MESEN_PATH": "",
     "PROJECT64_PATH": "",
+    "FLYCAST_PATH": "",
     "suppress_confirmations": [],
 }
 
@@ -52,6 +53,7 @@ _ENV_BINARY_VARS: dict[str, str] = {
     "xemu":         "XEMU_PATH",
     "mesen":        "MESEN_PATH",
     "project64":    "PROJECT64_PATH",
+    "flycast":      "FLYCAST_PATH",
 }
 
 # Path keys whose values are normalised to forward slashes on save.
@@ -69,6 +71,7 @@ _PATH_KEYS: frozenset[str] = frozenset({
     "XEMU_PATH",
     "MESEN_PATH",
     "PROJECT64_PATH",
+    "FLYCAST_PATH",
 })
 
 # Ordered emulator catalog used by compute_setup_status().
@@ -78,6 +81,7 @@ _EMULATOR_CATALOG: list[tuple[str, str, bool, str]] = [
     ("duckstation", "DuckStation",False, "DUCKSTATION_PATH"),
     ("pcsx2",       "PCSX2",      False, "PCSX2_PATH"),
     ("xemu",        "xemu",       False, "XEMU_PATH"),
+    ("flycast",     "Flycast",    False, "FLYCAST_PATH"),
     ("mesen",       "Mesen",      False, "MESEN_PATH"),
     ("project64",   "Project64",  False, "PROJECT64_PATH"),
 ]
