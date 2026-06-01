@@ -8,6 +8,7 @@ sha256 = ""
 download_url = "https://www.pj64-emu.com"
 release_url = "https://github.com/project64/project64/releases"
 portable_sentinel = ""
+cli_args_prefix = []
 sandbox_mode = "appcontainer"
 container_enabled = false
 capabilities = []

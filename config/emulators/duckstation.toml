@@ -8,6 +8,7 @@ sha256 = ""
 download_url = "https://www.duckstation.org"
 release_url = "https://github.com/stenzek/duckstation/releases"
 portable_sentinel = "portable.txt"
+cli_args_prefix = ["-nogui"]
 sandbox_mode = "appcontainer"
 container_enabled = false
 capabilities = []

@@ -227,19 +227,9 @@ def configure_emulator(slug: str) -> None:
 
     exe_dir = path.parent
 
-    if slug == "pcsx2":
-        (exe_dir / "portable.txt").touch()
-        (exe_dir / "memcards").mkdir(exist_ok=True)
-
-    elif slug == "duckstation":
-        (exe_dir / "portable.txt").touch()
-
-    elif slug == "flycast":
-        cfg_path = exe_dir / "emu.cfg"
-        if not cfg_path.exists():
-            cfg_path.touch()
-
-    elif slug == "xemu":
+    if slug == "xemu":
+        # xemu needs a fully-populated config, not just an empty sentinel file —
+        # touching xemu.toml would produce invalid TOML and break xemu startup.
         toml_path = exe_dir / "xemu.toml"
         configured = False
         if toml_path.exists():
@@ -257,6 +247,10 @@ def configure_emulator(slug: str) -> None:
                 "flash_path, bios_path, and hdd_path must be set before launching Xbox titles.",
                 toml_path,
             )
+    else:
+        ensure_portable_mode(slug, path)
+        if slug == "pcsx2":
+            (exe_dir / "memcards").mkdir(exist_ok=True)
 
 
 def detect_and_sync_all() -> None:
@@ -352,3 +346,67 @@ def check_bios_presence(bios_path: str) -> bool:
         return path.exists() and path.is_dir() and any(path.iterdir())
     except PermissionError:
         return False
+
+
+def ensure_portable_mode(slug: str, exe_path: "Path") -> None:
+    """Create the portable sentinel file declared in the emulator descriptor.
+
+    Reads portable_sentinel from the descriptor for slug. If the value is
+    non-empty, touches the sentinel file next to the binary when it does not
+    already exist. Idempotent — safe to call on every configure pass.
+    """
+    try:
+        entry = get_emulator(slug)
+    except ValueError:
+        return
+    sentinel = entry.get("portable_sentinel", "")
+    if not sentinel:
+        return
+    sentinel_path = exe_path.parent / sentinel
+    if not sentinel_path.exists():
+        sentinel_path.touch()
+
+
+def validate_bios_from_descriptor(slug: str) -> None:
+    """Validate that BIOS directories declared in the emulator descriptor exist.
+
+    Reads each [[dependencies]] entry that has a bios_path field, resolves it
+    relative to the project root, and raises FileNotFoundError if the directory
+    is absent or empty.
+
+    Security: bios_path values come from project-internal TOMLs. Each resolved
+    path is confirmed to remain within the project root.
+
+    Raises:
+        FileNotFoundError: If a required bios_path directory is missing or empty.
+        ValueError: If a bios_path resolves outside the project root (config error).
+    """
+    try:
+        entry = get_emulator(slug)
+    except ValueError:
+        return
+    base = get_base_path().resolve()
+    for dep in entry.get("dependencies", []):
+        bios_path_str = dep.get("bios_path", "")
+        if not bios_path_str:
+            continue
+        resolved = (base / bios_path_str).resolve()
+        if not resolved.is_relative_to(base):
+            raise ValueError(
+                f"bios_path '{bios_path_str}' for slug '{slug}' resolves outside "
+                "the project root — this indicates a corrupted descriptor."
+            )
+        display_name = dep.get("display_name", "BIOS")
+        required = dep.get("required", True)
+        if not resolved.exists() or not resolved.is_dir():
+            if required:
+                raise FileNotFoundError(
+                    f"{display_name} directory not found: {resolved}. "
+                    "Place your BIOS files there before launching."
+                )
+        elif not any(resolved.iterdir()):
+            if required:
+                raise FileNotFoundError(
+                    f"{display_name} directory is empty: {resolved}. "
+                    "Place your BIOS files there before launching."
+                )

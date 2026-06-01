@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
-from backend.core.logger import get_logger
 from backend.service.utils.emulator_catalog import (
     get_container_enabled,
     get_container_config as get_emulator_container_config,
+    validate_bios_from_descriptor,
 )
 from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
@@ -22,28 +22,8 @@ from backend.service.utils.process.job_objects import WindowsJobObject
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
 
-logger = get_logger(__name__)
-
 SUPPORTED_ERAS = {Era.DREAMCAST.value}
 SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.DREAMCAST]
-
-
-def validate_bios_path(executable_path: str) -> None:
-    """Verify that dc_boot.bin and dc_flash.bin exist in the data/ subdir.
-
-    Raises:
-        RuntimeError: If either BIOS file is absent, naming the missing files.
-    """
-    data_dir = Path(executable_path).parent / "data"
-    missing = [
-        name for name in ("dc_boot.bin", "dc_flash.bin")
-        if not (data_dir / name).exists()
-    ]
-    if missing:
-        raise RuntimeError(
-            f"Flycast BIOS files missing from {data_dir}: {', '.join(missing)}. "
-            "These files must be dumped from Sega Dreamcast hardware you own."
-        )
 
 
 def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
@@ -60,7 +40,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     Raises:
         FileNotFoundError: If the executable or media path does not exist.
         ValueError: If the era or media format is unsupported.
-        RuntimeError: If BIOS files are missing from the data/ subdirectory.
+        FileNotFoundError: If BIOS directory declared in flycast.toml is absent or empty.
     """
     if spec.era not in SUPPORTED_ERAS:
         raise ValueError(
@@ -71,7 +51,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     if not spec.executable_path or not Path(spec.executable_path).exists():
         raise FileNotFoundError(f"Flycast executable not found: {spec.executable_path}")
 
-    validate_bios_path(spec.executable_path)
+    validate_bios_from_descriptor("flycast")
 
     if spec.media_path is None or not spec.media_path.exists():
         raise FileNotFoundError(f"Media file not found: {spec.media_path}")

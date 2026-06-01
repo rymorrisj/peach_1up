@@ -8,6 +8,7 @@ sha256 = ""
 download_url = "https://pcsx2.net"
 release_url = "https://github.com/PCSX2/pcsx2/releases"
 portable_sentinel = "portable.txt"
+cli_args_prefix = ["--nogui"]
 sandbox_mode = "appcontainer"
 container_enabled = false
 capabilities = []
