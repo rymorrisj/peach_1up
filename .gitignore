@@ -73,8 +73,9 @@ debug.log
 profiles/*.yaml
 profiles/conf/
 
-# Library: track only the system folder for things like bios
+# Library: track only the system folder for things like bios. Remove os for now
 /library/media
+/library/system/os
 
 # Bundled emulator binaries (drop-in, never committed — directories are tracked)
 /emulators/
