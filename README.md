@@ -13,21 +13,20 @@ Covers PC platforms from DOS through Windows XP and first-generation consoles
 
 ### Emulators (installed on the host OS)
 
-| Emulator    | Era                | Notes                                                                          |
-| ----------- | ------------------ | ------------------------------------------------------------------------------ |
-| DOSBox-X    | DOS, Windows 3.1   | [dosbox-x.com](https://dosbox-x.com) — no ROM required                        |
-| 86Box       | Win95/98/XP        | [86box.net](https://86box.net) — requires ROM pack                             |
-| 86Box ROMs  | Win95/98/XP        | [github.com/86Box/roms](https://github.com/86Box/roms)                        |
-| ScummVM     | DOS/Win adventures | [scummvm.org](https://www.scummvm.org) — no ROM required, point at game data folder |
-| DuckStation | PS1                | [duckstation.org](https://www.duckstation.org) — requires PS1 BIOS            |
-| PCSX2       | PS2                | [pcsx2.net](https://pcsx2.net) — requires PS2 BIOS                            |
-| xemu        | Xbox OG            | [xemu.app](https://xemu.app) — requires Xbox BIOS                             |
+| Emulator    | Era                | Notes                                                                                     |
+| ----------- | ------------------ | ----------------------------------------------------------------------------------------- |
+| DOSBox-X    | DOS, Windows 3.1   | [dosbox-x.com](https://dosbox-x.com) — no ROM required                                    |
+| 86Box       | Win95/98/XP        | [86box.net](https://86box.net) — requires ROM pack                                        |
+| 86Box ROMs  | Win95/98/XP        | [github.com/86Box/roms](https://github.com/86Box/roms)                                    |
+| ScummVM     | DOS/Win adventures | [scummvm.org](https://www.scummvm.org) — no ROM required, point at game data folder       |
+| DuckStation | PS1                | [duckstation.org](https://www.duckstation.org) — requires PS1 BIOS                        |
+| PCSX2       | PS2                | [pcsx2.net](https://pcsx2.net) — requires PS2 BIOS                                        |
+| xemu        | Xbox OG            | [xemu.app](https://xemu.app) — requires Xbox BIOS                                         |
 | Flycast     | Dreamcast          | [github.com/flyinghead/flycast](https://github.com/flyinghead/flycast) — requires DC BIOS |
-| Mesen       | NES                | [mesen.ca](https://www.mesen.ca)                                               |
-| Project64   | N64                | [pj64-emu.com](https://www.pj64-emu.com)                                      |
+| Mesen       | NES                | [mesen.ca](https://www.mesen.ca)                                                          |
+| Project64   | N64                | [pj64-emu.com](https://www.pj64-emu.com)                                                  |
 
-Emulators marked "requires BIOS" need a BIOS image sourced from your own
-hardware. Peach 1UP does not provide BIOS files.
+Emulators marked "requires BIOS" need a BIOS image sourced from your own hardware. Peach 1UP does not provide BIOS files.
 
 ### Python
 
@@ -51,9 +50,16 @@ cd frontend && npm run dev
 
 ## Build
 
+There is a build script at the root you can run which bundles all the build commands and tasks. You can also rebuild parts individually
+
+```bash
+./build.sh    # Linux
+build.bat     # Windows
+```
+
 ### 1. Generate the tray icon
 
-```bat
+```bash
 .venv\Scripts\python.exe scripts\gen_icon.py
 ```
 
@@ -61,13 +67,13 @@ Writes `assets/peach1up.png` (16×16 solid peach #ff8a5c).
 
 ### 2. Build the frontend
 
-```bat
+```bash
 cd frontend && npm run build && cd ..
 ```
 
 ### 3. Package with PyInstaller
 
-```bat
+```bash
 .venv\Scripts\python.exe -m pip install pyinstaller
 .venv\Scripts\python.exe -m PyInstaller peach1up.spec
 ```
@@ -80,7 +86,7 @@ Output: `dist\peach1up\` — a self-contained directory containing `peach1up.exe
 
 Requires [NSIS](https://nsis.sourceforge.io/) and [NSSM](https://nssm.cc/) placed at `installer\tools\nssm.exe`.
 
-```bat
+```bash
 makensis installer\peach1up.nsi
 ```
 
@@ -95,10 +101,6 @@ the service and removes all files; `config\settings.yaml` is preserved.
 Binary paths and runtime settings live in `config/settings.yaml`. A `.env`
 file is supported as a legacy override — values in `.env` take precedence over
 `settings.yaml`. See `settings.yaml` for documented defaults.
-
-There aer several default paths that you can update such as \images for the .iso, .cud, etc. files.
-If you update this path you MUST restart the backend service. During runtime startup, a script is ran
-in order to grant correct permissions to all folder and files that need them.
 
 ---
 

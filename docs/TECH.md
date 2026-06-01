@@ -16,6 +16,8 @@ PyInstaller compiles the Python backend to a standalone executable. React builds
 
 The application runs natively on Linux and Windows. Emulators run natively on the host OS regardless of platform. This keeps a single clean codebase without platform-specific application code paths.
 
+_Note:_ The Alpha build will be tested and run specifically on Windows 10/11 first. Linux support will be added for the Beta.
+
 ## Database
 
 **SQLite via SQLModel, create_all() on startup.**
@@ -55,11 +57,12 @@ DOSBox-X: DOS game sound requires HDD image install flow — games that write th
 
 ## Emulators (Console)
 
-- **DuckStation** — PS1
-- **PCSX2** — PS2
-- **xemu** — Xbox OG
-- **Mesen** — NES
-- **Project64** — N64
+- DuckStation — PS1
+- PCSX2 — PS2
+- xemu — Xbox OG
+- Mesen — NES
+- Project64 — N64
+- Flycast - Dreamcast
 
 ## Process Isolation
 
@@ -79,7 +82,7 @@ community contributors.
 
 ## Developer Tooling
 
-- **Ruff** — Python linting
-- **pytest** — Python testing
-- **ESLint and Prettier** — Frontend linting and formatting
-- **Vitest** — Frontend testing
+- Ruff — Python linting
+- pytest — Python testing
+- ESLint and Prettier — Frontend linting and formatting
+- Vitest — Frontend testing

@@ -19,9 +19,9 @@ relative to the config file's directory.
 
 **Optional files:**
 
-| Filename        | Purpose                  | Location        |
-| --------------- | ------------------------ | --------------- |
-| `FONT.ROM`      | PC-98 BIOS (NEC systems) | next to binary  |
+| Filename   | Purpose                  | Location       |
+| ---------- | ------------------------ | -------------- |
+| `FONT.ROM` | PC-98 BIOS (NEC systems) | next to binary |
 
 **ROM/BIOS version coupling:** None. PC-98 BIOS is optional and version-independent.
 
@@ -47,10 +47,10 @@ startup.
 
 **Required files:**
 
-| Filename/Path      | Purpose           | Location                    | Notes                            |
-| ------------------ | ----------------- | --------------------------- | -------------------------------- |
-| `roms/<machine>/…` | Machine ROM pack  | `roms/` next to binary      | Filenames and subdirectory structure are hardcoded — renaming any file breaks emulation |
-| `assets/`          | UI assets         | `assets/` next to binary    |                                  |
+| Filename/Path      | Purpose          | Location                 | Notes                                                                                   |
+| ------------------ | ---------------- | ------------------------ | --------------------------------------------------------------------------------------- |
+| `roms/<machine>/…` | Machine ROM pack | `roms/` next to binary   | Filenames and subdirectory structure are hardcoded — renaming any file breaks emulation |
+| `assets/`          | UI assets        | `assets/` next to binary |                                                                                         |
 
 **Optional files:** None beyond the ROM pack.
 
@@ -67,35 +67,6 @@ ROM pack: https://github.com/86Box/roms
 
 **Portable mode confirmed:** Yes
 
----
-
-## ScummVM
-
-**Supported eras:** DOS/Win (adventure games) — 325+ supported titles
-
-**Portable mode mechanism:** ScummVM checks for a `scummvm.ini` config file in
-the current working directory on startup. Running from a writable directory
-with the binary is sufficient for portable operation.
-
-**Default user data path (Windows):** `%APPDATA%\ScummVM\`
-
-**Required files:** None. No BIOS required.
-
-**Optional files:** None. ScummVM auto-detects supported games from a directory
-scan — point at the folder containing the game's data files.
-
-**ROM/BIOS version coupling:** None.
-
-**Official download:** https://www.scummvm.org
-
-**BIOS/ROM source:** N/A
-
-**Bundleable:** Yes
-
-**Portable mode confirmed:** Yes
-
----
-
 ## DuckStation
 
 **Supported eras:** PS1
@@ -108,9 +79,9 @@ to a `userdata/` directory next to the binary.
 
 **Required files:**
 
-| Filename     | Purpose   | Location         | Notes                                      |
-| ------------ | --------- | ---------------- | ------------------------------------------ |
-| `*.bin`      | PS1 BIOS  | `bios/` subdir   | Filenames are flexible — auto-detected by hash |
+| Filename | Purpose  | Location       | Notes                                          |
+| -------- | -------- | -------------- | ---------------------------------------------- |
+| `*.bin`  | PS1 BIOS | `bios/` subdir | Filenames are flexible — auto-detected by hash |
 
 **Optional files:** None.
 
@@ -133,6 +104,7 @@ the correct one is selected automatically per disc.
 **Supported eras:** PS2
 
 **Portable mode mechanism:** Any of the following triggers portable mode:
+
 - Place an empty `portable.txt` next to the binary
 - Place an empty `portable.ini` next to the binary
 - Pass `-portable` on the command line
@@ -143,8 +115,8 @@ All user data redirects to a `userdata/` directory next to the binary.
 
 **Required files:**
 
-| Filename            | Purpose   | Location              | Notes                                          |
-| ------------------- | --------- | --------------------- | ---------------------------------------------- |
+| Filename                                   | Purpose  | Location       | Notes                                                                       |
+| ------------------------------------------ | -------- | -------------- | --------------------------------------------------------------------------- |
 | PS2 BIOS set (`*.bin`, `*.rom*`, `*.erom`) | PS2 BIOS | `bios/` subdir | Multi-file BIOS sets must keep original filenames — renaming breaks the set |
 
 **Optional files:** None.
@@ -178,11 +150,11 @@ of portable mode. See [xemu issue #2480](https://github.com/mborgerson/xemu/issu
 
 **Required files:**
 
-| Filename       | Purpose                | Location                  | Notes                                                               |
-| -------------- | ---------------------- | ------------------------- | ------------------------------------------------------------------- |
-| `mcpx_1.0.bin` | MCPX boot ROM          | configured in `xemu.toml` | Known-bad dump MD5: `196a5f59a13382c185636e691d6c323d` — do not use |
-| `*.bin`        | Flash BIOS             | configured in `xemu.toml` |                                                                     |
-| `xbox_hdd.qcow2` | 8 GB HDD image       | configured in `xemu.toml` | Must be a properly formatted 8 GB qcow2 image                       |
+| Filename         | Purpose        | Location                  | Notes                                                               |
+| ---------------- | -------------- | ------------------------- | ------------------------------------------------------------------- |
+| `mcpx_1.0.bin`   | MCPX boot ROM  | configured in `xemu.toml` | Known-bad dump MD5: `196a5f59a13382c185636e691d6c323d` — do not use |
+| `*.bin`          | Flash BIOS     | configured in `xemu.toml` |                                                                     |
+| `xbox_hdd.qcow2` | 8 GB HDD image | configured in `xemu.toml` | Must be a properly formatted 8 GB qcow2 image                       |
 
 **Optional files:** None.
 
@@ -213,9 +185,9 @@ portable mode. This dialog was added in version 0.9.2.
 
 **Optional files:**
 
-| Filename      | Purpose                           | Location          | SHA1                                       |
-| ------------- | --------------------------------- | ----------------- | ------------------------------------------ |
-| `FdsBios.bin` | Famicom Disk System BIOS          | `FirmwareFiles\`  | `e4e41472c454f928e53eb10e0509bf7d1146ecc1` |
+| Filename      | Purpose                  | Location         | SHA1                                       |
+| ------------- | ------------------------ | ---------------- | ------------------------------------------ |
+| `FdsBios.bin` | Famicom Disk System BIOS | `FirmwareFiles\` | `e4e41472c454f928e53eb10e0509bf7d1146ecc1` |
 
 Mesen 2 adds optional SNES coprocessor ROMs (DSP-1, ST-010, etc.) for enhanced
 compatibility with SNES titles.
@@ -269,9 +241,9 @@ checks for this file on startup and uses the directory as its data root.
 
 **Required files:**
 
-| Filename       | Purpose             | Location          | Notes                       |
-| -------------- | ------------------- | ----------------- | --------------------------- |
-| `dc_boot.bin`  | Dreamcast BIOS ROM  | `data/` next to binary | Required for boot      |
+| Filename       | Purpose             | Location               | Notes                             |
+| -------------- | ------------------- | ---------------------- | --------------------------------- |
+| `dc_boot.bin`  | Dreamcast BIOS ROM  | `data/` next to binary | Required for boot                 |
 | `dc_flash.bin` | Dreamcast flash ROM | `data/` next to binary | Required for region/date settings |
 
 **Optional files:** None.
@@ -286,3 +258,13 @@ the same hardware revision. Mismatched pairs may cause region or boot failures.
 **Bundleable:** Yes
 
 **Portable mode confirmed:** Yes
+
+_Note:_ Flycast will not support DX9 out of the box. This means Flycast will not run on older OSs like Windows 7 or earlier.
+You can fix this by rebuilding Flycast frmo the emulators/flycast dir with the DX9 SDK installed on your PC. See Flycast Github for
+build details.
+
+Dependencies are included in `peach_1up\emulators\flycast\dependencies`. The release build is built with:
+
+```bash
+cmake -S . -B build -A x64 -DUSE_DX9=OFF -DUSE_VULKAN=ON -DUSE_DX11=ON -DUSE_OPENGL=ON
+```
