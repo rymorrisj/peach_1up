@@ -8,6 +8,7 @@ from typing import Dict, Any
 import yaml as _yaml
 
 from backend.core.settings import get_base_path
+from backend.service.utils import settings as _settings
 
 _logger = logging.getLogger(__name__)
 
@@ -297,6 +298,9 @@ def get_emulator_era(slug: str) -> str:
 
 
 def get_skip_memory_limit(slug: str) -> bool:
+    override = _settings.get(f"sandbox_{slug}_skip_memory_limit", None)
+    if override is not None:
+        return bool(override)
     try:
         return bool(get_emulator(slug).get("skip_memory_limit", False))
     except ValueError:
@@ -304,6 +308,9 @@ def get_skip_memory_limit(slug: str) -> bool:
 
 
 def get_skip_cpu_limit(slug: str) -> bool:
+    override = _settings.get(f"sandbox_{slug}_skip_cpu_limit", None)
+    if override is not None:
+        return bool(override)
     try:
         return bool(get_emulator(slug).get("skip_cpu_limit", False))
     except ValueError:
@@ -311,6 +318,9 @@ def get_skip_cpu_limit(slug: str) -> bool:
 
 
 def get_container_enabled(slug: str) -> bool:
+    override = _settings.get(f"sandbox_{slug}_container_enabled", None)
+    if override is not None:
+        return bool(override)
     try:
         return bool(get_emulator(slug).get("container_enabled", False))
     except ValueError:
