@@ -171,7 +171,7 @@ def _build_drive_mount_lines(
     mount_line is None when media_path is a directory on a persistent drive
     (files are already on C:, so no additional mount is needed).
 
-    SECURITY: drive_image_path is validated against library/media to prevent
+    SECURITY: drive_image_path is validated against library/system/drives to prevent
     path traversal. This check must not be removed or weakened.
     """
     suffix = media_path.suffix.lower()
@@ -181,10 +181,10 @@ def _build_drive_mount_lines(
     drive_setup_lines: list[str] = []
 
     if has_persistent_drive:
-        lib_media = get_base_path() / "library" / "media"
-        if not drive_image_path.resolve().is_relative_to(lib_media.resolve()):
+        drives_path = get_base_path() / "library" / "system" / "drives"
+        if not drive_image_path.resolve().is_relative_to(drives_path.resolve()):
             raise ValueError(
-                f"Drive image path escaped library/media: {drive_image_path}. "
+                f"Drive image path escaped library/system/drives: {drive_image_path}. "
                 "This indicates a data integrity problem."
             )
         drive_cmd_path = _dosbox_cmd_path(drive_image_path)
