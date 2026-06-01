@@ -15,8 +15,9 @@ from backend.service.utils.settings import get_binary_path
 
 _CONSOLE_BACKENDS: frozenset[str] = frozenset({
     BackendSlug.DUCKSTATION.value,
-    BackendSlug.PCSX2.value,
+    BackendSlug.FLYCAST.value,
     BackendSlug.MESEN.value,
+    BackendSlug.PCSX2.value,
     BackendSlug.PROJECT64.value,
 })
 

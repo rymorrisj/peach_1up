@@ -223,6 +223,11 @@ def configure_emulator(slug: str) -> None:
     elif slug == "duckstation":
         (exe_dir / "portable.txt").touch()
 
+    elif slug == "flycast":
+        cfg_path = exe_dir / "emu.cfg"
+        if not cfg_path.exists():
+            cfg_path.touch()
+
     elif slug == "xemu":
         from backend.service.backends.xemu import _MCPX_ROM, _BIOS_ROM
 

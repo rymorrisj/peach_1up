@@ -25,6 +25,24 @@ SUPPORTED_ERAS = {Era.DREAMCAST.value}
 SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.DREAMCAST]
 
 
+def validate_bios_path(executable_path: str) -> None:
+    """Verify that dc_boot.bin and dc_flash.bin exist in the data/ subdir.
+
+    Raises:
+        RuntimeError: If either BIOS file is absent, naming the missing files.
+    """
+    data_dir = Path(executable_path).parent / "data"
+    missing = [
+        name for name in ("dc_boot.bin", "dc_flash.bin")
+        if not (data_dir / name).exists()
+    ]
+    if missing:
+        raise RuntimeError(
+            f"Flycast BIOS files missing from {data_dir}: {', '.join(missing)}. "
+            "These files must be dumped from Sega Dreamcast hardware you own."
+        )
+
+
 def launch(
     media_path: Path,
     era: str,
@@ -45,6 +63,7 @@ def launch(
     Raises:
         FileNotFoundError: If the executable or media path does not exist.
         ValueError: If the era or media format is unsupported.
+        RuntimeError: If BIOS files are missing from the data/ subdirectory.
     """
     if era not in SUPPORTED_ERAS:
         raise ValueError(
@@ -54,6 +73,8 @@ def launch(
 
     if not Path(executable_path).exists():
         raise FileNotFoundError(f"Flycast executable not found: {executable_path}")
+
+    validate_bios_path(executable_path)
 
     if not media_path.exists():
         raise FileNotFoundError(f"Media file not found: {media_path}")
