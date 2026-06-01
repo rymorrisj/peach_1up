@@ -11,7 +11,8 @@ from backend.core.settings import get_base_path
 
 _logger = logging.getLogger(__name__)
 
-_CATALOG_PATH = get_base_path() / "config" / "emulators.toml"
+_EMULATORS_DIR = get_base_path() / "config" / "emulators"
+_BIOS_REQUIREMENTS_PATH = get_base_path() / "config" / "bios_requirements.toml"
 _BASE_DIR = get_base_path() / "emulators"
 _PROFILES_PATH = get_base_path() / "config" / "86box-profiles.toml"
 _PROFILES_DIR = get_base_path() / "config" / "86box-profiles"
@@ -23,7 +24,14 @@ _ERAS_CONFIG_CACHE: Dict[str, Any] | None = None
 def _load_raw_catalog() -> dict:
     global _catalog_cache
     if _catalog_cache is None:
-        _catalog_cache = tomllib.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
+        emulators = []
+        for path in sorted(_EMULATORS_DIR.glob("*.toml")):
+            emulators.append(tomllib.loads(path.read_text(encoding="utf-8")))
+        bios_data = tomllib.loads(_BIOS_REQUIREMENTS_PATH.read_text(encoding="utf-8"))
+        _catalog_cache = {
+            "emulators": emulators,
+            "bios_requirements": bios_data.get("bios_requirements", []),
+        }
     return _catalog_cache
 
 
@@ -97,7 +105,7 @@ def get_86box_profile(slug: str) -> dict:
     else:
         raise FileNotFoundError(
             f"86Box profiles not found — expected {_PROFILES_PATH} or {_PROFILES_DIR}. "
-            "Run scripts/merge_emulators.py to generate config/86box-profiles.toml."
+            "Ensure config/86box-profiles/ exists and contains .toml profile files."
         )
     for profile in profiles:
         if profile.get("slug") == slug:
@@ -290,7 +298,7 @@ def get_emulator_era(slug: str) -> str:
     entry = get_emulator(slug)
     era = entry.get("era")
     if not era:
-        raise ValueError(f"Emulator '{slug}' has no 'era' field in emulators.toml")
+        raise ValueError(f"Emulator '{slug}' has no 'era' field in config/emulators/{slug}.toml")
     return str(era)
 
 

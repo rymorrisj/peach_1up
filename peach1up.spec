@@ -2,20 +2,6 @@
 # PyInstaller spec for Peach 1UP — one-dir build.
 # Prerequisites: build frontend (npm run build) before running pyinstaller.
 
-import subprocess
-import sys as _sys
-
-_merge = subprocess.run(
-    [_sys.executable, "scripts/merge_emulators.py"],
-    capture_output=True,
-    text=True,
-)
-if _merge.returncode != 0:
-    raise SystemExit(
-        f"merge_emulators.py failed (exit {_merge.returncode}):\n{_merge.stderr}"
-    )
-print(_merge.stdout, end="")
-
 from PyInstaller.utils.hooks import collect_submodules
 
 hiddenimports = (
@@ -83,7 +69,6 @@ a.datas = [
     and not any(seg in dest for seg in ("test_", "_test.", "/tests/", "/test/"))
     and not any(part in dest for part in ("roms", "bios", "saves", "vms"))
     and dest.replace("\\", "/") != "config/emulators.yaml"
-    and not dest.replace("\\", "/").startswith("config/emulators/")
 ]
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)

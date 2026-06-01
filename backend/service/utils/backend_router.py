@@ -140,7 +140,7 @@ def get_executable_path(era: Era) -> tuple[str, str]:
     except ValueError:
         raise RuntimeError(
             f"No executable mapping for backend '{backend_name}' (era '{era.value}'). "
-            "Ensure the emulator is registered in config/emulators.toml."
+            "Ensure the emulator is registered in config/emulators/."
         )
 
     # get_binary_path() uses legacy short keys; "86box" backend → "box86" legacy key.

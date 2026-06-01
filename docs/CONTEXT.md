@@ -388,7 +388,7 @@ Close remaining gaps in supported eras and verify all console backends
 launch cleanly end-to-end. Nothing in P4 or 86Box is confirmed working.
 Backend existence is not the same as confirmed launch.
 
-### CURRENT
+### PAUSED for PX-2 Unblock
 
 - [PX-1-1] Fix 86Box PnP hardware detection loop
   \_prepare_config rewrites machine/cpu/gfxcard/sndcard on every launch.
@@ -398,33 +398,42 @@ Backend existence is not the same as confirmed launch.
   net_type = none to [Network] on every launch. Add Era.WINXP.value to
   SUPPORTED_ERAS in box86.py. Confirm Win95, Win98, XP all boot persistently
   with no driver prompts before moving on.
-
 - [PX-1-2] Verify console backends end-to-end
   Test each in order: Mesen (NES), Project64 (N64), DuckStation (PS1),
   PCSX2 (PS2), xemu (Xbox OG). For each: confirm launch, confirm media
   loads, confirm process is tracked under Job Objects, confirm clean exit.
   Fix whatever breaks. Do not move to the next until the current passes.
-
 - [PX-1-3] Add Windows ME era via DOSBox-X
   New era slug: winme. Routes to DOSBox-X. No ROM required. Add to
   SUPPORTED_ERAS in dosbox.py, era selector in frontend, and eras.yaml.
-  Low effort — DOSBox-X already handles it.
-
+  Also, dgVoodoo2 injection for 3D-era Win9x games
 - [PX-1-4] Surface networking toggle in profile UI
   enable_networking exists on the profile model. Needs a toggle in the
   profile edit UI. Off by default. No backend changes required.
-
 - [PX-1-5] Controller remapping UI
   Frontend only. No backend changes required.
-
 - [PX-1-6] PX-1 committed and pushed to main.
 
-### NEXT
+## PX-2 — Architecture Refactors
 
-- dgVoodoo2 injection for 3D-era Win9x games
-- Flycast/Dreamcast verification
+### Goal
 
-## PX-2 — Linux Namespace and cgroup Isolation (Scaffold)
+Address issues in architecture found in a recent audit pass. Needed for consoles
+
+### CURRENT
+
+- [PX-2-1] Load config/emulators/\*.toml at runtime directly eliminate merge_emulators.py build step
+- [PX-2-2] Uniform backend launch interface one kwargs contract, data-driven dispatch, remove frozenset branching
+- [PX-2-3] AppContainer grant surface reconcile broker path_key vocabulary with \_resolve_path_key before enabling any console container
+- [PX-2-4] Move launch contract into descriptor (args template, cwd rule, portable sentinel, userdata location)
+- [PX-2-5] Resolve drive location contradiction (library/media vs library/system/drives) and DRIVES_PATH dead key
+- [PX-2-6] Xbox consumable model xemu should not require an Environment for a single ISO
+- [PX-2-7] Honor container*enabled/skip*\* overrides at launch or remove the UI control
+- [PX-2-8] DOSBox shared conf clobber on concurrent launches
+- [PX-2-9] Fix xemu config ownership — align validate_bios_path to check the per-VM file, fix or remove the broken configure_emulator xemu branch, verify the flash/bootrom key naming against xemu's documented schema.
+- [PX-2-10] PX-2 committed and pushed to main.
+
+## PX-3 — Linux Namespace and cgroup Isolation (Scaffold)
 
 ### Goal
 
@@ -435,15 +444,15 @@ per-launch CPU/memory caps.
 
 ### NEXT
 
-- [PX-2-1] Select Linux isolation backend (nsjail vs native namespaces+cgroups)
-- [PX-2-2] Define per-launch sandbox filesystem layout and allowed mounts
-- [PX-2-3] Implement CPU and memory limits via cgroup v2
-- [PX-2-4] Integrate Linux sandboxed launch into emulator backends
-- [PX-2-5] Update SECURITY.md and DECISIONS.md and any other documentation for Linux isolation
-- [PX-2-6] Linux packages — fpm produces .deb and AppImage. Registers systemd
+- [PX-3-1] Select Linux isolation backend (nsjail vs native namespaces+cgroups)
+- [PX-3-2] Define per-launch sandbox filesystem layout and allowed mounts
+- [PX-3-3] Implement CPU and memory limits via cgroup v2
+- [PX-3-4] Integrate Linux sandboxed launch into emulator backends
+- [PX-3-5] Update SECURITY.md and DECISIONS.md and any other documentation for Linux isolation
+- [PX-3-6] Linux packages — fpm produces .deb and AppImage. Registers systemd
   service on deb install. AppImage runs standalone.
-- [PX-2-7] Include Linux in the native installation and distribution flow (depends on P8 Windows installer being stable)
-- [PX-2-8] PX-2 committed and pushed to main.
+- [PX-3-7] Include Linux in the native installation and distribution flow (depends on P8 Windows installer being stable)
+- [PX-3-8] PX-3 committed and pushed to main.
 
 ## PX — Nice to Haves
 

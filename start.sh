@@ -89,15 +89,6 @@ if [ $? -ne 0 ]; then
 fi
 echo "[OK] API types generated"
 
-# ── Merge emulator manifests ───────────────────────────────────
-echo "Merging emulator manifests..."
-python3 scripts/merge_emulators.py
-if [ $? -ne 0 ]; then
-  echo "ERROR: Failed to merge emulator manifests."
-  exit 1
-fi
-echo "[OK] Emulator manifests merged"
-
 # ── Environment and start services ─────────────────────────────
 export PEACH_ENV=development
 

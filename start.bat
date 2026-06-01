@@ -149,15 +149,6 @@ if exist "backend\service\utils\sandbox\sandbox_host.exe" (
     )
 )
 
-REM ── Merge emulator manifests ──────────────────────────────────
-echo Merging emulator manifests...
-".venv\Scripts\python.exe" scripts\merge_emulators.py
-if errorlevel 1 (
-    echo ERROR: Failed to merge emulator manifests.
-    exit /b 1
-)
-echo [OK] Emulator manifests merged
-
 REM ── Environment and start services ───────────────────────────
 set PEACH_ENV=development
 
