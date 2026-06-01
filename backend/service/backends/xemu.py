@@ -49,28 +49,27 @@ def validate_media(media_path: Path) -> None:
         )
 
 
-def validate_bios_path() -> None:
-    """Validate that the asset files declared in emulators/xemu/xemu.toml exist on disk.
+def validate_bios_path(config_path: Path) -> None:
+    """Validate that the asset files declared in the per-VM xemu.toml exist on disk.
 
-    Reads flash_path, bios_path, and hdd_path from the global xemu config and
-    verifies each file is present. Paths may be absolute or relative to the
-    project root.
+    Reads flash_path, bios_path, and hdd_path from the per-VM config and verifies
+    each file is present. Paths may be absolute or relative to the project root.
+
+    Args:
+        config_path: Path to the per-VM xemu.toml (emulators/xemu/vms/{slug}/xemu.toml).
 
     Raises:
-        RuntimeError: If the config is missing, a key is unset, or a file is absent.
+        RuntimeError: If the per-VM toml is absent, a key is unset, or a file is absent.
     """
     import tomllib
 
-    base = get_base_path()
-    xemu_toml = base / "emulators" / "xemu" / "xemu.toml"
-
-    if not xemu_toml.exists():
+    if not config_path.exists():
         raise RuntimeError(
-            f"xemu config not found: {xemu_toml}. "
-            "Configure flash_path, bios_path, and hdd_path via the Emulators page."
+            f"xemu per-VM config not found: {config_path}. "
+            "Register the Xbox platform before launching."
         )
 
-    with xemu_toml.open("rb") as fh:
+    with config_path.open("rb") as fh:
         config = tomllib.load(fh)
 
     system = config.get("system", {})
@@ -82,12 +81,13 @@ def validate_bios_path() -> None:
         ("hdd_path", storage.get("hdd_path", "")),
     ]
 
+    base = get_base_path()
     missing: list[str] = []
     for key, raw in checks:
         if not raw:
             raise RuntimeError(
-                f"xemu config key '{key}' is not set in {xemu_toml}. "
-                "Configure it via the Emulators page."
+                f"xemu config key '{key}' is not set in {config_path}. "
+                "Re-register the Xbox platform or update the config manually."
             )
         resolved = Path(raw) if Path(raw).is_absolute() else base / raw
         if not resolved.exists():
@@ -97,7 +97,7 @@ def validate_bios_path() -> None:
         lines = "\n".join(missing)
         raise RuntimeError(
             f"xemu asset files not found:\n{lines}\n"
-            "Update these paths in emulators/xemu/xemu.toml via the Emulators page."
+            f"Update these paths in {config_path}."
         )
 
 
@@ -155,7 +155,7 @@ def launch(
     if media_path is not None:
         validate_media(media_path)
 
-    validate_bios_path()
+    validate_bios_path(Path(platform.config_path))
 
     vm_dir = Path(str(platform.config_path)).parent.resolve()
 

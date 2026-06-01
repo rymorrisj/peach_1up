@@ -180,27 +180,45 @@ def provision_xemu_vm(platform: Platform) -> tuple[str | None, str, str]:
     vm_dir = _resolve_within(vms_base, vm_name)
     vm_dir.mkdir(parents=True, exist_ok=True)
 
-    xemu_exe = get_binary_path("xemu")
-    if xemu_exe:
-        bios_dir = Path(xemu_exe).parent.resolve()
-        bootrom = str(bios_dir / "mcpx_1.0.bin").replace("\\", "/")
-        flashrom = str(bios_dir / "bios.bin").replace("\\", "/")
-    else:
-        bootrom = ""
-        flashrom = ""
+    base = get_base_path()
+    global_toml = base / "emulators" / "xemu" / "xemu.toml"
+    flash_path = ""
+    bios_path = ""
+    if global_toml.exists():
+        try:
+            import tomllib as _tomllib
+            _cfg = _tomllib.loads(global_toml.read_text(encoding="utf-8"))
+            _sys = _cfg.get("system", {})
+            for _key, _attr in (("flash_path", "flash_path"), ("bios_path", "bios_path")):
+                _raw = _sys.get(_key, "")
+                if _raw:
+                    _p = Path(_raw)
+                    _resolved = str((_p if _p.is_absolute() else (base / _p).resolve()).as_posix())
+                    if _key == "flash_path":
+                        flash_path = _resolved
+                    else:
+                        bios_path = _resolved
+        except Exception:
+            pass
+
+    global_hdd = base / "emulators" / "xemu" / "xbox_hdd.qcow2"
+    vm_hdd = vm_dir / "xbox_hdd.qcow2"
+    if not vm_hdd.exists() and global_hdd.exists():
+        shutil.copy2(str(global_hdd), str(vm_hdd))
+    hdd_path = vm_hdd.resolve().as_posix()
 
     toml_path = vm_dir / "xemu.toml"
     if not toml_path.exists():
         with toml_path.open("w", encoding="utf-8") as fh:
             fh.write("[system]\n")
-            fh.write(f'flash_path = "{bootrom}"\n')
-            fh.write(f'bios_path = "{flashrom}"\n')
+            fh.write(f'flash_path = "{flash_path}"\n')
+            fh.write(f'bios_path = "{bios_path}"\n')
             fh.write("[storage]\n")
-            fh.write('hdd_path = "xbox_hdd.qcow2"\n')
+            fh.write(f'hdd_path = "{hdd_path}"\n')
             fh.write('dvd_path = ""\n')
             fh.write("\n[net]\nenabled = false\n")
 
-    return None, str(vm_dir / "xbox_hdd.qcow2"), str(toml_path)
+    return None, str(vm_hdd), str(toml_path)
 
 
 def provision_platform(platform: Platform, db: Session | None = None) -> tuple[str | None, str | None, str | None]:

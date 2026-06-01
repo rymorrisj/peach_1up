@@ -1,4 +1,5 @@
 import glob as _glob
+import logging
 import os
 import tomllib
 from pathlib import Path
@@ -7,6 +8,8 @@ from typing import Dict, Any
 import yaml as _yaml
 
 from backend.core.settings import get_base_path
+
+_logger = logging.getLogger(__name__)
 
 _CATALOG_PATH = get_base_path() / "config" / "emulators.toml"
 _BASE_DIR = get_base_path() / "emulators"
@@ -229,19 +232,22 @@ def configure_emulator(slug: str) -> None:
             cfg_path.touch()
 
     elif slug == "xemu":
-        from backend.service.backends.xemu import _MCPX_ROM, _BIOS_ROM
-
         toml_path = exe_dir / "xemu.toml"
-        if not toml_path.exists():
-            toml_path.write_text(
-                "[general]\n"
-                "show_welcome = false\n"
-                "[system]\n"
-                f'flash_path = "{exe_dir / _MCPX_ROM}"\n'
-                f'bios_path = "{exe_dir / _BIOS_ROM}"\n'
-                "[storage]\n"
-                f'hdd_path = "{exe_dir / "xbox_hdd.qcow2"}"\n',
-                encoding="utf-8",
+        configured = False
+        if toml_path.exists():
+            try:
+                _cfg = tomllib.loads(toml_path.read_text(encoding="utf-8"))
+                _sys = _cfg.get("system", {})
+                _sto = _cfg.get("storage", {})
+                if _sys.get("flash_path") and _sys.get("bios_path") and _sto.get("hdd_path"):
+                    configured = True
+            except Exception:
+                pass
+        if not configured:
+            _logger.warning(
+                "xemu global config at %s is missing or incomplete. "
+                "flash_path, bios_path, and hdd_path must be set before launching Xbox titles.",
+                toml_path,
             )
 
 
