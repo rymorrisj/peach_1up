@@ -1,4 +1,4 @@
-"""Tests for short-lived launch detection in launches.py.
+"""Tests for short-lived launch detection in monitor.py.
 
 Covers:
 - Process exits within 3s → launch_review_flagged set on item
@@ -26,63 +26,74 @@ def _make_proc(poll_return):
 
 
 # ---------------------------------------------------------------------------
-# _monitor_short_lived_launch — core detection logic
+# poll_short_lived — core detection logic (replaces _monitor_short_lived_launch)
 # ---------------------------------------------------------------------------
 
 class TestMonitorShortLivedLaunch:
-    def test_exits_immediately_flags_item(self, monkeypatch):
-        """Poll returns exit code on first call → _flag_short_lived_item called."""
-        import backend.api.routes.launches as mod
-        from backend.api.routes.launches import _monitor_short_lived_launch
+    def _register_and_poll(self, monkeypatch, item_id, proc, launch_time):
+        """Register a pending check then call poll_short_lived once."""
+        import backend.service.launch.monitor as mod
+        from backend.service.launch.monitor import register_short_lived_check, poll_short_lived
 
-        proc = _make_proc(poll_return=1)
+        # Clear any leftover state from prior tests
+        with mod._lock:
+            mod._pending.clear()
+
+        register_short_lived_check(item_id, proc, launch_time)
+
         flagged = []
         monkeypatch.setattr(mod, "_flag_short_lived_item", lambda iid: flagged.append(iid))
 
-        _monitor_short_lived_launch(42, proc, time.monotonic(), _timeout=3.0)
+        poll_short_lived()
+        return flagged
 
+    def test_exits_immediately_flags_item(self, monkeypatch):
+        """Poll returns exit code on first call → _flag_short_lived_item called."""
+        proc = _make_proc(poll_return=1)
+        flagged = self._register_and_poll(monkeypatch, 42, proc, time.monotonic())
         assert flagged == [42]
 
     def test_exits_with_zero_exit_code_also_flags(self, monkeypatch):
         """Exit code 0 (clean exit) within window is still flagged as short-lived."""
-        import backend.api.routes.launches as mod
-        from backend.api.routes.launches import _monitor_short_lived_launch
-
         proc = _make_proc(poll_return=0)
-        flagged = []
-        monkeypatch.setattr(mod, "_flag_short_lived_item", lambda iid: flagged.append(iid))
-
-        _monitor_short_lived_launch(99, proc, time.monotonic(), _timeout=3.0)
-
+        flagged = self._register_and_poll(monkeypatch, 99, proc, time.monotonic())
         assert flagged == [99]
 
     def test_process_survives_window_does_not_flag(self, monkeypatch):
         """Poll always returns None and the window is already expired → no flag."""
-        import backend.api.routes.launches as mod
-        from backend.api.routes.launches import _monitor_short_lived_launch
+        import backend.service.launch.monitor as mod
+        from backend.service.launch.monitor import register_short_lived_check, poll_short_lived
+
+        with mod._lock:
+            mod._pending.clear()
 
         proc = _make_proc(poll_return=None)
+        # Launch time 5 seconds in the past so deadline is already expired
+        past_launch = time.monotonic() - 5.0
+        register_short_lived_check(42, proc, past_launch)
+
         flagged = []
         monkeypatch.setattr(mod, "_flag_short_lived_item", lambda iid: flagged.append(iid))
 
-        # Pass launch_time 5 seconds in the past so deadline is already expired
-        past_launch = time.monotonic() - 5.0
-        _monitor_short_lived_launch(42, proc, past_launch, _timeout=3.0)
-
+        poll_short_lived()
         assert flagged == []
 
     def test_warning_logged_on_short_exit(self, monkeypatch):
         """WARNING is emitted when a short-lived exit is detected."""
-        import backend.api.routes.launches as mod
-        from backend.api.routes.launches import _monitor_short_lived_launch
+        import backend.service.launch.monitor as mod
+        from backend.service.launch.monitor import register_short_lived_check, poll_short_lived
+
+        with mod._lock:
+            mod._pending.clear()
 
         proc = _make_proc(poll_return=2)
-        monkeypatch.setattr(mod, "_flag_short_lived_item", lambda iid: None)
+        register_short_lived_check(7, proc, time.monotonic())
 
+        monkeypatch.setattr(mod, "_flag_short_lived_item", lambda iid: None)
         mock_logger = MagicMock()
         monkeypatch.setattr(mod, "logger", mock_logger)
 
-        _monitor_short_lived_launch(7, proc, time.monotonic(), _timeout=3.0)
+        poll_short_lived()
 
         mock_logger.warning.assert_called_once()
         call_str = str(mock_logger.warning.call_args)
@@ -90,16 +101,20 @@ class TestMonitorShortLivedLaunch:
 
     def test_no_warning_when_process_survives(self, monkeypatch):
         """No WARNING emitted when process outlives the window."""
-        import backend.api.routes.launches as mod
-        from backend.api.routes.launches import _monitor_short_lived_launch
+        import backend.service.launch.monitor as mod
+        from backend.service.launch.monitor import register_short_lived_check, poll_short_lived
+
+        with mod._lock:
+            mod._pending.clear()
 
         proc = _make_proc(poll_return=None)
-        monkeypatch.setattr(mod, "_flag_short_lived_item", lambda iid: None)
+        register_short_lived_check(7, proc, time.monotonic() - 5.0)
 
+        monkeypatch.setattr(mod, "_flag_short_lived_item", lambda iid: None)
         mock_logger = MagicMock()
         monkeypatch.setattr(mod, "logger", mock_logger)
 
-        _monitor_short_lived_launch(7, proc, time.monotonic() - 5.0, _timeout=3.0)
+        poll_short_lived()
 
         mock_logger.warning.assert_not_called()
 
@@ -111,8 +126,8 @@ class TestMonitorShortLivedLaunch:
 class TestFlagShortLivedItem:
     def test_sets_flag_and_commits(self, monkeypatch):
         """Sets launch_review_flagged = True and calls commit."""
-        import backend.api.routes.launches as mod
-        from backend.api.routes.launches import _flag_short_lived_item
+        import backend.service.launch.monitor as mod
+        from backend.service.launch.monitor import _flag_short_lived_item
 
         mock_item = MagicMock()
         mock_item.launch_review_flagged = False
@@ -132,7 +147,7 @@ class TestFlagShortLivedItem:
 
     def test_missing_item_does_not_raise(self, monkeypatch):
         """Item not found in DB → function completes without raising."""
-        from backend.api.routes.launches import _flag_short_lived_item
+        from backend.service.launch.monitor import _flag_short_lived_item
 
         mock_db = MagicMock()
         mock_db.__enter__ = MagicMock(return_value=mock_db)
@@ -144,10 +159,10 @@ class TestFlagShortLivedItem:
 
         _flag_short_lived_item(999)  # should not raise
 
-    def test_db_error_logs_warning_and_does_not_raise(self, monkeypatch):
-        """DB failure logs WARNING and does not propagate."""
-        import backend.api.routes.launches as mod
-        from backend.api.routes.launches import _flag_short_lived_item
+    def test_db_error_logs_error_and_raises(self, monkeypatch):
+        """DB failure logs ERROR and re-raises the exception."""
+        import backend.service.launch.monitor as mod
+        from backend.service.launch.monitor import _flag_short_lived_item
 
         monkeypatch.setattr("backend.core.database.get_engine", lambda: MagicMock())
         monkeypatch.setattr(
@@ -158,9 +173,10 @@ class TestFlagShortLivedItem:
         mock_logger = MagicMock()
         monkeypatch.setattr(mod, "logger", mock_logger)
 
-        _flag_short_lived_item(1)  # should not raise
+        with pytest.raises(RuntimeError, match="db failure"):
+            _flag_short_lived_item(1)
 
-        mock_logger.warning.assert_called_once()
+        mock_logger.error.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -187,10 +203,10 @@ class TestLaunchResponseFlag:
 
 class TestEnvironmentLaunchNoMonitor:
     def test_launch_environment_does_not_call_monitor(self):
-        """launch_environment source contains no call to _monitor_short_lived_launch."""
+        """launch_environment source contains no call to register_short_lived_check."""
         import backend.api.routes.launches as mod
         src = inspect.getsource(mod.launch_environment)
-        assert "_monitor_short_lived_launch" not in src
+        assert "register_short_lived_check" not in src
 
 
 # ---------------------------------------------------------------------------
