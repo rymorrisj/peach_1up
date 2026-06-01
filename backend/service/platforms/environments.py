@@ -13,8 +13,8 @@ from backend.models.snapshot import Snapshot, SnapshotCreate
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.slug_generator import unique_slug
 
-_PLATFORM_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp", "xbox"})
-_PROVISIONABLE_ERAS = frozenset({"win95", "win98", "winxp", "xbox"})
+_PLATFORM_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
+_PROVISIONABLE_ERAS = frozenset({"win95", "win98", "winxp"})
 
 
 def _validate_image_path(path_str: str) -> Path:

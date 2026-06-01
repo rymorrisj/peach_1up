@@ -61,16 +61,6 @@ _SYSTEM_PLATFORMS = [
         "status": "unknown",
     },
     {
-        "name": "xemu",
-        "slug": "xemu",
-        "era": "xbox",
-        "emulator_slug": "xemu",
-        "is_system": True,
-        "supported_eras": json.dumps(["xbox"]),
-        "download_url": "https://xemu.app",
-        "status": "unknown",
-    },
-    {
         "name": "Mesen",
         "slug": "mesen",
         "era": "nes",
