@@ -29,11 +29,6 @@ access = "r"
 mode = "grant"
 
 [[container_broker_files]]
-path_key = "PS2_BIOS_PATH"
-access = "r"
-mode = "grant"
-
-[[container_broker_files]]
 path_key = "GAMES_PATH"
 access = "r"
 mode = "grant"

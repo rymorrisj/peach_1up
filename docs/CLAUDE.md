@@ -75,69 +75,68 @@ Objects on Windows.
 peach_1up/
 ├── README.md
 ├── start.bat / start.sh
-├── .env                       # never committed
+├── .env # never committed
 ├── .env.template
 ├── .gitignore
 ├── backend/
-│   ├── api/
-│   │   ├── middleware/
-│   │   └── routes/
-│   ├── core/
-│   │   ├── database.py
-│   │   ├── dependencies.py
-│   │   ├── lifespan.py
-│   │   ├── process_registry.py
-│   │   └── settings.py
-│   ├── models/
-│   ├── service/
-│   │   ├── backends/
-│   │   └── utils/
-│   ├── tests/
-│   └── main.py
+│ ├── api/
+│ │ ├── middleware/
+│ │ └── routes/
+│ ├── core/
+│ │ ├── database.py
+│ │ ├── dependencies.py
+│ │ ├── lifespan.py
+│ │ ├── process_registry.py
+│ │ └── settings.py
+│ ├── models/
+│ ├── service/
+│ │ ├── backends/
+│ │ └── utils/
+│ ├── tests/
+│ └── main.py
 ├── frontend/
-│   ├── src/
-│   │   ├── api/
-│   │   ├── components/
-│   │   ├── context/
-│   │   ├── hooks/
-│   │   ├── pages/
-│   │   ├── styles/
-│   │   ├── types/
-│   │   └── ui/
-│   └── package.json
+│ ├── src/
+│ │ ├── api/
+│ │ ├── components/
+│ │ ├── context/
+│ │ ├── hooks/
+│ │ ├── pages/
+│ │ ├── styles/
+│ │ ├── types/
+│ │ └── ui/
+│ └── package.json
 ├── config/
-│   ├── templates/
-│   ├── constants.yaml
-│   ├── emulators.yaml
-│   ├── eras.yaml
-│   ├── known_titles.yaml
-│   ├── platforms.yaml
-│   └── settings.yaml
+│ ├── templates/
+│ ├── constants.yaml
+│ ├── emulators.yaml
+│ ├── eras.yaml
+│ ├── known_titles.yaml
+│ ├── platforms.yaml
+│ └── settings.yaml
 ├── database/
-│   └── data/                  # peach1up.db lives here (never committed)
+│ └── data/ # peach1up.db lives here (never committed)
 ├── shared/
-│   ├── openapi.json           # auto-generated at startup
-│   └── types.ts               # auto-generated from openapi.json
+│ ├── openapi.json # auto-generated at startup
+│ └── types.ts # auto-generated from openapi.json
 ├── docs/
 ├── scripts/
-│   ├── export_openapi.py
-│   ├── gen_constants.py
-│   └── setup_admin_user.py
+│ ├── export_openapi.py
+│ ├── gen_constants.py
+│ └── setup_admin_user.py
 ├── emulators/
-│   ├── 86box/
-│   ├── dosbox-x/
-│   └── virtualbox/
-└── library/                   # user-supplied, never committed
-    ├── games/                 # games/{era}/{slug}/
-    ├── os/                    # os/{era}/
-    ├── roms/
-    │   └── 86box/             # 86Box ROM pack
-    ├── bios/
-    │   ├── ps1/
-    │   ├── ps2/
-    │   └── xbox/
-    ├── tools/                 # tools/{slug}/
-    └── saves/
+│ ├── 86box/
+│ ├── dosbox-x/
+└── library/ # user-supplied, never committed
+├── games/ # games/{era}/{slug}/
+├── os/ # os/{era}/
+├── roms/
+│ └── 86box/ # 86Box ROM pack
+├── bios/
+│ ├── ps1/
+│ ├── ps2/
+│ └── xbox/
+├── tools/ # tools/{slug}/
+└── saves/
 
 ## Key Rules
 
@@ -238,7 +237,6 @@ Supported legacy overrides (also accepted in settings.yaml):
 
 - DOSBOX_PATH — path to dosbox-x.exe
 - BOX86_PATH — path to 86Box.exe
-- VIRTUALBOX_PATH — path to VBoxManage.exe
 - ROM_PATH — path to 86Box ROM pack directory
 - PROFILES_PATH — path to game profiles directory
 
@@ -274,7 +272,6 @@ Use the area of the project being changed:
 
 - dosbox — DOSBox-X backend
 - 86box — 86Box backend
-- virtualbox — VirtualBox backend
 - profiles — game profile system
 - detection — media or system detection logic
 - config — settings, .env, yaml files

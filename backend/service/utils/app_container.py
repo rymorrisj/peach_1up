@@ -47,8 +47,7 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
 
     Resolution order:
     1. Direct settings key — ``settings.get(path_key)`` (covers uppercase keys
-       such as ROMS_PATH, PS1_BIOS_PATH, DREAMCAST_BIOS_PATH,
-       XBOX_BIOS_PATH, BIOS_PATH).
+       such as ROMS_PATH).
     2. Derived path map keyed by descriptive name (install_dir, saves_dir, etc.).
 
     Args:
@@ -60,7 +59,6 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
     """
     from backend.service.utils import settings as _settings
 
-    # Step 1: direct settings lookup.
     try:
         val = _settings.get(path_key)
         if val:

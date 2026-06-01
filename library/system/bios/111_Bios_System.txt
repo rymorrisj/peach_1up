@@ -1,0 +1,19 @@
+---- INCLUDE -------------------
+FBNEO
+PCE
+GB
+GBC
+GBA
+NDS
+NES
+SNES
+N64
+GC
+GG
+SMS
+MD
+DC
+SATURN
+PSX
+PSP
+PS2 : Uncompress the file named "Sony - PlayStation 2 (PCSX2).7z"

@@ -18,7 +18,6 @@ from backend.service.utils.emulator_catalog import (
 from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.process.job_objects import WindowsJobObject
-from backend.service.utils.settings import get_env_var
 
 logger = get_logger(__name__)
 
@@ -46,7 +45,6 @@ def launch(
     Raises:
         FileNotFoundError: If the executable or media path does not exist.
         ValueError: If the era or media format is unsupported.
-        RuntimeError: If the BIOS path is not configured.
     """
     if era not in SUPPORTED_ERAS:
         raise ValueError(
@@ -64,13 +62,6 @@ def launch(
         raise ValueError(
             f"Unsupported media format '{media_path.suffix}'. "
             f"Flycast supports: {', '.join(sorted(SUPPORTED_MEDIA))}"
-        )
-
-    bios_path_str = get_env_var("DREAMCAST_BIOS_PATH")
-    if not bios_path_str:
-        raise RuntimeError(
-            "DREAMCAST_BIOS_PATH is not configured. "
-            "Set it in config/settings.yaml before launching Flycast."
         )
 
     args: list[str] = [str(media_path)]

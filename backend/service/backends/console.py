@@ -19,8 +19,6 @@ from backend.service.utils.emulator_catalog import (
 from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.process.job_objects import WindowsJobObject
-from backend.service.utils.settings import get_env_var
-
 
 @dataclass
 class ConsoleBackend:
@@ -30,7 +28,7 @@ class ConsoleBackend:
     cli_args_prefix: list
     display_name: str
     media_label: str = "Media file"
-    bios_env_var: str | None = None
+    bios_subpath: str | None = None
     bios_label: str | None = None
     hardware_label: str | None = None
 
@@ -59,7 +57,7 @@ _DUCKSTATION = ConsoleBackend(
     supported_media=ERA_MEDIA_TYPES[Era.PS1],
     cli_args_prefix=["-nogui"],
     display_name="DuckStation",
-    bios_env_var="PS1_BIOS_PATH",
+    bios_subpath="userdata/bios",
     bios_label="PS1",
     hardware_label="PlayStation hardware",
 )
@@ -70,7 +68,7 @@ _PCSX2 = ConsoleBackend(
     supported_media=ERA_MEDIA_TYPES[Era.PS2],
     cli_args_prefix=["--nogui"],
     display_name="PCSX2",
-    bios_env_var="PS2_BIOS_PATH",
+    bios_subpath="userdata/bios",
     bios_label="PS2",
     hardware_label="PlayStation 2 hardware",
 )
@@ -96,22 +94,19 @@ def _validate_media(desc: ConsoleBackend, media_path: Path) -> None:
 def _validate_bios_path(desc: ConsoleBackend, bios_path: Path) -> None:
     if not bios_path.exists():
         raise FileNotFoundError(
-            f"{desc.bios_label} BIOS path not found: {bios_path}. "
+            f"{desc.bios_label} BIOS directory not found: {bios_path}. "
             f"{desc.bios_label} BIOS files must be dumped from {desc.hardware_label} you own. "
-            f"Configure {desc.bios_env_var} in config/settings.yaml to the directory "
-            f"containing your dumped BIOS files, then configure {desc.display_name} to "
-            "use the same directory."
+            f"Place your dumped BIOS files in {bios_path}."
         )
     if not bios_path.is_dir():
         raise ValueError(
-            f"{desc.bios_label} BIOS path is not a directory: {bios_path}. "
-            f"{desc.bios_env_var} must point to a directory containing your dumped BIOS files."
+            f"{desc.bios_label} BIOS path is not a directory: {bios_path}."
         )
     if not any(bios_path.iterdir()):
         raise FileNotFoundError(
             f"{desc.bios_label} BIOS directory is empty: {bios_path}. "
             f"{desc.bios_label} BIOS files must be dumped from {desc.hardware_label} you own. "
-            f"Place your dumped BIOS files in the directory configured as {desc.bios_env_var}."
+            f"Place your dumped BIOS files in {bios_path}."
         )
 
 
@@ -129,9 +124,9 @@ def launch(slug: str, media_path: Path, era: str, executable_path: str) -> Tuple
 
     Raises:
         ValueError: If slug is not a known console backend.
-        FileNotFoundError: If the executable, media file, or BIOS path is missing.
+        FileNotFoundError: If the executable, media file, or BIOS directory is missing.
         ValueError: If the media extension is unsupported.
-        RuntimeError: If a required BIOS path env var is not configured or process launch fails.
+        RuntimeError: If process launch fails.
     """
     desc = _BACKENDS.get(slug)
     if desc is None:
@@ -142,15 +137,9 @@ def launch(slug: str, media_path: Path, era: str, executable_path: str) -> Tuple
 
     _validate_media(desc, media_path)
 
-    if desc.bios_env_var is not None:
-        bios_path_str = get_env_var(desc.bios_env_var)
-        if not bios_path_str:
-            raise RuntimeError(
-                f"{desc.bios_env_var} is not configured. "
-                f"Set it in config/settings.yaml to the directory containing your {desc.bios_label} BIOS files. "
-                f"{desc.bios_label} BIOS files must be dumped from {desc.hardware_label} you own."
-            )
-        _validate_bios_path(desc, Path(bios_path_str))
+    if desc.bios_subpath is not None:
+        bios_path = Path(executable_path).parent / desc.bios_subpath
+        _validate_bios_path(desc, bios_path)
 
     args = desc.cli_args_prefix + [str(media_path)]
     job_name = f"peach1up_{slug}_{media_path.stem}"

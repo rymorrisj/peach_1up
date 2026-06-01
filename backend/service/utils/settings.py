@@ -34,17 +34,12 @@ _DEFAULTS: dict = {
     "OS_PATH": "",
     "DRIVES_PATH": "",
     "ROMS_PATH": "",
-    "BIOS_PATH": "",
     "PROFILES_PATH": "",
     "DUCKSTATION_PATH": "",
     "PCSX2_PATH": "",
     "XEMU_PATH": "",
     "MESEN_PATH": "",
     "PROJECT64_PATH": "",
-    "PS1_BIOS_PATH": "",
-    "PS2_BIOS_PATH": "",
-    "XBOX_BIOS_PATH": "",
-    "DREAMCAST_BIOS_PATH": "",
     "suppress_confirmations": [],
 }
 
@@ -68,17 +63,12 @@ _PATH_KEYS: frozenset[str] = frozenset({
     "OS_PATH",
     "DRIVES_PATH",
     "ROMS_PATH",
-    "BIOS_PATH",
     "PROFILES_PATH",
     "DUCKSTATION_PATH",
     "PCSX2_PATH",
     "XEMU_PATH",
     "MESEN_PATH",
     "PROJECT64_PATH",
-    "PS1_BIOS_PATH",
-    "PS2_BIOS_PATH",
-    "XBOX_BIOS_PATH",
-    "DREAMCAST_BIOS_PATH",
 })
 
 # Ordered emulator catalog used by compute_setup_status().
@@ -108,7 +98,6 @@ _PATH_DEFAULTS: dict[str, str] = {
     "OS_PATH":       str((_PROJECT_ROOT / "library" / "system" / "os").resolve()),
     "DRIVES_PATH":   str((_PROJECT_ROOT / "library" / "system" / "drives").resolve()),
     "ROMS_PATH":     str((_PROJECT_ROOT / "library" / "system" / "roms" / "86box").resolve()),
-    "BIOS_PATH":     str((_PROJECT_ROOT / "library" / "system" / "bios").resolve()),
     "PROFILES_PATH": str((_PROJECT_ROOT / "library" / "system" / "profiles").resolve()),
     "DOSBOX_PATH":   str((_PROJECT_ROOT / "emulators" / "dosbox-x" / "dosbox-x.exe").resolve()),
     "BOX86_PATH":    str((_PROJECT_ROOT / "emulators" / "86box" / "86Box.exe").resolve()),
@@ -173,11 +162,7 @@ def init() -> None:
     _env["OS_PATH"] = os.getenv("OS_PATH", "")
     _env["DRIVES_PATH"] = os.getenv("DRIVES_PATH", "")
     _env["ROMS_PATH"] = os.getenv("ROMS_PATH", "")
-    _env["BIOS_PATH"] = os.getenv("BIOS_PATH", "")
     _env["PROFILES_PATH"] = os.getenv("PROFILES_PATH", "")
-    _env["PS1_BIOS_PATH"] = os.getenv("PS1_BIOS_PATH", "")
-    _env["PS2_BIOS_PATH"] = os.getenv("PS2_BIOS_PATH", "")
-    _env["XBOX_BIOS_PATH"] = os.getenv("XBOX_BIOS_PATH", "")
     state["_env"] = _env
 
     _state = state
@@ -394,8 +379,7 @@ def set_path(key: str, value: str) -> None:
 
     Covers all keys in ``_PATH_KEYS``: ``DOSBOX_PATH``, ``BOX86_PATH``,
     ``LIBRARY_PATH``, ``MEDIA_PATH``, ``OS_PATH``,
-    ``DRIVES_PATH``, ``ROMS_PATH``, ``BIOS_PATH``,
-    ``PROFILES_PATH``.
+    ``DRIVES_PATH``, ``ROMS_PATH``, ``PROFILES_PATH``.
     For emulator binary paths, ``set_override_path()`` accepts a short
     emulator key (``'dosbox'``) as an alternative.
 

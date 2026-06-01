@@ -1,0 +1,852 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mame [
+<!ELEMENT mame (machine+)>
+	<!ATTLIST mame build CDATA #IMPLIED>
+	<!ATTLIST mame debug (yes|no) "no">
+	<!ATTLIST mame mameconfig CDATA #REQUIRED>
+	<!ELEMENT machine (description, year?, manufacturer?, biosset*, rom*, disk*, device_ref*, sample*, chip*, display*, sound?, input?, dipswitch*, configuration*, port*, adjuster*, driver?, feature*, device*, slot*, softwarelist*, ramoption*)>
+		<!ATTLIST machine name CDATA #REQUIRED>
+		<!ATTLIST machine sourcefile CDATA #IMPLIED>
+		<!ATTLIST machine isbios (yes|no) "no">
+		<!ATTLIST machine isdevice (yes|no) "no">
+		<!ATTLIST machine ismechanical (yes|no) "no">
+		<!ATTLIST machine runnable (yes|no) "yes">
+		<!ATTLIST machine cloneof CDATA #IMPLIED>
+		<!ATTLIST machine romof CDATA #IMPLIED>
+		<!ATTLIST machine sampleof CDATA #IMPLIED>
+		<!ELEMENT description (#PCDATA)>
+		<!ELEMENT year (#PCDATA)>
+		<!ELEMENT manufacturer (#PCDATA)>
+		<!ELEMENT biosset EMPTY>
+			<!ATTLIST biosset name CDATA #REQUIRED>
+			<!ATTLIST biosset description CDATA #REQUIRED>
+			<!ATTLIST biosset default (yes|no) "no">
+		<!ELEMENT rom EMPTY>
+			<!ATTLIST rom name CDATA #REQUIRED>
+			<!ATTLIST rom bios CDATA #IMPLIED>
+			<!ATTLIST rom size CDATA #REQUIRED>
+			<!ATTLIST rom crc CDATA #IMPLIED>
+			<!ATTLIST rom sha1 CDATA #IMPLIED>
+			<!ATTLIST rom merge CDATA #IMPLIED>
+			<!ATTLIST rom region CDATA #IMPLIED>
+			<!ATTLIST rom offset CDATA #IMPLIED>
+			<!ATTLIST rom status (baddump|nodump|good) "good">
+			<!ATTLIST rom optional (yes|no) "no">
+		<!ELEMENT disk EMPTY>
+			<!ATTLIST disk name CDATA #REQUIRED>
+			<!ATTLIST disk sha1 CDATA #IMPLIED>
+			<!ATTLIST disk merge CDATA #IMPLIED>
+			<!ATTLIST disk region CDATA #IMPLIED>
+			<!ATTLIST disk index CDATA #IMPLIED>
+			<!ATTLIST disk writable (yes|no) "no">
+			<!ATTLIST disk status (baddump|nodump|good) "good">
+			<!ATTLIST disk optional (yes|no) "no">
+		<!ELEMENT device_ref EMPTY>
+			<!ATTLIST device_ref name CDATA #REQUIRED>
+		<!ELEMENT sample EMPTY>
+			<!ATTLIST sample name CDATA #REQUIRED>
+		<!ELEMENT chip EMPTY>
+			<!ATTLIST chip name CDATA #REQUIRED>
+			<!ATTLIST chip tag CDATA #IMPLIED>
+			<!ATTLIST chip type (cpu|audio) #REQUIRED>
+			<!ATTLIST chip clock CDATA #IMPLIED>
+		<!ELEMENT display EMPTY>
+			<!ATTLIST display tag CDATA #IMPLIED>
+			<!ATTLIST display type (raster|vector|lcd|svg|unknown) #REQUIRED>
+			<!ATTLIST display rotate (0|90|180|270) #IMPLIED>
+			<!ATTLIST display flipx (yes|no) "no">
+			<!ATTLIST display width CDATA #IMPLIED>
+			<!ATTLIST display height CDATA #IMPLIED>
+			<!ATTLIST display refresh CDATA #REQUIRED>
+			<!ATTLIST display pixclock CDATA #IMPLIED>
+			<!ATTLIST display htotal CDATA #IMPLIED>
+			<!ATTLIST display hbend CDATA #IMPLIED>
+			<!ATTLIST display hbstart CDATA #IMPLIED>
+			<!ATTLIST display vtotal CDATA #IMPLIED>
+			<!ATTLIST display vbend CDATA #IMPLIED>
+			<!ATTLIST display vbstart CDATA #IMPLIED>
+		<!ELEMENT sound EMPTY>
+			<!ATTLIST sound channels CDATA #REQUIRED>
+			<!ELEMENT condition EMPTY>
+			<!ATTLIST condition tag CDATA #REQUIRED>
+			<!ATTLIST condition mask CDATA #REQUIRED>
+			<!ATTLIST condition relation (eq|ne|gt|le|lt|ge) #REQUIRED>
+			<!ATTLIST condition value CDATA #REQUIRED>
+		<!ELEMENT input (control*)>
+			<!ATTLIST input service (yes|no) "no">
+			<!ATTLIST input tilt (yes|no) "no">
+			<!ATTLIST input players CDATA #REQUIRED>
+			<!ATTLIST input coins CDATA #IMPLIED>
+			<!ELEMENT control EMPTY>
+				<!ATTLIST control type CDATA #REQUIRED>
+				<!ATTLIST control player CDATA #IMPLIED>
+				<!ATTLIST control buttons CDATA #IMPLIED>
+				<!ATTLIST control reqbuttons CDATA #IMPLIED>
+				<!ATTLIST control minimum CDATA #IMPLIED>
+				<!ATTLIST control maximum CDATA #IMPLIED>
+				<!ATTLIST control sensitivity CDATA #IMPLIED>
+				<!ATTLIST control keydelta CDATA #IMPLIED>
+				<!ATTLIST control reverse (yes|no) "no">
+				<!ATTLIST control ways CDATA #IMPLIED>
+				<!ATTLIST control ways2 CDATA #IMPLIED>
+				<!ATTLIST control ways3 CDATA #IMPLIED>
+		<!ELEMENT dipswitch (condition?, diplocation*, dipvalue*)>
+			<!ATTLIST dipswitch name CDATA #REQUIRED>
+			<!ATTLIST dipswitch tag CDATA #REQUIRED>
+			<!ATTLIST dipswitch mask CDATA #REQUIRED>
+			<!ELEMENT diplocation EMPTY>
+				<!ATTLIST diplocation name CDATA #REQUIRED>
+				<!ATTLIST diplocation number CDATA #REQUIRED>
+				<!ATTLIST diplocation inverted (yes|no) "no">
+			<!ELEMENT dipvalue (condition?)>
+				<!ATTLIST dipvalue name CDATA #REQUIRED>
+				<!ATTLIST dipvalue value CDATA #REQUIRED>
+				<!ATTLIST dipvalue default (yes|no) "no">
+		<!ELEMENT configuration (condition?, conflocation*, confsetting*)>
+			<!ATTLIST configuration name CDATA #REQUIRED>
+			<!ATTLIST configuration tag CDATA #REQUIRED>
+			<!ATTLIST configuration mask CDATA #REQUIRED>
+			<!ELEMENT conflocation EMPTY>
+				<!ATTLIST conflocation name CDATA #REQUIRED>
+				<!ATTLIST conflocation number CDATA #REQUIRED>
+				<!ATTLIST conflocation inverted (yes|no) "no">
+			<!ELEMENT confsetting (condition?)>
+				<!ATTLIST confsetting name CDATA #REQUIRED>
+				<!ATTLIST confsetting value CDATA #REQUIRED>
+				<!ATTLIST confsetting default (yes|no) "no">
+		<!ELEMENT port (analog*)>
+			<!ATTLIST port tag CDATA #REQUIRED>
+			<!ELEMENT analog EMPTY>
+				<!ATTLIST analog mask CDATA #REQUIRED>
+		<!ELEMENT adjuster (condition?)>
+			<!ATTLIST adjuster name CDATA #REQUIRED>
+			<!ATTLIST adjuster default CDATA #REQUIRED>
+		<!ELEMENT driver EMPTY>
+			<!ATTLIST driver status (good|imperfect|preliminary) #REQUIRED>
+			<!ATTLIST driver emulation (good|imperfect|preliminary) #REQUIRED>
+			<!ATTLIST driver cocktail (good|imperfect|preliminary) #IMPLIED>
+			<!ATTLIST driver savestate (supported|unsupported) #REQUIRED>
+		<!ELEMENT feature EMPTY>
+			<!ATTLIST feature type (protection|palette|graphics|sound|controls|keyboard|mouse|microphone|camera|disk|printer|lan|wan|timing) #REQUIRED>
+			<!ATTLIST feature status (unemulated|imperfect) #IMPLIED>
+			<!ATTLIST feature overall (unemulated|imperfect) #IMPLIED>
+		<!ELEMENT device (instance?, extension*)>
+			<!ATTLIST device type CDATA #REQUIRED>
+			<!ATTLIST device tag CDATA #IMPLIED>
+			<!ATTLIST device fixed_image CDATA #IMPLIED>
+			<!ATTLIST device mandatory CDATA #IMPLIED>
+			<!ATTLIST device interface CDATA #IMPLIED>
+			<!ELEMENT instance EMPTY>
+				<!ATTLIST instance name CDATA #REQUIRED>
+				<!ATTLIST instance briefname CDATA #REQUIRED>
+			<!ELEMENT extension EMPTY>
+				<!ATTLIST extension name CDATA #REQUIRED>
+		<!ELEMENT slot (slotoption*)>
+			<!ATTLIST slot name CDATA #REQUIRED>
+			<!ELEMENT slotoption EMPTY>
+				<!ATTLIST slotoption name CDATA #REQUIRED>
+				<!ATTLIST slotoption devname CDATA #REQUIRED>
+				<!ATTLIST slotoption default (yes|no) "no">
+		<!ELEMENT softwarelist EMPTY>
+			<!ATTLIST softwarelist name CDATA #REQUIRED>
+			<!ATTLIST softwarelist status (original|compatible) #REQUIRED>
+			<!ATTLIST softwarelist filter CDATA #IMPLIED>
+		<!ELEMENT ramoption (#PCDATA)>
+			<!ATTLIST ramoption default CDATA #IMPLIED>
+
+]>
+<mame>
+	<machine name="initdv2e" cloneof="initdv2j" romof="initdv2j">
+		<description>Initial D Arcade Stage Ver. 2 (Export) (GDS-0027)</description>
+		<year>2003</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0027" sha1="c146e8c4d71d1a0cbe836a0b50dea87797869da8"/>
+	</machine>
+	<machine name="initdexp" romof="naomi2">
+		<description>Initial D Arcade Stage (Export, Rev A) (GDS-0025A)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0025a" sha1="d6ec4295122e3d69b9e109778ab1cb0cb0dfc839"/>
+	</machine>
+	<machine name="clubkpzb" romof="naomi2">
+		<description>Club Kart Prize Version B (Export, Japan)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="opr-24193.ic32s" size="8388608" crc="fb39946d" sha1="d9fa077869709c6fda640bd4be18cf3db7ebe1d1"/>
+		<rom name="opr-24188.ic27s" size="8388608" crc="cfe107a2" sha1="2f98bc00aa2b2eea0a26452542098c389f5e836c"/>
+		<rom name="opr-24183.ic22" size="8388608" crc="c1aef164" sha1="e9a830a3a4bac4f5b2b40615bc43036aa0dd0a56"/>
+		<rom name="opr-24184.ic23s" size="8388608" crc="4ce1b902" sha1="41b2fb02e3b9a0bb6ea8c7d77a9fb92248d62bcc"/>
+		<rom name="25lc040.ic13s" size="512" crc="377d1805" sha1="6f77fcb2cc54e8500f5cc1046de453f1184ab216"/>
+		<rom name="opr-24190.ic29" size="8388608" crc="71551313" sha1="4b43d754b9511ae2d73ec04d7baf0e466337a82f"/>
+		<rom name="opr-24182.ic21s" size="8388608" crc="b1116d71" sha1="c840ae3602055528e4282283e5bc99465c6b5d28"/>
+		<rom name="opr-24179.ic18" size="8388608" crc="03a0eb5b" sha1="3f377d5a13d54c40c521f0faf6d50dc4fc077bb7"/>
+		<rom name="opr-24181.ic20" size="8388608" crc="38fd96fd" sha1="c26ffc01529b4533c5e1448a774fa6e5f7e08080"/>
+		<rom name="opr-24180.ic19s" size="8388608" crc="6a6c41f4" sha1="3b01476b0483ce5e2f7e208e618ad56769b5c064"/>
+		<rom name="opr-24178.ic17s" size="8388608" crc="836764ca" sha1="e91cf7abeb27013d33726029d060075fa6352610"/>
+		<rom name="epr-24149.ic11" size="4194304" crc="175b57a5" sha1="de8ddd140c39d62a10d90ec46060d84c3b226c6b"/>
+		<rom name="opr-24189.ic28" size="8388608" crc="302de147" sha1="442204439c509a6aa7dd25156bf17fb3853ae632"/>
+		<rom name="opr-24186.ic25s" size="8388608" crc="6884d0e9" sha1="74ef002a752fcd377c5e6e6c17334ca22e561c76"/>
+		<rom name="opr-24187.ic26" size="8388608" crc="87c79534" sha1="ab6e5246c388d0839ea6a45c8d2db035b33cd1d2"/>
+		<rom name="opr-24192.ic31" size="8388608" crc="869ef0ce" sha1="227189dedfa72c56d9eedf5faeed9a4fd0a8393f"/>
+		<rom name="opr-24191.ic30s" size="8388608" crc="200cbeaf" sha1="ccca2b873177d148a391cfcc8b1632856bd0e3b4"/>
+		<rom name="opr-24185.ic24" size="8388608" crc="94a4e6ab" sha1="8738fcc75becf2acd5bc2c1be75e9a5c35359973"/>
+	</machine>
+	<machine name="initdv3j" romof="naomi2">
+		<description>Initial D Arcade Stage Ver. 3 (Japan, Rev C) (GDS-0032C)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0032c" sha1="d92bca7c8a7920c99b23710f5bdbeed1fbec12d2"/>
+	</machine>
+	<machine name="initdexpo" cloneof="initdexp" romof="initdexp">
+		<description>Initial D Arcade Stage (Export) (GDS-0025)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0343-com.pic" size="16384" crc="80eea4eb" sha1="5aedc0d52a2a8a2d186ca591094835d972574092"/>
+	</machine>
+	<machine name="initdv2j" romof="naomi2">
+		<description>Initial D Arcade Stage Ver. 2 (Japan, Rev B) (GDS-0026B)</description>
+		<year>2003</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0026b" sha1="54cc643e1f850cfaea7d39f6778b662125cba111"/>
+	</machine>
+	<machine name="vf4evo" romof="naomi2">
+		<description>Virtua Fighter 4: Evolution (Version B) (Japan) (GDS-0024C)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0338-jpn.pic" size="16384" crc="b177ba7d" sha1="f751ec43a8e944a01eeda58c01b7bc73e5df749d"/>
+	</machine>
+	<machine name="vf4o" cloneof="vf4" romof="vf4">
+		<description>Virtua Fighter 4 (GDS-0012)</description>
+		<year>2001</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0012" sha1="da231483b5351ab9f9eb0e6e8cd6c2a26d1f8f72"/>
+	</machine>
+	<machine name="initdv2e_2" cloneof="initdv2j" romof="initdv2j">
+		<description>Initial D Arcade Stage Ver. 2 (Export) (GDS-0027)</description>
+		<year>2003</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0357-exp.pic" size="16384" crc="38f84b4d" sha1="03c12d8580da1a4b3a554e62fd8b1f3447b7ebbd"/>
+	</machine>
+	<machine name="vf4o_2" cloneof="vf4" romof="vf4">
+		<description>Virtua Fighter 4 (GDS-0012)</description>
+		<year>2001</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0314-com.pic" size="16384" crc="fa0b6c70" sha1="c29936cb18e1dd592563b1104281f031e3b12fc2"/>
+	</machine>
+	<machine name="inidv3ca" cloneof="inidv3cy" romof="inidv3cy">
+		<description>Initial D Arcade Stage Ver. 3 Cycraft Edition (Export, Rev A) (GDS-0039A)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0039a" sha1="44aab273f836aa81728b1a00fdfdc2561d0984aa"/>
+		<disk name="initiald3_smcp_v1.66" sha1="8ade7c0bb85ceebf9e45e4d8053ad76009258a38"/>
+	</machine>
+	<machine name="initdv3e" romof="naomi2">
+		<description>Initial D Arcade Stage Ver. 3 (Export) (GDS-0033)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0033" sha1="98fb1bd119fc33ef14fcaba3eb2347836469a75b"/>
+	</machine>
+	<machine name="wldrider" romof="naomi2">
+		<description>Wild Riders</description>
+		<year>2001</year>
+		<manufacturer>Wow Entertainment / Sega</manufacturer>
+		<rom name="mpr-23618.ic8" size="16777216" crc="67d7b659" sha1="44e75e16f2740c6e147e101a8714be8c5d9b71f3"/>
+		<rom name="mpr-23617.ic7" size="16777216" crc="19298892" sha1="78493587dc49c7c99c5a98f152b17500003316b3"/>
+		<rom name="mpr-23614.ic4" size="16777216" crc="e5b8c5e5" sha1="4b81ecc6375bf731dc3423cf87c2228eb304f2b5"/>
+		<rom name="mpr-23613.ic3" size="16777216" crc="689e783e" sha1="1264c3389610bbf2745b7e6d50f327b1df33b63b"/>
+		<rom name="mpr-23619.ic9" size="16777216" crc="a5f4f6af" sha1="bb89d3f0f5bbaf7c40fa43680c7e51ef93f7ed26"/>
+		<rom name="mpr-23616.ic6" size="16777216" crc="6288848f" sha1="a69ddde96d15cee9154ed3e87514286db6bbb622"/>
+		<rom name="mpr-23615.ic5" size="16777216" crc="95c35866" sha1="a3dd4cd2c8818a3c5de7aa6c4afc74f872d52b37"/>
+		<rom name="mpr-23612.ic2" size="16777216" crc="f71d87e5" sha1="c36d1d07702642db282278f1cf556ed472e930d3"/>
+		<rom name="mpr-23611.ic1" size="16777216" crc="943bc32a" sha1="11ced99e9dbd7cc93031779e00d4ee1f2dff9086"/>
+		<rom name="mpr-23620.ic10" size="16777216" crc="67aa15a9" sha1="42c24cbf7069c27430a71509a872cd1c4224aaeb"/>
+		<rom name="epr-23622.ic22" size="4194304" crc="8acafa5b" sha1="c92bcd40bad6ba8efd1edbfd7e439fb2b3c67fb0"/>
+	</machine>
+	<machine name="clubkcyc" romof="naomi2">
+		<description>Club Kart for Cycraft (Rev A) (GDS-0029A)</description>
+		<year>2003</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0358-com.pic" size="16384" crc="dd33e50f" sha1="c51712754022fc3adc350fa0714bf60fd0d163cf"/>
+	</machine>
+	<machine name="vf4cart" romof="naomi2">
+		<description>Virtua Fighter 4 (World)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="mpr-23781.ic8" size="16777216" crc="401bca00" sha1="10c6011fae7076ea0dc5ab0ebca9cb88659a93e9"/>
+		<rom name="mpr-23783.ic10" size="16777216" crc="c8d4f6f9" sha1="9e9df605c050b3780d7df34bd5041d30bc084d2d"/>
+		<rom name="mpr-23784.ic11" size="16777216" crc="f74f2fee" sha1="84b07baa6d116727e66ef27e24ba6484c3393891"/>
+		<rom name="mpr-23782.ic9" size="16777216" crc="4f72e901" sha1="a1d231c446d2c34e5a7e7145754b2313a2d03fd4"/>
+		<rom name="mpr-23780.ic7" size="16777216" crc="a775a51c" sha1="b3eae20e5e7d74252368fd902c4e94a6ba6cb154"/>
+		<rom name="mpr-23779.ic6" size="16777216" crc="6e458eea" sha1="4c85fcacf4ff46d4a137afcf5906092fd88fe4b1"/>
+		<rom name="mpr-23778.ic5" size="16777216" crc="02dee78b" sha1="e08ce0fc0b1db2dcef957c2edb6d51db400a38cb"/>
+		<rom name="mpr-23777.ic4" size="16777216" crc="78a4264e" sha1="40d045240173f330ac6f108b132f9a87884922be"/>
+		<rom name="mpr-23776.ic3" size="16777216" crc="44b8429e" sha1="0ec6b6156bef1621700791651903a4589f4b5f84"/>
+		<rom name="mpr-23775.ic2" size="16777216" crc="a11cd9e5" sha1="7fd8f634d0d14a91dfe9f39b5643b9c761dc7053"/>
+		<rom name="mpr-23774.ic1" size="16777216" crc="0fe7b864" sha1="357ca3a5d96d7ff27e06367e115ddfd00cb260e3"/>
+		<rom name="epr-23785.ic22" size="4194304" crc="9bd98d4b" sha1="3b0622625317cd6b2736c5b4a23484fb8bf39e4b"/>
+	</machine>
+	<machine name="vf4evo_2" romof="naomi2">
+		<description>Virtua Fighter 4: Evolution (Version B) (Japan) (GDS-0024C)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0024c" sha1="0509863a8ab2080abd004510b381037e1891e37b"/>
+	</machine>
+	<machine name="kingrt66p" cloneof="kingrt66" romof="kingrt66">
+		<description>The King of Route 66 (prototype)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="epr-23819-1-11.ic22" size="4194304" crc="a9602240" sha1="feb2fd5c1d2fe8a58be1440ddad4bdd1d7f2d850"/>
+		<rom name="mpr-23811.ic4" size="16777216" crc="bbad4a93" sha1="724c3376102b2dc79b852af1e90748b2e0023b82"/>
+		<rom name="mpr-23813.ic6" size="16777216" crc="fe0b94ea" sha1="0e46dff932036bec49c78a612bcfd27e07b516e8"/>
+		<rom name="mpr-23817.ic10" size="16777216" crc="e179cfb6" sha1="1120036238439f8ac1041150396e4b60e4a243bc"/>
+		<rom name="mpr-23814.ic7" size="16777216" crc="0cdf7325" sha1="41668f873b7842dac1bc85aa2b6bd6512edc9b64"/>
+		<rom name="mpr-23812.ic5" size="16777216" crc="7beabe22" sha1="d3cd926fc768d480ff45f1e30024bb0e31bd7d2c"/>
+		<rom name="mpr-23810.ic3" size="16777216" crc="2226accb" sha1="c4dc71e87c2ccd866f4180129181b7ced8caf22c"/>
+		<rom name="mpr-23816.ic9" size="16777216" crc="bbaf0765" sha1="3b79a4eff504b2156bea8b86c6cdd8e41e7bf268"/>
+		<rom name="mpr-23815.ic8" size="16777216" crc="ef327ab8" sha1="9dfc564084a75b9c3935374347f1709d2e86e469"/>
+		<rom name="mpr-23809.ic2" size="16777216" crc="2716aba0" sha1="4c245874da244926bf9ac6636af4fa67e07a21e8"/>
+		<rom name="mpr-23808.ic1" size="16777216" crc="e911bc86" sha1="0dc658851e20425b2e697e538bb4297a221f6ae8"/>
+	</machine>
+	<machine name="initdexp_2" romof="naomi2">
+		<description>Initial D Arcade Stage (Export, Rev A) (GDS-0025A)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0343-com.pic" size="16384" crc="80eea4eb" sha1="5aedc0d52a2a8a2d186ca591094835d972574092"/>
+	</machine>
+	<machine name="clubkcyco" cloneof="clubkcyc" romof="clubkcyc">
+		<description>Club Kart for Cycraft (GDS-0029)</description>
+		<year>2003</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0358-com.pic" size="16384" crc="dd33e50f" sha1="c51712754022fc3adc350fa0714bf60fd0d163cf"/>
+	</machine>
+	<machine name="beachspi" romof="naomi2">
+		<description>Beach Spikers (GDS-0014)</description>
+		<year>2001</year>
+		<manufacturer>CRI / Sega</manufacturer>
+		<rom name="317-0317-com.pic" size="16384" crc="ef65fe73" sha1="2c02d1570c1fdad56bc684c60bb17255c73c6d45"/>
+	</machine>
+	<machine name="initdv2ja" cloneof="initdv2j" romof="initdv2j">
+		<description>Initial D Arcade Stage Ver. 2 (Japan, Rev A) (GDS-0026A)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0026a" sha1="44790194a7a32ca9faf02403821bf23015ec8f3c"/>
+	</machine>
+	<machine name="initdv2j_2" romof="naomi2">
+		<description>Initial D Arcade Stage Ver. 2 (Japan, Rev B) (GDS-0026B)</description>
+		<year>2003</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0345-jpn.pic" size="16384" crc="56e1274a" sha1="735a6071226f3297de64bc0a38be741e87f5d023"/>
+	</machine>
+	<machine name="clubkrto" cloneof="clubkrt" romof="clubkrt">
+		<description>Club Kart: European Session</description>
+		<year>2001</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="mpr-23698.ic6" size="16777216" crc="da79cd06" sha1="fdfe068caca1eb764dec28ab327e56b39144f3ae"/>
+		<rom name="mpr-23694.ic2" size="16777216" crc="37d30111" sha1="4c07df8cd548cac79d48709e61f692d762471f8f"/>
+		<rom name="mpr-23703.ic11" size="16777216" crc="702b8b4a" sha1="3a8dfde458f341e7db20664382b9fce2b6e5d462"/>
+		<rom name="mpr-23699.ic7" size="16777216" crc="ea77f000" sha1="35aa8ee804d9429e72f516137a3b06c585a57b6d"/>
+		<rom name="mpr-23697.ic5" size="16777216" crc="1383c742" sha1="6efd17632a277a4bb0e47cc912fbc9865a8b14c3"/>
+		<rom name="mpr-23695.ic3" size="16777216" crc="41ac1510" sha1="01b889b627fdfc1f12a0c84fcc36debdfb1cf377"/>
+		<rom name="mpr-23693.ic1" size="16777216" crc="28995764" sha1="a1457f9935dde2e5aaa5ef245c736c0f2f8c74b7"/>
+		<rom name="epr-23704.ic22" size="4194304" crc="ff700a0d" sha1="e2db0d2bd7dc88b3a487077e8ce56eb6cfd9b02d"/>
+		<rom name="mpr-23702.ic10" size="16777216" crc="e302b582" sha1="787192ed9f9a08541eecc3128855485cad802a42"/>
+		<rom name="mpr-23701.ic9" size="16777216" crc="0fa92fd7" sha1="67a1cf085101884a17a4783d0d509ab198aa6425"/>
+		<rom name="mpr-23700.ic8" size="16777216" crc="db9e5c1d" sha1="db918c0fa1860f4345806e574d44354aba5fcd54"/>
+		<rom name="mpr-23696.ic4" size="16777216" crc="6f2da455" sha1="b655757bc513398820bfeae07dca8a4f3ea9752c"/>
+	</machine>
+	<machine name="vf4tuned" romof="naomi2">
+		<description>Virtua Fighter 4: Final Tuned (Ver. B) (GDS-0036F)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0387-com.pic" size="16384" crc="8728aeaa" sha1="07983ab41d143f845c3150dfc9b7301968708e18"/>
+	</machine>
+	<machine name="initdv2ja_2" cloneof="initdv2j" romof="initdv2j">
+		<description>Initial D Arcade Stage Ver. 2 (Japan, Rev A) (GDS-0026A)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0345-jpn.pic" size="16384" crc="56e1274a" sha1="735a6071226f3297de64bc0a38be741e87f5d023"/>
+	</machine>
+	<machine name="vf4b" cloneof="vf4" romof="vf4">
+		<description>Virtua Fighter 4 (Rev B) (GDS-0012B)</description>
+		<year>2001</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0012b" sha1="700bd2389b6dd9d8a78abc0289bbd241093a0260"/>
+	</machine>
+	<machine name="vstrik3" romof="naomi2">
+		<description>Virtua Striker 3 (GDS-0006)</description>
+		<year>2001</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0006" sha1="44bfd24f44272c8fd7f5f9294005c6cc53222ef3"/>
+	</machine>
+	<machine name="clubkprz" romof="naomi2">
+		<description>Club Kart Prize (Export, Japan, Rev A)</description>
+		<year>2003</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="opr-24080.31" size="8388608" crc="307c480e" sha1="6e52f252f557988e52c42d495713a374507b5895"/>
+		<rom name="25lc040.ic13s" size="512" crc="3dcd86c4" sha1="2a203b11c4c38e05a2ab23b6322471b11f07857d"/>
+		<rom name="opr-24067.18" size="8388608" crc="0d2d1290" sha1="a26fa82fc87d6ed60095b2e778b649fcbb8bb1ee"/>
+		<rom name="opr-24076.27s" size="8388608" crc="a89a5555" sha1="c2c0eeb50f1afe6c7c3d978a99c6eaac96062bf0"/>
+		<rom name="epr-24082a.ic11" size="4194304" crc="7c331cb8" sha1="f7e1cffbad576482a91bc1dc9129c689f0bebb25"/>
+		<rom name="opr-24074.25s" size="8388608" crc="636625fe" sha1="fffd766cf14e66d10071a342573535ac708f87b7"/>
+		<rom name="opr-24073.24" size="8388608" crc="51fb7d42" sha1="fb0bffeb181b1f3efcfa22aabda1bea926d9048b"/>
+		<rom name="opr-24072.23s" size="8388608" crc="1e9834e4" sha1="a226689190739a39016b78c881f92b9bbb8d830e"/>
+		<rom name="opr-24071.22" size="8388608" crc="040e1329" sha1="cebf8bc48a745811bcc6bce0ad880eca392428f9"/>
+		<rom name="opr-24068.19s" size="8388608" crc="d320009b" sha1="76677eacd18770d091fc19e31be3d84410ed3256"/>
+		<rom name="opr-24078.29" size="8388608" crc="a83f5f88" sha1="ef0787cf84847e74fa3bb38d7133d87607df84fb"/>
+		<rom name="opr-24077.28" size="8388608" crc="1e11d0aa" sha1="1cc4dd05e1fbd0fde669b40aa49098c14eafd035"/>
+		<rom name="opr-24079.30s" size="8388608" crc="57efa68f" sha1="5dd863dfb035489de3bbb3c3f72ee5d87ec322be"/>
+		<rom name="opr-24075.26" size="8388608" crc="9eee9689" sha1="831ac7713cc4f47679609361f0e1c67bb028e795"/>
+		<rom name="opr-24066.17s" size="8388608" crc="b22cfa7b" sha1="e0f795dc9d3a2dd1869f85f3eedd0f8d703a1be8"/>
+		<rom name="opr-24070.21s" size="8388608" crc="10a0c315" sha1="337902393e215d94954f123c6b016925486c3374"/>
+		<rom name="opr-24081.32s" size="8388608" crc="61085bdc" sha1="48fe7f34bb5f50825b3c77d587e07f3adab1cf86"/>
+		<rom name="opr-24069.20" size="8388608" crc="56145c73" sha1="a74a97a431a315f86a1b25d1fc9cc1fb93146776"/>
+	</machine>
+	<machine name="beachspi_2" romof="naomi2">
+		<description>Beach Spikers (GDS-0014)</description>
+		<year>2001</year>
+		<manufacturer>CRI / Sega</manufacturer>
+		<disk name="gds-0014" sha1="2d784ed2f5c00189af8480c9ab5ae9d8b7a152d2"/>
+	</machine>
+	<machine name="initdv3e_2" romof="naomi2">
+		<description>Initial D Arcade Stage Ver. 3 (Export) (GDS-0033)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0384-com.pic" size="17152" crc="081ccd51" sha1="598b3bd9e8b16f5954d15738c1ca55703609b690"/>
+	</machine>
+	<machine name="initdv3jb" cloneof="initdv3j" romof="initdv3j">
+		<description>Initial D Arcade Stage Ver. 3 (Japan, Rev B) (GDS-0032B)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0032b" sha1="3b4d5686c26d07eed8c835b07516da9840c1b905"/>
+	</machine>
+	<machine name="vf4tunedd" cloneof="vf4tuned" romof="vf4tuned">
+		<description>Virtua Fighter 4: Final Tuned (Ver. A) (GDS-0036D)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0387-com.pic" size="16384" crc="8728aeaa" sha1="07983ab41d143f845c3150dfc9b7301968708e18"/>
+	</machine>
+	<machine name="clubkcyc_2" romof="naomi2">
+		<description>Club Kart for Cycraft (Rev A) (GDS-0029A)</description>
+		<year>2003</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="cycraft_clubkart_smcp_v1.65" sha1="c77df6eaf425e4e86f871914aa024debc1940713"/>
+		<disk name="gds-0029a" sha1="8354828a505a26da726a686828f8860b11b15da3"/>
+	</machine>
+	<machine name="naomi2" isbios="yes">
+		<description>NAOMI 2 BIOS</description>
+		<year>2001</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="epr-23605a.ic27" size="2097152" crc="7bc3fc2d" sha1="a4a9531a7c66ff30046908cf71f6c7b6fb59c392"/>
+		<rom name="epr-23607b.ic27" size="2097152" crc="f308c5e9" sha1="5470ab1cee6afecbd8ca8cf40f8fbe4ec2cb1471"/>
+		<rom name="main_eeprom.bin" size="128" crc="fea29cbb" sha1="4099f1747aafa07db34f6e072cd9bfaa83bae10e"/>
+		<rom name="epr-23607.ic27" size="2097152" crc="2b55add2" sha1="547de5f97d3183c8cd069c4fa3c09f13d8b637d9"/>
+		<rom name="x76f100_eeprom.bin" size="132" crc="3ea24b6a" sha1="3a730ebcf56e0060fef6b1b02eb2eb7cfb7e61dc"/>
+		<rom name="epr-23608b.ic27" size="2097152" crc="a554b1e3" sha1="343b727a3619d1c75a9b6d4cc156a9050447f155"/>
+		<rom name="epr-23609b.ic27" size="2097152" crc="99e3751f" sha1="8a244f75595c49d2a37a42ab96b6bab35163ca0e"/>
+		<rom name="epr-23608a.ic27" size="2097152" crc="e8f884d1" sha1="28f4de747bb3cf860b9ebf897322fbc5d7c1e156"/>
+		<rom name="epr-23605.ic27" size="2097152" crc="5731e446" sha1="787b0844fc408cf124c12405c095c59948709ea6"/>
+		<rom name="epr-23605c.ic27" size="2097152" crc="297ea6ed" sha1="cfbfe57c80e6ee86a101fa83aec0a01e00c0f42a"/>
+		<rom name="epr-23605b.ic27" size="2097152" crc="3a3242d4" sha1="aaca4df51ef91d926f8191d372f3dfe1d20d9484"/>
+		<rom name="epr-23607c.ic27" size="2097152" crc="750e254b" sha1="81d0b1a076c274c6bd7c53b65e7b80e14fe039e1"/>
+		<rom name="epr-23608c.ic27" size="2097152" crc="6ef1dd8e" sha1="25ef957ec1c58fdaff5e89102002bca6c38832c5"/>
+		<rom name="epr-23605c_multi.ic27" size="2097152" crc="353fdbcd" sha1="a8b7dce572b74e02e65cb949b2c366c87625157f"/>
+		<rom name="epr-23608.ic27" size="2097152" crc="929cc3a6" sha1="47d00c818de23f733a4a33b1bbc72eb8aa729246"/>
+	</machine>
+	<machine name="initd" romof="naomi2">
+		<description>Initial D Arcade Stage (Japan, Rev B) (GDS-0020B)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0020b" sha1="08a594af2933144d341a299e3160d3c8281b7241"/>
+	</machine>
+	<machine name="vstrik3c" romof="naomi2">
+		<description>Virtua Striker 3 (World, Rev B)</description>
+		<year>2001</year>
+		<manufacturer>Amusement Vision / Sega</manufacturer>
+		<rom name="mpr-23655.ic4" size="16777216" crc="1afe03b2" sha1="43446188cc4a939663212159ea24eeed50de27e2"/>
+		<rom name="mpr-23652.ic1" size="16777216" crc="992758a2" sha1="5e2a25c520c1795128e5026fc00d355c24852ded"/>
+		<rom name="epr-23663b.ic22" size="4194304" crc="15733e44" sha1="5040c518279283b76da6d9f75bb0a48953146ca9"/>
+		<rom name="mpr-23659.ic8" size="16777216" crc="db87ff9a" sha1="9759b0885fa9d443f62129e062f631bcf46846d2"/>
+		<rom name="mpr-23656.ic5" size="16777216" crc="5e5fca1c" sha1="e29d6b7d24acb5e0210ad9ba6f7f6ebca7ea3bf5"/>
+		<rom name="mpr-23660.ic9" size="16777216" crc="e49e65f5" sha1="a46cea1c482211048aef375de8324273f6b06f27"/>
+		<rom name="mpr-23654.ic3" size="16777216" crc="91335971" sha1="fc7599b836fb7995dd7da940e64b08b3c09cb180"/>
+		<rom name="mpr-23653.ic2" size="16777216" crc="e210e932" sha1="2f6f0a31c3e98b21f1ff3af1680e50b3535b130f"/>
+		<rom name="mpr-23662.ic11" size="8388608" crc="d6ef7d68" sha1="4ee396af6c5caf4c5af6e9ad0e03a7ac2c5039f4"/>
+		<rom name="mpr-23658.ic7" size="16777216" crc="c912eacb" sha1="715401264657a770eaa6165c7db6d588a493f745"/>
+		<rom name="mpr-23657.ic6" size="16777216" crc="d97602bf" sha1="1e79daa7acc787f3f6e55b8d92e4489db8861794"/>
+		<rom name="mpr-23661.ic10" size="16777216" crc="7d44dc74" sha1="cfd6253eab3c1a039629b4873946c9dbc7ed6872"/>
+	</machine>
+	<machine name="vstrik3_2" romof="naomi2">
+		<description>Virtua Striker 3 (GDS-0006)</description>
+		<year>2001</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0304-com.bin" size="16384" crc="8e82d17a" sha1="141a4d492b13bbb222dfbe7a1ad296b548d12a3b"/>
+	</machine>
+	<machine name="inidv3cy" romof="naomi2">
+		<description>Initial D Arcade Stage Ver. 3 Cycraft Edition (Export, Rev B) (GDS-0039B)</description>
+		<year>2006</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0406-com.pic" size="16384" crc="fe91a7af" sha1="3562d8d454ac6e5b73a24d4dc8928ef24687cdf7"/>
+	</machine>
+	<machine name="vf4evoa" cloneof="vf4evo" romof="vf4evo">
+		<description>Virtua Fighter 4: Evolution (Japan) (GDS-0024A)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0338-jpn.pic" size="16384" crc="b177ba7d" sha1="f751ec43a8e944a01eeda58c01b7bc73e5df749d"/>
+	</machine>
+	<machine name="inidv3ca_2" cloneof="inidv3cy" romof="inidv3cy">
+		<description>Initial D Arcade Stage Ver. 3 Cycraft Edition (Export, Rev A) (GDS-0039A)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0406-com.pic" size="16384" crc="fe91a7af" sha1="3562d8d454ac6e5b73a24d4dc8928ef24687cdf7"/>
+	</machine>
+	<machine name="vf4" romof="naomi2">
+		<description>Virtua Fighter 4 Version C (GDS-0012C)</description>
+		<year>2001</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0012c" sha1="dcaeddea0dc089eadda8ba4579328aca3a613c4b"/>
+	</machine>
+	<machine name="vf4tuned_2" romof="naomi2">
+		<description>Virtua Fighter 4: Final Tuned (Ver. B) (GDS-0036F)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0036f" sha1="68edece4239e5adfef9df143defb711ff2b4db72"/>
+	</machine>
+	<machine name="vf4evoct" romof="naomi2">
+		<description>Virtua Fighter 4: Evolution (World)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="mpr-23928.ic33" size="8388608" crc="0ee92b02" sha1="d0d26f4257a022b42b59cf4f9305a3cb2dc67f4b"/>
+		<rom name="mpr-23924.ic29" size="8388608" crc="6dfe19d9" sha1="99b13ef752c7b8f7812ea5c3bce19cbf122008b6"/>
+		<rom name="mpr-23927.ic32s" size="8388608" crc="f36a765b" sha1="ecd09db0961b0d11000c8744a2cfcf3fa473eea6"/>
+		<rom name="mpr-23920.ic25s" size="8388608" crc="6ae07021" sha1="b018db4f868d9ebcde44759d8aea44d789958087"/>
+		<rom name="mpr-23915.ic20" size="8388608" crc="295d32f0" sha1="4cabb1ab54dad2cef7207f8d7a78f609d35800fb"/>
+		<rom name="mpr-23921.ic26" size="8388608" crc="42028253" sha1="aa5a3953e4306f4f69c1be568d515af249e6ab1e"/>
+		<rom name="mpr-23931.ic36s" size="8388608" crc="12ecd2f0" sha1="3222d4d9d3e30c297a072a8888c28503306db40c"/>
+		<rom name="mpr-23916.ic21s" size="8388608" crc="d725fdd3" sha1="ab3a79dfcbaa65b5a085a429bcb76c1d3940d590"/>
+		<rom name="mpr-23913.ic18" size="8388608" crc="560de9d2" sha1="e065abb62346f5e50f654ac77beb54ee1bfc1a08"/>
+		<rom name="mpr-23923.ic28" size="8388608" crc="5c31b7e7" sha1="cf1307400f7bd4b8dda840544a348eee34710256"/>
+		<rom name="mpr-23917.ic22" size="8388608" crc="8794c8e8" sha1="a2542ad8c063f77749fbc4429ec74bba26939556"/>
+		<rom name="mpr-23912.ic17s" size="8388608" crc="b2b13d97" sha1="978bcdab7e4f220b464d5b9fa27870b5176283ca"/>
+		<rom name="mpr-23925.ic30s" size="8388608" crc="e9ec870a" sha1="cdf385096e7fe15de98cea6ae5aabf3016e007a9"/>
+		<rom name="mpr-23922.ic27s" size="8388608" crc="baf47df2" sha1="d5c04e03a69a4ac8c8c066c0c750bef236e8c172"/>
+		<rom name="mpr-23919.ic24" size="8388608" crc="59601746" sha1="514b00ee44d64593c2d257b48ac20b42ee2a402a"/>
+		<rom name="mpr-23930.ic35" size="8388608" crc="0e45e4c4" sha1="974b83d4cc35e8ac9f83d04ebd395f1e2196e829"/>
+		<rom name="mpr-23929.ic34s" size="8388608" crc="d768f242" sha1="3ade29b094308d870ecac53cfe77b843d50af85a"/>
+		<rom name="mpr-23926.ic31" size="8388608" crc="2c650728" sha1="328748b2c786eb77c9d05280e88367cfb7b79777"/>
+		<rom name="mpr-23914.ic19s" size="8388608" crc="a2104728" sha1="48b752b6266b4d44fcb16fe179fb44ca58e11db0"/>
+		<rom name="mpr-23918.ic23s" size="8388608" crc="7a3da170" sha1="72d05430cd8cd12c47ccd36bf171eaadfb987708"/>
+		<rom name="epr-23934.ic11" size="4194304" crc="656a7d84" sha1="e407ddc923b399de99cb06a8831ef8fb328cfe64"/>
+	</machine>
+	<machine name="initdv2jo" cloneof="initdv2j" romof="initdv2j">
+		<description>Initial D Arcade Stage Ver. 2 (Japan) (GDS-0026)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0345-jpn.pic" size="16384" crc="56e1274a" sha1="735a6071226f3297de64bc0a38be741e87f5d023"/>
+	</machine>
+	<machine name="initdo" cloneof="initd" romof="initd">
+		<description>Initial D Arcade Stage (Japan) (GDS-0020)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0331-jpn.pic" size="16384" crc="0a3bf606" sha1="7c0e22df4a43a440571ac55fd0a6575931e8f959"/>
+	</machine>
+	<machine name="soulsurf" romof="naomi2">
+		<description>Soul Surfer (Rev A)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="rom4.ic4s" size="8388608" crc="bdf25bd0" sha1="f79b1fdba9c48969c49617c43c1919637adb13ba"/>
+		<rom name="rom16.ic16s" size="8388608" crc="2530cc04" sha1="6425c031e5a129a3c9451bc694b5da8553f154c2"/>
+		<rom name="rom11.ic11s" size="8388608" crc="a242f682" sha1="435ea5bb1b3667f9ef3d7de081b15f4e8e6a0d01"/>
+		<rom name="rom15.ic15s" size="8388608" crc="416db320" sha1="34536716a35260d9457703704bb9174fb1616d60"/>
+		<rom name="rom10.ic10s" size="8388608" crc="7975dc80" sha1="81bda50968f0153a0c4432d8d81e817c1e82e5b2"/>
+		<rom name="rom20.ic20s" size="8388608" crc="c90b960d" sha1="66e9f09d1f7f6a991371574a2e095c0e22fb7031"/>
+		<rom name="rom3.ic3s" size="8388608" crc="0f8d6577" sha1="afaf440e667bacc941c0a5418a0e3b0f2bb725b7"/>
+		<rom name="rom8.ic8s" size="8388608" crc="d4907fa1" sha1="79b1c771819f6e4baa048010bfb940a45370eba2"/>
+		<rom name="rom19.ic19s" size="8388608" crc="4f8ec86a" sha1="406ab9eeccd99fa5515d4a2c229c8db1a5cb8f83"/>
+		<rom name="rom14.ic14s" size="8388608" crc="2edc1311" sha1="bceb54dd29012580e2e6f15f16c6b31195010153"/>
+		<rom name="rom6.ic6s" size="8388608" crc="3cd1f5d5" sha1="77573c3a60af64e6e6a0eb85d5b8176ed98b0723"/>
+		<rom name="rom1.ic1s" size="8388608" crc="4f12f789" sha1="7b79b687fc61e2e981b9e5e8e0939c4ad24a98f0"/>
+		<rom name="rom2.ic2s" size="8388608" crc="a255d41a" sha1="3e932527eb68edf3e8538c1ad264a1c599f6a9d5"/>
+		<rom name="rom9.ic9s" size="8388608" crc="6327d49e" sha1="a10e3c27f70dbf18e63cf51962b6a79a52eba26c"/>
+		<rom name="epr-23838c.ic22" size="4194304" crc="5e5fb00f" sha1="c5e81ebead9072cc08f09d1715d609cb0f7631ba"/>
+		<rom name="rom18.ic18s" size="8388608" crc="854ed5e5" sha1="e445599f6a9e9d05c279259307edc08bce5d6d1f"/>
+		<rom name="rom13.ic13s" size="8388608" crc="e9578063" sha1="618f66d01f6bdacbf2a3242774a316b130594e02"/>
+		<rom name="rom17.ic17s" size="8388608" crc="9e6afcc2" sha1="4fb69d834ea12c82e897af47a22dcc47f3c83768"/>
+		<rom name="rom12.ic12s" size="8388608" crc="45fa259e" sha1="8d7e708e7a2cbc2d60b68715dd79bac28d894d4c"/>
+		<rom name="rom5.ic5s" size="8388608" crc="a74b3bb4" sha1="0ce7cef849061a9af7a61d69dc633f6971a3a63d"/>
+		<rom name="rom21.ic21s" size="8388608" crc="1477c064" sha1="87fb8d8a91d6bed70b246a8df88fa77fbf3db443"/>
+		<rom name="rom7.ic7s" size="8388608" crc="00d240f5" sha1="43010fc596f2cdffdff35a6122f2ab02a5251bc0"/>
+	</machine>
+	<machine name="initdexpo_2" cloneof="initdexp" romof="initdexp">
+		<description>Initial D Arcade Stage (Export) (GDS-0025)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0025" sha1="00f4c62a16862e814798df9fa6ed0471745760b7"/>
+	</machine>
+	<machine name="initdv3j_2" romof="naomi2">
+		<description>Initial D Arcade Stage Ver. 3 (Japan, Rev C) (GDS-0032C)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0379-jpn.pic" size="16384" crc="7f024ff6" sha1="8a6a44f2c5db147355946f6c5e90e545926595da"/>
+	</machine>
+	<machine name="clubk2kpa" cloneof="clubk2k3" romof="clubk2k3">
+		<description>Club Kart: European Session (2003, prototype, set 2)</description>
+		<year>2003</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="rom4.ic4s" size="8388608" crc="c9b21961" sha1="8c35378f65a14433965228cce26c7c8cebda8ece"/>
+		<rom name="rom16.ic16s" size="8388608" crc="aaaa39cf" sha1="8de90fefa81b3d5b8602335b18a86249deccc6a8"/>
+		<rom name="rom11.ic11s" size="8388608" crc="3c4a2f34" sha1="f4b14ec9df023843bbbfeca174344c3f65a041b7"/>
+		<rom name="rom15.ic15s" size="8388608" crc="42dd18db" sha1="8a0cc64128f2b823c99bcd1f45530ce85af6c6fe"/>
+		<rom name="rom10.ic10s" size="8388608" crc="4ec15b61" sha1="1484d00b780675df5178b0d686f152683b66e6df"/>
+		<rom name="rom20.ic20s" size="8388608" crc="99ef6bb7" sha1="afcf187febe94035c989ca4a6e45bc0c3a806043"/>
+		<rom name="rom3.ic3s" size="8388608" crc="ead5f480" sha1="defcedeb150a9307f6fa36b36a53a59ab5ee274a"/>
+		<rom name="rom8.ic8s" size="8388608" crc="9dba44f5" sha1="8de0a836b1aa78e0babd4b186f991d44bc0f34b6"/>
+		<rom name="rom19.ic19s" size="8388608" crc="7ee9743b" sha1="119f632c3d10d032fd15159aa37f3bcfe0938b06"/>
+		<rom name="rom14.ic14s" size="8388608" crc="7297efb8" sha1="9c3acdbb01c178ff18f9fb21c62b982cad8775e3"/>
+		<rom name="rom6.ic6s" size="8388608" crc="6e69792e" sha1="25fa82e823ab12ba9a0aafe9cf09c16e74aff130"/>
+		<rom name="rom1.ic1s" size="8388608" crc="63bd7915" sha1="3483f82ff801803c5abd04a0c66a1cecdff59c26"/>
+		<rom name="rom2.ic2s" size="8388608" crc="9d0d5e68" sha1="4b2535b968eff1fc1d3266194da54bb3c17b24ec"/>
+		<rom name="rom9.ic9s" size="8388608" crc="1307b6a1" sha1="a7108483e69994835e54f771a1f2ee05afda289d"/>
+		<rom name="rom18.ic18s" size="8388608" crc="cdd71385" sha1="4b16d00b57b7fd96a7858e1b9146ee3f2ff0d200"/>
+		<rom name="rom13.ic13s" size="8388608" crc="373097e5" sha1="561bf3ea396484b20ebb9fe63527329c005d067f"/>
+		<rom name="rom17.ic17s" size="8388608" crc="382fc4cb" sha1="8f79306fac4911748c362a4038ac6592ba0477c9"/>
+		<rom name="rom12.ic12s" size="8388608" crc="55548b90" sha1="3d791c13a142e78f0122a0ec0064023063255861"/>
+		<rom name="rom0.ic22" size="4194304" crc="8514f0bf" sha1="84ad7b8ccd41db38a5be8b0619e275b56482a5be"/>
+		<rom name="rom5.ic5s" size="8388608" crc="b42b5bdf" sha1="da8c235f6e76ad5b4305a8d9722da8523a701924"/>
+		<rom name="rom21.ic21s" size="8388608" crc="21bd0a9c" sha1="b0709f627f2d2532f9cc10b5f89528f98336de61"/>
+		<rom name="rom7.ic7s" size="8388608" crc="0956796e" sha1="69ed59a1e7f00cbf85ff72a47aa3eee75bc358fc"/>
+	</machine>
+	<machine name="vstrik3co" cloneof="vstrik3c" romof="vstrik3c">
+		<description>Virtua Striker 3 (World)</description>
+		<year>2001</year>
+		<manufacturer>Amusement Vision / Sega</manufacturer>
+		<rom name="mpr-23655.ic4" size="16777216" crc="1afe03b2" sha1="43446188cc4a939663212159ea24eeed50de27e2"/>
+		<rom name="mpr-23652.ic1" size="16777216" crc="992758a2" sha1="5e2a25c520c1795128e5026fc00d355c24852ded"/>
+		<rom name="mpr-23659.ic8" size="16777216" crc="db87ff9a" sha1="9759b0885fa9d443f62129e062f631bcf46846d2"/>
+		<rom name="mpr-23656.ic5" size="16777216" crc="5e5fca1c" sha1="e29d6b7d24acb5e0210ad9ba6f7f6ebca7ea3bf5"/>
+		<rom name="mpr-23660.ic9" size="16777216" crc="e49e65f5" sha1="a46cea1c482211048aef375de8324273f6b06f27"/>
+		<rom name="mpr-23654.ic3" size="16777216" crc="91335971" sha1="fc7599b836fb7995dd7da940e64b08b3c09cb180"/>
+		<rom name="mpr-23653.ic2" size="16777216" crc="e210e932" sha1="2f6f0a31c3e98b21f1ff3af1680e50b3535b130f"/>
+		<rom name="mpr-23662.ic11" size="8388608" crc="d6ef7d68" sha1="4ee396af6c5caf4c5af6e9ad0e03a7ac2c5039f4"/>
+		<rom name="mpr-23658.ic7" size="16777216" crc="c912eacb" sha1="715401264657a770eaa6165c7db6d588a493f745"/>
+		<rom name="mpr-23657.ic6" size="16777216" crc="d97602bf" sha1="1e79daa7acc787f3f6e55b8d92e4489db8861794"/>
+		<rom name="mpr-23661.ic10" size="16777216" crc="7d44dc74" sha1="cfd6253eab3c1a039629b4873946c9dbc7ed6872"/>
+		<rom name="epr-23663.ic22" size="4194304" crc="6910a008" sha1="865affff1cf31321725ef727a17be384555e3aae"/>
+	</machine>
+	<machine name="clubkrta" cloneof="clubkrt" romof="clubkrt">
+		<description>Club Kart: European Session (Rev A)</description>
+		<year>2001</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="mpr-23698.ic6" size="16777216" crc="da79cd06" sha1="fdfe068caca1eb764dec28ab327e56b39144f3ae"/>
+		<rom name="mpr-23694.ic2" size="16777216" crc="37d30111" sha1="4c07df8cd548cac79d48709e61f692d762471f8f"/>
+		<rom name="mpr-23703.ic11" size="16777216" crc="702b8b4a" sha1="3a8dfde458f341e7db20664382b9fce2b6e5d462"/>
+		<rom name="mpr-23699.ic7" size="16777216" crc="ea77f000" sha1="35aa8ee804d9429e72f516137a3b06c585a57b6d"/>
+		<rom name="mpr-23697.ic5" size="16777216" crc="1383c742" sha1="6efd17632a277a4bb0e47cc912fbc9865a8b14c3"/>
+		<rom name="mpr-23695.ic3" size="16777216" crc="41ac1510" sha1="01b889b627fdfc1f12a0c84fcc36debdfb1cf377"/>
+		<rom name="mpr-23693.ic1" size="16777216" crc="28995764" sha1="a1457f9935dde2e5aaa5ef245c736c0f2f8c74b7"/>
+		<rom name="mpr-23702.ic10" size="16777216" crc="e302b582" sha1="787192ed9f9a08541eecc3128855485cad802a42"/>
+		<rom name="mpr-23701.ic9" size="16777216" crc="0fa92fd7" sha1="67a1cf085101884a17a4783d0d509ab198aa6425"/>
+		<rom name="mpr-23700.ic8" size="16777216" crc="db9e5c1d" sha1="db918c0fa1860f4345806e574d44354aba5fcd54"/>
+		<rom name="mpr-23696.ic4" size="16777216" crc="6f2da455" sha1="b655757bc513398820bfeae07dca8a4f3ea9752c"/>
+		<rom name="epr-23704a.ic22" size="4194304" crc="45ea13c3" sha1="48cddba0506010dc705f04457f784a1d455ef3a6"/>
+	</machine>
+	<machine name="vf4tuneda" cloneof="vf4tuned" romof="vf4tuned">
+		<description>Virtua Fighter 4: Final Tuned (Rev A) (GDS-0036A)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0036a" sha1="b6c9cbe09b4cbe0faefe0bb09f429a6856663eaa"/>
+	</machine>
+	<machine name="initd_2" romof="naomi2">
+		<description>Initial D Arcade Stage (Japan, Rev B) (GDS-0020B)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0331-jpn.pic" size="16384" crc="0a3bf606" sha1="7c0e22df4a43a440571ac55fd0a6575931e8f959"/>
+		<rom name="crp1231br10_ver0107.ic2" size="131072" crc="3198f0ac" sha1="fa38bce7ca217ed6df558dc2456b010f690d0729"/>
+	</machine>
+	<machine name="vf4evob" cloneof="vf4evo" romof="vf4evo">
+		<description>Virtua Fighter 4: Evolution (Version B) (Japan) (GDS-0024B)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0338-jpn.pic" size="16384" crc="b177ba7d" sha1="f751ec43a8e944a01eeda58c01b7bc73e5df749d"/>
+	</machine>
+	<machine name="clubk2kp" cloneof="clubk2k3" romof="clubk2k3">
+		<description>Club Kart: European Session (2003, prototype, set 1)</description>
+		<year>2003</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="rom4.ic4s" size="8388608" crc="c9b21961" sha1="8c35378f65a14433965228cce26c7c8cebda8ece"/>
+		<rom name="rom16.ic16s" size="8388608" crc="aaaa39cf" sha1="8de90fefa81b3d5b8602335b18a86249deccc6a8"/>
+		<rom name="rom11.ic11s" size="8388608" crc="3c4a2f34" sha1="f4b14ec9df023843bbbfeca174344c3f65a041b7"/>
+		<rom name="rom15.ic15s" size="8388608" crc="42dd18db" sha1="8a0cc64128f2b823c99bcd1f45530ce85af6c6fe"/>
+		<rom name="rom10.ic10s" size="8388608" crc="4ec15b61" sha1="1484d00b780675df5178b0d686f152683b66e6df"/>
+		<rom name="rom3.ic3s" size="8388608" crc="ead5f480" sha1="defcedeb150a9307f6fa36b36a53a59ab5ee274a"/>
+		<rom name="rom8.ic8s" size="8388608" crc="9dba44f5" sha1="8de0a836b1aa78e0babd4b186f991d44bc0f34b6"/>
+		<rom name="rom19.ic19s" size="8388608" crc="7ee9743b" sha1="119f632c3d10d032fd15159aa37f3bcfe0938b06"/>
+		<rom name="rom14.ic14s" size="8388608" crc="7297efb8" sha1="9c3acdbb01c178ff18f9fb21c62b982cad8775e3"/>
+		<rom name="rom6.ic6s" size="8388608" crc="6e69792e" sha1="25fa82e823ab12ba9a0aafe9cf09c16e74aff130"/>
+		<rom name="rom1.ic1s" size="8388608" crc="63bd7915" sha1="3483f82ff801803c5abd04a0c66a1cecdff59c26"/>
+		<rom name="rom2.ic2s" size="8388608" crc="9d0d5e68" sha1="4b2535b968eff1fc1d3266194da54bb3c17b24ec"/>
+		<rom name="rom9.ic9s" size="8388608" crc="1307b6a1" sha1="a7108483e69994835e54f771a1f2ee05afda289d"/>
+		<rom name="rom18.ic18s" size="8388608" crc="cdd71385" sha1="4b16d00b57b7fd96a7858e1b9146ee3f2ff0d200"/>
+		<rom name="rom13.ic13s" size="8388608" crc="373097e5" sha1="561bf3ea396484b20ebb9fe63527329c005d067f"/>
+		<rom name="rom17.ic17s" size="8388608" crc="382fc4cb" sha1="8f79306fac4911748c362a4038ac6592ba0477c9"/>
+		<rom name="rom12.ic12s" size="8388608" crc="55548b90" sha1="3d791c13a142e78f0122a0ec0064023063255861"/>
+		<rom name="rom5.ic5s" size="8388608" crc="b42b5bdf" sha1="da8c235f6e76ad5b4305a8d9722da8523a701924"/>
+		<rom name="rom7.ic7s" size="8388608" crc="0956796e" sha1="69ed59a1e7f00cbf85ff72a47aa3eee75bc358fc"/>
+		<rom name="ic22.bin" size="4194304" crc="334fc561" sha1="e8c8707b0d13216ec7071da05823e330deb810d4"/>
+	</machine>
+	<machine name="clubk2k3" romof="naomi2">
+		<description>Club Kart: European Session (2003, Rev A)</description>
+		<year>2003</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="opr-24153.ic19s" size="8388608" crc="795df2a6" sha1="80f740806dcaacc28752cea98b254cbee51972a4"/>
+		<rom name="opr-24155.ic21s" size="8388608" crc="9e3b358d" sha1="3dec18be49b2271f013e4f4a02f32fa515a4ca69"/>
+		<rom name="opr-24158.ic24" size="8388608" crc="4d546427" sha1="74a399c40f56af76077d47f996629a7fb650c804"/>
+		<rom name="opr-24165.ic31" size="8388608" crc="8fdb66a5" sha1="32d2926328d9d804dcff781e2b758dd2a4b1a753"/>
+		<rom name="opr-24162.ic28" size="8388608" crc="0e349c02" sha1="4d0b4efeb125e23b1e73db2febf99565969d71d2"/>
+		<rom name="opr-24166.ic32s" size="8388608" crc="790a1b5e" sha1="bb0ad6de62d758f6869b3bb62cce9947f8b08681"/>
+		<rom name="opr-24152.ic18" size="8388608" crc="fd131f88" sha1="bc27b3ab5b41a3fe33b541b7cca28d6baed157b3"/>
+		<rom name="opr-24157.ic23s" size="8388608" crc="7edc4a7d" sha1="f4ffa20c83226c0c0dccc3b1e9ec6601f145b01b"/>
+		<rom name="opr-24154.ic20" size="8388608" crc="7bba9a33" sha1="e50199ce5c893ea81668cbf2972500803265dc19"/>
+		<rom name="opr-24163.ic29" size="8388608" crc="dab7f365" sha1="9a707c8992ddfa58f81bb5278f66713e424b0f4f"/>
+		<rom name="opr-24160.ic26" size="8388608" crc="e75210c9" sha1="315c077201023740f63eab5de1d81eb71613b06f"/>
+		<rom name="opr-24167.ic33" size="8388608" crc="15de1d97" sha1="26a96644f183713a556a5ff2d491510589c9d7c8"/>
+		<rom name="opr-24168.ic34s" size="8388608" crc="90dfdd5a" sha1="5c98bc84b310fa70e6bceee190508e9eaa60c82c"/>
+		<rom name="opr-24156.ic22" size="8388608" crc="dd5286f7" sha1="37ea254997cef1c45b53786c8abb2521acf24b56"/>
+		<rom name="opr-24159.ic25s" size="8388608" crc="ae8d7de1" sha1="15dadd9c5449d65310647e247a07da165c9e3d5e"/>
+		<rom name="opr-24164.ic30s" size="8388608" crc="03be6b1d" sha1="40792314fada46648f4f98a3d5a14822e6b1cf36"/>
+		<rom name="opr-24151.ic17s" size="8388608" crc="91594439" sha1="a195bfe0c70a0c7048b547af0a92c98d126230c6"/>
+		<rom name="epr-24173a.ic11" size="4194304" crc="d35ae42a" sha1="5602bb4ca87b950daee7532e0b70592432b8d5d8"/>
+		<rom name="opr-24161.ic27s" size="8388608" crc="aeecf812" sha1="d683f1c7f200481cf2342a387d7558d0d76f89f4"/>
+	</machine>
+	<machine name="vf4tunedd_2" cloneof="vf4tuned" romof="vf4tuned">
+		<description>Virtua Fighter 4: Final Tuned (Ver. A) (GDS-0036D)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0036d" sha1="2a2737e035f690946897bbb25943f2c5230eca99"/>
+	</machine>
+	<machine name="vf4tuneda_2" cloneof="vf4tuned" romof="vf4tuned">
+		<description>Virtua Fighter 4: Final Tuned (Rev A) (GDS-0036A)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0387-com.pic" size="16384" crc="8728aeaa" sha1="07983ab41d143f845c3150dfc9b7301968708e18"/>
+	</machine>
+	<machine name="initdv2jo_2" cloneof="initdv2j" romof="initdv2j">
+		<description>Initial D Arcade Stage Ver. 2 (Japan) (GDS-0026)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0026" sha1="07d1dda89e7f5b5377888feaef1dff32c18e63f1"/>
+	</machine>
+	<machine name="clubkcyco_2" cloneof="clubkcyc" romof="clubkcyc">
+		<description>Club Kart for Cycraft (GDS-0029)</description>
+		<year>2003</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0029" sha1="e73317c459b7f3e966c1be8784c55cbdfe230b88"/>
+		<disk name="cycraft_clubkart_smcp_v1.65" sha1="c77df6eaf425e4e86f871914aa024debc1940713"/>
+	</machine>
+	<machine name="initdo_2" cloneof="initd" romof="initd">
+		<description>Initial D Arcade Stage (Japan) (GDS-0020)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0020" sha1="e1766340da8191ab51a67477876d1806f2153a7e"/>
+	</machine>
+	<machine name="inidv3cy_2" romof="naomi2">
+		<description>Initial D Arcade Stage Ver. 3 Cycraft Edition (Export, Rev B) (GDS-0039B)</description>
+		<year>2006</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="initiald3_smcp_v1.66" sha1="8ade7c0bb85ceebf9e45e4d8053ad76009258a38"/>
+		<disk name="gds-0039b" sha1="b5eaae06ee3c81d57c0190bd709c690372a4cca6"/>
+	</machine>
+	<machine name="kingrt66" romof="naomi2">
+		<description>The King of Route 66 (Rev A)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="mpr-23811.ic4" size="16777216" crc="bbad4a93" sha1="724c3376102b2dc79b852af1e90748b2e0023b82"/>
+		<rom name="epr-23819a.ic22" size="4194304" crc="92f11b29" sha1="b33f7eefb849754cfe194be1d48d770ed77ff69a"/>
+		<rom name="mpr-23813.ic6" size="16777216" crc="fe0b94ea" sha1="0e46dff932036bec49c78a612bcfd27e07b516e8"/>
+		<rom name="mpr-23817.ic10" size="16777216" crc="e179cfb6" sha1="1120036238439f8ac1041150396e4b60e4a243bc"/>
+		<rom name="mpr-23814.ic7" size="16777216" crc="0cdf7325" sha1="41668f873b7842dac1bc85aa2b6bd6512edc9b64"/>
+		<rom name="mpr-23812.ic5" size="16777216" crc="7beabe22" sha1="d3cd926fc768d480ff45f1e30024bb0e31bd7d2c"/>
+		<rom name="mpr-23810.ic3" size="16777216" crc="2226accb" sha1="c4dc71e87c2ccd866f4180129181b7ced8caf22c"/>
+		<rom name="mpr-23816.ic9" size="16777216" crc="bbaf0765" sha1="3b79a4eff504b2156bea8b86c6cdd8e41e7bf268"/>
+		<rom name="mpr-23815.ic8" size="16777216" crc="ef327ab8" sha1="9dfc564084a75b9c3935374347f1709d2e86e469"/>
+		<rom name="mpr-23809.ic2" size="16777216" crc="2716aba0" sha1="4c245874da244926bf9ac6636af4fa67e07a21e8"/>
+		<rom name="mpr-23808.ic1" size="16777216" crc="e911bc86" sha1="0dc658851e20425b2e697e538bb4297a221f6ae8"/>
+	</machine>
+	<machine name="clubkrtc" cloneof="clubkrt" romof="clubkrt">
+		<description>Club Kart: European Session (Rev C)</description>
+		<year>2001</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="mpr-23698.ic6" size="16777216" crc="da79cd06" sha1="fdfe068caca1eb764dec28ab327e56b39144f3ae"/>
+		<rom name="mpr-23694.ic2" size="16777216" crc="37d30111" sha1="4c07df8cd548cac79d48709e61f692d762471f8f"/>
+		<rom name="mpr-23703.ic11" size="16777216" crc="702b8b4a" sha1="3a8dfde458f341e7db20664382b9fce2b6e5d462"/>
+		<rom name="epr-23704c.ic22" size="4194304" crc="9aaba862" sha1="e4dded0a5f36e18cd4bb59320506cea0f3af29d6"/>
+		<rom name="mpr-23699.ic7" size="16777216" crc="ea77f000" sha1="35aa8ee804d9429e72f516137a3b06c585a57b6d"/>
+		<rom name="mpr-23697.ic5" size="16777216" crc="1383c742" sha1="6efd17632a277a4bb0e47cc912fbc9865a8b14c3"/>
+		<rom name="mpr-23695.ic3" size="16777216" crc="41ac1510" sha1="01b889b627fdfc1f12a0c84fcc36debdfb1cf377"/>
+		<rom name="mpr-23693.ic1" size="16777216" crc="28995764" sha1="a1457f9935dde2e5aaa5ef245c736c0f2f8c74b7"/>
+		<rom name="mpr-23702.ic10" size="16777216" crc="e302b582" sha1="787192ed9f9a08541eecc3128855485cad802a42"/>
+		<rom name="mpr-23701.ic9" size="16777216" crc="0fa92fd7" sha1="67a1cf085101884a17a4783d0d509ab198aa6425"/>
+		<rom name="mpr-23700.ic8" size="16777216" crc="db9e5c1d" sha1="db918c0fa1860f4345806e574d44354aba5fcd54"/>
+		<rom name="mpr-23696.ic4" size="16777216" crc="6f2da455" sha1="b655757bc513398820bfeae07dca8a4f3ea9752c"/>
+	</machine>
+	<machine name="sgdrvsim" romof="naomi2">
+		<description>Driving Simulator</description>
+		<year>2007</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="ic14.bin" size="67108864" crc="349267e9" sha1="333cd48238ad321023b587ffa8d5f1f926ce8780"/>
+		<rom name="ic13.bin" size="67108864" crc="eed33acc" sha1="d2bccd58efd4ef29883d90806ebaebd6ac89de3b"/>
+		<rom name="317-0502-jpn.ic3" size="2048" crc="528ad9e7" sha1="35795c663c4cd43142ad8196f604b4c67a0c16f4"/>
+		<rom name="ic15.bin" size="67108864" crc="acc0c039" sha1="8f02dd8599adb0d6435e031b5dd146ed0db4d558"/>
+		<rom name="ic9.bin" size="67108864" crc="4edf67df" sha1="bb5bca9bb0d13d47fd33790f28cdd0839e62b422"/>
+		<rom name="ic8.bin" size="67108864" crc="3ef5e62f" sha1="34385c21152881942be3f66cfeba6cb9d94343bc"/>
+		<rom name="ic11.bin" size="67108864" crc="200ad72c" sha1="e3b30853f6368a0501f4b7c6fcd442cb4d7d9d24"/>
+		<rom name="ic12.bin" size="67108864" crc="90d192a4" sha1="43aae3d60c4b562f4f2ec50d6e9364eb2bad4ad4"/>
+		<rom name="ic10.bin" size="67108864" crc="a3b0f436" sha1="4a8153bbb5c7314d33b65b6c724543afd4e6df15"/>
+	</machine>
+	<machine name="vf4_2" romof="naomi2">
+		<description>Virtua Fighter 4 Version C (GDS-0012C)</description>
+		<year>2001</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0314-com.pic" size="16384" crc="fa0b6c70" sha1="c29936cb18e1dd592563b1104281f031e3b12fc2"/>
+	</machine>
+	<machine name="clubkrt" romof="naomi2">
+		<description>Club Kart: European Session (Rev D)</description>
+		<year>2001</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="mpr-23698.ic6" size="16777216" crc="da79cd06" sha1="fdfe068caca1eb764dec28ab327e56b39144f3ae"/>
+		<rom name="mpr-23694.ic2" size="16777216" crc="37d30111" sha1="4c07df8cd548cac79d48709e61f692d762471f8f"/>
+		<rom name="mpr-23703.ic11" size="16777216" crc="702b8b4a" sha1="3a8dfde458f341e7db20664382b9fce2b6e5d462"/>
+		<rom name="mpr-23699.ic7" size="16777216" crc="ea77f000" sha1="35aa8ee804d9429e72f516137a3b06c585a57b6d"/>
+		<rom name="mpr-23697.ic5" size="16777216" crc="1383c742" sha1="6efd17632a277a4bb0e47cc912fbc9865a8b14c3"/>
+		<rom name="mpr-23695.ic3" size="16777216" crc="41ac1510" sha1="01b889b627fdfc1f12a0c84fcc36debdfb1cf377"/>
+		<rom name="mpr-23693.ic1" size="16777216" crc="28995764" sha1="a1457f9935dde2e5aaa5ef245c736c0f2f8c74b7"/>
+		<rom name="mpr-23702.ic10" size="16777216" crc="e302b582" sha1="787192ed9f9a08541eecc3128855485cad802a42"/>
+		<rom name="mpr-23701.ic9" size="16777216" crc="0fa92fd7" sha1="67a1cf085101884a17a4783d0d509ab198aa6425"/>
+		<rom name="mpr-23700.ic8" size="16777216" crc="db9e5c1d" sha1="db918c0fa1860f4345806e574d44354aba5fcd54"/>
+		<rom name="epr-23704d.ic22" size="4194304" crc="60ac770c" sha1="2f1688f2046e794d1c1e06912b46c1573d934608"/>
+		<rom name="mpr-23696.ic4" size="16777216" crc="6f2da455" sha1="b655757bc513398820bfeae07dca8a4f3ea9752c"/>
+	</machine>
+	<machine name="vf4evoa_2" cloneof="vf4evo" romof="vf4evo">
+		<description>Virtua Fighter 4: Evolution (Japan) (GDS-0024A)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0024a" sha1="92fa11005708d7b1c1d2608dfc3033c30a885b47"/>
+	</machine>
+	<machine name="vf4evob_2" cloneof="vf4evo" romof="vf4evo">
+		<description>Virtua Fighter 4: Evolution (Version B) (Japan) (GDS-0024B)</description>
+		<year>2002</year>
+		<manufacturer>Sega</manufacturer>
+		<disk name="gds-0024b" sha1="42fba5d95454750ad80df2ce0db2996f71307914"/>
+	</machine>
+	<machine name="vf4b_2" cloneof="vf4" romof="vf4">
+		<description>Virtua Fighter 4 (Rev B) (GDS-0012B)</description>
+		<year>2001</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0314-com.pic" size="16384" crc="fa0b6c70" sha1="c29936cb18e1dd592563b1104281f031e3b12fc2"/>
+	</machine>
+	<machine name="initdv3jb_2" cloneof="initdv3j" romof="initdv3j">
+		<description>Initial D Arcade Stage Ver. 3 (Japan, Rev B) (GDS-0032B)</description>
+		<year>2004</year>
+		<manufacturer>Sega</manufacturer>
+		<rom name="317-0379-jpn.pic" size="16384" crc="7f024ff6" sha1="8a6a44f2c5db147355946f6c5e90e545926595da"/>
+	</machine>
+</mame>

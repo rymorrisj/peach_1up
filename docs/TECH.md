@@ -47,7 +47,6 @@ throughout. Radix UI primitives (dialog, slot) with hand-rolled component librar
 ## Emulators (PC)
 
 - **DOSBox-X** — DOS, Windows 3.1. No ROM required.
-- **VirtualBox** — Windows 95, 98, XP. Primary virtualization layer.
 - **86Box** — Windows 95, 98 accuracy mode. User supplies ROM pack.
 
 ### Limitations

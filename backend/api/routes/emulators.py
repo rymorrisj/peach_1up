@@ -74,6 +74,42 @@ class ConfigureRequest(BaseModel):
 _CONFIGURE_ACTIONS: dict[str, list[str]] = {}
 
 
+class XemuAssetPathsResponse(BaseModel):
+    flash_path: str
+    bios_path: str
+    hdd_path: str
+
+
+class XemuAssetPathsPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    flash_path: Optional[str] = None
+    bios_path: Optional[str] = None
+    hdd_path: Optional[str] = None
+
+
+def _xemu_toml_path() -> Path:
+    from backend.core.settings import get_base_path
+    return get_base_path() / "emulators" / "xemu" / "xemu.toml"
+
+
+def _write_xemu_toml(toml_path: Path, sections: dict) -> None:
+    lines: list[str] = []
+    for section, keys in sections.items():
+        lines.append(f"[{section}]")
+        for k, v in keys.items():
+            if isinstance(v, bool):
+                lines.append(f"{k} = {'true' if v else 'false'}")
+            elif isinstance(v, (int, float)):
+                lines.append(f"{k} = {v}")
+            else:
+                safe = str(v).replace("\\", "/")
+                lines.append(f'{k} = "{safe}"')
+        lines.append("")
+    tmp = toml_path.parent / (toml_path.name + ".tmp")
+    tmp.write_text("\n".join(lines), encoding="utf-8")
+    tmp.replace(toml_path)
+
+
 @router.get("", response_model=list[CatalogEntryResponse])
 def list_emulators():
     from backend.service.utils.emulator_installer import check_git
@@ -144,6 +180,77 @@ def reset_sandbox_state(
                 errors.append(slug)
 
     return {"reset": reset_count, "errors": errors}
+
+
+@router.get("/xemu/asset-paths", response_model=XemuAssetPathsResponse)
+def get_xemu_asset_paths(_: User = require_permission("is_admin")):
+    import tomllib
+
+    xemu_toml = _xemu_toml_path()
+    if not xemu_toml.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="xemu config not found at emulators/xemu/xemu.toml. Use PATCH to create it with the required asset paths.",
+        )
+    with xemu_toml.open("rb") as fh:
+        config = tomllib.load(fh)
+    system = config.get("system", {})
+    storage = config.get("storage", {})
+    return XemuAssetPathsResponse(
+        flash_path=system.get("flash_path", ""),
+        bios_path=system.get("bios_path", ""),
+        hdd_path=storage.get("hdd_path", ""),
+    )
+
+
+@router.patch("/xemu/asset-paths", response_model=XemuAssetPathsResponse)
+def patch_xemu_asset_paths(body: XemuAssetPathsPatch, _: User = require_permission("is_admin")):
+    import tomllib
+    from backend.service.utils.path_utils import normalise_path
+
+    updates = body.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="At least one field must be provided.")
+
+    validated: dict[str, str] = {}
+    for key, raw in updates.items():
+        try:
+            validated[key] = str(normalise_path(raw)).replace("\\", "/")
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"Invalid path for '{key}': {exc}") from exc
+
+    xemu_toml = _xemu_toml_path()
+    if xemu_toml.exists():
+        with xemu_toml.open("rb") as fh:
+            config = tomllib.load(fh)
+    else:
+        xemu_toml.parent.mkdir(parents=True, exist_ok=True)
+        config = {}
+
+    system = dict(config.get("system", {}))
+    storage = dict(config.get("storage", {}))
+
+    if "flash_path" in validated:
+        system["flash_path"] = validated["flash_path"]
+    if "bios_path" in validated:
+        system["bios_path"] = validated["bios_path"]
+    if "hdd_path" in validated:
+        storage["hdd_path"] = validated["hdd_path"]
+
+    sections: dict = {}
+    for section_name, section_data in config.items():
+        if section_name not in ("system", "storage"):
+            sections[section_name] = dict(section_data)
+    sections["system"] = system
+    sections["storage"] = storage
+
+    _write_xemu_toml(xemu_toml, sections)
+
+    return XemuAssetPathsResponse(
+        flash_path=system.get("flash_path", ""),
+        bios_path=system.get("bios_path", ""),
+        hdd_path=storage.get("hdd_path", ""),
+    )
 
 
 @router.post("/{slug}/install")

@@ -22,7 +22,7 @@ from backend.core.settings import get_base_path
 from backend.models.platform import Platform
 from backend.service.utils.emulator_catalog import get_86box_profile
 from backend.service.utils.ini_writer import patch_ini
-from backend.service.utils.settings import get_binary_path, get_env_var
+from backend.service.utils.settings import get_binary_path
 from backend.service.utils.vm.vhd import _build_vhd_footer
 
 logger = get_logger(__name__)
@@ -180,9 +180,9 @@ def provision_xemu_vm(platform: Platform) -> tuple[str | None, str, str]:
     vm_dir = _resolve_within(vms_base, vm_name)
     vm_dir.mkdir(parents=True, exist_ok=True)
 
-    bios_path_str = get_env_var("XBOX_BIOS_PATH")
-    if bios_path_str:
-        bios_dir = Path(bios_path_str).resolve()
+    xemu_exe = get_binary_path("xemu")
+    if xemu_exe:
+        bios_dir = Path(xemu_exe).parent.resolve()
         bootrom = str(bios_dir / "mcpx_1.0.bin").replace("\\", "/")
         flashrom = str(bios_dir / "bios.bin").replace("\\", "/")
     else:
@@ -190,13 +190,15 @@ def provision_xemu_vm(platform: Platform) -> tuple[str | None, str, str]:
         flashrom = ""
 
     toml_path = vm_dir / "xemu.toml"
-    with toml_path.open("w", encoding="utf-8") as fh:
-        fh.write("[sys]\n")
-        fh.write(f'bootrom_path = "{bootrom}"\n')
-        fh.write(f'flashrom_path = "{flashrom}"\n')
-        fh.write('hdd_path = "xbox_hdd.qcow2"\n')
-        fh.write('dvd_path = ""\n')
-        fh.write("\n[net]\nenabled = false\n")
+    if not toml_path.exists():
+        with toml_path.open("w", encoding="utf-8") as fh:
+            fh.write("[system]\n")
+            fh.write(f'flash_path = "{bootrom}"\n')
+            fh.write(f'bios_path = "{flashrom}"\n')
+            fh.write("[storage]\n")
+            fh.write('hdd_path = "xbox_hdd.qcow2"\n')
+            fh.write('dvd_path = ""\n')
+            fh.write("\n[net]\nenabled = false\n")
 
     return None, str(vm_dir / "xbox_hdd.qcow2"), str(toml_path)
 

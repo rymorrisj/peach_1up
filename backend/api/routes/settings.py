@@ -18,7 +18,7 @@ _ALL_PATH_KEYS = {
     "DOSBOX_PATH", "BOX86_PATH",
     "DUCKSTATION_PATH", "PCSX2_PATH", "XEMU_PATH", "MESEN_PATH", "PROJECT64_PATH",
     "LIBRARY_PATH", "MEDIA_PATH", "OS_PATH",
-    "DRIVES_PATH", "ROMS_PATH", "BIOS_PATH", "PROFILES_PATH",
+    "DRIVES_PATH", "ROMS_PATH", "PROFILES_PATH",
 }
 
 _LIBRARY_KEY_MAP: dict[str, str] = {
@@ -27,7 +27,6 @@ _LIBRARY_KEY_MAP: dict[str, str] = {
     "os_path":       "OS_PATH",
     "drives_path":   "DRIVES_PATH",
     "roms_path":     "ROMS_PATH",
-    "bios_path":     "BIOS_PATH",
     "profiles_path": "PROFILES_PATH",
 }
 
@@ -49,7 +48,7 @@ class EmulatorPathBody(BaseModel):
 
 
 class LibraryPathBody(BaseModel):
-    key: Literal["library_path", "media_path", "os_path", "drives_path", "roms_path", "bios_path", "profiles_path"]
+    key: Literal["library_path", "media_path", "os_path", "drives_path", "roms_path", "profiles_path"]
     path: str
 
 
@@ -114,7 +113,6 @@ def get_first_run_status(db: Session = Depends(get_db)):
             "os_path":       svc.get("OS_PATH") or None,
             "drives_path":   svc.get("DRIVES_PATH") or None,
             "roms_path":     svc.get("ROMS_PATH") or None,
-            "bios_path":     svc.get("BIOS_PATH") or None,
             "profiles_path": svc.get("PROFILES_PATH") or None,
         },
     }

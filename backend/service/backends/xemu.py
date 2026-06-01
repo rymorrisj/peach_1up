@@ -23,13 +23,11 @@ from backend.service.utils.emulator_catalog import (
 from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.process.job_objects import WindowsJobObject
-from backend.service.utils.settings import get_binary_path, get_env_var
+from backend.core.settings import get_base_path
+from backend.service.utils.settings import get_binary_path
 
 SUPPORTED_ERAS = {Era.XBOX.value}
 SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.XBOX]
-
-_MCPX_ROM = "mcpx_1.0.bin"
-_BIOS_ROM = "Complex_4627v1.03.bin"
 
 
 def validate_media(media_path: Path) -> None:
@@ -51,51 +49,55 @@ def validate_media(media_path: Path) -> None:
         )
 
 
-def validate_bios_path(bios_path: Path) -> None:
-    """Validate that the Xbox BIOS directory exists.
+def validate_bios_path() -> None:
+    """Validate that the asset files declared in emulators/xemu/xemu.toml exist on disk.
 
-    xemu requires an MCPX ROM (mcpx_1.0.bin) and a BIOS ROM. Both must be
-    present in the configured directory and xemu must be pre-configured to
-    reference them.
-
-    Args:
-        bios_path: Path to the directory containing Xbox BIOS files.
+    Reads flash_path, bios_path, and hdd_path from the global xemu config and
+    verifies each file is present. Paths may be absolute or relative to the
+    project root.
 
     Raises:
-        FileNotFoundError: If the path does not exist.
-        ValueError: If the path is not a directory.
+        RuntimeError: If the config is missing, a key is unset, or a file is absent.
     """
-    if not bios_path.exists():
-        raise FileNotFoundError(
-            f"Xbox BIOS path not found: {bios_path}. "
-            "Xbox BIOS files (MCPX ROM and BIOS ROM) must be dumped from "
-            "original Xbox hardware you own. "
-            "Configure XBOX_BIOS_PATH in config/settings.yaml to the directory "
-            "containing your dumped BIOS files, then configure xemu to use them."
+    import tomllib
+
+    base = get_base_path()
+    xemu_toml = base / "emulators" / "xemu" / "xemu.toml"
+
+    if not xemu_toml.exists():
+        raise RuntimeError(
+            f"xemu config not found: {xemu_toml}. "
+            "Configure flash_path, bios_path, and hdd_path via the Emulators page."
         )
-    if not bios_path.is_dir():
-        raise ValueError(
-            f"Xbox BIOS path is not a directory: {bios_path}. "
-            "XBOX_BIOS_PATH must point to a directory containing your dumped BIOS files."
-        )
-    if not any(bios_path.iterdir()):
-        raise FileNotFoundError(
-            f"Xbox BIOS directory is empty: {bios_path}. "
-            "Xbox BIOS files (MCPX ROM and BIOS ROM) must be dumped from "
-            "original Xbox hardware you own. "
-            "Place your dumped BIOS files in the directory configured as XBOX_BIOS_PATH."
-        )
-    mcpx = bios_path / _MCPX_ROM
-    if not mcpx.exists():
-        raise FileNotFoundError(
-            f"Xbox MCPX ROM not found: {mcpx}. "
-            f"{_MCPX_ROM} must be present in the XBOX_BIOS_PATH directory."
-        )
-    bios_rom = bios_path / _BIOS_ROM
-    if not bios_rom.exists():
-        raise FileNotFoundError(
-            f"Xbox BIOS ROM not found: {bios_rom}. "
-            f"{_BIOS_ROM} must be present in the XBOX_BIOS_PATH directory."
+
+    with xemu_toml.open("rb") as fh:
+        config = tomllib.load(fh)
+
+    system = config.get("system", {})
+    storage = config.get("storage", {})
+
+    checks = [
+        ("flash_path", system.get("flash_path", "")),
+        ("bios_path", system.get("bios_path", "")),
+        ("hdd_path", storage.get("hdd_path", "")),
+    ]
+
+    missing: list[str] = []
+    for key, raw in checks:
+        if not raw:
+            raise RuntimeError(
+                f"xemu config key '{key}' is not set in {xemu_toml}. "
+                "Configure it via the Emulators page."
+            )
+        resolved = Path(raw) if Path(raw).is_absolute() else base / raw
+        if not resolved.exists():
+            missing.append(f"  {key}: {resolved}")
+
+    if missing:
+        lines = "\n".join(missing)
+        raise RuntimeError(
+            f"xemu asset files not found:\n{lines}\n"
+            "Update these paths in emulators/xemu/xemu.toml via the Emulators page."
         )
 
 
@@ -133,7 +135,7 @@ def launch(
     Raises:
         FileNotFoundError: If the executable, media file, or BIOS path is missing.
         ValueError: If the media extension is unsupported or config_path is unset.
-        RuntimeError: If XEMU_PATH or XBOX_BIOS_PATH is not configured or launch fails.
+        RuntimeError: If XEMU_PATH is not configured or launch fails.
     """
     if platform.config_path is None:
         raise ValueError(
@@ -153,14 +155,7 @@ def launch(
     if media_path is not None:
         validate_media(media_path)
 
-    bios_path_str = get_env_var("XBOX_BIOS_PATH")
-    if not bios_path_str:
-        raise RuntimeError(
-            "XBOX_BIOS_PATH is not configured. "
-            "Set it in config/settings.yaml to the directory containing your Xbox BIOS files. "
-            "Xbox BIOS files must be dumped from original Xbox hardware you own."
-        )
-    validate_bios_path(Path(bios_path_str))
+    validate_bios_path()
 
     vm_dir = Path(str(platform.config_path)).parent.resolve()
 

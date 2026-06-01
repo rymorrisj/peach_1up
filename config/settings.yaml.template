@@ -14,7 +14,6 @@ XEMU_PATH: emulators/xemu/xemu.exe
 MESEN_PATH: emulators/mesen/Mesen.exe
 
 # System-installed emulators — set the full absolute path for your machine.
-VIRTUALBOX_PATH: ''
 DUCKSTATION_PATH: ''
 PROJECT64_PATH: ''
 
@@ -26,15 +25,7 @@ APPS_PATH: library/media/apps
 OS_PATH: library/system/os
 DRIVES_PATH: library/system/drives
 ROMS_PATH: library/system/roms/86box
-BIOS_PATH: library/system/bios
 PROFILES_PATH: library/system/profiles
-
-# BIOS directories — set to full absolute path after placing BIOS files,
-# or leave empty to use the defaults under library/system/bios/.
-PS1_BIOS_PATH: ''
-PS2_BIOS_PATH: ''
-XBOX_BIOS_PATH: ''
-DREAMCAST_BIOS_PATH: library/system/bios/dreamcast
 
 suppress_confirmations: []
 PEACH_ENV: development

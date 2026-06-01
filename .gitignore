@@ -73,8 +73,8 @@ debug.log
 profiles/*.yaml
 profiles/conf/
 
-# Library (user data directories ignored; drives/ dir tracked but .img files are not)
-/library/
+# Library: track only the system folder for things like bios
+/library/media
 
 # Bundled emulator binaries (drop-in, never committed — directories are tracked)
 /emulators/
