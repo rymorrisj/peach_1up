@@ -31,6 +31,7 @@ _DEFAULTS: dict = {
     "BOX86_PATH": "",
     "LIBRARY_PATH": "",
     "MEDIA_PATH": "",
+    "GAMES_PATH": "",
     "OS_PATH": "",
     "DRIVES_PATH": "",
     "ROMS_PATH": "",
@@ -62,6 +63,7 @@ _PATH_KEYS: frozenset[str] = frozenset({
     "BOX86_PATH",
     "LIBRARY_PATH",
     "MEDIA_PATH",
+    "GAMES_PATH",
     "OS_PATH",
     "DRIVES_PATH",
     "ROMS_PATH",
@@ -97,14 +99,15 @@ _BUNDLED: dict[str, Path] = {
 }
 
 _PATH_DEFAULTS: dict[str, str] = {
-    "LIBRARY_PATH":  str((_PROJECT_ROOT / "library").resolve()),
-    "MEDIA_PATH":    str((_PROJECT_ROOT / "library" / "media").resolve()),
-    "OS_PATH":       str((_PROJECT_ROOT / "library" / "system" / "os").resolve()),
-    "DRIVES_PATH":   str((_PROJECT_ROOT / "library" / "system" / "drives").resolve()),
-    "ROMS_PATH":     str((_PROJECT_ROOT / "library" / "system" / "roms" / "86box").resolve()),
-    "PROFILES_PATH": str((_PROJECT_ROOT / "library" / "system" / "profiles").resolve()),
-    "DOSBOX_PATH":   str((_PROJECT_ROOT / "emulators" / "dosbox-x" / "dosbox-x.exe").resolve()),
-    "BOX86_PATH":    str((_PROJECT_ROOT / "emulators" / "86box" / "86Box.exe").resolve()),
+    "LIBRARY_PATH":       str((_PROJECT_ROOT / "library").resolve()),
+    "MEDIA_PATH":         str((_PROJECT_ROOT / "library" / "media").resolve()),
+    "GAMES_PATH":         str((_PROJECT_ROOT / "library" / "games").resolve()),
+    "OS_PATH":            str((_PROJECT_ROOT / "library" / "system" / "os").resolve()),
+    "DRIVES_PATH":        str((_PROJECT_ROOT / "library" / "system" / "drives").resolve()),
+    "ROMS_PATH":          str((_PROJECT_ROOT / "library" / "system" / "roms" / "86box").resolve()),
+    "PROFILES_PATH":      str((_PROJECT_ROOT / "library" / "system" / "profiles").resolve()),
+    "DOSBOX_PATH":        str((_PROJECT_ROOT / "emulators" / "dosbox-x" / "dosbox-x.exe").resolve()),
+    "BOX86_PATH":         str((_PROJECT_ROOT / "emulators" / "86box" / "86Box.exe").resolve()),
 }
 
 # None until init() is called; dict thereafter
@@ -163,6 +166,7 @@ def init() -> None:
         _env[env_var] = os.getenv(env_var, "")
     _env["LIBRARY_PATH"] = os.getenv("LIBRARY_PATH", "")
     _env["MEDIA_PATH"] = os.getenv("MEDIA_PATH", "")
+    _env["GAMES_PATH"] = os.getenv("GAMES_PATH", "")
     _env["OS_PATH"] = os.getenv("OS_PATH", "")
     _env["DRIVES_PATH"] = os.getenv("DRIVES_PATH", "")
     _env["ROMS_PATH"] = os.getenv("ROMS_PATH", "")

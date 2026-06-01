@@ -334,6 +334,7 @@ def _ensure_default_paths() -> None:
     base = get_base_path()
     lib = base / "library"
     for d in [
+        lib / "games",
         lib / "system" / "os",
         lib / "system" / "roms" / "86box",
         lib / "system" / "bios" / "ps1",
@@ -420,6 +421,10 @@ async def lifespan(app: FastAPI):
 
     _scan_installed_emulators()
     _sync_detected_emulator_paths()
+
+    from backend.service.utils.app_container import validate_descriptor_grant_surface as _validate_grants
+    _validate_grants()
+    logger.info("Startup: descriptor grant surface validated — all path_keys resolvable")
 
     try:
         from backend.service.utils.emulator_catalog import _get_eras_config as _warm_eras

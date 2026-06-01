@@ -66,15 +66,29 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
     except RuntimeError:
         pass
 
-    # Step 2: derived paths.
+    # Step 2: derived paths — keyed by descriptive name, resolved relative to base.
+    # GAMES_PATH is intentionally absent: it is a registered settings key resolved
+    # by the settings.get() call in step 1 above.
     base = get_base_path()
     derived: dict[str, Path] = {
+        # Emulator install root (binary directory).
         "install_dir":  base / "emulators" / slug,
-        # saves_dir/memcards_dir/snaps_dir removed — console emulators use native userdata; revisit at P9 DACL grant audit
+        # Per-emulator save-state directory (e.g. Flycast, Mesen, Project64, ScummVM).
+        "saves_dir":    base / "emulators" / slug / "saves",
+        # Per-emulator memory-card directory (PCSX2, DuckStation).
+        "memcards_dir": base / "emulators" / slug / "memcards",
+        # Per-emulator screenshot/snapshot directory (PCSX2).
+        "snaps_dir":    base / "emulators" / slug / "snaps",
+        # Emulator config directory (same as install root for portable layout).
         "config_dir":   base / "emulators" / slug,
+        # xemu NVRAM/VM state directory.
         "nvram":        base / "emulators" / slug / "vms",
+        # Per-emulator shader/disk cache directory.
         "cache_dir":    base / "emulators" / slug / "cache",
+        # Per-emulator plugin directory (Project64).
         "plugin_dir":   base / "emulators" / slug / "plugins",
+        # xemu HDD image fallback: grants the whole xbox bios dir when launch_paths
+        # does not supply the specific .qcow2 path.
         "hdd_image":    base / "library" / "system" / "bios" / "xbox",
     }
 
@@ -168,6 +182,41 @@ def get_container_config(
         cpu_min_rate=_CPU_MIN_RATE,
         memory_limit_mb=memory_limit_mb,
     )
+
+
+def validate_descriptor_grant_surface() -> None:
+    """Assert every path_key in every descriptor's container_broker_files is resolvable.
+
+    Iterates the full emulator catalog and attempts to resolve each path_key
+    via _resolve_path_key.  Collects all failures and raises a single RuntimeError
+    at the end so every bad key is surfaced in one startup message.
+
+    Raises:
+        RuntimeError: If any path_key in any descriptor cannot be resolved.
+            Lists each failing key and the descriptor that declared it.
+    """
+    from backend.service.utils.emulator_catalog import load_catalog
+
+    failures: list[str] = []
+    for desc in load_catalog():
+        slug = desc.get("slug", "<unknown>")
+        for entry in desc.get("container_broker_files", []):
+            pk = entry.get("path_key", "")
+            if not pk:
+                continue
+            try:
+                _resolve_path_key(pk, slug)
+            except SandboxError:
+                failures.append(f"  {pk!r} declared by '{slug}'")
+
+    if failures:
+        raise RuntimeError(
+            "Startup validation failed — the following path_keys in "
+            "container_broker_files cannot be resolved by _resolve_path_key:\n"
+            + "\n".join(failures)
+            + "\nFix: add the key to settings._DEFAULTS/_PATH_DEFAULTS or to the "
+            "derived map in app_container._resolve_path_key()."
+        )
 
 
 def reset_container(emulator_slug: str) -> None:
