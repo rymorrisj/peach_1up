@@ -2,15 +2,16 @@
 DOSBox-X backend for Peach 1UP.
 
 Handles DOS and Windows 3.1 era games using DOSBox-X natively on the Windows
-host. A per-launch conf file is written to a temp directory, incorporating the
-emulator's bundled dosbox-x.conf with Peach's [autoexec] and SDL overrides
-appended. The temp file is cleaned up via atexit when the service exits.
+host. A per-launch conf file is written to a private temp directory, incorporating
+the emulator's bundled dosbox-x.conf with Peach's [autoexec] and SDL overrides
+appended. The temp directory is cleaned up after the process exits.
 """
 
 import os
 import re
 import shutil
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -328,7 +329,8 @@ def write_launch_conf(
         raise FileNotFoundError(f"DOSBox-X base.conf not found: {base_conf}")
     base = _strip_autoexec(base_conf.read_text(encoding="utf-8", errors="replace"))
 
-    conf_path = executable_path.parent / "dosbox-x.conf"
+    tmpdir = Path(tempfile.mkdtemp(prefix="peach1up_dosbox_"))
+    conf_path = tmpdir / "dosbox-x.conf"
     content = base.rstrip("\n") + "\n\n" + autoexec
 
     conf_path.write_text(content, encoding="utf-8")
@@ -336,20 +338,16 @@ def write_launch_conf(
     return conf_path
 
 
-def _cleanup_temp_conf(tmpdir: Path) -> None:
-    try:
-        shutil.rmtree(str(tmpdir), ignore_errors=False)
-    except Exception as exc:
-        logger.warning("Failed to remove DOSBox temp conf %s: %s", tmpdir, exc)
-
-
-def _delete_conf_on_exit(proc, conf_path: Path) -> None:
+def _cleanup_temp_dir_on_exit(proc, tmpdir: Path) -> None:
     try:
         while proc.poll() is None:
             time.sleep(0.5)
     except Exception:
         pass
-    conf_path.unlink(missing_ok=True)
+    try:
+        shutil.rmtree(str(tmpdir), ignore_errors=False)
+    except Exception as exc:
+        logger.warning("Failed to remove DOSBox temp dir %s: %s", tmpdir, exc)
 
 
 def build_args(media_path: Path, era: str, enable_networking: bool = False) -> List[str]:
@@ -388,7 +386,10 @@ def build_args(media_path: Path, era: str, enable_networking: bool = False) -> L
         )
 
     # Disable NE2000 adapter unless the profile explicitly enables networking.
-    return [] if enable_networking else ["-set", "ne2000=false"]
+    args = ["-noconfig"]
+    if not enable_networking:
+        args += ["-set", "ne2000=false"]
+    return args
 
 
 def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
@@ -417,8 +418,10 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     validate_media(spec.media_path)
 
     conf_path = write_launch_conf(spec)
+    tmpdir = conf_path.parent
 
     args = build_args(spec.media_path, spec.era, enable_networking=spec.enable_networking)
+    args += ["-conf", str(conf_path)]
     job_name = f"peach1up_dosbox_{spec.era}_{spec.media_path.stem}"
 
     # Resolve container_enabled: profile field overrides the emulator catalog value.
@@ -430,6 +433,8 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         sandbox_config = _build_cfg("dosbox-x", spec.executable_path)
         sandbox_config.broker_files.append(
             BrokerFile(path=str(get_base_path() / "library"), access="r", mode="grant"))
+        sandbox_config.broker_files.append(
+            BrokerFile(path=str(tmpdir), access="r", mode="grant"))
         if spec.drive_image_path is not None and spec.use_drive:
             sandbox_config.broker_files.append(
                 BrokerFile(
@@ -452,8 +457,8 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     )
 
     threading.Thread(
-        target=_delete_conf_on_exit,
-        args=(result[0], conf_path),
+        target=_cleanup_temp_dir_on_exit,
+        args=(result[0], tmpdir),
         daemon=True,
         name=f"dosbox_conf_cleanup_{result[0].pid}",
     ).start()
