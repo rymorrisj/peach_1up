@@ -26,9 +26,11 @@ class _ItemAlreadyExists(Exception):
 def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     if executable_path and Path(executable_path).suffix.lower() != ".img":
         return Path(executable_path)
+    from backend.service.utils.era_media import all_supported_extensions
+    all_exts = _MEDIA_SUFFIXES | all_supported_extensions()
     try:
         hit = next(
-            (f for f in folder.iterdir() if f.is_file() and f.suffix.lower() in _MEDIA_SUFFIXES),
+            (f for f in folder.iterdir() if f.is_file() and f.suffix.lower() in all_exts),
             None,
         )
     except OSError:

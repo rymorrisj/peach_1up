@@ -35,7 +35,7 @@ _SYSTEM_PLATFORMS = [
         "era": "win95",
         "emulator_slug": "86box",
         "is_system": True,
-        "supported_eras": json.dumps(["win95", "win98"]),
+        "supported_eras": json.dumps(["win95", "win98", "winxp"]),
         "download_url": "https://86box.net",
         "status": "unknown",
     },
@@ -65,7 +65,7 @@ _SYSTEM_PLATFORMS = [
         "era": "nes",
         "emulator_slug": "mesen",
         "is_system": True,
-        "supported_eras": json.dumps(["nes"]),
+        "supported_eras": json.dumps(["nes", "snes"]),
         "download_url": "https://www.mesen.ca",
         "status": "unknown",
     },
@@ -111,6 +111,7 @@ _DEFAULT_PROFILES = [
     {"name": "PS2 Default",     "slug": "ps2-default",   "era": "ps2",   "emulator_slug": "pcsx2",       "is_bundled": True},
     {"name": "Xbox OG Default", "slug": "xbox-default",  "era": "xbox",  "emulator_slug": "xemu",        "is_bundled": True},
     {"name": "NES Default",     "slug": "nes-default",   "era": "nes",   "emulator_slug": "mesen",       "is_bundled": True},
+    {"name": "SNES Default",    "slug": "snes-default",  "era": "snes",  "emulator_slug": "mesen",       "is_bundled": True},
     {"name": "N64 Default",        "slug": "n64-default",        "era": "n64",       "emulator_slug": "project64",   "is_bundled": True},
     {"name": "Dreamcast Default",  "slug": "dreamcast-default",  "era": "dreamcast", "emulator_slug": "flycast",     "is_bundled": True},
 ]
@@ -128,12 +129,14 @@ def _sync_first_run_from_db(db) -> None:
 def _seed_system_platforms(db) -> bool:
     try:
         from backend.models import Platform
-        if db.query(Platform).filter(Platform.is_system.is_(True)).count() > 0:
-            return True
+        added = 0
         for data in _SYSTEM_PLATFORMS:
-            db.add(Platform(**data))
-        db.flush()
-        logger.info("Seeded %d system platforms", len(_SYSTEM_PLATFORMS))
+            if not db.query(Platform).filter(Platform.slug == data["slug"]).first():
+                db.add(Platform(**data))
+                added += 1
+        if added:
+            db.flush()
+            logger.info("Seeded %d system platform(s)", added)
         return True
     except Exception as exc:
         db.rollback()
@@ -144,12 +147,14 @@ def _seed_system_platforms(db) -> bool:
 def _seed_default_profiles(db) -> bool:
     try:
         from backend.models import Profile
-        if db.query(Profile).filter(Profile.is_bundled.is_(True)).count() > 0:
-            return True
+        added = 0
         for data in _DEFAULT_PROFILES:
-            db.add(Profile(**data))
-        db.flush()
-        logger.info("Seeded %d default profiles", len(_DEFAULT_PROFILES))
+            if not db.query(Profile).filter(Profile.slug == data["slug"]).first():
+                db.add(Profile(**data))
+                added += 1
+        if added:
+            db.flush()
+            logger.info("Seeded %d default profile(s)", added)
         return True
     except Exception as exc:
         db.rollback()

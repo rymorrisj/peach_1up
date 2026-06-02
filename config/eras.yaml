@@ -62,6 +62,13 @@ nes:
   cpu_limit_percent: 30
   supported_media: [".nes", ".chd"]
 
+snes:
+  backend: mesen
+  memory_limit_mb: 256
+  cpu_limit_percent: 50
+  supported_media: [".sfc", ".smc", ".zip"]
+  mount_type: rom
+
 n64:
   backend: project64
   memory_limit_mb: 1024

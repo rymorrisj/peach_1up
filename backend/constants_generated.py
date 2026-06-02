@@ -12,6 +12,7 @@ class Era(Enum):
     PS2 = "ps2"
     XBOX = "xbox"
     NES = "nes"
+    SNES = "snes"
     N64 = "n64"
     DREAMCAST = "dreamcast"
 
@@ -37,6 +38,7 @@ ERA_LABELS: dict[str, str] = {
     "ps2": "PlayStation 2",
     "xbox": "Original Xbox",
     "nes": "NES",
+    "snes": "SNES",
     "n64": "Nintendo 64",
     "dreamcast": "Dreamcast",
 }

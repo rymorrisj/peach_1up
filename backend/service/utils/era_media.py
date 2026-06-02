@@ -51,7 +51,7 @@ def resolve_media_file_from_directory(directory: Path, era: str | None) -> Path:
         )
     candidates: list[Path] = []
     for f in directory.iterdir():
-        if f.is_file() and f.suffix.lower() in extensions:
+        if f.is_file() and f.suffix.lower() in extensions and f.suffix.lower() != ".img":
             candidates.append(f)
     if not candidates:
         raise ValueError(

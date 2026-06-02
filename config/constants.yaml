@@ -8,6 +8,7 @@ eras:
   ps2:   "PlayStation 2"
   xbox:  "Original Xbox"
   nes:       "NES"
+  snes:      "SNES"
   n64:       "Nintendo 64"
   dreamcast: "Dreamcast"
 

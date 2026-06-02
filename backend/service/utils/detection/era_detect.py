@@ -35,6 +35,8 @@ def detect_era(path: Path) -> tuple[str | None, str]:
                 return "xbox", "file extension .xiso indicates Original Xbox disc image"
             if suffix in {".z64", ".n64", ".v64"}:
                 return "n64", "file extension indicates Nintendo 64 ROM"
+            if suffix in {".sfc", ".smc"}:
+                return "snes", "file extension indicates SNES ROM"
             if suffix == ".nes":
                 return "nes", "file extension indicates NES ROM"
             if suffix in {".gdi", ".cdi"}:
