@@ -44,7 +44,7 @@ const EMULATOR_ROM_PACK_SLUG: Record<string, string> = {
   '86box': '86box-roms',
 }
 
-type Tab = 'overview' | 'rom' | 'ext' | 'profiles'
+type Tab = 'overview' | 'rom' | 'ext' | 'profiles' | 'limits'
 
 function TabBtn({ id, label, count, active, onClick }: {
   id: Tab; label: string; count?: number; active: boolean; onClick: () => void
@@ -354,6 +354,9 @@ export default function EmulatorDetail() {
           <TabBtn id="rom" label="ROM Packs" active={tab === 'rom'} onClick={() => setTab('rom')} />
           <TabBtn id="ext" label="Extensions" active={tab === 'ext'} onClick={() => setTab('ext')} />
           <TabBtn id="profiles" label="Profiles" count={emulatorProfiles.length} active={tab === 'profiles'} onClick={() => setTab('profiles')} />
+          {(entry?.known_limitations?.length ?? 0) > 0 && (
+            <TabBtn id="limits" label="Known Limitations" count={entry!.known_limitations!.length} active={tab === 'limits'} onClick={() => setTab('limits')} />
+          )}
         </div>
 
         {/* Overview tab */}
@@ -586,6 +589,41 @@ export default function EmulatorDetail() {
                 No extension information available.
               </div>
             )}
+          </div>
+        )}
+
+        {/* Known Limitations tab */}
+        {tab === 'limits' && entry && (
+          <div className="flex flex-col gap-3">
+            {(entry.known_limitations ?? []).map((lim, i) => {
+              const severityStyle: React.CSSProperties =
+                lim.severity === 'warning'
+                  ? { background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.35)', color: '#fbbf24' }
+                  : lim.severity === 'critical'
+                  ? { background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.35)', color: '#ef4444' }
+                  : { background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--fg-3)' }
+              return (
+                <div key={i} className="rounded-xl p-[18px]" style={{ background: severityStyle.background, border: severityStyle.border }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--fg-1)' }}>
+                      {lim.title}
+                    </span>
+                    <span style={{
+                      fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
+                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      padding: '2px 6px', borderRadius: 'var(--r-1)',
+                      border: `1px solid ${severityStyle.color}`,
+                      color: severityStyle.color,
+                    }}>
+                      {lim.severity}
+                    </span>
+                  </div>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 13, lineHeight: 1.55, color: 'var(--fg-2)', margin: 0 }}>
+                    {lim.description}
+                  </p>
+                </div>
+              )
+            })}
           </div>
         )}
 

@@ -58,3 +58,13 @@ display_name = "Xbox HDD image"
 platform = "xbox"
 guidance_text = "Place xbox_hdd.qcow2 in emulators/xemu/. A pre-built blank image is available from the xemu project."
 guidance_url = "https://xemu.app/docs/required-files/"
+
+[[known_limitations]]
+title = "Memory limit must be disabled"
+severity = "warning"
+description = "xemu pre-allocates a 1 GB JIT buffer at startup. The Job Object memory cap must be disabled (skip_memory_limit = true) or set above 2048 MB — otherwise xemu exits immediately with a paging file error."
+
+[[known_limitations]]
+title = "Shader cache writes to AppData"
+severity = "info"
+description = "xemu writes its shader cache to %APPDATA%\\xemu\\ regardless of portable mode. This is a known xemu limitation and cannot be overridden via config."

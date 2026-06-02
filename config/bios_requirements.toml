@@ -18,8 +18,8 @@ guidance_url = "https://pcsx2.net/guides/basic-setup/"
 slug = "xbox-bios"
 name = "Xbox BIOS"
 platform = "xbox"
-bios_path = "library/system/bios/xbox"
-guidance_text = "Place your Xbox MCPX and BIOS files in library/system/bios/xbox/. See xemu.app for the exact files required."
+bios_path = "emulators/xemu"
+guidance_text = "Place your Xbox BIOS .bin files (mcpx_1.0.bin and the appropriate ROM) in emulators/xemu/. xemu will not start without them."
 guidance_url = "https://xemu.app/docs/required-files/"
 
 [[bios_requirements]]

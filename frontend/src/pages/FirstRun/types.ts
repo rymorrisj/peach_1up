@@ -44,6 +44,7 @@ export interface CatalogEntry {
   install_note?: string
   guidance_text?: string
   guidance_url?: string
+  known_limitations?: Array<{ title: string; severity: string; description: string }>
 }
 
 export interface EmulatorInstallStatus {

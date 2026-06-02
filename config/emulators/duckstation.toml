@@ -54,3 +54,8 @@ platform = "ps1"
 bios_path = "emulators/duckstation/bios"
 guidance_text = "Place your PS1 BIOS file (e.g. scph1001.bin) in emulators/duckstation/bios/. DuckStation auto-detects BIOS by hash — multiple region files can coexist."
 guidance_url = "https://www.duckstation.org/wiki/BIOS"
+
+[[known_limitations]]
+title = "Multi-region BIOS coexistence"
+severity = "info"
+description = "DuckStation auto-detects BIOS region by hash. Multiple region BIOS files can coexist in emulators/duckstation/bios/ — the correct one is selected automatically per disc."

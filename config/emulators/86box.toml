@@ -60,3 +60,8 @@ acquire_method = "git_clone"
 acquire_url = "https://github.com/86Box/assets"
 acquire_tag = "v5.3"
 acquire_target = "emulators/86box/assets"
+
+[[known_limitations]]
+title = "ROM pack version must match binary"
+severity = "warning"
+description = "The 86Box ROM pack version must match the emulator binary version exactly. Mixing versions causes silent emulation failures. Always update both together."

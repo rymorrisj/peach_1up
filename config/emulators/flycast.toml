@@ -48,3 +48,8 @@ platform = "dreamcast"
 bios_path = "emulators/flycast/data"
 guidance_text = "Place dc_boot.bin and dc_flash.bin in emulators/flycast/data/. Both files must be from the same hardware revision."
 guidance_url = "https://github.com/flyinghead/flycast"
+
+[[known_limitations]]
+title = "BIOS files must be from the same hardware revision"
+severity = "warning"
+description = "dc_boot.bin and dc_flash.bin must be from the same hardware revision. Mismatched pairs may cause region or boot failures."

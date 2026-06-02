@@ -50,6 +50,7 @@ class CatalogEntryResponse(BaseModel):
     container_enabled: bool = False
     skip_cpu_limit: bool = False
     skip_memory_limit: bool = False
+    known_limitations: list[dict] = []
 
 
 class SandboxPatchRequest(BaseModel):
@@ -146,6 +147,7 @@ def list_emulators():
             item[_sf] = bool(_override) if _override is not None else _toml_val
         if "install_note" in entry:
             item["install_note"] = entry["install_note"]
+        item["known_limitations"] = entry.get("known_limitations", [])
         result.append(item)
     return result
 

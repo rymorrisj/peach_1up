@@ -59,3 +59,8 @@ platform = "ps2"
 bios_path = "emulators/pcsx2/bios"
 guidance_text = "Place your PS2 BIOS files in emulators/pcsx2/bios/. The full multi-file set is required — do not rename any files."
 guidance_url = "https://pcsx2.net/guides/basic-setup/"
+
+[[known_limitations]]
+title = "PS2 BIOS requires the full file set"
+severity = "warning"
+description = "The PS2 BIOS is a multi-file set. All files must be present with their original filenames — renaming or partial sets will fail to load."

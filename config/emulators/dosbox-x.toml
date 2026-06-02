@@ -34,3 +34,8 @@ mode = "secure"
 path_key = "config_dir"
 access = "rw"
 mode = "grant"
+
+[[known_limitations]]
+title = "Sound config lost from read-only ISO"
+severity = "info"
+description = "DOS games that write sound config to their install directory (e.g. Doom's DEFAULT.CFG) will have no in-game sound when launched from a read-only ISO. Install the game to a writable HDD image to persist sound config."
