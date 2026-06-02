@@ -238,14 +238,14 @@ def configure_emulator(slug: str) -> None:
                 _cfg = tomllib.loads(toml_path.read_text(encoding="utf-8"))
                 _sys = _cfg.get("system", {})
                 _sto = _cfg.get("storage", {})
-                if _sys.get("flash_path") and _sys.get("bios_path") and _sto.get("hdd_path"):
+                if _sys.get("bootrom_path") and _sys.get("flashrom_path") and _sto.get("hdd_path"):
                     configured = True
             except Exception:
                 pass
         if not configured:
             _logger.warning(
                 "xemu global config at %s is missing or incomplete. "
-                "flash_path, bios_path, and hdd_path must be set before launching Xbox titles.",
+                "bootrom_path, flashrom_path, and hdd_path must be set before launching Xbox titles.",
                 toml_path,
             )
     else:

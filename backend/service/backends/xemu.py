@@ -54,7 +54,7 @@ def validate_media(media_path: Path) -> None:
 def provision_xemu_defaults(exe_path: Path) -> Path:
     """Ensure the shared xemu config and HDD image exist; return the xemu.toml path.
 
-    Creates emulators/xemu/xemu.toml if absent, pointing flash_path and bios_path
+    Creates emulators/xemu/xemu.toml if absent, pointing bootrom_path and flashrom_path
     at files discovered in library/system/bios/xbox/. Raises a clear user-facing
     error if xbox_hdd.qcow2 is absent — it must be user-supplied (requires a
     legitimate Xbox HDD dump; Peach 1UP does not generate it).
@@ -104,8 +104,8 @@ def provision_xemu_defaults(exe_path: Path) -> Path:
         toml_path.write_text(
             "[general]\nshow_welcome = false\n"
             "[system]\n"
-            f'flash_path = "{mcpx.resolve().as_posix()}"\n'
-            f'bios_path = "{flash_bins[0].resolve().as_posix()}"\n'
+            f'bootrom_path = "{mcpx.resolve().as_posix()}"\n'
+            f'flashrom_path = "{flash_bins[0].resolve().as_posix()}"\n'
             "[storage]\n"
             f'hdd_path = "{hdd_path.resolve().as_posix()}"\n',
             encoding="utf-8",
@@ -117,7 +117,7 @@ def provision_xemu_defaults(exe_path: Path) -> Path:
 def validate_bios_path(config_path: Path) -> None:
     """Validate that the asset files declared in the per-VM xemu.toml exist on disk.
 
-    Reads flash_path, bios_path, and hdd_path from the per-VM config and verifies
+    Reads bootrom_path, flashrom_path, and hdd_path from the per-VM config and verifies
     each file is present. Paths may be absolute or relative to the project root.
 
     Args:
@@ -141,8 +141,8 @@ def validate_bios_path(config_path: Path) -> None:
     storage = config.get("storage", {})
 
     checks = [
-        ("flash_path", system.get("flash_path", "")),
-        ("bios_path", system.get("bios_path", "")),
+        ("bootrom_path", system.get("bootrom_path", "")),
+        ("flashrom_path", system.get("flashrom_path", "")),
         ("hdd_path", storage.get("hdd_path", "")),
     ]
 

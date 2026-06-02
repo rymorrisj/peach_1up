@@ -75,15 +75,15 @@ _CONFIGURE_ACTIONS: dict[str, list[str]] = {}
 
 
 class XemuAssetPathsResponse(BaseModel):
-    flash_path: str
-    bios_path: str
+    bootrom_path: str
+    flashrom_path: str
     hdd_path: str
 
 
 class XemuAssetPathsPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    flash_path: Optional[str] = None
-    bios_path: Optional[str] = None
+    bootrom_path: Optional[str] = None
+    flashrom_path: Optional[str] = None
     hdd_path: Optional[str] = None
 
 
@@ -197,8 +197,8 @@ def get_xemu_asset_paths(_: User = require_permission("is_admin")):
     system = config.get("system", {})
     storage = config.get("storage", {})
     return XemuAssetPathsResponse(
-        flash_path=system.get("flash_path", ""),
-        bios_path=system.get("bios_path", ""),
+        bootrom_path=system.get("bootrom_path", ""),
+        flashrom_path=system.get("flashrom_path", ""),
         hdd_path=storage.get("hdd_path", ""),
     )
 
@@ -230,10 +230,10 @@ def patch_xemu_asset_paths(body: XemuAssetPathsPatch, _: User = require_permissi
     system = dict(config.get("system", {}))
     storage = dict(config.get("storage", {}))
 
-    if "flash_path" in validated:
-        system["flash_path"] = validated["flash_path"]
-    if "bios_path" in validated:
-        system["bios_path"] = validated["bios_path"]
+    if "bootrom_path" in validated:
+        system["bootrom_path"] = validated["bootrom_path"]
+    if "flashrom_path" in validated:
+        system["flashrom_path"] = validated["flashrom_path"]
     if "hdd_path" in validated:
         storage["hdd_path"] = validated["hdd_path"]
 
@@ -247,8 +247,8 @@ def patch_xemu_asset_paths(body: XemuAssetPathsPatch, _: User = require_permissi
     _write_xemu_toml(xemu_toml, sections)
 
     return XemuAssetPathsResponse(
-        flash_path=system.get("flash_path", ""),
-        bios_path=system.get("bios_path", ""),
+        bootrom_path=system.get("bootrom_path", ""),
+        flashrom_path=system.get("flashrom_path", ""),
         hdd_path=storage.get("hdd_path", ""),
     )
 
