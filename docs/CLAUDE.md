@@ -117,8 +117,10 @@ peach_1up/
 │ └── types.ts # auto-generated from openapi.json
 ├── docs/
 ├── scripts/
-│ ├── export_openapi.py
+│ ├── export_and_build_types.py
 │ ├── gen_constants.py
+| ├── gen_icon.py
+| ├── run_tests.py
 │ └── setup_admin_user.py
 ├── emulators/
 │ ├── 86box/
@@ -198,8 +200,8 @@ Awaiting your decision.
   DB-backed Platform model with a locked base image and a working copy — two image copies
   per platform will be stored on disk.
   game data files, not an ISO or image.
-- `export_openapi.py` must include every router that `main.py` mounts. A router
-  added to `main.py` but missing from `export_openapi.py` silently produces a stale
+- `export_and_build_types.py` must include every router that `main.py` mounts. A router
+  added to `main.py` but missing from `export_and_build_types.py` silently produces a stale
   OpenAPI spec and broken TypeScript types. This has been a recurring bug — always
   check both files when adding or removing routers.
 - Emulator binary path keys (`DOSBOX_PATH`, `BOX86_PATH`, etc.) are intentionally

@@ -1,10 +1,11 @@
-"""Export the FastAPI OpenAPI spec to shared/openapi.json.
+"""Export the FastAPI OpenAPI spec to shared/openapi.json, then generate shared/types.ts.
 
 Builds a throwaway FastAPI instance with only the API routers — no lifespan,
 no database init, no startup logic.
 """
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -52,6 +53,17 @@ def main() -> None:
         print(f"[OK] OpenAPI spec written to {OUTPUT_PATH}")
     except Exception as exc:
         print(f"ERROR: Failed to export OpenAPI spec: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        subprocess.run(
+            ["npm", "run", "generate:api"],
+            cwd=REPO_ROOT / "frontend",
+            check=True,
+        )
+        print("[OK] Types generated successfully → shared/types.ts")
+    except subprocess.CalledProcessError as exc:
+        print(f"ERROR: Type generation failed (exit {exc.returncode})", file=sys.stderr)
         sys.exit(1)
 
 

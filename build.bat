@@ -100,19 +100,10 @@ popd
 echo [OK] Frontend dependencies installed
 
 REM ── Generate API types ───────────────────────────────────────
-echo Exporting OpenAPI spec...
-py scripts\export_openapi.py
+echo Generating OpenAPI spec and frontend types...
+py scripts\export_and_build_types.py
 if errorlevel 1 (
-    echo ERROR: OpenAPI export failed. Aborting.
-    exit /b 1
-)
-
-echo Generating frontend API types...
-pushd "frontend"
-call npm run generate:api
-if errorlevel 1 (
-    echo ERROR: API type generation failed. Aborting.
-    popd
+    echo ERROR: Type generation failed. Aborting.
     exit /b 1
 )
 
