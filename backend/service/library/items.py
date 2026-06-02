@@ -196,10 +196,7 @@ def _prepare_item(
                 if media_src.resolve() == dest.resolve():
                     row["media_path"] = str(dest)
                 else:
-                    shutil.copy2(str(media_src), str(dest))
-                    if dest.exists() and dest.stat().st_size == media_src.stat().st_size:
-                        media_src.unlink()
-                        log.info("Moved %s → %s", media_src, dest)
+                    shutil.move(str(media_src), str(dest))
                     row["media_path"] = str(dest)
 
             cover = _find_cover(dest_folder)

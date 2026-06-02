@@ -80,6 +80,26 @@ _SYSTEM_PLATFORMS = [
         "download_url": "https://www.pj64-emu.com",
         "status": "unknown",
     },
+    {
+        "name": "Flycast",
+        "slug": "flycast",
+        "era": "dreamcast",
+        "emulator_slug": "flycast",
+        "is_system": True,
+        "supported_eras": json.dumps(["dreamcast"]),
+        "download_url": "https://github.com/flyinghead/flycast",
+        "status": "unknown",
+    },
+    {
+        "name": "xemu",
+        "slug": "xemu",
+        "era": "xbox",
+        "emulator_slug": "xemu",
+        "is_system": True,
+        "supported_eras": json.dumps(["xbox"]),
+        "download_url": "https://xemu.app",
+        "status": "unknown",
+    },
 ]
 
 _DEFAULT_PROFILES = [
@@ -92,7 +112,8 @@ _DEFAULT_PROFILES = [
     {"name": "PS2 Default",     "slug": "ps2-default",   "era": "ps2",   "emulator_slug": "pcsx2",       "is_bundled": True},
     {"name": "Xbox OG Default", "slug": "xbox-default",  "era": "xbox",  "emulator_slug": "xemu",        "is_bundled": True},
     {"name": "NES Default",     "slug": "nes-default",   "era": "nes",   "emulator_slug": "mesen",       "is_bundled": True},
-    {"name": "N64 Default",     "slug": "n64-default",   "era": "n64",   "emulator_slug": "project64",   "is_bundled": True},
+    {"name": "N64 Default",        "slug": "n64-default",        "era": "n64",       "emulator_slug": "project64",   "is_bundled": True},
+    {"name": "Dreamcast Default",  "slug": "dreamcast-default",  "era": "dreamcast", "emulator_slug": "flycast",     "is_bundled": True},
 ]
 
 
@@ -324,10 +345,13 @@ def _ensure_default_paths() -> None:
     base = get_base_path()
     lib = base / "library"
     for d in [
-        lib / "games",
+        lib / "media",
+        lib / "system",
+        lib / "system" / "bios",
+        lib / "system" / "roms",
         lib / "system" / "os",
         lib / "system" / "roms" / "86box",
-        base / "library" / "system" / "profiles",
+        lib / "system" / "profiles",
     ]:
         d.mkdir(parents=True, exist_ok=True)
 

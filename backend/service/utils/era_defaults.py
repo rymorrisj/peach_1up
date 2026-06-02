@@ -6,9 +6,9 @@ def defaults_for_era(era_slug: str) -> tuple[str | None, str | None]:
     match era_slug:
         case "dos":       return ("dosbox-x", "dos")
         case "win31":     return ("dosbox-x", "win31")
-        case "win95":     return ("box86", "win95")
-        case "win98":     return ("box86", "win98")
-        case "winxp":     return ("box86", "winxp")
+        case "win95":     return ("86box", "win95")
+        case "win98":     return ("86box", "win98")
+        case "winxp":     return ("86box", "winxp")
         case "ps1":       return ("duckstation", "ps1")
         case "ps2":       return ("pcsx2", "ps2")
         case "xbox":      return ("xemu", "xbox")
