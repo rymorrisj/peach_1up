@@ -173,13 +173,12 @@ def get_install_path(slug: str) -> Path | None:
             if p.exists():
                 return p
 
-        if known_path_env and known_path_suffix:
+        if known_path_env and known_path_suffix and binary:
             env_val = os.environ.get(known_path_env, "")
             if env_val:
-                parent = Path(env_val) / Path(known_path_suffix).parent
-                matches = _glob.glob(str(parent / "duckstation-qt*.exe"))
-                if matches:
-                    return Path(matches[0])
+                candidate = Path(env_val) / Path(known_path_suffix).parent / binary
+                if candidate.exists():
+                    return candidate
 
         return None
 

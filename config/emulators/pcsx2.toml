@@ -21,7 +21,7 @@ license = "GPL-3.0"
 copyright = "Copyright 2002–2024 PCSX2 Dev Team"
 source_url = "https://github.com/PCSX2/pcsx2"
 supported_formats = [".iso", ".bin", ".cue", ".chd"]
-guidance_text = "Download the PCSX2 Windows installer and run it. PCSX2 installs to Program Files automatically."
+guidance_text = "PCSX2 is bundled — binaries are included in emulators/pcsx2/."
 guidance_url = "https://pcsx2.net"
 
 [[container_broker_files]]

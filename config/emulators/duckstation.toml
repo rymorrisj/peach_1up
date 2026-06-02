@@ -15,16 +15,13 @@ capabilities = []
 skip_memory_limit = true
 description = "PlayStation 1 emulation"
 required = false
-install_type = "installer"
-install_scope = "system"
-windows_installer_glob = "duckstation-*.exe"
-known_path_env = "LOCALAPPDATA"
-known_path_suffix = "Programs\\DuckStation\\duckstation-qt-x64-ReleaseLTCG.exe"
+install_type = "zip"
+install_scope = "portable"
 license = "GPL-3.0"
 copyright = "Copyright 2019–2024 Connor McLaughlin and contributors"
 source_url = "https://github.com/stenzek/duckstation"
 supported_formats = [".iso", ".bin", ".cue", ".chd"]
-guidance_text = "Download the DuckStation Windows installer and place it in emulators/duckstation/, then click Run Installer."
+guidance_text = "DuckStation is bundled — binaries are included in emulators/duckstation/."
 guidance_url = "https://www.duckstation.org"
 
 [[container_broker_files]]
