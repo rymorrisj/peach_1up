@@ -52,12 +52,15 @@ def validate_media(media_path: Path) -> None:
 
 
 def provision_xemu_defaults(exe_path: Path) -> Path:
-    """Ensure the shared xemu config and HDD image exist; return the xemu.toml path.
+    """Write (or overwrite) the xemu.toml alongside the executable; return its path.
 
-    Creates emulators/xemu/xemu.toml if absent, pointing bootrom_path and flashrom_path
-    at files discovered in library/system/bios/xbox/. Raises a clear user-facing
-    error if xbox_hdd.qcow2 is absent — it must be user-supplied (requires a
-    legitimate Xbox HDD dump; Peach 1UP does not generate it).
+    Always overwrites any existing xemu.toml so stale configs from previous broken
+    runs are corrected on every launch. Uses an atomic rename so a failed write
+    never leaves a partial config on disk.
+
+    BIOS files (mcpx_1.0.bin, flash *.bin, eeprom.bin) and xbox_hdd.qcow2 must
+    all reside in the same directory as the xemu executable. Peach 1UP does not
+    provide, link to, or assist with acquiring these files.
 
     Args:
         exe_path: Absolute path to the xemu executable (xemu.exe).
@@ -66,16 +69,14 @@ def provision_xemu_defaults(exe_path: Path) -> Path:
         Path to the xemu.toml config file alongside the executable.
 
     Raises:
-        FileNotFoundError: If the BIOS directory, MCPX ROM, flash BIOS, or
-            xbox_hdd.qcow2 are absent.
+        FileNotFoundError: If the MCPX ROM, flash BIOS, or xbox_hdd.qcow2 are absent.
     """
-    from backend.service.utils.emulator_catalog import validate_bios_from_descriptor
-
-    validate_bios_from_descriptor("xemu")
+    import os
 
     exe_dir = exe_path.parent
     hdd_path = exe_dir / "xbox_hdd.qcow2"
     toml_path = exe_dir / "xemu.toml"
+    eeprom_path = exe_dir / "eeprom.bin"
 
     if not hdd_path.exists():
         raise FileNotFoundError(
@@ -86,30 +87,38 @@ def provision_xemu_defaults(exe_path: Path) -> Path:
             "or creating this image from your own Xbox hardware."
         )
 
-    if not toml_path.exists():
-        bios_dir = get_base_path() / "library" / "system" / "bios" / "xbox"
-        mcpx = bios_dir / "mcpx_1.0.bin"
-        if not mcpx.exists():
-            raise FileNotFoundError(
-                f"MCPX boot ROM not found: {mcpx}. "
-                "Place mcpx_1.0.bin in library/system/bios/xbox/ before launching."
-            )
-        flash_bins = [f for f in sorted(bios_dir.glob("*.bin")) if f.name.lower() != "mcpx_1.0.bin"]
-        if not flash_bins:
-            raise FileNotFoundError(
-                f"Flash BIOS not found in {bios_dir}. "
-                "Place your Xbox flash BIOS .bin file in library/system/bios/xbox/ "
-                "before launching."
-            )
-        toml_path.write_text(
-            "[general]\nshow_welcome = false\n"
-            "[system]\n"
-            f'bootrom_path = "{mcpx.resolve().as_posix()}"\n'
-            f'flashrom_path = "{flash_bins[0].resolve().as_posix()}"\n'
-            "[storage]\n"
-            f'hdd_path = "{hdd_path.resolve().as_posix()}"\n',
-            encoding="utf-8",
+    mcpx = exe_dir / "mcpx_1.0.bin"
+    if not mcpx.exists():
+        raise FileNotFoundError(
+            f"MCPX boot ROM not found: {mcpx}. "
+            "Place mcpx_1.0.bin in emulators/xemu/ before launching."
         )
+
+    flash_bins = [
+        f for f in sorted(exe_dir.glob("*.bin"))
+        if f.name.lower() not in ("mcpx_1.0.bin", "eeprom.bin")
+    ]
+    if not flash_bins:
+        raise FileNotFoundError(
+            f"Flash BIOS not found in {exe_dir}. "
+            "Place your Xbox flash BIOS .bin file in emulators/xemu/ before launching."
+        )
+
+    content = (
+        "[general]\n"
+        "show_welcome = false\n\n"
+        "[system]\n"
+        "memory_mib = 64\n\n"
+        "[system.files]\n"
+        f'bootrom_path = "{mcpx.resolve().as_posix()}"\n'
+        f'flashrom_path = "{flash_bins[0].resolve().as_posix()}"\n'
+        f'eeprom_path = "{eeprom_path.resolve().as_posix()}"\n'
+        f'hdd_path = "{hdd_path.resolve().as_posix()}"\n'
+    )
+
+    tmp = toml_path.with_suffix(".tmp")
+    tmp.write_text(content, encoding="utf-8")
+    os.replace(tmp, toml_path)
 
     return toml_path
 
@@ -137,13 +146,12 @@ def validate_bios_path(config_path: Path) -> None:
     with config_path.open("rb") as fh:
         config = tomllib.load(fh)
 
-    system = config.get("system", {})
-    storage = config.get("storage", {})
+    files = config.get("system", {}).get("files", {})
 
     checks = [
-        ("bootrom_path", system.get("bootrom_path", "")),
-        ("flashrom_path", system.get("flashrom_path", "")),
-        ("hdd_path", storage.get("hdd_path", "")),
+        ("bootrom_path", files.get("bootrom_path", "")),
+        ("flashrom_path", files.get("flashrom_path", "")),
+        ("hdd_path", files.get("hdd_path", "")),
     ]
 
     base = get_base_path()

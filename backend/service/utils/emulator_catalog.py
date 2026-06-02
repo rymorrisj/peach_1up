@@ -235,9 +235,8 @@ def configure_emulator(slug: str) -> None:
         if toml_path.exists():
             try:
                 _cfg = tomllib.loads(toml_path.read_text(encoding="utf-8"))
-                _sys = _cfg.get("system", {})
-                _sto = _cfg.get("storage", {})
-                if _sys.get("bootrom_path") and _sys.get("flashrom_path") and _sto.get("hdd_path"):
+                _files = _cfg.get("system", {}).get("files", {})
+                if _files.get("bootrom_path") and _files.get("flashrom_path") and _files.get("hdd_path"):
                     configured = True
             except Exception:
                 pass
