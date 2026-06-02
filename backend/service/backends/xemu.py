@@ -107,9 +107,7 @@ def provision_xemu_defaults(exe_path: Path) -> Path:
     content = (
         "[general]\n"
         "show_welcome = false\n\n"
-        "[system]\n"
-        "memory_mib = 64\n\n"
-        "[system.files]\n"
+        "[sys.files]\n"
         f'bootrom_path = "{mcpx.resolve().as_posix()}"\n'
         f'flashrom_path = "{flash_bins[0].resolve().as_posix()}"\n'
         f'eeprom_path = "{eeprom_path.resolve().as_posix()}"\n'
@@ -146,7 +144,7 @@ def validate_bios_path(config_path: Path) -> None:
     with config_path.open("rb") as fh:
         config = tomllib.load(fh)
 
-    files = config.get("system", {}).get("files", {})
+    files = config.get("sys", {}).get("files", {})
 
     checks = [
         ("bootrom_path", files.get("bootrom_path", "")),

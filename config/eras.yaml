@@ -57,7 +57,7 @@ ps2:
 
 xbox:
   backend: xemu
-  memory_limit_mb: 1024
+  memory_limit_mb: 3072
   cpu_limit_percent: 75
   supported_media: [".iso", ".xiso"]
 
