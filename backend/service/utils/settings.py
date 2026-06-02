@@ -76,27 +76,7 @@ _PATH_KEYS: frozenset[str] = frozenset({
     "FLYCAST_PATH",
 })
 
-# Ordered emulator catalog used by compute_setup_status().
-_EMULATOR_CATALOG: list[tuple[str, str, bool, str]] = [
-    ("dosbox-x",    "DOSBox-X",   True,  "DOSBOX_PATH"),
-    ("86box",       "86Box",      False, "BOX86_PATH"),
-    ("duckstation", "DuckStation",False, "DUCKSTATION_PATH"),
-    ("pcsx2",       "PCSX2",      False, "PCSX2_PATH"),
-    ("xemu",        "xemu",       False, "XEMU_PATH"),
-    ("flycast",     "Flycast",    False, "FLYCAST_PATH"),
-    ("mesen",       "Mesen",      False, "MESEN_PATH"),
-    ("project64",   "Project64",  False, "PROJECT64_PATH"),
-]
-
-# Bundled emulator executables checked as a last-resort fallback in get_binary_path().
-# Checked after the settings.yaml override and the .env var, so users can always
-# override by setting either of those.
 _PROJECT_ROOT: Path = _get_project_root()
-
-_BUNDLED: dict[str, Path] = {
-    "dosbox":      _PROJECT_ROOT / "emulators" / "dosbox-x" / "dosbox-x.exe",
-    "box86":       _PROJECT_ROOT / "emulators" / "86box" / "86Box.exe",
-}
 
 _PATH_DEFAULTS: dict[str, str] = {
     "LIBRARY_PATH":       str((_PROJECT_ROOT / "library").resolve()),
@@ -106,8 +86,12 @@ _PATH_DEFAULTS: dict[str, str] = {
     "DRIVES_PATH":        str((_PROJECT_ROOT / "library" / "system" / "drives").resolve()),
     "ROMS_PATH":          str((_PROJECT_ROOT / "library" / "system" / "roms" / "86box").resolve()),
     "PROFILES_PATH":      str((_PROJECT_ROOT / "library" / "system" / "profiles").resolve()),
-    "DOSBOX_PATH":        str((_PROJECT_ROOT / "emulators" / "dosbox-x" / "dosbox-x.exe").resolve()),
-    "BOX86_PATH":         str((_PROJECT_ROOT / "emulators" / "86box" / "86Box.exe").resolve()),
+}
+
+# Maps legacy get_binary_path() keys to catalog slugs used by emulator_catalog.
+_LEGACY_TO_CATALOG_SLUG: dict[str, str] = {
+    "dosbox": "dosbox-x",
+    "box86":  "86box",
 }
 
 # None until init() is called; dict thereafter
@@ -219,15 +203,15 @@ def _require_init() -> dict:
 def get_binary_path(emulator: str) -> str:
     """Return the resolved binary path for an emulator.
 
-    Checks the settings.yaml override first; falls back to the env var
-    value captured at init() time. Never calls os.getenv() at call time.
+    Resolution order: settings.yaml override → .env value → catalog-detected
+    bundled path. Never calls os.getenv() at call time.
 
     Args:
-        emulator: One of ``'dosbox'``, ``'box86'``.
+        emulator: A key from ``_ENV_BINARY_VARS`` (e.g. ``'dosbox'``, ``'box86'``,
+            ``'xemu'``).
 
     Returns:
-        Resolved path string, or empty string if neither override nor
-        env var was set at init() time.
+        Resolved path string, or empty string if not found.
 
     Raises:
         RuntimeError: If init() has not been called.
@@ -242,15 +226,20 @@ def get_binary_path(emulator: str) -> str:
         )
 
     settings_key = _ENV_BINARY_VARS[emulator]
-    env_val = state["_env"].get(settings_key, "") or ""
-    if env_val:
-        return env_val
     yaml_val = state.get(settings_key, "") or ""
     if yaml_val:
         return yaml_val
-    bundled = _BUNDLED.get(emulator)
-    if bundled and bundled.is_file():
-        return str(bundled)
+    env_val = state["_env"].get(settings_key, "") or ""
+    if env_val:
+        return env_val
+    catalog_slug = _LEGACY_TO_CATALOG_SLUG.get(emulator, emulator)
+    try:
+        from backend.service.utils.emulator_catalog import get_install_path
+        path = get_install_path(catalog_slug)
+        if path and path.is_file():
+            return str(path)
+    except Exception:
+        pass
     return ""
 
 
@@ -285,18 +274,38 @@ def is_first_run() -> bool:
     return True
 
 
+def _write_env_key(key: str, value: str) -> None:
+    """Write or update a single key in the project .env file and os.environ."""
+    from dotenv import set_key as _set_key
+    _set_key(str(_PROJECT_ROOT / ".env"), key, value, quote_mode="never")
+    os.environ[key] = value
+
+
 def get_or_generate_session_secret() -> str:
     """Return the session signing secret, generating and persisting it on first call.
+
+    Reads from .env (loaded at init() time). If SESSION_SECRET was previously
+    persisted to settings.yaml, migrates it to .env and removes it from
+    settings.yaml. Generates a new secret and writes it to .env if absent.
 
     Per SECURITY.md the secret is never exposed via API responses or logs.
     """
     state = _require_init()
-    secret: str = state.get("SESSION_SECRET") or ""
+    secret: str = os.getenv("SESSION_SECRET", "") or ""
+
+    if not secret:
+        yaml_secret: str = state.get("SESSION_SECRET", "") or ""
+        if yaml_secret:
+            secret = yaml_secret
+            _write_env_key("SESSION_SECRET", secret)
+            state.pop("SESSION_SECRET", None)
+            _save()
+
     if not secret:
         import secrets as _sec
         secret = _sec.token_hex(32)
-        state["SESSION_SECRET"] = secret
-        _save()
+        _write_env_key("SESSION_SECRET", secret)
+
     return secret
 
 
@@ -417,19 +426,27 @@ def set_path(key: str, value: str) -> None:
 
 def compute_setup_status() -> list[dict]:
     """Return availability status for every emulator in the catalog."""
-    state = _require_init()
+    from backend.service.utils.emulator_catalog import load_catalog, get_install_path
     result = []
-    for slug, name, required, key in _EMULATOR_CATALOG:
-        env_val = state["_env"].get(key, "") or ""
-        yaml_val = state.get(key, "") or ""
-        path = env_val or yaml_val or ""
-        available = bool(path and Path(path).is_file())
+    for entry in load_catalog():
+        if entry.get("install_type") == "rom_pack":
+            continue
+        slug = entry["slug"]
+        name = entry.get("display_name", slug)
+        required = entry.get("required", False)
+        try:
+            path = get_install_path(slug)
+            available = path is not None and path.is_file()
+            path_str = str(path) if path else None
+        except Exception:
+            available = False
+            path_str = None
         result.append({
             "slug": slug,
             "name": name,
             "required": required,
             "available": available,
-            "path": path or None,
+            "path": path_str,
         })
     return result
 
