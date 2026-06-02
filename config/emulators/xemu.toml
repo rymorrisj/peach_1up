@@ -37,3 +37,24 @@ mode = "grant"
 path_key = "appdata_xemu"
 access = "rw"
 mode = "grant"
+
+[[dependencies]]
+name = "xbox-bios"
+acquire_method = "user_supplied"
+required = true
+validation_type = "directory"
+display_name = "Xbox BIOS"
+platform = "xbox"
+bios_path = "emulators/xemu"
+guidance_text = "Place your Xbox BIOS .bin files (mcpx_1.0.bin and the appropriate ROM) in emulators/xemu/. xemu will not start without them."
+guidance_url = "https://xemu.app/docs/required-files/"
+
+[[dependencies]]
+name = "xbox-hdd"
+acquire_method = "user_supplied"
+required = true
+validation_type = "file"
+display_name = "Xbox HDD image"
+platform = "xbox"
+guidance_text = "Place xbox_hdd.qcow2 in emulators/xemu/. A pre-built blank image is available from the xemu project."
+guidance_url = "https://xemu.app/docs/required-files/"
