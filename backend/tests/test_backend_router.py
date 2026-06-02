@@ -30,17 +30,17 @@ _ROUTE_IDS = ["dos", "win31", "win95", "win98", "winxp",
               "ps1", "ps2", "xbox", "nes", "n64", "dreamcast"]
 
 _EXEC_CASES = [
-    (Era.DOS,   "DOSBOX_PATH",      "dosbox"),
-    (Era.WIN31, "DOSBOX_PATH",      "dosbox"),
-    (Era.WIN95, "BOX86_PATH",       "box86"),
-    (Era.WIN98, "BOX86_PATH",       "box86"),
-    (Era.WINXP, "BOX86_PATH",       "box86"),
-    (Era.PS1,   "DUCKSTATION_PATH", "duckstation"),
-    (Era.PS2,   "PCSX2_PATH",       "pcsx2"),
-    (Era.XBOX,  "XEMU_PATH",        "xemu"),
-    (Era.NES,       "MESEN_PATH",       "mesen"),
-    (Era.N64,       "PROJECT64_PATH",   "project64"),
-    (Era.DREAMCAST, "FLYCAST_PATH",     "flycast"),
+    (Era.DOS,       "dosbox-x"),
+    (Era.WIN31,     "dosbox-x"),
+    (Era.WIN95,     "86box"),
+    (Era.WIN98,     "86box"),
+    (Era.WINXP,     "86box"),
+    (Era.PS1,       "duckstation"),
+    (Era.PS2,       "pcsx2"),
+    (Era.XBOX,      "xemu"),
+    (Era.NES,       "mesen"),
+    (Era.N64,       "project64"),
+    (Era.DREAMCAST, "flycast"),
 ]
 
 _EXEC_IDS = ["dos", "win31", "win95", "win98", "winxp",
@@ -212,23 +212,23 @@ class TestDispatch:
 
 
 # ---------------------------------------------------------------------------
-# get_executable_path — correct settings key and emulator key per era
-# get_binary_path is mocked so no configured paths are required.
+# get_executable_path — correct catalog slug resolved per era
+# get_install_path is mocked so no installed emulators are required.
 # ---------------------------------------------------------------------------
 
 class TestGetExecutablePath:
     @pytest.mark.parametrize(
-        "era,expected_settings_key,expected_emulator_key",
+        "era,expected_catalog_slug",
         _EXEC_CASES,
         ids=_EXEC_IDS,
     )
-    def test_returns_correct_keys_for_era(
-        self, era, expected_settings_key, expected_emulator_key, monkeypatch
+    def test_returns_correct_path_for_era(
+        self, era, expected_catalog_slug, monkeypatch
     ):
+        from pathlib import Path
+        import backend.service.utils.emulator_catalog as catalog_mod
+        fake_path = Path(f"/fake/{expected_catalog_slug}.exe")
+        monkeypatch.setattr(catalog_mod, "get_install_path", lambda slug: fake_path if slug == expected_catalog_slug else None)
         import backend.service.utils.backend_router as router_mod
-        monkeypatch.setattr(
-            router_mod, "get_binary_path", lambda key: f"/fake/{key}.exe"
-        )
-        path, settings_key = router_mod.get_executable_path(era)
-        assert settings_key == expected_settings_key
-        assert path == f"/fake/{expected_emulator_key}.exe"
+        path = router_mod.get_executable_path(era)
+        assert path == str(fake_path)

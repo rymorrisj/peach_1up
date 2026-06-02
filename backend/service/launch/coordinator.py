@@ -134,13 +134,13 @@ def _build_spec_for_item(
     # box86 and xemu resolve their own binary paths internally.
     executable_path: str | None = None
     if slug not in (BackendSlug.BOX86.value, BackendSlug.XEMU.value):
-        path, settings_key = get_executable_path(era_enum)
+        path = get_executable_path(era_enum)
         if not path:
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    f"The emulator path for '{settings_key}' is not configured. "
-                    "Set it in config/settings.yaml or via the Settings page."
+                    f"The emulator for era '{item.era}' is not installed. "
+                    "Install it via the Emulators page."
                 ),
             )
         executable_path = path

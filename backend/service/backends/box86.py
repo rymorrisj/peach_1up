@@ -23,7 +23,7 @@ from backend.service.utils.emulator_catalog import (
 from backend.service.utils.ini_writer import patch_ini, write_ini
 from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.media_attach import build_86box_attachment
-from backend.service.utils.settings import get_binary_path
+from backend.service.utils.emulator_catalog import get_install_path
 
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
@@ -274,11 +274,11 @@ def launch(spec: "LaunchSpec") -> tuple:
             "Complete platform registration before launching."
         )
 
-    box86_path = get_binary_path("box86")
+    _box86_install = get_install_path("86box")
+    box86_path = str(_box86_install) if _box86_install and _box86_install.is_file() else ""
     if not box86_path:
         raise RuntimeError(
-            "86Box binary path is not configured. "
-            "Set BOX86_PATH in your .env file or add an override in Settings."
+            "86Box executable not found. Install it via the Emulators page."
         )
     if not Path(box86_path).exists():
         raise FileNotFoundError(f"86Box executable not found: {box86_path}")

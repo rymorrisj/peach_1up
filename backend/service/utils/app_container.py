@@ -87,9 +87,9 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
         "cache_dir":    base / "emulators" / slug / "cache",
         # Per-emulator plugin directory (Project64).
         "plugin_dir":   base / "emulators" / slug / "plugins",
-        # xemu HDD image fallback: grants the whole xbox bios dir when launch_paths
+        # xemu HDD image fallback: grants the whole xemu emulator dir when launch_paths
         # does not supply the specific .qcow2 path.
-        "hdd_image":    base / "library" / "system" / "bios" / "xbox",
+        "hdd_image":    base / "emulators" / "xemu",
     }
 
     if path_key in derived:
@@ -149,7 +149,7 @@ def get_container_config(
         if not launch_paths or "hdd_image" not in launch_paths:
             logger.warning(
                 "hdd_image broker_file for '%s' is using the directory placeholder "
-                "(library/system/bios/xbox/); pass hdd_image in launch_paths for a "
+                "(emulators/xemu/); pass hdd_image in launch_paths for a "
                 "tighter grant targeting the specific .qcow2 file.",
                 emulator_slug,
             )

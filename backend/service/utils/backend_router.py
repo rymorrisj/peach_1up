@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from backend.constants_generated import BackendSlug, Era
-from backend.service.utils.settings import get_binary_path
 
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
@@ -112,33 +111,26 @@ def get_backend_name(era: Era) -> str:
         return 'Unknown'
 
 
-def get_executable_path(era: Era) -> tuple[str, str]:
-    """Return the emulator executable path and the settings key that provides it.
+def get_executable_path(era: Era) -> str:
+    """Return the emulator executable path for the given era.
 
     Args:
         era: The gaming era to look up.
 
     Returns:
-        A tuple of ``(executable_path, settings_key)`` where ``settings_key``
-        is the settings.yaml key consulted and ``executable_path`` is its
-        current value, or an empty string if not configured.
+        Absolute path string, or empty string if the emulator is not installed.
 
     Raises:
-        RuntimeError: If the era cannot be resolved or has no emulator mapping.
+        RuntimeError: If the era cannot be resolved or has no catalog entry.
     """
-    from backend.service.utils.emulator_catalog import get_settings_key as _get_settings_key
+    from backend.service.utils.emulator_catalog import get_install_path
     backend_name = resolve_backend_name(era)
-
-    # Derive catalog slug: BackendSlug.DOSBOX = "dosbox" but catalog slug is "dosbox-x".
     catalog_slug = "dosbox-x" if backend_name == BackendSlug.DOSBOX.value else backend_name
     try:
-        settings_key = _get_settings_key(catalog_slug)
+        path = get_install_path(catalog_slug)
     except ValueError:
         raise RuntimeError(
             f"No executable mapping for backend '{backend_name}' (era '{era.value}'). "
             "Ensure the emulator is registered in config/emulators/."
         )
-
-    # get_binary_path() uses legacy short keys; "86box" backend → "box86" legacy key.
-    legacy_key = "box86" if backend_name == BackendSlug.BOX86.value else backend_name
-    return get_binary_path(legacy_key), settings_key
+    return str(path) if path and path.is_file() else ""

@@ -15,7 +15,7 @@ def _allowed_roots() -> list[Path]:
     from backend.core.settings import get_settings
     svc = get_settings()
     roots: list[Path] = []
-    for key in ("LIBRARY_PATH", "MEDIA_PATH", "OS_PATH", "DRIVES_PATH", "ROMS_PATH", "PROFILES_PATH"):
+    for key in ("LIBRARY_PATH", "MEDIA_PATH", "OS_PATH", "ROMS_PATH", "PROFILES_PATH"):
         val = svc.get(key, "") or ""
         if val:
             try:
@@ -87,7 +87,6 @@ def browse(
             "LIBRARY_PATH": "Library",
             "MEDIA_PATH": "Media",
             "OS_PATH": "OS Images",
-            "DRIVES_PATH": "Drives",
             "ROMS_PATH": "ROMs",
             "PROFILES_PATH": "Profiles",
         }

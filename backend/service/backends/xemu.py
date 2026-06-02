@@ -23,7 +23,7 @@ from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.process.job_objects import WindowsJobObject
 from backend.core.settings import get_base_path
-from backend.service.utils.settings import get_binary_path
+from backend.service.utils.emulator_catalog import get_install_path
 
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
@@ -206,11 +206,11 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         ValueError: If the media extension is unsupported.
         RuntimeError: If XEMU_PATH is not configured or launch fails.
     """
-    executable_path = get_binary_path("xemu")
+    _xemu_install = get_install_path("xemu")
+    executable_path = str(_xemu_install) if _xemu_install and _xemu_install.is_file() else ""
     if not executable_path:
         raise RuntimeError(
-            "xemu binary path is not configured. "
-            "Set XEMU_PATH in config/settings.yaml or via the Settings page."
+            "xemu executable not found. Install it via the Emulators page."
         )
     if not Path(executable_path).exists():
         raise FileNotFoundError(f"xemu executable not found: {executable_path}")

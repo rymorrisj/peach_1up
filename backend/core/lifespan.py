@@ -327,10 +327,6 @@ def _ensure_default_paths() -> None:
         lib / "games",
         lib / "system" / "os",
         lib / "system" / "roms" / "86box",
-        lib / "system" / "bios" / "ps1",
-        lib / "system" / "bios" / "ps2",
-        lib / "system" / "bios" / "xbox",
-        lib / "system" / "bios" / "dreamcast",
         base / "library" / "system" / "profiles",
     ]:
         d.mkdir(parents=True, exist_ok=True)

@@ -21,7 +21,7 @@ from backend.core.settings import get_base_path
 from backend.models.platform import Platform
 from backend.service.utils.emulator_catalog import get_86box_profile
 from backend.service.utils.ini_writer import patch_ini
-from backend.service.utils.settings import get_binary_path
+from backend.service.utils.emulator_catalog import get_install_path
 from backend.service.utils.vm.vhd import _build_vhd_footer
 
 logger = get_logger(__name__)
@@ -178,11 +178,12 @@ def provision_platform(platform: Platform, db: Session | None = None) -> tuple[s
     era = platform.era
 
     if era in _86BOX_ERAS:
-        box86_path = get_binary_path("box86")
+        _box86_install = get_install_path("86box")
+        box86_path = str(_box86_install) if _box86_install and _box86_install.is_file() else ""
         if not box86_path:
             raise RuntimeError(
-                "BOX86_PATH is not configured — cannot provision 86Box config. "
-                "Set the path in Settings or config/settings.yaml."
+                "86Box executable not found — cannot provision 86Box config. "
+                "Install it via the Emulators page."
             )
         from backend.service.backends.box86 import _resolve_rom_path
         rom_dir = _resolve_rom_path(Path(box86_path))

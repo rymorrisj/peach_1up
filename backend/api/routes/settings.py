@@ -13,19 +13,15 @@ from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
-_KNOWN_BINARY_KEYS = {"DOSBOX_PATH", "BOX86_PATH"}
 _ALL_PATH_KEYS = {
-    "DOSBOX_PATH", "BOX86_PATH",
-    "DUCKSTATION_PATH", "PCSX2_PATH", "XEMU_PATH", "MESEN_PATH", "PROJECT64_PATH",
     "LIBRARY_PATH", "MEDIA_PATH", "OS_PATH",
-    "DRIVES_PATH", "ROMS_PATH", "PROFILES_PATH",
+    "ROMS_PATH", "PROFILES_PATH",
 }
 
 _LIBRARY_KEY_MAP: dict[str, str] = {
     "library_path":  "LIBRARY_PATH",
     "media_path":    "MEDIA_PATH",
     "os_path":       "OS_PATH",
-    "drives_path":   "DRIVES_PATH",
     "roms_path":     "ROMS_PATH",
     "profiles_path": "PROFILES_PATH",
 }
@@ -48,7 +44,7 @@ class EmulatorPathBody(BaseModel):
 
 
 class LibraryPathBody(BaseModel):
-    key: Literal["library_path", "media_path", "os_path", "drives_path", "roms_path", "profiles_path"]
+    key: Literal["library_path", "media_path", "os_path", "roms_path", "profiles_path"]
     path: str
 
 
@@ -83,18 +79,7 @@ def patch_settings(body: SettingsPatch, _: User = require_permission("can_edit_s
 
 @router.post("/validate", response_model=ValidateResponse)
 def validate_paths():
-    svc = get_settings()
-    results = []
-    for key in _KNOWN_BINARY_KEYS:
-        raw = svc.get(key, "") or ""
-        p = Path(raw) if raw else None
-        results.append(PathValidationResult(
-            key=key,
-            path=raw,
-            exists=p.exists() if p else False,
-            executable=p.is_file() if p else False,
-        ))
-    return ValidateResponse(results=results)
+    return ValidateResponse(results=[])
 
 
 @router.get("/first-run-status")
@@ -111,7 +96,6 @@ def get_first_run_status(db: Session = Depends(get_db)):
             "library_path":  svc.get("LIBRARY_PATH") or None,
             "media_path":    svc.get("MEDIA_PATH") or None,
             "os_path":       svc.get("OS_PATH") or None,
-            "drives_path":   svc.get("DRIVES_PATH") or None,
             "roms_path":     svc.get("ROMS_PATH") or None,
             "profiles_path": svc.get("PROFILES_PATH") or None,
         },

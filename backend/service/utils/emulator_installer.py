@@ -95,10 +95,10 @@ def clone_rom_pack() -> Path:
     if not check_git():
         raise RuntimeError("git is not available on PATH. Install git and try again.")
 
-    from backend.service.utils.settings import get_binary_path
-    box86_bin = get_binary_path("box86")
-    if box86_bin:
-        box86_base = Path(str(box86_bin)).resolve().parent
+    from backend.service.utils.emulator_catalog import get_install_path
+    _box86_install = get_install_path("86box")
+    if _box86_install and _box86_install.is_file():
+        box86_base = _box86_install.resolve().parent
     else:
         box86_base = (get_base_path() / "emulators" / "86box").resolve()
 

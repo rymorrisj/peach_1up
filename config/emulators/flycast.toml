@@ -28,10 +28,6 @@ path_key = "install_dir"
 access = "r"
 mode = "grant"
 
-[[container_broker_files]]
-path_key = "GAMES_PATH"
-access = "r"
-mode = "grant"
 
 [[container_broker_files]]
 path_key = "saves_dir"

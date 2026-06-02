@@ -27,53 +27,21 @@ _SETTINGS_PATH = _get_project_root() / "config" / "settings.yaml"
 
 _DEFAULTS: dict = {
     "first_run_complete": False,
-    "DOSBOX_PATH": "",
-    "BOX86_PATH": "",
     "LIBRARY_PATH": "",
     "MEDIA_PATH": "",
-    "GAMES_PATH": "",
     "OS_PATH": "",
-    "DRIVES_PATH": "",
     "ROMS_PATH": "",
     "PROFILES_PATH": "",
-    "DUCKSTATION_PATH": "",
-    "PCSX2_PATH": "",
-    "XEMU_PATH": "",
-    "MESEN_PATH": "",
-    "PROJECT64_PATH": "",
-    "FLYCAST_PATH": "",
     "suppress_confirmations": [],
-}
-
-# Maps emulator key → settings key (env var name and yaml key are always identical).
-_ENV_BINARY_VARS: dict[str, str] = {
-    "dosbox":       "DOSBOX_PATH",
-    "box86":        "BOX86_PATH",
-    "duckstation":  "DUCKSTATION_PATH",
-    "pcsx2":        "PCSX2_PATH",
-    "xemu":         "XEMU_PATH",
-    "mesen":        "MESEN_PATH",
-    "project64":    "PROJECT64_PATH",
-    "flycast":      "FLYCAST_PATH",
 }
 
 # Path keys whose values are normalised to forward slashes on save.
 _PATH_KEYS: frozenset[str] = frozenset({
-    "DOSBOX_PATH",
-    "BOX86_PATH",
     "LIBRARY_PATH",
     "MEDIA_PATH",
-    "GAMES_PATH",
     "OS_PATH",
-    "DRIVES_PATH",
     "ROMS_PATH",
     "PROFILES_PATH",
-    "DUCKSTATION_PATH",
-    "PCSX2_PATH",
-    "XEMU_PATH",
-    "MESEN_PATH",
-    "PROJECT64_PATH",
-    "FLYCAST_PATH",
 })
 
 _PROJECT_ROOT: Path = _get_project_root()
@@ -81,17 +49,9 @@ _PROJECT_ROOT: Path = _get_project_root()
 _PATH_DEFAULTS: dict[str, str] = {
     "LIBRARY_PATH":       str((_PROJECT_ROOT / "library").resolve()),
     "MEDIA_PATH":         str((_PROJECT_ROOT / "library" / "media").resolve()),
-    "GAMES_PATH":         str((_PROJECT_ROOT / "library" / "games").resolve()),
     "OS_PATH":            str((_PROJECT_ROOT / "library" / "system" / "os").resolve()),
-    "DRIVES_PATH":        str((_PROJECT_ROOT / "library" / "system" / "drives").resolve()),
     "ROMS_PATH":          str((_PROJECT_ROOT / "library" / "system" / "roms" / "86box").resolve()),
     "PROFILES_PATH":      str((_PROJECT_ROOT / "library" / "system" / "profiles").resolve()),
-}
-
-# Maps legacy get_binary_path() keys to catalog slugs used by emulator_catalog.
-_LEGACY_TO_CATALOG_SLUG: dict[str, str] = {
-    "dosbox": "dosbox-x",
-    "box86":  "86box",
 }
 
 # None until init() is called; dict thereafter
@@ -146,13 +106,9 @@ def init() -> None:
     # os.getenv() at call time. settings.yaml values are already in state;
     # these .env values take precedence when non-empty.
     _env: dict[str, str] = {}
-    for _emulator, env_var in _ENV_BINARY_VARS.items():
-        _env[env_var] = os.getenv(env_var, "")
     _env["LIBRARY_PATH"] = os.getenv("LIBRARY_PATH", "")
     _env["MEDIA_PATH"] = os.getenv("MEDIA_PATH", "")
-    _env["GAMES_PATH"] = os.getenv("GAMES_PATH", "")
     _env["OS_PATH"] = os.getenv("OS_PATH", "")
-    _env["DRIVES_PATH"] = os.getenv("DRIVES_PATH", "")
     _env["ROMS_PATH"] = os.getenv("ROMS_PATH", "")
     _env["PROFILES_PATH"] = os.getenv("PROFILES_PATH", "")
     state["_env"] = _env
@@ -199,48 +155,6 @@ def _require_init() -> dict:
         )
     return _state
 
-
-def get_binary_path(emulator: str) -> str:
-    """Return the resolved binary path for an emulator.
-
-    Resolution order: settings.yaml override → .env value → catalog-detected
-    bundled path. Never calls os.getenv() at call time.
-
-    Args:
-        emulator: A key from ``_ENV_BINARY_VARS`` (e.g. ``'dosbox'``, ``'box86'``,
-            ``'xemu'``).
-
-    Returns:
-        Resolved path string, or empty string if not found.
-
-    Raises:
-        RuntimeError: If init() has not been called.
-        ValueError: If emulator is not a recognised key.
-    """
-    state = _require_init()
-
-    if emulator not in _ENV_BINARY_VARS:
-        raise ValueError(
-            f"Unknown emulator '{emulator}'. "
-            f"Valid values: {', '.join(sorted(_ENV_BINARY_VARS))}"
-        )
-
-    settings_key = _ENV_BINARY_VARS[emulator]
-    yaml_val = state.get(settings_key, "") or ""
-    if yaml_val:
-        return yaml_val
-    env_val = state["_env"].get(settings_key, "") or ""
-    if env_val:
-        return env_val
-    catalog_slug = _LEGACY_TO_CATALOG_SLUG.get(emulator, emulator)
-    try:
-        from backend.service.utils.emulator_catalog import get_install_path
-        path = get_install_path(catalog_slug)
-        if path and path.is_file():
-            return str(path)
-    except Exception:
-        pass
-    return ""
 
 
 def get(key: str, default=None):
@@ -360,45 +274,11 @@ def is_suppressed(suppression_id: str) -> bool:
     return suppression_id in _require_init().get("suppress_confirmations", [])
 
 
-def set_override_path(emulator: str, path: str) -> None:
-    """Write a binary override path to settings.yaml and update state.
-
-    Args:
-        emulator: One of ``'dosbox'``, ``'box86'``.
-        path: Absolute path to the emulator executable.
-
-    Raises:
-        RuntimeError: If init() has not been called.
-        ValueError: If emulator is not recognised.
-    """
-    state = _require_init()
-
-    if emulator not in _ENV_BINARY_VARS:
-        raise ValueError(
-            f"Unknown emulator '{emulator}'. "
-            f"Valid values: {', '.join(sorted(_ENV_BINARY_VARS))}"
-        )
-
-    if path:
-        from backend.service.utils.path_utils import normalise_path
-        try:
-            path = str(normalise_path(path))
-        except ValueError as exc:
-            raise ValueError(f"Invalid path: {exc}") from exc
-
-    yaml_key = _ENV_BINARY_VARS[emulator]
-    state[yaml_key] = path
-    _save()
-
-
 def set_path(key: str, value: str) -> None:
     """Write a path value to settings.yaml and update state.
 
-    Covers all keys in ``_PATH_KEYS``: ``DOSBOX_PATH``, ``BOX86_PATH``,
-    ``LIBRARY_PATH``, ``MEDIA_PATH``, ``OS_PATH``,
-    ``DRIVES_PATH``, ``ROMS_PATH``, ``PROFILES_PATH``.
-    For emulator binary paths, ``set_override_path()`` accepts a short
-    emulator key (``'dosbox'``) as an alternative.
+    Covers all keys in ``_PATH_KEYS``: ``LIBRARY_PATH``, ``MEDIA_PATH``,
+    ``OS_PATH``, ``ROMS_PATH``, ``PROFILES_PATH``.
 
     Args:
         key: The settings key to update. Must be one of the path keys.
