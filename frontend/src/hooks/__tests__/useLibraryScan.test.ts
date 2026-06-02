@@ -19,11 +19,14 @@ function createWrapper() {
     React.createElement(QueryClientProvider, { client: qc }, children)
 }
 
+const RUNNING_STATUS = { running: true, preview: [], error: null }
+
 const DONE_STATUS = {
   running: false,
-  progress: 1,
-  total: 1,
-  results: [{ folder_path: '/lib/game', name: 'Game', executable_path: null }],
+  preview: [
+    { title: 'Game', media_path: '/lib/game.nes', detected_era: 'nes', is_loose: true, is_zip: false },
+  ],
+  error: null,
 }
 
 describe('useLibraryScan', () => {
@@ -48,10 +51,8 @@ describe('useLibraryScan', () => {
     )
   })
 
-  it('polling stops and onImported is called when status.running is false', async () => {
+  it('polling stops and preview is populated when scan finishes', async () => {
     vi.useFakeTimers()
-
-    const RUNNING_STATUS = { running: true, progress: 0, total: 1, results: [] }
 
     mockApiFetch
       .mockResolvedValueOnce(undefined)       // POST /scan
@@ -68,13 +69,56 @@ describe('useLibraryScan', () => {
     await act(async () => { result.current.handleScan() })
     await act(async () => {})
 
-    // First poll tick — still running; advance wrapped in act
+    // First poll tick — still running
     await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
-    // Second poll tick — done; advance wrapped in act
+    // Second poll tick — done
     await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
 
     expect(result.current.scanning).toBe(false)
+    expect(result.current.status?.preview).toHaveLength(1)
+    // onImported is NOT called at scan end — only called after Phase 2 import
+    expect(onImported).not.toHaveBeenCalled()
+  })
+
+  it('handleImport posts selected paths and calls onImported when items are imported', async () => {
+    const IMPORT_RESULT = { imported: 1, skipped: 0, errors: [] }
+    mockApiFetch.mockResolvedValueOnce(IMPORT_RESULT)
+
+    const onImported = vi.fn()
+    const { result } = renderHook(
+      () => useLibraryScan({ open: true, onImported }),
+      { wrapper: createWrapper() },
+    )
+
+    await act(async () => {
+      await result.current.handleImport(['/lib/game.nes'])
+    })
+
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      '/api/v1/library/scan/import',
+      expect.objectContaining({ method: 'POST' }),
+    )
     expect(onImported).toHaveBeenCalledOnce()
+    expect(result.current.importResult).toEqual(IMPORT_RESULT)
+    expect(result.current.importing).toBe(false)
+  })
+
+  it('handleImport does not call onImported when imported count is zero', async () => {
+    const IMPORT_RESULT = { imported: 0, skipped: 2, errors: [] }
+    mockApiFetch.mockResolvedValueOnce(IMPORT_RESULT)
+
+    const onImported = vi.fn()
+    const { result } = renderHook(
+      () => useLibraryScan({ open: true, onImported }),
+      { wrapper: createWrapper() },
+    )
+
+    await act(async () => {
+      await result.current.handleImport(['/lib/game1.nes', '/lib/game2.nes'])
+    })
+
+    expect(onImported).not.toHaveBeenCalled()
+    expect(result.current.importResult?.skipped).toBe(2)
   })
 
   it('error state is set when the scan POST fails', async () => {

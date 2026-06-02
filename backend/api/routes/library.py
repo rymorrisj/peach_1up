@@ -21,11 +21,15 @@ class RestrictionsBody(BaseModel):
     user_ids: list[int]
 
 
+class ScanImportBody(BaseModel):
+    selected: list[str]
+
+
 router = APIRouter(prefix="/api/v1/library", tags=["library"])
 logger = get_logger(__name__)
 
 _scan_lock = threading.Lock()
-_scan_state: dict[str, Any] = {"running": False, "progress": 0, "total": 0, "results": []}
+_scan_state: dict[str, Any] = {"running": False, "preview": [], "error": None}
 
 
 @router.get("", response_model=list[LibraryItemRead])
@@ -53,15 +57,18 @@ def list_library(
 @router.post("", response_model=LibraryItemRead, status_code=201)
 def add_library_item(
     body: LibraryItemCreate,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_library"),
-    response: Response = None,
 ):
-    item, existed = lib_svc.create_library_item(body, db)
-    if existed:
-        response.status_code = 200
-    return item
+    try:
+        return lib_svc._ingest_media_entry(
+            body.media_path,
+            body.title,
+            db,
+            override_profile_id=body.profile_id,
+        )
+    except lib_svc._ItemAlreadyExists:
+        raise HTTPException(status_code=409, detail="This media path is already in the library.")
 
 
 @router.get("/scan/status")
@@ -95,93 +102,149 @@ def trigger_scan(background_tasks: BackgroundTasks = BackgroundTasks()):
     resolved = _resolve_scan_directory()
     with _scan_lock:
         _scan_state["running"] = True
-        _scan_state["progress"] = 0
-        _scan_state["total"] = 0
-        _scan_state["results"] = []
+        _scan_state["preview"] = []
+        _scan_state["error"] = None
     background_tasks.add_task(_run_scan, str(resolved))
     return {"started": True, "directory": str(resolved)}
 
 
 def _run_scan(directory: str) -> None:
+    """
+    Phase 1: walk the media directory, dedup against the DB, run era detection,
+    and store a preview list. Does NOT write to the DB.
+    """
     from backend.core.database import get_engine
-    from backend.models.library import LibraryItem
     from backend.service.library.items import best_detect_path
-    from backend.service.utils.detection.era_detect import detect_era as _detect_era
+    from backend.service.utils.detection.era_detect import detect_era
     from backend.service.utils.profile_builder import scan_media_folders
-    from backend.service.utils.slug_generator import generate_item_slug
     from sqlalchemy.orm import Session
 
-    created: list[dict] = []
+    base_path = Path(directory).resolve()
+    preview: list[dict] = []
+    error_msg: str | None = None
+
     try:
-        entries = scan_media_folders(Path(directory))
+        entries = scan_media_folders(base_path)
         db = Session(get_engine())
         try:
-            existing: set[str] = {
+            existing_folder_paths: set[str] = {
                 str(Path(fp).resolve())
                 for (fp,) in db.query(LibraryItem.folder_path)
                 .filter(LibraryItem.folder_path.isnot(None))
                 .all()
             }
+
             for entry in entries:
-                folder_str = str(entry.folder_path.resolve())
-                if folder_str in existing:
-                    continue
-                item = LibraryItem(
-                    title=entry.name,
-                    era="unknown",
-                    media_path=str(entry.folder_path),
-                    folder_path=str(entry.folder_path),
-                    executable_path=str(entry.executable_path) if entry.executable_path else None,
-                    cover_art_path=str(entry.cover_path) if entry.cover_path else None,
+                is_loose = (
+                    entry.executable_path is not None
+                    and entry.executable_path.resolve().parent == base_path
                 )
-                item.slug = generate_item_slug(item.title, db)
-                _detect_path = best_detect_path(
-                    Path(entry.folder_path),
-                    str(entry.executable_path) if entry.executable_path else None,
-                )
-                if _detect_path.is_file():
-                    item.media_path = str(_detect_path)
-                _era_slug, _era_reason = _detect_era(_detect_path)
-                if _era_slug is not None:
-                    item.era = _era_slug
-                if hasattr(item, "detection_reason"):
-                    item.detection_reason = _era_reason if _era_slug is not None else None
+                is_zip = is_loose and entry.executable_path.suffix.lower() == ".zip"
 
-                if _era_slug is not None:
-                    from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
-                    _emulator_slug, _profile_era = defaults_for_era(_era_slug)
-                    if _emulator_slug and _profile_era:
-                        _def_platform_id, _def_profile_id = lookup_platform_and_profile(_emulator_slug, _profile_era, db)
-                        if item.platform_id is None and _def_platform_id is not None:
-                            item.platform_id = _def_platform_id
-                        if item.profile_id is None and _def_profile_id is not None:
-                            item.profile_id = _def_profile_id
+                if is_loose:
+                    # Dedup by the destination folder the file would be copied into
+                    dest_folder = str((base_path / entry.executable_path.stem).resolve())
+                    if dest_folder in existing_folder_paths:
+                        continue
+                    scan_path = entry.executable_path
+                else:
+                    folder = str(entry.folder_path.resolve())
+                    if folder in existing_folder_paths:
+                        continue
+                    scan_path = entry.folder_path
 
-                db.add(item)
-                db.flush()
-                existing.add(folder_str)
-                created.append({
-                    "folder_path": str(entry.folder_path),
-                    "name": entry.name,
-                    "executable_path": str(entry.executable_path) if entry.executable_path else None,
+                try:
+                    if is_loose:
+                        era_path = scan_path
+                    else:
+                        era_path = best_detect_path(
+                            scan_path,
+                            str(entry.executable_path) if entry.executable_path else None,
+                        )
+                    era_slug, _ = detect_era(era_path)
+                except Exception:
+                    era_slug = None
+
+                preview.append({
+                    "title": entry.name,
+                    "media_path": str(scan_path),
+                    "detected_era": era_slug,
+                    "is_loose": is_loose,
+                    "is_zip": is_zip,
                 })
-            db.commit()
-        except Exception:
-            db.rollback()
-            raise
         finally:
             db.close()
 
-        with _scan_lock:
-            _scan_state["results"] = created
-            _scan_state["total"] = len(created)
-            _scan_state["progress"] = len(created)
-
     except Exception as exc:
         logger.error("Scan failed: %s", exc, exc_info=True)
+        error_msg = str(exc)
     finally:
         with _scan_lock:
             _scan_state["running"] = False
+            _scan_state["preview"] = preview
+            _scan_state["error"] = error_msg
+
+
+@router.post("/scan/import")
+def import_scan_results(
+    body: ScanImportBody,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    """
+    Phase 2: import the user-selected paths from the Phase 1 preview.
+    Bulk-inserts item records in chunks of 500, then creates drives for PC-era items.
+    """
+    from backend.service.library.items import _DRIVE_ERAS, _ItemAlreadyExists, _prepare_item
+    from backend.service.utils.drive_utils import create_drive_for_item
+
+    with _scan_lock:
+        preview_snapshot = list(_scan_state.get("preview", []))
+    title_map: dict[str, str] = {p["media_path"]: p["title"] for p in preview_snapshot}
+
+    used_slugs: set[str] = {
+        s
+        for (s,) in db.query(LibraryItem.slug).filter(LibraryItem.slug.isnot(None)).all()
+    }
+
+    prepared: list[dict] = []
+    skipped = 0
+    errors: list[dict] = []
+
+    for path in body.selected:
+        title = title_map.get(path) or Path(path).stem.replace("-", " ").title()
+        try:
+            row = _prepare_item(path, title, db, used_slugs=used_slugs)
+            prepared.append(row)
+        except _ItemAlreadyExists:
+            skipped += 1
+        except HTTPException as exc:
+            errors.append({"path": path, "reason": exc.detail})
+        except Exception as exc:
+            logger.exception("Import: error preparing '%s'", path)
+            errors.append({"path": path, "reason": str(exc)})
+
+    if prepared:
+        def _chunks(lst: list, n: int):
+            for i in range(0, len(lst), n):
+                yield lst[i: i + n]
+
+        # Bulk-insert item records chunked at 500 to stay within SQLite variable limits
+        for chunk in _chunks(prepared, 500):
+            db.bulk_insert_mappings(LibraryItem, chunk)
+        db.commit()
+
+        # Drive creation requires item IDs — query back PC-era items by their slugs
+        drive_slugs = [r["slug"] for r in prepared if r["era"] in _DRIVE_ERAS]
+        if drive_slugs:
+            pc_items = db.query(LibraryItem).filter(LibraryItem.slug.in_(drive_slugs)).all()
+            for pc_item in pc_items:
+                try:
+                    create_drive_for_item(pc_item, db)
+                except Exception as exc:
+                    logger.warning("Drive creation failed for '%s': %s", pc_item.title, exc)
+
+    return {"imported": len(prepared), "skipped": skipped, "errors": errors}
 
 
 @router.get("/by-slug/{slug}", response_model=LibraryItemRead)

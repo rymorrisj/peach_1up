@@ -80,6 +80,7 @@ class LibraryItem(LibraryItemBase, table=True):
 
 
 class LibraryItemCreate(LibraryItemBase):
+    era: str = "unknown"
     platform_id: Optional[int] = None
     profile_id: Optional[int] = None
 

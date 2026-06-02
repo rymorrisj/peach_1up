@@ -11,10 +11,16 @@ from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.drive_utils import create_drive_for_item
 from backend.service.utils.era_media import resolve_media_file_from_directory
 from backend.service.utils.path_utils import normalise_path
-from backend.service.utils.slug_generator import generate_item_slug
+from backend.service.utils.slug_generator import generate_item_slug, unique_slug
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
 _DRIVE_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
+
+
+class _ItemAlreadyExists(Exception):
+    """Raised by _prepare_item when the media path is already tracked."""
+    def __init__(self, item: LibraryItem):
+        self.item = item
 
 
 def best_detect_path(folder: Path, executable_path: str | None) -> Path:
@@ -30,8 +36,25 @@ def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     return hit if hit is not None else folder
 
 
-def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryItem, bool]:
-    """Create a library item. Returns (item, already_existed)."""
+def _prepare_item(
+    media_path: str,
+    title: str,
+    db: Session,
+    *,
+    used_slugs: set[str] | None = None,
+    override_profile_id: int | None = None,
+) -> dict:
+    """
+    Run the full ingest pipeline for one media path without writing to the DB.
+
+    Performs filesystem operations (folder creation, file copy) and era
+    detection, then returns a mapping of all LibraryItem column values
+    (excluding auto-generated columns: id, created_at, updated_at).
+
+    Raises:
+        _ItemAlreadyExists: if this path is already tracked as a library item.
+        HTTPException: for path or conflict errors.
+    """
     from backend.core.logger import get_logger
     from backend.core.settings import get_settings
     from backend.models.platform import Platform
@@ -41,13 +64,20 @@ def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryIt
     from backend.service.utils.profile_builder import _EXECUTABLE_PRIORITY, _find_cover
     from backend.utils.rating_detect import detect_rating
 
-    incoming_norm = Path(body.media_path).resolve().as_posix()
+    log = get_logger(__name__)
+    svc = get_settings()
+    games_root_str = svc.get("MEDIA_PATH", "") or ""
 
-    for stored_path, item_id in db.query(LibraryItem.media_path, LibraryItem.id).all():
-        if stored_path and Path(stored_path).resolve().as_posix() == incoming_norm:
-            return db.get(LibraryItem, item_id), True
+    media_src = Path(media_path).resolve()
 
-    for base_path, working_path in db.query(Platform.base_image_path, Platform.working_image_path).all():
+    if not media_src.exists():
+        raise HTTPException(status_code=400, detail=f"Path does not exist: {media_path}")
+
+    incoming_norm = media_src.as_posix()
+
+    for base_path, working_path in db.query(
+        Platform.base_image_path, Platform.working_image_path
+    ).all():
         if (base_path and Path(base_path).resolve().as_posix() == incoming_norm) or (
             working_path and Path(working_path).resolve().as_posix() == incoming_norm
         ):
@@ -56,12 +86,34 @@ def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryIt
                 detail="Path is an OS environment image and cannot be added as a library item.",
             )
 
-    item = LibraryItem(**body.model_dump())
-    item.slug = generate_item_slug(item.title, db)
-
-    svc = get_settings()
-    games_root_str = svc.get("MEDIA_PATH", "") or ""
-    media_src = Path(body.media_path).resolve()
+    row: dict = {
+        "title": title,
+        "era": "unknown",
+        "media_path": str(media_src),
+        "slug": None,
+        "sort_title": None,
+        "category": None,
+        "media_type": None,
+        "folder_path": None,
+        "cover_art_path": None,
+        "description": None,
+        "publisher": None,
+        "year": None,
+        "igdb_id": None,
+        "metadata_source": None,
+        "content_rating": None,
+        "executable_path": None,
+        "launch_commands": None,
+        "launch_review_flagged": False,
+        "installed": False,
+        "requires_install": False,
+        "detection_reason": None,
+        "platform_id": None,
+        "profile_id": None,
+        "drive_id": None,
+        "last_launched_at": None,
+        "launch_count": 0,
+    }
 
     if media_src.is_dir():
         if games_root_str:
@@ -71,8 +123,20 @@ def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryIt
                     status_code=400,
                     detail="Folder is outside the media library (library/media/).",
                 )
-        item.media_path = str(media_src)
-        item.folder_path = str(media_src)
+
+        existing = db.query(LibraryItem).filter(
+            LibraryItem.folder_path == str(media_src)
+        ).first()
+        if existing:
+            raise _ItemAlreadyExists(existing)
+
+        row["folder_path"] = str(media_src)
+        row["media_path"] = str(media_src)
+
+        cover = _find_cover(media_src)
+        if cover:
+            row["cover_art_path"] = str(cover)
+
         folder_name = media_src.name
         drive_img_lower = f"{folder_name}.img".lower()
         try:
@@ -85,69 +149,118 @@ def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryIt
         for ext in _EXECUTABLE_PRIORITY:
             for f in candidates:
                 if f.suffix.lower() == ext:
-                    item.executable_path = str(f)
+                    row["executable_path"] = str(f)
                     break
-            if item.executable_path:
+            if row["executable_path"]:
                 break
-        cover = _find_cover(media_src)
-        if cover:
-            item.cover_art_path = str(cover)
-    elif games_root_str:
-        src = Path(body.media_path).resolve() if body.media_path else None
-        folder_name = src.stem if (src and src.is_file()) else item.slug
-        item_folder = Path(games_root_str) / folder_name
-        try:
-            item_folder.mkdir(parents=True, exist_ok=True)
-            item.folder_path = str(item_folder)
-            if src and src.is_file():
-                dest = item_folder / src.name
-                if dest.exists():
+
+        _era_path = best_detect_path(media_src, row["executable_path"])
+        _era_slug, _era_reason = _detect_era(_era_path)
+        if _era_slug is not None:
+            row["era"] = _era_slug
+            row["detection_reason"] = _era_reason
+
+        if row["era"] and row["era"] != "unknown":
+            try:
+                resolved_media = resolve_media_file_from_directory(media_src, row["era"])
+                row["media_path"] = str(resolved_media)
+            except ValueError as exc:
+                log.warning("Could not resolve media file for '%s': %s", title, exc)
+
+    elif media_src.is_file():
+        if games_root_str:
+            dest_folder = Path(games_root_str) / media_src.stem
+            dest = dest_folder / media_src.name
+            dest_norm = dest.resolve().as_posix()
+
+            # Duplicate check: source path or destination copy already tracked
+            for stored_path, item_id in db.query(
+                LibraryItem.media_path, LibraryItem.id
+            ).filter(LibraryItem.media_path.isnot(None)).all():
+                if Path(stored_path).resolve().as_posix() in (incoming_norm, dest_norm):
+                    raise _ItemAlreadyExists(db.get(LibraryItem, item_id))
+
+            dest_folder.mkdir(parents=True, exist_ok=True)
+            row["folder_path"] = str(dest_folder)
+
+            if dest.exists():
+                if dest.stat().st_size == media_src.stat().st_size:
+                    # Identical file already in place — reuse without re-copy
+                    row["media_path"] = str(dest)
+                else:
                     raise HTTPException(
                         status_code=409,
-                        detail=f"A file named '{src.name}' already exists in '{item_folder}'.",
+                        detail=f"A different file named '{media_src.name}' already exists in '{dest_folder}'.",
                     )
-                shutil.copy2(str(src), str(dest))
-                item.media_path = str(dest)
-            cover = _find_cover(item_folder)
+            else:
+                shutil.copy2(str(media_src), str(dest))
+                row["media_path"] = str(dest)
+
+            cover = _find_cover(dest_folder)
             if cover:
-                item.cover_art_path = str(cover)
-        except HTTPException:
-            raise
-        except OSError as exc:
-            get_logger(__name__).warning("Could not create item folder %s: %s", item_folder, exc)
+                row["cover_art_path"] = str(cover)
+        else:
+            for stored_path, item_id in db.query(
+                LibraryItem.media_path, LibraryItem.id
+            ).filter(LibraryItem.media_path.isnot(None)).all():
+                if Path(stored_path).resolve().as_posix() == incoming_norm:
+                    raise _ItemAlreadyExists(db.get(LibraryItem, item_id))
+            row["folder_path"] = str(media_src.parent)
 
-    media_type = detect_media_type(Path(item.media_path))
-    item.media_type = media_type
-    item.requires_install = media_type in ("iso", "cue", "floppy")
+        _era_slug, _era_reason = _detect_era(Path(row["media_path"]))
+        if _era_slug is not None:
+            row["era"] = _era_slug
+            row["detection_reason"] = _era_reason
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Path is not a file or directory: {media_path}",
+        )
 
-    _era_folder = Path(item.media_path) if item.media_path else media_src
-    _era_path = best_detect_path(_era_folder, item.executable_path)
-    _era_slug, _era_reason = _detect_era(_era_path)
+    # Slug — use in-memory set when batching to avoid N DB round-trips
+    if used_slugs is not None:
+        row["slug"] = unique_slug(title, lambda s: s in used_slugs)
+        used_slugs.add(row["slug"])
+    else:
+        row["slug"] = generate_item_slug(title, db)
 
-    if _era_slug is not None and item.era == "unknown":
-        item.era = _era_slug
-    if hasattr(item, "detection_reason"):
-        item.detection_reason = _era_reason if _era_slug is not None else None
+    media_type = detect_media_type(Path(row["media_path"]))
+    row["media_type"] = media_type
+    row["requires_install"] = media_type in ("iso", "cue", "floppy")
 
-    if item.era and item.era != "unknown" and item.media_path and Path(item.media_path).is_dir():
-        try:
-            resolved_media = resolve_media_file_from_directory(Path(item.media_path), item.era)
-            item.media_path = str(resolved_media)
-        except ValueError as exc:
-            get_logger(__name__).warning("Could not resolve media file for '%s': %s", item.title, exc)
-
-    if _era_slug is not None:
-        _emulator_slug, _profile_era = defaults_for_era(_era_slug)
+    if row["era"] and row["era"] != "unknown":
+        _emulator_slug, _profile_era = defaults_for_era(row["era"])
         if _emulator_slug and _profile_era:
-            _def_platform_id, _def_profile_id = lookup_platform_and_profile(_emulator_slug, _profile_era, db)
-            if item.platform_id is None and _def_platform_id is not None:
-                item.platform_id = _def_platform_id
-            if item.profile_id is None and _def_profile_id is not None:
-                item.profile_id = _def_profile_id
+            _def_platform_id, _def_profile_id = lookup_platform_and_profile(
+                _emulator_slug, _profile_era, db
+            )
+            if _def_platform_id is not None:
+                row["platform_id"] = _def_platform_id
+            if _def_profile_id is not None:
+                row["profile_id"] = _def_profile_id
 
-    if not item.content_rating:
-        item.content_rating = detect_rating(body.media_path)
+    if override_profile_id is not None:
+        row["profile_id"] = override_profile_id
 
+    row["content_rating"] = detect_rating(media_path) or None
+
+    return row
+
+
+def _ingest_media_entry(
+    media_path: str,
+    title: str,
+    db: Session,
+    *,
+    override_profile_id: int | None = None,
+) -> LibraryItem:
+    """
+    Single shared ingest pipeline: prepare → persist → optional drive creation.
+    Called by both the manual add route and the scanner import endpoint.
+    Raises _ItemAlreadyExists if the path is already tracked.
+    """
+    row = _prepare_item(media_path, title, db, override_profile_id=override_profile_id)
+    item = LibraryItem(**row)
     db.add(item)
     db.flush()
 
@@ -156,7 +269,20 @@ def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryIt
 
     db.commit()
     db.refresh(item)
-    return item, False
+    return item
+
+
+def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryItem, bool]:
+    """Backward-compat wrapper. Returns (item, already_existed)."""
+    try:
+        return (
+            _ingest_media_entry(
+                body.media_path, body.title, db, override_profile_id=body.profile_id
+            ),
+            False,
+        )
+    except _ItemAlreadyExists as e:
+        return e.item, True
 
 
 def delete_library_item(item_id: int, token: str, db: Session) -> None:

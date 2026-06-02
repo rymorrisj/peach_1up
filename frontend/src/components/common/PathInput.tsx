@@ -61,7 +61,7 @@ export default function PathInput({
         onSelect={(path) => { onChange(path); setBrowserOpen(false) }}
         extensions={extensions}
         mode={mode}
-        title={mode === 'folder' ? 'Select Folder' : 'Select File'}
+        title={mode === 'folder' ? 'Select Folder' : mode === 'both' ? 'Select File or Folder' : 'Select File'}
         rootPath={rootPath}
       />
     </div>

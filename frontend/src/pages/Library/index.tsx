@@ -95,14 +95,15 @@ function AddMediaModal({ open, profiles, onClose, onAdded, mediaRootPath }: AddM
   function handleFolderPicked(folderPath: string) {
     setField('media_path', folderPath)
     if (!form.title && folderPath) {
-      const folderName = folderPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? ''
-      setField('title', folderName.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
+      const last = folderPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? ''
+      const base = last.includes('.') ? last.replace(/\.[^.]+$/, '') : last
+      setField('title', base.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
     }
   }
 
   async function handleSubmit() {
     if (!form.media_path.trim()) {
-      setError('A folder path is required.')
+      setError('A media path is required.')
       return
     }
     if (!isAbsolutePath(form.media_path.trim())) {
@@ -157,16 +158,17 @@ function AddMediaModal({ open, profiles, onClose, onAdded, mediaRootPath }: AddM
       }
     >
       <FormField
-        label="Folder"
+        label="File or Folder"
         htmlFor="add-path"
-        hint="Select a folder inside your media library. Each folder is one library item."
+        hint="Select a ROM, disc image, or folder inside your media library."
       >
         <PathInput
           id="add-path"
-          mode="folder"
+          mode="both"
+          accept="iso,img,cue,bin,chd,xiso,nes,z64,n64,v64,gdi,cdi,zip,exe,com"
           value={form.media_path}
           onChange={handleFolderPicked}
-          placeholder="C:\library\media\my-game"
+          placeholder="C:\library\media\my-game or C:\library\media\game.nes"
           className="mt-1"
           hasError={!!error && !form.media_path}
           rootPath={mediaRootPath}
@@ -222,9 +224,39 @@ interface ScanModalProps {
 }
 
 function ScanModal({ open, onClose, onImported }: ScanModalProps) {
-  const { scanning, status, error, handleScan } = useLibraryScan({ open, onImported })
+  const { scanning, status, error, handleScan, importing, importResult, handleImport } =
+    useLibraryScan({ open, onImported })
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
-  const hasDone = status && !status.running
+  const preview = status?.preview ?? []
+  const hasPreview = !status?.running && !importResult && preview.length > 0
+  const allSelected = preview.length > 0 && selected.size === preview.length
+
+  // Auto-select all items when the preview first loads
+  useEffect(() => {
+    if (status && !status.running && !importResult && status.preview.length > 0) {
+      setSelected(new Set(status.preview.map((p) => p.media_path)))
+    }
+  }, [status, importResult])
+
+  useEffect(() => {
+    if (!open) setSelected(new Set())
+  }, [open])
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(preview.map((p) => p.media_path)))
+  }
+
+  function toggleItem(path: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
+
+  const busy = scanning || importing
 
   return (
     <Modal
@@ -233,12 +265,21 @@ function ScanModal({ open, onClose, onImported }: ScanModalProps) {
       onClose={onClose}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={scanning}>
-            {hasDone ? 'Close' : 'Cancel'}
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {importResult ? 'Close' : 'Cancel'}
           </Button>
-          {!hasDone && (
+          {!status && !scanning && (
             <Button onClick={handleScan} loading={scanning} disabled={scanning}>
               Scan
+            </Button>
+          )}
+          {hasPreview && (
+            <Button
+              onClick={() => handleImport(Array.from(selected))}
+              loading={importing}
+              disabled={importing || selected.size === 0}
+            >
+              Import{selected.size > 0 ? ` (${selected.size})` : ''}
             </Button>
           )}
         </>
@@ -251,27 +292,75 @@ function ScanModal({ open, onClose, onImported }: ScanModalProps) {
         </div>
       )}
 
-      {hasDone && status.results.length === 0 && (
-        <p className="text-sm text-neutral-500">No new folders found in the media library.</p>
-      )}
-
-      {hasDone && status.results.length > 0 && (
-        <div className="space-y-1">
-          <p className="text-xs text-neutral-400 dark:text-neutral-500">
-            Imported {status.results.length} item{status.results.length !== 1 ? 's' : ''}
-          </p>
+      {hasPreview && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-neutral-400 dark:text-neutral-500">
+              Found {preview.length} new item{preview.length !== 1 ? 's' : ''}
+            </p>
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="text-xs text-[#ff8a5c] hover:underline"
+            >
+              {allSelected ? 'Deselect All' : 'Select All'}
+            </button>
+          </div>
           <ul className="max-h-64 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700">
-            {status.results.map((r) => (
-              <li key={r.folder_path} className="px-3 py-2">
-                <span className="block truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                  {r.name}
-                </span>
-                <span className="block truncate text-xs text-neutral-400 dark:text-neutral-500">
-                  {r.executable_path ?? 'No launchable file found'} · {r.folder_path}
-                </span>
+            {preview.map((item) => (
+              <li key={item.media_path} className="flex items-center gap-3 px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={selected.has(item.media_path)}
+                  onChange={() => toggleItem(item.media_path)}
+                  className="h-4 w-4 shrink-0 accent-[#ff8a5c]"
+                />
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                    {item.title}
+                  </span>
+                  <span className="block truncate text-xs text-neutral-400 dark:text-neutral-500">
+                    {item.detected_era ? item.detected_era.toUpperCase() : '?'}
+                    {item.is_loose && ' · loose'}
+                    {item.is_zip && ' · zip'}
+                    {' · '}
+                    {item.media_path}
+                  </span>
+                </div>
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {!scanning && status && preview.length === 0 && !importResult && (
+        <p className="text-sm text-neutral-500">
+          {status.error
+            ? `Scan error: ${status.error}`
+            : 'No new items found in the media library.'}
+        </p>
+      )}
+
+      {importResult && (
+        <div className="space-y-1">
+          <p className="text-sm text-neutral-700 dark:text-neutral-300">
+            Imported {importResult.imported} item{importResult.imported !== 1 ? 's' : ''}
+            {importResult.skipped > 0 && `, skipped ${importResult.skipped} duplicate${importResult.skipped !== 1 ? 's' : ''}`}.
+          </p>
+          {importResult.errors.length > 0 && (
+            <div className="mt-2">
+              <p className="text-xs font-medium text-red-500">
+                {importResult.errors.length} error{importResult.errors.length !== 1 ? 's' : ''}:
+              </p>
+              <ul className="mt-1 max-h-32 overflow-y-auto space-y-1">
+                {importResult.errors.map((e, i) => (
+                  <li key={i} className="truncate text-xs text-red-400" title={e.reason}>
+                    {e.path.replace(/\\/g, '/').split('/').pop()}: {e.reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
