@@ -1,6 +1,7 @@
 import { ZipCard, InstallerCard, RomPackCard } from './EmulatorCards'
 import { useAppContext } from '@/context/AppContext'
-import type { CatalogEntry } from '@/pages/FirstRun/types'
+import type { components } from '@shared/types'
+type CatalogEntry = components['schemas']['CatalogEntryResponse']
 
 export function MergedEmulatorCard({
   entry,

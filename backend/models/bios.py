@@ -1,0 +1,11 @@
+from sqlmodel import SQLModel
+
+
+class BiosRequirement(SQLModel):
+    slug: str
+    name: str
+    platform: str
+    bios_path: str
+    guidance_text: str
+    guidance_url: str
+    is_present: bool

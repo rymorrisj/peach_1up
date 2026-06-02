@@ -9,10 +9,7 @@ import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useConfirm } from '@/hooks/useConfirm'
 import { ERA_LABELS } from '@/generated/constants'
-import type { components } from '@shared/types'
-type LaunchProfile = components['schemas']['ProfileRead']
-type DriveRecord = components['schemas']['DriveRead']
-type EmulatorEntry = components['schemas']['CatalogEntryResponse']
+import type { DriveMode, DriveRecord, EmulatorEntry, LaunchProfile, ProfileForm, ProfileProfileModalState } from '@/types/profiles'
 
 const DOS_WIN31_ERAS = new Set(['dos', 'win31'])
 
@@ -20,24 +17,7 @@ const ERA_DEFAULT_DRIVE_SIZE: Record<string, number> = {
   dos: 500, win31: 500, win95: 2048, win98: 4096, winxp: 8192,
 }
 
-type DriveMode = 'none' | 'existing' | 'create'
-
 const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
-
-interface ProfileForm {
-  name: string
-  slug: string
-  emulator_slug: string
-  era: string
-  extra_args: string
-  enable_networking: boolean
-  notes: string
-  container_enabled: boolean | null
-  drive_mode: DriveMode
-  drive_slug: string
-  new_drive_name: string
-  new_drive_size_mb: number
-}
 
 const EMPTY_FORM: ProfileForm = {
   name: '',
@@ -47,14 +27,13 @@ const EMPTY_FORM: ProfileForm = {
   extra_args: '',
   enable_networking: false,
   notes: '',
+  launch_commands: [],
   container_enabled: null,
   drive_mode: 'none',
   drive_slug: '',
   new_drive_name: '',
   new_drive_size_mb: 500,
 }
-
-type ModalState = null | { mode: 'create' } | { mode: 'edit'; profile: LaunchProfile }
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
@@ -91,7 +70,7 @@ export default function LaunchProfiles() {
     queryFn: () => apiFetch<EmulatorEntry[]>('/api/v1/emulators'),
   })
 
-  const [modal, setModal] = useState<ModalState>(null)
+  const [modal, setModal] = useState<ProfileModalState>(null)
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM)
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof ProfileForm, string>>>({})
   const [submitError, setSubmitError] = useState<string | null>(null)

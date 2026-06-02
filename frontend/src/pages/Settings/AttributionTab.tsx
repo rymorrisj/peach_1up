@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/api/client";
-import type { CatalogEntry } from "@/pages/FirstRun/types";
+import type { components } from "@shared/types";
+type CatalogEntry = components['schemas']['CatalogEntryResponse']
 
 export default function AttributionTab() {
   const { data: emulatorCatalog } = useQuery<CatalogEntry[]>({

@@ -8,6 +8,8 @@ export interface EmulatorStatus {
 
 export interface LibraryPaths {
   library_path: string | null
+  media_path: string | null
+  os_path: string | null
   profiles_path: string | null
   roms_path: string | null
 }
@@ -15,43 +17,8 @@ export interface LibraryPaths {
 export interface FirstRunStatus {
   first_run_complete: boolean
   owner_exists: boolean
-  owner_profile_exists?: boolean
   emulators: EmulatorStatus[]
   paths: LibraryPaths
-}
-
-export interface CatalogEntry {
-  slug: string
-  name: string
-  version: string
-  description: string
-  license: string
-  copyright?: string
-  source_url?: string
-  install_type: 'zip' | 'installer' | 'rom_pack'
-  install_scope: 'portable' | 'system'
-  required: boolean
-  is_installed: boolean
-  install_path: string | null
-  installer_present: boolean
-  is_placeholder?: boolean
-  git_available: boolean | null
-  expert_mode_set?: boolean
-  container_enabled?: boolean
-  skip_cpu_limit?: boolean
-  skip_memory_limit?: boolean
-  supported_formats?: string[]
-  install_note?: string
-  guidance_text?: string
-  guidance_url?: string
-  known_limitations?: Array<{ title: string; severity: string; description: string }>
-}
-
-export interface EmulatorInstallStatus {
-  slug: string
-  status: 'idle' | 'complete' | 'error' | 'installer_launched' | 'cloning'
-  error: string | null
-  install_path: string | null
 }
 
 export interface EmulatorStatusData {

@@ -139,3 +139,28 @@ class LibraryItemRead(LibraryItemBase):
         except ValueError:
             pass
         return self
+
+
+class ScanPreviewItem(SQLModel):
+    title: str
+    media_path: str
+    detected_era: Optional[str] = None
+    is_loose: bool
+    is_zip: bool
+
+
+class ScanStatus(SQLModel):
+    running: bool
+    preview: list[ScanPreviewItem]
+    error: Optional[str] = None
+
+
+class ImportErrorItem(SQLModel):
+    path: str
+    reason: str
+
+
+class ImportResult(SQLModel):
+    imported: int
+    skipped: int
+    errors: list[ImportErrorItem]

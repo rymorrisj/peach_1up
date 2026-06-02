@@ -1,13 +1,14 @@
 from fastapi import APIRouter
 
 from backend.core.logger import get_logger
+from backend.models.bios import BiosRequirement
 from backend.service.utils.emulator_catalog import check_bios_presence, load_bios_requirements
 
 router = APIRouter(prefix="/api/v1/bios", tags=["bios"])
 logger = get_logger(__name__)
 
 
-@router.get("")
+@router.get("", response_model=list[BiosRequirement])
 def list_bios_requirements():
     result = []
     for entry in load_bios_requirements():

@@ -8,11 +8,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner'
 import LaunchCommandList from '@/components/LaunchCommandList'
 import { useConfirm } from '@/hooks/useConfirm'
 import { ERA_LABELS } from '@/generated/constants'
-import type { components } from '@shared/types'
-
-type LaunchProfile = components['schemas']['ProfileRead']
-type DriveRecord = components['schemas']['DriveRead']
-type EmulatorEntry = components['schemas']['CatalogEntryResponse']
+import type { DriveMode, DriveRecord, EmulatorEntry, LaunchProfile, ProfileForm, ProfileModalState } from '@/types/profiles'
 
 const DOS_WIN31_ERAS = new Set(['dos', 'win31'])
 
@@ -20,28 +16,10 @@ const ERA_DEFAULT_DRIVE_SIZE: Record<string, number> = {
   dos: 500, win31: 500, win95: 2048, win98: 4096, winxp: 8192,
 }
 
-type DriveMode = 'none' | 'existing' | 'create'
-
 const ERA_SELECT_CLASS =
   'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
 
 const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
-
-interface ProfileForm {
-  name: string
-  slug: string
-  emulator_slug: string
-  era: string
-  extra_args: string
-  enable_networking: boolean
-  notes: string
-  launch_commands: string[]
-  container_enabled: boolean | null
-  drive_mode: DriveMode
-  drive_slug: string
-  new_drive_name: string
-  new_drive_size_mb: number
-}
 
 const EMPTY_PROFILE_FORM: ProfileForm = {
   name: '',
@@ -58,8 +36,6 @@ const EMPTY_PROFILE_FORM: ProfileForm = {
   new_drive_name: '',
   new_drive_size_mb: 500,
 }
-
-type ProfileModalState = null | { mode: 'create' } | { mode: 'edit'; profile: LaunchProfile }
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')

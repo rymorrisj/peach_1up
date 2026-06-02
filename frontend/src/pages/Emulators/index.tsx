@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { apiFetch, ApiError } from "@/api/client";
 import TopBar from "@/components/layout/TopBar";
-import type { CatalogEntry } from "@/pages/FirstRun/types";
+import type { components } from "@shared/types";
+type CatalogEntry = components['schemas']['CatalogEntryResponse']
 
 const ERA_MAP: Record<string, string[]> = {
   "dosbox-x": ["DOS", "WIN31"],

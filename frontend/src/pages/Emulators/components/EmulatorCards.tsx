@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
-import type { CatalogEntry, EmulatorStatusData, BiosRequirement } from '@/pages/FirstRun/types'
+import type { EmulatorStatusData, BiosRequirement } from '@/pages/FirstRun/types'
+import type { components } from '@shared/types'
+type CatalogEntry = components['schemas']['CatalogEntryResponse']
 import EmulatorStatus from '@/components/emulators/EmulatorStatus'
 
 // ─── Shared components ────────────────────────────────────────────────────────

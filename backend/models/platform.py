@@ -78,3 +78,40 @@ class PlatformRead(PlatformBase):
     updated_at: datetime
     working_image_size_bytes: Optional[int] = None
     base_image_size_bytes: Optional[int] = None
+
+
+class StorageStats(SQLModel):
+    drive_images_bytes: int
+    source_media_bytes: int
+    os_images_bytes: int
+    emulator_binaries_bytes: int
+
+
+class PlatformHealthCounts(SQLModel):
+    total: int
+    healthy: int
+    degraded: int
+
+
+class CountTotal(SQLModel):
+    total: int
+
+
+class InstalledCounts(SQLModel):
+    total: int
+    installed: int
+
+
+class BiosCounts(SQLModel):
+    total: int
+    present: int
+
+
+class HealthSummary(SQLModel):
+    platforms: PlatformHealthCounts
+    library: CountTotal
+    drives: CountTotal
+    extensions: CountTotal
+    emulators: InstalledCounts
+    bios: BiosCounts
+    rom_packs: InstalledCounts

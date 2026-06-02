@@ -3,8 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import TopBar from '@/components/layout/TopBar'
-import type { CatalogEntry, BiosRequirement, EmulatorStatusData } from '@/pages/FirstRun/types'
+import type { BiosRequirement, EmulatorStatusData } from '@/pages/FirstRun/types'
 import type { components } from '@shared/types'
+type CatalogEntry = components['schemas']['CatalogEntryResponse']
 type LaunchProfile = components['schemas']['ProfileRead']
 
 const ERA_MAP: Record<string, string[]> = {

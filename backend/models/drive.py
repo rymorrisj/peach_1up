@@ -40,10 +40,6 @@ class Drive(DriveBase, table=True):
     )
 
 
-class DriveCreate(DriveBase):
-    library_item_id: int
-
-
 class DriveRead(DriveBase):
     id: int
     library_item_id: int

@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.core.dependencies import get_active_user
+from backend.models.filesystem import BrowseResult, DrivesResult
 from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1/filesystem", tags=["filesystem"])
@@ -50,7 +51,7 @@ def _get_drive_label(letter: str) -> str:
         return f"Drive {letter}:"
 
 
-@router.get("/drives")
+@router.get("/drives", response_model=DrivesResult)
 def list_drives(_: User = Depends(get_active_user)):
     """Return available Windows drive letters. 404 on non-Windows."""
     if sys.platform != "win32":
@@ -66,7 +67,7 @@ def list_drives(_: User = Depends(get_active_user)):
     return {"drives": drives}
 
 
-@router.get("/browse")
+@router.get("/browse", response_model=BrowseResult)
 def browse(
     path: str | None = Query(default=None),
     show_files: bool = Query(default=True),

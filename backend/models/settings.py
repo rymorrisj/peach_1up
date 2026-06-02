@@ -16,11 +16,5 @@ class Settings(SQLModel, table=True):
     )
 
 
-class SettingsRead(SQLModel):
-    key: str
-    value: Optional[str] = None
-    updated_at: datetime
-
-
 class SettingsPatch(SQLModel):
     updates: dict[str, Optional[str]]

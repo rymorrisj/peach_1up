@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, get_filtered_library, require_permission
 from backend.core.logger import get_logger
-from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate
+from backend.models.library import ImportResult, LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate, ScanStatus
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
 from backend.service.library import items as lib_svc
@@ -71,7 +71,7 @@ def add_library_item(
         raise HTTPException(status_code=409, detail="This media path is already in the library.")
 
 
-@router.get("/scan/status")
+@router.get("/scan/status", response_model=ScanStatus)
 def scan_status():
     with _scan_lock:
         return dict(_scan_state)
@@ -185,7 +185,7 @@ def _run_scan(directory: str) -> None:
             _scan_state["error"] = error_msg
 
 
-@router.post("/scan/import")
+@router.post("/scan/import", response_model=ImportResult)
 def import_scan_results(
     body: ScanImportBody,
     db: Session = Depends(get_db),

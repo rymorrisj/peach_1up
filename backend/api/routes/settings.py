@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
 from backend.core.settings import get_settings
-from backend.models.settings import SettingsPatch, SettingsRead
+from backend.models.settings import SettingsPatch
 from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])

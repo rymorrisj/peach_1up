@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
 from backend.core.logger import get_logger
-from backend.models.platform import Platform, PlatformCreate, PlatformRead, PlatformUpdate
+from backend.models.platform import HealthSummary, Platform, PlatformCreate, PlatformRead, PlatformUpdate, StorageStats
 from backend.models.snapshot import Snapshot, SnapshotCreate, SnapshotRead
 from backend.models.user import User
 from backend.service.platforms import environments as plat_svc
@@ -42,7 +42,7 @@ def create_platform(body: PlatformCreate, db: Session = Depends(get_db), _: User
     return plat_svc.create_platform(body, db)
 
 
-@router.get("/health")
+@router.get("/health", response_model=HealthSummary)
 def health_summary(db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
     return plat_svc.get_health_summary(db)
 
@@ -52,7 +52,7 @@ def health_check_all(db: Session = Depends(get_db), _: User = require_permission
     return plat_svc.batch_health_check(db)
 
 
-@router.get("/storage-stats")
+@router.get("/storage-stats", response_model=StorageStats)
 def storage_stats(db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
     return plat_svc.get_storage_stats(db)
 

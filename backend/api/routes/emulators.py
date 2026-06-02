@@ -72,6 +72,17 @@ class ConfigureRequest(BaseModel):
     action: str
 
 
+class EmulatorStatusData(BaseModel):
+    slug: str
+    install_type: str
+    binary_detected: bool
+    binary_path: Optional[str] = None
+    installer_present: Optional[bool] = None
+    status: str
+    error: Optional[str] = None
+    install_path: Optional[str] = None
+
+
 _CONFIGURE_ACTIONS: dict[str, list[str]] = {}
 
 
@@ -319,7 +330,7 @@ async def _run_clone(slug: str) -> None:
         logger.error("ROM pack clone %s failed: %s", slug, exc)
 
 
-@router.get("/{slug}/status")
+@router.get("/{slug}/status", response_model=EmulatorStatusData)
 def get_emulator_status(slug: str):
     try:
         entry = get_emulator(slug)
