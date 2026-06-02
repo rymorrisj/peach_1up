@@ -68,3 +68,8 @@ description = "xemu pre-allocates a 1 GB JIT buffer at startup. The Job Object m
 title = "Shader cache writes to AppData"
 severity = "info"
 description = "xemu writes its shader cache to %APPDATA%\\xemu\\ regardless of portable mode. This is a known xemu limitation and cannot be overridden via config."
+
+[[known_limitations]]
+title = "Disc images must be in XISO format"
+severity = "critical"
+description = "xemu requires disc images in XISO format. Standard ISO rips will mount but show 'add disk' because they contain the raw Xbox disc layout including unreadable partitions. Convert using extract-xiso before adding to your library. See https://xemu.app/docs/disc-images/ for instructions."

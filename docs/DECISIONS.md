@@ -1,7 +1,14 @@
 # Peach 1UP — Decision Log
 
-| Date       | Decision                              | Why                                                                                                                                                                                      |
-| ---------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Date                                                 | Decision                                                                       | Why |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------ | --- |
+| 2026-06-01                                           | Memory limit model revised — managed runtime emulators skip_memory_limit=true; |
+| era caps reflect emulator overhead not game hardware | Era caps were sized for guest hardware                                         |
+
+requirements only. Managed runtime emulators (.NET/Qt) pre-allocate heap at startup regardless
+of game load, causing STATUS_STACK_BUFFER_OVERRUN (0xC0000409) at launch.
+skip_memory_limit=true for Qt/.NET emulators. SDL2/native emulators retain caps at realistic
+overhead+headroom values. |
 | 2026-06-01 | BIOS paths removed from settings.yaml | All emulators resolve BIOS files relative to their own binary directory. No settings keys for BIOS paths. DuckStation/PCSX2 use userdata/bios, xemu uses binary dir, Flycast uses data/. |
 
 | 2026-05-29 | /media static mount replaced with authenticated route | StaticFiles bypasses BaseHTTPMiddleware entirely — SecurityMiddleware never runs for mounted paths. Replaced with a FastAPI GET route that applies the same localhost/ALLOW_NETWORK_ACCESS check as SecurityMiddleware, then validates the resolved path is within LIBRARY_PATH via normalise_path + is_relative_to before serving. BIOS, ROM, and OS image files are no longer passively exposed to network clients when ALLOW_NETWORK_ACCESS=true. |
