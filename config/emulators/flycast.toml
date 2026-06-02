@@ -45,6 +45,6 @@ required = true
 validation_type = "directory"
 display_name = "Dreamcast BIOS"
 platform = "dreamcast"
-bios_path = "library/system/bios/dreamcast"
+bios_path = "emulators/flycast/data"
 guidance_text = "Place your Dreamcast BIOS files (dc_boot.bin, dc_flash.bin) in library/system/bios/dreamcast/. Flycast requires these files to boot."
 guidance_url = "https://github.com/flyinghead/flycast"

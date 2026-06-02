@@ -73,7 +73,7 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
     derived: dict[str, Path] = {
         # Emulator install root (binary directory).
         "install_dir":  base / "emulators" / slug,
-        # Per-emulator save-state directory (e.g. Flycast, Mesen, Project64, ScummVM).
+        # Per-emulator save-state directory (e.g. Flycast, Mesen, Project64).
         "saves_dir":    base / "emulators" / slug / "saves",
         # Per-emulator memory-card directory (PCSX2, DuckStation).
         "memcards_dir": base / "emulators" / slug / "memcards",

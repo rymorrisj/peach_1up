@@ -37,14 +37,3 @@ mode = "grant"
 path_key = "appdata_xemu"
 access = "rw"
 mode = "grant"
-
-[[dependencies]]
-name = "xbox-bios"
-acquire_method = "user_supplied"
-required = true
-validation_type = "directory"
-display_name = "Xbox BIOS"
-platform = "xbox"
-bios_path = "library/system/bios/xbox"
-guidance_text = "Place your Xbox MCPX and BIOS files in library/system/bios/xbox/. See xemu.app for the exact files required."
-guidance_url = "https://xemu.app/docs/required-files/"

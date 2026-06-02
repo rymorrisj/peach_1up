@@ -40,7 +40,6 @@ Objects on Windows.
 
 - DOSBox-X (DOS and Windows 3.1 — no ROM required)
 - 86Box (Windows 95, 98, XP — user supplies ROM pack)
-- ScummVM (point-and-click adventures — no BIOS required, auto-detects games from data files)
 
 **Console Emulators**
 
@@ -55,20 +54,19 @@ Objects on Windows.
 
 ## Era → Backend Mapping
 
-| Era                       | Primary     | Fallback | ROM Required         |
-| ------------------------- | ----------- | -------- | -------------------- |
-| DOS                       | DOSBox-X    | —        | No                   |
-| Windows 3.1               | DOSBox-X    | —        | No                   |
-| Windows 95                | 86Box       | —        | Yes (86Box ROM pack) |
-| Windows 98                | 86Box       | —        | Yes (86Box ROM pack) |
-| Windows XP                | 86Box       | —        | Yes (86Box ROM pack) |
-| DOS/Win (adventure games) | ScummVM     | —        | No                   |
-| PS1                       | DuckStation | —        | Yes (PS1 BIOS)       |
-| PS2                       | PCSX2       | —        | Yes (PS2 BIOS)       |
-| Xbox OG                   | xemu        | —        | Yes (Xbox BIOS)      |
-| Dreamcast                 | Flycast     | —        | Yes (DC BIOS)        |
-| NES                       | Mesen       | —        | No                   |
-| N64                       | Project64   | —        | No                   |
+| Era         | Primary     | Fallback | ROM Required         |
+| ----------- | ----------- | -------- | -------------------- |
+| DOS         | DOSBox-X    | —        | No                   |
+| Windows 3.1 | DOSBox-X    | —        | No                   |
+| Windows 95  | 86Box       | —        | Yes (86Box ROM pack) |
+| Windows 98  | 86Box       | —        | Yes (86Box ROM pack) |
+| Windows XP  | 86Box       | —        | Yes (86Box ROM pack) |
+| PS1         | DuckStation | —        | Yes (PS1 BIOS)       |
+| PS2         | PCSX2       | —        | Yes (PS2 BIOS)       |
+| Xbox OG     | xemu        | —        | Yes (Xbox BIOS)      |
+| Dreamcast   | Flycast     | —        | Yes (DC BIOS)        |
+| NES         | Mesen       | —        | No                   |
+| N64         | Project64   | —        | No                   |
 
 ## Folder Structure
 
@@ -199,7 +197,6 @@ Awaiting your decision.
 - DOS profiles remain standalone with per-game HDD images. Win95/98/XP use the
   DB-backed Platform model with a locked base image and a working copy — two image copies
   per platform will be stored on disk.
-- ScummVM auto-detects games from a directory scan — point at the folder containing
   game data files, not an ISO or image.
 
 ## Official Download Links
@@ -207,7 +204,6 @@ Awaiting your decision.
 - DOSBox-X: https://dosbox-x.com
 - 86Box: https://86box.net
 - 86Box ROM pack: https://github.com/86Box/roms
-- ScummVM: https://www.scummvm.org
 - Flycast: https://github.com/flyinghead/flycast
 - DuckStation: https://www.duckstation.org
 - PCSX2: https://pcsx2.net

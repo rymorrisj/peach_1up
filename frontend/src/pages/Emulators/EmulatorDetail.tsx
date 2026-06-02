@@ -16,7 +16,6 @@ const ERA_MAP: Record<string, string[]> = {
   'flycast':     ['DC'],
   'mesen':       ['NES'],
   'project64':   ['N64'],
-  'scummvm':     ['DOS'],
 }
 
 const ERA_COLOR: Record<string, string> = {

@@ -56,6 +56,6 @@ required = true
 validation_type = "directory"
 display_name = "PS2 BIOS"
 platform = "ps2"
-bios_path = "library/system/bios/ps2"
+bios_path = "emulators/pcsx2/bios"
 guidance_text = "Place your PS2 BIOS files in library/system/bios/ps2/. PCSX2 requires a PS2 BIOS image to run."
 guidance_url = "https://pcsx2.net/guides/basic-setup/"
