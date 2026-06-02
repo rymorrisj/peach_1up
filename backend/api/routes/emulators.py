@@ -76,16 +76,18 @@ _CONFIGURE_ACTIONS: dict[str, list[str]] = {}
 
 
 class XemuAssetPathsResponse(BaseModel):
-    bootrom_path: str
-    flashrom_path: str
-    hdd_path: str
+    bootrom: str
+    flashrom: str
+    hdd_image: str
+    eeprom_image: str = ""
 
 
 class XemuAssetPathsPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    bootrom_path: Optional[str] = None
-    flashrom_path: Optional[str] = None
-    hdd_path: Optional[str] = None
+    bootrom: Optional[str] = None
+    flashrom: Optional[str] = None
+    hdd_image: Optional[str] = None
+    eeprom_image: Optional[str] = None
 
 
 def _xemu_toml_path() -> Path:
@@ -196,12 +198,12 @@ def get_xemu_asset_paths(_: User = require_permission("is_admin")):
         )
     with xemu_toml.open("rb") as fh:
         config = tomllib.load(fh)
-    system = config.get("system", {})
-    storage = config.get("storage", {})
+    files = config.get("sys", {}).get("files", {})
     return XemuAssetPathsResponse(
-        bootrom_path=system.get("bootrom_path", ""),
-        flashrom_path=system.get("flashrom_path", ""),
-        hdd_path=storage.get("hdd_path", ""),
+        bootrom=files.get("bootrom", ""),
+        flashrom=files.get("flashrom", ""),
+        hdd_image=files.get("hdd_image", ""),
+        eeprom_image=files.get("eeprom_image", ""),
     )
 
 
@@ -229,29 +231,24 @@ def patch_xemu_asset_paths(body: XemuAssetPathsPatch, _: User = require_permissi
         xemu_toml.parent.mkdir(parents=True, exist_ok=True)
         config = {}
 
-    system = dict(config.get("system", {}))
-    storage = dict(config.get("storage", {}))
-
-    if "bootrom_path" in validated:
-        system["bootrom_path"] = validated["bootrom_path"]
-    if "flashrom_path" in validated:
-        system["flashrom_path"] = validated["flashrom_path"]
-    if "hdd_path" in validated:
-        storage["hdd_path"] = validated["hdd_path"]
+    files = dict(config.get("sys", {}).get("files", {}))
+    for key in ("bootrom", "flashrom", "hdd_image", "eeprom_image"):
+        if key in validated:
+            files[key] = validated[key]
 
     sections: dict = {}
     for section_name, section_data in config.items():
-        if section_name not in ("system", "storage"):
+        if section_name != "sys":
             sections[section_name] = dict(section_data)
-    sections["system"] = system
-    sections["storage"] = storage
+    sections["sys.files"] = files
 
     _write_xemu_toml(xemu_toml, sections)
 
     return XemuAssetPathsResponse(
-        bootrom_path=system.get("bootrom_path", ""),
-        flashrom_path=system.get("flashrom_path", ""),
-        hdd_path=storage.get("hdd_path", ""),
+        bootrom=files.get("bootrom", ""),
+        flashrom=files.get("flashrom", ""),
+        hdd_image=files.get("hdd_image", ""),
+        eeprom_image=files.get("eeprom_image", ""),
     )
 
 

@@ -22,7 +22,6 @@ from backend.service.utils.emulator_catalog import (
 )
 from backend.service.utils.ini_writer import patch_ini, write_ini
 from backend.service.utils.process.launcher import launch_under_job_object
-from backend.service.utils.media_attach import build_86box_attachment
 from backend.service.utils.emulator_catalog import get_install_path
 
 if TYPE_CHECKING:
@@ -143,27 +142,6 @@ def _prepare_config(
 
     write_ini(config_path, parser)
 
-
-def validate_rom_path(rom_path: Path) -> None:
-    """Validate that the 86Box ROM path exists and is a directory.
-
-    Args:
-        rom_path: Path to the ROM directory.
-
-    Raises:
-        FileNotFoundError: If the path does not exist.
-        ValueError: If the path exists but is not a directory.
-    """
-    if not rom_path.exists():
-        raise FileNotFoundError(
-            f"ROM path not found: {rom_path}. "
-            "Download the 86Box ROM pack from: https://github.com/86Box/roms"
-        )
-    if not rom_path.is_dir():
-        raise ValueError(
-            f"ROM path is not a directory: {rom_path}. "
-            "ROMS_PATH must point to the directory containing 86Box ROM files."
-        )
 
 
 def _resolve_rom_path(box86_binary: Path) -> Path:
@@ -299,10 +277,6 @@ def launch(spec: "LaunchSpec") -> tuple:
             spec.config_path,
             {"Network": {"net_type": "slirp"}},
         )
-
-    if spec.media_path is not None:
-        attachment = build_86box_attachment(spec.media_path, str(spec.config_path))
-        _inject_media(attachment)
 
     vm_dir = spec.vm_dir
 

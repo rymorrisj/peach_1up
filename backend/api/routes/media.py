@@ -49,7 +49,7 @@ async def upload_media(
         base = Path(svc.get_env_var("MEDIA_PATH")).resolve()
 
     slug = slugify(Path(file.filename).stem, fallback="upload")
-    dest_dir = base / era / slug
+    dest_dir = base / era / slug if media_type == "os" else base / slug
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_path = dest_dir / file.filename
 

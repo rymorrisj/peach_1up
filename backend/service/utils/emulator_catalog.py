@@ -36,10 +36,6 @@ def _load_raw_catalog() -> dict:
     return _catalog_cache
 
 
-def reset_catalog_cache() -> None:
-    global _catalog_cache
-    _catalog_cache = None
-
 
 def _get_eras_config() -> Dict[str, Any]:
     global _ERAS_CONFIG_CACHE
@@ -270,12 +266,12 @@ def detect_and_sync_all() -> None:
         if path is not None:
             try:
                 _settings_mod.set_path(settings_key, str(path))
-            except Exception:
-                pass
+            except Exception as exc:
+                _logger.warning("detect_and_sync_all: failed to persist %s for %s: %s", settings_key, slug, exc)
             try:
                 configure_emulator(slug)
-            except Exception:
-                pass
+            except Exception as exc:
+                _logger.warning("detect_and_sync_all: configure_emulator failed for %s: %s", slug, exc)
 
 
 def get_emulator_era(slug: str) -> str:

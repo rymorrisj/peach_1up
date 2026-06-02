@@ -275,13 +275,12 @@ def write_launch_conf(
     spec: "LaunchSpec",
     game_executable: str | None = None,
 ) -> Path:
-    """Write the DOSBox-X launch conf and return its path.
+    """Write the DOSBox-X launch conf to a private temp directory and return its path.
 
-    Reads config/templates/dosbox-x/base.conf, applies two in-place patches
-    (output=surface, working directory option=program), then appends a
-    generated [autoexec] block. Writes the result directly to
-    emulators/dosbox-x/dosbox-x.conf so DOSBox-X auto-loads it from its
-    working directory without a -conf flag.
+    Reads config/templates/dosbox-x/base.conf, strips any existing [autoexec]
+    section, then appends a generated [autoexec] block. The result is written
+    to a temporary directory as dosbox-x.conf and the path is returned; the
+    caller passes it to DOSBox-X via the -conf flag.
 
     When ``spec.drive_image_path`` is set and ``spec.use_drive`` is True, a
     persistent HDD image is mounted as C: (created via IMGMAKE if absent).
@@ -295,12 +294,12 @@ def write_launch_conf(
             item-level launch_commands.
 
     Returns:
-        Path to the written dosbox-x.conf file.
+        Path to the written dosbox-x.conf file inside the temp directory.
 
     Raises:
         FileNotFoundError: If base.conf does not exist.
         ValueError: If the media suffix is not handled or the drive path escapes
-            the drives directory.
+            the library directory.
     """
     media_path = spec.media_path
     executable_path = Path(spec.executable_path)

@@ -67,8 +67,6 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
         pass
 
     # Step 2: derived paths — keyed by descriptive name, resolved relative to base.
-    # GAMES_PATH is intentionally absent: it is a registered settings key resolved
-    # by the settings.get() call in step 1 above.
     base = get_base_path()
     derived: dict[str, Path] = {
         # Emulator install root (binary directory).

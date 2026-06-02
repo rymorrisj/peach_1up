@@ -117,12 +117,3 @@ def delete_drive_for_item(item: "LibraryItem", db: "Session") -> None:
     item.drive_id = None
     db.add(item)
     db.commit()
-
-
-def update_drive_for_item(item: "LibraryItem", db: "Session", **kwargs) -> "Drive":
-    """Update drive properties for a library item.
-
-    Not yet implemented.
-    """
-    # Stub — intentional. Implement before drive-edit UI ships.
-    raise NotImplementedError("Drive editing is not yet implemented")

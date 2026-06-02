@@ -27,7 +27,7 @@ def _apply_cors_headers(response: Response, request: Request) -> None:
         response.headers.setdefault("vary", "Origin")
 
 class SecurityMiddleware(BaseHTTPMiddleware):
-    """Strip Authorization headers from logs and enforce localhost binding."""
+    """Enforce localhost binding and inject request correlation IDs."""
 
     async def dispatch(self, request: Request, call_next) -> Response:
         if request.method == "OPTIONS":
