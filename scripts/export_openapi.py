@@ -18,8 +18,8 @@ def main() -> None:
     try:
         from fastapi import FastAPI
         from backend.api.routes import (
-            auth, emulators, health, launches, library,
-            platforms, profiles, settings, users,
+            auth, bios, drives, emulators, filesystem, health, launches, library,
+            media, platforms, profiles, settings, tags, users,
         )
 
         app = FastAPI(
@@ -33,13 +33,18 @@ def main() -> None:
         )
         app.include_router(auth.router)
         app.include_router(users.router)
+        app.include_router(drives.router)
         app.include_router(health.router)
         app.include_router(settings.router)
         app.include_router(emulators.router)
+        app.include_router(bios.router)
         app.include_router(profiles.router)
         app.include_router(library.router)
         app.include_router(launches.router)
         app.include_router(platforms.router)
+        app.include_router(filesystem.router)
+        app.include_router(media.router)
+        app.include_router(tags.router)
 
         spec = app.openapi()
         OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)

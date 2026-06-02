@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -385,19 +384,6 @@ def _scan_installed_emulators() -> None:
         logger.warning("Startup emulator scan failed: %s", exc)
 
 
-def _export_openapi_spec(app: FastAPI) -> None:
-    if getattr(sys, "frozen", False):
-        return
-    try:
-        import json
-        output = get_base_path() / "shared" / "openapi.json"
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json.dumps(app.openapi(), indent=2), encoding="utf-8")
-        logger.info("OpenAPI spec exported to %s", output)
-    except Exception as exc:
-        logger.warning("OpenAPI spec export failed (non-fatal): %s", exc)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_settings()
@@ -441,8 +427,6 @@ async def lifespan(app: FastAPI):
         _warm_eras()
     except Exception as exc:
         logger.warning("Failed to preload eras.yaml at startup: %s", exc)
-
-    _export_openapi_spec(app)
 
     _tray_stop_fn = None
     try:
