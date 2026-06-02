@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/api/client'
 import TopBar from '@/components/layout/TopBar'
+import { ERA_COLOR, ERA_LABEL } from '@/types/era'
 import type { components } from '@shared/types'
 
 type Platform = components['schemas']['PlatformRead']
@@ -22,21 +23,6 @@ interface HealthSummary {
   rom_packs:  { total: number; installed: number }
 }
 
-const ERA_COLOR: Record<string, string> = {
-  dos:   'var(--era-dos)',
-  win31: 'var(--era-win31)',
-  win95: 'var(--era-win95)',
-  win98: 'var(--era-win98)',
-  winxp: 'var(--era-winxp)',
-}
-
-const ERA_LABEL: Record<string, string> = {
-  dos:   'DOS',
-  win31: 'WIN31',
-  win95: 'WIN95',
-  win98: 'WIN98',
-  winxp: 'WINXP',
-}
 
 function formatBytes(n: number) {
   if (n >= 1_073_741_824) return `${(n / 1_073_741_824).toFixed(1)} GB`
@@ -70,7 +56,7 @@ function StatusDot({ healthy }: { healthy: boolean }) {
 }
 
 function EraChip({ era }: { era: string }) {
-  const color = ERA_COLOR[era] ?? 'var(--fg-3)'
+  const color = ERA_COLOR[era.toUpperCase()] ?? 'var(--fg-3)'
   const label = ERA_LABEL[era] ?? era.toUpperCase()
   return (
     <span

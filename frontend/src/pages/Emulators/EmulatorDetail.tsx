@@ -3,35 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import TopBar from '@/components/layout/TopBar'
+import { EMULATOR_ERA_MAP, ERA_COLOR } from '@/types/era'
 import type { BiosRequirement, EmulatorStatusData } from '@/pages/FirstRun/types'
 import type { components } from '@shared/types'
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
 type LaunchProfile = components['schemas']['ProfileRead']
-
-const ERA_MAP: Record<string, string[]> = {
-  'dosbox-x':   ['DOS', 'WIN31'],
-  '86box':       ['WIN95', 'WIN98', 'WINXP'],
-  'duckstation': ['PS1'],
-  'pcsx2':       ['PS2'],
-  'xemu':        ['XBOX'],
-  'flycast':     ['DC'],
-  'mesen':       ['NES'],
-  'project64':   ['N64'],
-}
-
-const ERA_COLOR: Record<string, string> = {
-  DOS:   'var(--era-dos)',
-  WIN31: 'var(--era-win31)',
-  WIN95: 'var(--era-win95)',
-  WIN98: 'var(--era-win98)',
-  WINXP: 'var(--era-winxp)',
-  PS1:   '#a9a0d6',
-  PS2:   '#6090d0',
-  XBOX:  '#6db36d',
-  DC:    '#d0a060',
-  NES:   '#d06060',
-  N64:   '#60a0d0',
-}
 
 
 const EMULATOR_BIOS_PLATFORM: Record<string, string> = {
@@ -182,7 +158,7 @@ export default function EmulatorDetail() {
   const entry = catalog.find((e) => e.slug === slug)
   const romPackEntry = romPackSlug ? catalog.find((e) => e.slug === romPackSlug) : undefined
   const emulatorBios = allBios.filter((b) => b.platform === emulatorBiosPlatform)
-  const eras = slug ? (ERA_MAP[slug] ?? []) : []
+  const eras = slug ? (EMULATOR_ERA_MAP[slug] ?? []) : []
   const emulatorProfiles = profiles.filter((p) => p.emulator_slug === slug)
   const isReady = entry?.is_installed && entry?.install_path
 

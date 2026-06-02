@@ -13,6 +13,7 @@ import { useConfirm } from '@/hooks/useConfirm'
 import { useLibraryScan } from '@/hooks/useLibraryScan'
 import { useConfirmToken } from '@/hooks/useConfirmToken'
 import { ERA_LABELS } from '@/generated/constants'
+import { ERA_LABEL, ERA_PLACEHOLDER, ERA_PLACEHOLDER_DEFAULT } from '@/types/era'
 import type { components } from '@shared/types'
 type LibraryItem = components['schemas']['LibraryItemRead']
 type LaunchProfile = components['schemas']['ProfileRead']
@@ -33,22 +34,6 @@ interface AddMediaForm {
 const EMPTY_ADD: AddMediaForm = { title: '', media_path: '', profile_id: null }
 
 
-// ── Card design constants ──────────────────────────────────────────────────
-
-const ERA_CHIP_LABEL: Record<string, string> = {
-  dos: 'DOS', win31: 'WIN31', win95: 'WIN95', win98: 'WIN98', winxp: 'WINXP',
-  ps1: 'PS1', ps2: 'PS2', xbox: 'XBOX', nes: 'NES', n64: 'N64',
-  dreamcast: 'DC',
-}
-
-const ERA_PLACEHOLDER: Record<string, { bg: string; color: string }> = {
-  dos:   { bg: 'linear-gradient(155deg, #2b2316 0%, #16110a 100%)', color: '#d6a64a' },
-  win31: { bg: 'linear-gradient(155deg, #16292b 0%, #0a1517 100%)', color: '#4ec3c0' },
-  win95: { bg: 'linear-gradient(155deg, #20281a 0%, #11160c 100%)', color: '#b6d36b' },
-  win98: { bg: 'linear-gradient(155deg, #17202b 0%, #0c1118 100%)', color: '#6ea8d6' },
-  winxp: { bg: 'linear-gradient(155deg, #182617 0%, #0e150d 100%)', color: '#66b27a' },
-}
-const DEFAULT_PLACEHOLDER = { bg: 'linear-gradient(155deg, #1c2230 0%, #11141c 100%)', color: '#6aa9d6' }
 
 const RATING_BADGE: Record<string, string> = {
   EC:        'text-emerald-300 border-emerald-500/40',
@@ -378,8 +363,8 @@ interface ItemCardProps {
 }
 
 function ArtPlaceholder({ item }: { item: LibraryItem }) {
-  const style = ERA_PLACEHOLDER[item.era] ?? DEFAULT_PLACEHOLDER
-  const label = ERA_CHIP_LABEL[item.era] ?? (item.era?.toUpperCase() ?? '—')
+  const style = ERA_PLACEHOLDER[item.era] ?? ERA_PLACEHOLDER_DEFAULT
+  const label = ERA_LABEL[item.era] ?? (item.era?.toUpperCase() ?? '—')
   return (
     <div
       className="absolute inset-0 flex flex-col overflow-hidden p-3.5"
@@ -420,7 +405,7 @@ function TagPills({ item }: { item: LibraryItem }) {
   const pills: Pill[] = []
   if (item.era && item.era !== 'unknown') {
     pills.push({
-      label: ERA_CHIP_LABEL[item.era] ?? item.era.toUpperCase(),
+      label: ERA_LABEL[item.era] ?? item.era.toUpperCase(),
       cls: 'border-[#ff8a5c]/40 bg-[#ff8a5c]/10 text-[#ff8a5c]/80 tracking-[0.08em]',
     })
   }

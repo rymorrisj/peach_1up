@@ -3,43 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { apiFetch, ApiError } from "@/api/client";
 import TopBar from "@/components/layout/TopBar";
+import { EMULATOR_ERA_MAP, ERA_COLOR } from "@/types/era";
 import type { components } from "@shared/types";
-type CatalogEntry = components['schemas']['CatalogEntryResponse']
-
-const ERA_MAP: Record<string, string[]> = {
-  "dosbox-x": ["DOS", "WIN31"],
-  "86box": ["WIN95", "WIN98", "WINXP"],
-  duckstation: ["PS1"],
-  pcsx2: ["PS2"],
-  xemu: ["XBOX"],
-  flycast: ["DC"],
-  mesen: ["NES"],
-  project64: ["N64"],
-};
-
-const ERA_COLOR: Record<string, string> = {
-  DOS: "var(--era-dos)",
-  WIN31: "var(--era-win31)",
-  WIN95: "var(--era-win95)",
-  WIN98: "var(--era-win98)",
-  WINXP: "var(--era-winxp)",
-  PS1: "#a9a0d6",
-  PS2: "#6090d0",
-  XBOX: "#6db36d",
-  DC: "#d0a060",
-  NES: "#d06060",
-  N64: "#60a0d0",
-};
-
-const SLUG_TO_SETTINGS_KEY: Record<string, string> = {
-  "dosbox-x": "DOSBOX_PATH",
-  "86box": "BOX86_PATH",
-  duckstation: "DUCKSTATION_PATH",
-  pcsx2: "PCSX2_PATH",
-  xemu: "XEMU_PATH",
-  mesen: "MESEN_PATH",
-  project64: "PROJECT64_PATH",
-};
+type CatalogEntry = components["schemas"]["CatalogEntryResponse"];
 
 function initials(name: string) {
   return name.slice(0, 2).toUpperCase();
@@ -68,9 +34,9 @@ function EmulatorCard({
   onDelete: () => void;
   saving: boolean;
 }) {
-  const eras = ERA_MAP[entry.slug] ?? [];
+  const eras = EMULATOR_ERA_MAP[entry.slug] ?? [];
   const isReady = entry.is_installed && entry.install_path;
-  const canEdit = !!SLUG_TO_SETTINGS_KEY[entry.slug];
+  const canEdit = false;
 
   return (
     <div
@@ -355,15 +321,9 @@ export default function Emulators() {
     setEditPath(entry.install_path ?? "");
   }
 
-  async function handleSavePath(slug: string) {
-    const key = SLUG_TO_SETTINGS_KEY[slug];
-    if (!key) return;
+  async function handleSavePath(_slug: string) {
     setSaving(true);
     try {
-      await apiFetch("/api/v1/settings", {
-        method: "PATCH",
-        body: JSON.stringify({ updates: { [key]: editPath } }),
-      });
       await queryClient.invalidateQueries({ queryKey: ["emulators-catalog"] });
       setEditingSlug(null);
     } catch (err) {

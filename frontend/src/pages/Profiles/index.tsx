@@ -5,16 +5,10 @@ import { apiFetch } from '@/api/client'
 import TopBar from '@/components/layout/TopBar'
 import { Modal, FormField, Input, Textarea } from '@/ui'
 import { ERA_LABELS } from '@/generated/constants'
+import { ERA_COLOR } from '@/types/era'
 import type { components } from '@shared/types'
 type LaunchProfile = components['schemas']['ProfileRead']
 
-const ERA_COLOR: Record<string, string> = {
-  DOS:   'var(--era-dos)',
-  WIN31: 'var(--era-win31)',
-  WIN95: 'var(--era-win95)',
-  WIN98: 'var(--era-win98)',
-  WINXP: 'var(--era-winxp)',
-}
 
 const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
 

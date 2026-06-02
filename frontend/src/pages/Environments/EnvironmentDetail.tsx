@@ -4,16 +4,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import TopBar from '@/components/layout/TopBar'
 import { ERA_LABELS } from '@/generated/constants'
+import { ERA_COLOR } from '@/types/era'
 import type { components } from '@shared/types'
 
 type Platform = components['schemas']['PlatformRead']
 type Snapshot = components['schemas']['SnapshotRead']
-
-const ERA_COLOR: Record<string, string> = {
-  DOS: 'var(--era-dos)', WIN31: 'var(--era-win31)', WIN95: 'var(--era-win95)',
-  WIN98: 'var(--era-win98)', WINXP: 'var(--era-winxp)', PS1: '#a9a0d6',
-  PS2: '#6090d0', XBOX: '#6db36d', DC: '#d0a060', NES: '#d06060', N64: '#60a0d0',
-}
 
 type Tab = 'overview' | 'snapshots' | 'notes'
 
