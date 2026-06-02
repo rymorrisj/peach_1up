@@ -79,8 +79,8 @@ Permission flags on sub-accounts:
   field, settings value — **must be resolved and normalised** before any filesystem
   operation is performed. Paths used for library scans, media scanning, and profile
   operations **must be validated against an allowlist** of permitted base directories:
-  the configured `LIBRARY_PATH` (and its derived sub-paths `GAMES_PATH`, `OS_PATH`,
-  `ROM_PATH`, `BIOS_PATH`, `TOOLS_PATH`), `PROFILES_PATH`, and the application config
+  the configured `LIBRARY_PATH` (and its derived sub-paths `MEDIA_PATH`, `OS_PATH`,
+  `ROMS_PATH`), `PROFILES_PATH`, and the application config
   directory. **Exception:** platform image paths (`base_image_path`,
   `working_image_path`) may reside anywhere on the host filesystem — see Known Gaps.
 - Path traversal attempts (resolved path escapes its permitted base) **must be rejected
@@ -117,8 +117,10 @@ Permission flags on sub-accounts:
   spawning.
 - All spawned processes are tracked and recorded in `LaunchHistory` (emulator, profile,
   media path, start time, exit code).
-- On Linux, process isolation uses cgroups and network namespaces. On Windows, Job
-  Objects are used where available (see [Known Limitations](#known-limitations)).
+- On Windows, every spawned process is assigned to a Job Object. If Job Object creation
+  or assignment fails, the launch is aborted — there is no unsandboxed fallback.
+- On Linux, process isolation is a design target (planned for P8). No hardened sandbox
+  equivalent to Windows Job Objects exists on Linux today — see Known Limitations.
 
 ---
 
@@ -142,8 +144,7 @@ Network blocking is enforced at the emulator level, not via host OS firewall rul
 Each emulator is launched with its network adapter disabled or absent when
 enable_networking is false on the active profile (the default). DOSBox-X launches
 with the NE2000 adapter disabled via config. 86Box sets net_type = none to disable
-connectivity without removing the emulated NIC. VirtualBox sets --nic1 null via VBoxManage at launch
-time. Console emulators (DuckStation, PCSX2, xemu, Mesen, Project64) have no
+connectivity without removing the emulated NIC. Console emulators (DuckStation, PCSX2, xemu, Mesen, Project64) have no
 meaningful network capability and require no explicit blocking.
 
 This approach requires no host elevation, cannot be accidentally bypassed by a
@@ -247,17 +248,23 @@ conversation and wait for an explicit decision before proceeding.
 **Mandatory.**
 
 - All emulator processes on Windows are launched under the current user account via
-  `CreateProcessW` inside a regular AppContainer (P9+). Account-level isolation via
-  separate user account is not used.
-- Every emulator launch follows this sequence: build `SECURITY_CAPABILITIES` with the
-  container SID → `CreateProcessW` with `CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT`
-  → nested-job breakaway retry if needed → `AssignProcessToJobObject` → apply Job limits
-  → `ResumeThread`.
+  `CreateProcessW`. Account-level isolation via a separate user account is not used.
 - Every emulator launch is assigned to a fresh Job Object with kill-on-close,
   a per-era CPU rate floor and cap (`MIN_MAX_RATE`), and a per-era per-process memory
-  cap (Qt emulators exempt via `skip_memory_limit` — see Known Limitations).
-- If AppContainer provisioning, SID derivation, `CreateProcessW`, or `AssignProcessToJobObject`
-  fails for any reason, **the launch is aborted**. There is no unsandboxed fallback.
+  cap (Qt emulators exempt via `skip_memory_limit` — see Known Limitations). CPU rate
+  control may be skipped per emulator via `skip_cpu_limit = true` in the descriptor
+  (DOSBox-X uses this).
+- The Python launcher sequence is: create Job Object → apply limits → launch process
+  (`CREATE_NEW_PROCESS_GROUP`) → `AssignProcessToJobObject` → breakaway retry if error 5.
+- If `CreateProcessW` or `AssignProcessToJobObject` fails for any reason, **the launch
+  is aborted**. There is no unsandboxed fallback.
+- AppContainer (P9) is an additional isolation layer applied on top of Job Objects when
+  `container_enabled = true` in the emulator descriptor. Currently only DOSBox-X has
+  `container_enabled = true`. All other emulators run under Job Object isolation only.
+- For AppContainer-enabled emulators, process creation is delegated to `sandbox_host.exe`,
+  which handles `SECURITY_CAPABILITIES`, `CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT`,
+  and `ResumeThread`. The Python launcher wraps the resulting PID in a Job Object via the
+  same breakaway-retry path.
 - Emulators that have not yet passed the AppContainer test matrix ship with Job Object
   only and a visible warning in the Emulators page. The no-fallback abort policy still applies.
 
@@ -303,8 +310,9 @@ the host audio session while an emulator is running, muting system
 audio. This is a side effect of the interim Job Objects isolation
 model. AppContainer isolation (P9) removes this limitation. As a
 workaround, CPU rate control can be disabled per emulator via
-skip_cpu_limit = true in the emulator descriptor (not yet
-implemented — tracked for P9 pre-work).
+skip_cpu_limit = true in the emulator descriptor. DOSBox-X sets
+this flag in its descriptor; the launcher honours it via
+get_skip_cpu_limit() in emulator_catalog.py.
 
 ### AppContainer not yet validated for all emulators
 
@@ -322,10 +330,12 @@ user + Job Object model.
 
 ### Drive image path is user-controlled per profile
 
-Drive .img files are created at library/system/drives/{slug}.img. The slug
-is validated against [a-z0-9-]+ at creation time and at use time via
-is_relative_to() in write_launch_conf. IMGMAKE receives the absolute path
-derived from the slug — no user string reaches the IMGMAKE command directly.
+Drive .img files are created at `{item.folder_path}/{item.slug}.img` — alongside the
+library item's media folder under `library/media/`. The slug is validated
+at creation time. At launch time, `write_launch_conf` confirms the resolved
+drive path is within the `library/` tree via `is_relative_to()`.
+IMGMAKE receives the absolute path derived from the slug — no user string
+reaches the IMGMAKE command directly.
 
 ---
 

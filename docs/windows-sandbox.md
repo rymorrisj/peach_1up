@@ -20,8 +20,10 @@ runs. The Job Object enforces:
 If the Job Object cannot be created or the emulator cannot be assigned to it, **the
 launch is aborted**. There is no fallback to an uncontained launch.
 
-Emulators run under the current user account. Account-level isolation (AppContainer
-or a dedicated low-privilege account) is deferred to a later phase.
+Emulators run under the current user account. AppContainer isolation (P9) is an
+additional layer applied on top of Job Objects when `container_enabled = true` in
+the emulator descriptor. Currently only DOSBox-X has AppContainer enabled. A dedicated
+low-privilege user account is not used.
 
 **What the Job Object does not do:**
 
@@ -55,16 +57,17 @@ dos:
 
 | Era         | Memory cap | CPU cap |
 | ----------- | ---------- | ------- |
-| DOS         | 256 MB     | 50%     |
-| Windows 3.1 | 256 MB     | 50%     |
-| Windows 95  | 512 MB     | 75%     |
-| Windows 98  | 512 MB     | 75%     |
-| Windows XP  | 1024 MB    | 80%     |
-| PS1         | 256 MB     | 60%     |
-| PS2         | 512 MB     | 80%     |
-| Xbox OG     | 1024 MB    | 75%     |
-| NES         | 128 MB     | 30%     |
-| N64         | 256 MB     | 60%     |
+| DOS         | 512 MB     | 50%     |
+| Windows 3.1 | 512 MB     | 50%     |
+| Windows 95  | 2048 MB    | 75%     |
+| Windows 98  | 2048 MB    | 75%     |
+| Windows XP  | 3072 MB    | 80%     |
+| PS1         | 1024 MB    | 60%     |
+| PS2         | 4096 MB    | 80%     |
+| Xbox OG     | 3072 MB    | 75%     |
+| Dreamcast   | 1024 MB    | 60%     |
+| NES         | 512 MB     | 30%     |
+| N64         | 1024 MB    | 60%     |
 
 ### How to adjust caps
 

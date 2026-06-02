@@ -14,8 +14,8 @@ Preservation automation tool. Point at a disk image, select an era, and the
 correct emulator launches with media mounted and sensible defaults applied —
 no manual emulator configuration required. Covers PC platforms from DOS
 through Windows XP and first-generation consoles (PS1, PS2, Xbox OG, NES,
-N64). Process isolation uses cgroups and namespaces on Linux, and Windows Job
-Objects on Windows.
+N64, Dreamcast). Process isolation uses Windows Job Objects (Alpha). Linux
+sandbox via cgroups/namespaces is planned for Beta (P8).
 
 ## Stack
 
@@ -49,8 +49,8 @@ Objects on Windows.
 
 **Process Isolation**
 
-- cgroups and network namespaces (Linux)
-- Windows Job Objects (Windows host fallback)
+- Windows Job Objects (current — Alpha)
+- cgroups and network namespaces (Linux — planned for Beta, P8)
 
 ## Era → Backend Mapping
 
@@ -100,7 +100,6 @@ peach_1up/
 │ │ ├── hooks/
 │ │ ├── pages/
 │ │ ├── styles/
-│ │ ├── types/
 │ │ └── ui/
 │ └── package.json
 ├── config/
@@ -190,14 +189,23 @@ Awaiting your decision.
   with the official ROM pack link, do not attempt to launch with missing ROMs.
 - game profile .yaml files are user-editable — validate them on load and fail
   clearly if required fields are missing or malformed.
-- Emulators run natively on the host OS. On Linux, isolation is via cgroups
-  and network namespaces. On Windows, isolation is via Job Objects.
+- Emulators run natively on the host OS. On Windows, isolation is via Job
+  Objects (current). Linux isolation via cgroups/namespaces is planned for
+  Beta (P8) — no hardened Linux sandbox exists today.
 - Read-only mount must be explicitly enforced for every media file passed to
   an emulator. Never pass a writable path.
 - DOS profiles remain standalone with per-game HDD images. Win95/98/XP use the
   DB-backed Platform model with a locked base image and a working copy — two image copies
   per platform will be stored on disk.
   game data files, not an ISO or image.
+- `export_openapi.py` must include every router that `main.py` mounts. A router
+  added to `main.py` but missing from `export_openapi.py` silently produces a stale
+  OpenAPI spec and broken TypeScript types. This has been a recurring bug — always
+  check both files when adding or removing routers.
+- Emulator binary path keys (`DOSBOX_PATH`, `BOX86_PATH`, etc.) are intentionally
+  absent from `_PATH_KEYS` in `settings.py`. These keys resolve to bundled-directory
+  paths via `get_install_path()`, not stored path strings. Do not re-add them to
+  `_PATH_KEYS` or `_DEFAULTS`.
 
 ## Official Download Links
 

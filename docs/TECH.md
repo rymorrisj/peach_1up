@@ -49,7 +49,7 @@ throughout. Radix UI primitives (dialog, slot) with hand-rolled component librar
 ## Emulators (PC)
 
 - **DOSBox-X** — DOS, Windows 3.1. No ROM required.
-- **86Box** — Windows 95, 98 accuracy mode. User supplies ROM pack.
+- **86Box** — Windows 95, 98, XP accuracy mode. User supplies ROM pack.
 
 ### Limitations
 
@@ -66,11 +66,13 @@ DOSBox-X: DOS game sound requires HDD image install flow — games that write th
 
 ## Process Isolation
 
-**cgroups and network namespaces on Linux. Windows Job Objects as host fallback on Windows.**
+**Windows Job Objects (current). cgroups and network namespaces on Linux (planned, P8).**
 
-Network blocking enforced at the process level on every emulator launch.
-Linux-first architecture makes cgroups the correct primitive. Job Objects
-retained as the Windows host fallback for direct emulator launches.
+Network blocking enforced at the emulator level on every launch — each emulator is
+started with its network adapter disabled when `enable_networking` is false on the
+active profile. Job Objects provide kill-on-close, CPU cap, and memory cap on Windows.
+Linux cgroup/namespace isolation is the design target for P8; no hardened Linux sandbox
+exists today.
 
 ## Documentation
 
