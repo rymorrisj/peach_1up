@@ -139,6 +139,8 @@ def _run_scan(directory: str) -> None:
                     Path(entry.folder_path),
                     str(entry.executable_path) if entry.executable_path else None,
                 )
+                if _detect_path.is_file():
+                    item.media_path = str(_detect_path)
                 _era_slug, _era_reason = _detect_era(_detect_path)
                 if _era_slug is not None:
                     item.era = _era_slug

@@ -91,20 +91,26 @@ def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryIt
         if cover:
             item.cover_art_path = str(cover)
     elif games_root_str:
-        item_folder = Path(games_root_str) / item.slug
+        src = Path(body.media_path).resolve() if body.media_path else None
+        folder_name = src.stem if (src and src.is_file()) else item.slug
+        item_folder = Path(games_root_str) / folder_name
         try:
             item_folder.mkdir(parents=True, exist_ok=True)
             item.folder_path = str(item_folder)
-            if body.media_path:
-                src = Path(body.media_path)
-                if src.is_file():
-                    dest = item_folder / src.name
-                    if not dest.exists():
-                        shutil.copy2(str(src), str(dest))
-                    item.media_path = str(dest)
+            if src and src.is_file():
+                dest = item_folder / src.name
+                if dest.exists():
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"A file named '{src.name}' already exists in '{item_folder}'.",
+                    )
+                shutil.copy2(str(src), str(dest))
+                item.media_path = str(dest)
             cover = _find_cover(item_folder)
             if cover:
                 item.cover_art_path = str(cover)
+        except HTTPException:
+            raise
         except OSError as exc:
             get_logger(__name__).warning("Could not create item folder %s: %s", item_folder, exc)
 
@@ -186,8 +192,14 @@ def update_library_item(item_id: int, body: LibraryItemUpdate, db: Session) -> L
             resolved = normalise_path(fields[key])
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"{key}: {e}")
-        if key in _EXISTENCE_FIELDS and not resolved.exists():
-            raise HTTPException(status_code=400, detail=f"{key} does not exist: {resolved}")
+        if key in _EXISTENCE_FIELDS:
+            if not resolved.exists():
+                raise HTTPException(status_code=400, detail=f"{key} does not exist: {resolved}")
+            if key == "media_path" and resolved.is_dir():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"media_path must be a file, not a directory: {resolved}",
+                )
         fields[key] = str(resolved)
     for key, value in fields.items():
         setattr(item, key, value)

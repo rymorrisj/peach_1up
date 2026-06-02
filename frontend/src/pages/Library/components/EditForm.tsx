@@ -42,6 +42,8 @@ export function EditForm({
   profiles,
   platforms,
 }: EditFormProps) {
+  const ROM_ERAS = new Set(['nes', 'n64', 'ps1', 'ps2', 'xbox', 'dreamcast'])
+  const isRomEra = ROM_ERAS.has(item.era)
   const eraLabel = ERA_LABELS[item.era] ?? (item.era === 'unknown' ? 'Unknown' : item.era)
   const effectiveProfileId = form.profile_id ? parseInt(form.profile_id, 10) : null
   const eraProfiles = profiles.filter((p) => p.era === item.era)
@@ -148,37 +150,56 @@ export function EditForm({
       </FormField>
 
       <FormField label="Launch File" htmlFor="detail-executable">
-        <div className="flex items-center gap-2">
-          <span
-            className="min-w-0 flex-1 truncate rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-surface-800"
-            title={form.executable_path || undefined}
-          >
-            {form.executable_path
-              ? <span className="font-mono text-neutral-700 dark:text-neutral-300">{form.executable_path.split(/[\\/]/).pop()}</span>
-              : <span className="italic text-neutral-400 dark:text-neutral-500">No launch file detected — browse to set one.</span>
-            }
-          </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="shrink-0"
-            onClick={() => setExecBrowserOpen(true)}
-          >
-            Browse…
-          </Button>
-        </div>
-        <FileBrowser
-          open={execBrowserOpen}
-          onClose={() => setExecBrowserOpen(false)}
-          onSelect={(path) => { setField('executable_path', path); setExecBrowserOpen(false) }}
-          mode="file"
-          extensions="cue,iso,chd,xiso,exe"
-          title="Select Launch File"
-          rootPath={item.folder_path ?? null}
-        />
-        <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-          The file Peach 1UP will launch. Auto-detected from your media folder — override if incorrect.
-        </p>
+        {isRomEra ? (
+          <>
+            <span
+              className="block min-w-0 w-full truncate rounded-md border border-neutral-200 bg-neutral-100 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-surface-900"
+              title={item.media_path ?? undefined}
+            >
+              {form.executable_path || item.media_path
+                ? <span className="font-mono text-neutral-500 dark:text-neutral-400">{(form.executable_path || item.media_path || '').split(/[\\/]/).pop()}</span>
+                : <span className="italic text-neutral-400 dark:text-neutral-500">No file resolved.</span>
+              }
+            </span>
+            <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+              ROM-based media — the launch file is resolved automatically from your media folder.
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <span
+                className="min-w-0 flex-1 truncate rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-surface-800"
+                title={form.executable_path || undefined}
+              >
+                {form.executable_path
+                  ? <span className="font-mono text-neutral-700 dark:text-neutral-300">{form.executable_path.split(/[\\/]/).pop()}</span>
+                  : <span className="italic text-neutral-400 dark:text-neutral-500">No launch file detected — browse to set one.</span>
+                }
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setExecBrowserOpen(true)}
+              >
+                Browse…
+              </Button>
+            </div>
+            <FileBrowser
+              open={execBrowserOpen}
+              onClose={() => setExecBrowserOpen(false)}
+              onSelect={(path) => { setField('executable_path', path); setExecBrowserOpen(false) }}
+              mode="file"
+              extensions="cue,iso,chd,xiso,exe"
+              title="Select Launch File"
+              rootPath={item.folder_path ?? null}
+            />
+            <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+              The file Peach 1UP will launch. Auto-detected from your media folder — override if incorrect.
+            </p>
+          </>
+        )}
       </FormField>
 
       <div className="grid grid-cols-2 gap-4">
