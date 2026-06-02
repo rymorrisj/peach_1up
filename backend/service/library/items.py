@@ -9,10 +9,12 @@ from sqlalchemy.orm import Session
 from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemUpdate
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.drive_utils import create_drive_for_item
+from backend.service.utils.era_media import resolve_media_file_from_directory
 from backend.service.utils.path_utils import normalise_path
 from backend.service.utils.slug_generator import generate_item_slug
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
+_DRIVE_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
 
 
 def best_detect_path(folder: Path, executable_path: str | None) -> Path:
@@ -127,6 +129,13 @@ def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryIt
     if hasattr(item, "detection_reason"):
         item.detection_reason = _era_reason if _era_slug is not None else None
 
+    if item.era and item.era != "unknown" and item.media_path and Path(item.media_path).is_dir():
+        try:
+            resolved_media = resolve_media_file_from_directory(Path(item.media_path), item.era)
+            item.media_path = str(resolved_media)
+        except ValueError as exc:
+            get_logger(__name__).warning("Could not resolve media file for '%s': %s", item.title, exc)
+
     if _era_slug is not None:
         _emulator_slug, _profile_era = defaults_for_era(_era_slug)
         if _emulator_slug and _profile_era:
@@ -142,7 +151,8 @@ def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryIt
     db.add(item)
     db.flush()
 
-    create_drive_for_item(item, db)
+    if item.era in _DRIVE_ERAS:
+        create_drive_for_item(item, db)
 
     db.commit()
     db.refresh(item)

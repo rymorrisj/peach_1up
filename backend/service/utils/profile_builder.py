@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from backend.service.utils.era_media import all_supported_extensions
+
 
 _COVER_STEMS: frozenset[str] = frozenset({"cover"})
 _COVER_EXTENSIONS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".webp"})
@@ -66,13 +68,21 @@ def scan_media_folders(base: Path) -> list[FolderScanEntry]:
         Empty if ``base`` is unreadable or has no qualifying subdirectories.
     """
     entries: list[FolderScanEntry] = []
+    supported_exts = all_supported_extensions()
+
     try:
-        subdirs = sorted(
-            (p for p in base.iterdir() if p.is_dir() and not p.name.startswith(".")),
-            key=lambda p: p.name.lower(),
-        )
+        children = list(base.iterdir())
     except (OSError, PermissionError):
         return []
+
+    subdirs = sorted(
+        (p for p in children if p.is_dir() and not p.name.startswith(".")),
+        key=lambda p: p.name.lower(),
+    )
+    loose_files = sorted(
+        (p for p in children if p.is_file() and not p.name.startswith(".")),
+        key=lambda p: p.name.lower(),
+    )
 
     for folder in subdirs:
         folder_name = folder.name
@@ -103,5 +113,23 @@ def scan_media_folders(base: Path) -> list[FolderScanEntry]:
             executable_path=executable,
             cover_path=cover,
         ))
+
+    for f in loose_files:
+        ext = f.suffix.lower()
+        if ext == ".zip":
+            # zip extraction deferred
+            entries.append(FolderScanEntry(
+                folder_path=f.parent,
+                name=f.stem.replace("-", " ").title(),
+                executable_path=f,
+                cover_path=None,
+            ))
+        elif ext in supported_exts:
+            entries.append(FolderScanEntry(
+                folder_path=f.parent,
+                name=f.stem.replace("-", " ").title(),
+                executable_path=f,
+                cover_path=None,
+            ))
 
     return entries

@@ -9,7 +9,7 @@ interface PathInputProps {
   onChange: (value: string) => void
   placeholder?: string
   hasError?: boolean
-  mode: 'folder' | 'file'
+  mode: 'folder' | 'file' | 'both'
   accept?: string
   className?: string
   rootPath?: string | null
@@ -29,7 +29,7 @@ export default function PathInput({
   const [browserOpen, setBrowserOpen] = useState(false)
 
   const extensions =
-    mode === 'file' && accept
+    (mode === 'file' || mode === 'both') && accept
       ? accept
           .split(',')
           .map((e) => e.trim().replace(/^\./, ''))

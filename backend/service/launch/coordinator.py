@@ -11,57 +11,22 @@ from fastapi import HTTPException
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
-import yaml
-
 from backend.core import process_registry
 from backend.core.logger import get_logger
 from backend.core.process_registry import ProcessEntry
-from backend.core.settings import get_base_path
 from backend.models import LaunchHistory, LibraryItem, Platform, Profile
 from backend.service.launch.drive_hydration import hydrate_drive_for_item
 from backend.service.launch.history import write_session_ends
 from backend.service.launch.launch_spec import LaunchSpec
 from backend.service.launch.monitor import register_short_lived_check
+from backend.service.utils.era_media import resolve_media_file_from_directory
 
 if TYPE_CHECKING:
     from backend.models.drive import Drive
 
 logger = get_logger(__name__)
 
-_ERAS_PATH = get_base_path() / "config" / "eras.yaml"
-
-
-def _supported_extensions_for_era(era: str) -> list[str]:
-    try:
-        eras = yaml.safe_load(_ERAS_PATH.read_text(encoding="utf-8")) or {}
-        return [ext.lower() for ext in eras.get(era, {}).get("supported_media", [])]
-    except Exception:
-        return []
-
-
-def _resolve_media_file_from_directory(directory: Path, era: str | None) -> Path:
-    if not era:
-        raise ValueError(
-            f"Cannot resolve a launch file from directory '{directory}': "
-            "the item has no era set. Please set the era on the item."
-        )
-    extensions = _supported_extensions_for_era(era)
-    if not extensions:
-        raise ValueError(
-            f"Cannot resolve a launch file from directory '{directory}': "
-            f"no supported_media extensions found for era '{era}' in eras.yaml."
-        )
-    candidates: list[Path] = []
-    for f in directory.iterdir():
-        if f.is_file() and f.suffix.lower() in extensions:
-            candidates.append(f)
-    if not candidates:
-        raise ValueError(
-            f"No supported media file found in '{directory}'. "
-            f"Expected extensions for era '{era}': {', '.join(extensions)}."
-        )
-    candidates.sort(key=lambda f: (extensions.index(f.suffix.lower()), f.name))
-    return candidates[0]
+_resolve_media_file_from_directory = resolve_media_file_from_directory
 
 
 @dataclass

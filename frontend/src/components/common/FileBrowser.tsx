@@ -34,7 +34,7 @@ interface FileBrowserProps {
   onSelect: (path: string) => void
   extensions?: string
   title?: string
-  mode?: 'file' | 'folder'
+  mode?: 'file' | 'folder' | 'both'
   rootPath?: string | null
 }
 
@@ -90,7 +90,7 @@ export default function FileBrowser({
     staleTime: 60_000,
   })
 
-  const showFiles = mode === 'file'
+  const showFiles = mode === 'file' || mode === 'both'
 
   const { data: browseData, isLoading, error } = useQuery<BrowseResult>({
     queryKey: ['filesystem', 'browse', currentPath, extensions, showFiles],
@@ -146,7 +146,7 @@ export default function FileBrowser({
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-neutral-500 dark:text-neutral-400">
             {currentPath}
           </span>
-          {mode === 'folder' && (
+          {(mode === 'folder' || mode === 'both') && (
             <Button size="sm" onClick={handleSelectFolder} className="shrink-0">
               Select this folder
             </Button>
