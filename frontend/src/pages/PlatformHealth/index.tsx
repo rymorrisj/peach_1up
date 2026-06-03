@@ -318,8 +318,7 @@ export default function PlatformHealth() {
                 </div>
 
                 {/* Category rows */}
-                {storageFootprint.categories.map((cat, i) => {
-                  const isLast = i === storageFootprint.categories.length - 1
+                {storageFootprint.categories.map((cat) => {
                   const hasBreakdown = cat.breakdown.length > 0
                   const expanded = expandedCats.has(cat.key)
                   const color = CAT_COLORS[cat.key] ?? 'var(--fg-3)'

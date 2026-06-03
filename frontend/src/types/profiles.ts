@@ -1,7 +1,7 @@
 import type { components } from '@shared/types'
 
 export type LaunchProfile = components['schemas']['ProfileRead']
-export type DriveRecord = components['schemas']['DriveRead']
+export type DriveRecord = components['schemas']['DriveRead'] & { slug: string; era: string }
 export type EmulatorEntry = components['schemas']['CatalogEntryResponse']
 
 export type DriveMode = 'none' | 'existing' | 'create'

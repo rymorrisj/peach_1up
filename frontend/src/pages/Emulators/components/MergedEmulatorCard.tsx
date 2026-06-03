@@ -5,10 +5,8 @@ type CatalogEntry = components['schemas']['CatalogEntryResponse']
 
 export function MergedEmulatorCard({
   entry,
-  onCatalogRefresh,
 }: {
   entry: CatalogEntry
-  onCatalogRefresh: () => void
 }) {
   const { state } = useAppContext()
   const hasActiveLaunch = Array.from(state.activeLaunches.values()).some(

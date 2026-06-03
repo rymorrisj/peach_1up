@@ -2,7 +2,7 @@ import React from 'react'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useLaunch } from '@/hooks/useLaunch'
-import { apiFetch, ApiError } from '@/api/client'
+import { apiFetch } from '@/api/client'
 
 vi.mock('@/api/client', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@/api/client')>()

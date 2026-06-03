@@ -1,4 +1,4 @@
-import { apiFetch, ApiError } from '@/api/client'
+import { apiFetch } from '@/api/client'
 
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)

@@ -23,7 +23,7 @@ const EMULATOR_ROM_PACK_SLUG: Record<string, string> = {
 
 type Tab = 'overview' | 'rom' | 'ext' | 'profiles' | 'limits'
 
-function TabBtn({ id, label, count, active, onClick }: {
+function TabBtn({ id: _id, label, count, active, onClick }: {
   id: Tab; label: string; count?: number; active: boolean; onClick: () => void
 }) {
   return (
@@ -65,13 +65,13 @@ function KVTable({ rows }: { rows: Array<{ label: string; value: string }> }) {
   )
 }
 
-function StatusDot({ ok }: { ok: boolean }) {
+function StatusDot({ ok }: { ok: boolean | null | undefined }) {
   return (
     <span style={{ color: ok ? '#4ade80' : '#fbbf24' }}>{ok ? '✓' : '✗'}</span>
   )
 }
 
-function GuidanceNote({ text, url }: { text?: string; url?: string }) {
+function GuidanceNote({ text, url }: { text?: string | null; url?: string | null }) {
   if (!text) return null
   return (
     <div style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)', lineHeight: 1.5 }}>
@@ -573,17 +573,18 @@ export default function EmulatorDetail() {
         {tab === 'limits' && entry && (
           <div className="flex flex-col gap-3">
             {(entry.known_limitations ?? []).map((lim, i) => {
+              const { title: limTitle, severity: limSeverity, description: limDescription } = lim as { title: string; severity: string; description: string }
               const severityStyle: React.CSSProperties =
-                lim.severity === 'warning'
+                limSeverity === 'warning'
                   ? { background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.35)', color: '#fbbf24' }
-                  : lim.severity === 'critical'
+                  : limSeverity === 'critical'
                   ? { background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.35)', color: '#ef4444' }
                   : { background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--fg-3)' }
               return (
                 <div key={i} className="rounded-xl p-[18px]" style={{ background: severityStyle.background, border: severityStyle.border }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                     <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--fg-1)' }}>
-                      {lim.title}
+                      {limTitle}
                     </span>
                     <span style={{
                       fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
@@ -592,11 +593,11 @@ export default function EmulatorDetail() {
                       border: `1px solid ${severityStyle.color}`,
                       color: severityStyle.color,
                     }}>
-                      {lim.severity}
+                      {limSeverity}
                     </span>
                   </div>
                   <p style={{ fontFamily: 'var(--font-display)', fontSize: 13, lineHeight: 1.55, color: 'var(--fg-2)', margin: 0 }}>
-                    {lim.description}
+                    {limDescription}
                   </p>
                 </div>
               )
