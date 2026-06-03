@@ -249,25 +249,11 @@ def configure_emulator(slug: str) -> None:
 
 
 def detect_and_sync_all() -> None:
-    from backend.service.utils import settings as _settings_mod
     for entry in load_catalog():
         slug = entry["slug"]
         if entry.get("install_type") == "rom_pack":
             continue
-        settings_key = get_settings_key(slug)
-        # Never overwrite an existing user override.
-        try:
-            existing = _settings_mod.get(settings_key, "")
-        except Exception:
-            existing = ""
-        if existing:
-            continue
-        path = get_install_path(slug)
-        if path is not None:
-            try:
-                _settings_mod.set_path(settings_key, str(path))
-            except Exception as exc:
-                _logger.warning("detect_and_sync_all: failed to persist %s for %s: %s", settings_key, slug, exc)
+        if get_install_path(slug) is not None:
             try:
                 configure_emulator(slug)
             except Exception as exc:

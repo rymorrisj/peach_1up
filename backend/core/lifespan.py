@@ -235,6 +235,7 @@ def _apply_schema_migrations() -> None:
         ("profiles", "drive_slug", "TEXT"),
         ("profiles", "use_drive", "INTEGER NOT NULL DEFAULT 1"),
         ("profiles", "container_enabled", "INTEGER"),
+        ("profiles", "enable_dgvoodoo2", "INTEGER NOT NULL DEFAULT 0"),
         ("library_items", "requires_install", "INTEGER NOT NULL DEFAULT 0"),
         ("library_items", "detection_reason", "TEXT"),
     ]
@@ -364,7 +365,7 @@ def _sync_detected_emulator_paths() -> None:
     try:
         from backend.service.utils.emulator_catalog import detect_and_sync_all
         detect_and_sync_all()
-        logger.info("Startup: detected emulator paths synced to settings")
+        logger.info("Startup: emulator configure pass complete")
     except Exception as exc:
         logger.warning("Startup emulator path sync failed: %s", exc)
 

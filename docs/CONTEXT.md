@@ -388,7 +388,7 @@ Close remaining gaps in supported eras and verify all console backends
 launch cleanly end-to-end. Nothing in P4 or 86Box is confirmed working.
 Backend existence is not the same as confirmed launch.
 
-### PAUSED for PX-2 Unblock
+### DONE
 
 - [PX-1-1] Fix 86Box PnP hardware detection loop
   \_prepare_config rewrites machine/cpu/gfxcard/sndcard on every launch.
@@ -420,7 +420,7 @@ Backend existence is not the same as confirmed launch.
 
 Address issues in architecture found in a recent audit pass. Needed for consoles
 
-### CURRENT
+### DONE
 
 - [PX-2-1] Load config/emulators/\*.toml at runtime directly eliminate merge_emulators.py build step
 - [PX-2-2] Uniform backend launch interface one kwargs contract, data-driven dispatch, remove frozenset branching
@@ -442,7 +442,7 @@ based on namespaces and cgroups (either via nsjail or a native implementation).
 Emulators remain host-native but run in a restricted view of the filesystem and with
 per-launch CPU/memory caps.
 
-### NEXT
+### PAUSED
 
 - [PX-3-1] Select Linux isolation backend (nsjail vs native namespaces+cgroups)
 - [PX-3-2] Define per-launch sandbox filesystem layout and allowed mounts
