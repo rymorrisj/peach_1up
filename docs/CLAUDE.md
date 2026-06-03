@@ -8,6 +8,12 @@
 
 ## Decision log: DECISIONS.md
 
+## Security log: SECUIRTY.md
+
+## Tech log: TECH.md
+
+## Emulator log: EMULATORS.md
+
 ## Project Overview
 
 Preservation automation tool. Point at a disk image, select an era, and the
@@ -43,8 +49,11 @@ sandbox via cgroups/namespaces is planned for Beta (P8).
 
 **Console Emulators**
 
-- DuckStation (PS1), PCSX2 (PS2), xemu (Xbox OG)
-- Mesen (NES), Project64 (N64)
+- DuckStation (PS1)
+- PCSX2 (PS2)
+- xemu (Xbox OG)
+- Mesen (NES, SNES)
+- Project64 (N64)
 - Flycast (Dreamcast)
 
 **Process Isolation**
@@ -66,6 +75,7 @@ sandbox via cgroups/namespaces is planned for Beta (P8).
 | Xbox OG     | xemu        | —        | Yes (Xbox BIOS)      |
 | Dreamcast   | Flycast     | —        | Yes (DC BIOS)        |
 | NES         | Mesen       | —        | No                   |
+| SNES        | Mesen       | —        | No                   |
 | N64         | Project64   | —        | No                   |
 
 ## Folder Structure
@@ -124,7 +134,7 @@ peach_1up/
 │ └── setup_admin_user.py
 ├── emulators/
 │ ├── 86box/
-│ ├── dosbox-x/
+│ ├── ...
 └── library/ # user-supplied, never committed
 ├── games/ # games/{era}/{slug}/
 ├── os/ # os/{era}/
@@ -182,7 +192,8 @@ Awaiting your decision.
 
 - Do **not** spawn parallel sub-agents or run concurrent tasks
 - Execute all tasks sequentially, one step at a time
-- If a task seems parallelizable, still run it sequentially to avoid race conditions or conflicting state
+- If a task seems parallelizable, still run it sequentially to avoid race conditions or conflicting state if
+  you are doing write operations as well. Parallel agents for read only
 - Do not use multi-agent workflows unless explicitly requested
 
 ## Known Gotchas
