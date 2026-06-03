@@ -60,3 +60,13 @@ class TestDetectChdPlatform:
         data = _build_chd("AUDIO")
         with patch.object(Path, "open", _patch_open(data)):
             assert detect_chd_platform("game.chd") == "dreamcast"
+
+    def test_dreamcast_chgd_tag(self):
+        meta_offset = _HEADER_SIZE
+        header = bytearray(_HEADER_SIZE)
+        header[0:8] = _CHD_MAGIC
+        struct.pack_into(">Q", header, _META_OFFSET_POS, meta_offset)
+        entry = b"CHGD" + b"\x00" + b"\x00\x00\x00" + struct.pack(">Q", 0)
+        data = bytes(header) + entry
+        with patch.object(Path, "open", _patch_open(data)):
+            assert detect_chd_platform("gd.chd") == "dreamcast"

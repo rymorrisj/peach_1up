@@ -4,6 +4,7 @@ import struct
 _CHD_MAGIC = b"MComprHD"
 _META_CHTR = b"CHTR"
 _META_CHT2 = b"CHT2"
+_META_CHGD = b"CHGD"  # GD-ROM track — Dreamcast only
 
 # Byte offset of metaoffset field in CHD v5 header
 _META_OFFSET_POS = 48
@@ -39,6 +40,9 @@ def detect_chd_platform(path: str | Path) -> str:
                 tag = entry_header[0:4]
                 length = struct.unpack(">I", b"\x00" + entry_header[5:8])[0]
                 next_offset = struct.unpack(">Q", entry_header[8:16])[0]
+
+                if tag == _META_CHGD:
+                    return "dreamcast"
 
                 if tag in (_META_CHTR, _META_CHT2) and length > 0:
                     data = fh.read(length)
