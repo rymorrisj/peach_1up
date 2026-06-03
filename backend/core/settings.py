@@ -18,7 +18,8 @@ def init_settings() -> None:
     if not _initialised:
         _settings_module.init()
         _initialised = True
-        peach_env = _settings_module.get("peach_env", None)
+        # Template writes PEACH_ENV (uppercase); build.bat writes peach_env (lowercase).
+        peach_env = _settings_module.get("PEACH_ENV", None) or _settings_module.get("peach_env", None)
         if peach_env:
             os.environ.setdefault("PEACH_ENV", str(peach_env))
 

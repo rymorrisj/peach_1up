@@ -25,8 +25,10 @@ if __name__ == "__main__":
     import asyncio
     import uvicorn
     from backend.main import app
-    from backend.core.logger import configure_uvicorn_logging
+    from backend.core.logger import configure_uvicorn_logging, setup_logging
 
+    # setup_logging writes to files directly — unaffected by the devnull redirect above.
+    setup_logging()
     configure_uvicorn_logging()
 
     config = uvicorn.Config(

@@ -49,10 +49,11 @@ python3 -m pip install --upgrade pip -q
 python3 -m pip install -r backend/requirements.txt
 echo "[OK] Backend dependencies installed"
 
-# ── Frontend deps ──────────────────────────────────────────────
-echo "Installing frontend dependencies..."
-( cd frontend && npm install )
-echo "[OK] Frontend dependencies installed"
+# ── Frontend deps + build ─────────────────────────────────────
+echo "Installing frontend dependencies and building..."
+( cd frontend && npm install && npm run build )
+echo "[OK] Frontend built (dist is fresh at :8000)"
+# For hot-reload dev: cd frontend && npm run dev
 
 # ── Settings check ─────────────────────────────────────────────
 if [ ! -f "config/settings.yaml" ]; then
@@ -85,26 +86,9 @@ fi
 # ── Environment and start services ─────────────────────────────
 export PEACH_ENV=development
 
-FRONTEND_PID=""
-
-cleanup() {
-  if [ -n "$FRONTEND_PID" ]; then
-    echo
-    echo "Stopping frontend (PID $FRONTEND_PID)..."
-    kill "$FRONTEND_PID" 2>/dev/null || true
-  fi
-}
-trap cleanup EXIT INT TERM
-
 echo
-echo "Starting Peach 1UP frontend..."
-( cd frontend && npm run dev ) &
-FRONTEND_PID=$!
-echo "Frontend starting at http://localhost:5173"
-
-echo
-echo "Starting Peach 1UP backend..."
-echo "Backend will be available at http://localhost:8000"
+echo "Starting Peach 1UP backend (serves built frontend at http://localhost:8000)..."
+# For hot-reload dev: ( cd frontend && npm run dev ) &
 python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 echo

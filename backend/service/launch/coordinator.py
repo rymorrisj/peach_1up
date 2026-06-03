@@ -52,8 +52,8 @@ def _finalize_launch(
         if job is None or getattr(job, "job_handle", None) is None:
             try:
                 proc.kill()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.error("Failed to kill process %s during aborted launch: %s", getattr(proc, "pid", "?"), exc)
             history.error_message = "Launch aborted: Job Object isolation is required but unavailable."
             history.ended_at = datetime.now(timezone.utc)
             history.exit_code = -1

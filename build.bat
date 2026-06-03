@@ -7,6 +7,16 @@ echo Peach 1UP - Setup and Start (Windows)
 echo ============================================================
 echo.
 
+REM ── Clean previous build outputs ─────────────────────────────
+echo Cleaning previous build outputs...
+if exist "frontend\dist" rmdir /s /q "frontend\dist"
+if exist "dist" rmdir /s /q "dist"
+for /r "backend" %%d in (__pycache__) do (
+    if exist "%%d" rmdir /s /q "%%d"
+)
+del /s /q "backend\*.pyc" >nul 2>&1
+echo [OK] Clean complete
+
 REM ── Python check ─────────────────────────────────────────────
 for /f "tokens=2 delims= " %%v in ('py --version 2^>^&1') do set PYVER=%%v
 if "%PYVER%"=="" (

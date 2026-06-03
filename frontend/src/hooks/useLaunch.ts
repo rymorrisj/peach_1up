@@ -62,8 +62,8 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
     if (!launchId) return
     try {
       await apiFetch(`/api/v1/launches/${launchId}/stop`, { method: 'POST' })
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('Failed to stop launch:', err)
     } finally {
       setLaunchId(null)
     }

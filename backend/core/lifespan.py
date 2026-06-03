@@ -393,6 +393,8 @@ def _scan_installed_emulators() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_settings()
+    from backend.core.logger import setup_logging
+    setup_logging()
     _ensure_default_paths()
     if os.environ.get("RESET_DB", "").lower() == "true":
         db_path = get_base_path() / "database" / "data" / "peach1up.db"
