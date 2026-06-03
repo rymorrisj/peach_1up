@@ -41,10 +41,10 @@ class TestDetectChdPlatform:
         with patch.object(Path, "open", _patch_open(data)):
             assert detect_chd_platform("game.chd") == "ps2"
 
-    def test_dreamcast_detected(self):
+    def test_chtr_mode1_raw_returns_ps2(self):
         data = _build_chd("MODE1_RAW")
         with patch.object(Path, "open", _patch_open(data)):
-            assert detect_chd_platform("game.chd") == "dreamcast"
+            assert detect_chd_platform("game.chd") == "ps2"
 
     def test_bad_magic_returns_unknown(self):
         data = b"BADMAGIC" + bytes(200)
@@ -56,10 +56,10 @@ class TestDetectChdPlatform:
         with patch.object(Path, "open", open_mock):
             assert detect_chd_platform("missing.chd") == "unknown"
 
-    def test_audio_track_returns_dreamcast(self):
+    def test_chtr_audio_returns_ps2(self):
         data = _build_chd("AUDIO")
         with patch.object(Path, "open", _patch_open(data)):
-            assert detect_chd_platform("game.chd") == "dreamcast"
+            assert detect_chd_platform("game.chd") == "ps2"
 
     def test_dreamcast_chgd_tag(self):
         meta_offset = _HEADER_SIZE
