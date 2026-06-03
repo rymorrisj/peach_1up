@@ -208,6 +208,9 @@ Awaiting your decision.
   absent from `_PATH_KEYS` in `settings.py`. These keys resolve to bundled-directory
   paths via `get_install_path()`, not stored path strings. Do not re-add them to
   `_PATH_KEYS` or `_DEFAULTS`.
+- sandbox_host.exe must be compiled from backend/service/utils/sandbox/src/ before the backend
+  can run. build.bat does this automatically via MSYS2 when bash is on PATH; without MSYS2 a
+  pre-built binary must be present. The binary is not committed to git.
 
 ## Official Download Links
 

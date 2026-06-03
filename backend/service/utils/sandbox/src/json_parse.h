@@ -26,6 +26,10 @@ struct JVal {
         auto it = obj.find(k);
         return (it != obj.end() && it->second.tag == T::Str) ? it->second.str : def;
     }
+    bool value(const std::string& k, bool def) const {
+        auto it = obj.find(k);
+        return (it != obj.end() && it->second.tag == T::Bool) ? it->second.b : def;
+    }
     template<class V> V get() const;
 };
 

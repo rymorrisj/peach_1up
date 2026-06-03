@@ -129,6 +129,26 @@ if not exist "config\settings.yaml" (
     echo [OK] config\settings.yaml found
 )
 
+REM ── Build sandbox_host.exe via MSYS2 (or validate pre-built) ──
+echo Building sandbox_host.exe...
+where bash >nul 2>&1
+if not errorlevel 1 (
+    bash "backend/service/utils/sandbox/build.sh"
+    if errorlevel 1 (
+        echo ERROR: sandbox_host.exe build failed.
+        goto :error
+    )
+    echo [OK] sandbox_host.exe built
+) else (
+    if not exist "backend\service\utils\sandbox\sandbox_host.exe" (
+        echo ERROR: bash/MSYS2 not found and sandbox_host.exe is missing.
+        echo Install MSYS2 UCRT64 with gcc and run:
+        echo   bash backend/service/utils/sandbox/build.sh
+        goto :error
+    )
+    echo [OK] sandbox_host.exe found ^(pre-built; MSYS2 not available to rebuild^)
+)
+
 echo === Running PyInstaller ===
 .venv\Scripts\python.exe -m PyInstaller --clean peach1up.spec
 if errorlevel 1 goto :error

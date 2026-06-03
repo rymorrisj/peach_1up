@@ -1,3 +1,6 @@
+# Compiled sandbox binary (built by pipeline from src/)
+backend/service/utils/sandbox/sandbox_host.exe
+
 # Environment and secrets
 .env
 *.env
