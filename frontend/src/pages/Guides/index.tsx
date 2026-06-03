@@ -29,6 +29,11 @@ const GUIDES: GuideEntry[] = [
     title: 'Era Detection',
     description: 'What each era means, which file formats belong to it, and how automatic era detection works.',
   },
+  {
+    to: '/guides/media-formats',
+    title: 'Media Formats',
+    description: 'How disc images work, format compatibility by emulator, and how to convert between formats.',
+  },
 ]
 
 export default function GuidesIndex() {

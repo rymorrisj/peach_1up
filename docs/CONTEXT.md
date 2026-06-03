@@ -484,3 +484,4 @@ per-launch CPU/memory caps.
 - Launch history needs to be pruned or a delete flow of some sort
 - Metadata enrichment via TheGamesDB API — after hash-based title confirmation, optionally fetch cover art, description, genre, and release date from TheGamesDB API (see RGSX scraper.py pattern). Requires user-supplied API key. Enriches LibraryItem on scan. Never blocks launch.
 - LLM-assisted emulator navigation (OpenClaw), more complex but an interesting idea
+- Controller remapping utility — research per-emulator config file formats (DuckStation/PCSX2 ini, DOSBox-X mapper.map, Project64 plugin config). If formats are consistent enough, build a unified remap UI that writes emulator-specific config at launch. Prerequisite: confirm Xbox PC controller works out of the box for all emulators first.

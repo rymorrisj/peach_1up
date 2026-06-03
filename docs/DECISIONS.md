@@ -1,7 +1,9 @@
 # Peach 1UP — Decision Log
 
-| Date                                                 | Decision                                                                       | Why |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------ | --- |
+| Date                                                 | Decision                                                                       | Why                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-06-02                                           | xiso detection via magic at offset 0x10000                                     | xemu requires xiso-formatted disc images. The .iso extension is identical to standard disc images — detection reads 20 bytes at offset 0x10000. MICROSOFT*XBOX*MEDIA = xiso. CD001 at 0x8001 with file size >4GB = raw DVD rip. Logic in backend/service/utils/xbox_image.py. |
+| 2026-06-02                                           | CHD platform detection via metadata tag                                        | Dreamcast CHDs use CHGD tag (GD-ROM) — unambiguous, no payload parsing needed. PS2 CHDs use CHT2 or CHTR tags regardless of track type or sector size. CHGD alone is the Dreamcast discriminator. Logic in backend/service/utils/chd_image.py.                                |
 | 2026-06-01                                           | Memory limit model revised — managed runtime emulators skip_memory_limit=true; |
 | era caps reflect emulator overhead not game hardware | Era caps were sized for guest hardware                                         |
 
