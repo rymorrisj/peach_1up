@@ -21,6 +21,7 @@ from backend.service.utils.emulator_catalog import (
 )
 from backend.service.utils.xbox_image import detect_xbox_image_type
 from backend.service.utils.process.launcher import launch_under_job_object
+from backend.service.utils.sandbox import BrokerFile
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.process.job_objects import WindowsJobObject
 from backend.core.settings import get_base_path
@@ -249,6 +250,17 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     job_name = f"peach1up_xemu_{spec.era}_shared"
 
+    catalog_enabled = get_container_enabled("xemu")
+    container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
+
+    if container_enabled:
+        sandbox_config = get_emulator_container_config("xemu", executable_path)
+        if spec.media_path is not None:
+            sandbox_config.broker_files.append(
+                BrokerFile(path=str(spec.media_path), access="r", mode="grant"))
+    else:
+        sandbox_config = None
+
     return launch_under_job_object(
         executable_path=executable_path,
         args=args,
@@ -256,6 +268,6 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         job_name=job_name,
         slug="xemu",
         cwd=str(vm_dir),
-        container_enabled=get_container_enabled("xemu"),
-        sandbox_config=get_emulator_container_config("xemu", executable_path),
+        container_enabled=container_enabled,
+        sandbox_config=sandbox_config,
     )

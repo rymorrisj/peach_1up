@@ -17,6 +17,7 @@ from backend.service.utils.emulator_catalog import (
     validate_bios_from_descriptor,
 )
 from backend.service.utils.process.launcher import launch_under_job_object
+from backend.service.utils.sandbox import BrokerFile
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.process.job_objects import WindowsJobObject
 
@@ -66,12 +67,23 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     args = cli_args_prefix + [str(spec.media_path)]
     job_name = f"peach1up_{spec.slug}_{spec.media_path.stem}"
 
+    catalog_enabled = get_container_enabled(spec.slug)
+    container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
+
+    if container_enabled:
+        sandbox_config = get_emulator_container_config(spec.slug, spec.executable_path)
+        if spec.media_path is not None:
+            sandbox_config.broker_files.append(
+                BrokerFile(path=str(spec.media_path), access="r", mode="grant"))
+    else:
+        sandbox_config = None
+
     return launch_under_job_object(
         executable_path=spec.executable_path,
         args=args,
         era=spec.era,
         job_name=job_name,
         slug=spec.slug,
-        container_enabled=get_container_enabled(spec.slug),
-        sandbox_config=get_emulator_container_config(spec.slug, spec.executable_path),
+        container_enabled=container_enabled,
+        sandbox_config=sandbox_config,
     )

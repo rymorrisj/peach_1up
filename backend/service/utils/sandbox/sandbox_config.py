@@ -21,3 +21,4 @@ class SandboxConfig:
     cpu_max_rate: int = 50
     cpu_min_rate: int = 5
     memory_limit_mb: int | None = None
+    breakaway: bool = False

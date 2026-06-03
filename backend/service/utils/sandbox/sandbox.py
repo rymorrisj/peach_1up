@@ -49,6 +49,7 @@ def _build_stdin_payload(config: SandboxConfig) -> dict:
             "skip_memory_limit": config.memory_limit_mb is None,
         },
         "parent_pid": os.getpid(),
+        "breakaway": config.breakaway,
     }
 
 

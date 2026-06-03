@@ -24,6 +24,7 @@ from backend.service.utils.emulator_catalog import (
 )
 from backend.service.utils.ini_writer import patch_ini, write_ini
 from backend.service.utils.process.launcher import launch_under_job_object
+from backend.service.utils.sandbox import BrokerFile
 from backend.service.utils.emulator_catalog import get_install_path
 
 if TYPE_CHECKING:
@@ -329,6 +330,17 @@ def launch(spec: "LaunchSpec") -> tuple:
 
     job_name = f"peach1up_86box_{spec.era}_{spec.platform_slug}"
 
+    catalog_enabled = get_container_enabled("86box")
+    container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
+
+    if container_enabled:
+        sandbox_config = get_emulator_container_config("86box", box86_path)
+        if spec.base_image_path is not None:
+            sandbox_config.broker_files.append(
+                BrokerFile(path=str(spec.base_image_path), access="r", mode="grant"))
+    else:
+        sandbox_config = None
+
     try:
         result = launch_under_job_object(
             executable_path=box86_path,
@@ -337,8 +349,8 @@ def launch(spec: "LaunchSpec") -> tuple:
             job_name=job_name,
             slug="86box",
             cwd=str(vm_dir),
-            container_enabled=get_container_enabled("86box"),
-            sandbox_config=get_emulator_container_config("86box", box86_path),
+            container_enabled=container_enabled,
+            sandbox_config=sandbox_config,
         )
     except Exception:
         for p in copied_dgvoodoo2_dlls:

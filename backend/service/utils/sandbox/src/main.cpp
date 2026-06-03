@@ -67,6 +67,7 @@ struct LaunchConfig {
     std::vector<BrokerFile> broker_files;
     JobConfig job_config;
     DWORD parent_pid;
+    bool breakaway;
 };
 
 static LaunchConfig parse_config(const JVal& j) {
@@ -75,6 +76,7 @@ static LaunchConfig parse_config(const JVal& j) {
     cfg.exe_path    = to_wide(j.at("exe_path").get<std::string>());
     cfg.working_dir = to_wide(j.value("working_dir", std::string{}));
     cfg.parent_pid  = j.at("parent_pid").get<DWORD>();
+    cfg.breakaway   = j.value("breakaway", false);
 
     for (auto& a : j.at("args").arr) {
         cfg.args.push_back(to_wide(a.get<std::string>()));
@@ -256,7 +258,8 @@ static int run_launch(const LaunchConfig& cfg) {
 
     DWORD create_flags = CREATE_SUSPENDED
                        | EXTENDED_STARTUPINFO_PRESENT;
-    if (use_custom_env) create_flags |= CREATE_UNICODE_ENVIRONMENT;
+    if (use_custom_env)    create_flags |= CREATE_UNICODE_ENVIRONMENT;
+    if (cfg.breakaway)     create_flags |= CREATE_BREAKAWAY_FROM_JOB;
 
     LPVOID env_ptr = use_custom_env
                      ? static_cast<LPVOID>(env_block.data())
