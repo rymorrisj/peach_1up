@@ -19,6 +19,7 @@ from backend.service.utils.emulator_catalog import (
     get_container_enabled,
     get_container_config as get_emulator_container_config,
 )
+from backend.service.utils.xbox_image import detect_xbox_image_type
 from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.process.job_objects import WindowsJobObject
@@ -217,6 +218,25 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     if spec.media_path is not None:
         validate_media(spec.media_path)
+        image_type = detect_xbox_image_type(spec.media_path)
+        if image_type != "xiso":
+            if image_type == "dvd_rip":
+                raise ValueError(
+                    "This disc image appears to be a raw Xbox DVD rip (7–8 GB with a video partition). "
+                    "xemu requires xiso format. Use extract-xiso to convert it: "
+                    "https://github.com/xboxdev/extract-xiso"
+                )
+            elif image_type == "iso9660":
+                raise ValueError(
+                    "This disc image is a standard ISO 9660 image, not an Xbox disc image. "
+                    "Verify you have the correct file."
+                )
+            else:
+                raise ValueError(
+                    "This disc image could not be identified as an Xbox disc image (xiso format). "
+                    "xemu requires xiso format. Use extract-xiso to convert it: "
+                    "https://github.com/xboxdev/extract-xiso"
+                )
 
     config_path = provision_xemu_defaults(Path(executable_path))
     validate_bios_path(config_path)
