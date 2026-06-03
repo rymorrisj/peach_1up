@@ -46,6 +46,9 @@ def detect_era(path: Path) -> tuple[str | None, str]:
                 return "dreamcast", "file extension suggests Dreamcast disc image"
 
             if suffix == ".iso":
+                from backend.service.utils.xbox_image import detect_xbox_image_type as _detect_xbox
+                if _detect_xbox(path) == "xiso":
+                    return "xbox", "MICROSOFT*XBOX*MEDIA magic at offset 0x10000 confirms xiso"
                 era, reason = detect_from_magic(path, "iso")
                 if era is not None:
                     return era, reason

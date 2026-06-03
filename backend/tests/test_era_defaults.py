@@ -16,6 +16,7 @@ class TestDefaultsForEra:
         ("ps2",       "pcsx2",       "ps2"),
         ("xbox",      "xemu",        "xbox"),
         ("nes",       "mesen",       "nes"),
+        ("snes",      "mesen",       "snes"),
         ("n64",       "project64",   "n64"),
         ("dreamcast", "flycast",     "dreamcast"),
     ])

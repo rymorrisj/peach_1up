@@ -13,6 +13,7 @@ def defaults_for_era(era_slug: str) -> tuple[str | None, str | None]:
         case "ps2":       return ("pcsx2", "ps2")
         case "xbox":      return ("xemu", "xbox")
         case "nes":       return ("mesen", "nes")
+        case "snes":      return ("mesen", "snes")
         case "n64":       return ("project64", "n64")
         case "dreamcast": return ("flycast", "dreamcast")
         case _:           return (None, None)
