@@ -107,7 +107,7 @@ export default function DriveDetail() {
           <ReadRow label="Image size" value={`${drive.size_mb} MB`} />
           <ReadRow label="Format" value="—" />
           <ReadRow label="Era" value={drive.era.toUpperCase()} />
-          <ReadRow label="Created" value={new Date(drive.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })} />
+          <ReadRow label="Created" value={new Date(drive.created_at + 'Z').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })} />
           <ReadRow label="Mounted to" value={mountedTo.length === 0 ? '—' : mountedTo.map((p) => p.name).join(', ')} last />
         </div>
       </div>

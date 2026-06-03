@@ -322,7 +322,7 @@ export default function ProfileDetail() {
               {[
                 { label: 'launches', value: profile.total_launches > 0 ? String(profile.total_launches) : '—' },
                 { label: 'items', value: profile.item_count > 0 ? String(profile.item_count) : '—' },
-                { label: 'last launch', value: profile.last_launched_at ? new Date(profile.last_launched_at).toLocaleDateString() : '—' },
+                { label: 'last launch', value: profile.last_launched_at ? new Date(profile.last_launched_at + 'Z').toLocaleDateString() : '—' },
               ].map(({ label, value }) => (
                 <div key={label} className="mb-3.5">
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, lineHeight: 1, color: 'var(--fg-1)' }}>{value}</div>

@@ -78,6 +78,15 @@ def detect_era(path: Path) -> tuple[str | None, str]:
                     return None, "no signal found"
                 return None, "no signal found"
 
+            if suffix == ".chd":
+                from backend.service.utils.chd_image import detect_chd_platform
+                platform = detect_chd_platform(path)
+                if platform == "ps2":
+                    return "ps2", "CHD metadata sector size 2048 bytes indicates PS2 disc"
+                if platform == "dreamcast":
+                    return "dreamcast", "CHD metadata sector size 2352 bytes indicates Dreamcast GD-ROM"
+                return None, "CHD container detected but platform could not be determined from sector size"
+
             if suffix == ".img":
                 try:
                     size = path.stat().st_size

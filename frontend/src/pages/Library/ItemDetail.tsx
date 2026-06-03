@@ -121,7 +121,7 @@ export default function ItemDetail() {
               <div>
                 <span className="font-medium">Launches:</span> {item.launch_count}
                 {item.last_launched_at && (
-                  <> · Last {new Date(item.last_launched_at).toLocaleDateString()}</>
+                  <> · Last {new Date(item.last_launched_at + 'Z').toLocaleDateString()}</>
                 )}
               </div>
             )}

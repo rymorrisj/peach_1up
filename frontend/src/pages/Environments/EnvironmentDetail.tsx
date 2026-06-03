@@ -295,7 +295,7 @@ export default function EnvironmentDetail() {
                     borderBottom: i < snapshots.length - 1 ? '1px solid var(--border)' : 'none',
                   }}>
                     <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--fg-1)' }}>{s.name}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-2)' }}>{new Date(s.created_at).toLocaleDateString()}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-2)' }}>{new Date(s.created_at + 'Z').toLocaleDateString()}</span>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)', textAlign: 'right' }}>
                       {s.size_bytes != null ? `${(s.size_bytes / 1_048_576).toFixed(1)} MB` : '—'}
                     </span>
@@ -333,7 +333,7 @@ export default function EnvironmentDetail() {
               </div>
               {[
                 { label: 'emulator', value: platform.emulator_slug },
-                { label: 'last check', value: platform.last_health_check ? new Date(platform.last_health_check).toLocaleDateString() : '—' },
+                { label: 'last check', value: platform.last_health_check ? new Date(platform.last_health_check + 'Z').toLocaleDateString() : '—' },
                 { label: 'snapshots', value: String(snapshots.length) },
               ].map(({ label, value }) => (
                 <div key={label} className="mb-3 last:mb-0">
