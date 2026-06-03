@@ -35,6 +35,7 @@ class LibraryItemBase(SQLModel):
     installed: bool = False
     requires_install: bool = False
     detection_reason: Optional[str] = None
+    file_size_bytes: Optional[int] = None
 
 
 class LibraryItem(LibraryItemBase, table=True):

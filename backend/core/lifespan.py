@@ -238,6 +238,7 @@ def _apply_schema_migrations() -> None:
         ("profiles", "enable_dgvoodoo2", "INTEGER NOT NULL DEFAULT 0"),
         ("library_items", "requires_install", "INTEGER NOT NULL DEFAULT 0"),
         ("library_items", "detection_reason", "TEXT"),
+        ("library_items", "file_size_bytes", "INTEGER"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)

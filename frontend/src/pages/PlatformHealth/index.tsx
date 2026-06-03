@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/api/client'
 import TopBar from '@/components/layout/TopBar'
@@ -6,11 +7,25 @@ import type { components } from '@shared/types'
 
 type Platform = components['schemas']['PlatformRead']
 
-interface StorageStats {
-  drive_images_bytes: number
-  source_media_bytes: number
-  os_images_bytes: number
-  emulator_binaries_bytes: number
+interface EraBreakdown {
+  era: string
+  label: string
+  size_bytes: number
+  count: number
+}
+
+interface StorageCategory {
+  key: string
+  label: string
+  size_bytes: number
+  breakdown: EraBreakdown[]
+  unsized_count?: number
+}
+
+interface StorageFootprint {
+  categories: StorageCategory[]
+  total_bytes: number
+  last_updated: string
 }
 
 interface HealthSummary {
@@ -27,6 +42,7 @@ interface HealthSummary {
 function formatBytes(n: number) {
   if (n >= 1_073_741_824) return `${(n / 1_073_741_824).toFixed(1)} GB`
   if (n >= 1_048_576) return `${(n / 1_048_576).toFixed(0)} MB`
+  if (n >= 1_024) return `${(n / 1_024).toFixed(0)} KB`
   return `${n} B`
 }
 
@@ -78,17 +94,33 @@ function EraChip({ era }: { era: string }) {
   )
 }
 
+const CAT_COLORS: Record<string, string> = {
+  emulators:      'var(--peach-500)',
+  library_media:  'var(--peach-600)',
+  library_system: 'var(--peach-700)',
+  environments:   'var(--peach-400)',
+  xemu_vms:       'var(--peach-300)',
+  external:       'var(--fg-3)',
+  database:       'var(--peach-800)',
+  logs:           'var(--fg-4)',
+}
+
 export default function PlatformHealth() {
   const queryClient = useQueryClient()
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set())
 
   const { data: platforms = [], isLoading } = useQuery<Platform[]>({
     queryKey: ['platforms'],
     queryFn: () => apiFetch<Platform[]>('/api/v1/platforms'),
   })
 
-  const { data: storageStats } = useQuery<StorageStats>({
-    queryKey: ['platforms-storage-stats'],
-    queryFn: () => apiFetch<StorageStats>('/api/v1/platforms/storage-stats'),
+  const {
+    data: storageFootprint,
+    isLoading: storageLoading,
+    refetch: refetchStorage,
+  } = useQuery<StorageFootprint>({
+    queryKey: ['health-storage'],
+    queryFn: () => apiFetch<StorageFootprint>('/api/v1/health/storage'),
   })
 
   const { data: summary, isError: summaryError, isLoading: summaryLoading } = useQuery<HealthSummary>({
@@ -107,6 +139,15 @@ export default function PlatformHealth() {
     } catch {
       // individual statuses updated via query invalidation
     }
+  }
+
+  function toggleCat(key: string) {
+    setExpandedCats((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
   }
 
   return (
@@ -220,51 +261,181 @@ export default function PlatformHealth() {
           <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 18, letterSpacing: '-0.01em', margin: 0, color: 'var(--fg-1)' }}>
             Storage
           </h2>
+          {storageFootprint && (
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--fg-3)' }}>
+              {formatBytes(storageFootprint.total_bytes)} total
+            </span>
+          )}
+          <div style={{ flex: 1 }} />
+          <button
+            type="button"
+            onClick={() => refetchStorage()}
+            disabled={storageLoading}
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 12,
+              fontWeight: 600,
+              padding: '4px 10px',
+              borderRadius: 'var(--r-1)',
+              background: 'var(--surface-2)',
+              border: '1px solid var(--border)',
+              color: storageLoading ? 'var(--fg-3)' : 'var(--fg-1)',
+              cursor: storageLoading ? 'default' : 'pointer',
+              transition: 'opacity 120ms',
+            }}
+          >
+            {storageLoading ? 'Scanning…' : 'Refresh'}
+          </button>
         </div>
 
-        {(() => {
-          const cats = [
-            { label: 'drive images',       color: 'var(--peach-500)', bytes: storageStats?.drive_images_bytes ?? 0 },
-            { label: 'source media',        color: 'var(--peach-600)', bytes: storageStats?.source_media_bytes ?? 0 },
-            { label: 'OS images',           color: 'var(--peach-700)', bytes: storageStats?.os_images_bytes ?? 0 },
-            { label: 'emulator binaries',   color: 'var(--peach-800)', bytes: storageStats?.emulator_binaries_bytes ?? 0 },
-          ]
-          const totalBytes = cats.reduce((s, c) => s + c.bytes, 0)
-          const pct = (n: number) => totalBytes > 0 ? `${((n / totalBytes) * 100).toFixed(1)}%` : '0%'
-          return (
-            <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-              <div className="grid grid-cols-2 gap-[18px]">
-                {cats.map(({ label, color, bytes }) => (
-                  <div key={label}>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="inline-block h-2.5 w-2.5 rounded-full shrink-0" style={{ background: color }} />
-                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 13, color: 'var(--fg-1)' }}>
-                        {bytes > 0 ? formatBytes(bytes) : '—'}
-                      </span>
-                    </div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginTop: 6 }}>
-                      {label}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Stacked bar */}
-              <div className="mt-4 flex overflow-hidden rounded" style={{ height: 8, background: 'var(--surface-2)' }}>
-                {cats.map(({ label, color, bytes }) => (
-                  <span key={label} style={{ width: pct(bytes), background: color, transition: 'width 300ms ease' }} />
-                ))}
-              </div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)', marginTop: 8 }}>
-                {storageStats
-                  ? totalBytes > 0
-                    ? `${formatBytes(totalBytes)} total — drive images · source media · OS images · emulator binaries`
-                    : 'No storage data yet'
-                  : 'Loading storage stats…'}
-              </div>
+        <div className="rounded-xl overflow-hidden" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+          {storageLoading && !storageFootprint ? (
+            <div className="px-[18px] py-5" style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--fg-3)' }}>
+              Scanning storage…
             </div>
-          )
-        })()}
+          ) : !storageFootprint ? (
+            <div className="px-[18px] py-5" style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--fg-3)' }}>
+              Storage data unavailable.
+            </div>
+          ) : (() => {
+            const total = storageFootprint.total_bytes
+            const pct = (n: number) => total > 0 ? `${Math.max(1, (n / total) * 100).toFixed(1)}%` : '0%'
+
+            return (
+              <>
+                {/* Stacked bar */}
+                <div className="flex overflow-hidden" style={{ height: 6, background: 'var(--surface-2)' }}>
+                  {storageFootprint.categories.map((cat) => (
+                    <span
+                      key={cat.key}
+                      style={{
+                        width: pct(cat.size_bytes),
+                        background: CAT_COLORS[cat.key] ?? 'var(--fg-3)',
+                        transition: 'width 300ms ease',
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* Category rows */}
+                {storageFootprint.categories.map((cat, i) => {
+                  const isLast = i === storageFootprint.categories.length - 1
+                  const hasBreakdown = cat.breakdown.length > 0
+                  const expanded = expandedCats.has(cat.key)
+                  const color = CAT_COLORS[cat.key] ?? 'var(--fg-3)'
+                  const barWidth = total > 0 ? Math.max(0.5, (cat.size_bytes / total) * 100) : 0
+
+                  return (
+                    <div key={cat.key}>
+                      <div
+                        className="flex items-center gap-3 px-[18px] py-3"
+                        style={{
+                          borderTop: '1px solid var(--border)',
+                          cursor: hasBreakdown ? 'pointer' : 'default',
+                        }}
+                        onClick={hasBreakdown ? () => toggleCat(cat.key) : undefined}
+                      >
+                        <span className="shrink-0 rounded-full" style={{ width: 8, height: 8, background: color }} />
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13, color: 'var(--fg-1)' }}>
+                              {cat.label}
+                            </span>
+                            {hasBreakdown && (
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-3)', transform: expanded ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 150ms' }}>
+                                ▶
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ position: 'relative', height: 4, background: 'var(--surface-2)', borderRadius: 2, overflow: 'hidden' }}>
+                            <div
+                              style={{
+                                position: 'absolute',
+                                left: 0,
+                                top: 0,
+                                height: '100%',
+                                width: `${barWidth}%`,
+                                background: color,
+                                borderRadius: 2,
+                                transition: 'width 300ms ease',
+                              }}
+                            />
+                          </div>
+                          {cat.key === 'library_media' && (cat.unsized_count ?? 0) > 0 && (
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+                              {cat.unsized_count} item{cat.unsized_count !== 1 ? 's' : ''} not yet sized — size shown as unknown
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 13, color: 'var(--fg-1)', minWidth: 72, textAlign: 'right' }}>
+                          {cat.size_bytes > 0 ? formatBytes(cat.size_bytes) : <span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>—</span>}
+                        </div>
+                      </div>
+
+                      {/* Era breakdown */}
+                      {hasBreakdown && expanded && (
+                        <div style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-0)' }}>
+                          {cat.breakdown.map((row, ri) => {
+                            const eraColor = ERA_COLOR[(row.era).toUpperCase()] ?? 'var(--fg-3)'
+                            const eraLabel = ERA_LABEL[row.era] ?? row.label
+                            const eraBarWidth = cat.size_bytes > 0 ? Math.max(0.5, (row.size_bytes / cat.size_bytes) * 100) : 0
+                            return (
+                              <div
+                                key={row.era}
+                                className="flex items-center gap-3 pl-10 pr-[18px] py-2.5"
+                                style={{ borderBottom: ri < cat.breakdown.length - 1 ? '1px solid var(--border)' : 'none' }}
+                              >
+                                <span
+                                  style={{
+                                    fontFamily: 'var(--font-mono)',
+                                    fontWeight: 600,
+                                    fontSize: 10,
+                                    letterSpacing: '0.08em',
+                                    textTransform: 'uppercase',
+                                    padding: '2px 5px',
+                                    borderRadius: 'var(--r-1)',
+                                    border: `1px solid ${eraColor}`,
+                                    color: eraColor,
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {eraLabel}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <div style={{ position: 'relative', height: 3, background: 'var(--surface-2)', borderRadius: 2, overflow: 'hidden' }}>
+                                    <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${eraBarWidth}%`, background: eraColor, borderRadius: 2, opacity: 0.7, transition: 'width 300ms ease' }} />
+                                  </div>
+                                </div>
+                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', minWidth: 36, textAlign: 'right' }}>
+                                  {row.count} item{row.count !== 1 ? 's' : ''}
+                                </span>
+                                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, color: 'var(--fg-1)', minWidth: 72, textAlign: 'right' }}>
+                                  {formatBytes(row.size_bytes)}
+                                </span>
+                              </div>
+                            )
+                          })}
+                          {(cat.unsized_count ?? 0) > 0 && (
+                            <div
+                              className="flex items-center gap-3 pl-10 pr-[18px] py-2.5"
+                              style={{ borderTop: cat.breakdown.length > 0 ? '1px solid var(--border)' : 'none', opacity: 0.6 }}
+                            >
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)' }}>
+                                {cat.unsized_count} item{cat.unsized_count !== 1 ? 's' : ''} — size unknown
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </>
+            )
+          })()}
+        </div>
 
         {/* Inventory section */}
         <div className="mb-3 mt-7 flex items-baseline gap-2.5">

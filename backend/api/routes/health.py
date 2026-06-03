@@ -1,10 +1,48 @@
-from fastapi import APIRouter
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from backend.core import process_registry
+from backend.core.database import get_db
+from backend.core.dependencies import require_permission
+from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1", tags=["health"])
+
+_ERA_LABELS: dict[str, str] = {
+    "dos": "DOS",
+    "win31": "Windows 3.1",
+    "win95": "Windows 95",
+    "win98": "Windows 98",
+    "winxp": "Windows XP",
+    "ps1": "PlayStation 1",
+    "ps2": "PlayStation 2",
+    "xbox": "Xbox",
+    "nes": "NES",
+    "snes": "SNES",
+    "n64": "Nintendo 64",
+    "dreamcast": "Dreamcast",
+}
+
+
+def _dir_size(path: Path) -> int:
+    if not path.exists():
+        return 0
+    total = 0
+    for dirpath, _, filenames in os.walk(path):
+        for fname in filenames:
+            fp = Path(dirpath) / fname
+            if not fp.is_symlink():
+                try:
+                    total += fp.stat().st_size
+                except OSError:
+                    pass
+    return total
 
 
 class HealthResponse(BaseModel):
@@ -40,3 +78,68 @@ def health_check():
         database_reachable=db_ok,
         active_processes=process_registry.count(),
     )
+
+
+@router.get("/health/storage")
+def storage_footprint(
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_platforms"),
+):
+    from backend.core.settings import get_base_path
+    base = get_base_path()
+
+    emu_size = _dir_size(base / "emulators")
+    sys_size = _dir_size(base / "library" / "system")
+    env_size = _dir_size(base / "emulators" / "86box" / "vms")
+    xemu_size = _dir_size(base / "emulators" / "xemu" / "vms")
+
+    appdata = os.environ.get("APPDATA", "")
+    ext_size = _dir_size(Path(appdata) / "xemu") if appdata else 0
+
+    db_path = base / "database" / "data" / "peach1up.db"
+    try:
+        db_bytes = db_path.stat().st_size
+    except OSError:
+        db_bytes = 0
+
+    log_size = _dir_size(base / "logs")
+
+    sized_rows = db.execute(
+        text("SELECT era, file_size_bytes FROM library_items WHERE file_size_bytes IS NOT NULL")
+    ).fetchall()
+    unsized_count = db.execute(
+        text("SELECT COUNT(*) FROM library_items WHERE file_size_bytes IS NULL")
+    ).scalar() or 0
+
+    era_map: dict[str, dict] = {}
+    for era, size in sized_rows:
+        key = era or "unknown"
+        if key not in era_map:
+            era_map[key] = {
+                "era": key,
+                "label": _ERA_LABELS.get(key, key.upper()),
+                "size_bytes": 0,
+                "count": 0,
+            }
+        era_map[key]["size_bytes"] += size
+        era_map[key]["count"] += 1
+
+    media_size = sum(e["size_bytes"] for e in era_map.values())
+    breakdown = sorted(era_map.values(), key=lambda x: x["size_bytes"], reverse=True)
+
+    categories = [
+        {"key": "emulators",      "label": "Emulator Binaries",        "size_bytes": emu_size,   "breakdown": []},
+        {"key": "library_media",  "label": "Library / Media",           "size_bytes": media_size, "breakdown": breakdown, "unsized_count": unsized_count},
+        {"key": "library_system", "label": "Library / System",          "size_bytes": sys_size,   "breakdown": []},
+        {"key": "environments",   "label": "Environments (86Box VMs)",  "size_bytes": env_size,   "breakdown": []},
+        {"key": "xemu_vms",       "label": "Xbox VMs",                  "size_bytes": xemu_size,  "breakdown": []},
+        {"key": "external",       "label": "External (AppData)",        "size_bytes": ext_size,   "breakdown": []},
+        {"key": "database",       "label": "Database",                  "size_bytes": db_bytes,   "breakdown": []},
+        {"key": "logs",           "label": "Logs",                      "size_bytes": log_size,   "breakdown": []},
+    ]
+
+    return {
+        "categories": categories,
+        "total_bytes": sum(c["size_bytes"] for c in categories),
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+    }

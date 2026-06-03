@@ -115,6 +115,7 @@ def _prepare_item(
         "drive_id": None,
         "last_launched_at": None,
         "launch_count": 0,
+        "file_size_bytes": None,
     }
 
     if media_src.is_dir():
@@ -249,6 +250,12 @@ def _prepare_item(
 
     row["content_rating"] = detect_rating(media_path) or None
 
+    try:
+        p = Path(row["media_path"])
+        row["file_size_bytes"] = p.stat().st_size if p.is_file() else None
+    except OSError:
+        row["file_size_bytes"] = None
+
     return row
 
 
@@ -344,6 +351,12 @@ def update_library_item(item_id: int, body: LibraryItemUpdate, db: Session) -> L
         fields[key] = str(resolved)
     for key, value in fields.items():
         setattr(item, key, value)
+    if "media_path" in fields:
+        try:
+            p = Path(fields["media_path"])
+            item.file_size_bytes = p.stat().st_size if p.is_file() else None
+        except OSError:
+            item.file_size_bytes = None
     db.commit()
     db.refresh(item)
     return item
