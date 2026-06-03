@@ -77,17 +77,23 @@ class SandboxProcess:
         """Terminate the process immediately (same as terminate on Windows)."""
         self.terminate()
 
-    def wait(self) -> int:
-        """Wait for the process to exit and return its exit code.
+    def wait(self, timeout_ms: int = 10_000) -> int:
+        """Wait up to *timeout_ms* milliseconds for the process to exit.
 
-        Blocks indefinitely until the process terminates.  Closes OS handles
-        on return regardless of success.
+        Returns the exit code, or -1 if the process did not exit within the
+        timeout.  Closes OS handles on return regardless of outcome.
+        Callers that need to guarantee termination should call kill() first.
         """
+        _WAIT_TIMEOUT = 0x00000102
         if self._process_handle:
-            ctypes.windll.kernel32.WaitForSingleObject(
+            result = ctypes.windll.kernel32.WaitForSingleObject(
                 self._process_handle,
-                ctypes.wintypes.DWORD(0xFFFFFFFF),  # INFINITE
+                ctypes.wintypes.DWORD(timeout_ms),
             )
+            if result == _WAIT_TIMEOUT:
+                self._close_handles()
+                self.returncode = -1
+                return -1
             exit_code = ctypes.wintypes.DWORD(0)
             ctypes.windll.kernel32.GetExitCodeProcess(
                 self._process_handle, ctypes.byref(exit_code)

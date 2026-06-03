@@ -314,7 +314,6 @@ def launch(config: SandboxConfig) -> SandboxHandle:
     _fire(handle, SandboxEvent.STARTED, started_payload)
 
     loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
 
     def _run_watcher() -> None:
         try:

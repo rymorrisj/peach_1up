@@ -270,8 +270,19 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
     db.commit()
     db.refresh(history)
 
+    _LAUNCH_TIMEOUT = 30.0
     try:
-        result = await asyncio.to_thread(dispatch, spec)
+        result = await asyncio.wait_for(
+            asyncio.to_thread(dispatch, spec),
+            timeout=_LAUNCH_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.error("Launch timed out after %.0fs for slug=%s", _LAUNCH_TIMEOUT, spec.slug)
+        history.error_message = f"Launch timed out after {_LAUNCH_TIMEOUT:.0f}s."
+        history.ended_at = datetime.now(timezone.utc)
+        history.exit_code = -1
+        db.commit()
+        raise HTTPException(status_code=500, detail="Launch timed out. The emulator did not start within 30 seconds.")
     except Exception as exc:
         logger.exception("Launch failed")
         history.error_message = str(exc)
