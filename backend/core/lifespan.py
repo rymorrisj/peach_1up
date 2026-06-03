@@ -60,7 +60,7 @@ _SYSTEM_PLATFORMS = [
         "status": "unknown",
     },
     {
-        "name": "Mesen",
+        "name": "Mesen (NES, SNES)",
         "slug": "mesen",
         "era": "nes",
         "emulator_slug": "mesen",
@@ -397,11 +397,15 @@ async def lifespan(app: FastAPI):
     from backend.core.logger import setup_logging
     setup_logging()
     _ensure_default_paths()
-    if os.environ.get("RESET_DB", "").lower() == "true":
+    # reset_db is a dev-only destructive flag in settings.yaml. Never true in production.
+    # Cleared immediately after use so it cannot accidentally persist across restarts.
+    from backend.service.utils import settings as _settings
+    if _settings.get("reset_db", False):
         db_path = get_base_path() / "database" / "data" / "peach1up.db"
         if db_path.exists():
             db_path.unlink()
-            logger.info("RESET_DB: deleted %s", db_path)
+            logger.info("reset_db: deleted %s", db_path)
+        _settings.set_flag("reset_db", False)
     init_db()
     create_tables()
     _apply_schema_migrations()

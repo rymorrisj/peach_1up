@@ -72,8 +72,9 @@ function StatusDot({ healthy }: { healthy: boolean }) {
 }
 
 function EraChip({ era }: { era: string }) {
-  const color = ERA_COLOR[era.toUpperCase()] ?? 'var(--fg-3)'
-  const label = ERA_LABEL[era] ?? era.toUpperCase()
+  const eraKey = ERA_LABEL[era] ?? era.toUpperCase()
+  const color = ERA_COLOR[eraKey] ?? 'var(--fg-3)'
+  const label = eraKey
   return (
     <span
       style={{
@@ -95,19 +96,19 @@ function EraChip({ era }: { era: string }) {
 }
 
 const CAT_COLORS: Record<string, string> = {
-  emulators:      'var(--peach-500)',
-  library_media:  'var(--peach-600)',
-  library_system: 'var(--peach-700)',
-  environments:   'var(--peach-400)',
-  xemu_vms:       'var(--peach-300)',
+  emulators:      '#6a9fd8',
+  library_media:  'var(--peach-500)',
+  library_system: '#8f72c8',
+  environments:   '#5ab87a',
   external:       'var(--fg-3)',
-  database:       'var(--peach-800)',
+  database:       '#c8a84a',
   logs:           'var(--fg-4)',
 }
 
 export default function PlatformHealth() {
   const queryClient = useQueryClient()
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set())
+  const [rescanning, setRescanning] = useState(false)
 
   const { data: platforms = [], isLoading } = useQuery<Platform[]>({
     queryKey: ['platforms'],
@@ -139,6 +140,17 @@ export default function PlatformHealth() {
     } catch {
       // individual statuses updated via query invalidation
     }
+  }
+
+  async function handleRefreshStorage() {
+    setRescanning(true)
+    try {
+      await apiFetch('/api/v1/health/storage/rescan', { method: 'POST' })
+    } catch {
+      // proceed to refetch even if rescan fails
+    }
+    setRescanning(false)
+    refetchStorage()
   }
 
   function toggleCat(key: string) {
@@ -269,8 +281,8 @@ export default function PlatformHealth() {
           <div style={{ flex: 1 }} />
           <button
             type="button"
-            onClick={() => refetchStorage()}
-            disabled={storageLoading}
+            onClick={handleRefreshStorage}
+            disabled={storageLoading || rescanning}
             style={{
               fontFamily: 'var(--font-display)',
               fontSize: 12,
@@ -279,12 +291,12 @@ export default function PlatformHealth() {
               borderRadius: 'var(--r-1)',
               background: 'var(--surface-2)',
               border: '1px solid var(--border)',
-              color: storageLoading ? 'var(--fg-3)' : 'var(--fg-1)',
-              cursor: storageLoading ? 'default' : 'pointer',
+              color: (storageLoading || rescanning) ? 'var(--fg-3)' : 'var(--fg-1)',
+              cursor: (storageLoading || rescanning) ? 'default' : 'pointer',
               transition: 'opacity 120ms',
             }}
           >
-            {storageLoading ? 'Scanning…' : 'Refresh'}
+            {rescanning ? 'Rescanning…' : storageLoading ? 'Scanning…' : 'Refresh'}
           </button>
         </div>
 
@@ -377,7 +389,8 @@ export default function PlatformHealth() {
                       {hasBreakdown && expanded && (
                         <div style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-0)' }}>
                           {cat.breakdown.map((row, ri) => {
-                            const eraColor = ERA_COLOR[(row.era).toUpperCase()] ?? 'var(--fg-3)'
+                            const eraKey = ERA_LABEL[row.era] ?? (row.era).toUpperCase()
+                            const eraColor = ERA_COLOR[eraKey] ?? 'var(--fg-3)'
                             const eraLabel = ERA_LABEL[row.era] ?? row.label
                             const eraBarWidth = cat.size_bytes > 0 ? Math.max(0.5, (row.size_bytes / cat.size_bytes) * 100) : 0
                             return (

@@ -116,8 +116,12 @@ class FirstRunGuardMiddleware(BaseHTTPMiddleware):
 def get_cors_origins() -> list[str]:
     # init_settings() in main.py calls load_dotenv() before configure_cors(),
     # so os.getenv reflects .env values at this point.
-    origin = os.getenv("CORS_ORIGIN") or "http://localhost:5173"
-    return [origin]
+    # CORS_ORIGIN adds an explicit override; the localhost default is always included.
+    origins = ["http://localhost:5173"]
+    extra = os.getenv("CORS_ORIGIN", "")
+    if extra:
+        origins.append(extra)
+    return origins
 
 
 def configure_cors(app) -> None:

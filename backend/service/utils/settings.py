@@ -33,6 +33,7 @@ _DEFAULTS: dict = {
     "ROMS_PATH": "",
     "PROFILES_PATH": "",
     "suppress_confirmations": [],
+    "reset_db": False,
 }
 
 # Path keys whose values are normalised to forward slashes on save.

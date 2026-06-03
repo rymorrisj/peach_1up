@@ -91,7 +91,6 @@ def storage_footprint(
     emu_size = _dir_size(base / "emulators")
     sys_size = _dir_size(base / "library" / "system")
     env_size = _dir_size(base / "emulators" / "86box" / "vms")
-    xemu_size = _dir_size(base / "emulators" / "xemu" / "vms")
 
     appdata = os.environ.get("APPDATA", "")
     ext_size = _dir_size(Path(appdata) / "xemu") if appdata else 0
@@ -132,7 +131,6 @@ def storage_footprint(
         {"key": "library_media",  "label": "Library / Media",           "size_bytes": media_size, "breakdown": breakdown, "unsized_count": unsized_count},
         {"key": "library_system", "label": "Library / System",          "size_bytes": sys_size,   "breakdown": []},
         {"key": "environments",   "label": "Environments (86Box VMs)",  "size_bytes": env_size,   "breakdown": []},
-        {"key": "xemu_vms",       "label": "Xbox VMs",                  "size_bytes": xemu_size,  "breakdown": []},
         {"key": "external",       "label": "External (AppData)",        "size_bytes": ext_size,   "breakdown": []},
         {"key": "database",       "label": "Database",                  "size_bytes": db_bytes,   "breakdown": []},
         {"key": "logs",           "label": "Logs",                      "size_bytes": log_size,   "breakdown": []},
@@ -143,3 +141,29 @@ def storage_footprint(
         "total_bytes": sum(c["size_bytes"] for c in categories),
         "last_updated": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@router.post("/health/storage/rescan")
+def rescan_file_sizes(
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_platforms"),
+):
+    rows = db.execute(
+        text(
+            "SELECT id, media_path FROM library_items "
+            "WHERE file_size_bytes IS NULL AND media_path IS NOT NULL"
+        )
+    ).fetchall()
+    updated = 0
+    for item_id, media_path in rows:
+        try:
+            size = os.path.getsize(media_path)
+            db.execute(
+                text("UPDATE library_items SET file_size_bytes = :size WHERE id = :id"),
+                {"size": size, "id": item_id},
+            )
+            updated += 1
+        except (OSError, TypeError):
+            pass
+    db.commit()
+    return {"updated": updated}
