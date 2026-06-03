@@ -53,12 +53,17 @@ def validate_media(media_path: Path) -> None:
         )
 
 
-def provision_xemu_defaults(exe_path: Path) -> Path:
-    """Write (or overwrite) the xemu.toml alongside the executable; return its path.
+def provision_xemu_defaults(exe_path: Path, vm_dir: Path) -> Path:
+    """Write (or overwrite) the per-VM xemu.toml; return its path.
 
     Always overwrites any existing xemu.toml so stale configs from previous broken
     runs are corrected on every launch. Uses an atomic rename so a failed write
     never leaves a partial config on disk.
+
+    # xemu.toml is written per-VM (emulators/xemu/vms/<profile_id>/xemu.toml) rather
+    # than shared alongside the executable. A shared path causes a race when two
+    # profiles launch xemu concurrently — the second write corrupts the first's config
+    # mid-start. The same class of bug was fixed for DOSBox-X in PX-2-8.
 
     BIOS files (mcpx_1.0.bin, flash *.bin, eeprom.bin) and xbox_hdd.qcow2 must
     all reside in the same directory as the xemu executable. Peach 1UP does not
@@ -66,9 +71,11 @@ def provision_xemu_defaults(exe_path: Path) -> Path:
 
     Args:
         exe_path: Absolute path to the xemu executable (xemu.exe).
+        vm_dir: Per-profile directory where xemu.toml will be written.
+            Typically emulators/xemu/vms/<profile_id>/. Created if absent.
 
     Returns:
-        Path to the xemu.toml config file alongside the executable.
+        Path to the xemu.toml config file inside vm_dir.
 
     Raises:
         FileNotFoundError: If the MCPX ROM, flash BIOS, or xbox_hdd.qcow2 are absent.
@@ -76,8 +83,9 @@ def provision_xemu_defaults(exe_path: Path) -> Path:
     import os
 
     exe_dir = exe_path.parent
+    vm_dir.mkdir(parents=True, exist_ok=True)
     hdd_path = exe_dir / "xbox_hdd.qcow2"
-    toml_path = exe_dir / "xemu.toml"
+    toml_path = vm_dir / "xemu.toml"
     eeprom_path = exe_dir / "eeprom.bin"
 
     if not hdd_path.exists():
@@ -189,8 +197,8 @@ def build_args(media_path: Path) -> list[str]:
 def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch xemu with the given Xbox disc image under Job Object isolation.
 
-    Provisions the shared xemu config (emulators/xemu/xemu.toml) on first
-    launch if absent. No Platform record is required — xemu behaves like all
+    Provisions a per-profile xemu.toml (emulators/xemu/vms/<profile_id>/xemu.toml)
+    on every launch. No Platform record is required — xemu behaves like all
     other console backends (DuckStation, PCSX2, Mesen, Project64).
 
     Args:
@@ -239,10 +247,9 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
                     "https://github.com/xboxdev/extract-xiso"
                 )
 
-    config_path = provision_xemu_defaults(Path(executable_path))
+    vm_dir = get_base_path() / "emulators" / "xemu" / "vms" / str(spec.profile_id)
+    config_path = provision_xemu_defaults(Path(executable_path), vm_dir)
     validate_bios_path(config_path)
-
-    vm_dir = config_path.parent
 
     args = ["-config_path", str(config_path)]
     if spec.media_path is not None:

@@ -280,10 +280,11 @@ unless the process was launched with `CREATE_BREAKAWAY_FROM_JOB`.
 
 The launcher handles this automatically in two stages:
 
-1. The emulator is launched suspended without `CREATE_BREAKAWAY_FROM_JOB`.
-2. If `IsProcessInJob` reports the process is already in a job, the launcher kills it
-   and relaunches with `CREATE_BREAKAWAY_FROM_JOB` set, then assigns it to the Peach
-   Job Object normally.
+1. The emulator is launched normally (`CREATE_NEW_PROCESS_GROUP`, no
+   `CREATE_SUSPENDED`) without `CREATE_BREAKAWAY_FROM_JOB`.
+2. If `AssignProcessToJobObject` fails with error 5 (access denied), the launcher
+   kills the process and relaunches with `CREATE_BREAKAWAY_FROM_JOB` set, then
+   assigns it to the Peach Job Object normally.
 
 If the breakaway relaunch also fails (e.g. the process is inside a non-breakaway job set
 by a third-party tool or a debugger), **the launch is aborted** and the error is surfaced
@@ -297,11 +298,14 @@ All frontend fetch calls must include credentials: 'include' while SessionMiddle
 #### Qt emulator process memory cap waived
 
 JOB_OBJECT_LIMIT_PROCESS_MEMORY is not applied to Qt-based emulators
-(86Box, DuckStation, PCSX2). Qt's security initialisation triggers
+(86Box, DuckStation, PCSX2) or managed-runtime emulators (Mesen
+.NET/Avalonia, xemu JIT heap). Qt's security initialisation triggers
 STATUS_STACK_BUFFER_OVERRUN (0xC0000409) when this limit is applied
-after process creation. Kill-on-close and CPU rate control still apply.
-The skip_memory_limit flag in config/emulators/ controls this per
-emulator. See DECISIONS.md 2026-05-19 for full rationale.
+after process creation. Mesen and xemu pre-allocate heap at startup via
+their managed runtimes and exhibit the same failure. Kill-on-close and
+CPU rate control still apply. The skip_memory_limit flag in
+config/emulators/ controls this per emulator. See DECISIONS.md
+2026-06-01 for the revised rationale.
 
 #### Job Object CPU rate control mutes host audio
 
