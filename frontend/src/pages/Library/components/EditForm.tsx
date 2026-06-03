@@ -1,7 +1,7 @@
 import { Button, FormField, Input, Textarea } from '@/ui'
 import PathInput from '@/components/common/PathInput'
 import FileBrowser from '@/components/common/FileBrowser'
-import { ERA_LABELS, RATING_OPTIONS, BACKEND_SYSTEM_LABELS } from '@/generated/constants'
+import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
 import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal'
 import type { EditForm as EditFormFields } from '@/hooks/useEditForm'
 import type { components } from '@shared/types'
@@ -239,7 +239,7 @@ export function EditForm({
             <option value="">— No platform —</option>
             {platforms.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name}{BACKEND_SYSTEM_LABELS[p.emulator_slug] ? ` (${BACKEND_SYSTEM_LABELS[p.emulator_slug]})` : ''}
+                {p.name}
               </option>
             ))}
           </select>

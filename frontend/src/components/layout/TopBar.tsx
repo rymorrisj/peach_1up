@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Moon, Sun } from 'lucide-react'
+// import { Moon, Sun } from 'lucide-react'  // re-enable with theme toggle
 import { useQuery } from '@tanstack/react-query'
 import { useAppContext } from '@/context/AppContext'
 import { apiFetch } from '@/api/client'
@@ -12,8 +12,8 @@ interface TopBarProps {
 }
 
 export default function TopBar({ title, children }: TopBarProps) {
-  const { state, dispatch } = useAppContext()
-  const isDark = state.theme === 'dark'
+  const { state, dispatch: _dispatch } = useAppContext()
+  const _isDark = state.theme === 'dark'
 
   const { data: launches = [] } = useQuery<LaunchHistory[]>({
     queryKey: ['launches'],
@@ -66,10 +66,12 @@ export default function TopBar({ title, children }: TopBarProps) {
             {activeSessions} running
           </span>
         )}
+        {/* TODO: theme toggle is disabled until light mode is fixed
+        // restore: import { Moon, Sun }; rename _dispatch→dispatch, _isDark→isDark
         <button
           type="button"
-          onClick={() => dispatch({ type: 'SET_THEME', payload: isDark ? 'light' : 'dark' })}
-          aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+          onClick={() => _dispatch({ type: 'SET_THEME', payload: _isDark ? 'light' : 'dark' })}
+          aria-label={_isDark ? 'Switch to light theme' : 'Switch to dark theme'}
           className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-[120ms]"
           style={{ color: 'var(--fg-2)', border: '1px solid transparent' }}
           onMouseEnter={(e) => {
@@ -81,8 +83,9 @@ export default function TopBar({ title, children }: TopBarProps) {
             e.currentTarget.style.color = 'var(--fg-2)'
           }}
         >
-          {isDark ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
+          {_isDark ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
         </button>
+        */}
       </div>
     </header>
   )
