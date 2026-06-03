@@ -169,6 +169,22 @@ specific Xbox revisions. Mismatched pairs will fail to boot.
 
 **Portable mode confirmed:** Yes (with shader cache caveat above)
 
+### Xbox disc image format (xiso)
+
+xemu requires disc images in xiso format — the Xbox game partition extracted
+with the video partition stripped. The `.iso` extension is identical to a
+standard disc image; the difference is internal layout.
+
+**Detection:** xiso images have the magic string `MICROSOFT*XBOX*MEDIA` at
+offset `0x10000`. A raw DVD rip has ISO 9660 structure (`CD001` at `0x8001`)
+with no Xbox magic present.
+
+**Raw DVD rips (7–8 GB)** will be rejected at launch with a clear error.
+Use [extract-xiso](https://github.com/xboxdev/extract-xiso) to convert:
+`extract-xiso -r <image.iso>`
+
+Detection logic lives in `backend/service/utils/xbox_image.py`.
+
 ---
 
 ## Mesen
