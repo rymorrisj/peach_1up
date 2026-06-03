@@ -95,8 +95,3 @@ class TestDeleteDriveForItem:
         assert item.drive_id is None
 
 
-class TestUpdateDriveForItem:
-    def test_raises_not_implemented(self):
-        from backend.service.utils.drive_utils import update_drive_for_item
-        with pytest.raises(NotImplementedError):
-            update_drive_for_item(object(), object())

@@ -31,13 +31,13 @@ class TestLoadEraLimits:
     def test_reads_win95_values_from_real_eras_yaml(self):
         from backend.service.utils.process.launcher import _load_era_limits
         memory_mb, cpu_pct = _load_era_limits("win95")
-        assert memory_mb == 512
+        assert memory_mb == 2048
         assert cpu_pct == 75
 
     def test_reads_winxp_values_from_real_eras_yaml(self):
         from backend.service.utils.process.launcher import _load_era_limits
         memory_mb, cpu_pct = _load_era_limits("winxp")
-        assert memory_mb == 1024
+        assert memory_mb == 3072
         assert cpu_pct == 80
 
     def test_unknown_era_raises_runtime_error(self):

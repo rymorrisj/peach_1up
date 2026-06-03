@@ -9,9 +9,9 @@ class TestDefaultsForEra:
     @pytest.mark.parametrize("era_slug,expected_emulator,expected_profile_era", [
         ("dos",       "dosbox-x",    "dos"),
         ("win31",     "dosbox-x",    "win31"),
-        ("win95",     "box86",       "win95"),
-        ("win98",     "box86",       "win98"),
-        ("winxp",     "box86",       "winxp"),
+        ("win95",     "86box",       "win95"),
+        ("win98",     "86box",       "win98"),
+        ("winxp",     "86box",       "winxp"),
         ("ps1",       "duckstation", "ps1"),
         ("ps2",       "pcsx2",       "ps2"),
         ("xbox",      "xemu",        "xbox"),

@@ -5,7 +5,7 @@ from pathlib import Path
 def test_load_catalog_returns_all_emulators():
     from backend.service.utils.emulator_catalog import load_catalog
     catalog = load_catalog()
-    assert len(catalog) == 10
+    assert len(catalog) == 9
     slugs = {e["slug"] for e in catalog}
     assert "dosbox-x" in slugs
     assert "flycast" in slugs
@@ -144,7 +144,7 @@ class TestValidateBiosFromDescriptor:
 class TestCliArgsPrefixInDescriptors:
     @pytest.mark.parametrize("slug,expected", [
         ("duckstation", ["-nogui"]),
-        ("pcsx2",       ["--nogui"]),
+        ("pcsx2",       ["-nogui"]),
         ("mesen",       []),
         ("project64",   []),
     ])

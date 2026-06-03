@@ -223,12 +223,12 @@ class TestGetExecutablePath:
         ids=_EXEC_IDS,
     )
     def test_returns_correct_path_for_era(
-        self, era, expected_catalog_slug, monkeypatch
+        self, era, expected_catalog_slug, monkeypatch, tmp_path
     ):
-        from pathlib import Path
         import backend.service.utils.emulator_catalog as catalog_mod
-        fake_path = Path(f"/fake/{expected_catalog_slug}.exe")
-        monkeypatch.setattr(catalog_mod, "get_install_path", lambda slug: fake_path if slug == expected_catalog_slug else None)
+        fake_exe = tmp_path / f"{expected_catalog_slug}.exe"
+        fake_exe.touch()
+        monkeypatch.setattr(catalog_mod, "get_install_path", lambda slug: fake_exe if slug == expected_catalog_slug else None)
         import backend.service.utils.backend_router as router_mod
         path = router_mod.get_executable_path(era)
-        assert path == str(fake_path)
+        assert path == str(fake_exe)
