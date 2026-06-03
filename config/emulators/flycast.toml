@@ -25,13 +25,18 @@ guidance_url = "https://github.com/flyinghead/flycast"
 
 [[container_broker_files]]
 path_key = "install_dir"
-access = "r"
+access = "rw"
 mode = "grant"
 
 
 [[container_broker_files]]
 path_key = "saves_dir"
 access = "rw"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "bios_dir"
+access = "r"
 mode = "grant"
 
 [[dependencies]]

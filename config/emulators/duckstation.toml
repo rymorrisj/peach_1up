@@ -26,7 +26,7 @@ guidance_url = "https://www.duckstation.org"
 
 [[container_broker_files]]
 path_key = "install_dir"
-access = "r"
+access = "rw"
 mode = "grant"
 
 
@@ -37,6 +37,11 @@ mode = "grant"
 
 [[container_broker_files]]
 path_key = "cache_dir"
+access = "rw"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "savestates_dir"
 access = "rw"
 mode = "grant"
 

@@ -41,3 +41,8 @@ mode = "grant"
 path_key = "plugin_dir"
 access = "r"
 mode = "grant"
+
+[[container_broker_files]]
+path_key = "pj64_config_dir"
+access = "rw"
+mode = "grant"

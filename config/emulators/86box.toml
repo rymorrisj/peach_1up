@@ -32,11 +32,6 @@ access = "r"
 mode = "grant"
 
 [[container_broker_files]]
-path_key = "ROMS_PATH"
-access = "r"
-mode = "grant"
-
-[[container_broker_files]]
 path_key = "nvram"
 access = "rw"
 mode = "grant"

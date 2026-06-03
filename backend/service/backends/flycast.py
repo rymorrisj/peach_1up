@@ -74,9 +74,6 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         if spec.media_path is not None:
             sandbox_config.broker_files.append(
                 BrokerFile(path=str(spec.media_path.parent), access="r", mode="grant"))
-        bios_dir = Path(spec.executable_path).parent / "data"
-        sandbox_config.broker_files.append(
-            BrokerFile(path=str(bios_dir), access="r", mode="grant"))
     else:
         sandbox_config = None
 

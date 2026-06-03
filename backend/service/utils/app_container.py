@@ -73,6 +73,8 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
         "install_dir":  base / "emulators" / slug,
         # Per-emulator save-state directory (e.g. Flycast, Mesen, Project64).
         "saves_dir":    base / "emulators" / slug / "saves",
+        # Per-emulator quick save-state directory (DuckStation, PCSX2).
+        "savestates_dir": base / "emulators" / slug / "savestates",
         # Per-emulator memory-card directory (PCSX2, DuckStation).
         "memcards_dir": base / "emulators" / slug / "memcards",
         # Per-emulator screenshot/snapshot directory (PCSX2).
@@ -87,8 +89,12 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
         "plugin_dir":   base / "emulators" / slug / "plugins",
         # Project64 portable EEPROM/save directory (capital-S as PJ64 writes it).
         "pj64_save_dir": base / "emulators" / slug / "Save",
+        # Project64 portable config directory (capital-C as PJ64 writes it).
+        "pj64_config_dir": base / "emulators" / slug / "Config",
         # PCSX2 portable inis directory (needs rw; install_dir grant is r-only).
         "inis_dir":     base / "emulators" / slug / "inis",
+        # Per-emulator BIOS/firmware directory (Flycast: data/).
+        "bios_dir":     base / "emulators" / slug / "data",
         # xemu HDD image fallback: grants the whole xemu emulator dir when launch_paths
         # does not supply the specific .qcow2 path.
         "hdd_image":    base / "emulators" / "xemu",
