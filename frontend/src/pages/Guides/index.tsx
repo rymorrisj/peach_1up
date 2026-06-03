@@ -25,6 +25,11 @@ const GUIDES: GuideEntry[] = [
     description: 'How to dump NES and N64 cartridges from physical hardware using recommended USB dumpers.',
   },
   {
+    to: '/guides/controllers',
+    title: 'Controller Setup',
+    description: 'Xbox controller compatibility by emulator, button layout quirks for NES/SNES, and N64 C-button mapping.',
+  },
+  {
     to: '/guides/era-detection',
     title: 'Era Detection',
     description: 'What each era means, which file formats belong to it, and how automatic era detection works.',

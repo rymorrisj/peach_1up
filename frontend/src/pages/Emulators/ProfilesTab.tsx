@@ -7,7 +7,7 @@ import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import LaunchCommandList from '@/components/LaunchCommandList'
 import { useConfirm } from '@/hooks/useConfirm'
-import { ERA_LABELS } from '@/generated/constants'
+import { ERA_LABELS, DGVOODOO2_SUPPORTED_ERAS } from '@/generated/constants'
 import type { DriveMode, DriveRecord, EmulatorEntry, LaunchProfile, ProfileForm, ProfileModalState } from '@/types/profiles'
 
 const DOS_WIN31_ERAS = new Set(['dos', 'win31'])
@@ -28,6 +28,7 @@ const EMPTY_PROFILE_FORM: ProfileForm = {
   era: '',
   extra_args: '',
   enable_networking: false,
+  enable_dgvoodoo2: false,
   notes: '',
   launch_commands: [],
   container_enabled: null,
@@ -85,6 +86,7 @@ export default function ProfilesTab() {
     const ext = profile as LaunchProfile & {
       launch_commands?: string[] | null
       container_enabled?: boolean | null
+      enable_dgvoodoo2?: boolean
       drive_slug?: string | null
       use_drive?: boolean
     }
@@ -96,6 +98,7 @@ export default function ProfilesTab() {
       era: profile.era,
       extra_args: profile.extra_args ?? '',
       enable_networking: profile.enable_networking,
+      enable_dgvoodoo2: ext.enable_dgvoodoo2 ?? false,
       notes: profile.notes ?? '',
       launch_commands: ext.launch_commands ?? [],
       container_enabled: ext.container_enabled ?? null,
@@ -176,6 +179,7 @@ export default function ProfilesTab() {
         emulator_slug: form.emulator_slug.trim(),
         era: form.era,
         enable_networking: form.enable_networking,
+        enable_dgvoodoo2: form.enable_dgvoodoo2,
         launch_commands: form.launch_commands,
         container_enabled: form.container_enabled,
         drive_slug: resolvedDriveSlug,
@@ -397,6 +401,36 @@ export default function ProfilesTab() {
             </span>
           </div>
         </FormField>
+
+        {DGVOODOO2_SUPPORTED_ERAS.includes(form.era) && (
+          <FormField
+            label="dgVoodoo2 (3D compatibility)"
+            htmlFor="lp-dgvoodoo2"
+            hint="Injects dgVoodoo2 shims for games requiring legacy Direct3D support. Place DLLs in library/system/tools/dgvoodoo2/."
+          >
+            <div className="mt-1 flex items-center gap-3">
+              <button
+                id="lp-dgvoodoo2"
+                type="button"
+                role="switch"
+                aria-checked={form.enable_dgvoodoo2}
+                onClick={() => setField('enable_dgvoodoo2', !form.enable_dgvoodoo2)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#ff8a5c] focus:ring-offset-2 ${
+                  form.enable_dgvoodoo2 ? 'bg-[#ff8a5c]' : 'bg-neutral-300 dark:bg-neutral-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    form.enable_dgvoodoo2 ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className="text-sm text-neutral-600 dark:text-neutral-300">
+                {form.enable_dgvoodoo2 ? 'On' : 'Off (default)'}
+              </span>
+            </div>
+          </FormField>
+        )}
 
         <FormField label="Notes" htmlFor="lp-notes">
           <Textarea

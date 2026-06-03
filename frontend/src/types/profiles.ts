@@ -13,6 +13,7 @@ export interface ProfileForm {
   era: string
   extra_args: string
   enable_networking: boolean
+  enable_dgvoodoo2: boolean
   notes: string
   launch_commands: string[]
   container_enabled: boolean | null

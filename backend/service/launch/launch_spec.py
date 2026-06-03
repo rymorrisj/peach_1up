@@ -19,6 +19,7 @@ class LaunchSpec:
 
     # Network
     enable_networking: bool = False
+    enable_dgvoodoo2: bool = False
 
     # Item-level launch commands (appended after profile commands in dosbox)
     launch_commands: list[str] = field(default_factory=list)

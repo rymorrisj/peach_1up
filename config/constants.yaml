@@ -55,3 +55,8 @@ backend_system_labels:
   mesen:       "NES"
   project64:   "Nintendo 64"
   flycast:     "Dreamcast"
+
+dgvoodoo2_supported_eras:
+  - "win95"
+  - "win98"
+  - "winxp"

@@ -14,6 +14,7 @@ class ProfileBase(SQLModel):
     extra_args: Optional[str] = None
     is_bundled: bool = False
     enable_networking: bool = False
+    enable_dgvoodoo2: bool = False
     notes: Optional[str] = None
     user_id: Optional[int] = None
     launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
@@ -48,6 +49,7 @@ class ProfileUpdate(SQLModel):
     config_path: Optional[str] = None
     extra_args: Optional[str] = None
     enable_networking: Optional[bool] = None
+    enable_dgvoodoo2: Optional[bool] = None
     notes: Optional[str] = None
     launch_commands: Optional[list[str]] = None
     drive_slug: Optional[str] = None

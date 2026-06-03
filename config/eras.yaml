@@ -23,6 +23,7 @@ win95:
   supported_media: [".iso", ".img", ".cue"]
   mount_type: cdrom
   default_disk_size_mb: 1024
+  dgvoodoo2_supported: true
 
 win98:
   memory_limit_mb: 2048
@@ -30,6 +31,7 @@ win98:
   supported_media: [".iso", ".img", ".cue"]
   mount_type: cdrom
   default_disk_size_mb: 2048
+  dgvoodoo2_supported: true
 
 winxp:
   memory_limit_mb: 3072
@@ -37,6 +39,7 @@ winxp:
   supported_media: [".iso", ".img", ".cue"]
   mount_type: cdrom
   default_disk_size_mb: 4096
+  dgvoodoo2_supported: true
 
 ps1:
   backend: duckstation

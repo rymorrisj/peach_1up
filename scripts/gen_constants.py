@@ -42,6 +42,7 @@ def generate_python(data: dict) -> str:
     backends: dict[str, str] = data["backend_slugs"]
     system_labels: dict[str, str] = data["backend_system_labels"]
     ratings: list[dict[str, str]] = data["content_ratings"]
+    dgvoodoo2_eras: list[str] = data.get("dgvoodoo2_supported_eras", [])
 
     lines: list[str] = [HEADER_PY, "from enum import Enum\n\n\n"]
 
@@ -79,6 +80,12 @@ def generate_python(data: dict) -> str:
     lines.append("CONTENT_RATINGS: list[dict[str, str]] = [\n")
     for r in ratings:
         lines.append(f'    {{"value": "{r["value"]}", "label": "{r["label"]}"}},\n')
+    lines.append("]\n\n")
+
+    # DGVOODOO2_SUPPORTED_ERAS
+    lines.append("DGVOODOO2_SUPPORTED_ERAS: list[str] = [\n")
+    for era in dgvoodoo2_eras:
+        lines.append(f'    "{era}",\n')
     lines.append("]\n")
 
     return "".join(lines)
@@ -89,6 +96,7 @@ def generate_typescript(data: dict) -> str:
     backends: dict[str, str] = data["backend_slugs"]
     system_labels: dict[str, str] = data["backend_system_labels"]
     ratings: list[dict[str, str]] = data["content_ratings"]
+    dgvoodoo2_eras: list[str] = data.get("dgvoodoo2_supported_eras", [])
 
     lines: list[str] = [HEADER_TS, "\n"]
 
@@ -125,7 +133,11 @@ def generate_typescript(data: dict) -> str:
     for r in ratings:
         label = r["label"].replace("'", "\\'")
         lines.append(f"  {{ value: '{r['value']}', label: '{label}' }},\n")
-    lines.append("]\n")
+    lines.append("]\n\n")
+
+    # DGVOODOO2_SUPPORTED_ERAS
+    eras_ts = ", ".join(f'"{e}"' for e in dgvoodoo2_eras)
+    lines.append(f"export const DGVOODOO2_SUPPORTED_ERAS: string[] = [{eras_ts}]\n")
 
     return "".join(lines)
 

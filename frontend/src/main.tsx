@@ -13,6 +13,7 @@ import BiosSourcing from '@/pages/Guides/BiosSourcing'
 import Box86HardwareGuide from '@/pages/Guides/86BoxHardwareGuide'
 import EraGuide from '@/pages/Guides/EraGuide'
 import MediaFormatsGuide from '@/pages/Guides/MediaFormatsGuide'
+import ControllerGuide from '@/pages/Guides/ControllerGuide'
 import Emulators from '@/pages/Emulators'
 import EmulatorDetail from '@/pages/Emulators/EmulatorDetail'
 import Environments from '@/pages/Environments'
@@ -87,6 +88,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/guides/86box-hardware" element={<Box86HardwareGuide />} />
                 <Route path="/guides/era-detection" element={<EraGuide />} />
                 <Route path="/guides/media-formats" element={<MediaFormatsGuide />} />
+                <Route path="/guides/controllers" element={<ControllerGuide />} />
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />

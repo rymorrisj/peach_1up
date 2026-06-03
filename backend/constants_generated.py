@@ -78,3 +78,9 @@ CONTENT_RATINGS: list[dict[str, str]] = [
     {"value": "PEGI 16", "label": "PEGI 16"},
     {"value": "PEGI 18", "label": "PEGI 18"},
 ]
+
+DGVOODOO2_SUPPORTED_ERAS: list[str] = [
+    "win95",
+    "win98",
+    "winxp",
+]

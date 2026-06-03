@@ -8,6 +8,8 @@ game media into the config file, and launches 86Box under Job Objects.
 from __future__ import annotations
 
 import configparser
+import shutil
+import threading
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
@@ -278,6 +280,45 @@ def launch(spec: "LaunchSpec") -> tuple:
             {"Network": {"net_type": "slirp"}},
         )
 
+    # dgVoodoo2 DLL injection — Win9x/XP era only, opt-in via profile flag.
+    # SECURITY: target directory is validated against the library root before any copy.
+    copied_dgvoodoo2_dlls: list[Path] = []
+    if spec.enable_dgvoodoo2 and spec.era in {"win95", "win98", "winxp"}:
+        if spec.media_path is None:
+            raise ValueError(
+                "dgVoodoo2 injection requires a media path but none is set on this spec. "
+                "Ensure the library item has a valid media path."
+            )
+        target_dir = spec.media_path.parent.resolve()
+        library_root = (get_base_path() / "library").resolve()
+        if not (target_dir == library_root or target_dir.is_relative_to(library_root)):
+            raise ValueError(
+                f"dgVoodoo2 target directory '{target_dir}' resolves outside the library tree. "
+                "DLLs can only be copied to a directory within the configured library."
+            )
+        dgvoodoo2_src = (get_base_path() / "library" / "system" / "tools" / "dgvoodoo2").resolve()
+        dll_names = ["d3d8.dll", "d3d9.dll", "DDraw.dll"]
+        missing = [n for n in dll_names if not (dgvoodoo2_src / n).exists()]
+        if missing:
+            raise ValueError(
+                "dgVoodoo2 DLLs not found in library/system/tools/dgvoodoo2/. "
+                "Place d3d8.dll, d3d9.dll, and DDraw.dll there to use this feature."
+            )
+        try:
+            for dll_name in dll_names:
+                dst = target_dir / dll_name
+                shutil.copy2(str(dgvoodoo2_src / dll_name), str(dst))
+                copied_dgvoodoo2_dlls.append(dst)
+        except OSError as exc:
+            for p in copied_dgvoodoo2_dlls:
+                try:
+                    p.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            raise ValueError(
+                f"Failed to copy dgVoodoo2 DLLs to '{target_dir}': {exc}"
+            ) from exc
+
     vm_dir = spec.vm_dir
 
     args = [
@@ -288,13 +329,44 @@ def launch(spec: "LaunchSpec") -> tuple:
 
     job_name = f"peach1up_86box_{spec.era}_{spec.platform_slug}"
 
-    return launch_under_job_object(
-        executable_path=box86_path,
-        args=args,
-        era=spec.era,
-        job_name=job_name,
-        slug="86box",
-        cwd=str(vm_dir),
-        container_enabled=get_container_enabled("86box"),
-        sandbox_config=get_emulator_container_config("86box", box86_path),
-    )
+    try:
+        result = launch_under_job_object(
+            executable_path=box86_path,
+            args=args,
+            era=spec.era,
+            job_name=job_name,
+            slug="86box",
+            cwd=str(vm_dir),
+            container_enabled=get_container_enabled("86box"),
+            sandbox_config=get_emulator_container_config("86box", box86_path),
+        )
+    except Exception:
+        for p in copied_dgvoodoo2_dlls:
+            try:
+                p.unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise
+
+    if copied_dgvoodoo2_dlls:
+        proc = result[0] if isinstance(result, tuple) else result
+        dlls = list(copied_dgvoodoo2_dlls)
+
+        def _cleanup_dgvoodoo2_dlls(p: object, paths: list[Path]) -> None:
+            try:
+                p.wait()  # type: ignore[union-attr]
+            except Exception:
+                pass
+            for path in paths:
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+
+        threading.Thread(
+            target=_cleanup_dgvoodoo2_dlls,
+            args=(proc, dlls),
+            daemon=True,
+        ).start()
+
+    return result
