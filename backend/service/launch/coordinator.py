@@ -323,6 +323,7 @@ async def launch_item(item: LibraryItem, profile_id: int | None, db: Session) ->
 
 
 async def launch_environment(platform: Platform, profile_id: int | None, db: Session) -> LaunchResult:
+    logger.info("launch_environment entry: platform_id=%d era=%s profile_id=%s", platform.id, platform.era, profile_id)
     exited = process_registry.cleanup_exited()
     if exited:
         await asyncio.to_thread(write_session_ends, exited)
@@ -361,7 +362,14 @@ async def launch_environment(platform: Platform, profile_id: int | None, db: Ses
             detail="Environment has no working image. Provisioning is not available for this era.",
         )
 
-    spec = _build_spec_for_environment(platform, profile)
+    try:
+        spec = _build_spec_for_environment(platform, profile)
+    except Exception:
+        logger.exception(
+            "launch_environment failed to build LaunchSpec: platform_id=%d era=%s config_path=%r",
+            platform.id, platform.era, platform.config_path,
+        )
+        raise
     return await launch(spec, db)
 
 

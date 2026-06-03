@@ -34,8 +34,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   if (!res.ok) {
     let detail = res.statusText
     try {
-      const body = (await res.json()) as { detail?: string }
-      detail = body.detail ?? detail
+      const body = (await res.json()) as { detail?: unknown }
+      const raw = body.detail
+      detail = typeof raw === 'string' ? raw : raw != null ? JSON.stringify(raw) : detail
     } catch {
       // keep statusText as detail
     }

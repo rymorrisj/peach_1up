@@ -37,10 +37,10 @@ export default function EnvironmentCard({
   const queryClient = useQueryClient()
   const eraLabel = ERA_LABELS[platform.era] ?? platform.era
   const emulatorLabel = EMULATOR_LABELS[platform.emulator_slug] ?? platform.emulator_slug
-  const { launch, stop, isLaunching, error: launchError, warnings } = useLaunch(
-    platform.id,
-    'environment',
-  )
+  const { launch, stop, isLaunching, error: launchError, warnings } = useLaunch({
+    targetId: platform.id,
+    targetType: 'environment',
+  })
 
   const [markingInstalled, setMarkingInstalled] = useState(false)
   const [markInstalledError, setMarkInstalledError] = useState<string | null>(null)
@@ -115,7 +115,7 @@ export default function EnvironmentCard({
             Stop
           </Button>
         ) : (
-          <Button size="sm" onClick={launch}>
+          <Button size="sm" onClick={() => { console.log('LAUNCH CLICK FIRED', platform.id); launch(); }}>
             Launch
           </Button>
         )}

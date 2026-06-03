@@ -52,7 +52,14 @@ async def launch_environment(
     platform = db.get(Platform, platform_id)
     if not platform:
         raise HTTPException(status_code=404, detail="Environment not found.")
-    result = await svc.launch_environment(platform, body.profile_id, db)
+    logger.info("launch_environment route: platform_id=%d era=%s", platform_id, platform.era)
+    try:
+        result = await svc.launch_environment(platform, body.profile_id, db)
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("launch_environment route unhandled exception: platform_id=%d", platform_id)
+        raise
     return LaunchResponse(
         launch_history_id=result.history_id,
         warnings=result.warnings,
