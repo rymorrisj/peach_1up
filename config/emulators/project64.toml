@@ -15,15 +15,15 @@ capabilities = []
 skip_memory_limit = false
 description = "Nintendo 64 emulation"
 required = false
-install_type = "installer"
-install_scope = "system"
+install_type = "bundled"
+install_scope = "portable"
 windows_installer_glob = "Project64*.exe"
-known_path = "C:\\Program Files (x86)\\Project64 3.0\\Project64.exe"
+known_path = ""
 license = "GPL-2.0"
 copyright = "Copyright 2001–2024 Project64 Ltd and contributors"
 source_url = "https://github.com/project64/project64"
 supported_formats = [".z64", ".n64", ".v64"]
-guidance_text = "Download the Project64 Windows installer and place it in emulators/project64/, then click Run Installer."
+guidance_text = "Project64 is included with Peach 1UP. No installation required."
 guidance_url = "https://www.pj64-emu.com"
 
 [[container_broker_files]]
