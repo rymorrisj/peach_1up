@@ -45,6 +45,11 @@ path_key = "cache_dir"
 access = "rw"
 mode = "grant"
 
+[[container_broker_files]]
+path_key = "inis_dir"
+access = "rw"
+mode = "grant"
+
 [[dependencies]]
 name = "ps2-bios"
 acquire_method = "user_supplied"

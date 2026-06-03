@@ -33,7 +33,7 @@ mode = "grant"
 
 
 [[container_broker_files]]
-path_key = "saves_dir"
+path_key = "pj64_save_dir"
 access = "rw"
 mode = "grant"
 

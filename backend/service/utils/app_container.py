@@ -85,6 +85,10 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
         "cache_dir":    base / "emulators" / slug / "cache",
         # Per-emulator plugin directory (Project64).
         "plugin_dir":   base / "emulators" / slug / "plugins",
+        # Project64 portable EEPROM/save directory (capital-S as PJ64 writes it).
+        "pj64_save_dir": base / "emulators" / slug / "Save",
+        # PCSX2 portable inis directory (needs rw; install_dir grant is r-only).
+        "inis_dir":     base / "emulators" / slug / "inis",
         # xemu HDD image fallback: grants the whole xemu emulator dir when launch_paths
         # does not supply the specific .qcow2 path.
         "hdd_image":    base / "emulators" / "xemu",

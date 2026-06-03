@@ -74,7 +74,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         sandbox_config = get_emulator_container_config(spec.slug, spec.executable_path)
         if spec.media_path is not None:
             sandbox_config.broker_files.append(
-                BrokerFile(path=str(spec.media_path), access="r", mode="grant"))
+                BrokerFile(path=str(spec.media_path.parent), access="r", mode="grant"))
     else:
         sandbox_config = None
 
