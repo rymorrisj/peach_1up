@@ -79,8 +79,8 @@ if errorlevel 1 (
 
 echo [OK] Backend dependencies installed
 
-REM ── Frontend deps + build ─────────────────────────────────────
-echo Installing frontend dependencies and building...
+REM ── Frontend deps ────────────────────────────────────────────
+echo Installing frontend dependencies...
 pushd "frontend"
 call npm install
 if errorlevel 1 (
@@ -89,16 +89,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-call npm run build
-if errorlevel 1 (
-    echo ERROR: Frontend build failed.
-    popd
-    exit /b 1
-)
-
 popd
-echo [OK] Frontend built (dist is fresh at :8000)
-REM For hot-reload dev, run: cd frontend ^& npm run dev
+echo [OK] Frontend dependencies installed
 
 REM ── Generate API types ───────────────────────────────────────
 echo Generating OpenAPI spec and frontend types...
@@ -152,8 +144,8 @@ REM ── Environment and start services ────────────�
 set PEACH_ENV=development
 
 echo.
-echo Starting Peach 1UP backend (serves built frontend at http://localhost:8000)...
-REM To use Vite hot-reload instead: start "Peach 1UP Frontend" /d "%~dp0frontend" cmd /k "npm run dev"
+echo Starting Peach 1UP (frontend :5173, backend :8000)...
+start "Peach 1UP Frontend" /d "%~dp0frontend" cmd /k "npm run dev"
 py -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload --reload-dir backend
 
 echo.

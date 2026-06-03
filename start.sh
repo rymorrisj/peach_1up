@@ -49,11 +49,10 @@ python3 -m pip install --upgrade pip -q
 python3 -m pip install -r backend/requirements.txt
 echo "[OK] Backend dependencies installed"
 
-# ── Frontend deps + build ─────────────────────────────────────
-echo "Installing frontend dependencies and building..."
-( cd frontend && npm install && npm run build )
-echo "[OK] Frontend built (dist is fresh at :8000)"
-# For hot-reload dev: cd frontend && npm run dev
+# ── Frontend deps ─────────────────────────────────────────────
+echo "Installing frontend dependencies..."
+( cd frontend && npm install )
+echo "[OK] Frontend dependencies installed"
 
 # ── Settings check ─────────────────────────────────────────────
 if [ ! -f "config/settings.yaml" ]; then
@@ -87,8 +86,8 @@ fi
 export PEACH_ENV=development
 
 echo
-echo "Starting Peach 1UP backend (serves built frontend at http://localhost:8000)..."
-# For hot-reload dev: ( cd frontend && npm run dev ) &
+echo "Starting Peach 1UP (frontend :5173, backend :8000)..."
+( cd frontend && npm run dev ) &
 python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 echo
