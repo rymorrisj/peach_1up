@@ -143,8 +143,8 @@ class TestValidateBiosFromDescriptor:
 
 class TestCliArgsPrefixInDescriptors:
     @pytest.mark.parametrize("slug,expected", [
-        ("duckstation", ["-nogui"]),
-        ("pcsx2",       ["-nogui"]),
+        ("duckstation", ["-batch"]),
+        ("pcsx2",       ["-nogui", "-batch"]),
         ("mesen",       []),
         ("project64",   []),
     ])
