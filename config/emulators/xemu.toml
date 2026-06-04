@@ -24,6 +24,11 @@ guidance_text = "Download the xemu Windows release and extract it to emulators/x
 guidance_url = "https://xemu.app"
 
 [[container_broker_files]]
+path = "C:\\"
+access = "x"
+mode = "grant"
+
+[[container_broker_files]]
 path_key = "install_dir"
 access = "r"
 mode = "grant"
@@ -31,7 +36,7 @@ mode = "grant"
 [[container_broker_files]]
 path_key = "hdd_image"
 access = "rw"
-mode = "grant"
+mode = "inherit"
 
 [[container_broker_files]]
 path_key = "appdata_xemu"

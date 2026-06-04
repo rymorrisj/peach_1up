@@ -27,6 +27,47 @@ SUPPORTED_ERAS = {Era.DREAMCAST.value}
 SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.DREAMCAST]
 
 
+def _write_ini_key(ini_path: Path, section: str, key: str, value: str) -> None:
+    """Update a single key in an INI file, preserving all other content exactly."""
+    if not ini_path.exists():
+        ini_path.parent.mkdir(parents=True, exist_ok=True)
+        ini_path.write_text(f"[{section}]\n{key} = {value}\n", encoding="utf-8")
+        return
+    lines = ini_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    in_target = False
+    section_found = False
+    key_written = False
+    insert_before: int | None = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            if stripped[1:-1] == section:
+                in_target = True
+                section_found = True
+            elif in_target and not key_written:
+                insert_before = i
+                in_target = False
+            else:
+                in_target = False
+        elif in_target and "=" in line:
+            k = line.split("=", 1)[0].strip()
+            if k == key:
+                lines[i] = f"{key} = {value}\n"
+                key_written = True
+                in_target = False
+    if not key_written:
+        new_line = f"{key} = {value}\n"
+        if insert_before is not None:
+            lines.insert(insert_before, new_line)
+        elif section_found:
+            lines.append(new_line)
+        else:
+            if lines and not lines[-1].endswith("\n"):
+                lines[-1] += "\n"
+            lines.append(f"\n[{section}]\n{new_line}")
+    ini_path.write_text("".join(lines), encoding="utf-8")
+
+
 def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch Flycast with the given Dreamcast media under Job Object isolation.
 
@@ -63,7 +104,12 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             f"Flycast supports: {', '.join(sorted(SUPPORTED_MEDIA))}"
         )
 
-    args: list[str] = [str(spec.media_path)]
+    _write_ini_key(
+        Path(spec.executable_path).parent / "emu.cfg",
+        "config", "Dreamcast.ContentPath", str(spec.media_path.parent),
+    )
+
+    args: list[str] = [str(spec.media_path.resolve())]
     job_name = f"peach1up_flycast_{spec.era}_{spec.media_path.stem}"
 
     catalog_enabled = get_container_enabled("flycast")

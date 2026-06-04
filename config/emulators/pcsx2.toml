@@ -8,7 +8,7 @@ sha256 = ""
 download_url = "https://pcsx2.net"
 release_url = "https://github.com/PCSX2/pcsx2/releases"
 portable_sentinel = "portable.txt"
-cli_args_prefix = ["-nogui"]
+cli_args_prefix = ["-nogui", "-batch"]
 sandbox_mode = "appcontainer"
 container_enabled = false
 capabilities = []
@@ -23,6 +23,11 @@ source_url = "https://github.com/PCSX2/pcsx2"
 supported_formats = [".iso", ".bin", ".cue", ".chd"]
 guidance_text = "PCSX2 is bundled — binaries are included in emulators/pcsx2/."
 guidance_url = "https://pcsx2.net"
+
+[[container_broker_files]]
+path = "C:\\"
+access = "x"
+mode = "grant"
 
 [[container_broker_files]]
 path_key = "install_dir"

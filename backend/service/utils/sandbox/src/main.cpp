@@ -48,6 +48,7 @@ static void emit_error(const std::string& stage,
 
 static DWORD access_to_mask(const std::wstring& access) {
     if (access == L"rw") return 0x001201FF; // GENERIC_READ | GENERIC_WRITE
+    if (access == L"x")  return 0x000000A0; // FILE_TRAVERSE | FILE_READ_ATTRIBUTES
     return 0x00120089;                       // GENERIC_READ
 }
 
@@ -55,7 +56,7 @@ static DWORD access_to_mask(const std::wstring& access) {
 
 struct BrokerFile {
     std::wstring path;
-    std::wstring access; // "r" or "rw"
+    std::wstring access; // "r", "rw", or "x"
     std::wstring mode;   // "create", "inherit", or "grant"
 };
 

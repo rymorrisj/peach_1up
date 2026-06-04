@@ -10,22 +10,25 @@ acquiring BIOS files.
 
 from __future__ import annotations
 
+import re
+import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
-from backend.service.utils.emulator_catalog import (
-    get_container_enabled,
-    get_container_config as get_emulator_container_config,
-)
+from backend.service.utils.emulator_catalog import get_container_enabled
 from backend.service.utils.xbox_image import detect_xbox_image_type
 from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.sandbox import BrokerFile
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.process.job_objects import WindowsJobObject
+from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import get_install_path
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
@@ -53,7 +56,26 @@ def validate_media(media_path: Path) -> None:
         )
 
 
-def provision_xemu_defaults(exe_path: Path, vm_dir: Path) -> Path:
+def _clear_dvd_path_on_exit(proc, toml_path: Path) -> None:
+    try:
+        while proc.poll() is None:
+            time.sleep(0.5)
+    except Exception:
+        pass
+    try:
+        text = toml_path.read_text(encoding="utf-8")
+        cleared = re.sub(
+            r'^(dvd_path\s*=\s*)"[^"]*"',
+            r'\1""',
+            text,
+            flags=re.MULTILINE,
+        )
+        toml_path.write_text(cleared, encoding="utf-8")
+    except Exception as exc:
+        logger.warning("Failed to clear dvd_path in xemu.toml after exit: %s", exc)
+
+
+def provision_xemu_defaults(exe_path: Path, vm_dir: Path, dvd_path: str | None = None) -> Path:
     """Write (or overwrite) the per-VM xemu.toml; return its path.
 
     Always overwrites any existing xemu.toml so stale configs from previous broken
@@ -122,6 +144,7 @@ def provision_xemu_defaults(exe_path: Path, vm_dir: Path) -> Path:
         f'flashrom_path = "{flash_bins[0].resolve().as_posix()}"\n'
         f'eeprom_path = "{eeprom_path.resolve().as_posix()}"\n'
         f'hdd_path = "{hdd_path.resolve().as_posix()}"\n'
+        f'dvd_path = "{dvd_path or ""}"\n'
     )
 
     tmp = toml_path.with_suffix(".tmp")
@@ -182,18 +205,6 @@ def validate_bios_path(config_path: Path) -> None:
         )
 
 
-def build_args(media_path: Path) -> list[str]:
-    """Build xemu command line arguments for the given disc image.
-
-    Args:
-        media_path: Path to the Xbox ISO disc image.
-
-    Returns:
-        List of command line arguments (excludes the executable path).
-    """
-    return ["-dvd_path", str(media_path)]
-
-
 def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch xemu with the given Xbox disc image under Job Object isolation.
 
@@ -247,13 +258,13 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
                     "https://github.com/xboxdev/extract-xiso"
                 )
 
+    dvd_posix = spec.media_path.resolve().as_posix() if spec.media_path is not None else None
+
     vm_dir = get_base_path() / "emulators" / "xemu" / "vms" / str(spec.profile_id)
-    config_path = provision_xemu_defaults(Path(executable_path), vm_dir)
+    config_path = provision_xemu_defaults(Path(executable_path), vm_dir, dvd_path=dvd_posix)
     validate_bios_path(config_path)
 
     args = ["-config_path", str(config_path)]
-    if spec.media_path is not None:
-        args += build_args(spec.media_path)
 
     job_name = f"peach1up_xemu_{spec.era}_shared"
 
@@ -261,14 +272,22 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
 
     if container_enabled:
-        sandbox_config = get_emulator_container_config("xemu", executable_path)
+        from backend.service.utils.app_container import (
+            get_container_config as _build_sandbox_cfg,
+        )
+        hdd_path = Path(executable_path).parent / "xbox_hdd.qcow2"
+        sandbox_config = _build_sandbox_cfg(
+            "xemu",
+            executable_path,
+            launch_paths={"hdd_image": str(hdd_path)},
+        )
         if spec.media_path is not None:
             sandbox_config.broker_files.append(
                 BrokerFile(path=str(spec.media_path.parent), access="r", mode="grant"))
     else:
         sandbox_config = None
 
-    return launch_under_job_object(
+    result = launch_under_job_object(
         executable_path=executable_path,
         args=args,
         era=spec.era,
@@ -278,3 +297,13 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         container_enabled=container_enabled,
         sandbox_config=sandbox_config,
     )
+
+    if dvd_posix:
+        threading.Thread(
+            target=_clear_dvd_path_on_exit,
+            args=(result[0], config_path),
+            daemon=True,
+            name=f"xemu_dvd_cleanup_{result[0].pid}",
+        ).start()
+
+    return result

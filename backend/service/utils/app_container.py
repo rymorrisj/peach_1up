@@ -153,7 +153,7 @@ def get_container_config(
 
     files_raw = descriptor.get("container_broker_files", [])
 
-    if any(e["path_key"] == "hdd_image" for e in files_raw):
+    if any(e.get("path_key") == "hdd_image" for e in files_raw):
         if not launch_paths or "hdd_image" not in launch_paths:
             logger.warning(
                 "hdd_image broker_file for '%s' is using the directory placeholder "
@@ -165,9 +165,13 @@ def get_container_config(
     broker_files: list[BrokerFile] = [
         BrokerFile(
             path=(
-                launch_paths[entry["path_key"]]
-                if launch_paths and entry["path_key"] in launch_paths
-                else _resolve_path_key(entry["path_key"], emulator_slug)
+                entry["path"]
+                if "path" in entry
+                else (
+                    launch_paths[entry["path_key"]]
+                    if launch_paths and entry["path_key"] in launch_paths
+                    else _resolve_path_key(entry["path_key"], emulator_slug)
+                )
             ),
             access=entry["access"],
             mode=entry.get("mode", "grant"),

@@ -24,6 +24,11 @@ guidance_text = "Download the Flycast Windows release and extract it to emulator
 guidance_url = "https://github.com/flyinghead/flycast"
 
 [[container_broker_files]]
+path = "C:\\"
+access = "x"
+mode = "grant"
+
+[[container_broker_files]]
 path_key = "install_dir"
 access = "rw"
 mode = "grant"
