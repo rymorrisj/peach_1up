@@ -29,6 +29,10 @@ _JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE  = 0x10  # requires Windows 10 version
 # GetExitCodeProcess sentinel — process has not yet exited.
 _STILL_ACTIVE = 259
 
+# STARTUPINFO dwFlags / wShowWindow values for foreground placement hints.
+_STARTF_USESHOWWINDOW = 0x00000001
+_SW_SHOWNORMAL = 1
+
 
 # ---------------------------------------------------------------------------
 # Windows API structures

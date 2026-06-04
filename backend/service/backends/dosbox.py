@@ -194,10 +194,11 @@ def _build_drive_mount_lines(
             drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
         else:
             geo = _read_geometry(drive_image_path)
-            spc = geo["sectors_per_cluster"]
-            hpc = 255
-            cyl = geo["total_sectors"] // (spc * hpc)
-            drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd -size 512,{spc},{hpc},{cyl}")
+            spt = 63        # standard sectors per track for CHS geometry
+            hpc = 255       # standard heads per cylinder
+            cyl = geo["total_sectors"] // (spt * hpc)
+            drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd -size 512,{spt},{hpc},{cyl}")
+
 
         if media_path.is_dir():
             mount_line = None

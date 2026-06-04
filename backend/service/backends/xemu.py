@@ -282,6 +282,8 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             executable_path,
             launch_paths={"hdd_image": str(hdd_path)},
         )
+        sandbox_config.broker_files.append(
+            BrokerFile(path=str(vm_dir), access="rw", mode="grant"))
         if spec.media_path is not None:
             sandbox_config.broker_files.append(
                 BrokerFile(path=str(spec.media_path.parent), access="r", mode="grant"))
@@ -296,6 +298,10 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     else:
         sandbox_config = None
 
+    logger.debug(
+        "xemu.launch: args=%s config_path=%s",
+        args, config_path,
+    )
     result = launch_under_job_object(
         executable_path=executable_path,
         args=args,

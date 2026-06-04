@@ -23,7 +23,7 @@ set "SRC_DIR=%SANDBOX_DIR%\src"
 set "OUT_EXE=%SANDBOX_DIR%\sandbox_host.exe"
 set "OBJ_DIR=%SANDBOX_DIR%\build_tmp"
 
-rem ── Locate vswhere ───────────────────────────────────────────
+rem -- Locate vswhere --------------------------------------------------
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE%" set "VSWHERE=%ProgramFiles%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE%" (
@@ -32,7 +32,7 @@ if not exist "%VSWHERE%" (
     exit /b 1
 )
 
-rem ── Find VS installation with C++ tools ──────────────────────
+rem -- Find VS installation with C++ tools -----------------------------
 for /f "usebackq delims=" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2^>nul`) do set "VS_INSTALL=%%i"
 if not defined VS_INSTALL (
     echo ERROR: No Visual Studio installation with C++ tools found.
@@ -46,7 +46,7 @@ if not exist "%VCVARS%" (
     exit /b 1
 )
 
-rem ── Init x64 toolchain ───────────────────────────────────────
+rem -- Init x64 toolchain ----------------------------------------------
 echo Initializing MSVC x64 toolchain from: %VS_INSTALL%
 call "%VCVARS%" x64 >nul 2>&1
 if errorlevel 1 (
@@ -54,10 +54,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
-rem ── Prepare obj output directory ─────────────────────────────
+rem -- Prepare obj output directory ------------------------------------
 if not exist "%OBJ_DIR%" mkdir "%OBJ_DIR%"
 
-rem ── Compile ──────────────────────────────────────────────────
+rem -- Compile ---------------------------------------------------------
 echo Building sandbox_host.exe...
 echo   Output : %OUT_EXE%
 
@@ -74,7 +74,7 @@ cl.exe /nologo /std:c++20 /O2 /W3 /EHsc ^
 
 set "BUILD_RESULT=%errorlevel%"
 
-rem ── Clean intermediate objects ────────────────────────────────
+rem -- Clean intermediate objects --------------------------------------
 rmdir /s /q "%OBJ_DIR%" 2>nul
 
 if %BUILD_RESULT% neq 0 (

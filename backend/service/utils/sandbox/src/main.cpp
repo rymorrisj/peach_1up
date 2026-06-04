@@ -247,7 +247,9 @@ static int run_launch(const LaunchConfig& cfg) {
 
     // 6. CreateProcessW — suspended, with EXTENDED_STARTUPINFO_PRESENT.
     STARTUPINFOEXW si = {};
-    si.StartupInfo.cb = sizeof(si);
+    si.StartupInfo.cb          = sizeof(si);
+    si.StartupInfo.dwFlags     = STARTF_USESHOWWINDOW;
+    si.StartupInfo.wShowWindow = SW_SHOWNORMAL;
     si.lpAttributeList = attr_list;
 
     PROCESS_INFORMATION pi = {};

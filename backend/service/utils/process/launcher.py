@@ -21,6 +21,8 @@ from pathlib import Path
 
 from backend.service.utils.win32_types import (
     _CREATE_BREAKAWAY_FROM_JOB,
+    _STARTF_USESHOWWINDOW,
+    _SW_SHOWNORMAL,
     STARTUPINFOW,
     PROCESS_INFORMATION,
 )
@@ -84,6 +86,8 @@ def _launch_process(
 
     si = STARTUPINFOW()
     si.cb = ctypes.sizeof(STARTUPINFOW)
+    si.dwFlags = _STARTF_USESHOWWINDOW
+    si.wShowWindow = _SW_SHOWNORMAL
     pi = PROCESS_INFORMATION()
 
     logger.debug(

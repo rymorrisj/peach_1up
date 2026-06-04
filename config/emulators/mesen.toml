@@ -27,7 +27,7 @@ guidance_url = "https://www.mesen.ca"
 
 [[container_broker_files]]
 path_key = "install_dir"
-access = "r"
+access = "rw"
 mode = "grant"
 
 
