@@ -25,11 +25,6 @@ guidance_text = "DuckStation is bundled — binaries are included in emulators/d
 guidance_url = "https://www.duckstation.org"
 
 [[container_broker_files]]
-path = "C:\\"
-access = "x"
-mode = "grant"
-
-[[container_broker_files]]
 path_key = "install_dir"
 access = "rw"
 mode = "grant"

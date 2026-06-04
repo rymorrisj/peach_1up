@@ -16,10 +16,13 @@ from backend.service.utils.emulator_catalog import (
     get_container_config as get_emulator_container_config,
     validate_bios_from_descriptor,
 )
+from backend.core.logger import get_logger
 from backend.service.utils.process.launcher import launch_under_job_object
 from backend.service.utils.sandbox import BrokerFile
 from backend.service.utils.sandbox_process import SandboxProcess
 from backend.service.utils.process.job_objects import WindowsJobObject
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
@@ -130,9 +133,12 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         if spec.media_path is not None:
             sandbox_config.broker_files.append(
                 BrokerFile(path=str(spec.media_path.parent), access="r", mode="grant"))
+            sandbox_config.broker_files.append(
+                BrokerFile(path=str(spec.media_path), access="r", mode="inherit"))
     else:
         sandbox_config = None
 
+    logger.debug("console.launch: slug=%s args=%s", spec.slug, args)
     cwd = str(Path(spec.executable_path).parent) if spec.slug == "project64" else None
     return launch_under_job_object(
         executable_path=spec.executable_path,

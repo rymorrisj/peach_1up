@@ -27,11 +27,6 @@ guidance_text = "Project64 is included with Peach 1UP. No installation required.
 guidance_url = "https://www.pj64-emu.com"
 
 [[container_broker_files]]
-path = "C:\\"
-access = "x"
-mode = "grant"
-
-[[container_broker_files]]
 path_key = "install_dir"
 access = "r"
 mode = "grant"

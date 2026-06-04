@@ -25,11 +25,6 @@ guidance_text = "PCSX2 is bundled — binaries are included in emulators/pcsx2/.
 guidance_url = "https://pcsx2.net"
 
 [[container_broker_files]]
-path = "C:\\"
-access = "x"
-mode = "grant"
-
-[[container_broker_files]]
 path_key = "install_dir"
 access = "r"
 mode = "grant"

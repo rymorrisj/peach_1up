@@ -137,6 +137,8 @@ def _launch_process_in_container(
     if cwd is not None:
         sandbox_config.working_dir = cwd
 
+    sandbox_config.args = list(args)
+
     if creation_flags & _CREATE_BREAKAWAY_FROM_JOB:
         sandbox_config.breakaway = True
 

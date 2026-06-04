@@ -261,6 +261,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     dvd_posix = spec.media_path.resolve().as_posix() if spec.media_path is not None else None
 
     vm_dir = get_base_path() / "emulators" / "xemu" / "vms" / str(spec.profile_id)
+    logger.debug("xemu.launch: dvd_posix=%s vm_dir=%s", dvd_posix, vm_dir)
     config_path = provision_xemu_defaults(Path(executable_path), vm_dir, dvd_path=dvd_posix)
     validate_bios_path(config_path)
 
@@ -284,6 +285,14 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         if spec.media_path is not None:
             sandbox_config.broker_files.append(
                 BrokerFile(path=str(spec.media_path.parent), access="r", mode="grant"))
+            sandbox_config.broker_files.append(
+                BrokerFile(path=str(spec.media_path), access="r", mode="inherit"))
+        logger.debug(
+            "xemu.launch: broker_files=[%s]",
+            ", ".join(
+                f"{bf.mode}:{bf.access}:{bf.path}" for bf in sandbox_config.broker_files
+            ),
+        )
     else:
         sandbox_config = None
 
