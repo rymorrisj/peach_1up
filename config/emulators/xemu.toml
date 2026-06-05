@@ -25,7 +25,7 @@ guidance_url = "https://xemu.app"
 
 [[container_broker_files]]
 path_key = "install_dir"
-access = "r"
+access = "rw"
 mode = "grant"
 
 [[container_broker_files]]
@@ -68,6 +68,11 @@ description = "xemu pre-allocates a 1 GB JIT buffer at startup. The Job Object m
 title = "Shader cache writes to AppData"
 severity = "info"
 description = "xemu writes its shader cache to %APPDATA%\\xemu\\ regardless of portable mode. This is a known xemu limitation and cannot be overridden via config."
+
+[[known_limitations]]
+title = "AppContainer isolation not supported"
+severity = "critical"
+description = "xemu is built on QEMU's TCG emulation backend, which requires DeviceIoControl access to query disk geometry for qcow2 images. AppContainer blocks this call, causing a fatal block driver assertion at launch. Job Object isolation (kill-on-close, CPU cap) is the only available isolation layer on Windows. This is a QEMU platform limitation, not a configuration issue. See https://www.qemu.org/docs/master/system/security.html for details."
 
 [[known_limitations]]
 title = "Disc images must be in XISO format"

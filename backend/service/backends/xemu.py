@@ -260,12 +260,12 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     dvd_posix = spec.media_path.resolve().as_posix() if spec.media_path is not None else None
 
-    vm_dir = get_base_path() / "emulators" / "xemu" / "vms" / str(spec.profile_id)
+    vm_dir = Path(executable_path).parent
     logger.debug("xemu.launch: dvd_posix=%s vm_dir=%s", dvd_posix, vm_dir)
     config_path = provision_xemu_defaults(Path(executable_path), vm_dir, dvd_path=dvd_posix)
     validate_bios_path(config_path)
 
-    args = ["-config_path", str(config_path)]
+    args = ["-dvd_path", dvd_posix] if dvd_posix else []
 
     job_name = f"peach1up_xemu_{spec.era}_shared"
 
@@ -282,8 +282,6 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             executable_path,
             launch_paths={"hdd_image": str(hdd_path)},
         )
-        sandbox_config.broker_files.append(
-            BrokerFile(path=str(vm_dir), access="rw", mode="grant"))
         if spec.media_path is not None:
             sandbox_config.broker_files.append(
                 BrokerFile(path=str(spec.media_path.parent), access="r", mode="grant"))

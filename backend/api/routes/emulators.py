@@ -363,9 +363,15 @@ def get_confirm_token(slug: str):
 @router.patch("/{slug}/sandbox")
 def patch_sandbox(slug: str, body: SandboxPatchRequest):
     try:
-        get_emulator(slug)
+        entry = get_emulator(slug)
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
+
+    if body.container_enabled is True and entry.get("container_enabled") is False:
+        raise HTTPException(
+            status_code=400,
+            detail="AppContainer is permanently disabled for this emulator. See known limitations for details.",
+        )
 
     updates = body.model_dump(exclude_none=True)
     for field, value in updates.items():

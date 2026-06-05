@@ -298,13 +298,16 @@ def get_skip_cpu_limit(slug: str) -> bool:
 
 
 def get_container_enabled(slug: str) -> bool:
+    try:
+        toml_val = get_emulator(slug).get("container_enabled", False)
+    except ValueError:
+        return False
+    if toml_val is False:
+        return False
     override = _settings.get(f"sandbox_{slug}_container_enabled", None)
     if override is not None:
         return bool(override)
-    try:
-        return bool(get_emulator(slug).get("container_enabled", False))
-    except ValueError:
-        return False
+    return bool(toml_val)
 
 
 def get_container_config(slug: str, exe_path: str) -> "SandboxConfig | None":
