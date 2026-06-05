@@ -48,9 +48,11 @@ class CatalogEntryResponse(BaseModel):
     git_available: Optional[bool] = None
     expert_mode_set: Optional[bool] = None
     container_enabled: bool = False
+    container_hardcap_disabled: bool = False
     skip_cpu_limit: bool = False
     skip_memory_limit: bool = False
     known_limitations: list[dict] = []
+    rom_pack_slug: Optional[str] = None
 
 
 class SandboxPatchRequest(BaseModel):
@@ -128,8 +130,10 @@ def _write_xemu_toml(toml_path: Path, sections: dict) -> None:
 def list_emulators():
     from backend.service.utils.emulator_installer import check_git
 
+    all_entries = load_catalog()
+    rom_pack_slugs = {e["slug"] for e in all_entries if e.get("install_type") == "rom_pack"}
     result = []
-    for entry in load_catalog():
+    for entry in all_entries:
         slug = entry["slug"]
         binary = get_install_path(slug)
         install_type = entry.get("install_type", "zip")
@@ -158,6 +162,11 @@ def list_emulators():
             _toml_val = bool(entry.get(_sf, False))
             _override = _settings.get(f"sandbox_{slug}_{_sf}", None)
             item[_sf] = bool(_override) if _override is not None else _toml_val
+        item["container_hardcap_disabled"] = bool(entry.get("container_hardcap_disabled", False))
+        item["rom_pack_slug"] = next(
+            (dep["name"] for dep in entry.get("dependencies", []) if dep.get("name") in rom_pack_slugs),
+            None,
+        )
         if "install_note" in entry:
             item["install_note"] = entry["install_note"]
         item["known_limitations"] = entry.get("known_limitations", [])

@@ -3,9 +3,12 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.logger import get_logger
 from backend.models.library import LibraryItem
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
+
+_log = get_logger(__name__)  # DEBUG
 
 _DEFAULT_RATING_ORDINALS: dict[str, int] = {
     "EC": 0,
@@ -49,13 +52,19 @@ def get_active_user(request: Request, db: Session = Depends(get_db)) -> User:
         raise HTTPException(status_code=503, detail="No owner account configured.")
 
     user_id = request.session.get("active_user_id")
+    # DEBUG — remove before shipping
+    _log.debug("[DEBUG][get_active_user] session active_user_id=%r", user_id)
     if user_id is None:
+        _log.debug("[DEBUG][get_active_user] no session user → returning owner id=%r is_owner=%r is_admin=%r", owner.id, owner.is_owner, owner.is_admin)
         return owner
 
     user = db.get(User, user_id)
     if user is None:
+        _log.debug("[DEBUG][get_active_user] session user_id=%r not found → returning owner id=%r is_owner=%r is_admin=%r", user_id, owner.id, owner.is_owner, owner.is_admin)
         return owner
 
+    # DEBUG — remove before shipping
+    _log.debug("[DEBUG][get_active_user] resolved user id=%r name=%r is_owner=%r is_admin=%r", user.id, user.name, user.is_owner, user.is_admin)
     return user
 
 
@@ -72,6 +81,8 @@ def require_permission(flag: str):
         if active_user.is_owner:
             return active_user
         if not getattr(active_user, flag, False):
+            # DEBUG — remove before shipping
+            _log.debug("[DEBUG][require_permission] 403 → user id=%r name=%r is_owner=%r is_admin=%r flag=%r value=%r", active_user.id, active_user.name, active_user.is_owner, active_user.is_admin, flag, getattr(active_user, flag, None))
             raise HTTPException(
                 status_code=403,
                 detail=f"Permission denied: requires {flag}.",

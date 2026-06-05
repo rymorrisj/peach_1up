@@ -17,10 +17,6 @@ const EMULATOR_BIOS_PLATFORM: Record<string, string> = {
   'flycast':     'dreamcast',
 }
 
-const EMULATOR_ROM_PACK_SLUG: Record<string, string> = {
-  '86box': '86box-roms',
-}
-
 type Tab = 'overview' | 'rom' | 'ext' | 'profiles' | 'limits'
 
 function TabBtn({ id: _id, label, count, active, onClick }: {
@@ -132,7 +128,8 @@ export default function EmulatorDetail() {
     queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
   })
 
-  const romPackSlug = slug ? EMULATOR_ROM_PACK_SLUG[slug] : undefined
+  const entry = catalog.find((e) => e.slug === slug)
+  const romPackSlug = entry?.rom_pack_slug ?? undefined
   const emulatorBiosPlatform = slug ? EMULATOR_BIOS_PLATFORM[slug] : undefined
 
   const { data: allBios = [] } = useQuery<BiosRequirement[]>({
@@ -155,7 +152,6 @@ export default function EmulatorDetail() {
     enabled: isCloning && !!romPackSlug,
   })
 
-  const entry = catalog.find((e) => e.slug === slug)
   const romPackEntry = romPackSlug ? catalog.find((e) => e.slug === romPackSlug) : undefined
   const emulatorBios = allBios.filter((b) => b.platform === emulatorBiosPlatform)
   const eras = slug ? (EMULATOR_ERA_MAP[slug] ?? []) : []
@@ -328,7 +324,9 @@ export default function EmulatorDetail() {
         {/* Tabs */}
         <div className="flex gap-0" style={{ borderBottom: '1px solid var(--border)', marginBottom: 18 }}>
           <TabBtn id="overview" label="Overview" active={tab === 'overview'} onClick={() => setTab('overview')} />
-          <TabBtn id="rom" label="ROM Packs" active={tab === 'rom'} onClick={() => setTab('rom')} />
+          {romPackSlug && (
+            <TabBtn id="rom" label="ROM Packs" active={tab === 'rom'} onClick={() => setTab('rom')} />
+          )}
           <TabBtn id="ext" label="Extensions" active={tab === 'ext'} onClick={() => setTab('ext')} />
           <TabBtn id="profiles" label="Profiles" count={emulatorProfiles.length} active={tab === 'profiles'} onClick={() => setTab('profiles')} />
           {(entry?.known_limitations?.length ?? 0) > 0 && (
@@ -362,12 +360,40 @@ export default function EmulatorDetail() {
                   <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 4 }}>
                     Sandbox
                   </div>
-                  <SandboxToggle
-                    label="AppContainer"
-                    value={entry.container_enabled ?? false}
-                    disabled={sandboxSaving}
-                    onChange={(v) => handleSandboxToggle('container_enabled', v)}
-                  />
+                  {entry.container_hardcap_disabled === true ? (
+                    <div style={{
+                      padding: '8px 10px', borderBottom: '1px solid var(--border)',
+                      background: 'rgba(239,68,68,0.06)', borderRadius: 'var(--r-1)',
+                      marginBottom: 2,
+                    }}>
+                      <div style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: '#ef4444', lineHeight: 1.5 }}>
+                        AppContainer isolation is not supported for this emulator. This is a permanent platform limitation.{' '}
+                        <button
+                          type="button"
+                          onClick={() => setTab('limits')}
+                          style={{ background: 'none', border: 'none', padding: 0, color: 'var(--peach-400)', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 12 }}
+                        >
+                          Known Limitations
+                        </button>
+                        {' · '}
+                        <a
+                          href="https://www.qemu.org/docs/master/system/security.html"
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: 'var(--peach-400)', textDecoration: 'underline' }}
+                        >
+                          Learn more
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <SandboxToggle
+                      label="AppContainer"
+                      value={entry.container_enabled ?? false}
+                      disabled={sandboxSaving}
+                      onChange={(v) => handleSandboxToggle('container_enabled', v)}
+                    />
+                  )}
                   <SandboxToggle
                     label="CPU limit enabled"
                     value={!(entry.skip_cpu_limit ?? false)}
