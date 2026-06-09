@@ -19,6 +19,7 @@ class UserBase(SQLModel):
     block_unrated_media: bool = False
     is_locked: bool = False
     failed_pin_attempts: int = 0
+    session_expiry_minutes: Optional[int] = None
 
 
 class User(UserBase, table=True):

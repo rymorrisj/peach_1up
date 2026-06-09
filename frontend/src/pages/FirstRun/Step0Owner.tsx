@@ -1,46 +1,58 @@
-import { useState } from 'react'
-import { apiFetch, ApiError } from '@/api/client'
+import { useState } from "react";
+import { apiFetch, ApiError } from "@/api/client";
+import { useAppContext } from "@/context/useAppContext";
+import type { components } from "@shared/types";
+type UserRead = components["schemas"]["UserRead"];
 
 interface Step0OwnerProps {
-  onNext: () => void
+  onNext: () => void;
 }
 
 export default function Step0Owner({ onNext }: Step0OwnerProps) {
-  const [name, setName] = useState('')
-  const [pin, setPin] = useState('')
-  const [confirmPin, setConfirmPin] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+  const { dispatch } = useAppContext();
+  const [name, setName] = useState("");
+  const [pin, setPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
+    e.preventDefault();
+    setError(null);
 
     if (!name.trim()) {
-      setError('Name is required.')
-      return
+      setError("Name is required.");
+      return;
     }
     if (!/^\d{4,6}$/.test(pin)) {
-      setError('PIN must be 4–6 digits.')
-      return
+      setError("PIN must be 4–6 digits.");
+      return;
     }
     if (pin !== confirmPin) {
-      setError('PINs do not match.')
-      return
+      setError("PINs do not match.");
+      return;
     }
 
-    setSaving(true)
+    setSaving(true);
     try {
-      await apiFetch('/api/v1/auth/setup-owner', {
-        method: 'POST',
-        body: JSON.stringify({ name: name.trim(), pin, confirm_pin: confirmPin }),
-      })
-      onNext()
+      const resp = await apiFetch<{ user: UserRead }>("/api/v1/auth/setup-owner", {
+        method: "POST",
+        body: JSON.stringify({
+          name: name.trim(),
+          pin,
+          confirm_pin: confirmPin,
+        }),
+      });
+      dispatch({ type: "SET_ACTIVE_USER", payload: resp.user });
+      onNext();
     } catch (err) {
-      const message = err instanceof ApiError ? err.detail : 'Failed to create owner account.'
-      setError(message)
+      const message =
+        err instanceof ApiError
+          ? err.detail
+          : "Failed to create owner account.";
+      setError(message);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
@@ -50,8 +62,9 @@ export default function Step0Owner({ onNext }: Step0OwnerProps) {
         Create Owner Account
       </h2>
       <p className="mb-6 text-sm text-neutral-500 dark:text-neutral-400">
-        Set up the owner account for this Peach 1UP installation. The PIN protects
-        access and cannot be recovered if lost — store it somewhere safe.
+        Set up the owner account for this Peach 1UP installation. The PIN
+        protects access and cannot be recovered if lost — store it somewhere
+        safe.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -85,7 +98,9 @@ export default function Step0Owner({ onNext }: Step0OwnerProps) {
             type="password"
             inputMode="numeric"
             value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            onChange={(e) =>
+              setPin(e.target.value.replace(/\D/g, "").slice(0, 6))
+            }
             placeholder="••••"
             autoComplete="new-password"
             className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100 dark:placeholder:text-neutral-600"
@@ -104,7 +119,9 @@ export default function Step0Owner({ onNext }: Step0OwnerProps) {
             type="password"
             inputMode="numeric"
             value={confirmPin}
-            onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            onChange={(e) =>
+              setConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 6))
+            }
             placeholder="••••"
             autoComplete="new-password"
             className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100 dark:placeholder:text-neutral-600"
@@ -123,10 +140,10 @@ export default function Step0Owner({ onNext }: Step0OwnerProps) {
             disabled={saving}
             className="rounded-md bg-[#ff8a5c] px-6 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff8a5c]"
           >
-            {saving ? 'Creating…' : 'Create Account'}
+            {saving ? "Creating…" : "Create Account"}
           </button>
         </div>
       </form>
     </section>
-  )
+  );
 }

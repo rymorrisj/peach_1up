@@ -1,71 +1,75 @@
-import { useRef, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Lock, Check } from 'lucide-react'
-import { apiFetch, ApiError } from '@/api/client'
-import { useAppContext } from '@/context/AppContext'
-import { Button, Input } from '@/ui'
-import { cn } from '@/lib/utils'
-import type { components } from '@shared/types'
-type User = components['schemas']['UserRead']
+import { useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Lock, Check } from "lucide-react";
+import { apiFetch, ApiError } from "@/api/client";
+import { useAppContext } from "@/context/useAppContext";
+import { Button, Input } from "@/ui";
+import { cn } from "@/lib/utils";
+import type { components } from "@shared/types";
+type User = components["schemas"]["UserRead"];
+
+interface SwitchResponse {
+  user: User;
+}
 
 function avatarInitial(name: string): string {
-  return name.trim().charAt(0).toUpperCase() || '?'
+  return name.trim().charAt(0).toUpperCase() || "?";
 }
 
 const AVATAR_COLORS = [
-  'bg-peach text-white',
-  'bg-blue-500 text-white',
-  'bg-emerald-500 text-white',
-  'bg-violet-500 text-white',
-  'bg-amber-500 text-white',
-  'bg-rose-500 text-white',
-]
+  "bg-peach text-white",
+  "bg-blue-500 text-white",
+  "bg-emerald-500 text-white",
+  "bg-violet-500 text-white",
+  "bg-amber-500 text-white",
+  "bg-rose-500 text-white",
+];
 
 function avatarColor(id: number): string {
-  return AVATAR_COLORS[id % AVATAR_COLORS.length]
+  return AVATAR_COLORS[id % AVATAR_COLORS.length];
 }
 
 interface PinModalProps {
-  user: User
-  onSuccess: (user: User) => void
-  onClose: () => void
+  user: User;
+  onSuccess: (user: User) => void;
+  onClose: () => void;
 }
 
 function PinModal({ user, onSuccess, onClose }: PinModalProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
-  const [pin, setPin] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // showModal on mount
   const refCallback = (el: HTMLDialogElement | null) => {
     if (el && !el.open) {
-      el.showModal()
-      ;(dialogRef as React.MutableRefObject<HTMLDialogElement | null>).current = el
+      el.showModal();
+      (dialogRef as React.MutableRefObject<HTMLDialogElement | null>).current =
+        el;
     }
-  }
+  };
 
   function handleDialogClose() {
-    onClose()
+    onClose();
   }
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!pin || submitting) return
-    setSubmitting(true)
-    setError(null)
+    e.preventDefault();
+    if (!pin || submitting) return;
+    setSubmitting(true);
+    setError(null);
     try {
-      await apiFetch('/api/v1/auth/switch', {
-        method: 'POST',
+      const resp = await apiFetch<SwitchResponse>("/api/v1/auth/switch", {
+        method: "POST",
         body: JSON.stringify({ user_id: user.id, pin }),
-      })
-      const me = await apiFetch<User>('/api/v1/auth/me')
-      onSuccess(me)
+      });
+      onSuccess(resp.user);
     } catch (err) {
-      const msg = err instanceof ApiError ? err.detail : 'Switch failed.'
-      setError(msg)
+      const msg = err instanceof ApiError ? err.detail : "Switch failed.";
+      setError(msg);
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
   }
 
@@ -76,12 +80,21 @@ function PinModal({ user, onSuccess, onClose }: PinModalProps) {
       className="w-full max-w-xs rounded-xl border border-neutral-200 bg-white p-6 shadow-2xl backdrop:bg-black/60 dark:border-surface-600 dark:bg-surface-900"
     >
       <div className="mb-4 flex items-center gap-3">
-        <div className={cn('flex h-10 w-10 items-center justify-center rounded-full text-lg font-bold', avatarColor(user.id))}>
+        <div
+          className={cn(
+            "flex h-10 w-10 items-center justify-center rounded-full text-lg font-bold",
+            avatarColor(user.id),
+          )}
+        >
           {avatarInitial(user.name)}
         </div>
         <div>
-          <p className="font-semibold text-neutral-900 dark:text-neutral-100">{user.name}</p>
-          <p className="text-xs text-neutral-400 dark:text-neutral-500">Enter PIN to switch</p>
+          <p className="font-semibold text-neutral-900 dark:text-neutral-100">
+            {user.name}
+          </p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">
+            Enter PIN to switch
+          </p>
         </div>
       </div>
 
@@ -103,8 +116,8 @@ function PinModal({ user, onSuccess, onClose }: PinModalProps) {
             placeholder="••••"
             value={pin}
             onChange={(e) => {
-              setPin(e.target.value.replace(/\D/g, ''))
-              setError(null)
+              setPin(e.target.value.replace(/\D/g, ""));
+              setError(null);
             }}
             hasError={!!error}
             className="text-center tracking-[0.5em] text-lg"
@@ -115,10 +128,18 @@ function PinModal({ user, onSuccess, onClose }: PinModalProps) {
             </p>
           )}
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => dialogRef.current?.close()}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => dialogRef.current?.close()}
+            >
               Cancel
             </Button>
-            <Button type="submit" loading={submitting} disabled={pin.length < 4}>
+            <Button
+              type="submit"
+              loading={submitting}
+              disabled={pin.length < 4}
+            >
               Switch
             </Button>
           </div>
@@ -133,78 +154,84 @@ function PinModal({ user, onSuccess, onClose }: PinModalProps) {
         </div>
       )}
     </dialog>
-  )
+  );
 }
 
 export default function UserSwitcher() {
-  const { state, dispatch } = useAppContext()
-  const queryClient = useQueryClient()
+  const { state, dispatch } = useAppContext();
+  const queryClient = useQueryClient();
 
   const { data: users } = useQuery<User[]>({
-    queryKey: ['users'],
-    queryFn: () => apiFetch<User[]>('/api/v1/users'),
-  })
+    queryKey: ["users"],
+    queryFn: () => apiFetch<User[]>("/api/v1/users"),
+    enabled: !!state.activeUser,
+  });
 
-  const [pinTarget, setPinTarget] = useState<User | null>(null)
+  const [pinTarget, setPinTarget] = useState<User | null>(null);
 
-  const activeId = state.activeUser?.id ?? null
+  const activeId = state.activeUser?.id ?? null;
 
   function handleCardClick(user: User) {
-    if (user.id === activeId) return
-    if (user.is_locked) {
-      setPinTarget(user)
-      return
+    // Owner always requires PIN — even if already active (re-authentication)
+    if (user.is_owner) {
+      setPinTarget(user);
+      return;
     }
-    if (user.pin_required) {
-      setPinTarget(user)
-      return
+    if (user.id === activeId) return;
+    if (user.is_locked || user.pin_required) {
+      setPinTarget(user);
+      return;
     }
-    // No PIN required — switch directly
-    apiFetch('/api/v1/auth/switch', {
-      method: 'POST',
-      body: JSON.stringify({ user_id: user.id, pin: '' }),
+    // PIN-free non-owner — switch directly
+    apiFetch<SwitchResponse>("/api/v1/auth/switch", {
+      method: "POST",
+      body: JSON.stringify({ user_id: user.id, pin: "" }),
     })
-      .then(() => apiFetch<User>('/api/v1/auth/me'))
-      .then((me) => {
-        dispatch({ type: 'SET_ACTIVE_USER', payload: me })
-        queryClient.invalidateQueries({ queryKey: ['library'] })
+      .then(({ user: switched }) => {
+        dispatch({ type: "SET_ACTIVE_USER", payload: switched });
+        queryClient.invalidateQueries({ queryKey: ["library"] });
       })
-      .catch(() => {/* silently fall back */})
+      .catch(() => {
+        /* silently fall back */
+      });
   }
 
-  function handlePinSuccess(me: User) {
-    dispatch({ type: 'SET_ACTIVE_USER', payload: me })
-    queryClient.invalidateQueries({ queryKey: ['library'] })
-    setPinTarget(null)
+  function handlePinSuccess(switched: User) {
+    dispatch({ type: "SET_ACTIVE_USER", payload: switched });
+    queryClient.invalidateQueries({ queryKey: ["library"] });
+    setPinTarget(null);
   }
 
-  if (!users || users.length <= 1) return null
+  if (!users || users.length <= 1) return null;
 
   return (
     <section aria-label="Switch account" className="mb-6">
       <div className="flex gap-3 overflow-x-auto pb-1">
         {users.map((user) => {
-          const isActive = user.id === activeId
+          const isActive = user.id === activeId;
+          // Owner card is never disabled — clicking re-authenticates
+          const isDisabled = isActive && !user.is_owner;
           return (
             <button
               key={user.id}
               type="button"
               onClick={() => handleCardClick(user)}
-              disabled={isActive}
+              disabled={isDisabled}
               aria-pressed={isActive}
               className={cn(
-                'group flex min-w-[5.5rem] flex-col items-center gap-1.5 rounded-xl px-3 py-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-peach',
-                isActive
-                  ? 'cursor-default bg-neutral-100 dark:bg-surface-800'
-                  : 'cursor-pointer hover:bg-neutral-50 dark:hover:bg-surface-800/60',
+                "group flex min-w-[5.5rem] flex-col items-center gap-1.5 rounded-xl px-3 py-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-peach",
+                isDisabled
+                  ? "cursor-default bg-neutral-100 dark:bg-surface-800"
+                  : "cursor-pointer hover:bg-neutral-50 dark:hover:bg-surface-800/60",
               )}
             >
               <div className="relative">
                 <div
                   className={cn(
-                    'flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold shadow-sm',
+                    "flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold shadow-sm",
                     avatarColor(user.id),
-                    isActive && 'ring-2 ring-peach ring-offset-2 ring-offset-white dark:ring-offset-surface-950',
+                    isActive &&
+                      "ring-2 ring-peach ring-offset-2 ring-offset-white dark:ring-offset-surface-950",
                   )}
                 >
                   {user.is_locked ? (
@@ -221,16 +248,16 @@ export default function UserSwitcher() {
               </div>
               <span
                 className={cn(
-                  'max-w-[5rem] truncate text-xs font-medium',
+                  "max-w-[5rem] truncate text-xs font-medium",
                   isActive
-                    ? 'text-neutral-900 dark:text-neutral-100'
-                    : 'text-neutral-500 dark:text-neutral-400',
+                    ? "text-neutral-900 dark:text-neutral-100"
+                    : "text-neutral-500 dark:text-neutral-400",
                 )}
               >
                 {user.name}
               </span>
             </button>
-          )
+          );
         })}
       </div>
 
@@ -242,5 +269,5 @@ export default function UserSwitcher() {
         />
       )}
     </section>
-  )
+  );
 }

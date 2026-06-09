@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 // import { Moon, Sun } from 'lucide-react'  // re-enable with theme toggle
 import { useQuery } from '@tanstack/react-query'
-import { useAppContext } from '@/context/AppContext'
+import { useAppContext } from '@/context/useAppContext'
 import { apiFetch } from '@/api/client'
 import type { components } from '@shared/types'
 type LaunchHistory = components['schemas']['LaunchHistoryRead']

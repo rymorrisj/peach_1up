@@ -1,5 +1,5 @@
 import { ZipCard, InstallerCard, RomPackCard } from './EmulatorCards'
-import { useAppContext } from '@/context/AppContext'
+import { useAppContext } from '@/context/useAppContext'
 import type { components } from '@shared/types'
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
 

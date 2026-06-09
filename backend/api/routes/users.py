@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user, require_permission
+from backend.core.dependencies import get_active_user, require_permission, require_self_or_admin
 from backend.core.logger import get_logger
 from backend.models.user import User, UserRead
 
@@ -38,6 +38,7 @@ class UserPatch(BaseModel):
     max_content_rating: str | None = None
     block_unrated_media: bool | None = None
     pin_required: bool | None = None
+    session_expiry_minutes: int | None = None
 
 
 class ResetPinBody(BaseModel):
@@ -67,9 +68,21 @@ def _validate_pin(pin: str) -> None:
 @router.get("", response_model=list[UserRead])
 def list_users(
     db: Session = Depends(get_db),
-    _: User = require_permission("is_admin"),
+    _: User = Depends(get_active_user),
 ):
     return db.query(User).all()
+
+
+@router.get("/{user_id}", response_model=UserRead)
+def get_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return user
 
 
 @router.post("", response_model=UserRead, status_code=201)
@@ -127,11 +140,8 @@ def update_user(
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
+    active_user: User = Depends(require_self_or_admin),
 ):
-    if active_user.id != user_id and not active_user.is_admin:
-        raise HTTPException(status_code=403, detail="Permission denied.")
-
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")

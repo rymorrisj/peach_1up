@@ -1,48 +1,96 @@
 export class ApiError extends Error {
-  readonly status: number
-  readonly detail: string
+  readonly status: number;
+  readonly detail: string;
 
   constructor(status: number, detail: string) {
-    super(detail)
-    this.status = status
-    this.detail = detail
-    this.name = 'ApiError'
+    super(detail);
+    this.status = status;
+    this.detail = detail;
+    this.name = "ApiError";
   }
 }
 
-const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000'
-
-let _sessionToken: string | null = null
-
-export function setSessionToken(token: string | null) {
-  _sessionToken = token
+export class TimeoutError extends Error {
+  constructor() {
+    super("Request timed out");
+    this.name = "TimeoutError";
+  }
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'X-Request-ID': crypto.randomUUID(),
-    ...(init.headers as Record<string, string> | undefined),
-  }
+const baseURL =
+  (import.meta.env.VITE_API_URL as string | undefined) ??
+  "http://localhost:8000";
 
-  if (_sessionToken) {
-    headers['Authorization'] = `Bearer ${_sessionToken}`
-  }
+class ApiClient {
+  async fetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Request-ID": crypto.randomUUID(),
+      ...(init.headers as Record<string, string> | undefined),
+    };
 
-  const res = await fetch(`${baseURL}${path}`, { ...init, headers, credentials: 'include' })
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
 
-  if (!res.ok) {
-    let detail = res.statusText
+    let res: Response;
     try {
-      const body = (await res.json()) as { detail?: unknown }
-      const raw = body.detail
-      detail = typeof raw === 'string' ? raw : raw != null ? JSON.stringify(raw) : detail
-    } catch {
-      // keep statusText as detail
+      // credentials: "include" is required — it causes the browser to send the
+      // HttpOnly peach_token cookie on every cross-origin request to the API.
+      res = await fetch(`${baseURL}${path}`, {
+        ...init,
+        headers,
+        credentials: "include",
+        signal: controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err instanceof DOMException && err.name === "AbortError") {
+        throw new TimeoutError();
+      }
+      throw err;
     }
-    throw new ApiError(res.status, detail)
-  }
+    clearTimeout(timeoutId);
 
-  if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
+    if (!res.ok) {
+      const isAuthEndpoint =
+        path === "/api/v1/auth/me" || path === "/api/v1/auth/switch";
+      const isSessionError =
+        res.status === 401 || (res.status === 403 && isAuthEndpoint);
+
+      if (isSessionError) {
+        window.dispatchEvent(new CustomEvent("session-expired"));
+      }
+
+      let detail = res.statusText;
+      try {
+        const body = (await res.json()) as { detail?: unknown };
+        const raw = body.detail;
+        detail =
+          typeof raw === "string"
+            ? raw
+            : raw != null
+              ? JSON.stringify(raw)
+              : detail;
+      } catch {
+        // keep statusText as detail
+      }
+
+      if (!isSessionError) {
+        window.dispatchEvent(new CustomEvent("api-error", { detail }));
+      }
+
+      throw new ApiError(res.status, detail);
+    }
+
+    if (res.status === 204) return undefined as T;
+    const data = await res.json();
+    return data as T;
+  }
 }
+
+export const api = new ApiClient();
+
+// Re-export as a free function so existing call sites and test mocks continue
+// to work without a 50-file rename. All calls delegate to api.fetch.
+export const apiFetch = <T>(path: string, init: RequestInit = {}): Promise<T> =>
+  api.fetch<T>(path, init);

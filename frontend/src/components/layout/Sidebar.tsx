@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { useAppContext } from "@/context/AppContext";
+import { useAppContext } from "@/context/useAppContext";
 
 const ERA_ITEMS = [
   { label: "DOS", slug: "dos", color: "var(--era-dos)" },

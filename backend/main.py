@@ -11,7 +11,6 @@ logger = get_logger(__name__)
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, Response
 from fastapi.requests import Request
-from starlette.middleware.sessions import SessionMiddleware
 
 
 def resource_path(relative: str) -> Path:
@@ -22,8 +21,6 @@ def resource_path(relative: str) -> Path:
 from backend.api.middleware.security import FirstRunGuardMiddleware, SecurityMiddleware, _LOCALHOST_ORIGINS, configure_cors
 from backend.api.routes import auth, bios, drives, emulators, filesystem, health, launches, library, media, platforms, profiles, settings, tags, users
 from backend.core.lifespan import lifespan
-from backend.service.utils.settings import get_or_generate_session_secret
-_session_secret = get_or_generate_session_secret()
 
 app = FastAPI(
     title="Peach 1UP",
@@ -37,8 +34,7 @@ app = FastAPI(
 )
 
 # Middleware is applied in LIFO order (last-added = outermost = first to run).
-# Execution order: CORS → Security → FirstRunGuard → Session → router
-app.add_middleware(SessionMiddleware, secret_key=_session_secret, https_only=False)
+# Execution order: CORS → Security → FirstRunGuard → router
 app.add_middleware(FirstRunGuardMiddleware)
 app.add_middleware(SecurityMiddleware)
 configure_cors(app)

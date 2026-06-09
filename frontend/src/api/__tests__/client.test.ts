@@ -1,17 +1,16 @@
-import { apiFetch, ApiError, setSessionToken } from '@/api/client'
+import { api, ApiError } from '@/api/client'
 
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
 
-describe('apiFetch', () => {
+describe('api.fetch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    setSessionToken(null)
   })
 
   it('returns undefined for a 204 No Content response', async () => {
     mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }))
-    const result = await apiFetch('/api/v1/test')
+    const result = await api.fetch('/api/v1/test')
     expect(result).toBeUndefined()
   })
 
@@ -22,7 +21,7 @@ describe('apiFetch', () => {
         headers: { 'Content-Type': 'application/json' },
       }),
     )
-    await expect(apiFetch('/api/v1/test')).rejects.toMatchObject({
+    await expect(api.fetch('/api/v1/test')).rejects.toMatchObject({
       name: 'ApiError',
       status: 404,
       detail: 'Not found',
@@ -33,14 +32,14 @@ describe('apiFetch', () => {
     mockFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ detail: 'Server error' }), { status: 500 }),
     )
-    await expect(apiFetch('/api/v1/test')).rejects.toBeInstanceOf(ApiError)
+    await expect(api.fetch('/api/v1/test')).rejects.toBeInstanceOf(ApiError)
   })
 
   it('falls back to statusText when the body has no detail field', async () => {
     mockFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({}), { status: 500, statusText: 'Internal Server Error' }),
     )
-    await expect(apiFetch('/api/v1/test')).rejects.toMatchObject({
+    await expect(api.fetch('/api/v1/test')).rejects.toMatchObject({
       name: 'ApiError',
       status: 500,
       detail: 'Internal Server Error',
@@ -54,21 +53,22 @@ describe('apiFetch', () => {
       statusText: 'Internal Server Error',
       json: () => Promise.reject(new SyntaxError('not json')),
     })
-    await expect(apiFetch('/api/v1/test')).rejects.toMatchObject({
+    await expect(api.fetch('/api/v1/test')).rejects.toMatchObject({
       detail: 'Internal Server Error',
     })
   })
 
-  it('includes Content-Type and X-Request-ID headers on every request', async () => {
+  it('includes Content-Type, X-Request-ID, and credentials: include on every request', async () => {
     mockFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ ok: true }), { status: 200 }),
     )
-    await apiFetch('/api/v1/test')
+    await api.fetch('/api/v1/test')
     const [, init] = mockFetch.mock.calls[0] as [string, RequestInit]
     const headers = init.headers as Record<string, string>
     expect(headers['Content-Type']).toBe('application/json')
     expect(headers['X-Request-ID']).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     )
+    expect(init.credentials).toBe('include')
   })
 })

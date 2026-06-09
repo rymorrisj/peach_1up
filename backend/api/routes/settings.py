@@ -84,8 +84,10 @@ def validate_paths():
 
 @router.get("/first-run-status")
 def get_first_run_status(db: Session = Depends(get_db)):
+    from backend.models.settings import Settings as SettingsModel
     svc = get_settings()
-    first_run_complete = not svc.is_first_run()
+    row = db.get(SettingsModel, "first_run_complete")
+    first_run_complete = row is not None and row.value == "true"
     owner_exists = db.query(User).filter(User.is_owner.is_(True)).count() > 0
 
     return {
@@ -150,6 +152,7 @@ def set_library_path(body: LibraryPathBody, _: User = require_permission("can_ed
 
 @router.post("/complete-first-run")
 def complete_first_run(db: Session = Depends(get_db), _: User = require_permission("can_edit_settings")):
+    from backend.api.middleware.security import set_first_run_complete
     from backend.models.settings import Settings as SettingsModel
     row = db.get(SettingsModel, "first_run_complete")
     if row:
@@ -159,15 +162,6 @@ def complete_first_run(db: Session = Depends(get_db), _: User = require_permissi
         db.add(row)
     db.commit()
 
-    svc = get_settings()
-    try:
-        svc.mark_first_run_complete()
-    except OSError:
-        # Config dir is read-only (e.g. read-only mount).
-        # In-memory state was already updated before the file write failed.
-        pass
-
-    from backend.api.middleware.security import invalidate_first_run_cache
-    invalidate_first_run_cache()
+    set_first_run_complete()
 
     return {"success": True}

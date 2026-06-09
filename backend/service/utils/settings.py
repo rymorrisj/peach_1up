@@ -26,7 +26,6 @@ def _get_project_root() -> Path:
 _SETTINGS_PATH = _get_project_root() / "config" / "settings.yaml"
 
 _DEFAULTS: dict = {
-    "first_run_complete": False,
     "LIBRARY_PATH": "",
     "MEDIA_PATH": "",
     "OS_PATH": "",
@@ -87,6 +86,8 @@ def init() -> None:
             loaded = yaml.safe_load(fh) or {}
         if isinstance(loaded, dict):
             state.update(loaded)
+        # first_run_complete moved to DB — drop it from YAML-based state
+        state.pop("first_run_complete", None)
 
     # Resolve relative path values against project root so all downstream
     # consumers always receive absolute paths regardless of how settings.yaml
@@ -167,28 +168,6 @@ def get(key: str, default=None):
     return _require_init().get(key, default)
 
 
-def is_first_run() -> bool:
-    """Return True if neither settings.yaml nor the DB records first_run_complete."""
-    if get("first_run_complete", False):
-        return False
-    try:
-        from backend.core.database import get_engine
-        from sqlalchemy import text
-        with get_engine().connect() as conn:
-            row = conn.execute(
-                text("SELECT value FROM settings WHERE key='first_run_complete'")
-            ).fetchone()
-            owner = conn.execute(
-                text("SELECT id FROM user WHERE is_owner=1")
-            ).fetchone()
-            if row and row[0] == "true" and owner:
-                _require_init()["first_run_complete"] = True
-                return False
-    except Exception:
-        pass
-    return True
-
-
 def _write_env_key(key: str, value: str) -> None:
     """Write or update a single key in the project .env file and os.environ."""
     from dotenv import set_key as _set_key
@@ -222,13 +201,6 @@ def get_or_generate_session_secret() -> str:
         _write_env_key("SESSION_SECRET", secret)
 
     return secret
-
-
-def mark_first_run_complete() -> None:
-    """Set first_run_complete to True in state and persist to settings.yaml."""
-    state = _require_init()
-    state["first_run_complete"] = True
-    _save()
 
 
 def set_flag(key: str, value: bool) -> None:

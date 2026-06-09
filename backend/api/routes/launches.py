@@ -28,7 +28,6 @@ async def launch_item(
     item_id: int,
     body: LaunchRequest = LaunchRequest(),
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
     _: User = require_permission("can_launch_media"),
 ):
     item = db.get(LibraryItem, item_id)
@@ -46,7 +45,6 @@ async def launch_environment(
     platform_id: int,
     body: LaunchRequest = LaunchRequest(),
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
     _: User = require_permission("can_launch_media"),
 ):
     platform = db.get(Platform, platform_id)
@@ -67,7 +65,11 @@ async def launch_environment(
     )
 
 @router.get("/library/{item_id}/launches", response_model=list[LaunchHistoryRead])
-def list_item_launches(item_id: int, db: Session = Depends(get_db)):
+def list_item_launches(
+    item_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
     return (
         db.query(LaunchHistory)
         .filter(LaunchHistory.library_item_id == item_id)
@@ -77,11 +79,18 @@ def list_item_launches(item_id: int, db: Session = Depends(get_db)):
     )
 
 @router.get("/launches", response_model=list[LaunchHistoryRead])
-def list_launches(db: Session = Depends(get_db)):
+def list_launches(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
     return db.query(LaunchHistory).order_by(LaunchHistory.started_at.desc()).limit(50).all()
 
 @router.get("/launches/{history_id}")
-def get_launch(history_id: int, db: Session = Depends(get_db)):
+def get_launch(
+    history_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
     record = db.get(LaunchHistory, history_id)
     if not record:
         raise HTTPException(status_code=404, detail="Launch record not found.")

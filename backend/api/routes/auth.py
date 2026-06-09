@@ -1,25 +1,44 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.logger import get_logger
+from backend.core.token_store import create_token, resolve_token, revoke_token
 from backend.models.user import User, UserRead
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
+_COOKIE_NAME = "peach_token"
+
 
 class SwitchRequest(BaseModel):
     user_id: int
-    pin: str
+    pin: str = ""
 
 
 class SetupOwnerRequest(BaseModel):
     name: str
     pin: str
     confirm_pin: str
+
+
+class UserResponse(BaseModel):
+    user: UserRead
+
+
+def _set_auth_cookie(response: Response, token: str, session_expiry_minutes) -> None:
+    max_age = (session_expiry_minutes * 60) if session_expiry_minutes is not None else (30 * 24 * 60 * 60)
+    response.set_cookie(
+        key=_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        max_age=max_age,
+    )
 
 
 def _verify_pin(pin: str, pin_hash: str) -> bool:
@@ -36,8 +55,8 @@ def _verify_pin(pin: str, pin_hash: str) -> bool:
         return False
 
 
-@router.post("/setup-owner")
-def setup_owner(body: SetupOwnerRequest, db: Session = Depends(get_db)):
+@router.post("/setup-owner", response_model=UserResponse)
+def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depends(get_db)):
     has_owner = db.query(User).filter(User.is_owner.is_(True)).count() > 0
     if has_owner:
         raise HTTPException(status_code=409, detail="Owner account already exists.")
@@ -67,12 +86,16 @@ def setup_owner(body: SetupOwnerRequest, db: Session = Depends(get_db)):
     )
     db.add(owner)
     db.commit()
+    db.refresh(owner)
+
+    token = create_token(db, owner.id, owner.session_expiry_minutes)
+    _set_auth_cookie(response, token, owner.session_expiry_minutes)
     logger.info("Owner account created for %r", body.name.strip())
-    return {"success": True}
+    return {"user": owner}
 
 
-@router.post("/switch", response_model=UserRead)
-def switch_user(body: SwitchRequest, request: Request, db: Session = Depends(get_db)):
+@router.post("/switch", response_model=UserResponse)
+def switch_user(body: SwitchRequest, response: Response, db: Session = Depends(get_db)):
     user = db.get(User, body.user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found.")
@@ -80,11 +103,28 @@ def switch_user(body: SwitchRequest, request: Request, db: Session = Depends(get
     if user.is_locked:
         raise HTTPException(status_code=403, detail="Account is locked.")
 
+    if user.is_owner:
+        if not body.pin:
+            raise HTTPException(status_code=400, detail="Owner account requires a PIN.")
+        if user.pin_hash is None or not _verify_pin(body.pin, user.pin_hash):
+            user.failed_pin_attempts = (user.failed_pin_attempts or 0) + 1
+            if user.failed_pin_attempts >= 4:
+                user.is_locked = True
+                logger.warning("User %d locked after %d failed PIN attempts.", user.id, user.failed_pin_attempts)
+            db.commit()
+            raise HTTPException(status_code=401, detail="Invalid PIN.")
+        user.failed_pin_attempts = 0
+        db.commit()
+        token = create_token(db, user.id, user.session_expiry_minutes)
+        _set_auth_cookie(response, token, user.session_expiry_minutes)
+        return {"user": user}
+
     if not user.pin_required:
         user.failed_pin_attempts = 0
         db.commit()
-        request.session["active_user_id"] = user.id
-        return user
+        token = create_token(db, user.id, user.session_expiry_minutes)
+        _set_auth_cookie(response, token, user.session_expiry_minutes)
+        return {"user": user}
 
     if user.pin_hash is None or not _verify_pin(body.pin, user.pin_hash):
         user.failed_pin_attempts = (user.failed_pin_attempts or 0) + 1
@@ -96,33 +136,26 @@ def switch_user(body: SwitchRequest, request: Request, db: Session = Depends(get
 
     user.failed_pin_attempts = 0
     db.commit()
-    request.session["active_user_id"] = user.id
-    return user
+    token = create_token(db, user.id, user.session_expiry_minutes)
+    _set_auth_cookie(response, token, user.session_expiry_minutes)
+    return {"user": user}
 
 
-@router.post("/logout", response_model=UserRead)
-def logout(request: Request, db: Session = Depends(get_db)):
-    request.session.pop("active_user_id", None)
-    owner = db.query(User).filter(User.is_owner.is_(True)).first()
-    if owner is None:
-        raise HTTPException(status_code=503, detail="No owner account configured.")
-    return owner
+@router.post("/logout")
+def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+    token_str = request.cookies.get(_COOKIE_NAME)
+    if token_str:
+        revoke_token(db, token_str)
+    response.delete_cookie(key=_COOKIE_NAME, httponly=True, samesite="strict")
+    return {"success": True}
 
 
 @router.get("/me", response_model=UserRead)
 def me(request: Request, db: Session = Depends(get_db)):
-    try:
-        from backend.core.settings import get_settings
-    except RuntimeError:
-        pass
-
-    owner = db.query(User).filter(User.is_owner.is_(True)).first()
-    if owner is None:
-        raise HTTPException(status_code=503, detail="No owner account configured.")
-
-    user_id = request.session.get("active_user_id")
-    if user_id is None:
-        return owner
-
-    user = db.get(User, user_id)
-    return user if user is not None else owner
+    token_str = request.cookies.get(_COOKIE_NAME)
+    if not token_str:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    user = resolve_token(db, token_str)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    return user

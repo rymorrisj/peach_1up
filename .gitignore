@@ -94,6 +94,9 @@ config/emulators.toml
 temp/
 docs/AUDIT.md
 
+# Playwright diagnostic tooling (never committed)
+/playwright/
+
 # Generated constants
 frontend/src/generated/constants.ts
 /backend/constants_generated.py

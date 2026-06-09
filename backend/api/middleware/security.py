@@ -58,48 +58,24 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
 _first_run_done_cache: bool = False
 
-_FIRST_RUN_EXEMPT_PATHS: frozenset[str] = frozenset({
-    "/api/v1/health",
-    "/api/v1/settings/first-run-status",
-    "/api/v1/settings/emulator-path",
-    "/api/v1/settings/library-path",
-    "/api/v1/settings/complete-first-run",
-    "/api/v1/auth/me",
-    "/api/v1/auth/switch",
-    "/api/v1/auth/logout",
-    "/api/docs",
-    "/api/redoc",
-    "/api/openapi.json",
-})
 
-
-def invalidate_first_run_cache() -> None:
+def set_first_run_complete() -> None:
     global _first_run_done_cache
-    _first_run_done_cache = False
+    _first_run_done_cache = True
 
 
 class FirstRunGuardMiddleware(BaseHTTPMiddleware):
-    """Redirect non-wizard requests to /first-run when setup is incomplete."""
+    """Redirect non-wizard requests to /first-run when setup is incomplete.
+
+    The flag is set once at startup from the DB (see lifespan._sync_first_run_from_db)
+    and again when the complete-first-run endpoint is called. No live DB queries here.
+    """
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        global _first_run_done_cache
-
         if request.method == "OPTIONS":
             return await call_next(request)
 
         if _first_run_done_cache:
-            return await call_next(request)
-
-        first_run_done = False
-        try:
-            from backend.core.settings import get_settings
-            svc = get_settings()
-            first_run_done = not svc.is_first_run()
-        except RuntimeError:
-            pass
-
-        if first_run_done:
-            _first_run_done_cache = True
             return await call_next(request)
 
         path = request.url.path

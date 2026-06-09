@@ -12,6 +12,7 @@ from backend.core.database import create_tables, init_db
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path, init_settings
 import backend.models.user  # noqa: F401 — registers User with SQLModel.metadata
+import backend.models.auth_token  # noqa: F401 — registers AuthToken with SQLModel.metadata
 import backend.models.media_restriction  # noqa: F401 — registers MediaRestriction with SQLModel.metadata
 import backend.models.drive  # noqa: F401 — registers Drive with SQLModel.metadata
 import backend.models.tag  # noqa: F401 — registers Tag and LibraryItemTag with SQLModel.metadata
@@ -118,12 +119,11 @@ _DEFAULT_PROFILES = [
 
 
 def _sync_first_run_from_db(db) -> None:
+    from backend.api.middleware.security import set_first_run_complete
     from backend.models.settings import Settings as SettingsModel
-    from backend.service.utils import settings as _settings_mod
     row = db.get(SettingsModel, "first_run_complete")
     if row and row.value == "true":
-        state = _settings_mod._require_init()
-        state["first_run_complete"] = True
+        set_first_run_complete()
 
 
 def _seed_system_platforms(db) -> bool:
@@ -414,7 +414,9 @@ async def lifespan(app: FastAPI):
     from backend.core.database import get_engine
     from sqlalchemy.orm import sessionmaker
     session_factory = sessionmaker(bind=get_engine())
+    from backend.core.token_store import cleanup_expired_tokens
     with session_factory() as db:
+        cleanup_expired_tokens(db)
         _sync_first_run_from_db(db)
         _platforms_seeded = _seed_system_platforms(db)
         _profiles_seeded = _seed_default_profiles(db)

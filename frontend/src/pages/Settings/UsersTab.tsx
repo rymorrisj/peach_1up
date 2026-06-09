@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Lock, Unlock, Trash2, KeyRound } from 'lucide-react'
 import { apiFetch, ApiError } from '@/api/client'
-import { useAppContext } from '@/context/AppContext'
+import { useAppContext } from '@/context/useAppContext'
 import { FormField, Button, Input, Modal } from '@/ui'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import UserSwitcher from '@/components/UserSwitcher'
@@ -34,6 +34,7 @@ interface AddUserForm {
   is_admin: boolean
   max_content_rating: string
   block_unrated_media: boolean
+  session_expiry_minutes: string
 }
 
 const EMPTY_ADD_FORM: AddUserForm = {
@@ -47,6 +48,7 @@ const EMPTY_ADD_FORM: AddUserForm = {
   is_admin: false,
   max_content_rating: '',
   block_unrated_media: false,
+  session_expiry_minutes: '',
 }
 
 type ResetPinTarget = { user: User; pin: string; error: string | null; submitting: boolean }
@@ -140,11 +142,12 @@ export default function UsersTab() {
           is_admin: addForm.is_admin,
           max_content_rating: addForm.max_content_rating || null,
           block_unrated_media: addForm.block_unrated_media,
+          session_expiry_minutes: addForm.session_expiry_minutes ? parseInt(addForm.session_expiry_minutes, 10) : null,
         }),
       })
-      await queryClient.invalidateQueries({ queryKey: ['users'] })
       setAddOpen(false)
       setAddForm(EMPTY_ADD_FORM)
+      await queryClient.invalidateQueries({ queryKey: ['users'] })
     } catch (err) {
       setAddError(err instanceof ApiError ? err.detail : 'Failed to create user.')
     } finally {
@@ -400,6 +403,23 @@ export default function UsersTab() {
             </span>
           </div>
         </FormField>
+
+        {appState.activeUser?.is_owner && (
+          <FormField
+            label="Session timeout (minutes)"
+            htmlFor="add-session-expiry"
+            hint="Leave blank for no timeout."
+          >
+            <Input
+              id="add-session-expiry"
+              type="number"
+              min={1}
+              value={addForm.session_expiry_minutes}
+              onChange={(e) => setAddField('session_expiry_minutes', e.target.value.replace(/\D/g, ''))}
+              placeholder="e.g. 60"
+            />
+          </FormField>
+        )}
 
         {addError && (
           <p role="alert" className="text-sm text-red-500 dark:text-red-400">
