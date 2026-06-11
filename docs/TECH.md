@@ -49,7 +49,7 @@ throughout. Radix UI primitives (dialog, slot) with hand-rolled component librar
 ## Emulators (PC)
 
 - **DOSBox-X** — DOS, Windows 3.1. No ROM required.
-- **86Box** — Windows 95, 98, XP accuracy mode. User supplies ROM pack.
+- **86Box** — Windows 95, 98, XP. User supplies ROM pack.
 
 ### Limitations
 

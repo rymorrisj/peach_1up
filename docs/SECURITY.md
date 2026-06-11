@@ -31,8 +31,10 @@ Realistic threats specific to this application:
 - **Unauthorised access to a shared library on a local network** — if the service is
   bound to `0.0.0.0` (remote access mode), other devices on the network can reach it.
   Without authentication this exposes the full library, settings, and launch capability.
-- **Session secret exposure** — if the session secret is logged, returned in an API
-  response, or committed to version control, all active sessions become forgeable.
+- **AuthToken exposure** — each session is backed by a row in the `auth_tokens` table
+  (a random `secrets.token_urlsafe(32)` value). If a token value is logged, returned in
+  an API response, or otherwise leaked, only that one session can be replayed — there is
+  no master signing secret whose compromise would forge every session.
 
 ---
 
@@ -192,11 +194,14 @@ affected, and the timestamp.
 
 **Mandatory.**
 
-- The session secret (`SESSION_SECRET` in `settings.yaml`) is generated on first run via
-  `get_or_generate_session_secret()` and used by `SessionMiddleware` to sign session
-  cookies. It must never appear in logs, API responses, or version control. If
-  `settings.yaml` is deleted or the key is removed, a new secret is generated on next
-  startup, invalidating all existing sessions.
+- Each session is a row in the `auth_tokens` table (`token`, `user_id`, `issued_at`,
+  `expires_at`, `revoked`), managed by `token_store.py` (`create_token`, `resolve_token`,
+  `revoke_token`, `cleanup_expired_tokens`). The token value is set as the `peach_token`
+  cookie — HttpOnly, `SameSite=Lax`, localhost only — and must never appear in logs, API
+  responses, or version control. Sessions default to a 30-day expiry, overridable per
+  user via `User.session_expiry_minutes`. Tokens are issued per client, so multiple
+  household members can hold concurrent sessions; the owner account always requires PIN
+  verification to switch into.
 - PINs are hashed with Argon2id with a per-user random salt. Plaintext PINs are never
   stored or logged.
 - HTTP middleware strips `Authorization` headers before any log output. Credentials must
@@ -293,7 +298,7 @@ is emulator-native (network adapter disabled at the emulator config level).
 
 The scan endpoint validates all user-supplied directory paths against an allowlist of configured base directories (LIBRARY_PATH, PROFILES_PATH) before any filesystem operation. This is a mandatory enforcement of the Input Validation Rules above. If none of these paths are configured in settings, scanning is blocked entirely. Media collections must reside under a configured base directory. This restriction must be carried forward to any future endpoint that accepts a directory or file path parameter.
 
-All frontend fetch calls must include credentials: 'include' while SessionMiddleware is active so session cookies are transmitted correctly. When P5 changes the serving model (FastAPI serving the React static build directly), re-evaluate whether this setting is still correct or introduces unintended cookie scope.
+All frontend requests are made via the `ApiClient` singleton with `credentials: 'include'`, ensuring the `peach_token` HttpOnly cookie is sent on every request.
 
 #### Qt emulator process memory cap waived
 

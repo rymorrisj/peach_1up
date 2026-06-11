@@ -124,7 +124,39 @@ surfaced to the user. There is no unsandboxed fallback.
 
 ## DOSBox-X specifics
 
-DOSBox-X is launched with mount and hardware settings passed as inline `-c` arguments
-on the command line. No temporary `.conf` file is written to disk at launch time.
-Long paths containing spaces are passed as quoted absolute paths; 8.3 short path
-conversion is not used.
+`write_launch_conf()` builds a complete `dosbox-x.conf` for each launch: it takes the
+bundled `config/templates/dosbox-x/base.conf`, strips any `[autoexec]` section, and
+appends a generated `[autoexec]` block (drive mounts, then profile- and item-level
+launch commands). The result is written to a private per-launch temp directory created
+with `tempfile.mkdtemp(prefix="peach1up_dosbox_")`.
+
+The command line passes `-noconfig` (so DOSBox-X ignores any user config), an optional
+`-set ne2000=false` when networking is disabled for the profile, and `-conf <path>`
+pointing at the generated conf. After the process exits, `_cleanup_temp_dir_on_exit()`
+removes the temp directory.
+
+Within the generated `[autoexec]` block, long paths containing spaces are passed to
+`MOUNT`/`IMGMOUNT` as quoted absolute paths; 8.3 short path conversion is not used.
+
+**History:** Prior to PX-2-8, DOSBox-X wrote its launch conf to a single shared location,
+which a concurrent second launch could overwrite mid-read by the first. This was fixed by
+writing each launch's conf to its own `tempfile.mkdtemp()` directory as described above.
+
+---
+
+## xemu
+
+`container_enabled = false` is hard-capped for xemu in `config/emulators/xemu.toml` and
+cannot be overridden per profile.
+
+**Reason:** xemu is built on QEMU's TCG backend, which calls `DeviceIoControl` to query
+disk geometry for `qcow2` images. AppContainer blocks this call, causing a fatal block
+driver assertion at launch. This is a QEMU platform limitation, not a Peach 1UP
+configuration gap.
+
+Job Object isolation (kill-on-close, CPU cap) is the only isolation layer available for
+xemu on Windows.
+
+`skip_memory_limit = true` also applies to xemu: its pre-allocated JIT heap triggers the
+same `STATUS_STACK_BUFFER_OVERRUN` fast-fail as the Qt-based emulators — see "Qt emulator
+process memory cap waived" in SECURITY.md.

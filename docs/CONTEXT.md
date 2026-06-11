@@ -433,6 +433,19 @@ Address issues in architecture found in a recent audit pass. Needed for consoles
 - [PX-2-9] Fix xemu config ownership — align validate_bios_path to check the per-VM file, fix or remove the broken configure_emulator xemu branch, verify the flash/bootrom key naming against xemu's documented schema.
 - [PX-2-10] PX-2 committed and pushed to main.
 
+## Auth Redesign — Per-Client Token Auth
+
+### DONE
+
+- [AUTH-1] AuthToken DB table — token, user_id, issued_at, expires_at, revoked; replaces SessionMiddleware entirely
+- [AUTH-2] token_store.py — create_token, resolve_token, revoke_token, cleanup_expired_tokens; naive datetime coercion fix for SQLite round-trip
+- [AUTH-3] peach_token HttpOnly cookie — SameSite=Lax, 30-day Max-Age, per-user session_expiry_minutes override; set by /auth/setup-owner and /auth/switch, validated by get_active_user, revoked by /auth/logout
+- [AUTH-4] Owner always requires PIN — no unauthenticated owner fallback anywhere
+- [AUTH-5] first_run_complete source of truth moved from settings.yaml to DB
+- [AUTH-6] SessionMiddleware, \_FIRST_RUN_EXEMPT_PATHS, get_or_generate_session_secret, SESSION_SECRET removed as dead code
+- [AUTH-7] Launch history endpoints now require auth; inline is_admin check moved to require_self_or_admin dependency
+- [AUTH-8] Frontend ApiClient redesigned as singleton — credentials:'include', AbortController timeout, global error toast, 401/403 redirect to /settings
+
 ## PX-3 — Linux Namespace and cgroup Isolation (Scaffold)
 
 ### Goal
@@ -485,3 +498,5 @@ per-launch CPU/memory caps.
 - Metadata enrichment via TheGamesDB API — after hash-based title confirmation, optionally fetch cover art, description, genre, and release date from TheGamesDB API (see RGSX scraper.py pattern). Requires user-supplied API key. Enriches LibraryItem on scan. Never blocks launch.
 - LLM-assisted emulator navigation (OpenClaw), more complex but an interesting idea
 - Controller remapping utility — research per-emulator config file formats (DuckStation/PCSX2 ini, DOSBox-X mapper.map, Project64 plugin config). If formats are consistent enough, build a unified remap UI that writes emulator-specific config at launch. Prerequisite: confirm Xbox PC controller works out of the box for all emulators first.
+- update_drive_for_item not implemented — only create_drive_for_item and delete_drive_for_item exist in drive_utils.py; no way to resize a drive image for an existing library item short of delete+recreate. Test in test_launch_guards.py documents the gap.
+- LaunchProfiles.tsx launch_commands silent-wipe — handleSubmit() never includes launch_commands in the PATCH body; openEdit() resets form.launch_commands to [] on every edit open, silently wiping configured launch commands on save. Failing test in src/components/**tests**/LaunchProfiles.test.tsx documents this. Fix before beta.
