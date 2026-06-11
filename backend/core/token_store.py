@@ -35,8 +35,12 @@ def resolve_token(db, token_str: str):
     )
     if row is None:
         return None
-    if row.expires_at is not None and datetime.now(timezone.utc) > row.expires_at:
-        return None
+    expires_at = row.expires_at
+    if expires_at is not None:
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > expires_at:
+            return None
     return db.get(User, row.user_id)
 
 

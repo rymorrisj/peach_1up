@@ -1,0 +1,109 @@
+"""Tests for backend.service.utils.path_utils.normalise_path and the
+filesystem allowlist enforcement built on top of it (api/routes/filesystem.py).
+
+normalise_path itself only handles null-byte rejection, separator
+unification, and ``Path.resolve()`` (which silently collapses ``..``
+segments — it does not raise on traversal). The allowlist check that
+rejects paths outside configured roots lives in
+``api/routes/filesystem._within_allowed`` and is exercised here via
+GET /api/v1/filesystem/browse, the closest equivalent to a "scan endpoint"
+that accepts an arbitrary path.
+"""
+
+from pathlib import Path
+
+import pytest
+
+
+class TestNormalisePath:
+    def test_clean_path_under_library_path_resolves(self, tmp_path):
+        from backend.service.utils.path_utils import normalise_path
+
+        target = tmp_path / "library" / "media"
+        target.mkdir(parents=True)
+
+        result = normalise_path(str(target))
+        assert result == target.resolve()
+
+    def test_unix_style_traversal_is_collapsed_not_raised(self, tmp_path):
+        """normalise_path does not raise on '..' — Path.resolve() collapses it."""
+        from backend.service.utils.path_utils import normalise_path
+
+        nested = tmp_path / "library" / "media"
+        nested.mkdir(parents=True)
+
+        result = normalise_path(str(nested / ".." / ".."))
+        assert result == tmp_path.resolve()
+
+    def test_null_byte_raises_value_error(self):
+        from backend.service.utils.path_utils import normalise_path
+
+        with pytest.raises(ValueError):
+            normalise_path("/some/path\x00/etc")
+
+    def test_empty_path_raises_value_error(self):
+        from backend.service.utils.path_utils import normalise_path
+
+        with pytest.raises(ValueError):
+            normalise_path("")
+
+    def test_windows_style_traversal_is_collapsed_not_raised(self, tmp_path):
+        """Backslash separators are unified to '/' then resolved — '..\\..' collapses."""
+        from backend.service.utils.path_utils import normalise_path
+
+        nested = tmp_path / "library" / "media"
+        nested.mkdir(parents=True)
+
+        result = normalise_path(str(nested) + "\\..\\..")
+        assert result == tmp_path.resolve()
+
+
+class TestFilesystemAllowlist:
+    @pytest.fixture
+    def app_client(self, tmp_path, monkeypatch):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from backend.api.routes import filesystem
+        from backend.core.dependencies import get_active_user
+        from backend.models.user import User
+
+        library_path = tmp_path / "library"
+        library_path.mkdir()
+
+        from backend.core import settings as settings_mod
+        monkeypatch.setattr(
+            settings_mod,
+            "get_settings",
+            lambda: {"LIBRARY_PATH": str(library_path), "MEDIA_PATH": "", "OS_PATH": "", "ROMS_PATH": "", "PROFILES_PATH": ""},
+        )
+
+        # _allowed_roots() additionally allowlists every existing drive root on
+        # Windows (so users can browse any drive to configure library paths).
+        # That's orthogonal to the LIBRARY_PATH allowlist under test here, and
+        # would make "outside library path" paths under e.g. C:\Users\... pass
+        # the allowlist check anyway. Pin to a non-Windows platform so only the
+        # configured-path allowlist is exercised.
+        monkeypatch.setattr(filesystem.sys, "platform", "linux")
+
+        app = FastAPI()
+        app.include_router(filesystem.router)
+        app.dependency_overrides[get_active_user] = lambda: User(id=1, name="Owner", is_owner=True)
+
+        with TestClient(app) as client:
+            yield client, library_path
+
+    def test_path_outside_library_path_rejected_with_400(self, app_client, tmp_path):
+        client, _library_path = app_client
+        outside = tmp_path / "outside"
+        outside.mkdir()
+
+        resp = client.get("/api/v1/filesystem/browse", params={"path": str(outside)})
+        assert resp.status_code == 400
+
+    def test_path_inside_library_path_accepted(self, app_client):
+        client, library_path = app_client
+        sub = library_path / "media"
+        sub.mkdir()
+
+        resp = client.get("/api/v1/filesystem/browse", params={"path": str(sub)})
+        assert resp.status_code == 200
