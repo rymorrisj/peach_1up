@@ -23,8 +23,12 @@ vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
   setSessionToken: vi.fn(),
   ApiError: class ApiError extends Error {
-    constructor(public readonly status: number, public readonly detail: string) {
+    status: number
+    detail: string
+    constructor(status: number, detail: string) {
       super(detail)
+      this.status = status
+      this.detail = detail
       this.name = 'ApiError'
     }
   },
@@ -56,6 +60,7 @@ const CATALOG: CatalogEntry[] = [
     install_path: 'C:\\emulators\\dosbox-x\\dosbox-x.exe',
     supported_formats: ['exe', 'com'],
     container_enabled: true,
+    container_hardcap_disabled: false,
     skip_cpu_limit: false,
     skip_memory_limit: false,
     known_limitations: [],
@@ -72,6 +77,7 @@ const CATALOG: CatalogEntry[] = [
     install_path: null,
     supported_formats: ['cue', 'chd'],
     container_enabled: false,
+    container_hardcap_disabled: false,
     skip_cpu_limit: false,
     skip_memory_limit: false,
     known_limitations: [],

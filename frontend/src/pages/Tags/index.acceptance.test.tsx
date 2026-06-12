@@ -23,8 +23,12 @@ vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
   setSessionToken: vi.fn(),
   ApiError: class ApiError extends Error {
-    constructor(public readonly status: number, public readonly detail: string) {
+    status: number
+    detail: string
+    constructor(status: number, detail: string) {
       super(detail)
+      this.status = status
+      this.detail = detail
       this.name = 'ApiError'
     }
   },

@@ -12,8 +12,7 @@ interface TopBarProps {
 }
 
 export default function TopBar({ title, children }: TopBarProps) {
-  const { state, dispatch: _dispatch } = useAppContext()
-  const _isDark = state.theme === 'dark'
+  const { dispatch: _dispatch } = useAppContext()
 
   const { data: launches = [] } = useQuery<LaunchHistory[]>({
     queryKey: ['launches'],

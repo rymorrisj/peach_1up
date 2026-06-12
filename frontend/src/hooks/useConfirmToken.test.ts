@@ -10,18 +10,63 @@ vi.mock('@/api/client', () => ({
       super(detail)
       this.status = status
       this.detail = detail
+      this.name = 'ApiError'
     }
   },
   setSessionToken: vi.fn(),
 }))
 
-import { apiFetch } from '@/api/client'
+import { apiFetch, ApiError } from '@/api/client'
 
 describe('useConfirmToken', () => {
   const mockApiFetch = vi.mocked(apiFetch)
 
   beforeEach(() => {
     mockApiFetch.mockReset()
+  })
+
+  it('issue() POSTs to the confirm-delete URL and returns the token', async () => {
+    mockApiFetch.mockResolvedValueOnce({ confirmation_token: 'tok-abc123' })
+
+    const { result } = renderHook(() => useConfirmToken())
+
+    let token!: string
+    await act(async () => {
+      token = await result.current.issue('/api/v1/library/1/confirm-delete')
+    })
+
+    expect(token).toBe('tok-abc123')
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      '/api/v1/library/1/confirm-delete',
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('consume() sends DELETE with the token as a query param', async () => {
+    mockApiFetch.mockResolvedValueOnce(undefined)
+
+    const { result } = renderHook(() => useConfirmToken())
+
+    await act(async () => {
+      await result.current.consume('/api/v1/library/1', 'tok-abc123')
+    })
+
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      '/api/v1/library/1?confirmation_token=tok-abc123',
+      expect.objectContaining({ method: 'DELETE' }),
+    )
+  })
+
+  it('error from issue() propagates to the caller', async () => {
+    mockApiFetch.mockRejectedValueOnce(new ApiError(403, 'Forbidden'))
+
+    const { result } = renderHook(() => useConfirmToken())
+
+    await expect(
+      act(async () => {
+        await result.current.issue('/api/v1/library/1/confirm-delete')
+      }),
+    ).rejects.toMatchObject({ name: 'ApiError', status: 403, detail: 'Forbidden' })
   })
 
   it('issue → consume → DELETE fires with token in query string', async () => {

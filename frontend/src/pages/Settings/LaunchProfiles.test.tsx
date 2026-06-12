@@ -19,8 +19,12 @@ vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
   setSessionToken: vi.fn(),
   ApiError: class ApiError extends Error {
-    constructor(public readonly status: number, public readonly detail: string) {
+    status: number
+    detail: string
+    constructor(status: number, detail: string) {
       super(detail)
+      this.status = status
+      this.detail = detail
       this.name = 'ApiError'
     }
   },
@@ -73,7 +77,7 @@ describe('LaunchProfiles submit payload', () => {
     vi.resetAllMocks()
   })
 
-  it('BUG: launch_commands not sent in body — PX open (existing profile launch_commands are dropped on save)', async () => {
+  it('preserves an existing profile launch_commands on save', async () => {
     const user = userEvent.setup()
     let patchBody: Record<string, unknown> | null = null
 
@@ -103,11 +107,6 @@ describe('LaunchProfiles submit payload', () => {
 
     await waitFor(() => expect(patchBody).not.toBeNull())
 
-    // The profile being edited has launch_commands configured, but
-    // handleSubmit() never includes a `launch_commands` key in the request
-    // body, and openEdit() also resets form.launch_commands to `[]`
-    // regardless of the profile's existing value — so saved edits silently
-    // wipe any configured launch commands.
     expect((patchBody as unknown as Record<string, unknown>).launch_commands).toEqual(
       PROFILE_WITH_LAUNCH_COMMANDS.launch_commands,
     )

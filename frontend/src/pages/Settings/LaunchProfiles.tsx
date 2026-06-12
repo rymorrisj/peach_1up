@@ -101,7 +101,7 @@ export default function LaunchProfiles() {
       enable_networking: profile.enable_networking,
       enable_dgvoodoo2: ext.enable_dgvoodoo2 ?? false,
       notes: profile.notes ?? '',
-      launch_commands: [],
+      launch_commands: profile.launch_commands ?? [],
       container_enabled: ext.container_enabled ?? null,
       drive_mode: ext.use_drive === false ? 'none' : hasDrive ? 'existing' : 'none',
       drive_slug: ext.drive_slug ?? '',
@@ -187,6 +187,7 @@ export default function LaunchProfiles() {
       }
       if (form.extra_args.trim()) body.extra_args = form.extra_args.trim()
       if (form.notes.trim()) body.notes = form.notes.trim()
+      if (form.launch_commands.length > 0) body.launch_commands = form.launch_commands
 
       if (modal?.mode === 'create') {
         await apiFetch('/api/v1/profiles', { method: 'POST', body: JSON.stringify(body) })
