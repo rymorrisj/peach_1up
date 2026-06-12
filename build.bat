@@ -210,10 +210,10 @@ echo === Writing peach_env=production to dist settings.yaml ===
 
 echo === Build complete ===
 
-echo === Building NSIS installer ===
-makensis installer\peach1up.nsi
-if errorlevel 1 goto :error
-echo === Installer built: Peach1UP-Setup.exe ===
+REM === Building NSIS installer ===
+REM makensis installer\peach1up.nsi
+REM if errorlevel 1 goto :error
+REM echo === Installer built: Peach1UP-Setup.exe ===
 
 goto :eof
 
