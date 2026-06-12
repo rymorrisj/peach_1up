@@ -48,7 +48,7 @@ Section "Peach 1UP" SecMain
 
     ; --- Application bundle (PyInstaller one-dir output) ---
     SetOutPath "$INSTDIR"
-    File /r "..\dist\peach1up\*.*"
+    File /r /x "vms" "..\dist\peach1up\*.*"
 
     ; --- Emulators ---
     SetOutPath "$INSTDIR\emulators"
