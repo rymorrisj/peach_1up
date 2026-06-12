@@ -93,6 +93,7 @@ config/emulators.toml
 .cache/
 temp/
 docs/AUDIT.md
+docs/ALPHA_TESTER_GUIDE.md
 
 # Playwright diagnostic tooling (never committed)
 /playwright/

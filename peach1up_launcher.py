@@ -17,6 +17,11 @@ if __name__ == "__main__":
     if getattr(sys, "frozen", False):
         os.chdir(os.path.dirname(sys.executable))
 
+    if "--reset-owner" in sys.argv:
+        from scripts.setup_admin_user import main as reset_owner_main
+
+        sys.exit(reset_owner_main())
+
     if sys.stdout is None:
         sys.stdout = open(os.devnull, "w")
     if sys.stderr is None:

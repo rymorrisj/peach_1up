@@ -117,7 +117,6 @@ if errorlevel 1 (
     exit /b 1
 )
 
-popd
 echo [OK] API types generated
 
 REM ── Settings check ───────────────────────────────────────────
@@ -127,6 +126,17 @@ if not exist "config\settings.yaml" (
     echo Copy config\settings.yaml.template to config\settings.yaml and fill in paths.
 ) else (
     echo [OK] config\settings.yaml found
+)
+
+REM ── Add MSYS2 UCRT64 to PATH for g++ ─────────────────────────────────────────
+set "MSYS2_UCRT64=%SystemDrive%\msys64\ucrt64\bin"
+if exist "%MSYS2_UCRT64%\g++.exe" (
+    set "PATH=%MSYS2_UCRT64%;%PATH%"
+    echo [OK] MSYS2 UCRT64 g++ found at %MSYS2_UCRT64%
+) else (
+    echo WARNING: MSYS2 UCRT64 g++ not found at %MSYS2_UCRT64%
+    echo          If sandbox_host.exe build fails, install MSYS2 from https://www.msys2.org
+    echo          then run: pacman -S mingw-w64-ucrt-x86_64-gcc
 )
 
 REM ── Build sandbox_host.exe via MSYS2 (or validate pre-built) ──
@@ -149,14 +159,22 @@ if not errorlevel 1 (
     echo [OK] sandbox_host.exe found ^(pre-built; MSYS2 not available to rebuild^)
 )
 
+if not exist "installer\tools\Peach1UP.exe" (
+    echo ERROR: installer\tools\Peach1UP.exe not found.
+    echo Download WinSW-x64.exe from https://github.com/winsw/winsw/releases, rename it to Peach1UP.exe, and place it at installer\tools\Peach1UP.exe
+    goto :error
+)
+
 echo === Running PyInstaller ===
 .venv\Scripts\python.exe -m PyInstaller --clean peach1up.spec
 if errorlevel 1 goto :error
 
 echo === Copying emulators, library and config beside exe ===
 xcopy /E /I /Y emulators dist\peach1up\emulators
+REM NOTE: xcopy of library includes bundled alpha test media. Remove for release builds.
 xcopy /E /I /Y library dist\peach1up\library
 xcopy /E /I /Y config dist\peach1up\config
+if not exist "dist\peach1up\database\data\" mkdir "dist\peach1up\database\data\"
 
 echo === Copying sandbox executables ===
 if not exist "backend\service\utils\sandbox\sandbox_host.exe" (
@@ -171,8 +189,7 @@ if errorlevel 1 (
     goto :error
 )
 
-dir /b "backend\service\utils\sandbox_checker\src\*.exe" >nul 2>&1
-if errorlevel 1 (
+if not exist "backend\service\utils\sandbox_checker\src\test_sdl2_d3d11.exe" (
     echo ERROR: No executables found in backend\service\utils\sandbox_checker\src\
     echo Run build.sh from an MSYS2 UCRT64 shell first to compile the sandbox executables.
     goto :error
@@ -186,12 +203,18 @@ if errorlevel 1 (
 echo [OK] sandbox exes copied
 
 echo === Stripping first_run_complete from dist settings.yaml ===
-python -c "import yaml,pathlib; p=pathlib.Path('dist/peach1up/config/settings.yaml'); d=yaml.safe_load(p.read_text()) or {}; d.pop('first_run_complete',None); p.write_text(yaml.dump(d))"
+".venv\Scripts\python.exe" -c "import yaml,pathlib; p=pathlib.Path('dist/peach1up/config/settings.yaml'); d=yaml.safe_load(p.read_text()) or {}; d.pop('first_run_complete',None); p.write_text(yaml.dump(d))"
 
 echo === Writing peach_env=production to dist settings.yaml ===
-python -c "import yaml,pathlib; p=pathlib.Path('dist/peach1up/config/settings.yaml'); d=yaml.safe_load(p.read_text()) or {}; d['peach_env']='production'; p.write_text(yaml.dump(d))"
+".venv\Scripts\python.exe" -c "import yaml,pathlib; p=pathlib.Path('dist/peach1up/config/settings.yaml'); d=yaml.safe_load(p.read_text()) or {}; d['peach_env']='production'; p.write_text(yaml.dump(d))"
 
 echo === Build complete ===
+
+echo === Building NSIS installer ===
+makensis installer\peach1up.nsi
+if errorlevel 1 goto :error
+echo === Installer built: Peach1UP-Setup.exe ===
+
 goto :eof
 
 :error_cd

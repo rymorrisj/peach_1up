@@ -23,8 +23,6 @@ hiddenimports = (
         "passlib.handlers.argon2",
         "argon2",
         "pydantic_settings",
-        "itsdangerous",
-        "jose",
         "yaml",
         "pycdlib",
     ]
@@ -42,7 +40,6 @@ a = Analysis(
         ("assets/", "assets/"),
         ("frontend/dist/", "frontend/dist/"),
         ("scripts/", "scripts/"),
-        ("emulators/", "emulators/"),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],
@@ -89,7 +86,8 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon="assets/peach1up.png",
+    # requires assets/peach1up.ico — convert from png before building
+    icon="assets/peach1up.ico",
 )
 
 coll = COLLECT(

@@ -1,0 +1,15 @@
+<service>
+  <id>Peach1UP</id>
+  <name>Peach 1UP</name>
+  <description>Peach 1UP preservation launcher</description>
+  <executable>%BASE%\peach1up.exe</executable>
+  <workingdirectory>%BASE%</workingdirectory>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>3</keepFiles>
+  </log>
+  <logpath>%BASE%\logs</logpath>
+  <startmode>Automatic</startmode>
+  <waithint>15000</waithint>
+  <sleeptime>1000</sleeptime>
+</service>

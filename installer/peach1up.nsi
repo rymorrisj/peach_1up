@@ -2,7 +2,8 @@
 ; Prerequisites:
 ;   - dist\peach1up\ produced by PyInstaller
 ;   - frontend\dist\ produced by npm run build
-;   - installer\tools\nssm.exe present (download from https://nssm.cc)
+;   - installer\tools\Peach1UP.exe present (WinSW-x64.exe renamed; download from
+;     https://github.com/winsw/winsw/releases)
 ; Build: makensis installer\peach1up.nsi
 
 !define APP_NAME    "Peach 1UP"
@@ -25,7 +26,7 @@ InstallDirRegKey HKLM "${REG_APP}" "InstallDir"
 !include "LogicLib.nsh"
 
 !define MUI_ABORTWARNING
-!define MUI_ICON "..\assets\peach1up.png"
+!define MUI_ICON "..\assets\peach1up.ico"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -43,15 +44,11 @@ Section "Peach 1UP" SecMain
     SectionIn RO  ; mandatory section
 
     ; Stop existing service before updating files
-    ExecWait '"$INSTDIR\tools\nssm.exe" stop ${SERVICE_NAME}' $0
+    ExecWait '"$INSTDIR\tools\Peach1UP.exe" stop' $0
 
     ; --- Application bundle (PyInstaller one-dir output) ---
     SetOutPath "$INSTDIR"
     File /r "..\dist\peach1up\*.*"
-
-    ; --- Frontend dist ---
-    SetOutPath "$INSTDIR\frontend\dist"
-    File /r "..\frontend\dist\*.*"
 
     ; --- Emulators ---
     SetOutPath "$INSTDIR\emulators"
@@ -67,33 +64,36 @@ Section "Peach 1UP" SecMain
         Rename "$INSTDIR\config\settings.yaml.template" "$INSTDIR\config\settings.yaml"
     ${EndIf}
 
-    ; --- NSSM ---
+    ; --- WinSW ---
     SetOutPath "$INSTDIR\tools"
-    File "tools\nssm.exe"
+    File "tools\Peach1UP.exe"
+    File "tools\Peach1UP.xml"
 
     ; --- Register Windows service ---
-    ExecWait '"$INSTDIR\tools\nssm.exe" install ${SERVICE_NAME} "$INSTDIR\${EXE_NAME}"' $0
+    ExecWait '"$INSTDIR\tools\Peach1UP.exe" install' $0
     ${If} $0 != 0
         MessageBox MB_OK|MB_ICONEXCLAMATION "Service registration failed (exit $0). \
             The application was installed but will not start automatically. \
             Run as administrator and re-run the installer to retry."
     ${Else}
-        ExecWait '"$INSTDIR\tools\nssm.exe" set ${SERVICE_NAME} AppDirectory "$INSTDIR"'
-        ExecWait '"$INSTDIR\tools\nssm.exe" set ${SERVICE_NAME} AppStdout "$INSTDIR\logs\peach1up.log"'
-        ExecWait '"$INSTDIR\tools\nssm.exe" set ${SERVICE_NAME} AppStderr "$INSTDIR\logs\peach1up.log"'
-        ExecWait '"$INSTDIR\tools\nssm.exe" set ${SERVICE_NAME} AppRotateFiles 1'
-        ExecWait '"$INSTDIR\tools\nssm.exe" set ${SERVICE_NAME} AppRotateBytes 10485760'
-        ExecWait '"$INSTDIR\tools\nssm.exe" set ${SERVICE_NAME} Start SERVICE_AUTO_START'
-        ExecWait '"$INSTDIR\tools\nssm.exe" start ${SERVICE_NAME}' $0
+        ExecWait '"$INSTDIR\tools\Peach1UP.exe" start' $0
     ${EndIf}
 
     ; --- Create logs directory ---
     CreateDirectory "$INSTDIR\logs"
+    CreateDirectory "$INSTDIR\database\data"
+
+    ; --- Reset Owner script ---
+    SetOutPath "$INSTDIR"
+    File "..\reset_owner.bat"
 
     ; --- Start Menu shortcut ---
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
     CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" \
         "$INSTDIR\${EXE_NAME}" "" "$INSTDIR\${EXE_NAME}" 0
+    CreateShortcut "$SMPROGRAMS\${APP_NAME}\Reset Owner Account.lnk" \
+        "$INSTDIR\reset_owner.bat" "" "$INSTDIR\${EXE_NAME}" 0
+    CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe"
 
     ; --- Uninstaller ---
     WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -116,11 +116,12 @@ SectionEnd
 
 Section "Uninstall"
     ; Stop and remove service
-    ExecWait '"$INSTDIR\tools\nssm.exe" stop ${SERVICE_NAME}'
-    ExecWait '"$INSTDIR\tools\nssm.exe" remove ${SERVICE_NAME} confirm'
+    ExecWait '"$INSTDIR\tools\Peach1UP.exe" stop'
+    ExecWait '"$INSTDIR\tools\Peach1UP.exe" uninstall'
 
     ; Start Menu
     Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk"
+    Delete "$SMPROGRAMS\${APP_NAME}\Reset Owner Account.lnk"
     RMDir  "$SMPROGRAMS\${APP_NAME}"
 
     ; Files — preserve user config
@@ -129,6 +130,7 @@ Section "Uninstall"
     RMDir /r "$INSTDIR\logs"
     RMDir /r "$INSTDIR\tools"
     Delete   "$INSTDIR\${EXE_NAME}"
+    Delete   "$INSTDIR\reset_owner.bat"
     Delete   "$INSTDIR\Uninstall.exe"
     ; Leave $INSTDIR\config\ so user data survives uninstall
     RMDir    "$INSTDIR"   ; removes only if empty

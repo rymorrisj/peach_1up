@@ -83,14 +83,14 @@ Output: `dist\peach1up\` — a self-contained directory containing `peach1up.exe
 
 ### 4. Build the installer
 
-Requires [NSIS](https://nsis.sourceforge.io/) and [NSSM](https://nssm.cc/) placed at `installer\tools\nssm.exe`.
+Requires [NSIS](https://nsis.sourceforge.io/) and [WinSW](https://github.com/winsw/winsw/releases) (WinSW-x64.exe renamed to `Peach1UP.exe`) placed at `installer\tools\Peach1UP.exe`.
 
 ```bash
 makensis installer\peach1up.nsi
 ```
 
 Output: `Peach1UP-Setup.exe`. Installs to `%PROGRAMFILES%\Peach1UP\`, registers a
-Windows service via NSSM, and creates a Start Menu shortcut. The uninstaller stops
+Windows service via WinSW, and creates a Start Menu shortcut. The uninstaller stops
 the service and removes all files; `config\settings.yaml` is preserved.
 
 ---
