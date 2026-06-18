@@ -1,6 +1,6 @@
 """
 Usage:
-    python -m backend.service.smart_scan.build_index --dats <dir> [--output <path>] [--rebuild]
+    python -m backend.service.utils.smart_media_detector.hashing.build_index --dats <dir> [--output <path>] [--rebuild]
 """
 
 import argparse
@@ -9,7 +9,7 @@ import logging
 import sys
 from pathlib import Path
 
-from backend.service.smart_scan.dat_parser import parse_dat
+from .dat_parser import parse_dat
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ def _load_existing(output_path: Path) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Build or update the smart_scan hash index from DAT files."
+        description="Build or update the smart_media_detector hash index from DAT files."
     )
     parser.add_argument(
         "--dats",

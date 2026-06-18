@@ -3,7 +3,7 @@ import json
 import zlib
 from pathlib import Path
 
-from backend.service.smart_scan.types import ScanResult
+from ..result import ScanResult
 
 _CHUNK = 65536
 

@@ -82,6 +82,29 @@ React-based, versioned, MDX, full-text search. Chosen for consistency with the
 frontend stack and suitability for a growing open source project expecting
 community contributors.
 
+## Smart Scanner
+
+`smart_media_detector` is the self-contained media detection package that identifies platform and era from a disk image or directory path. It lives at `backend/service/utils/smart_media_detector/` and has zero `backend.*` imports — it is designed to be vendored into its own standalone repository after the Beta ships.
+
+### Detection pipeline
+
+Detection runs in tier order and short-circuits on the first confident match:
+
+1. **Hash lookup** — SHA-256 of the first 64 KB compared against a bundled `hash_index.json` built from No-Intro/Redump DAT files. Returns the highest-confidence result possible; exits immediately on a hit.
+2. **Magic bytes** — file header compared against `magic/magic_signatures.toml`. Covers GDI, CDI, BIN, ISO, and CHD container signatures.
+3. **Structural validation** — deeper parse of the container format:
+   - ISO: reads the ISO 9660 PVD (sector 16) for volume label, publisher, and system-ID fields; falls back to scanning the root directory for `.xbe` (Xbox OG) markers.
+   - CHD: walks the CHD v5 metadata chain — `CHGD` tag → Dreamcast; `CHTR`/`CHT2` tag → PS2.
+   - BIN/CUE: resolves the `.cue` sheet to its `.bin` sibling, then runs magic-byte and PVD checks on the binary.
+4. **Directory heuristics** — inspects root-level filenames and subdirectory structure for OS installer markers (`I386`, `WIN98`, `XPSP`, `SYSTEM.CNF`, `AUTORUN.INF`, DOS tool names, `.WAD` files, etc.).
+5. **Extension / size fallback** — lowest-confidence tier; uses file extension and file size as weak signals when no structural match is found.
+
+### Known limitations
+
+- **Xbox OG ISOs without `DEFAULT.XBE` at the ISO root** will not resolve platform via structural scan (the `.xbe` directory scan comes up empty). The magic-byte check still applies as a fallback. Standard Xbox rips typically include `DEFAULT.XBE` at the root, so this case is expected to be rare in practice.
+- **`.bin`/`.cue` pairs without a matching `.cue` sibling** return low confidence and `requires_manual_boot = True`. The scanner cannot resolve CD layout without a cue sheet.
+- **`requires_install` heuristic** (DOS/Windows installer-only directory detection) is approximate — it checks whether every executable at the directory root is on the blocklist. Tuning may be needed based on Beta feedback.
+
 ## Developer Tooling
 
 - Ruff — Python linting

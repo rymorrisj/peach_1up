@@ -17,6 +17,24 @@ _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
 _DRIVE_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
 
 
+def _media_type_from_path(path: Path) -> str:
+    if path.is_dir():
+        return "directory"
+    suffix = path.suffix.lower()
+    if suffix == ".iso":
+        return "iso"
+    if suffix == ".cue":
+        return "cue"
+    if suffix == ".img":
+        try:
+            return "floppy" if path.stat().st_size < 2 * 1024 * 1024 else "hdd"
+        except OSError:
+            return "hdd"
+    if suffix in {".exe", ".bat", ".com"}:
+        return "exe"
+    return "unknown"
+
+
 class _ItemAlreadyExists(Exception):
     """Raised by _prepare_item when the media path is already tracked."""
     def __init__(self, item: LibraryItem):
@@ -60,10 +78,9 @@ def _prepare_item(
     from backend.core.logger import get_logger
     from backend.core.settings import get_settings
     from backend.models.platform import Platform
-    from backend.service.utils.detection.era_detect import detect_era as _detect_era
     from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
-    from backend.service.utils.media_detect import detect_media_type
     from backend.service.utils.profile_builder import _EXECUTABLE_PRIORITY, _find_cover
+    from backend.service.utils.smart_media_detector import detect as _smart_detect
     from backend.utils.rating_detect import detect_rating
 
     log = get_logger(__name__)
@@ -158,10 +175,10 @@ def _prepare_item(
                 break
 
         _era_path = best_detect_path(media_src, row["executable_path"])
-        _era_slug, _era_reason = _detect_era(_era_path)
-        if _era_slug is not None:
-            row["era"] = _era_slug
-            row["detection_reason"] = _era_reason
+        _scan = _smart_detect(_era_path)
+        if _scan.era is not None:
+            row["era"] = _scan.era
+            row["detection_reason"] = _scan.reason
 
         if row["era"] and row["era"] != "unknown":
             try:
@@ -213,10 +230,10 @@ def _prepare_item(
                     raise _ItemAlreadyExists(db.get(LibraryItem, item_id))
             row["folder_path"] = str(media_src.parent)
 
-        _era_slug, _era_reason = _detect_era(Path(row["media_path"]))
-        if _era_slug is not None:
-            row["era"] = _era_slug
-            row["detection_reason"] = _era_reason
+        _scan = _smart_detect(Path(row["media_path"]))
+        if _scan.era is not None:
+            row["era"] = _scan.era
+            row["detection_reason"] = _scan.reason
     else:
         raise HTTPException(
             status_code=400,
@@ -230,9 +247,8 @@ def _prepare_item(
     else:
         row["slug"] = generate_item_slug(title, db)
 
-    media_type = detect_media_type(Path(row["media_path"]))
-    row["media_type"] = media_type
-    row["requires_install"] = media_type in ("iso", "cue", "floppy")
+    row["media_type"] = _media_type_from_path(Path(row["media_path"]))
+    row["requires_install"] = _scan.requires_install
 
     if row["era"] and row["era"] != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(row["era"])

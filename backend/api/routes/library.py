@@ -115,7 +115,7 @@ def _run_scan(directory: str) -> None:
     """
     from backend.core.database import get_engine
     from backend.service.library.items import best_detect_path
-    from backend.service.utils.detection.era_detect import detect_era
+    from backend.service.utils.smart_media_detector import detect as _smart_detect
     from backend.service.utils.profile_builder import scan_media_folders
     from sqlalchemy.orm import Session
 
@@ -161,7 +161,8 @@ def _run_scan(directory: str) -> None:
                             scan_path,
                             str(entry.executable_path) if entry.executable_path else None,
                         )
-                    era_slug, _ = detect_era(era_path)
+                    _scan = _smart_detect(era_path)
+                    era_slug = _scan.era
                 except Exception:
                     era_slug = None
 
