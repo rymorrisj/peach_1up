@@ -397,6 +397,9 @@ async def lifespan(app: FastAPI):
     from backend.core.logger import setup_logging
     setup_logging()
     _ensure_default_paths()
+    from backend.service.utils.settings import validate_configured_paths, get_path_warnings
+    validate_configured_paths()
+    app.state.path_warnings = get_path_warnings()
     # reset_db is a dev-only destructive flag in settings.yaml. Never true in production.
     # Cleared immediately after use so it cannot accidentally persist across restarts.
     from backend.service.utils import settings as _settings

@@ -202,11 +202,14 @@ if errorlevel 1 (
 )
 echo [OK] sandbox exes copied
 
-echo === Stripping first_run_complete from dist settings.yaml ===
-".venv\Scripts\python.exe" -c "import yaml,pathlib; p=pathlib.Path('dist/peach1up/config/settings.yaml'); d=yaml.safe_load(p.read_text()) or {}; d.pop('first_run_complete',None); p.write_text(yaml.dump(d))"
+echo === Stripping machine-specific keys from dist settings.yaml ===
+".venv\Scripts\python.exe" -c "import yaml,pathlib; p=pathlib.Path('dist/peach1up/config/settings.yaml'); d=yaml.safe_load(p.read_text()) or {}; [d.pop(k,None) for k in ['first_run_complete','LIBRARY_PATH','MEDIA_PATH','OS_PATH','ROMS_PATH','PROFILES_PATH']]; p.write_text(yaml.dump(d))"
 
 echo === Writing peach_env=production to dist settings.yaml ===
 ".venv\Scripts\python.exe" -c "import yaml,pathlib; p=pathlib.Path('dist/peach1up/config/settings.yaml'); d=yaml.safe_load(p.read_text()) or {}; d['peach_env']='production'; p.write_text(yaml.dump(d))"
+
+REM Ensure paths.yaml is never shipped in the bundle — it is generated at runtime in %APPDATA%\Peach1UP\
+if exist "dist\peach1up\config\paths.yaml" del /f /q "dist\peach1up\config\paths.yaml"
 
 echo === Build complete ===
 

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -83,7 +83,7 @@ def validate_paths():
 
 
 @router.get("/first-run-status")
-def get_first_run_status(db: Session = Depends(get_db)):
+def get_first_run_status(request: Request, db: Session = Depends(get_db)):
     from backend.models.settings import Settings as SettingsModel
     svc = get_settings()
     row = db.get(SettingsModel, "first_run_complete")
@@ -101,6 +101,7 @@ def get_first_run_status(db: Session = Depends(get_db)):
             "roms_path":     svc.get("ROMS_PATH") or None,
             "profiles_path": svc.get("PROFILES_PATH") or None,
         },
+        "path_warnings": getattr(request.app.state, "path_warnings", []),
     }
 
 

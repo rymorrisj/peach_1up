@@ -23,6 +23,14 @@ def _get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent.parent
 
 
+def _get_paths_dir() -> Path:
+    if sys.platform == "win32":
+        appdata = os.environ.get("APPDATA", "")
+        if appdata:
+            return Path(appdata) / "Peach1UP"
+    return Path.home() / ".config" / "Peach1UP"
+
+
 _SETTINGS_PATH = _get_project_root() / "config" / "settings.yaml"
 
 _DEFAULTS: dict = {
@@ -103,6 +111,46 @@ def init() -> None:
     for _key, _default in _PATH_DEFAULTS.items():
         if not state.get(_key):
             state[_key] = _default
+
+    # Load machine-specific paths from %APPDATA%\Peach1UP\paths.yaml.
+    # If the file does not exist, generate it from computed install-relative defaults.
+    _paths_dir = _get_paths_dir()
+    _paths_file = _paths_dir / "paths.yaml"
+    if _paths_file.exists():
+        try:
+            with _paths_file.open("r", encoding="utf-8") as _fh:
+                _paths_data = yaml.safe_load(_fh) or {}
+            if isinstance(_paths_data, dict):
+                for _pk in _PATH_KEYS:
+                    _pv = _paths_data.get(_pk)
+                    if _pv and isinstance(_pv, str):
+                        state[_pk] = _pv
+        except yaml.YAMLError as _exc:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "paths.yaml at %s is not valid YAML and will be ignored: %s",
+                _paths_file, _exc,
+            )
+    else:
+        _paths_dir.mkdir(parents=True, exist_ok=True)
+        _generated: dict[str, str] = {
+            _k: Path(_v).as_posix() for _k, _v in _PATH_DEFAULTS.items()
+        }
+        _tmp_fd, _tmp_path = tempfile.mkstemp(dir=str(_paths_dir), suffix=".yaml.tmp")
+        try:
+            with os.fdopen(_tmp_fd, "w", encoding="utf-8") as _fh:
+                yaml.safe_dump(_generated, _fh, allow_unicode=True, sort_keys=False)
+            os.replace(_tmp_path, str(_paths_file))
+        except Exception:
+            try:
+                os.unlink(_tmp_path)
+            except OSError:
+                pass
+            raise
+        import logging as _logging
+        _logging.getLogger(__name__).info(
+            "Generated default paths.yaml at %s — edit this file to customise paths", _paths_file
+        )
 
     # Snapshot .env values after load_dotenv() so path resolution never calls
     # os.getenv() at call time. settings.yaml values are already in state;
@@ -274,7 +322,7 @@ def set_path(key: str, value: str) -> None:
         except ValueError as exc:
             raise ValueError(f"Invalid path for {key}: {exc}") from exc
     state[key] = value
-    _save()
+    _save_paths()
 
 
 def compute_setup_status() -> list[dict]:
@@ -304,19 +352,54 @@ def compute_setup_status() -> list[dict]:
     return result
 
 
-def _save() -> None:
-    """Persist the current settings state to settings.yaml atomically.
+def validate_configured_paths() -> None:
+    """Check that all configured path keys exist on disk and log warnings.
 
-    Internal keys prefixed with ``_`` (e.g. ``_env``) are excluded from
-    the file. Writes to a temp file then renames into place so a mid-write
-    interruption cannot corrupt the settings file.
+    Call this from the lifespan handler *after* ``_ensure_default_paths()``
+    has created the default directories, so default paths do not produce
+    false-positive warnings.
+    """
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    state = _require_init()
+    warnings: list[str] = []
+    for key in sorted(_PATH_KEYS):
+        val = state.get(key, "") or ""
+        if not val:
+            msg = f"{key} is not configured in paths.yaml"
+            warnings.append(msg)
+            _log.warning("Path configuration: %s", msg)
+        elif not Path(val).exists():
+            msg = f"{key} points to a non-existent location: {val}"
+            warnings.append(msg)
+            _log.warning("Path configuration: %s", msg)
+    state["_path_warnings"] = warnings
+
+
+def get_path_warnings() -> list[str]:
+    """Return path validation warnings collected by ``validate_configured_paths()``.
+
+    Returns an empty list if ``validate_configured_paths()`` has not been called
+    or if all paths are valid.
+    """
+    if _state is None:
+        return []
+    return list(_state.get("_path_warnings", []))
+
+
+def _save() -> None:
+    """Persist non-path settings state to settings.yaml atomically.
+
+    Path keys (``_PATH_KEYS``) are written to ``%APPDATA%\\Peach1UP\\paths.yaml``
+    via ``_save_paths()`` instead. Internal keys prefixed with ``_`` are excluded.
+    Writes to a temp file then renames into place so a mid-write interruption
+    cannot corrupt the settings file.
     """
     state = _require_init()
-    payload = {k: v for k, v in state.items() if not k.startswith("_")}
-
-    for key in _PATH_KEYS:
-        if key in payload and payload[key]:
-            payload[key] = Path(payload[key]).as_posix()
+    payload = {
+        k: v for k, v in state.items()
+        if not k.startswith("_") and k not in _PATH_KEYS
+    }
 
     _SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(_SETTINGS_PATH.parent), suffix=".yaml.tmp")
@@ -324,6 +407,30 @@ def _save() -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             yaml.safe_dump(payload, fh, allow_unicode=True, sort_keys=False)
         os.replace(tmp, str(_SETTINGS_PATH))
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _save_paths() -> None:
+    """Persist path keys to ``%APPDATA%\\Peach1UP\\paths.yaml`` atomically."""
+    state = _require_init()
+    paths_dir = _get_paths_dir()
+    payload: dict[str, str] = {}
+    for key in _PATH_KEYS:
+        val = state.get(key, "") or ""
+        if val:
+            payload[key] = Path(val).as_posix()
+
+    paths_dir.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(paths_dir), suffix=".yaml.tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            yaml.safe_dump(payload, fh, allow_unicode=True, sort_keys=False)
+        os.replace(tmp, str(paths_dir / "paths.yaml"))
     except Exception:
         try:
             os.unlink(tmp)
