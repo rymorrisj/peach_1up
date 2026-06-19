@@ -81,7 +81,7 @@ def _prepare_item(
     from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
     from backend.service.utils.profile_builder import _EXECUTABLE_PRIORITY, _find_cover
     from backend.service.utils.smart_media_detector import detect as _smart_detect
-    from backend.utils.rating_detect import detect_rating
+    from backend.service.utils.rating_detect import detect_rating
 
     log = get_logger(__name__)
     svc = get_settings()

@@ -13,7 +13,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     apiFetch<User>('/api/v1/auth/me')
-      .then((user) => dispatch({ type: 'SET_ACTIVE_USER', payload: user }))
+      .then((user) => {
+        dispatch({ type: 'SET_ACTIVE_USER', payload: user })
+        // Rotate the session token on every app open so sessions extend automatically.
+        // Failure is non-fatal — the existing session remains valid.
+        apiFetch<{ user: User }>('/api/v1/auth/refresh', { method: 'POST' })
+          .then(({ user: refreshed }) => dispatch({ type: 'SET_ACTIVE_USER', payload: refreshed }))
+          .catch(() => {})
+      })
       .catch(() => dispatch({ type: 'LOGOUT' }))
   }, [])
 

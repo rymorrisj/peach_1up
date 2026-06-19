@@ -61,4 +61,10 @@ def cleanup_expired_tokens(db) -> None:
         AuthToken.expires_at.isnot(None),
         AuthToken.expires_at < now,
     ).delete(synchronize_session=False)
+    # Purge revoked tokens older than 30 days (accumulate when refresh rotates them)
+    cutoff = now - timedelta(days=30)
+    db.query(AuthToken).filter(
+        AuthToken.revoked.is_(True),
+        AuthToken.issued_at < cutoff,
+    ).delete(synchronize_session=False)
     db.commit()

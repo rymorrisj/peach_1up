@@ -18,7 +18,7 @@ def resource_path(relative: str) -> Path:
         return Path(sys._MEIPASS) / relative
     return Path(__file__).resolve().parent.parent / relative
 
-from backend.api.middleware.security import FirstRunGuardMiddleware, SecurityMiddleware, _LOCALHOST_ORIGINS, configure_cors
+from backend.api.middleware.security import CSRFMiddleware, FirstRunGuardMiddleware, SecurityMiddleware, _LOCALHOST_ORIGINS, configure_cors
 from backend.api.routes import auth, bios, drives, emulators, filesystem, health, launches, library, media, platforms, profiles, settings, tags, users
 from backend.core.lifespan import lifespan
 
@@ -34,8 +34,9 @@ app = FastAPI(
 )
 
 # Middleware is applied in LIFO order (last-added = outermost = first to run).
-# Execution order: CORS → Security → FirstRunGuard → router
+# Execution order: CORS → Security → CSRF → FirstRunGuard → router
 app.add_middleware(FirstRunGuardMiddleware)
+app.add_middleware(CSRFMiddleware)
 app.add_middleware(SecurityMiddleware)
 configure_cors(app)
 

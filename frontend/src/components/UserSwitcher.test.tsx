@@ -44,10 +44,13 @@ describe('UserSwitcher', () => {
   })
 
   it('renders user avatar buttons when more than one user exists', async () => {
-    vi.mocked(apiFetch).mockResolvedValue([
-      makeUser({ id: 1, name: 'Alice' }),
-      makeUser({ id: 2, name: 'Bob' }),
-    ])
+    const ALICE = makeUser({ id: 1, name: 'Alice' })
+    const BOB = makeUser({ id: 2, name: 'Bob' })
+    vi.mocked(apiFetch).mockImplementation((url) => {
+      if (url === '/api/v1/auth/me') return Promise.resolve(ALICE)
+      if (url === '/api/v1/auth/refresh') return Promise.resolve({ user: ALICE })
+      return Promise.resolve([ALICE, BOB])
+    })
     renderWithProviders(<UserSwitcher />)
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /alice/i })).toBeInTheDocument()
@@ -56,10 +59,13 @@ describe('UserSwitcher', () => {
   })
 
   it('renders a locked user with locked visual state', async () => {
-    vi.mocked(apiFetch).mockResolvedValue([
-      makeUser({ id: 1, name: 'Owner', is_owner: true }),
-      makeUser({ id: 2, name: 'Locked', is_locked: true }),
-    ])
+    const OWNER = makeUser({ id: 1, name: 'Owner', is_owner: true })
+    const LOCKED = makeUser({ id: 2, name: 'Locked', is_locked: true })
+    vi.mocked(apiFetch).mockImplementation((url) => {
+      if (url === '/api/v1/auth/me') return Promise.resolve(OWNER)
+      if (url === '/api/v1/auth/refresh') return Promise.resolve({ user: OWNER })
+      return Promise.resolve([OWNER, LOCKED])
+    })
     renderWithProviders(<UserSwitcher />)
     await waitFor(() => {
       // The account switcher section should be visible

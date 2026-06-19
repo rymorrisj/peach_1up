@@ -6,19 +6,10 @@ import Sidebar from '@/components/layout/Sidebar'
 import HelpBar from '@/components/layout/HelpBar'
 import ToastItem from '@/components/common/ToastItem'
 import { useAppContext } from '@/context/useAppContext'
-import { apiFetch } from '@/api/client'
-import type { components } from '@shared/types'
-type User = components['schemas']['UserRead']
 
 export default function AppShell() {
   const { state, dispatch } = useAppContext()
   const navigate = useNavigate()
-
-  useEffect(() => {
-    apiFetch<User>('/api/v1/auth/me')
-      .then((user) => dispatch({ type: 'SET_ACTIVE_USER', payload: user }))
-      .catch(() => {/* auth not yet set up */})
-  }, [dispatch])
 
   useEffect(() => {
     if (state.showUnauthModal) {

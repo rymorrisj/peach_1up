@@ -66,10 +66,7 @@ def _validate_pin(pin: str) -> None:
 
 
 @router.get("", response_model=list[UserRead])
-def list_users(
-    db: Session = Depends(get_db),
-    _: User = Depends(get_active_user),
-):
+def list_users(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
     return db.query(User).all()
 
 

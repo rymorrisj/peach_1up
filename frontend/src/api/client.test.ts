@@ -101,17 +101,21 @@ describe('api.fetch session/error events', () => {
     }
   })
 
-  it('dispatches a session-expired event on a 403 response from an auth endpoint', async () => {
-    const handler = vi.fn()
-    window.addEventListener('session-expired', handler)
+  it('dispatches api-error (not session-expired) on a 403 from an auth endpoint', async () => {
+    const sessionHandler = vi.fn()
+    const errorHandler = vi.fn()
+    window.addEventListener('session-expired', sessionHandler)
+    window.addEventListener('api-error', errorHandler)
     try {
       mockFetch.mockResolvedValueOnce(
         new Response(JSON.stringify({ detail: 'Forbidden' }), { status: 403 }),
       )
       await expect(api.fetch('/api/v1/auth/me')).rejects.toBeInstanceOf(ApiError)
-      expect(handler).toHaveBeenCalledTimes(1)
+      expect(sessionHandler).not.toHaveBeenCalled()
+      expect(errorHandler).toHaveBeenCalledTimes(1)
     } finally {
-      window.removeEventListener('session-expired', handler)
+      window.removeEventListener('session-expired', sessionHandler)
+      window.removeEventListener('api-error', errorHandler)
     }
   })
 

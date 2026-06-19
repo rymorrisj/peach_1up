@@ -56,6 +56,41 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         return response
 
 
+_CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+_CSRF_EXEMPT_PREFIXES = ("/api/v1/auth/",)
+
+
+class CSRFMiddleware(BaseHTTPMiddleware):
+    """Double-submit cookie CSRF protection for all state-mutating endpoints.
+
+    Auth endpoints (/api/v1/auth/*) are exempt — they manage the token lifecycle.
+    If no session cookie is present the check is skipped so the auth dependency
+    returns the canonical 401 rather than a confusing 403.
+    """
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        if request.method in _CSRF_SAFE_METHODS:
+            return await call_next(request)
+
+        path = request.url.path
+        if any(path.startswith(p) for p in _CSRF_EXEMPT_PREFIXES):
+            return await call_next(request)
+
+        # No session cookie → let the auth dependency return 401
+        if not request.cookies.get("peach_token", ""):
+            return await call_next(request)
+
+        csrf_cookie = request.cookies.get("peach_csrf", "")
+        csrf_header = request.headers.get("X-CSRF-Token", "")
+
+        if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
+            resp = Response(content="CSRF validation failed.", status_code=403)
+            _apply_cors_headers(resp, request)
+            return resp
+
+        return await call_next(request)
+
+
 _first_run_done_cache: bool = False
 
 

@@ -65,6 +65,7 @@ describe('AppContext initial auth check', () => {
   it('sets the active user in context after a successful /api/v1/auth/me response', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
       if (url === '/api/v1/auth/me') return Promise.resolve(OWNER)
+      if (url === '/api/v1/auth/refresh') return Promise.resolve({ user: OWNER })
       return Promise.resolve([])
     })
 

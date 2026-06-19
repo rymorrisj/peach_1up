@@ -1,3 +1,5 @@
+import secrets
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -12,6 +14,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 _COOKIE_NAME = "peach_token"
+_CSRF_COOKIE_NAME = "peach_csrf"
 
 
 class SwitchRequest(BaseModel):
@@ -35,6 +38,19 @@ def _set_auth_cookie(response: Response, token: str, session_expiry_minutes) -> 
         key=_COOKIE_NAME,
         value=token,
         httponly=True,
+        samesite="lax",
+        secure=False,
+        max_age=max_age,
+    )
+
+
+def _set_csrf_cookie(response: Response, session_expiry_minutes) -> None:
+    csrf_token = secrets.token_urlsafe(32)
+    max_age = (session_expiry_minutes * 60) if session_expiry_minutes is not None else (30 * 24 * 60 * 60)
+    response.set_cookie(
+        key=_CSRF_COOKIE_NAME,
+        value=csrf_token,
+        httponly=False,  # must be JS-readable so the client can submit it as a header
         samesite="lax",
         secure=False,
         max_age=max_age,
@@ -90,6 +106,7 @@ def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depen
 
     token = create_token(db, owner.id, owner.session_expiry_minutes)
     _set_auth_cookie(response, token, owner.session_expiry_minutes)
+    _set_csrf_cookie(response, owner.session_expiry_minutes)
     logger.info("Owner account created for %r", body.name.strip())
     return {"user": owner}
 
@@ -117,6 +134,7 @@ def switch_user(body: SwitchRequest, response: Response, db: Session = Depends(g
         db.commit()
         token = create_token(db, user.id, user.session_expiry_minutes)
         _set_auth_cookie(response, token, user.session_expiry_minutes)
+        _set_csrf_cookie(response, user.session_expiry_minutes)
         return {"user": user}
 
     if not user.pin_required:
@@ -124,6 +142,7 @@ def switch_user(body: SwitchRequest, response: Response, db: Session = Depends(g
         db.commit()
         token = create_token(db, user.id, user.session_expiry_minutes)
         _set_auth_cookie(response, token, user.session_expiry_minutes)
+        _set_csrf_cookie(response, user.session_expiry_minutes)
         return {"user": user}
 
     if user.pin_hash is None or not _verify_pin(body.pin, user.pin_hash):
@@ -146,7 +165,8 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     token_str = request.cookies.get(_COOKIE_NAME)
     if token_str:
         revoke_token(db, token_str)
-    response.delete_cookie(key=_COOKIE_NAME, httponly=True, samesite="strict")
+    response.delete_cookie(key=_COOKIE_NAME, httponly=True, samesite="lax")
+    response.delete_cookie(key=_CSRF_COOKIE_NAME, httponly=False, samesite="lax")
     return {"success": True}
 
 
@@ -159,3 +179,24 @@ def me(request: Request, db: Session = Depends(get_db)):
     if user is None:
         raise HTTPException(status_code=401, detail="Invalid or expired token.")
     return user
+
+
+@router.post("/refresh", response_model=UserResponse)
+def refresh_session(request: Request, response: Response, db: Session = Depends(get_db)):
+    """Rotate the session token and reset the CSRF cookie.
+
+    Called on every app open so sessions extend automatically. The old token is
+    revoked after the new one is committed — the user is never left without a
+    valid session even if the second write fails.
+    """
+    token_str = request.cookies.get(_COOKIE_NAME)
+    if not token_str:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    user = resolve_token(db, token_str)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    new_token = create_token(db, user.id, user.session_expiry_minutes)
+    _set_auth_cookie(response, new_token, user.session_expiry_minutes)
+    _set_csrf_cookie(response, user.session_expiry_minutes)
+    revoke_token(db, token_str)
+    return {"user": user}

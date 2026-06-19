@@ -63,7 +63,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_ACTIVE_PROFILE':
       return { ...state, activeProfileId: action.payload }
     case 'SET_ACTIVE_USER':
-      return { ...state, activeUser: action.payload }
+      return { ...state, activeUser: action.payload, ...(action.payload !== null && { showUnauthModal: false }) }
     case 'LOGOUT':
       return { ...state, activeUser: null, showUnauthModal: true }
     case 'DISMISS_UNAUTH_MODAL':

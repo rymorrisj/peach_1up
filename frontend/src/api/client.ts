@@ -21,6 +21,13 @@ const baseURL =
   (import.meta.env.VITE_API_URL as string | undefined) ??
   "http://localhost:8000";
 
+function _getCsrfToken(): string {
+  const pair = document.cookie.split('; ').find(c => c.startsWith('peach_csrf='));
+  return pair ? pair.slice('peach_csrf='.length) : '';
+}
+
+const _CSRF_SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
+
 class ApiClient {
   async fetch<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = {
@@ -28,6 +35,11 @@ class ApiClient {
       "X-Request-ID": crypto.randomUUID(),
       ...(init.headers as Record<string, string> | undefined),
     };
+
+    const method = (init.method ?? 'GET').toUpperCase();
+    if (!_CSRF_SAFE.has(method)) {
+      headers['X-CSRF-Token'] = _getCsrfToken();
+    }
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10_000);
@@ -52,10 +64,7 @@ class ApiClient {
     clearTimeout(timeoutId);
 
     if (!res.ok) {
-      const isAuthEndpoint =
-        path === "/api/v1/auth/me" || path === "/api/v1/auth/switch";
-      const isSessionError =
-        res.status === 401 || (res.status === 403 && isAuthEndpoint);
+      const isSessionError = res.status === 401;
 
       if (isSessionError) {
         window.dispatchEvent(new CustomEvent("session-expired"));
