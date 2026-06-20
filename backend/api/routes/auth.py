@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.identity import clear_session, issue_session, parse_session_cookie, validate_session
+from backend.core.identity import clear_session, generate_identity_secret, issue_session, parse_session_cookie, validate_session
 from backend.core.logger import get_logger
 from backend.models.user import User, UserRead
 
@@ -99,6 +99,7 @@ def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depen
         can_manage_profiles=True,
         can_edit_settings=True,
         pin_hash=pin_hash,
+        identity_token_secret=generate_identity_secret(),
     )
     db.add(owner)
     db.commit()

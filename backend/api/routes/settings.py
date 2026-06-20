@@ -105,6 +105,14 @@ def get_first_run_status(request: Request, db: Session = Depends(get_db)):
     }
 
 
+@router.get("/owner-status")
+def get_owner_status(db: Session = Depends(get_db)):
+    """Unauthenticated — checked once at app load so the frontend can detect
+    a missing/locked owner row and render the recovery fallback page."""
+    owner = db.query(User).filter(User.is_owner.is_(True)).first()
+    return {"owner_broken": owner is None or owner.is_locked}
+
+
 @router.post("/emulator-path")
 def set_emulator_path(body: EmulatorPathBody, _: User = require_permission("can_edit_settings")):
     from backend.service.utils.emulator_catalog import get_settings_key as _get_settings_key, get_emulator as _get_emulator

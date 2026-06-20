@@ -177,6 +177,21 @@ class TestSetupOwnerSession:
         assert user is not None
         assert user.name == "Boss"
 
+    def test_setup_owner_sets_identity_token_secret_explicitly(self, app_client, mem_session):
+        """Regression: setup_owner must not depend on issue_session's lazy
+        backfill — it's the primary first-run creation path, not a defensive
+        fallback case like the CLI owner-recovery script."""
+        from backend.models.user import User
+
+        resp = app_client.post(
+            "/api/v1/auth/setup-owner",
+            json={"name": "Boss", "pin": "5678", "confirm_pin": "5678"},
+        )
+        assert resp.status_code == 200, resp.text
+
+        owner = mem_session.query(User).filter(User.is_owner.is_(True)).first()
+        assert owner.identity_token_secret is not None
+
 
 class TestUnlockSubAccount:
     def test_owner_can_unlock_sub_account(self, app_client, mem_session, owner):

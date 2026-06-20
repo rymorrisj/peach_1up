@@ -25,9 +25,10 @@ import ProfileDetail from '@/pages/Profiles/ProfileDetail'
 import PlatformHealth from '@/pages/PlatformHealth'
 import FirstRun from '@/pages/FirstRun'
 import NotFound from '@/pages/NotFound'
+import OwnerBroken from '@/pages/OwnerBroken'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { apiFetch } from '@/api/client'
-import type { FirstRunStatus } from '@/pages/FirstRun/types'
+import type { FirstRunStatus, OwnerStatus } from '@/pages/FirstRun/types'
 import '@/styles/global.css'
 
 const queryClient = new QueryClient({
@@ -45,7 +46,17 @@ function FirstRunGuard() {
     queryFn: () => apiFetch<FirstRunStatus>('/api/v1/settings/first-run-status'),
   })
 
-  if (isLoading) {
+  const firstRunComplete = data?.first_run_complete ?? false
+
+  // Only relevant once first-run setup is done — true first-run (no owner
+  // yet) is FirstRun's job, not this fallback's.
+  const ownerStatus = useQuery({
+    queryKey: ['owner-status'],
+    queryFn: () => apiFetch<OwnerStatus>('/api/v1/settings/owner-status'),
+    enabled: firstRunComplete,
+  })
+
+  if (isLoading || (firstRunComplete && ownerStatus.isLoading)) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-white dark:bg-surface-950">
         <LoadingSpinner label="Checking setup status…" />
@@ -55,6 +66,10 @@ function FirstRunGuard() {
 
   if (data && !data.first_run_complete) {
     return <Navigate to="/first-run" replace />
+  }
+
+  if (ownerStatus.data?.owner_broken) {
+    return <OwnerBroken />
   }
 
   return <Outlet />

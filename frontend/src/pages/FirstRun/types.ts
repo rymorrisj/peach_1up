@@ -21,6 +21,10 @@ export interface FirstRunStatus {
   paths: LibraryPaths
 }
 
+export interface OwnerStatus {
+  owner_broken: boolean
+}
+
 export interface EmulatorStatusData {
   slug: string
   install_type: 'zip' | 'installer' | 'rom_pack'
