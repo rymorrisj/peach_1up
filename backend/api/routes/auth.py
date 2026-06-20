@@ -158,6 +158,7 @@ def switch_user(body: SwitchRequest, response: Response, db: Session = Depends(g
     db.commit()
     token, _expires_at = issue_session(db, user)
     _set_auth_cookie(response, user.id, token, user.session_token_ttl)
+    _set_csrf_cookie(response, user.session_token_ttl)
     return {"user": user}
 
 
