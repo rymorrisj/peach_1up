@@ -197,6 +197,14 @@ xcopy /E /I /Y library dist\peach1up\library
 xcopy /E /I /Y config dist\peach1up\config
 if not exist "dist\peach1up\database\data\" mkdir "dist\peach1up\database\data\"
 
+echo === Copying docs build beside exe ===
+xcopy /E /I /Y docs\build dist\peach1up\docs\build
+if errorlevel 1 (
+    echo ERROR: Failed to copy docs build to dist.
+    goto :error
+)
+echo [OK] docs build copied
+
 echo === Copying sandbox executables ===
 if not exist "backend\service\utils\sandbox\sandbox_host.exe" (
     echo ERROR: backend\service\utils\sandbox\sandbox_host.exe not found.
