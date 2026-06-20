@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission, require_self_or_admin
+from backend.core.identity import clear_session, generate_identity_secret
 from backend.core.logger import get_logger
 from backend.models.user import User, UserRead
 
@@ -25,6 +26,7 @@ class UserCreate(BaseModel):
     is_admin: bool = False
     max_content_rating: str | None = None
     block_unrated_media: bool = False
+    session_token_ttl: int | None = None
 
 
 class UserPatch(BaseModel):
@@ -38,7 +40,7 @@ class UserPatch(BaseModel):
     max_content_rating: str | None = None
     block_unrated_media: bool | None = None
     pin_required: bool | None = None
-    session_expiry_minutes: int | None = None
+    session_token_ttl: int | None = None
 
 
 class ResetPinBody(BaseModel):
@@ -98,6 +100,7 @@ def create_user(
         is_owner=False,
         pin_required=body.pin is not None,
         pin_hash=pin_hash,
+        identity_token_secret=generate_identity_secret(),
         can_launch_media=body.can_launch_media,
         can_edit_platforms=body.can_edit_platforms,
         can_edit_library=body.can_edit_library,
@@ -106,6 +109,7 @@ def create_user(
         is_admin=body.is_admin,
         max_content_rating=body.max_content_rating,
         block_unrated_media=body.block_unrated_media,
+        session_token_ttl=body.session_token_ttl,
     )
     db.add(user)
     db.commit()
@@ -191,5 +195,21 @@ def unlock_user(
     user.is_locked = False
     user.failed_pin_attempts = 0
     db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.post("/{user_id}/force-logout", response_model=UserRead)
+def force_logout(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: User = require_permission("is_admin"),
+):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    if user.is_owner:
+        raise HTTPException(status_code=403, detail="Owner account cannot be modified here.")
+    clear_session(db, user)
     db.refresh(user)
     return user

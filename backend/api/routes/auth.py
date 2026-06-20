@@ -5,8 +5,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.identity import clear_session, issue_session, parse_session_cookie, validate_session
 from backend.core.logger import get_logger
-from backend.core.token_store import create_token, resolve_token, revoke_token
 from backend.models.user import User, UserRead
 
 logger = get_logger(__name__)
@@ -32,11 +32,11 @@ class UserResponse(BaseModel):
     user: UserRead
 
 
-def _set_auth_cookie(response: Response, token: str, session_expiry_minutes) -> None:
-    max_age = (session_expiry_minutes * 60) if session_expiry_minutes is not None else (30 * 24 * 60 * 60)
+def _set_auth_cookie(response: Response, user_id: int, token: str, session_token_ttl) -> None:
+    max_age = (session_token_ttl * 60) if session_token_ttl is not None else (30 * 24 * 60 * 60)
     response.set_cookie(
         key=_COOKIE_NAME,
-        value=token,
+        value=f"{user_id}.{token}",
         httponly=True,
         samesite="lax",
         secure=False,
@@ -44,9 +44,9 @@ def _set_auth_cookie(response: Response, token: str, session_expiry_minutes) -> 
     )
 
 
-def _set_csrf_cookie(response: Response, session_expiry_minutes) -> None:
+def _set_csrf_cookie(response: Response, session_token_ttl) -> None:
     csrf_token = secrets.token_urlsafe(32)
-    max_age = (session_expiry_minutes * 60) if session_expiry_minutes is not None else (30 * 24 * 60 * 60)
+    max_age = (session_token_ttl * 60) if session_token_ttl is not None else (30 * 24 * 60 * 60)
     response.set_cookie(
         key=_CSRF_COOKIE_NAME,
         value=csrf_token,
@@ -104,9 +104,9 @@ def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depen
     db.commit()
     db.refresh(owner)
 
-    token = create_token(db, owner.id, owner.session_expiry_minutes)
-    _set_auth_cookie(response, token, owner.session_expiry_minutes)
-    _set_csrf_cookie(response, owner.session_expiry_minutes)
+    token, _expires_at = issue_session(db, owner)
+    _set_auth_cookie(response, owner.id, token, owner.session_token_ttl)
+    _set_csrf_cookie(response, owner.session_token_ttl)
     logger.info("Owner account created for %r", body.name.strip())
     return {"user": owner}
 
@@ -132,17 +132,17 @@ def switch_user(body: SwitchRequest, response: Response, db: Session = Depends(g
             raise HTTPException(status_code=401, detail="Invalid PIN.")
         user.failed_pin_attempts = 0
         db.commit()
-        token = create_token(db, user.id, user.session_expiry_minutes)
-        _set_auth_cookie(response, token, user.session_expiry_minutes)
-        _set_csrf_cookie(response, user.session_expiry_minutes)
+        token, _expires_at = issue_session(db, user)
+        _set_auth_cookie(response, user.id, token, user.session_token_ttl)
+        _set_csrf_cookie(response, user.session_token_ttl)
         return {"user": user}
 
     if not user.pin_required:
         user.failed_pin_attempts = 0
         db.commit()
-        token = create_token(db, user.id, user.session_expiry_minutes)
-        _set_auth_cookie(response, token, user.session_expiry_minutes)
-        _set_csrf_cookie(response, user.session_expiry_minutes)
+        token, _expires_at = issue_session(db, user)
+        _set_auth_cookie(response, user.id, token, user.session_token_ttl)
+        _set_csrf_cookie(response, user.session_token_ttl)
         return {"user": user}
 
     if user.pin_hash is None or not _verify_pin(body.pin, user.pin_hash):
@@ -155,16 +155,24 @@ def switch_user(body: SwitchRequest, response: Response, db: Session = Depends(g
 
     user.failed_pin_attempts = 0
     db.commit()
-    token = create_token(db, user.id, user.session_expiry_minutes)
-    _set_auth_cookie(response, token, user.session_expiry_minutes)
+    token, _expires_at = issue_session(db, user)
+    _set_auth_cookie(response, user.id, token, user.session_token_ttl)
     return {"user": user}
 
 
 @router.post("/logout")
 def logout(request: Request, response: Response, db: Session = Depends(get_db)):
-    token_str = request.cookies.get(_COOKIE_NAME)
-    if token_str:
-        revoke_token(db, token_str)
+    cookie = request.cookies.get(_COOKIE_NAME)
+    if cookie:
+        parsed = parse_session_cookie(cookie)
+        if parsed is not None:
+            # Only clear the session if the presented token actually validates —
+            # otherwise a guessed/garbage token paired with someone else's
+            # user_id could force-clear an arbitrary account with no proof of
+            # possession of their real token.
+            user = validate_session(db, parsed[0], parsed[1])
+            if user is not None:
+                clear_session(db, user)
     response.delete_cookie(key=_COOKIE_NAME, httponly=True, samesite="lax")
     response.delete_cookie(key=_CSRF_COOKIE_NAME, httponly=False, samesite="lax")
     return {"success": True}
@@ -172,12 +180,15 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserRead)
 def me(request: Request, db: Session = Depends(get_db)):
-    token_str = request.cookies.get(_COOKIE_NAME)
-    if not token_str:
+    cookie = request.cookies.get(_COOKIE_NAME)
+    if not cookie:
         raise HTTPException(status_code=401, detail="Not authenticated.")
-    user = resolve_token(db, token_str)
+    parsed = parse_session_cookie(cookie)
+    if parsed is None:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    user = validate_session(db, parsed[0], parsed[1])
     if user is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+        raise HTTPException(status_code=401, detail="Invalid or expired session.")
     return user
 
 
@@ -185,18 +196,20 @@ def me(request: Request, db: Session = Depends(get_db)):
 def refresh_session(request: Request, response: Response, db: Session = Depends(get_db)):
     """Rotate the session token and reset the CSRF cookie.
 
-    Called on every app open so sessions extend automatically. The old token is
-    revoked after the new one is committed — the user is never left without a
-    valid session even if the second write fails.
+    Called on every app open so sessions extend automatically. issue_session
+    overwrites the previous hash directly — one session per user by design,
+    so there is no separate old-token revocation step.
     """
-    token_str = request.cookies.get(_COOKIE_NAME)
-    if not token_str:
+    cookie = request.cookies.get(_COOKIE_NAME)
+    if not cookie:
         raise HTTPException(status_code=401, detail="Not authenticated.")
-    user = resolve_token(db, token_str)
+    parsed = parse_session_cookie(cookie)
+    if parsed is None:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    user = validate_session(db, parsed[0], parsed[1])
     if user is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired token.")
-    new_token = create_token(db, user.id, user.session_expiry_minutes)
-    _set_auth_cookie(response, new_token, user.session_expiry_minutes)
-    _set_csrf_cookie(response, user.session_expiry_minutes)
-    revoke_token(db, token_str)
+        raise HTTPException(status_code=401, detail="Invalid or expired session.")
+    new_token, _expires_at = issue_session(db, user)
+    _set_auth_cookie(response, user.id, new_token, user.session_token_ttl)
+    _set_csrf_cookie(response, user.session_token_ttl)
     return {"user": user}

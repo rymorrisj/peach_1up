@@ -12,7 +12,6 @@ from backend.core.database import create_tables, init_db
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path, init_settings
 import backend.models.user  # noqa: F401 — registers User with SQLModel.metadata
-import backend.models.auth_token  # noqa: F401 — registers AuthToken with SQLModel.metadata
 import backend.models.media_restriction  # noqa: F401 — registers MediaRestriction with SQLModel.metadata
 import backend.models.drive  # noqa: F401 — registers Drive with SQLModel.metadata
 import backend.models.tag  # noqa: F401 — registers Tag and LibraryItemTag with SQLModel.metadata
@@ -239,6 +238,10 @@ def _apply_schema_migrations() -> None:
         ("library_items", "requires_install", "INTEGER NOT NULL DEFAULT 0"),
         ("library_items", "detection_reason", "TEXT"),
         ("library_items", "file_size_bytes", "INTEGER"),
+        ("users", "identity_token_secret", "TEXT"),
+        ("users", "session_token_hash", "TEXT"),
+        ("users", "session_token_expires_at", "DATETIME"),
+        ("users", "session_token_ttl", "INTEGER"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)
@@ -417,9 +420,7 @@ async def lifespan(app: FastAPI):
     from backend.core.database import get_engine
     from sqlalchemy.orm import sessionmaker
     session_factory = sessionmaker(bind=get_engine())
-    from backend.core.token_store import cleanup_expired_tokens
     with session_factory() as db:
-        cleanup_expired_tokens(db)
         _sync_first_run_from_db(db)
         _platforms_seeded = _seed_system_platforms(db)
         _profiles_seeded = _seed_default_profiles(db)

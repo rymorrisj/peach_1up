@@ -11,7 +11,6 @@ type CatalogEntry = components['schemas']['CatalogEntryResponse']
 
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
-  setSessionToken: vi.fn(),
   ApiError: class ApiError extends Error {
     status: number
     detail: string

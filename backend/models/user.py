@@ -19,7 +19,7 @@ class UserBase(SQLModel):
     block_unrated_media: bool = False
     is_locked: bool = False
     failed_pin_attempts: int = 0
-    session_expiry_minutes: Optional[int] = None
+    session_token_ttl: Optional[int] = None
 
 
 class User(UserBase, table=True):
@@ -27,6 +27,11 @@ class User(UserBase, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     pin_hash: Optional[str] = None
+    # Server-only root-of-trust key for this user's sessions. Every session
+    # token is an HMAC over this secret — never read by any API schema.
+    identity_token_secret: Optional[str] = None
+    session_token_hash: Optional[str] = None
+    session_token_expires_at: Optional[datetime] = None
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=False),

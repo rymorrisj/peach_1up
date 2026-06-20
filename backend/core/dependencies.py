@@ -3,8 +3,8 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.identity import parse_session_cookie, validate_session
 from backend.core.logger import get_logger
-from backend.core.token_store import resolve_token
 from backend.models.library import LibraryItem
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
@@ -39,12 +39,15 @@ def _load_rating_ordinals() -> dict[str, int]:
 
 
 def get_active_user(request: Request, db: Session = Depends(get_db)) -> User:
-    token_str = request.cookies.get("peach_token")
-    if not token_str:
+    cookie = request.cookies.get("peach_token")
+    if not cookie:
         raise HTTPException(status_code=401, detail="Not authenticated.")
-    user = resolve_token(db, token_str)
+    parsed = parse_session_cookie(cookie)
+    if parsed is None:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    user = validate_session(db, parsed[0], parsed[1])
     if user is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+        raise HTTPException(status_code=401, detail="Invalid or expired session.")
     return user
 
 

@@ -15,7 +15,6 @@ def mem_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
     import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
-    import backend.models.auth_token  # noqa: F401 — registers AuthToken with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -72,21 +71,23 @@ def make_user(mem_session):
 
 
 @pytest.fixture
-def make_token(mem_session):
-    from backend.core.token_store import create_token
+def make_session(mem_session):
+    """Issue a real session for *user* and return the peach_token cookie value."""
+    from backend.core.identity import issue_session
 
-    def _make(user, session_expiry_minutes=None):
-        return create_token(mem_session, user.id, session_expiry_minutes)
+    def _make(user):
+        token, _expires_at = issue_session(mem_session, user)
+        return f"{user.id}.{token}"
 
     return _make
 
 
 class TestGetActiveUser:
-    def test_valid_cookie_resolves_to_correct_user(self, app_client, make_user, make_token):
+    def test_valid_cookie_resolves_to_correct_user(self, app_client, make_user, make_session):
         user = make_user(name="Alice")
-        token = make_token(user)
+        cookie = make_session(user)
 
-        resp = app_client.get("/whoami", cookies={"peach_token": token})
+        resp = app_client.get("/whoami", cookies={"peach_token": cookie})
 
         assert resp.status_code == 200
         assert resp.json() == {"id": user.id, "name": "Alice"}
@@ -95,77 +96,91 @@ class TestGetActiveUser:
         resp = app_client.get("/whoami")
         assert resp.status_code == 401
 
-    def test_revoked_token_returns_401(self, app_client, mem_session, make_user, make_token):
-        from backend.core.token_store import revoke_token
-
-        user = make_user(name="Bob")
-        token = make_token(user)
-        revoke_token(mem_session, token)
-
-        resp = app_client.get("/whoami", cookies={"peach_token": token})
+    def test_malformed_cookie_no_separator_returns_401(self, app_client):
+        resp = app_client.get("/whoami", cookies={"peach_token": "no-dot-here"})
         assert resp.status_code == 401
 
-    def test_expired_token_returns_401(self, app_client, mem_session, make_user):
-        from backend.models.auth_token import AuthToken
+    def test_malformed_cookie_non_digit_user_id_returns_401(self, app_client):
+        resp = app_client.get("/whoami", cookies={"peach_token": "abc.sometoken"})
+        assert resp.status_code == 401
+
+    def test_logged_out_session_returns_401(self, app_client, mem_session, make_user, make_session):
+        from backend.core.identity import clear_session
+
+        user = make_user(name="Bob")
+        cookie = make_session(user)
+        clear_session(mem_session, user)
+
+        resp = app_client.get("/whoami", cookies={"peach_token": cookie})
+        assert resp.status_code == 401
+
+    def test_expired_session_returns_401(self, app_client, mem_session, make_user):
+        from backend.core.identity import hash_session_token
 
         user = make_user(name="Carol")
-        row = AuthToken(
-            token="expired-tok",
-            user_id=user.id,
-            issued_at=datetime.now(timezone.utc) - timedelta(days=2),
-            expires_at=datetime.now(timezone.utc) - timedelta(days=1),
-            revoked=False,
-        )
-        mem_session.add(row)
+        user.session_token_hash = hash_session_token("some-token")
+        user.session_token_expires_at = datetime.now(timezone.utc) - timedelta(days=1)
+        mem_session.add(user)
         mem_session.commit()
 
-        resp = app_client.get("/whoami", cookies={"peach_token": "expired-tok"})
+        resp = app_client.get("/whoami", cookies={"peach_token": f"{user.id}.some-token"})
+        assert resp.status_code == 401
+
+    def test_invalid_session_does_not_fall_back_to_owner(self, app_client, make_user):
+        """Regression: an unresolvable cookie must never silently resolve to an
+        owner account, even when owners exist in the database. No owner
+        fallback existed in the prior token model either — this locks it in.
+        """
+        make_user(name="Owner1", is_owner=True)
+        make_user(name="Owner2", is_owner=True)
+
+        resp = app_client.get("/whoami", cookies={"peach_token": "999.bogus-token"})
         assert resp.status_code == 401
 
 
 class TestRequirePermission:
-    def test_passes_when_flag_true(self, app_client, make_user, make_token):
+    def test_passes_when_flag_true(self, app_client, make_user, make_session):
         user = make_user(name="Editor", can_edit_library=True)
-        token = make_token(user)
+        cookie = make_session(user)
 
-        resp = app_client.get("/needs-flag", cookies={"peach_token": token})
+        resp = app_client.get("/needs-flag", cookies={"peach_token": cookie})
         assert resp.status_code == 200
 
-    def test_raises_403_when_flag_false(self, app_client, make_user, make_token):
+    def test_raises_403_when_flag_false(self, app_client, make_user, make_session):
         user = make_user(name="ReadOnly", can_edit_library=False)
-        token = make_token(user)
+        cookie = make_session(user)
 
-        resp = app_client.get("/needs-flag", cookies={"peach_token": token})
+        resp = app_client.get("/needs-flag", cookies={"peach_token": cookie})
         assert resp.status_code == 403
 
-    def test_owner_bypasses_flag(self, app_client, make_user, make_token):
+    def test_owner_bypasses_flag(self, app_client, make_user, make_session):
         user = make_user(name="Owner", is_owner=True, can_edit_library=False)
-        token = make_token(user)
+        cookie = make_session(user)
 
-        resp = app_client.get("/needs-flag", cookies={"peach_token": token})
+        resp = app_client.get("/needs-flag", cookies={"peach_token": cookie})
         assert resp.status_code == 200
 
 
 class TestRequireSelfOrAdmin:
-    def test_user_can_access_own_resource(self, app_client, make_user, make_token):
+    def test_user_can_access_own_resource(self, app_client, make_user, make_session):
         user = make_user(name="Self")
-        token = make_token(user)
+        cookie = make_session(user)
 
-        resp = app_client.get(f"/users/{user.id}/private", cookies={"peach_token": token})
+        resp = app_client.get(f"/users/{user.id}/private", cookies={"peach_token": cookie})
         assert resp.status_code == 200
 
-    def test_admin_can_access_any_resource(self, app_client, make_user, make_token):
+    def test_admin_can_access_any_resource(self, app_client, make_user, make_session):
         admin = make_user(name="Admin", is_admin=True)
         other = make_user(name="Other")
-        token = make_token(admin)
+        cookie = make_session(admin)
 
-        resp = app_client.get(f"/users/{other.id}/private", cookies={"peach_token": token})
+        resp = app_client.get(f"/users/{other.id}/private", cookies={"peach_token": cookie})
         assert resp.status_code == 200
 
-    def test_non_admin_cannot_access_other_users_resource(self, app_client, make_user, make_token):
+    def test_non_admin_cannot_access_other_users_resource(self, app_client, make_user, make_session):
         user = make_user(name="NonAdmin")
         other = make_user(name="Other")
-        token = make_token(user)
+        cookie = make_session(user)
 
-        resp = app_client.get(f"/users/{other.id}/private", cookies={"peach_token": token})
+        resp = app_client.get(f"/users/{other.id}/private", cookies={"peach_token": cookie})
         assert resp.status_code == 403

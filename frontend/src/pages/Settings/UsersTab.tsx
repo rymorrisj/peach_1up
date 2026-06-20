@@ -37,7 +37,7 @@ interface AddUserForm {
   is_admin: boolean;
   max_content_rating: string;
   block_unrated_media: boolean;
-  session_expiry_minutes: string;
+  session_token_ttl: string;
 }
 
 const EMPTY_ADD_FORM: AddUserForm = {
@@ -51,7 +51,7 @@ const EMPTY_ADD_FORM: AddUserForm = {
   is_admin: false,
   max_content_rating: "",
   block_unrated_media: false,
-  session_expiry_minutes: "",
+  session_token_ttl: "",
 };
 
 type ResetPinTarget = {
@@ -169,8 +169,8 @@ export default function UsersTab() {
           is_admin: addForm.is_admin,
           max_content_rating: addForm.max_content_rating || null,
           block_unrated_media: addForm.block_unrated_media,
-          session_expiry_minutes: addForm.session_expiry_minutes
-            ? parseInt(addForm.session_expiry_minutes, 10)
+          session_token_ttl: addForm.session_token_ttl
+            ? parseInt(addForm.session_token_ttl, 10)
             : null,
         }),
       });
@@ -474,10 +474,10 @@ export default function UsersTab() {
               id="add-session-expiry"
               type="number"
               min={1}
-              value={addForm.session_expiry_minutes}
+              value={addForm.session_token_ttl}
               onChange={(e) =>
                 setAddField(
-                  "session_expiry_minutes",
+                  "session_token_ttl",
                   e.target.value.replace(/\D/g, ""),
                 )
               }

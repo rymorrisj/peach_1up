@@ -13,7 +13,6 @@ vi.mock('@/api/client', () => ({
       this.name = 'ApiError'
     }
   },
-  setSessionToken: vi.fn(),
 }))
 
 import { apiFetch, ApiError } from '@/api/client'

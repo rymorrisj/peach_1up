@@ -15,7 +15,6 @@ def mem_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
     import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
-    import backend.models.auth_token  # noqa: F401 — registers AuthToken with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -104,9 +103,84 @@ class TestPinVerification:
         assert resp.status_code == 403
 
 
+class TestSessionInvalidation:
+    def test_new_login_invalidates_old_session(self, app_client, owner):
+        resp1 = app_client.post("/api/v1/auth/switch", json={"user_id": owner.id, "pin": "1234"})
+        assert resp1.status_code == 200
+        cookie1 = resp1.cookies.get("peach_token")
+
+        resp2 = app_client.post("/api/v1/auth/switch", json={"user_id": owner.id, "pin": "1234"})
+        assert resp2.status_code == 200
+        cookie2 = resp2.cookies.get("peach_token")
+
+        assert cookie1 != cookie2
+
+        stale = app_client.get("/api/v1/users", cookies={"peach_token": cookie1})
+        assert stale.status_code == 401
+
+        fresh = app_client.get("/api/v1/users", cookies={"peach_token": cookie2})
+        assert fresh.status_code == 200
+
+
+class TestForceLogout:
+    def test_force_logout_invalidates_target_session(self, app_client, mem_session, owner):
+        from backend.models.user import User
+
+        sub = User(name="Kid", is_owner=False, is_admin=False, pin_required=False)
+        mem_session.add(sub)
+        mem_session.commit()
+        mem_session.refresh(sub)
+
+        sub_resp = app_client.post("/api/v1/auth/switch", json={"user_id": sub.id, "pin": ""})
+        assert sub_resp.status_code == 200
+        sub_cookie = sub_resp.cookies.get("peach_token")
+        assert app_client.get("/api/v1/users", cookies={"peach_token": sub_cookie}).status_code == 200
+
+        owner_resp = app_client.post("/api/v1/auth/switch", json={"user_id": owner.id, "pin": "1234"})
+        owner_cookie = owner_resp.cookies.get("peach_token")
+
+        force_resp = app_client.post(
+            f"/api/v1/users/{sub.id}/force-logout",
+            cookies={"peach_token": owner_cookie},
+        )
+        assert force_resp.status_code == 200
+
+        after = app_client.get("/api/v1/users", cookies={"peach_token": sub_cookie})
+        assert after.status_code == 401
+
+    def test_force_logout_against_owner_returns_403(self, app_client, owner):
+        owner_resp = app_client.post("/api/v1/auth/switch", json={"user_id": owner.id, "pin": "1234"})
+        owner_cookie = owner_resp.cookies.get("peach_token")
+
+        resp = app_client.post(
+            f"/api/v1/users/{owner.id}/force-logout",
+            cookies={"peach_token": owner_cookie},
+        )
+        assert resp.status_code == 403
+
+
+class TestSetupOwnerSession:
+    def test_setup_owner_session_validates(self, app_client, mem_session):
+        from backend.core.identity import parse_session_cookie, validate_session
+
+        resp = app_client.post(
+            "/api/v1/auth/setup-owner",
+            json={"name": "Boss", "pin": "5678", "confirm_pin": "5678"},
+        )
+        assert resp.status_code == 200, resp.text
+        cookie = resp.cookies.get("peach_token")
+        assert cookie is not None
+
+        parsed = parse_session_cookie(cookie)
+        assert parsed is not None
+        user = validate_session(mem_session, parsed[0], parsed[1])
+        assert user is not None
+        assert user.name == "Boss"
+
+
 class TestUnlockSubAccount:
     def test_owner_can_unlock_sub_account(self, app_client, mem_session, owner):
-        from backend.core.token_store import create_token
+        from backend.core.identity import issue_session
         from backend.models.user import User
 
         sub = User(
@@ -122,11 +196,11 @@ class TestUnlockSubAccount:
         mem_session.commit()
         mem_session.refresh(sub)
 
-        owner_token = create_token(mem_session, owner.id, owner.session_expiry_minutes)
+        owner_token, _expires_at = issue_session(mem_session, owner)
 
         resp = app_client.post(
             f"/api/v1/users/{sub.id}/unlock",
-            cookies={"peach_token": owner_token},
+            cookies={"peach_token": f"{owner.id}.{owner_token}"},
         )
 
         assert resp.status_code == 200
