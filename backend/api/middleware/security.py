@@ -9,6 +9,11 @@ from starlette.responses import RedirectResponse
 
 _LOCALHOST_ORIGINS = {"127.0.0.1", "::1", "localhost"}
 
+# Host the Docusaurus docs sub-app is mounted on (see main.py app.host() call).
+# Still subject to SecurityMiddleware's localhost-only gate — only exempted
+# from FirstRunGuardMiddleware below so docs are reachable pre-setup.
+_DOCS_HOST = "docs.site.com"
+
 
 def _apply_cors_headers(response: Response, request: Request) -> None:
     """Inject CORS headers into a bare middleware response.
@@ -113,8 +118,9 @@ class FirstRunGuardMiddleware(BaseHTTPMiddleware):
         if _first_run_done_cache:
             return await call_next(request)
 
+        host = request.headers.get("host", "").split(":")[0]
         path = request.url.path
-        excluded = path.startswith("/api/") or path.startswith("/assets/")
+        excluded = path.startswith("/api/") or path.startswith("/assets/") or host == _DOCS_HOST
         is_first_run_page = path == "/first-run" or path.startswith("/first-run")
         has_extension = "." in path.rsplit("/", 1)[-1]
 
