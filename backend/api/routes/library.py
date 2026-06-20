@@ -1,8 +1,9 @@
+import shutil
 import threading
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -69,6 +70,51 @@ def add_library_item(
         )
     except lib_svc._ItemAlreadyExists:
         raise HTTPException(status_code=409, detail="This media path is already in the library.")
+
+
+@router.post("/upload", response_model=LibraryItemRead, status_code=201)
+async def upload_library_media(
+    file: UploadFile,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    """Upload a game media file directly into the library.
+
+    Browser uploads only ever provide bytes, never a real host path, so this
+    writes straight into MEDIA_PATH and chains into the same ingest pipeline
+    (_prepare_item) used by manual add and scan import — era detection,
+    platform/profile auto-assignment, and dedup all apply identically.
+    """
+    if not file.filename:
+        raise HTTPException(status_code=422, detail="A filename is required.")
+
+    from backend.core.settings import get_settings
+    from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES, begin_upload, stream_upload_to_disk
+
+    svc = get_settings()
+    max_bytes = int(svc.get("UPLOAD_MAX_BYTES", DEFAULT_MAX_BYTES) or DEFAULT_MAX_BYTES)
+    media_root = Path(svc.get_env_var("MEDIA_PATH")).resolve()
+
+    dest_dir, dest_path = begin_upload(media_root, file.filename)
+
+    try:
+        await stream_upload_to_disk(file, dest_path, max_bytes)
+    except HTTPException:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        raise
+    except Exception as exc:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}") from exc
+
+    title = dest_path.stem.replace("-", " ").title()
+    try:
+        return lib_svc._ingest_media_entry(str(dest_path), title, db)
+    except lib_svc._ItemAlreadyExists:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        raise HTTPException(status_code=409, detail="This media path is already in the library.")
+    except HTTPException:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        raise
 
 
 @router.get("/scan/status", response_model=ScanStatus)
