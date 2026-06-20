@@ -1,0 +1,35 @@
+---
+title: Controller Setup
+---
+
+# Controller Setup
+
+## Controller support overview
+
+All supported emulators accept standard USB and Bluetooth gamepads. An Xbox controller
+(wired or wireless with the USB adapter) works out of the box with every emulator in
+Peach 1UP — no additional drivers required on Windows 10/11.
+
+## Per-emulator controller support
+
+| Emulator | Platform | Xbox controller | Notes |
+| --- | --- | --- | --- |
+| DOSBox-X | DOS / Win 3.1 | ✅ Supported | SDL2 gamepad; use the DOSBox-X keymapper (F1 in-game) to remap buttons |
+| 86Box | Win 95/98/XP/ME | ✅ Supported | Configure joystick type in 86Box Machine Settings → Input |
+| DuckStation | PS1 | ✅ Supported | Per-port mapping in Settings → Controllers; analogue stick supported |
+| PCSX2 | PS2 | ✅ Supported | Per-port mapping in Settings → Controllers; full DualShock 2 mapping |
+| Flycast | Dreamcast | ✅ Supported | SDL2 gamepad; configure in Settings → Input |
+| Mesen | NES / SNES | ✅ Supported | Button mapping in Settings → Input; D-pad maps to left stick automatically |
+| Project64 | N64 | ✅ Supported | Uses input plugin (default: SDL); configure in Options → Configure Controller |
+| xemu | Xbox OG | ✅ Native | Xbox 360/One controller maps directly to OG Xbox layout with no configuration |
+
+## NES, SNES and retro controller layouts
+
+When mapping a NES or SNES layout to an Xbox controller, note that A and B are swapped
+between Nintendo and Xbox convention. Most emulators default to Nintendo layout, so
+expect B to confirm and A to go back until you remap them — the opposite of what Xbox
+players expect.
+
+The N64 controller has no right analogue stick. Project64 maps the C-buttons to the
+right stick by default, which is the standard modern convention and works well with an
+Xbox controller out of the box.

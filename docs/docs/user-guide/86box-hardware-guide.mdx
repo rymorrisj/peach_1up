@@ -1,0 +1,74 @@
+---
+title: 86Box Hardware Profiles
+---
+
+# 86Box Hardware Profiles
+
+86Box emulates real PC hardware at the component level. Choosing the right hardware
+configuration is the difference between a game running perfectly and not running at all.
+
+## What is a hardware profile?
+
+86Box emulates specific physical components — the motherboard chipset, CPU, graphics
+card, and sound card. Unlike a typical emulator that abstracts hardware, 86Box loads
+actual firmware and ROM data for each component. A hardware profile is a curated set
+of components that work well together for a particular category of software.
+
+Peach 1UP provides four profiles that cover the most common compatibility scenarios
+for Windows 95 and 98 software. For most cases, Standard is the right starting point.
+
+## Profiles at a glance
+
+| Profile | Graphics | Sound | Example software |
+| --- | --- | --- | --- |
+| Standard | S3 ViRGE/DX | Sound Blaster 16 PnP | Most Win95/98 software, Office, browsers |
+| 3D / Glide | Voodoo 3 3500 | Sound Blaster 16 PnP | Tomb Raider II, Need for Speed III, Quake II |
+| DOS / FM Music | S3 ViRGE/DX | Sound Blaster 16 (OPL3) | Doom, Duke Nukem 3D, Warcraft I |
+| MIDI Music | S3 ViRGE/DX | AWE32 + Roland SC-55 (emulated) | Command & Conquer, X-COM, Baldur's Gate |
+
+:::note
+The 3D / Glide profile requires Voodoo3 drivers to be installed inside the Windows
+environment before 3D acceleration will work. After installing Windows, boot the
+environment and install the drivers from the Voodoo3 driver disc before loading
+any 3D game.
+:::
+
+## Advanced: choosing your own machine
+
+Each hardware profile uses a fixed motherboard. If you need a specific chipset for
+compatibility — for example, a title that requires an ISA slot or a specific VGA
+BIOS — you can override the machine using the Advanced section of the environment
+form.
+
+Machine identifiers are the folder names inside your 86Box ROM pack's `machines/`
+directory. Browse to that directory in the machine picker and select a folder — the
+folder name is the identifier 86Box will use.
+
+The machine must exist in your installed ROM pack. If the ROM files for the selected
+machine are missing, 86Box will fail to start. Reference the full list of supported
+machines at [86box.net](https://86box.net).
+
+**Example: Win98 with 3dfx custom machine**
+
+```ini
+[Machine]
+machine         = p2b
+cpu_family      = pentium2_deschutes
+cpu_speed       = 350000000
+mem_size        = 131072
+cpu_use_dynarec = 1
+fpu_type        = internal
+
+[Video]
+gfxcard         = voodoo3_3500_si_agp
+vid_renderer    = qt_software
+
+[Sound]
+sndcard         = sb16_pnp
+```
+
+## When in doubt, start with Standard
+
+You can always delete the environment and recreate it with a different profile.
+The config file is regenerated each time — no data is lost unless you have saved
+games inside the Windows environment itself.

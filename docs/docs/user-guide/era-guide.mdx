@@ -1,0 +1,111 @@
+---
+title: Era Detection
+---
+
+# Era Detection
+
+Peach 1UP detects the era of your media automatically using ISO volume labels, installer
+structure, PE header metadata, and file extensions. Here is what each era means and what
+kind of media belongs there.
+
+## DOS
+
+MS-DOS and PC-DOS era games and software, typically targeting 8086–486 class PCs from the mid-1980s through the early 1990s.
+
+Supported file formats are `.iso`, `.img` (floppy or hard drive image), and `.cue`/`.bin` disc images.
+
+Handled by [DOSBox-X](https://dosbox-x.com).
+
+## Windows 3.1
+
+16-bit Windows 3.x software running on top of DOS, including Windows 3.1 and Windows for Workgroups 3.11.
+
+Supported file formats are `.iso`, `.img`, and `.cue`/`.bin` disc images.
+
+Handled by [DOSBox-X](https://dosbox-x.com).
+
+## Windows 95
+
+32-bit software from the Windows 95 era, including games and applications that require Win32 APIs introduced in Windows 95.
+
+Supported file formats are `.iso`, `.img`, and `.cue`/`.bin` disc images.
+
+Handled by [86Box](https://86box.net).
+
+86Box requires a ROM pack to function. Download the official pack from [https://github.com/86Box/roms](https://github.com/86Box/roms).
+
+## Windows 98
+
+32-bit software targeting Windows 98 and Windows 98 SE, covering the peak era of CD-ROM PC gaming.
+
+Supported file formats are `.iso`, `.img`, and `.cue`/`.bin` disc images.
+
+Handled by [86Box](https://86box.net).
+
+86Box requires a ROM pack to function. Download the official pack from [https://github.com/86Box/roms](https://github.com/86Box/roms).
+
+## Windows XP
+
+Software requiring Windows XP (NT 5.1), including DirectX 9 games and applications that depend on XP-era system libraries.
+
+Supported file formats are `.iso`, `.img`, and `.cue`/`.bin` disc images.
+
+Handled by [86Box](https://86box.net).
+
+86Box requires a ROM pack to function. Download the official pack from [https://github.com/86Box/roms](https://github.com/86Box/roms).
+
+## PlayStation 1
+
+Sony PlayStation (PSX) games released between 1994 and 2006 on the original grey console.
+
+Supported file formats are `.iso`, `.bin`/`.cue`, and `.chd` compressed disc images.
+
+Handled by [DuckStation](https://www.duckstation.org).
+
+DuckStation requires a PS1 BIOS dumped from your own console. See the [BIOS Sourcing guide](./bios-sourcing.mdx).
+
+## PlayStation 2
+
+Sony PlayStation 2 games released between 2000 and 2013, spanning both CD-ROM and DVD formats.
+
+Supported file formats are `.iso`, `.bin`/`.cue`, and `.chd` compressed disc images.
+
+Handled by [PCSX2](https://pcsx2.net).
+
+PCSX2 requires a PS2 BIOS extracted from your own console. See the [BIOS Sourcing guide](./bios-sourcing.mdx).
+
+## Xbox OG
+
+Original Microsoft Xbox games released between 2001 and 2006 on the first-generation Xbox console.
+
+Supported file formats are `.iso` and `.xiso` (XDVDFS-formatted Xbox disc images).
+
+Handled by [xemu](https://xemu.app).
+
+xemu requires an Xbox BIOS and MCPX bootrom from your own console. See the [BIOS Sourcing guide](./bios-sourcing.mdx).
+
+## Dreamcast
+
+Sega Dreamcast games released between 1998 and 2001 on the GD-ROM format disc.
+
+Supported file formats are `.gdi` (GD-ROM rip), `.cdi` (DiscJuggler), `.chd`, and `.cue`/`.bin`.
+
+Handled by [Flycast](https://github.com/flyinghead/flycast).
+
+Flycast requires Dreamcast Flash ROM files dumped from your own console. See the [BIOS Sourcing guide](./bios-sourcing.mdx).
+
+## NES
+
+Nintendo Entertainment System (Famicom) games released from 1983 onwards.
+
+Supported file formats are `.nes` (iNES) and `.chd`.
+
+Handled by [Mesen](https://www.mesen.ca).
+
+## Nintendo 64
+
+Nintendo 64 cartridge games released between 1996 and 2002.
+
+Supported file formats are `.z64` (big-endian), `.n64` (little-endian), and `.v64` (byte-swapped).
+
+Handled by [Project64](https://www.pj64-emu.com).

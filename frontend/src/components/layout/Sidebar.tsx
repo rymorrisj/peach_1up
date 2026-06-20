@@ -36,7 +36,7 @@ const NAV_ITEMS = [
   { to: "/platform-health", label: "Platform Health", glyph: "🩺" },
   { to: "/profiles", label: "Profiles", glyph: "💾" },
   { to: "/tags", label: "Tags", glyph: "🏷️" },
-  { to: "/guides", label: "Guides", glyph: "📖" },
+  { to: "https://docs.site.com/user-guide", label: "Guides", glyph: "📖", external: true },
   { to: "/settings", label: "Settings", glyph: "⚙️" },
 ] as const;
 
@@ -102,12 +102,39 @@ export default function Sidebar() {
           {NAV_ITEMS.map(({ to, label, glyph, ...rest }) => {
             const activeLaunchType =
               "activeLaunchType" in rest ? rest.activeLaunchType : undefined;
+            const isExternal = "external" in rest && rest.external;
             const hasActiveLaunch = activeLaunchType
               ? Array.from(state.activeLaunches.values()).some(
                   (e) =>
                     e.target_type === activeLaunchType && e.ended_at === null,
                 )
               : false;
+
+            if (isExternal) {
+              return (
+                <li key={to}>
+                  <a
+                    href={to}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2.5 rounded-lg px-3 py-[9px] text-sm font-medium transition-colors duration-[120ms] hover:text-fg-1 text-neutral-400"
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      color: "var(--fg-2)",
+                      borderLeft: "2px solid transparent",
+                    }}
+                  >
+                    <span
+                      className="w-[18px] text-center text-base leading-none"
+                      aria-hidden="true"
+                    >
+                      {glyph}
+                    </span>
+                    <span className="flex-1">{label}</span>
+                  </a>
+                </li>
+              );
+            }
 
             return (
               <li key={to}>

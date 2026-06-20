@@ -1,0 +1,78 @@
+---
+title: Cartridge Imaging
+---
+
+# Cartridge Imaging Guide
+
+How to dump cartridge media from physical hardware for use with Peach 1UP. You are
+responsible for sourcing the hardware and for ensuring you own any software you dump.
+
+## NES
+
+Output formats: `.nes`, `.chd`
+
+### Compatible hardware
+
+- **RetroBlaster** — Windows software. Reads NES and Famicom cartridges directly via USB.
+- **INLretro System** — Open-source dumper. Cross-platform software. Supports NES, Famicom, and a wide range of other cartridge types.
+- **Retrode 2 with NES adapter** — Appears as a USB mass storage device — no drivers required. Requires the optional NES/Famicom adapter.
+
+### How to dump
+
+1. Connect the dumping hardware to your computer via USB.
+2. Insert the cartridge into the dumper or adapter.
+3. Use the dumper software to read the cartridge.
+4. Save the output as a `.nes` file. The file will include the iNES header (16 bytes) followed by PRG ROM data and CHR ROM data.
+5. Verify the dump by comparing the file size and checksum against a known-good reference if available.
+
+### Notes
+
+- The `.nes` format includes a 16-byte iNES header that identifies the mapper, PRG ROM size, CHR ROM size, and mirroring type. Most dumping software writes this automatically.
+- Some cartridges use proprietary mappers or battery-backed SRAM. The dumper must support the specific mapper for the ROM to be valid.
+- CHD format (`.chd`) is an alternative compressed format. Mesen accepts both `.nes` and `.chd` files.
+- Dump only cartridges you own. Making or distributing copies of software you do not own is a copyright violation.
+
+## Nintendo 64
+
+Output formats: `.z64`, `.n64`, `.v64`
+
+### Compatible hardware
+
+- **Retrode 2 with N64 adapter** — Appears as a USB mass storage device — no drivers required. Requires the official N64 adapter. Reads ROM directly to a `.z64` file.
+- **INLretro System with N64 adapter** — Open-source. Cross-platform software. Produces `.z64` output.
+- **64drive** — An N64 flash cartridge that can also dump ROMs from original cartridges when used with the PC USB interface.
+- **EverDrive-64 X7** — Primarily a flash cartridge, but supports ROM dumping via the USB port with compatible software.
+
+### How to dump
+
+1. Connect the dumping hardware to your computer via USB.
+2. Insert the N64 cartridge into the dumper or adapter.
+3. Use the dumper software to read the cartridge ROM.
+4. Save the output. Most dumpers write `.z64` (big-endian) by default.
+5. Verify the dump against a known checksum if available.
+
+### Notes
+
+- N64 ROMs exist in three byte-order formats: `.z64` (big-endian, native N64 order), `.n64` (little-endian), and `.v64` (byteswapped). Project64 handles all three — you do not need to convert between them.
+- `.z64` is the standard format and the most widely supported. Prefer it when your dumper gives you a choice.
+- N64 cartridges do not use CHD format. Only `.z64`, `.n64`, and `.v64` are accepted by Project64.
+- Some cartridges include expansion pak requirements or region locks. These are encoded in the ROM header and handled by the emulator.
+- Dump only cartridges you own. Making or distributing copies of software you do not own is a copyright violation.
+
+## 86Box ROM Pack — Manual Install Fallback
+
+86Box requires a ROM pack (firmware images for emulated hardware) to start. Peach 1UP can
+clone it automatically via git from the Emulators page. If git is not available or the clone
+fails, follow these steps to install manually.
+
+### Manual install steps
+
+1. Download the ROM pack as a ZIP archive from the [86Box/roms GitHub Releases page](https://github.com/86Box/roms/releases). Download the latest release ZIP.
+2. Extract the contents of the ZIP. The archive contains a top-level folder called `roms` or similar — you want the *contents* of that folder, not the folder itself.
+3. Copy all extracted files and subfolders into `library/system/roms/86box/` inside your Peach 1UP folder. After copying, the path `library/system/roms/86box/` should contain directories such as `machines`, `sound`, and others.
+4. Return to the Emulators page. The 86Box ROM Pack status will update from Missing to Present automatically.
+
+:::note
+The ROM pack is maintained by the 86Box project and is redistributed under the terms of the
+individual firmware copyright holders. See the [86Box/roms repository](https://github.com/86Box/roms) for licensing information.
+:::
