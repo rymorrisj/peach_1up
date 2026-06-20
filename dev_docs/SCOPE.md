@@ -488,7 +488,7 @@ per-launch CPU/memory caps.
 - Platform snapshot management — compression, auto-snapshots before risky installs,
   snapshot history, and storage cleanup tooling. Basic create/restore ships in P2.
 - Support a key,value (emulator, path) for users to add and configure their own emulators/eras in settings.yaml
-- Drag drop jsut adds image name not path so Users see a warning anyway. (drag drop may present security concerns)
+- [x] Drag drop jsut adds image name not path so Users see a warning anyway. (drag drop may present security concerns)
 - GitHub Action — weekly scheduled job that checks each emulator's
   release page for a version newer than the pinned version in its
   config/emulators/<slug>.toml. Opens a draft PR with the diff if a
