@@ -10,6 +10,7 @@ echo.
 REM ── Clean previous build outputs ─────────────────────────────
 echo Cleaning previous build outputs...
 if exist "frontend\dist" rmdir /s /q "frontend\dist"
+if exist "docs\build" rmdir /s /q "docs\build"
 if exist "dist" rmdir /s /q "dist"
 for /r "backend" %%d in (__pycache__) do (
     if exist "%%d" rmdir /s /q "%%d"
@@ -108,6 +109,26 @@ if errorlevel 1 (
 
 popd
 echo [OK] Frontend dependencies installed
+
+REM ── Docs (Docusaurus) build ───────────────────────────────────
+echo Installing docs dependencies...
+pushd "docs"
+call npm install
+if errorlevel 1 (
+    echo ERROR: Failed to install docs dependencies.
+    popd
+    exit /b 1
+)
+
+call npm run build
+if errorlevel 1 (
+    echo ERROR: Docs build failed.
+    popd
+    exit /b 1
+)
+
+popd
+echo [OK] Docs built
 
 REM ── Generate API types ───────────────────────────────────────
 echo Generating OpenAPI spec and frontend types...

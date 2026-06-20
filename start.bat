@@ -92,6 +92,19 @@ if errorlevel 1 (
 popd
 echo [OK] Frontend dependencies installed
 
+REM ── Docs deps ─────────────────────────────────────────────────
+echo Installing docs dependencies...
+pushd "docs"
+call npm install
+if errorlevel 1 (
+    echo ERROR: Failed to install docs dependencies.
+    popd
+    exit /b 1
+)
+
+popd
+echo [OK] Docs dependencies installed
+
 REM ── Generate API types ───────────────────────────────────────
 echo Generating OpenAPI spec and frontend types...
 py scripts\export_and_build_types.py
@@ -144,8 +157,9 @@ REM ── Environment and start services ────────────�
 set PEACH_ENV=development
 
 echo.
-echo Starting Peach 1UP (frontend :5173, backend :8000)...
+echo Starting Peach 1UP (frontend :5173, backend :8000, docs :3000)...
 start "Peach 1UP Frontend" /d "%~dp0frontend" cmd /k "npm run dev"
+start "Peach 1UP Docs" /d "%~dp0docs" cmd /k "npm run start"
 py -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload --reload-dir backend
 
 echo.
