@@ -21,7 +21,7 @@ const baseURL =
   (import.meta.env.VITE_API_URL as string | undefined) ??
   "http://localhost:8000";
 
-function _getCsrfToken(): string {
+export function getCsrfToken(): string {
   const pair = document.cookie.split('; ').find(c => c.startsWith('peach_csrf='));
   return pair ? pair.slice('peach_csrf='.length) : '';
 }
@@ -38,7 +38,7 @@ class ApiClient {
 
     const method = (init.method ?? 'GET').toUpperCase();
     if (!_CSRF_SAFE.has(method)) {
-      headers['X-CSRF-Token'] = _getCsrfToken();
+      headers['X-CSRF-Token'] = getCsrfToken();
     }
 
     const controller = new AbortController();

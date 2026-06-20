@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { DragEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Trash2 } from 'lucide-react'
+import { Trash2, UploadCloud } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
-import { Button, FormField, Input, Modal } from '@/ui'
+import { uploadFile } from '@/lib/uploadFile'
+import { Button, Modal } from '@/ui'
 import TopBar from '@/components/layout/TopBar'
 import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
-import PathInput from '@/components/common/PathInput'
 import { useConfirm } from '@/hooks/useConfirm'
 import { useLibraryScan } from '@/hooks/useLibraryScan'
 import { useConfirmToken } from '@/hooks/useConfirmToken'
@@ -23,17 +24,24 @@ const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value,
 const SELECT_CLASS =
   'rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#ff8a5c] border'
 
-// ── Add Media modal ────────────────────────────────────────────────────────
-
-interface AddMediaForm {
-  title: string
-  media_path: string
-  profile_id: number | null
+interface ResolvedPaths {
+  library_path: string | null
+  media_path: string | null
 }
 
-const EMPTY_ADD: AddMediaForm = { title: '', media_path: '', profile_id: null }
+// ── Add Media modal ────────────────────────────────────────────────────────
 
+interface UploadEntry {
+  id: string
+  file: File
+  progress: number
+  status: 'uploading' | 'success' | 'error'
+  error?: string
+}
 
+function newEntryId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
 
 const RATING_BADGE: Record<string, string> = {
   EC:        'text-emerald-300 border-emerald-500/40',
@@ -49,82 +57,64 @@ const RATING_BADGE: Record<string, string> = {
   'PEGI 18': 'text-red-300 border-red-400/55',
 }
 
-function isAbsolutePath(p: string) {
-  return /^([A-Za-z]:[/\\]|\/)/.test(p)
-}
-
 interface AddMediaModalProps {
   open: boolean
-  profiles: LaunchProfile[]
   onClose: () => void
   onAdded: () => void
-  mediaRootPath?: string | null
+  mediaPath?: string | null
 }
 
-function AddMediaModal({ open, profiles, onClose, onAdded, mediaRootPath }: AddMediaModalProps) {
-  const [form, setForm] = useState<AddMediaForm>(EMPTY_ADD)
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
+function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaModalProps) {
+  const [entries, setEntries] = useState<UploadEntry[]>([])
+  const [dragActive, setDragActive] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const busy = entries.some((e) => e.status === 'uploading')
 
   useEffect(() => {
-    if (!open) {
-      setForm(EMPTY_ADD)
-      setError(null)
+    if (!open && !busy) {
+      setEntries([])
     }
-  }, [open])
+  }, [open, busy])
 
-  function setField<K extends keyof AddMediaForm>(key: K, value: AddMediaForm[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
-
-  function handleFolderPicked(folderPath: string) {
-    setField('media_path', folderPath)
-    if (!form.title && folderPath) {
-      const last = folderPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? ''
-      const base = last.includes('.') ? last.replace(/\.[^.]+$/, '') : last
-      setField('title', base.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
-    }
-  }
-
-  async function handleSubmit() {
-    if (!form.media_path.trim()) {
-      setError('A media path is required.')
-      return
-    }
-    if (!isAbsolutePath(form.media_path.trim())) {
-      setError(
-        'The path does not look like an absolute path. ' +
-        'Browser security prevents reading the full path from the file picker — ' +
-        'please type or paste the complete path (e.g. C:\\library\\media\\my-game).',
-      )
-      return
-    }
-    if (!form.title.trim()) {
-      setError('A title is required.')
-      return
-    }
-    setError(null)
-    setSubmitting(true)
-    try {
-      const selectedProfile = profiles.find((p) => p.id === form.profile_id) ?? null
-      const body: Record<string, string | number | null> = {
-        title: form.title.trim(),
-        media_path: form.media_path.trim(),
-        era: selectedProfile?.era ?? 'unknown',
-      }
-      if (form.profile_id != null) body.profile_id = form.profile_id
-      await apiFetch('/api/v1/library', {
-        method: 'POST',
-        body: JSON.stringify(body),
+  function startUpload(entry: UploadEntry) {
+    const { promise } = uploadFile<{ title: string }>('/api/v1/library/upload', entry.file, (pct) => {
+      setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, progress: pct } : e)))
+    })
+    promise
+      .then(() => {
+        setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'success', progress: 100 } : e)))
+        onAdded()
       })
-      onAdded()
-      onClose()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.detail : 'Failed to add media.')
-    } finally {
-      setSubmitting(false)
-    }
+      .catch((err: Error) => {
+        setEntries((prev) =>
+          prev.map((e) => (e.id === entry.id ? { ...e, status: 'error', error: err.message } : e)),
+        )
+      })
   }
+
+  function handleFiles(fileList: FileList | File[]) {
+    const files = Array.from(fileList)
+    if (files.length === 0) return
+    const next: UploadEntry[] = files.map((file) => ({
+      id: newEntryId(),
+      file,
+      progress: 0,
+      status: 'uploading',
+    }))
+    setEntries((prev) => [...prev, ...next])
+    next.forEach(startUpload)
+  }
+
+  function handleDrop(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault()
+    setDragActive(false)
+    if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files)
+  }
+
+  const succeeded = entries.filter((e) => e.status === 'success').length
+  const failed = entries.filter((e) => e.status === 'error').length
+  const showSummary = entries.length > 0 && !busy
 
   return (
     <Modal
@@ -132,70 +122,88 @@ function AddMediaModal({ open, profiles, onClose, onAdded, mediaRootPath }: AddM
       title="Add Media"
       onClose={onClose}
       footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} loading={submitting}>
-            Add to Library
-          </Button>
-        </>
+        <Button onClick={onClose}>
+          {busy ? 'Upload in progress…' : 'Done'}
+        </Button>
       }
     >
-      <FormField
-        label="File or Folder"
-        htmlFor="add-path"
-        hint="Select a ROM, disc image, or folder inside your media library."
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
+        onDragLeave={() => setDragActive(false)}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click() }}
+        className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center cursor-pointer transition-colors ${
+          dragActive
+            ? 'border-[#ff8a5c] bg-[#ff8a5c]/5'
+            : 'border-neutral-300 dark:border-neutral-700 hover:border-[#ff8a5c]/60'
+        }`}
       >
-        <PathInput
-          id="add-path"
-          mode="both"
-          accept="iso,img,cue,bin,chd,xiso,nes,z64,n64,v64,gdi,cdi,zip,exe,com"
-          value={form.media_path}
-          onChange={handleFolderPicked}
-          placeholder="C:\library\media\my-game or C:\library\media\game.nes"
-          className="mt-1"
-          hasError={!!error && !form.media_path}
-          rootPath={mediaRootPath}
+        <UploadCloud size={28} className="text-neutral-400" aria-hidden="true" />
+        <p className="text-sm text-neutral-600 dark:text-neutral-300">
+          Drag and drop files here, or click to browse
+        </p>
+        <p className="text-xs text-neutral-400 dark:text-neutral-500">
+          Multiple files are supported — each uploads and imports independently.
+        </p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(e) => {
+            if (e.target.files?.length) handleFiles(e.target.files)
+            e.target.value = ''
+          }}
         />
-        {form.media_path && !isAbsolutePath(form.media_path) && (
-          <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-            This looks like a partial path. Please enter the complete absolute path before adding.
-          </p>
-        )}
-      </FormField>
+      </div>
 
-      <FormField label="Title" htmlFor="add-title" required>
-        <Input
-          id="add-title"
-          value={form.title}
-          onChange={(e) => setField('title', e.target.value)}
-          placeholder="Game or software title"
-          className="mt-1"
-        />
-      </FormField>
+      <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
+        {mediaPath
+          ? `Tip: uploads are copied through the browser, which can be slow for very large files. For faster imports of large files, place them directly in ${mediaPath} and use Scan instead.`
+          : 'Tip: uploads are copied through the browser, which can be slow for very large files. Set a media library path in Settings to enable faster imports of large files via Scan.'}
+      </p>
 
-      <FormField
-        label="Launch Profile"
-        htmlFor="add-profile"
-        hint="Optional — era is auto-detected from your media, or falls back to the selected profile. You can change it from the detail view."
-      >
-        <select
-          id="add-profile"
-          value={form.profile_id ?? ''}
-          onChange={(e) => setField('profile_id', e.target.value ? Number(e.target.value) : null)}
-          className={`mt-1 w-full ${SELECT_CLASS}`}
-        >
-          <option value="">— No profile (add now, assign later) —</option>
-          {profiles.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}{p.is_bundled ? ' (default)' : ''}
-            </option>
+      {entries.length > 0 && (
+        <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto">
+          {entries.map((entry) => (
+            <li key={entry.id} className="rounded-md border border-neutral-200 dark:border-neutral-700 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 flex-1 truncate text-sm text-neutral-800 dark:text-neutral-200">
+                  {entry.file.name}
+                </span>
+                <span className="shrink-0 text-xs font-medium">
+                  {entry.status === 'uploading' && <span className="text-neutral-400">{entry.progress}%</span>}
+                  {entry.status === 'success' && <span className="text-emerald-500">✓ Added</span>}
+                  {entry.status === 'error' && <span className="text-red-500">Failed</span>}
+                </span>
+              </div>
+              {entry.status === 'uploading' && (
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                  <div
+                    className="h-full rounded-full bg-[#ff8a5c] transition-all duration-100"
+                    style={{ width: `${entry.progress}%` }}
+                  />
+                </div>
+              )}
+              {entry.status === 'error' && entry.error && (
+                <p role="alert" className="mt-1 text-xs text-red-500">{entry.error}</p>
+              )}
+            </li>
           ))}
-        </select>
-      </FormField>
+        </ul>
+      )}
 
-      {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">❌ {error}</p>}
+      {showSummary && (
+        <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
+          {succeeded} of {entries.length} file{entries.length !== 1 ? 's' : ''} added successfully
+          {failed > 0 && `, ${failed} failed`}.
+        </p>
+      )}
     </Modal>
   )
 }
@@ -206,9 +214,10 @@ interface ScanModalProps {
   open: boolean
   onClose: () => void
   onImported: () => void
+  mediaPath?: string | null
 }
 
-function ScanModal({ open, onClose, onImported }: ScanModalProps) {
+function ScanModal({ open, onClose, onImported, mediaPath }: ScanModalProps) {
   const { scanning, status, error, handleScan, importing, importResult, handleImport } =
     useLibraryScan({ open, onImported })
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -270,6 +279,14 @@ function ScanModal({ open, onClose, onImported }: ScanModalProps) {
         </>
       }
     >
+      {!status && !scanning && (
+        <p className="text-xs text-neutral-400 dark:text-neutral-500">
+          {mediaPath
+            ? `Scan only looks for new files inside ${mediaPath}. Files outside this folder won't be found.`
+            : 'Scan only looks for new files inside your configured media library path. Set one in Settings before scanning.'}
+        </p>
+      )}
+
       {scanning && (
         <div className="flex items-center gap-2 text-sm text-neutral-500">
           <LoadingSpinner label="Scanning…" />
@@ -546,9 +563,9 @@ export default function Library() {
     queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
   })
 
-  const { data: settingsData } = useQuery<{ paths: { media_path: string | null } }>({
-    queryKey: ['settings'],
-    queryFn: () => apiFetch('/api/v1/settings'),
+  const { data: settingsData } = useQuery<{ paths: ResolvedPaths }>({
+    queryKey: ['first-run-status'],
+    queryFn: () => apiFetch('/api/v1/settings/first-run-status'),
     staleTime: 60_000,
   })
 
@@ -674,15 +691,15 @@ export default function Library() {
 
       <AddMediaModal
         open={addOpen}
-        profiles={profiles}
         onClose={() => setAddOpen(false)}
         onAdded={invalidate}
-        mediaRootPath={settingsData?.paths?.media_path ?? null}
+        mediaPath={settingsData?.paths?.media_path ?? null}
       />
       <ScanModal
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onImported={invalidate}
+        mediaPath={settingsData?.paths?.media_path ?? null}
       />
       <ConfirmModal
         open={confirmOpen}

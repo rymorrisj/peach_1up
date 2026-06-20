@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
+import { getCsrfToken } from '@/api/client'
 
 const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000'
 
@@ -37,6 +38,7 @@ export default function FileUpload({ era, mediaType, onComplete, accept }: FileU
     const xhr = new XMLHttpRequest()
     xhr.open('POST', `${baseURL}/api/v1/media/upload`)
     xhr.withCredentials = true
+    xhr.setRequestHeader('X-CSRF-Token', getCsrfToken())
 
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable) {

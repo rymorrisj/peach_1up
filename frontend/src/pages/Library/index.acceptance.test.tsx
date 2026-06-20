@@ -5,7 +5,7 @@
  * Only the network boundary (apiFetch) is mocked.
  *
  * User flow: page loads with library items → user opens the Add Media modal
- * → modal is visible with form fields.
+ * → modal is visible with the file drop/upload zone.
  */
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -75,10 +75,10 @@ describe('Library acceptance', () => {
     // User clicks the Add Media button
     await user.click(screen.getByRole('button', { name: /add media/i }))
 
-    // The modal should be open and contain a title field
+    // The modal should be open and contain the drag-and-drop upload zone
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument()
-      expect(screen.getByLabelText(/title/i)).toBeInTheDocument()
+      expect(screen.getByText(/drag and drop files here/i)).toBeInTheDocument()
     })
   })
 
