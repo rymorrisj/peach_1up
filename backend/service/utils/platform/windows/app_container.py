@@ -18,10 +18,10 @@ from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import get_emulator, get_emulator_era
 from backend.service.utils.eras_config import get_cpu_min_rate
-from backend.service.utils.sandbox import sandbox
-from backend.service.utils.sandbox.sandbox_config import BrokerFile, SandboxConfig
-from backend.service.utils.sandbox.sandbox_error import SandboxError
-from backend.service.utils.sandbox.sandbox_event import SandboxStage
+from backend.service.utils.platform.windows.sandbox import sandbox
+from backend.service.utils.platform.windows.sandbox.sandbox_config import BrokerFile, SandboxConfig
+from backend.service.utils.platform.windows.sandbox.sandbox_error import SandboxError
+from backend.service.utils.platform.windows.sandbox.sandbox_event import SandboxStage
 
 logger = get_logger(__name__)
 

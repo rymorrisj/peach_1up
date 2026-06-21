@@ -11,9 +11,9 @@ from pathlib import Path
 from typing import Callable
 
 from backend.core.logger import get_logger
-from backend.service.utils.sandbox.sandbox_config import BrokerFile, SandboxConfig
-from backend.service.utils.sandbox.sandbox_error import SandboxError
-from backend.service.utils.sandbox.sandbox_event import (
+from backend.service.utils.platform.windows.sandbox.sandbox_config import BrokerFile, SandboxConfig
+from backend.service.utils.platform.windows.sandbox.sandbox_error import SandboxError
+from backend.service.utils.platform.windows.sandbox.sandbox_event import (
     SandboxEvent,
     SandboxPayload,
     SandboxStage,

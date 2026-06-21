@@ -20,10 +20,10 @@ from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
 from backend.service.utils.emulator_catalog import get_container_enabled
 from backend.service.utils.xbox_image import detect_xbox_image_type
-from backend.service.utils.process.launcher import launch_under_job_object
-from backend.service.utils.sandbox import BrokerFile
-from backend.service.utils.sandbox_process import SandboxProcess
-from backend.service.utils.process.job_objects import WindowsJobObject
+from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
+from backend.service.utils.platform.windows.sandbox import BrokerFile
+from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
+from backend.service.utils.platform.windows.process.job_objects import WindowsJobObject
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import get_install_path
@@ -273,7 +273,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
 
     if container_enabled:
-        from backend.service.utils.app_container import (
+        from backend.service.utils.platform.windows.app_container import (
             get_container_config as _build_sandbox_cfg,
         )
         hdd_path = Path(executable_path).parent / "xbox_hdd.qcow2"

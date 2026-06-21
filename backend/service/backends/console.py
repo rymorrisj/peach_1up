@@ -17,10 +17,10 @@ from backend.service.utils.emulator_catalog import (
     validate_bios_from_descriptor,
 )
 from backend.core.logger import get_logger
-from backend.service.utils.process.launcher import launch_under_job_object
-from backend.service.utils.sandbox import BrokerFile
-from backend.service.utils.sandbox_process import SandboxProcess
-from backend.service.utils.process.job_objects import WindowsJobObject
+from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
+from backend.service.utils.platform.windows.sandbox import BrokerFile
+from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
+from backend.service.utils.platform.windows.process.job_objects import WindowsJobObject
 
 logger = get_logger(__name__)
 

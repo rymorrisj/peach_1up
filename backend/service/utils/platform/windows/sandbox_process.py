@@ -13,10 +13,10 @@ import ctypes
 import ctypes.wintypes
 from typing import TYPE_CHECKING
 
-from backend.service.utils.win32_types import _STILL_ACTIVE
+from backend.service.utils.platform.windows.win32_types import _STILL_ACTIVE
 
 if TYPE_CHECKING:
-    from backend.service.utils.sandbox.sandbox import SandboxHandle
+    from backend.service.utils.platform.windows.sandbox.sandbox import SandboxHandle
 
 
 class SandboxProcess:

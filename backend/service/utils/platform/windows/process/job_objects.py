@@ -21,7 +21,7 @@ import ctypes.wintypes
 import os
 import sys
 
-from backend.service.utils.win32_types import (
+from backend.service.utils.platform.windows.win32_types import (
     _JOB_OBJECT_LIMIT_PROCESS_MEMORY,
     _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     _JOB_OBJECT_CPU_RATE_CONTROL_ENABLE,
@@ -33,7 +33,7 @@ from backend.service.utils.win32_types import (
 )
 from backend.core.logger import get_logger
 from backend.service.utils.eras_config import get_cpu_min_rate
-from backend.service.utils.sandbox_process import SandboxProcess
+from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
 
 logger = get_logger(__name__)
 

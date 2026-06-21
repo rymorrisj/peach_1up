@@ -15,10 +15,10 @@ from backend.service.utils.emulator_catalog import (
     get_container_config as get_emulator_container_config,
     validate_bios_from_descriptor,
 )
-from backend.service.utils.process.launcher import launch_under_job_object
-from backend.service.utils.sandbox import BrokerFile
-from backend.service.utils.sandbox_process import SandboxProcess
-from backend.service.utils.process.job_objects import WindowsJobObject
+from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
+from backend.service.utils.platform.windows.sandbox import BrokerFile
+from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
+from backend.service.utils.platform.windows.process.job_objects import WindowsJobObject
 
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec

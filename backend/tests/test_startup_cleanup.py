@@ -1,7 +1,7 @@
 """
 Regression tests for startup stale-session cleanup (P6-7).
 
-Tests _cleanup_stale_sessions() in backend.core.lifespan. That function
+Tests _cleanup_stale_sessions() in backend.core.startup_tasks. That function
 marks all LaunchHistory rows with ended_at=NULL as ended (ended_at=now,
 exit_code=-1) on backend startup, so interrupted sessions never appear
 as still running after a crash or hard restart.
@@ -61,21 +61,21 @@ class _BrokenDB:
 
 class TestCleanupStaleSessions:
     def test_stale_session_gets_ended_at_set(self):
-        from backend.core.lifespan import _cleanup_stale_sessions
+        from backend.core.startup_tasks import _cleanup_stale_sessions
         row = _FakeLaunchHistory(session_id=1, ended_at=None)
         db = _FakeDB(stale_rows=[row])
         _cleanup_stale_sessions(db)
         assert row.ended_at is not None
 
     def test_stale_session_exit_code_set_to_minus_one(self):
-        from backend.core.lifespan import _cleanup_stale_sessions
+        from backend.core.startup_tasks import _cleanup_stale_sessions
         row = _FakeLaunchHistory(session_id=2, ended_at=None)
         db = _FakeDB(stale_rows=[row])
         _cleanup_stale_sessions(db)
         assert row.exit_code == -1
 
     def test_multiple_stale_sessions_all_closed(self):
-        from backend.core.lifespan import _cleanup_stale_sessions
+        from backend.core.startup_tasks import _cleanup_stale_sessions
         rows = [_FakeLaunchHistory(session_id=i, ended_at=None) for i in range(5)]
         db = _FakeDB(stale_rows=rows)
         _cleanup_stale_sessions(db)
@@ -84,7 +84,7 @@ class TestCleanupStaleSessions:
             assert row.exit_code == -1
 
     def test_already_closed_session_is_not_modified(self):
-        from backend.core.lifespan import _cleanup_stale_sessions
+        from backend.core.startup_tasks import _cleanup_stale_sessions
         closed_at = datetime(2026, 1, 1, 12, 0, 0)
         row = _FakeLaunchHistory(session_id=10, ended_at=closed_at)
         row.exit_code = 0
@@ -94,7 +94,7 @@ class TestCleanupStaleSessions:
         assert row.exit_code == 0
 
     def test_mix_of_open_and_closed_sessions(self):
-        from backend.core.lifespan import _cleanup_stale_sessions
+        from backend.core.startup_tasks import _cleanup_stale_sessions
         open_row = _FakeLaunchHistory(session_id=1, ended_at=None)
         closed_row = _FakeLaunchHistory(session_id=2, ended_at=datetime(2026, 3, 1))
         closed_row.exit_code = 0
@@ -106,13 +106,13 @@ class TestCleanupStaleSessions:
         assert closed_row.exit_code == 0
 
     def test_flush_called_even_with_no_stale_sessions(self):
-        from backend.core.lifespan import _cleanup_stale_sessions
+        from backend.core.startup_tasks import _cleanup_stale_sessions
         db = _FakeDB(stale_rows=[])
         _cleanup_stale_sessions(db)
         assert db.flushed is True
 
     def test_flush_called_after_updating_stale_sessions(self):
-        from backend.core.lifespan import _cleanup_stale_sessions
+        from backend.core.startup_tasks import _cleanup_stale_sessions
         row = _FakeLaunchHistory(session_id=1, ended_at=None)
         db = _FakeDB(stale_rows=[row])
         _cleanup_stale_sessions(db)
@@ -120,11 +120,11 @@ class TestCleanupStaleSessions:
 
     def test_db_error_does_not_propagate(self):
         """DB failures are caught and logged — startup must not abort."""
-        from backend.core.lifespan import _cleanup_stale_sessions
+        from backend.core.startup_tasks import _cleanup_stale_sessions
         _cleanup_stale_sessions(_BrokenDB())  # must not raise
 
     def test_db_error_triggers_rollback(self):
-        from backend.core.lifespan import _cleanup_stale_sessions
+        from backend.core.startup_tasks import _cleanup_stale_sessions
 
         class RollbackTrackingDB:
             def query(self, _model):
@@ -137,7 +137,7 @@ class TestCleanupStaleSessions:
         assert getattr(db, "rolled_back", False) is True
 
     def test_ended_at_is_a_datetime(self):
-        from backend.core.lifespan import _cleanup_stale_sessions
+        from backend.core.startup_tasks import _cleanup_stale_sessions
         row = _FakeLaunchHistory(session_id=1, ended_at=None)
         db = _FakeDB(stale_rows=[row])
         _cleanup_stale_sessions(db)

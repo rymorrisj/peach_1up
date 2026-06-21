@@ -323,7 +323,7 @@ def get_container_config(slug: str, exe_path: str) -> "SandboxConfig | None":
     """
     if not get_container_enabled(slug):
         return None
-    from backend.service.utils.app_container import (
+    from backend.service.utils.platform.windows.app_container import (
         get_container_config as _build_config,
     )
     return _build_config(slug, exe_path)

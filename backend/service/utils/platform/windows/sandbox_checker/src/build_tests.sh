@@ -66,5 +66,5 @@ fi
 
 echo ""
 echo "Done. Run from Python:"
-echo "  from backend.service.utils.sandbox_checker import run_checks"
+echo "  from backend.service.utils.platform.windows.sandbox_checker import run_checks"
 echo "  results = run_checks()"

@@ -1,4 +1,4 @@
-"""Tests for backend.core.lifespan._apply_schema_migrations.
+"""Tests for backend.core.startup_migrations._apply_schema_migrations.
 
 Exercises the additive ALTER TABLE ADD COLUMN pattern in isolation against a
 throwaway SQLite file, without touching the real configured database.
@@ -21,7 +21,7 @@ def test_migrations_idempotent_against_already_migrated_db(tmp_path, monkeypatch
     import backend.core.database as database_mod
     monkeypatch.setattr(database_mod, "get_engine", lambda: engine)
 
-    from backend.core.lifespan import _apply_schema_migrations
+    from backend.core.startup_migrations import _apply_schema_migrations
 
     _apply_schema_migrations()
     _apply_schema_migrations()  # second run must be a no-op, not raise
@@ -55,7 +55,7 @@ def test_migrations_add_missing_user_columns_to_legacy_db(tmp_path, monkeypatch)
     import backend.core.database as database_mod
     monkeypatch.setattr(database_mod, "get_engine", lambda: engine)
 
-    from backend.core.lifespan import _apply_schema_migrations
+    from backend.core.startup_migrations import _apply_schema_migrations
 
     _apply_schema_migrations()
 

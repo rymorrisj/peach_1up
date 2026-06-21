@@ -23,8 +23,8 @@ from backend.service.utils.emulator_catalog import (
     get_container_config as get_emulator_container_config,
 )
 from backend.service.utils.ini_writer import patch_ini, write_ini
-from backend.service.utils.process.launcher import launch_under_job_object
-from backend.service.utils.sandbox import BrokerFile
+from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
+from backend.service.utils.platform.windows.sandbox import BrokerFile
 from backend.service.utils.emulator_catalog import get_install_path
 
 if TYPE_CHECKING:

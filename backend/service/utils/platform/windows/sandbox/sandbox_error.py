@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from backend.service.utils.sandbox.sandbox_event import SandboxStage
+from backend.service.utils.platform.windows.sandbox.sandbox_event import SandboxStage
 
 
 @dataclass

@@ -23,10 +23,10 @@ from backend.constants_generated import Era
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import get_container_enabled
-from backend.service.utils.sandbox import BrokerFile
-from backend.service.utils.process.launcher import launch_under_job_object
-from backend.service.utils.sandbox_process import SandboxProcess
-from backend.service.utils.process.job_objects import WindowsJobObject
+from backend.service.utils.platform.windows.sandbox import BrokerFile
+from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
+from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
+from backend.service.utils.platform.windows.process.job_objects import WindowsJobObject
 
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
@@ -429,7 +429,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
 
     if container_enabled:
-        from backend.service.utils.app_container import get_container_config as _build_cfg
+        from backend.service.utils.platform.windows.app_container import get_container_config as _build_cfg
         sandbox_config = _build_cfg("dosbox-x", spec.executable_path)
         sandbox_config.broker_files.append(
             BrokerFile(path=str(get_base_path() / "library"), access="r", mode="grant"))

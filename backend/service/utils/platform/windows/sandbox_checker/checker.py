@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-import backend.service.utils.sandbox as _sandbox_pkg
-from backend.service.utils.sandbox import SandboxConfig, SandboxError, launch
-from backend.service.utils.sandbox_checker.results import CheckResult, CheckStatus
+import backend.service.utils.platform.windows.sandbox as _sandbox_pkg
+from backend.service.utils.platform.windows.sandbox import SandboxConfig, SandboxError, launch
+from backend.service.utils.platform.windows.sandbox_checker.results import CheckResult, CheckStatus
 
 _SRC = Path(__file__).parent / "src"
 

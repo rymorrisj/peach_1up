@@ -53,7 +53,7 @@ checks. See `../sandbox/README.md`.
 ## Run the checks
 
 ```python
-from backend.service.utils.sandbox_checker import run_checks, CheckStatus
+from backend.service.utils.platform.windows.sandbox_checker import run_checks, CheckStatus
 
 results = run_checks()
 

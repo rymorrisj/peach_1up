@@ -1,8 +1,8 @@
-from backend.service.utils.sandbox import sandbox as _sandbox_module
-from backend.service.utils.sandbox.sandbox import launch, reset_container, SandboxHandle
-from backend.service.utils.sandbox.sandbox_config import BrokerFile, SandboxConfig
-from backend.service.utils.sandbox.sandbox_error import SandboxError
-from backend.service.utils.sandbox.sandbox_event import (
+from backend.service.utils.platform.windows.sandbox import sandbox as _sandbox_module
+from backend.service.utils.platform.windows.sandbox.sandbox import launch, reset_container, SandboxHandle
+from backend.service.utils.platform.windows.sandbox.sandbox_config import BrokerFile, SandboxConfig
+from backend.service.utils.platform.windows.sandbox.sandbox_error import SandboxError
+from backend.service.utils.platform.windows.sandbox.sandbox_event import (
     SandboxEvent,
     SandboxPayload,
     SandboxStage,

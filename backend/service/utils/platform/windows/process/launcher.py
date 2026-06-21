@@ -19,7 +19,7 @@ import subprocess
 import yaml
 from pathlib import Path
 
-from backend.service.utils.win32_types import (
+from backend.service.utils.platform.windows.win32_types import (
     _CREATE_BREAKAWAY_FROM_JOB,
     _STARTF_USESHOWWINDOW,
     _SW_SHOWNORMAL,
@@ -28,11 +28,11 @@ from backend.service.utils.win32_types import (
 )
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
-from backend.service.utils.sandbox import sandbox as _sandbox
-from backend.service.utils.sandbox.sandbox_config import SandboxConfig
-from backend.service.utils.sandbox.sandbox_error import SandboxError
-from backend.service.utils.sandbox_process import SandboxProcess
-from backend.service.utils.process.job_objects import WindowsJobObject
+from backend.service.utils.platform.windows.sandbox import sandbox as _sandbox
+from backend.service.utils.platform.windows.sandbox.sandbox_config import SandboxConfig
+from backend.service.utils.platform.windows.sandbox.sandbox_error import SandboxError
+from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
+from backend.service.utils.platform.windows.process.job_objects import WindowsJobObject
 from backend.service.utils.emulator_catalog import get_skip_memory_limit, get_skip_cpu_limit
 
 logger = get_logger(__name__)

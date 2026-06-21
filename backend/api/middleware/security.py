@@ -107,7 +107,7 @@ def set_first_run_complete() -> None:
 class FirstRunGuardMiddleware(BaseHTTPMiddleware):
     """Redirect non-wizard requests to /first-run when setup is incomplete.
 
-    The flag is set once at startup from the DB (see lifespan._sync_first_run_from_db)
+    The flag is set once at startup from the DB (see startup_tasks._sync_first_run_from_db)
     and again when the complete-first-run endpoint is called. No live DB queries here.
     """
 
