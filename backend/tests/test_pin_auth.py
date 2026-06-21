@@ -26,12 +26,20 @@ def mem_session():
         yield session
 
 
+class _FakeSettings:
+    def get(self, key, default=None):
+        return default
+
+
 @pytest.fixture
-def app_client(mem_session):
+def app_client(mem_session, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
     from backend.api.routes import auth, users
     from backend.core.database import get_db
+
+    import backend.core.settings as settings_mod
+    monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings())
 
     app = FastAPI()
     app.include_router(auth.router)
