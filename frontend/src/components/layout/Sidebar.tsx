@@ -36,6 +36,7 @@ const NAV_ITEMS = [
   { to: "/platform-health", label: "Platform Health", glyph: "🩺" },
   { to: "/profiles", label: "Profiles", glyph: "💾" },
   { to: "/tags", label: "Tags", glyph: "🏷️" },
+  { to: "/users", label: "Users", glyph: "👤" },
   { to: "https://docs.site.com/user-guide", label: "Guides", glyph: "📖", external: true },
   { to: "/settings", label: "Settings", glyph: "⚙️" },
 ] as const;

@@ -7,6 +7,7 @@ import AppShell from '@/components/layout/AppShell'
 import Library from '@/pages/Library'
 import ItemDetail from '@/pages/Library/ItemDetail'
 import Settings from '@/pages/Settings'
+import Users from '@/pages/Users'
 import Emulators from '@/pages/Emulators'
 import EmulatorDetail from '@/pages/Emulators/EmulatorDetail'
 import Environments from '@/pages/Environments'
@@ -81,6 +82,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/library" element={<Library />} />
                 <Route path="/library/:slug" element={<ItemDetail />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/users" element={<Users />} />
                 <Route path="/environments" element={<Environments />} />
                 <Route path="/environments/:id" element={<EnvironmentDetail />} />
                 <Route path="/drives/:slug" element={<DriveDetail />} />

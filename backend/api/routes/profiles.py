@@ -27,6 +27,40 @@ def _with_stats(profile: Profile, db: Session) -> ProfileRead:
     return read
 
 
+def _with_stats_bulk(profiles: list[Profile], db: Session) -> list[ProfileRead]:
+    ids = [p.id for p in profiles]
+    if not ids:
+        return []
+
+    item_counts = dict(
+        db.query(LibraryItem.profile_id, func.count(LibraryItem.id))
+        .filter(LibraryItem.profile_id.in_(ids))
+        .group_by(LibraryItem.profile_id)
+        .all()
+    )
+    launch_stats = {
+        profile_id: (total, last)
+        for profile_id, total, last in db.query(
+            LaunchHistory.profile_id,
+            func.count(LaunchHistory.id),
+            func.max(LaunchHistory.started_at),
+        )
+        .filter(LaunchHistory.profile_id.in_(ids))
+        .group_by(LaunchHistory.profile_id)
+        .all()
+    }
+
+    results = []
+    for profile in profiles:
+        total_launches, last_launched_at = launch_stats.get(profile.id, (0, None))
+        read = ProfileRead.model_validate(profile)
+        read.item_count = item_counts.get(profile.id, 0)
+        read.total_launches = int(total_launches or 0)
+        read.last_launched_at = last_launched_at
+        results.append(read)
+    return results
+
+
 def _slugify(name: str) -> str:
     s = re.sub(r'\s+', '-', name.lower())
     return re.sub(r'[^a-z0-9-]', '', s)
@@ -46,7 +80,7 @@ def list_profiles(era: str | None = None, db: Session = Depends(get_db)):
     q = db.query(Profile)
     if era:
         q = q.filter(Profile.era == era)
-    return [_with_stats(p, db) for p in q.all()]
+    return _with_stats_bulk(q.all(), db)
 
 
 @router.post("", response_model=ProfileRead, status_code=201)

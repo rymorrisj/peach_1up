@@ -53,14 +53,16 @@ def _check_traversal(path_str: str) -> Path:
     return normalise_path(path_str)
 
 
+_SENSITIVE_KEYS = {"AI_API_KEY", "IGDB_API_KEY"}
+
+
 @router.get("", response_model=dict)
 def get_all_settings():
     svc = get_settings()
     state = svc._require_init()
-    _SENSITIVE = {"SECRET", "PASSWORD", "TOKEN"}
     return {
         k: v for k, v in state.items()
-        if not k.startswith("_") and not any(s in k.upper() for s in _SENSITIVE)
+        if not k.startswith("_") and k.upper() not in _SENSITIVE_KEYS
     }
 
 
