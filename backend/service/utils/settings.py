@@ -216,41 +216,6 @@ def get(key: str, default=None):
     return _require_init().get(key, default)
 
 
-def _write_env_key(key: str, value: str) -> None:
-    """Write or update a single key in the project .env file and os.environ."""
-    from dotenv import set_key as _set_key
-    _set_key(str(_PROJECT_ROOT / ".env"), key, value, quote_mode="never")
-    os.environ[key] = value
-
-
-def get_or_generate_session_secret() -> str:
-    """Return the session signing secret, generating and persisting it on first call.
-
-    Reads from .env (loaded at init() time). If SESSION_SECRET was previously
-    persisted to settings.yaml, migrates it to .env and removes it from
-    settings.yaml. Generates a new secret and writes it to .env if absent.
-
-    Per SECURITY.md the secret is never exposed via API responses or logs.
-    """
-    state = _require_init()
-    secret: str = os.getenv("SESSION_SECRET", "") or ""
-
-    if not secret:
-        yaml_secret: str = state.get("SESSION_SECRET", "") or ""
-        if yaml_secret:
-            secret = yaml_secret
-            _write_env_key("SESSION_SECRET", secret)
-            state.pop("SESSION_SECRET", None)
-            _save()
-
-    if not secret:
-        import secrets as _sec
-        secret = _sec.token_hex(32)
-        _write_env_key("SESSION_SECRET", secret)
-
-    return secret
-
-
 def set_flag(key: str, value: bool) -> None:
     """Persist a boolean flag to settings.yaml.
 

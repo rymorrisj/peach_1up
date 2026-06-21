@@ -15,11 +15,10 @@ middleware chain. Read alongside `SECURITY.md` (policy rules) and `TECH.md` (sta
 | `backend/api/routes/users.py` | `/api/v1/users` — CRUD users, reset-pin, unlock |
 | `backend/api/routes/settings.py` | `/api/v1/settings` — first-run-status, complete-first-run, patch settings |
 | `backend/core/dependencies.py` | `get_active_user`, `require_permission`, `require_self_or_admin`, `get_filtered_library` |
-| `backend/core/token_store.py` | `create_token`, `resolve_token`, `revoke_token`, `cleanup_expired_tokens` |
-| `backend/models/user.py` | `User` DB model + `UserRead` response schema |
-| `backend/models/auth_token.py` | `AuthToken` DB model (`auth_tokens` table) |
+| `backend/core/identity.py` | `generate_identity_secret`, `mint_session_token`, `issue_session`, `clear_session`, `validate_session`, `parse_session_cookie` — HMAC-derived session tokens, no separate token table |
+| `backend/models/user.py` | `User` DB model + `UserRead` response schema; carries `identity_token_secret`, `session_token_hash`, `session_token_expires_at`, `session_token_ttl` |
 | `backend/models/media_restriction.py` | `MediaRestriction` — per-user item block list |
-| `backend/core/lifespan.py` | Startup: DB init, expired-token cleanup, first-run flag sync, owner-exists check |
+| `backend/core/lifespan.py` | Startup: DB init, first-run flag sync, owner-exists check |
 | `scripts/setup_admin_user.py` | CLI emergency owner reset (bypasses web, writes DB directly) |
 | `frontend/src/api/client.ts` | `ApiClient` — all requests, `credentials: "include"`, `X-CSRF-Token` header on mutating requests, session-expired event dispatch |
 | `frontend/src/context/AppContext.tsx` | Mounts provider; calls `GET /auth/me` on load then `POST /auth/refresh` to rotate token; listens for `session-expired` event |
@@ -41,13 +40,13 @@ middleware chain. Read alongside `SECURITY.md` (policy rules) and `TECH.md` (sta
 | CSRF cookie name | `peach_csrf` |
 | CSRF cookie flags | **Not** HttpOnly (JS-readable), `SameSite=Lax`, `Secure=False`; same `max_age` as session token |
 | CSRF enforcement | `CSRFMiddleware` — all state-mutating requests must send `X-CSRF-Token` header matching `peach_csrf` value; auth endpoints (`/api/v1/auth/*`) exempt |
-| Token storage | `auth_tokens` table (`token`, `user_id`, `issued_at`, `expires_at`, `revoked`) |
-| Token value | `secrets.token_urlsafe(32)` — 32 random bytes, URL-safe base64 |
-| Default expiry | No expiry (`expires_at = NULL`) unless `User.session_expiry_minutes` is set |
-| Multiple sessions | Allowed — one token row per client; household members hold concurrent sessions |
-| Revocation | `revoke_token()` sets `revoked = True` on the row; not a full table scan |
-| Expired-token cleanup | Runs at startup via `cleanup_expired_tokens()`; no periodic job |
-| Revoked-token cleanup | `cleanup_expired_tokens()` also purges revoked tokens older than 30 days (accumulate from refresh rotation) |
+| Token storage | Columns on the `User` row — `identity_token_secret`, `session_token_hash`, `session_token_expires_at`, `session_token_ttl`. No separate table |
+| Token value | `mint_session_token(identity_token_secret)` → HMAC-SHA256(`identity_token_secret`, `nonce + issued_at`), hex digest. Cookie stores `{user_id}.{session_token}`; only `hash_session_token()` (plain SHA-256) of it is persisted |
+| Default expiry | No expiry (`session_token_expires_at = NULL`) unless `User.session_token_ttl` (minutes) is set |
+| Multiple sessions | Not allowed — one active session per user by design. `issue_session()` overwrites `session_token_hash` directly, so a new login naturally invalidates any prior session |
+| Revocation | `clear_session()` nulls `session_token_hash` and `session_token_expires_at` on the user row — used by `/auth/logout`; no row to delete |
+| Session validation | `validate_session(db, user_id, token)` — None if user missing, None if `session_token_hash` is `NULL` (logged out), None if `session_token_expires_at` has passed, then `hmac.compare_digest` of the hash against the presented token |
+| Expired/revoked cleanup | None needed — no accumulated rows. Expiry and revocation are point-in-time checks against the single hash column, not a cleanup job |
 | Frontend sends cookie | Every request via `credentials: "include"` in `ApiClient.fetch` |
 | Frontend sends CSRF | `ApiClient.fetch` reads `peach_csrf` from `document.cookie` and adds `X-CSRF-Token` header on all non-GET/HEAD/OPTIONS requests |
 
@@ -95,7 +94,6 @@ OPTIONS requests bypass both `SecurityMiddleware` and `FirstRunGuardMiddleware`.
 ```
 App starts
   → lifespan: init DB, create tables, run migrations
-  → cleanup_expired_tokens (no-op — empty DB)
   → _sync_first_run_from_db → first_run_complete = false → _first_run_done_cache = false
   → _ensure_owner_user → no owner → logs warning "Complete the first-run setup"
   → FirstRunGuardMiddleware active
@@ -113,9 +111,11 @@ User fills name + PIN + confirm PIN → clicks "Create Account"
   → POST /api/v1/auth/setup-owner
     → check: no existing owner → pass
     → validate: name non-empty, PIN 4-6 digits, PINs match
-    → Argon2id hash PIN → create User(is_owner=true, is_admin=true, all permissions=true)
-    → create_token → insert auth_tokens row
-    → Set-Cookie: peach_token=<token>; HttpOnly; SameSite=Lax
+    → Argon2id hash PIN → create User(is_owner=true, is_admin=true, all permissions=true,
+      identity_token_secret=generate_identity_secret())
+    → issue_session(db, owner) → mint HMAC session token, store its hash on the user row
+    → Set-Cookie: peach_token=<user_id>.<token>; HttpOnly; SameSite=Lax
+    → Set-Cookie: peach_csrf=<random>; SameSite=Lax (JS-readable)
     → return { user: UserRead }
   → Frontend: dispatch SET_ACTIVE_USER
   → Frontend: call POST /api/v1/settings/complete-first-run
@@ -137,11 +137,13 @@ App starts
 Browser opens app
   → AppProvider mounts → calls GET /api/v1/auth/me
     → cookie peach_token present?
-      → YES → resolve_token: look up auth_tokens WHERE token=X AND revoked=false
-               → row found, not expired → fetch User → return UserRead
+      → YES → parse_session_cookie splits it into (user_id, token); validate_session
+               checks session_token_hash matches and not expired → return User
                → dispatch SET_ACTIVE_USER (also clears showUnauthModal)
                → then calls POST /api/v1/auth/refresh (non-fatal)
-                 → new token issued, old revoked, new peach_token + peach_csrf cookies set
+                 → issue_session mints a new token and overwrites session_token_hash
+                   directly (one session per user — no old row to revoke)
+                 → new peach_token + peach_csrf cookies set
                  → dispatch SET_ACTIVE_USER with refreshed user
       → NO  → 401 → dispatch LOGOUT → showUnauthModal=true
 ```
@@ -151,8 +153,8 @@ Browser opens app
 ## Flow 3 — Session Expiry / Token Invalid Mid-Session
 
 ```
-Any API call with stale/revoked/expired cookie
-  → Backend: resolve_token returns None → 401 Unauthorized
+Any API call with a cookie that fails validation (no hash set, expired, or token mismatch)
+  → Backend: validate_session returns None → 401 Unauthorized
 
 ApiClient.fetch receives 401
   → isSessionError = true
@@ -183,7 +185,7 @@ PinModal renders → user enters PIN → form submit
     → user.is_owner=true → require non-empty PIN
     → _verify_pin(pin, pin_hash) via argon2.PasswordHasher.verify()
       → FAIL → failed_pin_attempts++ → if >=4: is_locked=true → 401
-      → PASS → failed_pin_attempts=0 → create_token → Set-Cookie → return user
+      → PASS → failed_pin_attempts=0 → issue_session → Set-Cookie (peach_token, peach_csrf) → return user
   → dispatch SET_ACTIVE_USER(owner)
   → queryClient.invalidateQueries(["library"]) — re-fetches filtered library for new user
 ```
@@ -199,7 +201,7 @@ PinModal: user enters PIN → POST /api/v1/auth/switch { user_id, pin }
   → user.is_owner=false
   → user.pin_required=true
   → _verify_pin → FAIL → attempts++ → lock at 4 → 401
-  → _verify_pin → PASS → attempts=0 → create_token → Set-Cookie → return user
+  → _verify_pin → PASS → attempts=0 → issue_session → Set-Cookie (peach_token, peach_csrf) → return user
 ```
 
 ---
@@ -210,7 +212,7 @@ PinModal: user enters PIN → POST /api/v1/auth/switch { user_id, pin }
 UserSwitcher: user.pin_required=false AND user.id != activeId AND !user.is_locked
   → direct call POST /api/v1/auth/switch { user_id, pin: "" }
     → user.is_owner=false, pin_required=false
-    → skip PIN check → failed_pin_attempts=0 → create_token → Set-Cookie → return user
+    → skip PIN check → failed_pin_attempts=0 → issue_session → Set-Cookie (peach_token, peach_csrf) → return user
   → dispatch SET_ACTIVE_USER
 ```
 
@@ -220,17 +222,19 @@ UserSwitcher: user.pin_required=false AND user.id != activeId AND !user.is_locke
 
 ```
 AppProvider: after successful GET /auth/me, calls POST /api/v1/auth/refresh
-  → reads peach_token from cookie
-  → resolves to current user (401 if missing/revoked)
-  → create_token → new token row in auth_tokens
+  → reads peach_token from cookie, parse_session_cookie → (user_id, token)
+  → validate_session resolves current user (401 if missing/expired/mismatched)
+  → issue_session(db, user) → mints a new HMAC token, overwrites session_token_hash
+    directly on the same User row (one session per user — no old row to revoke)
   → _set_auth_cookie → new peach_token cookie overwrites old
   → _set_csrf_cookie → new peach_csrf cookie overwrites old
-  → revoke_token(old token) → old row marked revoked
   → return { user: UserRead }
   → dispatch SET_ACTIVE_USER(refreshed user)
 
-Failure is non-fatal — catch() swallows the error; the original session from /auth/me remains valid.
-Revoked token rows accumulate; cleanup_expired_tokens() purges rows older than 30 days.
+Failure is non-fatal — catch() swallows the error; the original session from /auth/me remains
+valid until its own expiry. Note: under one-session-per-user there is no rollback safety — a
+failed refresh simply leaves the prior (still-valid) session in place, since no second row ever
+existed to roll back to. This is an accepted tradeoff; see DECISIONS.md 2026-06-20.
 ```
 
 ---
@@ -241,7 +245,12 @@ Revoked token rows accumulate; cleanup_expired_tokens() purges rows older than 3
 Any logout action (no explicit logout button exists in UI currently — flow via session expiry or manual)
   → POST /api/v1/auth/logout
     → read peach_token from cookie
-    → revoke_token(db, token_str) → auth_tokens.revoked=true
+    → parse_session_cookie → (user_id, token); validate_session(db, user_id, token)
+      → only if the token actually validates: clear_session(db, user) nulls
+        session_token_hash and session_token_expires_at
+      → a present-but-invalid cookie is a no-op — prevents a guessed/garbage token paired
+        with someone else's user_id from force-clearing their session with no proof of
+        possession of their real token
     → response.delete_cookie("peach_token", samesite="lax")
     → response.delete_cookie("peach_csrf", httponly=False, samesite="lax")
     → return { success: true }
@@ -273,7 +282,7 @@ UsersTab: admin edits permissions (currently no inline edit UI — PATCH is back
   → PATCH /api/v1/users/{user_id}
     → require_permission("is_admin")
     → target user.is_owner=true → 403 (owner cannot be modified here)
-    → apply fields from UserPatch (name, permissions, content rating, pin_required, session_expiry_minutes)
+    → apply fields from UserPatch (name, permissions, content rating, pin_required, session_token_ttl)
     → db.commit → return updated UserRead
 ```
 
@@ -340,8 +349,9 @@ Owner locked out (4+ failed PINs) or PIN forgotten
 Request arrives with peach_token cookie
   → get_active_user(request, db):
     → cookie missing → 401
-    → resolve_token: row missing or revoked → 401
-    → expires_at not None and now > expires_at → 401
+    → parse_session_cookie fails (no separator / non-numeric user_id) → 401
+    → validate_session: user missing, session_token_hash is NULL (logged out), token expired,
+      or presented token doesn't match the stored hash → 401
     → return User
 
 require_permission("some_flag")(active_user):
@@ -446,4 +456,6 @@ All gaps identified at audit time have been resolved.
 | `complete-first-run` implicit trust | Not a real gap — owner session from `setup-owner` satisfies `can_edit_settings`. Documented here for clarity. |
 | No CSRF protection | `CSRFMiddleware` added (double-submit cookie pattern). `peach_csrf` non-HttpOnly cookie set on every token issue; `X-CSRF-Token` header required on all mutating non-auth requests. Auth endpoints (`/api/v1/auth/*`) exempt. — `security.py`, `main.py`, `auth.py`, `client.ts` |
 | `session-expired` fired on 403 (locked-account switch logged out active user) | `isSessionError` simplified to `res.status === 401` only — `client.ts` |
-| No session refresh / expiry warning | `POST /api/v1/auth/refresh` endpoint added; called on every app open in `AppContext`. Old token revoked after new one committed. Revoked tokens purged after 30 days in `cleanup_expired_tokens`. — `auth.py`, `token_store.py`, `AppContext.tsx` |
+| No session refresh / expiry warning | `POST /api/v1/auth/refresh` endpoint added; called on every app open in `AppContext`. — `auth.py`, `AppContext.tsx` |
+
+*Note: the fixes above were implemented against the original `auth_tokens` table / `token_store.py` model. That model was superseded on 2026-06-20 by the identity/session model in `backend/core/identity.py` (see DECISIONS.md) — `token_store.py` and the `auth_tokens` table no longer exist. The gaps and their fixes remain valid; only the underlying token-storage mechanism changed.*

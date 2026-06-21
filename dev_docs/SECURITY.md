@@ -31,10 +31,13 @@ Realistic threats specific to this application:
 - **Unauthorised access to a shared library on a local network** — if the service is
   bound to `0.0.0.0` (remote access mode), other devices on the network can reach it.
   Without authentication this exposes the full library, settings, and launch capability.
-- **AuthToken exposure** — each session is backed by a row in the `auth_tokens` table
-  (a random `secrets.token_urlsafe(32)` value). If a token value is logged, returned in
-  an API response, or otherwise leaked, only that one session can be replayed — there is
-  no master signing secret whose compromise would forge every session.
+- **Identity secret exposure** — each user has a per-user HMAC root key
+  (`identity_token_secret`) used to mint session tokens; the active session is tracked only as
+  a `session_token_hash` (a SHA-256 digest, not reversible to the token). If
+  `identity_token_secret` leaks, an attacker can mint arbitrary valid session tokens for that
+  one user indefinitely, until the secret is rotated — but the blast radius is a single
+  account, not a master secret that forges sessions for everyone. A leaked `session_token_hash`
+  alone cannot be turned back into a usable token.
 
 ---
 
@@ -194,14 +197,19 @@ affected, and the timestamp.
 
 **Mandatory.**
 
-- Each session is a row in the `auth_tokens` table (`token`, `user_id`, `issued_at`,
-  `expires_at`, `revoked`), managed by `token_store.py` (`create_token`, `resolve_token`,
-  `revoke_token`, `cleanup_expired_tokens`). The token value is set as the `peach_token`
-  cookie — HttpOnly, `SameSite=Lax`, localhost only — and must never appear in logs, API
-  responses, or version control. Sessions default to a 30-day expiry, overridable per
-  user via `User.session_expiry_minutes`. Tokens are issued per client, so multiple
-  household members can hold concurrent sessions; the owner account always requires PIN
-  verification to switch into.
+- Each user row carries `identity_token_secret` (a server-only HMAC root key, generated
+  once via `generate_identity_secret()` at account creation and never transmitted),
+  `session_token_hash` (SHA-256 hash of the current session token; `NULL` means logged
+  out), `session_token_expires_at`, and `session_token_ttl` (duration policy in minutes).
+  Logging in mints `session_token = HMAC-SHA256(identity_token_secret, nonce + issued_at)`
+  via `mint_session_token()` in `backend/core/identity.py` and persists only its hash —
+  the plaintext token is never stored. The cookie value is `{user_id}.{session_token}`,
+  set as `peach_token` — HttpOnly, `SameSite=Lax`, localhost only — and must never appear
+  in logs, API responses, or version control. Sessions default to no expiry unless
+  `User.session_token_ttl` is set. One active session per user by design: a new login
+  overwrites `session_token_hash` directly, naturally invalidating any prior session —
+  there is no separate token table and nothing to revoke or clean up. The owner account
+  always requires PIN verification to switch into.
 - PINs are hashed with Argon2id with a per-user random salt. Plaintext PINs are never
   stored or logged.
 - HTTP middleware strips `Authorization` headers before any log output. Credentials must
