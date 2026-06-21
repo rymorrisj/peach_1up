@@ -3,9 +3,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user, require_permission
+from backend.core.dependencies import get_active_user, get_filtered_item, require_permission
 from backend.core.logger import get_logger
-from backend.models import LaunchHistory, LibraryItem, Platform
+from backend.models import LaunchHistory, Platform
 from backend.models.launch_history import LaunchHistoryRead
 from backend.models.user import User
 from backend.service.launch import coordinator as svc
@@ -28,11 +28,9 @@ async def launch_item(
     item_id: int,
     body: LaunchRequest = LaunchRequest(),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_launch_media"),
+    active_user: User = require_permission("can_launch_media"),
 ):
-    item = db.get(LibraryItem, item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Library item not found.")
+    item = get_filtered_item(item_id, active_user, db)
     result = await svc.launch_item(item, body.profile_id, db)
     return LaunchResponse(
         launch_history_id=result.history_id,

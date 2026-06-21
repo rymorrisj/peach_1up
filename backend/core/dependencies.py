@@ -122,3 +122,22 @@ def get_filtered_library(active_user: User, db: Session):
             )
 
     return q
+
+
+def get_filtered_item(item_id_or_slug: int | str, active_user: User, db: Session) -> LibraryItem:
+    """Return a single LibraryItem if *active_user* is allowed to see it.
+
+    Reuses get_filtered_library's owner-bypass and restriction/rating filters,
+    narrowed to one item. Raises 404 (not a different status) whether the item
+    doesn't exist or is filtered out, so existence isn't leaked to callers who
+    shouldn't see it.
+    """
+    q = get_filtered_library(active_user, db)
+    if isinstance(item_id_or_slug, int):
+        q = q.filter(LibraryItem.id == item_id_or_slug)
+    else:
+        q = q.filter(LibraryItem.slug == item_id_or_slug)
+    item = q.first()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Library item not found.")
+    return item

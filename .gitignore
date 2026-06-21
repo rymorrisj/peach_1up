@@ -97,6 +97,9 @@ config/emulators.toml
 .cache/
 temp/
 dev_docs/CLAUDE.md
+dev_docs/SCOPE.md
+dev_docs/AUDIT.md
+dev_docs/DECISIONS.md
 
 # Playwright diagnostic tooling (never committed)
 /playwright/

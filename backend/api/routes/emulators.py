@@ -273,7 +273,7 @@ def patch_xemu_asset_paths(body: XemuAssetPathsPatch, _: User = require_permissi
 
 
 @router.post("/{slug}/install")
-async def install_emulator(slug: str, background_tasks: BackgroundTasks):
+async def install_emulator(slug: str, background_tasks: BackgroundTasks, _: User = require_permission("is_admin")):
     try:
         entry = get_emulator(slug)
     except ValueError:
@@ -340,7 +340,7 @@ async def _run_clone(slug: str) -> None:
 
 
 @router.get("/{slug}/status", response_model=EmulatorStatusData)
-def get_emulator_status(slug: str):
+def get_emulator_status(slug: str, _: User = require_permission("is_admin")):
     try:
         entry = get_emulator(slug)
     except ValueError:
@@ -370,7 +370,7 @@ def get_confirm_token(slug: str):
 
 
 @router.patch("/{slug}/sandbox")
-def patch_sandbox(slug: str, body: SandboxPatchRequest):
+def patch_sandbox(slug: str, body: SandboxPatchRequest, _: User = require_permission("is_admin")):
     try:
         entry = get_emulator(slug)
     except ValueError:
@@ -390,7 +390,7 @@ def patch_sandbox(slug: str, body: SandboxPatchRequest):
 
 
 @router.delete("/{slug}")
-def delete_emulator(slug: str, body: DeleteRequest):
+def delete_emulator(slug: str, body: DeleteRequest, _: User = require_permission("is_admin")):
     try:
         get_emulator(slug)
     except ValueError:
@@ -409,7 +409,7 @@ def delete_emulator(slug: str, body: DeleteRequest):
 
 
 @router.post("/{slug}/configure")
-def configure_emulator(slug: str, body: ConfigureRequest):
+def configure_emulator(slug: str, body: ConfigureRequest, _: User = require_permission("is_admin")):
     allowed_actions = _CONFIGURE_ACTIONS.get(slug)
     if allowed_actions is None:
         raise HTTPException(status_code=404, detail=f"No configurable actions for '{slug}'.")

@@ -32,6 +32,11 @@ class UserResponse(BaseModel):
     user: UserRead
 
 
+def _cookies_secure() -> bool:
+    from backend.core.settings import get_settings
+    return bool(get_settings().get("ALLOW_NETWORK_ACCESS", False))
+
+
 def _set_auth_cookie(response: Response, user_id: int, token: str, session_token_ttl) -> None:
     max_age = (session_token_ttl * 60) if session_token_ttl is not None else (30 * 24 * 60 * 60)
     response.set_cookie(
@@ -39,7 +44,7 @@ def _set_auth_cookie(response: Response, user_id: int, token: str, session_token
         value=f"{user_id}.{token}",
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=_cookies_secure(),
         max_age=max_age,
     )
 
@@ -52,7 +57,7 @@ def _set_csrf_cookie(response: Response, session_token_ttl) -> None:
         value=csrf_token,
         httponly=False,  # must be JS-readable so the client can submit it as a header
         samesite="lax",
-        secure=False,
+        secure=_cookies_secure(),
         max_age=max_age,
     )
 

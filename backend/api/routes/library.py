@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user, get_filtered_library, require_permission
+from backend.core.dependencies import get_active_user, get_filtered_item, get_filtered_library, require_permission
 from backend.core.logger import get_logger
 from backend.models.library import ImportResult, LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate, ScanStatus
 from backend.models.media_restriction import MediaRestriction
@@ -295,19 +295,21 @@ def import_scan_results(
 
 
 @router.get("/by-slug/{slug}", response_model=LibraryItemRead)
-def get_library_item_by_slug(slug: str, db: Session = Depends(get_db)):
-    item = db.query(LibraryItem).filter(LibraryItem.slug == slug).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Library item not found.")
-    return item
+def get_library_item_by_slug(
+    slug: str,
+    db: Session = Depends(get_db),
+    active_user: User = Depends(get_active_user),
+):
+    return get_filtered_item(slug, active_user, db)
 
 
 @router.get("/{item_id}", response_model=LibraryItemRead)
-def get_library_item(item_id: int, db: Session = Depends(get_db)):
-    item = db.get(LibraryItem, item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Library item not found.")
-    return item
+def get_library_item(
+    item_id: int,
+    db: Session = Depends(get_db),
+    active_user: User = Depends(get_active_user),
+):
+    return get_filtered_item(item_id, active_user, db)
 
 
 @router.patch("/{item_id}", response_model=LibraryItemRead)
