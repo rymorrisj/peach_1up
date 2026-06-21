@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import require_permission
+from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
 from backend.models.drive import Drive, DriveRead
 from backend.models.user import User
@@ -16,12 +16,12 @@ logger = get_logger(__name__)
 
 
 @router.get("", response_model=list[DriveRead])
-def list_drives(db: Session = Depends(get_db)):
+def list_drives(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
     return db.query(Drive).all()
 
 
 @router.get("/{drive_id}", response_model=DriveRead)
-def get_drive(drive_id: int, db: Session = Depends(get_db)):
+def get_drive(drive_id: int, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
     drive = db.get(Drive, drive_id)
     if not drive:
         raise HTTPException(status_code=404, detail="Drive not found.")

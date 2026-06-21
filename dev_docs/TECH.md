@@ -90,7 +90,7 @@ community contributors.
 
 Detection runs in tier order and short-circuits on the first confident match:
 
-1. **Hash lookup** — SHA-256 of the first 64 KB compared against a bundled `hash_index.json` built from No-Intro/Redump DAT files. Returns the highest-confidence result possible; exits immediately on a hit.
+1. **Hash lookup** — full-file SHA-1 (with MD5/CRC32 fallback) compared against a bundled `hash_index.json` built from No-Intro/Redump DAT files, which key entries by full-file hash. Returns the highest-confidence result possible; exits immediately on a hit.
 2. **Magic bytes** — file header compared against `magic/magic_signatures.toml`. Covers GDI, CDI, BIN, ISO, and CHD container signatures.
 3. **Structural validation** — deeper parse of the container format:
    - ISO: reads the ISO 9660 PVD (sector 16) for volume label, publisher, and system-ID fields; falls back to scanning the root directory for `.xbe` (Xbox OG) markers.

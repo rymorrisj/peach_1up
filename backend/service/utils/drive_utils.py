@@ -16,6 +16,11 @@ if TYPE_CHECKING:
     from backend.models.library import LibraryItem
     from backend.models.drive import Drive
 
+# iso/cue media is mounted directly and never passed to format_fat16 (it always
+# sets requires_install=True, see smart_media_detector._compute_requires_install),
+# so this cap is independent of FAT16_SIZE_MAX_MB and can exceed it.
+_ISO_CUE_SIZE_MAX_MB = 2048
+
 
 def compute_drive_size_mb(media_path: Path, media_type: str) -> int:
     """Return the drive image size in MB for the given media.
@@ -36,9 +41,7 @@ def compute_drive_size_mb(media_path: Path, media_type: str) -> int:
     )
 
     if media_type in ("iso", "cue"):
-        # TODO: cap of 2048 exceeds FAT16_SIZE_MAX_MB (1024); safe only because iso/cue sets
-        # requires_install=True and never reaches format_fat16 — tighten if that ever changes
-        return max(50, min(int(source_size_mb * 1.5), 2048))
+        return max(50, min(int(source_size_mb * 1.5), _ISO_CUE_SIZE_MAX_MB))
     if media_type == "floppy":
         return max(20, min(int(source_size_mb * 2), 40))
     return max(FAT16_SIZE_MIN_MB, min(int(source_size_mb * 1.5) + 3, 100))

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import require_permission
+from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
 from backend.models.platform import HealthSummary, Platform, PlatformCreate, PlatformRead, PlatformUpdate, StorageStats
 from backend.models.snapshot import Snapshot, SnapshotCreate, SnapshotRead
@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 
 @router.get("", response_model=list[PlatformRead])
-def list_platforms(db: Session = Depends(get_db)):
+def list_platforms(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
     platforms = db.query(Platform).all()
     result = []
     for p in platforms:
@@ -58,7 +58,7 @@ def storage_stats(db: Session = Depends(get_db), _: User = require_permission("c
 
 
 @router.get("/{platform_id}", response_model=PlatformRead)
-def get_platform(platform_id: int, db: Session = Depends(get_db)):
+def get_platform(platform_id: int, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
     platform = db.get(Platform, platform_id)
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found.")
@@ -98,7 +98,7 @@ def platform_health(platform_id: int, db: Session = Depends(get_db), _: User = r
 # --- Snapshots ---
 
 @router.get("/{platform_id}/snapshots", response_model=list[SnapshotRead])
-def list_snapshots(platform_id: int, db: Session = Depends(get_db)):
+def list_snapshots(platform_id: int, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
     if not db.get(Platform, platform_id):
         raise HTTPException(status_code=404, detail="Platform not found.")
     return db.query(Snapshot).filter(Snapshot.platform_id == platform_id).all()

@@ -71,8 +71,7 @@ def _detect(path: Path) -> ScanResult:
 
     # Tier 1: hash lookup — highest confidence, return immediately on match
     try:
-        index = _hash_lookup.load_index(_INDEX_PATH)
-        result = _hash_lookup.lookup(path, index)
+        result = _hash_lookup.lookup(path, _INDEX_PATH)
         if result is not None:
             result.requires_manual_boot = _requires_manual_boot(
                 result.era, path, result.confidence, result.reason

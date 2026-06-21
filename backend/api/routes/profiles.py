@@ -5,7 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import require_permission
+from backend.core.dependencies import get_active_user, require_permission
 from backend.models.launch_history import LaunchHistory
 from backend.models.library import LibraryItem, LibraryItemRead
 from backend.models.profile import Profile, ProfileCreate, ProfileRead, ProfileUpdate
@@ -76,7 +76,7 @@ def _unique_slug(base: str, exclude_id: int, db: Session) -> str:
 
 
 @router.get("", response_model=list[ProfileRead])
-def list_profiles(era: str | None = None, db: Session = Depends(get_db)):
+def list_profiles(era: str | None = None, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
     q = db.query(Profile)
     if era:
         q = q.filter(Profile.era == era)
@@ -96,7 +96,7 @@ def create_profile(body: ProfileCreate, db: Session = Depends(get_db), _: User =
 
 
 @router.get("/{slug}", response_model=ProfileRead)
-def get_profile(slug: str, db: Session = Depends(get_db)):
+def get_profile(slug: str, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
     profile = db.query(Profile).filter(Profile.slug == slug).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
@@ -104,7 +104,7 @@ def get_profile(slug: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{slug}/items", response_model=list[LibraryItemRead])
-def get_profile_items(slug: str, db: Session = Depends(get_db)):
+def get_profile_items(slug: str, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
     profile = db.query(Profile).filter(Profile.slug == slug).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")

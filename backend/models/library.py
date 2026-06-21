@@ -21,14 +21,14 @@ class LibraryItemBase(SQLModel):
     category: Optional[str] = None
     media_path: str
     media_type: Optional[str] = None
-    folder_path: Optional[str] = None
+    folder_path: Optional[str] = Field(default=None, index=True)
     cover_art_path: Optional[str] = None
     description: Optional[str] = None
     publisher: Optional[str] = None
     year: Optional[int] = None
     igdb_id: Optional[int] = None
     metadata_source: Optional[str] = None
-    content_rating: Optional[str] = None
+    content_rating: Optional[str] = Field(default=None, index=True)
     executable_path: Optional[str] = None
     launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
     launch_review_flagged: bool = Field(default=False)
@@ -42,7 +42,7 @@ class LibraryItem(LibraryItemBase, table=True):
     __tablename__ = "library_items"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    slug: Optional[str] = Field(default=None)
+    slug: Optional[str] = Field(default=None, index=True)
     platform_id: Optional[int] = Field(
         default=None,
         sa_column=Column(Integer, ForeignKey("platforms.id", ondelete="SET NULL"), nullable=True),
