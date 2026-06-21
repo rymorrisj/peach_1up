@@ -13,7 +13,7 @@ export default function AppShell() {
 
   useEffect(() => {
     if (state.showUnauthModal) {
-      navigate('/settings')
+      navigate('/users')
     }
   }, [state.showUnauthModal, navigate])
 

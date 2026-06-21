@@ -12,12 +12,19 @@ interface TopBarProps {
 }
 
 export default function TopBar({ title, children }: TopBarProps) {
-  const { dispatch: _dispatch } = useAppContext()
+  const { state, dispatch: _dispatch } = useAppContext()
 
   const { data: launches = [] } = useQuery<LaunchHistory[]>({
     queryKey: ['launches'],
     queryFn: () => apiFetch<LaunchHistory[]>('/api/v1/launches'),
-    refetchInterval: 5000,
+    enabled: !!state.activeUser,
+    // Only keep polling while a launch is actually running — once every
+    // launch has ended_at set, stop refetching instead of hitting the
+    // endpoint on a fixed timer forever.
+    refetchInterval: (query) => {
+      const data = query.state.data ?? []
+      return data.some((l) => l.ended_at === null) ? 5000 : false
+    },
     refetchOnWindowFocus: false,
   })
 

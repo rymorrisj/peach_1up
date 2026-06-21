@@ -123,10 +123,10 @@ class TestSessionInvalidation:
 
         assert cookie1 != cookie2
 
-        stale = app_client.get("/api/v1/users", cookies={"peach_token": cookie1})
+        stale = app_client.get("/api/v1/auth/me", cookies={"peach_token": cookie1})
         assert stale.status_code == 401
 
-        fresh = app_client.get("/api/v1/users", cookies={"peach_token": cookie2})
+        fresh = app_client.get("/api/v1/auth/me", cookies={"peach_token": cookie2})
         assert fresh.status_code == 200
 
 
@@ -142,7 +142,7 @@ class TestForceLogout:
         sub_resp = app_client.post("/api/v1/auth/switch", json={"user_id": sub.id, "pin": ""})
         assert sub_resp.status_code == 200
         sub_cookie = sub_resp.cookies.get("peach_token")
-        assert app_client.get("/api/v1/users", cookies={"peach_token": sub_cookie}).status_code == 200
+        assert app_client.get("/api/v1/auth/me", cookies={"peach_token": sub_cookie}).status_code == 200
 
         owner_resp = app_client.post("/api/v1/auth/switch", json={"user_id": owner.id, "pin": "1234"})
         owner_cookie = owner_resp.cookies.get("peach_token")
@@ -153,7 +153,7 @@ class TestForceLogout:
         )
         assert force_resp.status_code == 200
 
-        after = app_client.get("/api/v1/users", cookies={"peach_token": sub_cookie})
+        after = app_client.get("/api/v1/auth/me", cookies={"peach_token": sub_cookie})
         assert after.status_code == 401
 
     def test_force_logout_against_owner_returns_403(self, app_client, owner):

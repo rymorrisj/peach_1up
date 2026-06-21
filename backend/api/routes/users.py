@@ -68,7 +68,12 @@ def _validate_pin(pin: str) -> None:
 
 
 @router.get("", response_model=list[UserRead])
-def list_users(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+def list_users(db: Session = Depends(get_db)):
+    # Intentionally unauthenticated: this is the account list the switch-user
+    # screen needs to render before anyone is signed in (mirrors /auth/switch,
+    # which also requires no prior session). UserRead excludes pin_hash and
+    # all other secrets, so this only ever exposes names/flags, never proof
+    # of identity.
     return db.query(User).all()
 
 

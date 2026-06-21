@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer } from 'react'
+import React, { useEffect, useReducer, useRef } from 'react'
 import { apiFetch } from '@/api/client'
 import type { components } from '@shared/types'
 import { AppContext, initialState, appReducer, applyTheme } from './_AppContext'
@@ -10,8 +10,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     applyTheme(init.theme)
     return init
   })
+  const didMountAuthCheck = useRef(false)
 
   useEffect(() => {
+    // Guards against StrictMode's double-invoke of mount effects in dev,
+    // which would otherwise fire /auth/me -> /auth/refresh twice for the
+    // same mount.
+    if (didMountAuthCheck.current) return
+    didMountAuthCheck.current = true
     apiFetch<User>('/api/v1/auth/me')
       .then((user) => {
         dispatch({ type: 'SET_ACTIVE_USER', payload: user })

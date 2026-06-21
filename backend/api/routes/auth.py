@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.identity import clear_session, generate_identity_secret, issue_session, parse_session_cookie, validate_session
+from backend.core.identity import clear_session, extend_session, generate_identity_secret, issue_session, parse_session_cookie, validate_session
 from backend.core.logger import get_logger
 from backend.models.user import User, UserRead
 
@@ -201,11 +201,14 @@ def me(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/refresh", response_model=UserResponse)
 def refresh_session(request: Request, response: Response, db: Session = Depends(get_db)):
-    """Rotate the session token and reset the CSRF cookie.
+    """Validate the existing session token and extend its expiry, without rotating it.
 
-    Called on every app open so sessions extend automatically. issue_session
-    overwrites the previous hash directly — one session per user by design,
-    so there is no separate old-token revocation step.
+    Called on every app open so sessions extend automatically. The token itself
+    is left untouched (session_token_hash is not overwritten) — minting a new
+    token here would invalidate a still-in-flight refresh from the same
+    session (StrictMode double-mount, multiple tabs, retries), 401-ing the
+    second legitimate caller. Token issuance stays exclusive to
+    login/switch/setup-owner.
     """
     cookie = request.cookies.get(_COOKIE_NAME)
     if not cookie:
@@ -216,7 +219,8 @@ def refresh_session(request: Request, response: Response, db: Session = Depends(
     user = validate_session(db, parsed[0], parsed[1])
     if user is None:
         raise HTTPException(status_code=401, detail="Invalid or expired session.")
-    new_token, _expires_at = issue_session(db, user)
-    _set_auth_cookie(response, user.id, new_token, user.session_token_ttl)
+    extend_session(db, user)
+    if user.session_token_ttl is not None:
+        _set_auth_cookie(response, user.id, parsed[1], user.session_token_ttl)
     _set_csrf_cookie(response, user.session_token_ttl)
     return {"user": user}

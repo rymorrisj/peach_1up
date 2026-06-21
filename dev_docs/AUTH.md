@@ -12,22 +12,22 @@ middleware chain. Read alongside `SECURITY.md` (policy rules) and `TECH.md` (sta
 | `backend/main.py` | Mounts all routers; sets middleware order (CORS → Security → CSRF → FirstRunGuard → router) |
 | `backend/api/middleware/security.py` | `SecurityMiddleware` (localhost enforcement, X-Request-ID), `CSRFMiddleware` (double-submit cookie), `FirstRunGuardMiddleware` (redirect to /first-run), CORS config |
 | `backend/api/routes/auth.py` | `/api/v1/auth` — setup-owner, switch, logout, me, refresh |
-| `backend/api/routes/users.py` | `/api/v1/users` — CRUD users, reset-pin, unlock |
+| `backend/api/routes/users.py` | `/api/v1/users` — CRUD users, reset-pin, unlock. `GET /api/v1/users` (list) is intentionally unauthenticated — see dedicated section below |
 | `backend/api/routes/settings.py` | `/api/v1/settings` — first-run-status, complete-first-run, patch settings |
 | `backend/core/dependencies.py` | `get_active_user`, `require_permission`, `require_self_or_admin`, `get_filtered_library` |
-| `backend/core/identity.py` | `generate_identity_secret`, `mint_session_token`, `issue_session`, `clear_session`, `validate_session`, `parse_session_cookie` — HMAC-derived session tokens, no separate token table |
+| `backend/core/identity.py` | `generate_identity_secret`, `mint_session_token`, `issue_session`, `extend_session`, `clear_session`, `validate_session`, `parse_session_cookie` — HMAC-derived session tokens, no separate token table |
 | `backend/models/user.py` | `User` DB model + `UserRead` response schema; carries `identity_token_secret`, `session_token_hash`, `session_token_expires_at`, `session_token_ttl` |
 | `backend/models/media_restriction.py` | `MediaRestriction` — per-user item block list |
 | `backend/core/lifespan.py` | Startup: DB init, first-run flag sync, owner-exists check |
 | `scripts/setup_admin_user.py` | CLI emergency owner reset (bypasses web, writes DB directly) |
 | `frontend/src/api/client.ts` | `ApiClient` — all requests, `credentials: "include"`, `X-CSRF-Token` header on mutating requests, session-expired event dispatch |
-| `frontend/src/context/AppContext.tsx` | Mounts provider; calls `GET /auth/me` on load then `POST /auth/refresh` to rotate token; listens for `session-expired` event |
+| `frontend/src/context/AppContext.tsx` | Mounts provider; calls `GET /auth/me` on load then `POST /auth/refresh` to extend the session; `useRef` guard prevents the mount effect's `/auth/me` → `/auth/refresh` chain from double-firing under StrictMode; listens for `session-expired` event |
 | `frontend/src/context/_AppContext.ts` | `AppState`, `AppAction`, `appReducer` — `activeUser`, `showUnauthModal` |
 | `frontend/src/pages/FirstRun/index.tsx` | Wizard shell; polls first-run-status; calls complete-first-run |
 | `frontend/src/pages/FirstRun/Step0Owner.tsx` | Form that calls `POST /auth/setup-owner` and sets `activeUser` |
 | `frontend/src/components/UserSwitcher.tsx` | User-switch UI; PIN modal; calls `POST /auth/switch` |
-| `frontend/src/components/layout/AppShell.tsx` | Shows signed-out banner on `showUnauthModal`; navigates to /settings when unauthenticated |
-| `frontend/src/pages/Settings/UsersTab.tsx` | Admin UI — create user, reset PIN, unlock, delete |
+| `frontend/src/components/layout/AppShell.tsx` | Shows signed-out banner on `showUnauthModal`; navigates to `/users` (the standalone switch-account page) when unauthenticated |
+| `frontend/src/pages/Users/index.tsx` | Standalone Users/switch-account page (moved out of Settings) — lists accounts via unauthenticated `GET /api/v1/users`, admin-only create/edit/delete controls |
 
 ---
 
@@ -43,7 +43,8 @@ middleware chain. Read alongside `SECURITY.md` (policy rules) and `TECH.md` (sta
 | Token storage | Columns on the `User` row — `identity_token_secret`, `session_token_hash`, `session_token_expires_at`, `session_token_ttl`. No separate table |
 | Token value | `mint_session_token(identity_token_secret)` → HMAC-SHA256(`identity_token_secret`, `nonce + issued_at`), hex digest. Cookie stores `{user_id}.{session_token}`; only `hash_session_token()` (plain SHA-256) of it is persisted |
 | Default expiry | No expiry (`session_token_expires_at = NULL`) unless `User.session_token_ttl` (minutes) is set |
-| Multiple sessions | Not allowed — one active session per user by design. `issue_session()` overwrites `session_token_hash` directly, so a new login naturally invalidates any prior session |
+| Multiple sessions | Not allowed — one active session per user by design. `issue_session()` overwrites `session_token_hash` directly, so a new login naturally invalidates any prior session. Used only by `/auth/setup-owner`, `/auth/switch` — never by `/auth/refresh` |
+| Session extension | `extend_session(db, user)` — recomputes `session_token_expires_at` from `session_token_ttl` only; never touches `session_token_hash`, never mints a new token. Used by `/auth/refresh` so validate-and-extend is idempotent across concurrent calls (StrictMode double-mount, multiple tabs, retries) — the old rotate-on-refresh design 401'd the second of two near-simultaneous refresh calls because the first overwrote the hash the second was still presenting |
 | Revocation | `clear_session()` nulls `session_token_hash` and `session_token_expires_at` on the user row — used by `/auth/logout`; no row to delete |
 | Session validation | `validate_session(db, user_id, token)` — None if user missing, None if `session_token_hash` is `NULL` (logged out), None if `session_token_expires_at` has passed, then `hmac.compare_digest` of the hash against the presented token |
 | Expired/revoked cleanup | None needed — no accumulated rows. Expiry and revocation are point-in-time checks against the single hash column, not a cleanup job |
@@ -141,11 +142,15 @@ Browser opens app
                checks session_token_hash matches and not expired → return User
                → dispatch SET_ACTIVE_USER (also clears showUnauthModal)
                → then calls POST /api/v1/auth/refresh (non-fatal)
-                 → issue_session mints a new token and overwrites session_token_hash
-                   directly (one session per user — no old row to revoke)
-                 → new peach_token + peach_csrf cookies set
+                 → extend_session pushes out session_token_expires_at only — same
+                   token, same session_token_hash, no rotation
+                 → peach_token cookie re-set with the same token value and a refreshed
+                   max_age only if session_token_ttl is set; peach_csrf cookie re-set
                  → dispatch SET_ACTIVE_USER with refreshed user
       → NO  → 401 → dispatch LOGOUT → showUnauthModal=true
+
+A useRef guard in AppProvider's mount effect ensures this /auth/me → /auth/refresh chain
+only fires once per mount, even under React StrictMode's double-invoke in dev.
 ```
 
 ---
@@ -164,7 +169,7 @@ AppProvider listener fires
   → dispatch LOGOUT → activeUser=null, showUnauthModal=true
 
 AppShell detects showUnauthModal=true
-  → navigate("/settings")
+  → navigate("/users")
   → renders signed-out banner "You have been signed out. Please sign in to continue."
 
 User clicks another account in UserSwitcher → PIN modal → POST /auth/switch → new token issued
@@ -224,17 +229,27 @@ UserSwitcher: user.pin_required=false AND user.id != activeId AND !user.is_locke
 AppProvider: after successful GET /auth/me, calls POST /api/v1/auth/refresh
   → reads peach_token from cookie, parse_session_cookie → (user_id, token)
   → validate_session resolves current user (401 if missing/expired/mismatched)
-  → issue_session(db, user) → mints a new HMAC token, overwrites session_token_hash
-    directly on the same User row (one session per user — no old row to revoke)
-  → _set_auth_cookie → new peach_token cookie overwrites old
+  → extend_session(db, user) → recomputes session_token_expires_at from
+    session_token_ttl only; session_token_hash (and therefore the token itself)
+    is never touched — refresh validates-and-extends, it does not rotate
+  → _set_auth_cookie re-sent with the *same* already-parsed token and a refreshed
+    max_age, but only if session_token_ttl is set (skipped entirely for
+    non-expiring sessions — nothing to extend)
   → _set_csrf_cookie → new peach_csrf cookie overwrites old
   → return { user: UserRead }
   → dispatch SET_ACTIVE_USER(refreshed user)
 
 Failure is non-fatal — catch() swallows the error; the original session from /auth/me remains
-valid until its own expiry. Note: under one-session-per-user there is no rollback safety — a
-failed refresh simply leaves the prior (still-valid) session in place, since no second row ever
-existed to roll back to. This is an accepted tradeoff; see DECISIONS.md 2026-06-20.
+valid until its own expiry.
+
+Why not rotate: the prior design called issue_session() here, minting a new token and
+overwriting session_token_hash on every refresh. Two legitimate near-simultaneous refresh
+calls from the same session (React StrictMode double-mount, multiple browser tabs, network
+retries) would race — the first call's commit invalidates the token the second call is still
+presenting, producing a spurious 401 and an auto-sign-out. Token issuance remains exclusive
+to /auth/setup-owner, /auth/switch — refresh only ever extends. Per DECISIONS.md 2026-06-20,
+this dissolves (rather than violates) the documented "two-row rollback-safety" tradeoff: since
+refresh never creates a second token, there is nothing to roll back to begin with.
 ```
 
 ---
@@ -262,7 +277,7 @@ Any logout action (no explicit logout button exists in UI currently — flow via
 ## Flow 9 — Create Sub-Account (admin only)
 
 ```
-UsersTab: admin clicks "+ Add Account" → modal opens
+Users page: admin clicks "+ Add Account" → modal opens
   → fill name, optional PIN, permissions checkboxes, content rating, session expiry
 
 Admin submits → POST /api/v1/users
@@ -278,7 +293,7 @@ Admin submits → POST /api/v1/users
 ## Flow 10 — Edit Sub-Account Permissions
 
 ```
-UsersTab: admin edits permissions (currently no inline edit UI — PATCH is backend-only)
+Users page: admin edits permissions (currently no inline edit UI — PATCH is backend-only)
   → PATCH /api/v1/users/{user_id}
     → require_permission("is_admin")
     → target user.is_owner=true → 403 (owner cannot be modified here)
@@ -291,7 +306,7 @@ UsersTab: admin edits permissions (currently no inline edit UI — PATCH is back
 ## Flow 11 — Reset PIN (admin resets another user's PIN)
 
 ```
-UsersTab: admin clicks key icon on a user → Reset PIN modal
+Users page: admin clicks key icon on a user → Reset PIN modal
   → enter new PIN → POST /api/v1/users/{user_id}/reset-pin { pin }
     → require_permission("is_admin")
     → _validate_pin(pin) — 4-6 digit regex
@@ -305,7 +320,7 @@ UsersTab: admin clicks key icon on a user → Reset PIN modal
 ## Flow 12 — Unlock Locked Account (admin)
 
 ```
-UsersTab: admin clicks unlock icon on a locked user
+Users page: admin clicks unlock icon on a locked user
   → POST /api/v1/users/{user_id}/unlock
     → require_permission("is_admin")
     → user.is_locked=false, failed_pin_attempts=0
@@ -317,7 +332,7 @@ UsersTab: admin clicks unlock icon on a locked user
 ## Flow 13 — Delete Sub-Account (admin)
 
 ```
-UsersTab: admin clicks trash icon → browser confirm() dialog
+Users page: admin clicks trash icon → browser confirm() dialog
   → DELETE /api/v1/users/{user_id}
     → require_self_or_admin: active_user.id == user_id OR active_user.is_admin
     → target user.is_owner → 403
@@ -423,14 +438,23 @@ Browser opens /first-run
 
 ---
 
-## GET /api/v1/users — Authenticated
+## GET /api/v1/users — Intentionally Unauthenticated
 
 ```
-GET /api/v1/users requires a valid session (Depends(get_active_user)).
-Only UserRead is returned (no pin_hash, no token values).
-Any authenticated user can list all users; admin flag is not required.
-UserSwitcher.tsx fetches this endpoint — it is only rendered in the Settings page
-where a session is already established, so the auth requirement is safe.
+GET /api/v1/users has no auth dependency — list_users(db) takes no active-user check.
+Only UserRead is returned (no pin_hash, no session_token_hash, no identity_token_secret),
+so this never exposes anything that proves identity or grants access.
+
+Why: this is the data source for the switch-account screen (frontend/src/pages/Users) that
+a signed-out user lands on. POST /api/v1/auth/switch already requires no prior session — you
+present a user_id + PIN, not a cookie — so gating the *list* of users behind auth created a
+lockout: a session-expired user was redirected to /users to log back in, but the page's own
+GET /api/v1/users call 401'd, leaving no way to see which account to switch to.
+
+All mutating endpoints on this router remain authenticated/admin-gated as before:
+GET /api/v1/users/{id}, POST (create), PATCH, DELETE, /reset-pin, /unlock, /force-logout
+all still require Depends(get_active_user) or require_permission("is_admin") /
+require_self_or_admin.
 ```
 
 ---
@@ -451,11 +475,14 @@ All gaps identified at audit time have been resolved.
 
 | Gap | Fix |
 |-----|-----|
-| `GET /api/v1/users` had no auth guard | Added `Depends(get_active_user)` — `users.py` |
+| `GET /api/v1/users` had no auth guard | Added `Depends(get_active_user)` — `users.py`. **Superseded 2026-06-21** (see below): this re-introduced a different bug once Users moved to its own route, so the guard was removed again — `GET /api/v1/users` is now intentionally unauthenticated. |
 | Duplicate `GET /auth/me` in `AppShell` | Removed redundant call; `AppProvider` is the single source — `AppShell.tsx` |
 | `complete-first-run` implicit trust | Not a real gap — owner session from `setup-owner` satisfies `can_edit_settings`. Documented here for clarity. |
 | No CSRF protection | `CSRFMiddleware` added (double-submit cookie pattern). `peach_csrf` non-HttpOnly cookie set on every token issue; `X-CSRF-Token` header required on all mutating non-auth requests. Auth endpoints (`/api/v1/auth/*`) exempt. — `security.py`, `main.py`, `auth.py`, `client.ts` |
 | `session-expired` fired on 403 (locked-account switch logged out active user) | `isSessionError` simplified to `res.status === 401` only — `client.ts` |
 | No session refresh / expiry warning | `POST /api/v1/auth/refresh` endpoint added; called on every app open in `AppContext`. — `auth.py`, `AppContext.tsx` |
+| Refresh rotated the session token (`issue_session`), 401-ing a second concurrent refresh call presenting the now-stale token (StrictMode double-mount, multi-tab, retries) | `refresh_session` now calls `extend_session` (validate-and-extend, never rotates) instead of `issue_session` — `identity.py`, `auth.py`. Frontend `AppProvider` mount effect also gained a `useRef` guard as defense-in-depth — `AppContext.tsx` |
+| `AppShell`'s `showUnauthModal` effect redirected to `/settings`, a stale target from before Users moved to its own `/users` route — anyone signed out while on `/users` got bounced to a page that can no longer help them sign back in | Redirect target changed to `/users` — `AppShell.tsx` |
+| `GET /api/v1/users` required auth, but it's the data source for the very switch-account screen a signed-out user is redirected to — circular lockout, no way to see which account to switch to | Removed the auth dependency from `list_users`; `UserRead` excludes all secrets so this exposes nothing sensitive. Mutating endpoints on the same router are unaffected — `users.py` |
 
 *Note: the fixes above were implemented against the original `auth_tokens` table / `token_store.py` model. That model was superseded on 2026-06-20 by the identity/session model in `backend/core/identity.py` (see DECISIONS.md) — `token_store.py` and the `auth_tokens` table no longer exist. The gaps and their fixes remain valid; only the underlying token-storage mechanism changed.*

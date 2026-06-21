@@ -49,6 +49,23 @@ def issue_session(db, user) -> tuple[str, Optional[datetime]]:
     return token, user.session_token_expires_at
 
 
+def extend_session(db, user) -> Optional[datetime]:
+    """Push out *user*'s existing session expiry without rotating the token.
+
+    Unlike issue_session, this never touches session_token_hash — the caller
+    has already validated the presented token, so there is no new token to
+    roll back and the two-row rollback-safety tradeoff doesn't apply here.
+    """
+    user.session_token_expires_at = (
+        datetime.now(timezone.utc) + timedelta(minutes=user.session_token_ttl)
+        if user.session_token_ttl is not None
+        else None
+    )
+    db.add(user)
+    db.commit()
+    return user.session_token_expires_at
+
+
 def clear_session(db, user) -> None:
     user.session_token_hash = None
     user.session_token_expires_at = None
