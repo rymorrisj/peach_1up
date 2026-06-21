@@ -8,6 +8,7 @@ from backend.service.utils.fat.boot_sector import _build_boot_sector
 from backend.service.utils.fat.directory import (
     _find_in_dir,
     _find_free_dir_slot,
+    _iter_dir_entries,
     _make_dir_entry,
     _read_cluster_chain,
     _to_83,
@@ -123,6 +124,45 @@ def write_file_to_image(img_path: Path, dest_path: str, data: bytes) -> None:
 
         f.seek(slot_off)
         f.write(_make_dir_entry(name83, ext83, _ATTR_FILE, clusters[0], len(data)))
+
+
+def list_files_in_image(img_path: Path) -> list[tuple[str, bytes]]:
+    """Recursively collect every regular file stored in a FAT16 image.
+
+    Returns (path, data) pairs using "/" separators relative to the image
+    root, in a form directly usable as write_file_to_image(dest, data)
+    arguments. Used to migrate file contents when rebuilding an image at a
+    different size, since FAT16 has no in-place resize.
+    """
+    if not img_path.exists():
+        raise RuntimeError(f"list_files_in_image: {img_path} does not exist")
+
+    geo = _read_geometry(img_path)
+    results: list[tuple[str, bytes]] = []
+
+    def _walk(f, dir_cluster, prefix: str) -> None:
+        for _, entry in _iter_dir_entries(f, geo, dir_cluster):
+            name = entry["name83"].decode("ascii").rstrip()
+            ext = entry["ext83"].decode("ascii").rstrip()
+            if name in (".", ".."):
+                continue
+            filename = f"{name}.{ext}" if ext else name
+            path = f"{prefix}{filename}"
+            if entry["attr"] & _ATTR_DIR:
+                child_cluster = entry["first_cluster"] if entry["first_cluster"] != 0 else None
+                _walk(f, child_cluster, f"{path}/")
+            else:
+                data = (
+                    _read_cluster_chain(f, geo, entry["first_cluster"])
+                    if entry["first_cluster"] != 0
+                    else b""
+                )
+                results.append((path, data[: entry["file_size"]]))
+
+    with img_path.open("rb") as f:
+        _walk(f, None, "")
+
+    return results
 
 
 def read_file_from_image(img_path: Path, dest_path: str) -> bytes:

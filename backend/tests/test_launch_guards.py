@@ -1,12 +1,5 @@
 """Tests for launch concurrency and validation guards in
 service/launch/coordinator.py.
-
-Note: the spec asked for a test documenting an `update_drive_for_item` stub
-that "raises NotImplementedError". No such function exists anywhere in the
-codebase (grepped service/launch/ and service/utils/drive_utils.py) — the
-closest functions are create_drive_for_item and delete_drive_for_item, both
-of which are fully implemented. That case is therefore skipped below with an
-explanation rather than fabricated.
 """
 
 import pytest
@@ -91,15 +84,74 @@ class TestResolveProfileForItem:
         assert exc_info.value.status_code == 404
 
 
-class TestUpdateDriveForItemStub:
-    def test_update_drive_for_item_does_not_exist(self):
-        """Documents that no update_drive_for_item stub exists in drive_utils.
+class TestUpdateDriveForItem:
+    def test_resize_preserves_existing_file_contents(self, mem_session, tmp_path):
+        from backend.models.drive import Drive
+        from backend.models.library import LibraryItem
+        from backend.service.utils.drive_utils import update_drive_for_item
+        from backend.service.utils.fat import format_fat16, read_file_from_image, write_file_to_image
 
-        The spec describes a known gap where update_drive_for_item raises
-        NotImplementedError. No function with that name exists anywhere in
-        the codebase, so there is nothing to call — only create_drive_for_item
-        and delete_drive_for_item are implemented.
-        """
-        from backend.service.utils import drive_utils
+        item = LibraryItem(title="Test Game", era="dos", media_path="/tmp/test")
+        mem_session.add(item)
+        mem_session.commit()
+        mem_session.refresh(item)
 
-        assert not hasattr(drive_utils, "update_drive_for_item")
+        img_path = tmp_path / "drive.img"
+        format_fat16(img_path, 10)
+        write_file_to_image(img_path, "game.exe", b"some game data")
+
+        drive = Drive(library_item_id=item.id, name="Test Drive", size_mb=10, image_path=str(img_path))
+        mem_session.add(drive)
+        mem_session.commit()
+        mem_session.refresh(drive)
+        item.drive_id = drive.id
+        mem_session.add(item)
+        mem_session.commit()
+
+        updated = update_drive_for_item(item, 20, mem_session)
+
+        assert updated.size_mb == 20
+        assert read_file_from_image(img_path, "game.exe") == b"some game data"
+        assert not img_path.with_name(img_path.name + ".bak").exists()
+        assert not img_path.with_name(img_path.name + ".new").exists()
+
+    def test_no_drive_raises(self, mem_session):
+        from backend.models.library import LibraryItem
+        from backend.service.utils.drive_utils import update_drive_for_item
+
+        item = LibraryItem(title="Test Game", era="dos", media_path="/tmp/test")
+        mem_session.add(item)
+        mem_session.commit()
+        mem_session.refresh(item)
+
+        with pytest.raises(RuntimeError):
+            update_drive_for_item(item, 20, mem_session)
+
+    def test_size_out_of_range_raises_without_touching_image(self, mem_session, tmp_path):
+        from backend.models.drive import Drive
+        from backend.models.library import LibraryItem
+        from backend.service.utils.drive_utils import update_drive_for_item
+        from backend.service.utils.fat import format_fat16, read_file_from_image, write_file_to_image
+
+        item = LibraryItem(title="Test Game", era="dos", media_path="/tmp/test")
+        mem_session.add(item)
+        mem_session.commit()
+        mem_session.refresh(item)
+
+        img_path = tmp_path / "drive.img"
+        format_fat16(img_path, 10)
+        write_file_to_image(img_path, "game.exe", b"some game data")
+
+        drive = Drive(library_item_id=item.id, name="Test Drive", size_mb=10, image_path=str(img_path))
+        mem_session.add(drive)
+        mem_session.commit()
+        mem_session.refresh(drive)
+        item.drive_id = drive.id
+        mem_session.add(item)
+        mem_session.commit()
+
+        with pytest.raises(RuntimeError):
+            update_drive_for_item(item, 99999, mem_session)
+
+        # Original image must be untouched on a rejected resize.
+        assert read_file_from_image(img_path, "game.exe") == b"some game data"
