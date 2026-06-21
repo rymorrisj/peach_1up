@@ -70,10 +70,6 @@ class SandboxResetRequest(BaseModel):
     confirmation_token: str
 
 
-class ConfigureRequest(BaseModel):
-    action: str
-
-
 class EmulatorStatusData(BaseModel):
     slug: str
     install_type: str
@@ -83,9 +79,6 @@ class EmulatorStatusData(BaseModel):
     status: str
     error: Optional[str] = None
     install_path: Optional[str] = None
-
-
-_CONFIGURE_ACTIONS: dict[str, list[str]] = {}
 
 
 class XemuAssetPathsResponse(BaseModel):
@@ -188,7 +181,7 @@ def reset_sandbox_state(
     if not install_registry.consume_confirm_token("sandbox-state", body.confirmation_token):
         raise HTTPException(status_code=403, detail="Invalid or expired confirmation token.")
 
-    from backend.service.utils.app_container import reset_container as _reset_container
+    from backend.service.utils.platform.windows.app_container import reset_container as _reset_container
 
     catalog = load_catalog()
     reset_count = 0
@@ -406,14 +399,3 @@ def delete_emulator(slug: str, body: DeleteRequest, _: User = require_permission
 
     install_registry.set_status(slug, "idle")
     return {"slug": slug, "status": "removed"}
-
-
-@router.post("/{slug}/configure")
-def configure_emulator(slug: str, body: ConfigureRequest, _: User = require_permission("is_admin")):
-    allowed_actions = _CONFIGURE_ACTIONS.get(slug)
-    if allowed_actions is None:
-        raise HTTPException(status_code=404, detail=f"No configurable actions for '{slug}'.")
-    if body.action not in allowed_actions:
-        raise HTTPException(status_code=400, detail=f"Unknown action '{body.action}' for '{slug}'.")
-
-    raise HTTPException(status_code=400, detail=f"Unhandled action '{body.action}' for '{slug}'.")
