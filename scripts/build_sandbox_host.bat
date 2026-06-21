@@ -18,7 +18,7 @@ setlocal enabledelayedexpansion
 
 set "SCRIPT_DIR=%~dp0"
 for %%i in ("%SCRIPT_DIR%..") do set "PROJECT_ROOT=%%~fi"
-set "SANDBOX_DIR=%PROJECT_ROOT%\backend\service\utils\sandbox"
+set "SANDBOX_DIR=%PROJECT_ROOT%\backend\service\utils\platform\windows\sandbox"
 set "SRC_DIR=%SANDBOX_DIR%\src"
 set "OUT_EXE=%SANDBOX_DIR%\sandbox_host.exe"
 set "OBJ_DIR=%SANDBOX_DIR%\build_tmp"

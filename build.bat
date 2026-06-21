@@ -164,17 +164,17 @@ REM ── Build sandbox_host.exe via MSYS2 (or validate pre-built) ──
 echo Building sandbox_host.exe...
 where bash >nul 2>&1
 if not errorlevel 1 (
-    bash "backend/service/utils/sandbox/build.sh"
+    bash "backend/service/utils/platform/windows/sandbox/build.sh"
     if errorlevel 1 (
         echo ERROR: sandbox_host.exe build failed.
         goto :error
     )
     echo [OK] sandbox_host.exe built
 ) else (
-    if not exist "backend\service\utils\sandbox\sandbox_host.exe" (
+    if not exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
         echo ERROR: bash/MSYS2 not found and sandbox_host.exe is missing.
         echo Install MSYS2 UCRT64 with gcc and run:
-        echo   bash backend/service/utils/sandbox/build.sh
+        echo   bash backend/service/utils/platform/windows/sandbox/build.sh
         goto :error
     )
     echo [OK] sandbox_host.exe found ^(pre-built; MSYS2 not available to rebuild^)
@@ -206,25 +206,25 @@ if errorlevel 1 (
 echo [OK] docs build copied
 
 echo === Copying sandbox executables ===
-if not exist "backend\service\utils\sandbox\sandbox_host.exe" (
-    echo ERROR: backend\service\utils\sandbox\sandbox_host.exe not found.
+if not exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
+    echo ERROR: backend\service\utils\platform\windows\sandbox\sandbox_host.exe not found.
     echo Run build.sh from an MSYS2 UCRT64 shell first to compile the sandbox executables.
     goto :error
 )
-if not exist "dist\peach1up\backend\service\utils\sandbox\" mkdir "dist\peach1up\backend\service\utils\sandbox\"
-copy /Y "backend\service\utils\sandbox\sandbox_host.exe" "dist\peach1up\backend\service\utils\sandbox\"
+if not exist "dist\peach1up\backend\service\utils\platform\windows\sandbox\" mkdir "dist\peach1up\backend\service\utils\platform\windows\sandbox\"
+copy /Y "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" "dist\peach1up\backend\service\utils\platform\windows\sandbox\"
 if errorlevel 1 (
     echo ERROR: Failed to copy sandbox_host.exe to dist.
     goto :error
 )
 
-if not exist "backend\service\utils\sandbox_checker\src\test_sdl2_d3d11.exe" (
-    echo ERROR: No executables found in backend\service\utils\sandbox_checker\src\
+if not exist "backend\service\utils\platform\windows\sandbox_checker\src\test_sdl2_d3d11.exe" (
+    echo ERROR: No executables found in backend\service\utils\platform\windows\sandbox_checker\src\
     echo Run build.sh from an MSYS2 UCRT64 shell first to compile the sandbox executables.
     goto :error
 )
-if not exist "dist\peach1up\backend\service\utils\sandbox_checker\src\" mkdir "dist\peach1up\backend\service\utils\sandbox_checker\src\"
-copy /Y "backend\service\utils\sandbox_checker\src\*.exe" "dist\peach1up\backend\service\utils\sandbox_checker\src\"
+if not exist "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\" mkdir "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\"
+copy /Y "backend\service\utils\platform\windows\sandbox_checker\src\*.exe" "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\"
 if errorlevel 1 (
     echo ERROR: Failed to copy sandbox_checker executables to dist.
     goto :error

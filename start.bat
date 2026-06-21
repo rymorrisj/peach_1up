@@ -126,7 +126,7 @@ if not exist "config\settings.yaml" (
 )
 
 REM ── Sandbox build check ──────────────────────────────────────
-if exist "backend\service\utils\sandbox\sandbox_host.exe" (
+if exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
     echo [OK] sandbox_host.exe found
 ) else (
     echo sandbox_host.exe not found. Attempting to build via MSYS2 UCRT64...
@@ -137,7 +137,7 @@ if exist "backend\service\utils\sandbox\sandbox_host.exe" (
             echo Run build.sh manually from an MSYS2 UCRT64 shell.
             exit /b 1
         )
-        if not exist "backend\service\utils\sandbox\sandbox_host.exe" (
+        if not exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
             echo ERROR: build.sh ran but sandbox_host.exe was not produced.
             echo Check build.sh output for errors.
             exit /b 1

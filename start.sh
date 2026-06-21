@@ -65,9 +65,9 @@ fi
 
 # ── Sandbox build check ────────────────────────────────────────
 # sandbox_host.exe is a Windows-only artifact; no build step is run on Unix.
-if [ ! -f "backend/service/utils/sandbox/sandbox_host.exe" ]; then
+if [ ! -f "backend/service/utils/platform/windows/sandbox/sandbox_host.exe" ]; then
   echo
-  echo "NOTICE: backend/service/utils/sandbox/sandbox_host.exe not found."
+  echo "NOTICE: backend/service/utils/platform/windows/sandbox/sandbox_host.exe not found."
   echo "sandbox_host.exe is a Windows-only artifact and is not required on this platform."
   echo "To build it for a Windows deployment, run build.sh from an MSYS2 UCRT64 shell."
 else
