@@ -18,15 +18,17 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
-from backend.service.utils.emulator_catalog import get_container_enabled
+from backend.service.utils.emulator_catalog import (
+    get_container_enabled,
+    get_install_path,
+    validate_bios_from_descriptor,
+)
 from backend.service.utils.xbox_image import detect_xbox_image_type
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
 from backend.service.utils.platform.windows.sandbox import BrokerFile
 from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
 from backend.service.utils.platform.windows.process.job_objects import WindowsJobObject
 from backend.core.logger import get_logger
-from backend.core.settings import get_base_path
-from backend.service.utils.emulator_catalog import get_install_path
 
 logger = get_logger(__name__)
 
@@ -35,6 +37,12 @@ if TYPE_CHECKING:
 
 SUPPORTED_ERAS = {Era.XBOX.value}
 SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.XBOX]
+
+# Portable-mode data root, next to the binary — matches Flycast's data/ convention.
+DATA_DIR_NAME = "data"
+# Single config shipped today. Named subdirectories under data/ are reserved
+# for future per-game BIOS/HDD overrides (see resolve_launch_config).
+DEFAULT_CONFIG_NAME = "default"
 
 
 def validate_media(media_path: Path) -> None:
@@ -75,65 +83,82 @@ def _clear_dvd_path_on_exit(proc, toml_path: Path) -> None:
         logger.warning("Failed to clear dvd_path in xemu.toml after exit: %s", exc)
 
 
-def provision_xemu_defaults(exe_path: Path, vm_dir: Path, dvd_path: str | None = None) -> Path:
-    """Write (or overwrite) the per-VM xemu.toml; return its path.
+def resolve_launch_config() -> str:
+    """Resolve which named BIOS/HDD config under data/ applies to this launch.
 
-    Always overwrites any existing xemu.toml so stale configs from previous broken
-    runs are corrected on every launch. Uses an atomic rename so a failed write
-    never leaves a partial config on disk.
+    Single responsibility: selection only — it does not read or validate any
+    files itself. Returns the config name (a subdirectory of data/), which
+    callers combine with the data root to get an actual directory.
 
-    # xemu.toml is written per-VM (emulators/xemu/vms/<profile_id>/xemu.toml) rather
-    # than shared alongside the executable. A shared path causes a race when two
-    # profiles launch xemu concurrently — the second write corrupts the first's config
-    # mid-start. The same class of bug was fixed for DOSBox-X in PX-2-8.
+    Stub: xemu has no per-game override selection mechanism yet, so this
+    always returns DEFAULT_CONFIG_NAME. No parameters are taken because no
+    selection input has been designed — add them when that mechanism exists.
 
-    BIOS files (mcpx_1.0.bin, flash *.bin, eeprom.bin) and xbox_hdd.qcow2 must
-    all reside in the same directory as the xemu executable. Peach 1UP does not
-    provide, link to, or assist with acquiring these files.
+    Returns:
+        The config name to use, e.g. "default".
+    """
+    return DEFAULT_CONFIG_NAME
+
+
+def provision_xemu_defaults(exe_path: Path, data_dir: Path, dvd_path: str | None = None) -> Path:
+    """Write (or overwrite) the xemu.toml portable-mode sentinel; return its path.
+
+    xemu detects xemu.toml next to its own binary on startup and treats that
+    directory as its data root (see EMULATORS.md) — so the sentinel is always
+    written to exe_path.parent, never into data_dir. Always overwrites any
+    existing xemu.toml so stale configs from previous broken runs are
+    corrected on every launch. Uses an atomic rename so a failed write never
+    leaves a partial config on disk.
+
+    BIOS files (mcpx_1.0.bin, flash *.bin, eeprom.bin) and xbox_hdd.qcow2 are
+    read from data_dir — the config directory resolved by
+    resolve_launch_config() (e.g. emulators/xemu/data/default/) — not from
+    the executable's directory. Peach 1UP does not provide, link to, or
+    assist with acquiring these files.
 
     Args:
         exe_path: Absolute path to the xemu executable (xemu.exe).
-        vm_dir: Per-profile directory where xemu.toml will be written.
-            Typically emulators/xemu/vms/<profile_id>/. Created if absent.
+        data_dir: Resolved config directory holding the BIOS/HDD asset files
+            for this launch.
 
     Returns:
-        Path to the xemu.toml config file inside vm_dir.
+        Path to the xemu.toml sentinel file inside exe_path.parent.
 
     Raises:
-        FileNotFoundError: If the MCPX ROM, flash BIOS, or xbox_hdd.qcow2 are absent.
+        FileNotFoundError: If the MCPX ROM, flash BIOS, or xbox_hdd.qcow2 are
+            absent from data_dir.
     """
     import os
 
     exe_dir = exe_path.parent
-    vm_dir.mkdir(parents=True, exist_ok=True)
-    hdd_path = exe_dir / "xbox_hdd.qcow2"
-    toml_path = vm_dir / "xemu.toml"
-    eeprom_path = exe_dir / "eeprom.bin"
+    toml_path = exe_dir / "xemu.toml"
+    hdd_path = data_dir / "xbox_hdd.qcow2"
+    eeprom_path = data_dir / "eeprom.bin"
 
     if not hdd_path.exists():
         raise FileNotFoundError(
             f"Xbox HDD image not found: {hdd_path}. "
             "xemu requires a properly formatted 8 GB qcow2 image named xbox_hdd.qcow2 "
-            f"placed in {exe_dir}. "
+            f"placed in {data_dir}. "
             "See https://xemu.app/docs/required-files/ for instructions on obtaining "
             "or creating this image from your own Xbox hardware."
         )
 
-    mcpx = exe_dir / "mcpx_1.0.bin"
+    mcpx = data_dir / "mcpx_1.0.bin"
     if not mcpx.exists():
         raise FileNotFoundError(
             f"MCPX boot ROM not found: {mcpx}. "
-            "Place mcpx_1.0.bin in emulators/xemu/ before launching."
+            f"Place mcpx_1.0.bin in {data_dir} before launching."
         )
 
     flash_bins = [
-        f for f in sorted(exe_dir.glob("*.bin"))
+        f for f in sorted(data_dir.glob("*.bin"))
         if f.name.lower() not in ("mcpx_1.0.bin", "eeprom.bin")
     ]
     if not flash_bins:
         raise FileNotFoundError(
-            f"Flash BIOS not found in {exe_dir}. "
-            "Place your Xbox flash BIOS .bin file in emulators/xemu/ before launching."
+            f"Flash BIOS not found in {data_dir}. "
+            f"Place your Xbox flash BIOS .bin file in {data_dir} before launching."
         )
 
     content = (
@@ -154,63 +179,56 @@ def provision_xemu_defaults(exe_path: Path, vm_dir: Path, dvd_path: str | None =
     return toml_path
 
 
-def validate_bios_path(config_path: Path) -> None:
-    """Validate that the asset files declared in the per-VM xemu.toml exist on disk.
+def validate_bios_path(data_dir: Path) -> None:
+    """Validate that the BIOS/HDD asset files for the resolved config exist on disk.
 
-    Reads bootrom_path, flashrom_path, and hdd_path from the per-VM config and verifies
-    each file is present. Paths may be absolute or relative to the project root.
+    Checks for mcpx_1.0.bin, a flash BIOS *.bin file, and xbox_hdd.qcow2 inside
+    data_dir — the config directory resolved by resolve_launch_config().
 
     Args:
-        config_path: Path to the per-VM xemu.toml (emulators/xemu/vms/{slug}/xemu.toml).
+        data_dir: Resolved config directory (e.g. emulators/xemu/data/default/).
 
     Raises:
-        RuntimeError: If the per-VM toml is absent, a key is unset, or a file is absent.
+        RuntimeError: If data_dir is absent or any required file is missing.
     """
-    import tomllib
-
-    if not config_path.exists():
+    if not data_dir.exists() or not data_dir.is_dir():
         raise RuntimeError(
-            f"xemu per-VM config not found: {config_path}. "
-            "Register the Xbox platform before launching."
+            f"xemu config directory not found: {data_dir}. "
+            "Place your BIOS and HDD image files there before launching."
         )
 
-    with config_path.open("rb") as fh:
-        config = tomllib.load(fh)
-
-    files = config.get("sys", {}).get("files", {})
-
-    checks = [
-        ("bootrom_path", files.get("bootrom_path", "")),
-        ("flashrom_path", files.get("flashrom_path", "")),
-        ("hdd_path", files.get("hdd_path", "")),
-    ]
-
-    base = get_base_path()
     missing: list[str] = []
-    for key, raw in checks:
-        if not raw:
-            raise RuntimeError(
-                f"xemu config key '{key}' is not set in {config_path}. "
-                "Re-register the Xbox platform or update the config manually."
-            )
-        resolved = Path(raw) if Path(raw).is_absolute() else base / raw
-        if not resolved.exists():
-            missing.append(f"  {key}: {resolved}")
+
+    mcpx = data_dir / "mcpx_1.0.bin"
+    if not mcpx.exists():
+        missing.append(f"  bootrom_path: {mcpx}")
+
+    flash_bins = [
+        f for f in sorted(data_dir.glob("*.bin"))
+        if f.name.lower() not in ("mcpx_1.0.bin", "eeprom.bin")
+    ]
+    if not flash_bins:
+        missing.append(f"  flashrom_path: <no flash BIOS *.bin found in {data_dir}>")
+
+    hdd_path = data_dir / "xbox_hdd.qcow2"
+    if not hdd_path.exists():
+        missing.append(f"  hdd_path: {hdd_path}")
 
     if missing:
         lines = "\n".join(missing)
         raise RuntimeError(
             f"xemu asset files not found:\n{lines}\n"
-            f"Update these paths in {config_path}."
+            f"Place the missing files in {data_dir}."
         )
 
 
 def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch xemu with the given Xbox disc image under Job Object isolation.
 
-    Provisions a per-profile xemu.toml (emulators/xemu/vms/<profile_id>/xemu.toml)
-    on every launch. No Platform record is required — xemu behaves like all
-    other console backends (DuckStation, PCSX2, Mesen, Project64).
+    Provisions the xemu.toml portable-mode sentinel beside the binary on
+    every launch, sourcing BIOS/HDD assets from the resolved config under
+    emulators/xemu/data/. No Platform record is required — xemu behaves like
+    all other console backends (DuckStation, PCSX2, Mesen, Project64).
 
     Args:
         spec: LaunchSpec with era set. media_path is optional — omit to boot
@@ -225,7 +243,8 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         FileNotFoundError: If the executable, BIOS files, or xbox_hdd.qcow2
             are missing.
         ValueError: If the media extension is unsupported.
-        RuntimeError: If XEMU_PATH is not configured or launch fails.
+        RuntimeError: If XEMU_PATH is not configured, the data/ directory
+            declared in xemu.toml is missing/empty, or launch fails.
     """
     _xemu_install = get_install_path("xemu")
     executable_path = str(_xemu_install) if _xemu_install and _xemu_install.is_file() else ""
@@ -235,6 +254,8 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         )
     if not Path(executable_path).exists():
         raise FileNotFoundError(f"xemu executable not found: {executable_path}")
+
+    validate_bios_from_descriptor("xemu")
 
     if spec.media_path is not None:
         validate_media(spec.media_path)
@@ -260,10 +281,15 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     dvd_posix = spec.media_path.resolve().as_posix() if spec.media_path is not None else None
 
-    vm_dir = Path(executable_path).parent
-    logger.debug("xemu.launch: dvd_posix=%s vm_dir=%s", dvd_posix, vm_dir)
-    config_path = provision_xemu_defaults(Path(executable_path), vm_dir, dvd_path=dvd_posix)
-    validate_bios_path(config_path)
+    exe_path = Path(executable_path)
+    vm_dir = exe_path.parent
+    config_name = resolve_launch_config()
+    data_dir = vm_dir / DATA_DIR_NAME / config_name
+    logger.debug(
+        "xemu.launch: dvd_posix=%s vm_dir=%s data_dir=%s", dvd_posix, vm_dir, data_dir
+    )
+    validate_bios_path(data_dir)
+    config_path = provision_xemu_defaults(exe_path, data_dir, dvd_path=dvd_posix)
 
     args = ["-dvd_path", dvd_posix] if dvd_posix else []
 
@@ -276,7 +302,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         from backend.service.utils.platform.windows.app_container import (
             get_container_config as _build_sandbox_cfg,
         )
-        hdd_path = Path(executable_path).parent / "xbox_hdd.qcow2"
+        hdd_path = data_dir / "xbox_hdd.qcow2"
         sandbox_config = _build_sandbox_cfg(
             "xemu",
             executable_path,
