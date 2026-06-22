@@ -44,4 +44,13 @@ export interface BiosRequirement {
   guidance_text: string
   guidance_url: string
   is_present: boolean
+  required: boolean
+}
+
+export interface BiosPlaceResult {
+  slug: string
+  is_present: boolean
+  copied: string[]
+  skipped: string[]
+  warnings: string[]
 }

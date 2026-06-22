@@ -1,4 +1,6 @@
 import { GuidanceNote, KVTable, SandboxToggle, StatusDot } from './EmulatorDetailPrimitives'
+import { BiosPlaceAction } from './BiosPlaceAction'
+import { CloneRomPackButton } from './CloneRomPackButton'
 import type { BiosRequirement } from '@/pages/FirstRun/types'
 import type { components } from '@shared/types'
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
@@ -15,11 +17,16 @@ interface OverviewTabProps {
   isInstalling: boolean
   installError: string | null
   onRunInstaller: () => void
+  romPackEntry: CatalogEntry | undefined
+  isCloning: boolean
+  cloneError: string | null
+  onCloneRomPack: () => void
 }
 
 export function OverviewTab({
   entry, eras, isReady, emulatorProfilesCount, emulatorBios, sandboxSaving, onSandboxToggle,
   onShowLimitations, isInstalling, installError, onRunInstaller,
+  romPackEntry, isCloning, cloneError, onCloneRomPack,
 }: OverviewTabProps) {
   return (
     <div>
@@ -181,7 +188,7 @@ export function OverviewTab({
                     fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-3)',
                     border: '1px solid var(--border)', borderRadius: 'var(--r-1)', padding: '2px 6px',
                   }}>
-                    required
+                    {bios.required ? 'required' : 'optional'}
                   </span>
                   <StatusDot ok={bios.is_present} />
                 </div>
@@ -194,6 +201,35 @@ export function OverviewTab({
                   </div>
                 ) : (
                   <GuidanceNote text={bios.guidance_text} url={bios.guidance_url} />
+                )}
+                {bios.slug === '86box-roms' && romPackEntry ? (
+                  <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 6 }}>
+                    <div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.04em', color: 'var(--fg-3)', marginBottom: 4 }}>
+                        Clone official ROM pack
+                      </div>
+                      {romPackEntry.is_installed && (
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: '#4ade80' }}>
+                          Installed
+                        </span>
+                      )}
+                      <CloneRomPackButton
+                        romPackEntry={romPackEntry}
+                        isCloning={isCloning}
+                        cloneError={cloneError}
+                        onClone={onCloneRomPack}
+                        compact
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.04em', color: 'var(--fg-3)', marginBottom: 4 }}>
+                        Locate folder you already have
+                      </div>
+                      <BiosPlaceAction bios={bios} />
+                    </div>
+                  </div>
+                ) : (
+                  <BiosPlaceAction bios={bios} />
                 )}
               </div>
             ))}

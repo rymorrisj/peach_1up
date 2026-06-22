@@ -9,3 +9,4 @@ class BiosRequirement(SQLModel):
     guidance_text: str
     guidance_url: str
     is_present: bool
+    required: bool = True

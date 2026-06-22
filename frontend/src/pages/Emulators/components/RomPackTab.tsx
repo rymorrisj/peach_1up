@@ -1,4 +1,5 @@
 import { GuidanceNote, StatusDot } from './EmulatorDetailPrimitives'
+import { CloneRomPackButton } from './CloneRomPackButton'
 import type { components } from '@shared/types'
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
 
@@ -22,25 +23,12 @@ export function RomPackTab({ romPackEntry, isCloning, cloneError, onCloneRomPack
               <StatusDot ok={romPackEntry.is_installed} />
               {romPackEntry.is_installed ? 'ROM pack present' : 'ROM pack missing'}
             </div>
-            {!romPackEntry.is_installed && romPackEntry.git_available !== false && (
-              <button
-                type="button"
-                onClick={onCloneRomPack}
-                disabled={isCloning}
-                style={{
-                  border: 'none', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600,
-                  padding: '9px 14px', borderRadius: 'var(--r-2)', cursor: 'pointer',
-                  background: 'var(--peach-500)', color: '#fff', opacity: isCloning ? 0.5 : 1,
-                }}
-              >
-                {isCloning ? 'Cloning…' : 'Clone ROM Pack'}
-              </button>
-            )}
-            {!romPackEntry.is_installed && romPackEntry.git_available === false && (
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: '#fbbf24' }}>
-                git not found on PATH
-              </span>
-            )}
+            <CloneRomPackButton
+              romPackEntry={romPackEntry}
+              isCloning={isCloning}
+              cloneError={null}
+              onClone={onCloneRomPack}
+            />
           </div>
           {!romPackEntry.is_installed && (
             <GuidanceNote text={romPackEntry.guidance_text} url={romPackEntry.guidance_url} />

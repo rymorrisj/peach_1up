@@ -3,6 +3,7 @@ slug = "ps1-bios"
 name = "PS1 BIOS"
 platform = "ps1"
 bios_path = "emulators/duckstation/bios"
+required = true
 guidance_text = "Place your PS1 BIOS file (e.g. scph1001.bin) in emulators/duckstation/bios/. DuckStation requires a BIOS image to boot PS1 games."
 guidance_url = "https://www.duckstation.org/wiki/BIOS"
 
@@ -11,6 +12,7 @@ slug = "ps2-bios"
 name = "PS2 BIOS"
 platform = "ps2"
 bios_path = "emulators/pcsx2/bios"
+required = true
 guidance_text = "Place your PS2 BIOS files in emulators/pcsx2/bios/. PCSX2 requires a PS2 BIOS image to run."
 guidance_url = "https://pcsx2.net/guides/basic-setup/"
 
@@ -19,6 +21,7 @@ slug = "xbox-bios"
 name = "Xbox BIOS"
 platform = "xbox"
 bios_path = "emulators/xemu"
+required = true
 guidance_text = "Place your Xbox BIOS .bin files (mcpx_1.0.bin and the appropriate ROM) in emulators/xemu/. xemu will not start without them."
 guidance_url = "https://xemu.app/docs/required-files/"
 
@@ -27,5 +30,24 @@ slug = "dreamcast-bios"
 name = "Dreamcast BIOS"
 platform = "dreamcast"
 bios_path = "emulators/flycast/data"
+required = true
 guidance_text = "Place your Dreamcast BIOS files (dc_boot.bin, dc_flash.bin) in emulators/flycast/data/. Flycast requires these files to boot."
 guidance_url = "https://github.com/flyinghead/flycast"
+
+[[bios_requirements]]
+slug = "86box-roms"
+name = "86Box ROM Pack"
+platform = "86box"
+bios_path = "emulators/86box/roms"
+required = true
+guidance_text = "Place your 86Box ROM pack in emulators/86box/roms/, preserving its folder structure exactly. The ROM pack version must match the 86Box binary version."
+guidance_url = "https://github.com/86Box/roms"
+
+[[bios_requirements]]
+slug = "mesen-fds-bios"
+name = "Mesen FDS BIOS"
+platform = "mesen"
+bios_path = "emulators/mesen/FirmwareFiles"
+required = false
+guidance_text = "Place FdsBios.bin in emulators/mesen/FirmwareFiles/ to enable Famicom Disk System titles. Not required for standard NES/Famicom cartridge games."
+guidance_url = "https://www.mesen.ca"

@@ -21,6 +21,8 @@ const EMULATOR_BIOS_PLATFORM: Record<string, string> = {
   'pcsx2':       'ps2',
   'xemu':        'xbox',
   'flycast':     'dreamcast',
+  '86box':       '86box',
+  'mesen':       'mesen',
 }
 
 export default function EmulatorDetail() {
@@ -264,6 +266,10 @@ export default function EmulatorDetail() {
             isInstalling={isInstalling}
             installError={installError}
             onRunInstaller={handleRunInstaller}
+            romPackEntry={romPackEntry}
+            isCloning={isCloning}
+            cloneError={cloneError}
+            onCloneRomPack={handleCloneRomPack}
           />
         )}
 
