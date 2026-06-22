@@ -50,7 +50,6 @@ def lookup(path: Path, index_path: Path) -> ScanResult | None:
             era=entry.get("era"),
             confidence=1.0,
             reason=f"sha1 match: {hashes['sha1']}",
-            executable_hints=[],
         )
 
     entry = md5_index.get(hashes["md5"])
@@ -61,7 +60,6 @@ def lookup(path: Path, index_path: Path) -> ScanResult | None:
             era=entry.get("era"),
             confidence=0.85,
             reason=f"md5 match: {hashes['md5']}",
-            executable_hints=[],
         )
 
     entry = crc32_index.get(hashes["crc32"])
@@ -72,7 +70,6 @@ def lookup(path: Path, index_path: Path) -> ScanResult | None:
             era=entry.get("era"),
             confidence=0.75,
             reason=f"crc32 match: {hashes['crc32']}",
-            executable_hints=[],
         )
 
     return None

@@ -253,7 +253,7 @@ def _prepare_item(
     if override_profile_id is not None:
         row["profile_id"] = override_profile_id
 
-    row["content_rating"] = detect_rating(media_path) or None
+    row["content_rating"] = detect_rating(row["media_path"]) or None
 
     try:
         p = Path(row["media_path"])

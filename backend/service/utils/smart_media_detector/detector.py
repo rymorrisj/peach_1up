@@ -16,6 +16,8 @@ _INDEX_PATH = Path(__file__).parent / "hashing" / "hash_index.json"
 # detect_media_type-based logic handled plus installer-only DOS directories.
 
 def _compute_requires_install(path: Path, era: str | None) -> bool:
+    if era not in {"dos", "win31"}:
+        return False
     if path.is_file():
         suffix = path.suffix.lower()
         if suffix in {".iso", ".cue"}:
@@ -26,7 +28,7 @@ def _compute_requires_install(path: Path, era: str | None) -> bool:
             except OSError:
                 return False
         return False
-    if path.is_dir() and era in {"dos", "win31", "win95", "win98", "winxp"}:
+    if path.is_dir():
         from .utils.blocklist import is_blocked
         try:
             exes = [
@@ -67,9 +69,6 @@ def _detect(path: Path) -> ScanResult:
     try:
         result = _hash_lookup.lookup(path, _INDEX_PATH)
         if result is not None:
-            result.requires_manual_boot = _requires_manual_boot(
-                result.era, path, result.confidence, result.reason
-            )
             result.requires_install = _compute_requires_install(path, result.era)
             return result
     except Exception:
@@ -85,9 +84,6 @@ def _detect(path: Path) -> ScanResult:
             reason="path is neither a file nor a directory",
         )
 
-    result.requires_manual_boot = _requires_manual_boot(
-        result.era, path, result.confidence, result.reason
-    )
     result.requires_install = _compute_requires_install(path, result.era)
     return result
 
@@ -178,21 +174,3 @@ def _detect_file(path: Path) -> ScanResult:
         title=None, platform=None, era=None, confidence=0.0,
         reason="no signal found",
     )
-
-
-# ── requires_manual_boot ─────────────────────────────────────────────────────
-
-def _requires_manual_boot(
-    era: str | None, path: Path, confidence: float, reason: str = ""
-) -> bool:
-    if confidence < 0.5:
-        return True
-    if era is None:
-        return False
-    suffix = path.suffix.lower() if path.is_file() else ""
-    if era == "ps2" and suffix == ".img":
-        return True
-    # xbox + .iso: requires manual boot UNLESS it's confirmed xiso format
-    if era == "xbox" and suffix == ".iso" and "xiso" not in reason.lower():
-        return True
-    return False
