@@ -111,3 +111,4 @@ frontend/src/generated/constants.ts
 # Generated OpenAPI artifacts
 shared/openapi.json
 shared/types.ts
+docs/docs/api/

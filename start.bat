@@ -113,8 +113,20 @@ if errorlevel 1 (
     exit /b 1
 )
 
-popd
 echo [OK] API types generated
+
+REM ── Generate API reference docs ──────────────────────────────
+REM Must run after shared/openapi.json exists (above) and before the
+REM docs dev server starts below.
+pushd "docs"
+call npm run gen-api-docs
+if errorlevel 1 (
+    echo ERROR: API docs generation failed.
+    popd
+    exit /b 1
+)
+popd
+echo [OK] API reference docs generated
 
 REM ── Settings check ───────────────────────────────────────────
 if not exist "config\settings.yaml" (

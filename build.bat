@@ -110,12 +110,35 @@ if errorlevel 1 (
 popd
 echo [OK] Frontend dependencies installed
 
-REM ── Docs (Docusaurus) build ───────────────────────────────────
+REM ── Docs (Docusaurus) dependencies ────────────────────────────
 echo Installing docs dependencies...
 pushd "docs"
 call npm install
 if errorlevel 1 (
     echo ERROR: Failed to install docs dependencies.
+    popd
+    exit /b 1
+)
+popd
+echo [OK] Docs dependencies installed
+
+REM ── Generate API types ───────────────────────────────────────
+REM Must run before the docs build below — it produces shared/openapi.json,
+REM which docusaurus-plugin-openapi-docs reads to generate docs/docs/api/.
+echo Generating OpenAPI spec and frontend types...
+py scripts\export_and_build_types.py
+if errorlevel 1 (
+    echo ERROR: Type generation failed. Aborting.
+    exit /b 1
+)
+
+echo [OK] API types generated
+
+REM ── Docs (Docusaurus) build ───────────────────────────────────
+pushd "docs"
+call npm run gen-api-docs
+if errorlevel 1 (
+    echo ERROR: API docs generation failed.
     popd
     exit /b 1
 )
@@ -129,16 +152,6 @@ if errorlevel 1 (
 
 popd
 echo [OK] Docs built
-
-REM ── Generate API types ───────────────────────────────────────
-echo Generating OpenAPI spec and frontend types...
-py scripts\export_and_build_types.py
-if errorlevel 1 (
-    echo ERROR: Type generation failed. Aborting.
-    exit /b 1
-)
-
-echo [OK] API types generated
 
 REM ── Settings check ───────────────────────────────────────────
 if not exist "config\settings.yaml" (

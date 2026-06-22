@@ -35,12 +35,33 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
+          docItemComponent: '@theme/ApiItem',
         },
         blog: false,
         theme: {
           customCss: './src/css/custom.css',
         },
       } satisfies Preset.Options,
+    ],
+  ],
+
+  plugins: [
+    [
+      'docusaurus-plugin-openapi-docs',
+      {
+        id: 'api',
+        docsPluginId: 'classic',
+        config: {
+          api: {
+            specPath: '../shared/openapi.json',
+            outputDir: 'docs/api',
+            label: 'API Reference',
+            sidebarOptions: {
+              groupPathsBy: 'tag',
+            },
+          },
+        },
+      },
     ],
   ],
 
@@ -51,6 +72,7 @@ const config: Config = {
         hashed: true,
       },
     ],
+    'docusaurus-theme-openapi-docs',
   ],
 
   themeConfig: {
