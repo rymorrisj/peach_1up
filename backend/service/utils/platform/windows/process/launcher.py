@@ -179,13 +179,23 @@ def launch_under_job_object(
     executable_path: str,
     args: list[str],
     era: str,
-    job_name: str,
+    job_name_prefix: str,
     slug: str = "",
     cwd: str | None = None,
     container_enabled: bool = False,
     sandbox_config: SandboxConfig | None = None,
 ) -> tuple[SandboxProcess, "WindowsJobObject"]:
-    """Launch an emulator under the current user account in a Windows Job Object."""
+    """Launch an emulator under the current user account in a Windows Job Object.
+
+    The Job Object name is ``job_name_prefix`` plus the launched process's PID,
+    so the name can only be finalized once the process exists — the process is
+    therefore launched first and the Job Object is created and configured
+    second, immediately before assignment. The PID makes the name unique per
+    launch (OS-guaranteed for live processes); the alternative of naming the
+    job before the process exists has no such guarantee and risks
+    CreateJobObjectW silently handing back a handle to a same-named job from
+    an unrelated launch.
+    """
     if container_enabled and sandbox_config is None:
         raise RuntimeError(
             "container_enabled is True but sandbox_config is None — "
@@ -194,11 +204,19 @@ def launch_under_job_object(
 
     job_object = None
     process = None
-    base_flags = None
+    base_flags = subprocess.CREATE_NEW_PROCESS_GROUP
 
     try:
         memory_limit_mb, cpu_limit_percent = _load_era_limits(era)
 
+        if container_enabled:
+            process = _launch_process_in_container(
+                executable_path, args, base_flags, sandbox_config, cwd=cwd
+            )
+        else:
+            process = _launch_process(executable_path, args, base_flags, cwd=cwd)
+
+        job_name = f"{job_name_prefix}_{process.pid}"
         job_object = WindowsJobObject(job_name, memory_limit_mb, cpu_limit_percent)
         job_object.create()
 
@@ -209,15 +227,6 @@ def launch_under_job_object(
             job_object.set_kill_on_close()
         else:
             job_object.set_memory_limit(job_object.memory_limit_mb)
-
-        base_flags = subprocess.CREATE_NEW_PROCESS_GROUP
-
-        if container_enabled:
-            process = _launch_process_in_container(
-                executable_path, args, base_flags, sandbox_config, cwd=cwd
-            )
-        else:
-            process = _launch_process(executable_path, args, base_flags, cwd=cwd)
 
     except SandboxError:
         if job_object:

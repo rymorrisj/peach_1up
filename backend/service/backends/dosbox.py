@@ -422,7 +422,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     args = build_args(spec.media_path, spec.era, enable_networking=spec.enable_networking)
     args += ["-conf", str(conf_path)]
-    job_name = f"peach1up_dosbox_{spec.era}_{spec.media_path.stem}"
+    job_name_prefix = f"Peach1UP_dosbox_{spec.era}_{spec.media_path.stem}"
 
     # Resolve container_enabled: profile field overrides the emulator catalog value.
     catalog_enabled = get_container_enabled("dosbox-x")
@@ -450,7 +450,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         executable_path=spec.executable_path,
         args=args,
         era=spec.era,
-        job_name=job_name,
+        job_name_prefix=job_name_prefix,
         slug="dosbox-x",
         container_enabled=container_enabled,
         sandbox_config=sandbox_config,

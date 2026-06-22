@@ -328,7 +328,7 @@ def launch(spec: "LaunchSpec") -> tuple:
         "--vmpath", str(vm_dir),
     ]
 
-    job_name = f"peach1up_86box_{spec.era}_{spec.platform_slug}"
+    job_name_prefix = f"Peach1UP_86box_{spec.era}_{spec.platform_slug}"
 
     catalog_enabled = get_container_enabled("86box")
     container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
@@ -346,7 +346,7 @@ def launch(spec: "LaunchSpec") -> tuple:
             executable_path=box86_path,
             args=args,
             era=spec.era,
-            job_name=job_name,
+            job_name_prefix=job_name_prefix,
             slug="86box",
             cwd=str(vm_dir),
             container_enabled=container_enabled,

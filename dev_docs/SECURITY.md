@@ -267,8 +267,9 @@ conversation and wait for an explicit decision before proceeding.
   cap (Qt emulators exempt via `skip_memory_limit` — see Known Limitations). CPU rate
   control may be skipped per emulator via `skip_cpu_limit = true` in the descriptor
   (DOSBox-X uses this).
-- The Python launcher sequence is: create Job Object → apply limits → launch process
-  (`CREATE_NEW_PROCESS_GROUP`) → `AssignProcessToJobObject` → breakaway retry if error 5.
+- The Python launcher sequence is: launch process (`CREATE_NEW_PROCESS_GROUP`) → create
+  Job Object (named with the launched process's PID for per-launch uniqueness) → apply
+  limits → `AssignProcessToJobObject` → breakaway retry if error 5.
 - If `CreateProcessW` or `AssignProcessToJobObject` fails for any reason, **the launch
   is aborted**. There is no unsandboxed fallback.
 - AppContainer (P9) is an additional isolation layer applied on top of Job Objects when

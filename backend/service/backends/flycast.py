@@ -110,7 +110,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     )
 
     args: list[str] = [str(spec.media_path.resolve())]
-    job_name = f"peach1up_flycast_{spec.era}_{spec.media_path.stem}"
+    job_name_prefix = f"Peach1UP_flycast_{spec.era}_{spec.media_path.stem}"
 
     catalog_enabled = get_container_enabled("flycast")
     container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
@@ -129,7 +129,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         executable_path=spec.executable_path,
         args=args,
         era=spec.era,
-        job_name=job_name,
+        job_name_prefix=job_name_prefix,
         slug="flycast",
         cwd=str(Path(spec.executable_path).parent),
         container_enabled=container_enabled,

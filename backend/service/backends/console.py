@@ -123,7 +123,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         args = cli_args_prefix + ["--", str(spec.media_path)]
     else:
         args = cli_args_prefix + [str(spec.media_path)]
-    job_name = f"peach1up_{spec.slug}_{spec.media_path.stem}"
+    job_name_prefix = f"Peach1UP_{spec.slug}_{spec.media_path.stem}"
 
     catalog_enabled = get_container_enabled(spec.slug)
     container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
@@ -144,7 +144,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         executable_path=spec.executable_path,
         args=args,
         era=spec.era,
-        job_name=job_name,
+        job_name_prefix=job_name_prefix,
         slug=spec.slug,
         cwd=cwd,
         container_enabled=container_enabled,

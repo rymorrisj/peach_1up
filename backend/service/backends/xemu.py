@@ -267,7 +267,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     args = ["-dvd_path", dvd_posix] if dvd_posix else []
 
-    job_name = f"peach1up_xemu_{spec.era}_shared"
+    job_name_prefix = f"Peach1UP_xemu_{spec.era}"
 
     catalog_enabled = get_container_enabled("xemu")
     container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
@@ -304,7 +304,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         executable_path=executable_path,
         args=args,
         era=spec.era,
-        job_name=job_name,
+        job_name_prefix=job_name_prefix,
         slug="xemu",
         cwd=str(vm_dir),
         container_enabled=container_enabled,

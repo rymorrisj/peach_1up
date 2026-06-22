@@ -88,6 +88,7 @@ class WindowsJobObject:
 
     def create(self) -> None:
         """Create the Win32 Job Object."""
+        ctypes.windll.kernel32.SetLastError(0)
         self.job_handle = ctypes.windll.kernel32.CreateJobObjectW(
             None,
             ctypes.c_wchar_p(self.name)
@@ -97,6 +98,21 @@ class WindowsJobObject:
             error_code = ctypes.windll.kernel32.GetLastError()
             raise RuntimeError(
                 f"Failed to create Job Object '{self.name}'. Error code: {error_code}"
+            )
+
+        # CreateJobObjectW returns a handle to the EXISTING job object on a name
+        # collision (ERROR_ALREADY_EXISTS) instead of failing — the two unrelated
+        # launches would silently share one kernel object, so tearing down one
+        # would kill the other. Job names are PID-suffixed so this should never
+        # fire in practice; treat it as a fatal error rather than proceeding.
+        _ERROR_ALREADY_EXISTS = 183
+        error_code = ctypes.windll.kernel32.GetLastError()
+        if error_code == _ERROR_ALREADY_EXISTS:
+            ctypes.windll.kernel32.CloseHandle(self.job_handle)
+            self.job_handle = None
+            raise RuntimeError(
+                f"Job Object '{self.name}' already exists (ERROR_ALREADY_EXISTS). "
+                "Refusing to share a Job Object handle between launches — aborting."
             )
 
     def set_memory_limit(self, limit_mb: int) -> None:
