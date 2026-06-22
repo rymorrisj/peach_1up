@@ -125,7 +125,7 @@ surfaced to the user. There is no unsandboxed fallback.
 ## DOSBox-X specifics
 
 `write_launch_conf()` builds a complete `dosbox-x.conf` for each launch: it takes the
-bundled `config/templates/dosbox-x/base.conf`, strips any `[autoexec]` section, and
+bundled `library/system/templates/dosbox-x/base.conf`, strips any `[autoexec]` section, and
 appends a generated `[autoexec]` block (drive mounts, then profile- and item-level
 launch commands). The result is written to a private per-launch temp directory created
 with `tempfile.mkdtemp(prefix="peach1up_dosbox_")`.

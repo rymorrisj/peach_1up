@@ -278,7 +278,7 @@ def write_launch_conf(
 ) -> Path:
     """Write the DOSBox-X launch conf to a private temp directory and return its path.
 
-    Reads config/templates/dosbox-x/base.conf, strips any existing [autoexec]
+    Reads library/system/templates/dosbox-x/base.conf, strips any existing [autoexec]
     section, then appends a generated [autoexec] block. The result is written
     to a temporary directory as dosbox-x.conf and the path is returned; the
     caller passes it to DOSBox-X via the -conf flag.
@@ -324,7 +324,7 @@ def write_launch_conf(
         drive_setup_lines, mount_line, drive_line, media_drive, profile_cmds, item_cmds
     )
 
-    base_conf = get_base_path() / "config" / "templates" / "dosbox-x" / "base.conf"
+    base_conf = get_base_path() / "library" / "system" / "templates" / "dosbox-x" / "base.conf"
     if not base_conf.exists():
         raise FileNotFoundError(f"DOSBox-X base.conf not found: {base_conf}")
     base = _strip_autoexec(base_conf.read_text(encoding="utf-8", errors="replace"))

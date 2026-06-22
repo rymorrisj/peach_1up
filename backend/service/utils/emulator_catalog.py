@@ -14,8 +14,8 @@ _logger = logging.getLogger(__name__)
 
 _EMULATORS_DIR = get_base_path() / "config" / "emulators"
 _BASE_DIR = get_base_path() / "emulators"
-_PROFILES_PATH = get_base_path() / "config" / "86box-profiles.toml"
-_PROFILES_DIR = get_base_path() / "config" / "86box-profiles"
+_PROFILES_PATH = get_base_path() / "library" / "system" / "templates" / "86box" / "86box-profiles.toml"
+_PROFILES_DIR = get_base_path() / "library" / "system" / "templates" / "86box"
 
 _catalog_cache: dict | None = None
 _ERAS_CONFIG_CACHE: Dict[str, Any] | None = None
@@ -97,8 +97,9 @@ def get_backend_for_era(era: str) -> str:
 def get_86box_profile(slug: str) -> dict:
     """Return the 86Box hardware profile dict for *slug*.
 
-    Reads from config/86box-profiles.toml if present; falls back to reading
-    individual files from config/86box-profiles/ for development use.
+    Reads from library/system/templates/86box/86box-profiles.toml if present;
+    falls back to reading individual files from library/system/templates/86box/
+    for development use.
 
     Raises:
         ValueError: If the slug is not found in any profile file.
@@ -115,14 +116,14 @@ def get_86box_profile(slug: str) -> dict:
     else:
         raise FileNotFoundError(
             f"86Box profiles not found — expected {_PROFILES_PATH} or {_PROFILES_DIR}. "
-            "Ensure config/86box-profiles/ exists and contains .toml profile files."
+            "Ensure library/system/templates/86box/ exists and contains .toml profile files."
         )
     for profile in profiles:
         if profile.get("slug") == slug:
             return profile
     raise ValueError(
         f"Unknown 86Box hardware profile: {slug!r}. "
-        "Available profiles are defined in config/86box-profiles/."
+        "Available profiles are defined in library/system/templates/86box/."
     )
 
 
