@@ -1,8 +1,16 @@
+"""Core settings façade.
+
+This module's import of backend.service.utils.settings is a deliberate
+downward dependency (façade over the lower-level settings module), not a
+layering accident — the import is deferred into the functions below because
+service.utils.settings calls back into get_base_path(), and a top-level
+import here would create a circular import depending on which module loads
+first.
+"""
+
 import os
 import sys
 from pathlib import Path
-
-from backend.service.utils import settings as _settings_module
 
 _initialised = False
 
@@ -16,6 +24,7 @@ def get_base_path() -> Path:
 def init_settings() -> None:
     global _initialised
     if not _initialised:
+        from backend.service.utils import settings as _settings_module
         _settings_module.init()
         _initialised = True
 
@@ -23,4 +32,5 @@ def init_settings() -> None:
 def get_settings():
     if not _initialised:
         raise RuntimeError("Settings not initialised — call init_settings() first.")
+    from backend.service.utils import settings as _settings_module
     return _settings_module

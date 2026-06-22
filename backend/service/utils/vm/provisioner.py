@@ -12,9 +12,6 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from sqlalchemy import update
-from sqlalchemy.orm import Session
-
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.models.platform import Platform
@@ -172,8 +169,12 @@ def provision_86box_vm(
 
 
 
-def provision_platform(platform: Platform, db: Session | None = None) -> tuple[str | None, str | None, str | None]:
-    """Provision a working image for a platform, selecting the backend by era."""
+def provision_platform(platform: Platform) -> tuple[str | None, str | None, str | None]:
+    """Provision a working image for a platform, selecting the backend by era.
+
+    Returns (base_image_path, working_image_path, config_path) but never
+    persists them — the caller owns the write, since it owns the db session.
+    """
     era = platform.era
 
     if era in _86BOX_ERAS:
@@ -188,13 +189,6 @@ def provision_platform(platform: Platform, db: Session | None = None) -> tuple[s
         rom_dir = _resolve_rom_path(Path(box86_path))
         hw_profile = getattr(platform, "hardware_profile", None) or "standard"
         iso_path, img_path, cfg_path = provision_86box_vm(platform, box86_path, str(rom_dir), hw_profile)
-        if iso_path and not platform.base_image_path and db is not None:
-            db.execute(
-                update(Platform)
-                .where(Platform.id == platform.id)
-                .values(base_image_path=str(iso_path))
-            )
-            db.flush()
         return iso_path, img_path, cfg_path
 
     return None, None, None

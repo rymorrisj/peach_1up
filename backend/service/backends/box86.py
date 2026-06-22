@@ -152,14 +152,24 @@ def _prepare_config(
 def _resolve_rom_path(box86_binary: Path) -> Path:
     """Derive the effective ROM path from the 86Box binary location.
 
-    Looks in the directory containing the binary for a single versioned
-    ROM subdirectory (e.g. roms-5.3). No fallback — the subdirectory must
-    exist and be the only subdirectory present.
+    Checks the descriptor's canonical roms/ directory first — the same
+    location validate_bios_from_descriptor("86box") gates on — and only
+    falls back to scanning for a single versioned roms-* subdirectory
+    (e.g. roms-5.3) when roms/ is absent or empty. This keeps the launch
+    gate and this resolver agreeing on the same canonical location.
 
     Raises:
-        FileNotFoundError: If no single ROM subdirectory is found.
+        FileNotFoundError: If neither the canonical roms/ directory nor a
+            single unambiguous versioned ROM subdirectory is found.
     """
     base = box86_binary.parent
+    canonical = base / "roms"
+    try:
+        if canonical.is_dir() and any(canonical.iterdir()):
+            return canonical
+    except OSError as exc:
+        raise FileNotFoundError(f"Cannot read 86Box ROM directory: {canonical}") from exc
+
     try:
         entries = list(base.iterdir())
     except OSError as exc:

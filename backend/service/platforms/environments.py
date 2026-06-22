@@ -65,7 +65,9 @@ def create_platform(body: PlatformCreate, db: Session) -> Platform:
     if not platform.working_image_path and platform.era in _PROVISIONABLE_ERAS:
         try:
             from backend.service.utils.vm import provision_platform
-            _iso, working_path, config_path = provision_platform(platform, db)
+            _iso, working_path, config_path = provision_platform(platform)
+            if _iso and not platform.base_image_path:
+                platform.base_image_path = _iso
             if working_path:
                 platform.working_image_path = working_path
             if config_path:
@@ -180,7 +182,12 @@ def get_health_summary(db: Session) -> dict:
     bios_total = len(bios_reqs)
     bios_present = sum(
         1 for b in bios_reqs
-        if b.get("bios_path") and check_bios_presence(b["bios_path"])
+        if b.get("bios_path") and check_bios_presence(
+            b["bios_path"],
+            required_files=b.get("required_files"),
+            required_glob=b.get("required_glob"),
+            required_glob_excludes=b.get("required_glob_excludes"),
+        )
     )
 
     rom_entries = [e for e in catalog if e.get("install_type") == "rom_pack"]

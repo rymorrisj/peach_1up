@@ -47,6 +47,9 @@ validation_type = "directory"
 display_name = "Xbox BIOS"
 platform = "xbox"
 bios_path = "emulators/xemu/data/default"
+required_files = ["mcpx_1.0.bin", "xbox_hdd.qcow2"]
+required_glob = "*.bin"
+required_glob_excludes = ["mcpx_1.0.bin", "eeprom.bin"]
 guidance_text = "Place your Xbox BIOS .bin files (mcpx_1.0.bin and the appropriate ROM) in emulators/xemu/data/default/. xemu will not start without them."
 guidance_url = "https://xemu.app/docs/required-files/"
 

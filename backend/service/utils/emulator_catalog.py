@@ -39,6 +39,9 @@ def _load_raw_catalog() -> dict:
                     "guidance_text": dep.get("guidance_text", ""),
                     "guidance_url": dep.get("guidance_url", ""),
                     "required": dep.get("required", True),
+                    "required_files": dep.get("required_files"),
+                    "required_glob": dep.get("required_glob"),
+                    "required_glob_excludes": dep.get("required_glob_excludes"),
                 })
         _catalog_cache = {
             "emulators": emulators,
@@ -341,10 +344,45 @@ def load_bios_requirements() -> list[dict]:
     return _load_raw_catalog().get("bios_requirements", [])
 
 
-def check_bios_presence(bios_path: str) -> bool:
+def _missing_required_files(
+    dir_path: Path,
+    required_files: list[str] | None,
+    required_glob: str | None,
+    required_glob_excludes: list[str] | None,
+) -> list[str]:
+    """Return descriptions of required files absent from dir_path.
+
+    Falls back to non-empty-directory semantics when neither required_files
+    nor required_glob is specified — most BIOS dependencies (DuckStation,
+    PCSX2) auto-detect flexibly-named files by hash and have no fixed
+    filename to check.
+    """
+    if not required_files and not required_glob:
+        try:
+            return [] if any(dir_path.iterdir()) else ["<directory is empty>"]
+        except PermissionError:
+            return ["<directory not readable>"]
+
+    missing = [name for name in required_files or [] if not (dir_path / name).exists()]
+    if required_glob:
+        excludes = {name.lower() for name in (required_glob_excludes or [])}
+        matches = [f for f in dir_path.glob(required_glob) if f.name.lower() not in excludes]
+        if not matches:
+            missing.append(f"a file matching '{required_glob}' (excluding {sorted(excludes)})")
+    return missing
+
+
+def check_bios_presence(
+    bios_path: str,
+    required_files: list[str] | None = None,
+    required_glob: str | None = None,
+    required_glob_excludes: list[str] | None = None,
+) -> bool:
     path = (get_base_path() / bios_path).resolve()
     try:
-        return path.exists() and path.is_dir() and any(path.iterdir())
+        if not path.exists() or not path.is_dir():
+            return False
+        return not _missing_required_files(path, required_files, required_glob, required_glob_excludes)
     except PermissionError:
         return False
 
@@ -405,9 +443,15 @@ def validate_bios_from_descriptor(slug: str) -> None:
                     f"{display_name} directory not found: {resolved}. "
                     "Place your BIOS files there before launching."
                 )
-        elif not any(resolved.iterdir()):
-            if required:
-                raise FileNotFoundError(
-                    f"{display_name} directory is empty: {resolved}. "
-                    "Place your BIOS files there before launching."
-                )
+            continue
+        missing = _missing_required_files(
+            resolved,
+            dep.get("required_files"),
+            dep.get("required_glob"),
+            dep.get("required_glob_excludes"),
+        )
+        if missing and required:
+            raise FileNotFoundError(
+                f"{display_name} is missing required file(s) in {resolved}: {', '.join(missing)}. "
+                "Place your BIOS files there before launching."
+            )

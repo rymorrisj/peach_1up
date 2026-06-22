@@ -35,7 +35,12 @@ def list_bios_requirements(_: User = Depends(get_active_user)):
             "bios_path": bios_path,
             "guidance_text": entry.get("guidance_text", ""),
             "guidance_url": entry.get("guidance_url", ""),
-            "is_present": check_bios_presence(bios_path) if bios_path else False,
+            "is_present": check_bios_presence(
+                bios_path,
+                required_files=entry.get("required_files"),
+                required_glob=entry.get("required_glob"),
+                required_glob_excludes=entry.get("required_glob_excludes"),
+            ) if bios_path else False,
             "required": entry.get("required", True),
         })
     return result
@@ -93,7 +98,12 @@ async def place_bios(
 
     return BiosPlaceResult(
         slug=slug,
-        is_present=check_bios_presence(bios_path_str),
+        is_present=check_bios_presence(
+            bios_path_str,
+            required_files=entry.get("required_files"),
+            required_glob=entry.get("required_glob"),
+            required_glob_excludes=entry.get("required_glob_excludes"),
+        ),
         copied=result.copied,
         skipped=result.skipped,
         warnings=result.warnings,

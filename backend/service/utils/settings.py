@@ -18,9 +18,8 @@ from dotenv import load_dotenv
 
 
 def _get_project_root() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent.parent.parent
+    from backend.core.settings import get_base_path
+    return get_base_path()
 
 
 def _get_paths_dir() -> Path:
