@@ -35,3 +35,14 @@ mode = "grant"
 path_key = "saves_dir"
 access = "rw"
 mode = "grant"
+
+[[dependencies]]
+name = "mesen-fds-bios"
+acquire_method = "user_supplied"
+required = false
+validation_type = "directory"
+display_name = "Mesen FDS BIOS"
+platform = "mesen"
+bios_path = "emulators/mesen/FirmwareFiles"
+guidance_text = "Place FdsBios.bin in emulators/mesen/FirmwareFiles/ to enable Famicom Disk System titles. Not required for standard NES/Famicom cartridge games."
+guidance_url = "https://www.mesen.ca"

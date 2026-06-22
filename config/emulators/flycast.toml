@@ -40,7 +40,7 @@ access = "r"
 mode = "grant"
 
 [[dependencies]]
-name = "dc-bios"
+name = "dreamcast-bios"
 acquire_method = "user_supplied"
 required = true
 validation_type = "directory"

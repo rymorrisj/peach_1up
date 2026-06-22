@@ -47,10 +47,9 @@ startup.
 
 **Required files:**
 
-| Filename/Path      | Purpose          | Location                 | Notes                                                                                   |
-| ------------------ | ---------------- | ------------------------ | --------------------------------------------------------------------------------------- |
-| `roms/<machine>/…` | Machine ROM pack | `roms/` next to binary   | Filenames and subdirectory structure are hardcoded — renaming any file breaks emulation |
-| `assets/`          | UI assets        | `assets/` next to binary |                                                                                         |
+| Filename/Path      | Purpose          | Location               | Notes                                                                                                                                                                                                      |
+| ------------------ | ---------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | --------- | --------- | ------------------------ | --- |
+| `roms/<machine>/…` | Machine ROM pack | `roms/` next to binary | Filenames and subdirectory structure are hardcoded — renaming any file breaks emulation. Peach 1UP validates directory presence only — per-machine completeness is unvalidated, see limitation note below. |     | `assets/` | UI assets | `assets/` next to binary |     |
 
 **Optional files:** None beyond the ROM pack.
 
@@ -58,6 +57,19 @@ startup.
 version exactly. Mixing ROM pack and binary versions causes silent emulation
 failures or startup errors. Always update both together.
 ROM pack: https://github.com/86Box/roms
+
+**Per-machine ROM completeness — not validated (known limitation):** 86Box's
+hard-fail-on-missing-ROMs behavior only covers total absence of the ROM set —
+if no ROM dumps are found at all, 86Box errors and closes on startup. It does
+NOT mean every individual machine/video-card ROM is verified before launch.
+A specific machine profile (e.g. one routing to a Voodoo2 card) can be missing
+just that card's ROM and 86Box will not necessarily surface a clean, scriptable
+error — behavior here is unconfirmed. 86Box does expose `-M`/`--dumpmissing`,
+a CLI flag that outputs a list of all machines and video cards with missing
+ROMs, and prints the full ROM search path list to stdout/log on every startup.
+Neither is wired into Peach 1UP today. Tracked as a PX item: shell out to
+`--dumpmissing` as a pre-flight check before/after launch to surface per-machine
+gaps instead of relying on 86Box's own (currently unverified) in-app behavior.
 
 **Official download:** https://86box.net
 

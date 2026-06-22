@@ -13,7 +13,6 @@ from backend.service.utils import settings as _settings
 _logger = logging.getLogger(__name__)
 
 _EMULATORS_DIR = get_base_path() / "config" / "emulators"
-_BIOS_REQUIREMENTS_PATH = get_base_path() / "config" / "bios_requirements.toml"
 _BASE_DIR = get_base_path() / "emulators"
 _PROFILES_PATH = get_base_path() / "config" / "86box-profiles.toml"
 _PROFILES_DIR = get_base_path() / "config" / "86box-profiles"
@@ -26,12 +25,26 @@ def _load_raw_catalog() -> dict:
     global _catalog_cache
     if _catalog_cache is None:
         emulators = []
+        bios_requirements = []
         for path in sorted(_EMULATORS_DIR.glob("*.toml")):
-            emulators.append(tomllib.loads(path.read_text(encoding="utf-8")))
-        bios_data = tomllib.loads(_BIOS_REQUIREMENTS_PATH.read_text(encoding="utf-8"))
+            entry = tomllib.loads(path.read_text(encoding="utf-8"))
+            emulators.append(entry)
+            for dep in entry.get("dependencies", []):
+                bios_path = dep.get("bios_path", "")
+                if not bios_path:
+                    continue
+                bios_requirements.append({
+                    "slug": dep["name"],
+                    "name": dep.get("display_name", dep["name"]),
+                    "platform": dep.get("platform", ""),
+                    "bios_path": bios_path,
+                    "guidance_text": dep.get("guidance_text", ""),
+                    "guidance_url": dep.get("guidance_url", ""),
+                    "required": dep.get("required", True),
+                })
         _catalog_cache = {
             "emulators": emulators,
-            "bios_requirements": bios_data.get("bios_requirements", []),
+            "bios_requirements": bios_requirements,
         }
     return _catalog_cache
 

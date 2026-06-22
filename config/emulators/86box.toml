@@ -47,6 +47,13 @@ acquire_method = "git_clone"
 acquire_url = "https://github.com/86Box/roms"
 acquire_tag = "v5.3"
 acquire_target = "emulators/86box/roms"
+required = true
+validation_type = "directory"
+display_name = "86Box ROM Pack"
+platform = "86box"
+bios_path = "emulators/86box/roms"
+guidance_text = "Place your 86Box ROM pack in emulators/86box/roms/, preserving its folder structure exactly. The ROM pack version must match the 86Box binary version."
+guidance_url = "https://github.com/86Box/roms"
 
 [[dependencies]]
 name = "86box-assets"
@@ -59,3 +66,8 @@ acquire_target = "emulators/86box/assets"
 title = "ROM pack version must match binary"
 severity = "warning"
 description = "The 86Box ROM pack version must match the emulator binary version exactly. Mixing versions causes silent emulation failures. Always update both together."
+
+[[known_limitations]]
+title = "Per-machine ROM completeness not validated"
+severity = "info"
+description = "86Box's hard-fail-on-missing-ROMs behavior only covers total absence of the ROM set — if no ROM dumps are found at all, 86Box errors and closes on startup. It does NOT mean every individual machine/video-card ROM is verified before launch. A specific machine profile (e.g. one routing to a Voodoo2 card) can be missing just that card's ROM and 86Box will not necessarily surface a clean, scriptable error — behavior here is unconfirmed. 86Box does expose -M/--dumpmissing, a CLI flag that outputs a list of all machines and video cards with missing ROMs, and prints the full ROM search path list to stdout/log on every startup. Neither is wired into Peach 1UP today."
