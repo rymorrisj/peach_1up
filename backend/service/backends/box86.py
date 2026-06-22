@@ -21,6 +21,7 @@ from backend.service.utils.emulator_catalog import (
     get_86box_profile,
     get_container_enabled,
     get_container_config as get_emulator_container_config,
+    validate_bios_from_descriptor,
 )
 from backend.service.utils.ini_writer import patch_ini, write_ini
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
@@ -220,7 +221,8 @@ def launch(spec: "LaunchSpec") -> tuple:
     Raises:
         ValueError: If the era is unsupported or required fields are unset.
         FileNotFoundError: If working_image_path, config_path, or the 86Box
-            binary does not exist on disk.
+            binary does not exist on disk, or if a required BIOS/ROM pack
+            directory declared in 86box.toml is absent or empty.
         RuntimeError: If BOX86_PATH is not configured.
         OSError: If config injection or Job Object launch fails.
     """
@@ -263,6 +265,8 @@ def launch(spec: "LaunchSpec") -> tuple:
         )
     if not Path(box86_path).exists():
         raise FileNotFoundError(f"86Box executable not found: {box86_path}")
+
+    validate_bios_from_descriptor("86box")
 
     effective_rom_path = _resolve_rom_path(Path(box86_path))
 
