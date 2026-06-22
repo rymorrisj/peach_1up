@@ -50,10 +50,11 @@ def hydrate_drive_for_item(item: "LibraryItem", db: "Session") -> "Drive | None"
     manually placed data in the image will lose it on retry.
     """
     from backend.models.drive import Drive
+    from backend.service.library.items import _DRIVE_ERAS
     from backend.service.utils.drive_utils import compute_drive_size_mb, create_drive_for_item
 
     drive = db.query(Drive).filter(Drive.library_item_id == item.id).first()
-    if drive is None:
+    if drive is None and item.era in _DRIVE_ERAS:
         drive = create_drive_for_item(item, db)
 
     if (

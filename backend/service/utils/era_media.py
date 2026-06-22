@@ -31,6 +31,24 @@ def supported_extensions_for_era(era: str) -> list[str]:
         return []
 
 
+def media_type_from_path(path: Path) -> str:
+    if path.is_dir():
+        return "directory"
+    suffix = path.suffix.lower()
+    if suffix == ".iso":
+        return "iso"
+    if suffix == ".cue":
+        return "cue"
+    if suffix == ".img":
+        try:
+            return "floppy" if path.stat().st_size < 2 * 1024 * 1024 else "hdd"
+        except OSError:
+            return "hdd"
+    if suffix in {".exe", ".bat", ".com"}:
+        return "exe"
+    return "unknown"
+
+
 def resolve_media_file_from_directory(directory: Path, era: str | None) -> Path:
     """Return the best media file in *directory* for the given era.
 

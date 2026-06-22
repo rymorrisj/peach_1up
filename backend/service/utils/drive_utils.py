@@ -10,6 +10,7 @@ import hashlib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from backend.service.utils.era_media import media_type_from_path
 from backend.service.utils.fat import FAT16_SIZE_MAX_MB, FAT16_SIZE_MIN_MB
 
 if TYPE_CHECKING:
@@ -48,24 +49,6 @@ def compute_drive_size_mb(media_path: Path, media_type: str) -> int:
     return max(FAT16_SIZE_MIN_MB, min(int(source_size_mb * 1.5) + 3, 100))
 
 
-def _media_type_from_path(path: Path) -> str:
-    if path.is_dir():
-        return "directory"
-    suffix = path.suffix.lower()
-    if suffix == ".iso":
-        return "iso"
-    if suffix == ".cue":
-        return "cue"
-    if suffix == ".img":
-        try:
-            return "floppy" if path.stat().st_size < 2 * 1024 * 1024 else "hdd"
-        except OSError:
-            return "hdd"
-    if suffix in {".exe", ".bat", ".com"}:
-        return "exe"
-    return "unknown"
-
-
 def create_drive_for_item(item: "LibraryItem", db: "Session") -> "Drive":
     """Create and persist a Drive record for a library item.
 
@@ -87,7 +70,7 @@ def create_drive_for_item(item: "LibraryItem", db: "Session") -> "Drive":
 
     if not item.media_type:
         _scan = _smart_detect(media_src)
-        media_type = _media_type_from_path(media_src)
+        media_type = media_type_from_path(media_src)
         item.media_type = media_type
         item.requires_install = _scan.requires_install
     else:

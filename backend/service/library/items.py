@@ -9,30 +9,14 @@ from sqlalchemy.orm import Session
 from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemUpdate
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.drive_utils import create_drive_for_item
-from backend.service.utils.era_media import resolve_media_file_from_directory
+from backend.service.utils.era_media import media_type_from_path, resolve_media_file_from_directory
 from backend.service.utils.path_utils import normalise_path
 from backend.service.utils.slug_generator import generate_item_slug, unique_slug
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
-_DRIVE_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
-
-
-def _media_type_from_path(path: Path) -> str:
-    if path.is_dir():
-        return "directory"
-    suffix = path.suffix.lower()
-    if suffix == ".iso":
-        return "iso"
-    if suffix == ".cue":
-        return "cue"
-    if suffix == ".img":
-        try:
-            return "floppy" if path.stat().st_size < 2 * 1024 * 1024 else "hdd"
-        except OSError:
-            return "hdd"
-    if suffix in {".exe", ".bat", ".com"}:
-        return "exe"
-    return "unknown"
+# Per-item FAT16 drives are for dos/win31 only; win95/win98/winxp use the
+# shared OSPlatform base/working-image model (dev_docs/DECISIONS.md 2026-05-03/05-19).
+_DRIVE_ERAS = frozenset({"dos", "win31"})
 
 
 class _ItemAlreadyExists(Exception):
@@ -174,8 +158,7 @@ def _prepare_item(
             if row["executable_path"]:
                 break
 
-        _era_path = best_detect_path(media_src, row["executable_path"])
-        _scan = _smart_detect(_era_path)
+        _scan = _smart_detect(media_src)
         if _scan.era is not None:
             row["era"] = _scan.era
             row["detection_reason"] = _scan.reason
@@ -184,6 +167,10 @@ def _prepare_item(
             try:
                 resolved_media = resolve_media_file_from_directory(media_src, row["era"])
                 row["media_path"] = str(resolved_media)
+                _scan = _smart_detect(resolved_media)
+                if _scan.era is not None:
+                    row["era"] = _scan.era
+                    row["detection_reason"] = _scan.reason
             except ValueError as exc:
                 log.warning("Could not resolve media file for '%s': %s", title, exc)
 
@@ -247,17 +234,19 @@ def _prepare_item(
     else:
         row["slug"] = generate_item_slug(title, db)
 
-    row["media_type"] = _media_type_from_path(Path(row["media_path"]))
+    row["media_type"] = media_type_from_path(Path(row["media_path"]))
     row["requires_install"] = _scan.requires_install
 
     if row["era"] and row["era"] != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(row["era"])
         if _emulator_slug and _profile_era:
+            # platform_id is resolved here too, but launch_item() resolves the
+            # platform via the profile, not item.platform_id, so it's not written
+            # here. See dev_docs (FIX-SOON 3-5) — frontend EditForm/useEditForm
+            # and library.py's list filter still read item.platform_id directly.
             _def_platform_id, _def_profile_id = lookup_platform_and_profile(
                 _emulator_slug, _profile_era, db
             )
-            if _def_platform_id is not None:
-                row["platform_id"] = _def_platform_id
             if _def_profile_id is not None:
                 row["profile_id"] = _def_profile_id
 
