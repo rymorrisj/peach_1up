@@ -15,6 +15,7 @@ from typing import Optional, TYPE_CHECKING
 
 from backend.constants_generated import Era
 from backend.core.logger import get_logger
+from backend.core.settings import get_base_path
 from backend.service.utils.disk_utils import has_valid_mbr
 from backend.service.utils.emulator_catalog import (
     get_emulator,

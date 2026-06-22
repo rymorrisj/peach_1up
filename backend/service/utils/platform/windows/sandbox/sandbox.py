@@ -217,9 +217,9 @@ def launch(config: SandboxConfig) -> SandboxHandle:
         )
     except OSError as exc:
         raise SandboxError(
-            message=f"Failed to spawn peach_sandbox.exe: {exc}",
+            message=f"Failed to spawn {EXE_NAME}: {exc}",
             stage=SandboxStage.PROCESS_CREATE,
-            suggestions=["Ensure peach_sandbox.exe is built and accessible"],
+            suggestions=[f"Ensure {EXE_NAME} is built and accessible"],
         ) from exc
 
     try:
@@ -229,7 +229,7 @@ def launch(config: SandboxConfig) -> SandboxHandle:
     except OSError as exc:
         proc.kill()
         raise SandboxError(
-            message=f"Failed to write to peach_sandbox.exe stdin: {exc}",
+            message=f"Failed to write to {EXE_NAME} stdin: {exc}",
             stage=SandboxStage.PROCESS_CREATE,
             suggestions=[],
         ) from exc
@@ -246,7 +246,7 @@ def launch(config: SandboxConfig) -> SandboxHandle:
         stdout_line = proc.stdout.readline()
     except OSError as exc:
         raise SandboxError(
-            message=f"Communication with peach_sandbox.exe failed: {exc}",
+            message=f"Communication with {EXE_NAME} failed: {exc}",
             stage=SandboxStage.PROCESS_CREATE,
             suggestions=[],
         ) from exc
@@ -255,7 +255,7 @@ def launch(config: SandboxConfig) -> SandboxHandle:
 
     if _timed_out.is_set():
         raise SandboxError(
-            message="peach_sandbox.exe did not respond within 15 seconds",
+            message=f"{EXE_NAME} did not respond within 15 seconds",
             stage=SandboxStage.PROCESS_CREATE,
             suggestions=["Check for AppContainer provisioning delays or permission issues"],
         )
@@ -263,9 +263,9 @@ def launch(config: SandboxConfig) -> SandboxHandle:
     if not stdout_line:
         proc.kill()
         raise SandboxError(
-            message="peach_sandbox.exe produced no output",
+            message=f"{EXE_NAME} produced no output",
             stage=SandboxStage.PROCESS_CREATE,
-            suggestions=["Run peach_sandbox.exe manually to debug startup"],
+            suggestions=[f"Run {EXE_NAME} manually to debug startup"],
         )
 
     first_line = stdout_line.strip()
@@ -273,7 +273,7 @@ def launch(config: SandboxConfig) -> SandboxHandle:
         response = json.loads(first_line)
     except json.JSONDecodeError as exc:
         raise SandboxError(
-            message=f"Invalid JSON from peach_sandbox.exe: {exc}",
+            message=f"Invalid JSON from {EXE_NAME}: {exc}",
             stage=SandboxStage.PROCESS_CREATE,
             suggestions=[],
         ) from exc
@@ -282,14 +282,14 @@ def launch(config: SandboxConfig) -> SandboxHandle:
     missing = required - response.keys()
     if missing:
         raise SandboxError(
-            message=f"peach_sandbox.exe response missing fields: {missing}",
+            message=f"{EXE_NAME} response missing fields: {missing}",
             stage=SandboxStage.PROCESS_CREATE,
             suggestions=[],
         )
 
     if response.get("stage") == "error":
         raise SandboxError(
-            message=response.get("error", "Unknown error from peach_sandbox.exe"),
+            message=response.get("error", f"Unknown error from {EXE_NAME}"),
             stage=SandboxStage[response.get("error_stage", "PROCESS_CREATE").upper()],
             suggestions=response.get("suggestions", []),
             disable_sandbox=response.get("disable_sandbox", False),
@@ -350,7 +350,7 @@ def reset_container(moniker: str) -> None:
         )
     except OSError as exc:
         raise SandboxError(
-            message=f"Failed to invoke peach_sandbox.exe --reset: {exc}",
+            message=f"Failed to invoke {EXE_NAME} --reset: {exc}",
             stage=SandboxStage.CONTAINER_PROVISION,
             suggestions=[],
         ) from exc

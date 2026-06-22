@@ -134,7 +134,7 @@ def _build_spec_for_item(
     # box86 and xemu resolve their own binary paths internally.
     executable_path: str | None = None
     if slug not in (BackendSlug.BOX86.value, BackendSlug.XEMU.value):
-        path = get_executable_path(era_enum)
+        path = get_executable_path(era_enum, slug)
         if not path:
             raise HTTPException(
                 status_code=422,

@@ -17,6 +17,7 @@ from backend.service.utils.emulator_catalog import (
     validate_bios_from_descriptor,
 )
 from backend.core.logger import get_logger
+from backend.service.utils.ini_writer import set_ini_key
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
 from backend.service.utils.platform.windows.sandbox import BrokerFile
 from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
@@ -28,47 +29,6 @@ if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
 
 _CONSOLE_SLUGS = frozenset({"mesen", "project64", "duckstation", "pcsx2"})
-
-
-def _write_ini_key(ini_path: Path, section: str, key: str, value: str) -> None:
-    """Update a single key in an INI file, preserving all other content exactly."""
-    if not ini_path.exists():
-        ini_path.parent.mkdir(parents=True, exist_ok=True)
-        ini_path.write_text(f"[{section}]\n{key} = {value}\n", encoding="utf-8")
-        return
-    lines = ini_path.read_text(encoding="utf-8").splitlines(keepends=True)
-    in_target = False
-    section_found = False
-    key_written = False
-    insert_before: int | None = None
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
-            if stripped[1:-1] == section:
-                in_target = True
-                section_found = True
-            elif in_target and not key_written:
-                insert_before = i
-                in_target = False
-            else:
-                in_target = False
-        elif in_target and "=" in line:
-            k = line.split("=", 1)[0].strip()
-            if k == key:
-                lines[i] = f"{key} = {value}\n"
-                key_written = True
-                in_target = False
-    if not key_written:
-        new_line = f"{key} = {value}\n"
-        if insert_before is not None:
-            lines.insert(insert_before, new_line)
-        elif section_found:
-            lines.append(new_line)
-        else:
-            if lines and not lines[-1].endswith("\n"):
-                lines[-1] += "\n"
-            lines.append(f"\n[{section}]\n{new_line}")
-    ini_path.write_text("".join(lines), encoding="utf-8")
 
 
 def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
@@ -108,12 +68,12 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     validate_bios_from_descriptor(spec.slug)
 
     if spec.slug == "duckstation":
-        _write_ini_key(
+        set_ini_key(
             Path(spec.executable_path).parent / "settings.ini",
             "GameList", "RecursivePaths", str(spec.media_path.parent),
         )
     elif spec.slug == "pcsx2":
-        _write_ini_key(
+        set_ini_key(
             Path(spec.executable_path).parent / "inis" / "PCSX2.ini",
             "GameList", "RecursivePaths", str(spec.media_path.parent),
         )

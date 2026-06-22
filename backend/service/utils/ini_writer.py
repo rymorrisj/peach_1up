@@ -47,6 +47,52 @@ def patch_ini(
     write_ini(path, parser)
 
 
+def set_ini_key(ini_path: Path, section: str, key: str, value: str) -> None:
+    """Update a single key in an INI file, preserving all other content exactly.
+
+    Hand-rolled, line-based, comment-preserving edit — distinct from
+    :func:`patch_ini`, which rewrites the file via ``configparser`` and does
+    not preserve comments.
+    """
+    if not ini_path.exists():
+        ini_path.parent.mkdir(parents=True, exist_ok=True)
+        ini_path.write_text(f"[{section}]\n{key} = {value}\n", encoding="utf-8")
+        return
+    lines = ini_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    in_target = False
+    section_found = False
+    key_written = False
+    insert_before: int | None = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            if stripped[1:-1] == section:
+                in_target = True
+                section_found = True
+            elif in_target and not key_written:
+                insert_before = i
+                in_target = False
+            else:
+                in_target = False
+        elif in_target and "=" in line:
+            k = line.split("=", 1)[0].strip()
+            if k == key:
+                lines[i] = f"{key} = {value}\n"
+                key_written = True
+                in_target = False
+    if not key_written:
+        new_line = f"{key} = {value}\n"
+        if insert_before is not None:
+            lines.insert(insert_before, new_line)
+        elif section_found:
+            lines.append(new_line)
+        else:
+            if lines and not lines[-1].endswith("\n"):
+                lines[-1] += "\n"
+            lines.append(f"\n[{section}]\n{new_line}")
+    ini_path.write_text("".join(lines), encoding="utf-8")
+
+
 def write_ini(path: Path, parser: configparser.RawConfigParser) -> None:
     """Write a RawConfigParser to *path* atomically via a .tmp sibling.
 

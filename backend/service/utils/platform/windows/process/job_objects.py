@@ -312,9 +312,6 @@ class WindowsJobObject:
             if not using_stored_handle:
                 ctypes.windll.kernel32.CloseHandle(proc_handle)
 
-    # NAMING: teardown also closes the job handle — it is a full resource
-    # teardown, not just process termination.  Consider renaming to shutdown()
-    # or teardown() at the next refactor pass.
     def teardown(self) -> None:
         """Terminate all processes in the job object and release all associated resources."""
         termination_errors = []

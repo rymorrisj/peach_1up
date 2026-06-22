@@ -111,11 +111,13 @@ def get_backend_name(era: Era) -> str:
         return 'Unknown'
 
 
-def get_executable_path(era: Era) -> str:
+def get_executable_path(era: Era, backend_name: str | None = None) -> str:
     """Return the emulator executable path for the given era.
 
     Args:
         era: The gaming era to look up.
+        backend_name: Already-resolved backend slug (from ``resolve_backend_name``),
+            if the caller has one. When omitted, it is resolved from ``era``.
 
     Returns:
         Absolute path string, or empty string if the emulator is not installed.
@@ -124,7 +126,8 @@ def get_executable_path(era: Era) -> str:
         RuntimeError: If the era cannot be resolved or has no catalog entry.
     """
     from backend.service.utils.emulator_catalog import get_install_path
-    backend_name = resolve_backend_name(era)
+    if backend_name is None:
+        backend_name = resolve_backend_name(era)
     catalog_slug = "dosbox-x" if backend_name == BackendSlug.DOSBOX.value else backend_name
     try:
         path = get_install_path(catalog_slug)
