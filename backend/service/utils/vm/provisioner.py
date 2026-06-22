@@ -18,7 +18,7 @@ from backend.models.platform import Platform
 from backend.service.utils.emulator_catalog import get_86box_profile
 from backend.service.utils.eras_config import get_eras
 from backend.service.utils.ini_writer import patch_ini
-from backend.service.utils.emulator_catalog import get_install_path
+from backend.service.utils.emulator_catalog import get_86box_rom_path, get_install_path
 from backend.service.utils.vm.vhd import _build_vhd_footer
 
 logger = get_logger(__name__)
@@ -185,8 +185,7 @@ def provision_platform(platform: Platform) -> tuple[str | None, str | None, str 
                 "86Box executable not found — cannot provision 86Box config. "
                 "Install it via the Emulators page."
             )
-        from backend.service.backends.box86 import _resolve_rom_path
-        rom_dir = _resolve_rom_path(Path(box86_path))
+        rom_dir = get_86box_rom_path(Path(box86_path))
         hw_profile = getattr(platform, "hardware_profile", None) or "standard"
         iso_path, img_path, cfg_path = provision_86box_vm(platform, box86_path, str(rom_dir), hw_profile)
         return iso_path, img_path, cfg_path

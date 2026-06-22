@@ -124,6 +124,20 @@ def get_86box_profile(slug: str) -> dict:
     )
 
 
+def get_86box_rom_path(box86_binary: Path) -> Path:
+    """Return the effective 86Box ROM directory for the given binary location.
+
+    Sanctioned re-export of box86.resolve_rom_path — the one import site
+    between the service layer and the box86 backend. Deferred import avoids
+    a module-level cycle (box86 imports this module for catalog lookups).
+
+    Raises:
+        FileNotFoundError: If no ROM directory can be resolved.
+    """
+    from backend.service.backends.box86 import resolve_rom_path
+    return resolve_rom_path(box86_binary)
+
+
 def load_catalog() -> list[dict]:
     return _load_raw_catalog().get("emulators", [])
 

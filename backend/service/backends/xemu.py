@@ -116,6 +116,10 @@ def provision_xemu_defaults(exe_path: Path, data_dir: Path, dvd_path: str | None
     the executable's directory. Peach 1UP does not provide, link to, or
     assist with acquiring these files.
 
+    Presence of these files is gated upstream by
+    validate_bios_from_descriptor("xemu") before this is called — this
+    function only resolves the actual flash BIOS filename for the toml.
+
     Args:
         exe_path: Absolute path to the xemu executable (xemu.exe).
         data_dir: Resolved config directory holding the BIOS/HDD asset files
@@ -123,10 +127,6 @@ def provision_xemu_defaults(exe_path: Path, data_dir: Path, dvd_path: str | None
 
     Returns:
         Path to the xemu.toml sentinel file inside exe_path.parent.
-
-    Raises:
-        FileNotFoundError: If the MCPX ROM, flash BIOS, or xbox_hdd.qcow2 are
-            absent from data_dir.
     """
     import os
 
@@ -134,32 +134,12 @@ def provision_xemu_defaults(exe_path: Path, data_dir: Path, dvd_path: str | None
     toml_path = exe_dir / "xemu.toml"
     hdd_path = data_dir / "xbox_hdd.qcow2"
     eeprom_path = data_dir / "eeprom.bin"
-
-    if not hdd_path.exists():
-        raise FileNotFoundError(
-            f"Xbox HDD image not found: {hdd_path}. "
-            "xemu requires a properly formatted 8 GB qcow2 image named xbox_hdd.qcow2 "
-            f"placed in {data_dir}. "
-            "See https://xemu.app/docs/required-files/ for instructions on obtaining "
-            "or creating this image from your own Xbox hardware."
-        )
-
     mcpx = data_dir / "mcpx_1.0.bin"
-    if not mcpx.exists():
-        raise FileNotFoundError(
-            f"MCPX boot ROM not found: {mcpx}. "
-            f"Place mcpx_1.0.bin in {data_dir} before launching."
-        )
 
     flash_bins = [
         f for f in sorted(data_dir.glob("*.bin"))
         if f.name.lower() not in ("mcpx_1.0.bin", "eeprom.bin")
     ]
-    if not flash_bins:
-        raise FileNotFoundError(
-            f"Flash BIOS not found in {data_dir}. "
-            f"Place your Xbox flash BIOS .bin file in {data_dir} before launching."
-        )
 
     content = (
         "[general]\n"
@@ -177,49 +157,6 @@ def provision_xemu_defaults(exe_path: Path, data_dir: Path, dvd_path: str | None
     os.replace(tmp, toml_path)
 
     return toml_path
-
-
-def validate_bios_path(data_dir: Path) -> None:
-    """Validate that the BIOS/HDD asset files for the resolved config exist on disk.
-
-    Checks for mcpx_1.0.bin, a flash BIOS *.bin file, and xbox_hdd.qcow2 inside
-    data_dir — the config directory resolved by resolve_launch_config().
-
-    Args:
-        data_dir: Resolved config directory (e.g. emulators/xemu/data/default/).
-
-    Raises:
-        RuntimeError: If data_dir is absent or any required file is missing.
-    """
-    if not data_dir.exists() or not data_dir.is_dir():
-        raise RuntimeError(
-            f"xemu config directory not found: {data_dir}. "
-            "Place your BIOS and HDD image files there before launching."
-        )
-
-    missing: list[str] = []
-
-    mcpx = data_dir / "mcpx_1.0.bin"
-    if not mcpx.exists():
-        missing.append(f"  bootrom_path: {mcpx}")
-
-    flash_bins = [
-        f for f in sorted(data_dir.glob("*.bin"))
-        if f.name.lower() not in ("mcpx_1.0.bin", "eeprom.bin")
-    ]
-    if not flash_bins:
-        missing.append(f"  flashrom_path: <no flash BIOS *.bin found in {data_dir}>")
-
-    hdd_path = data_dir / "xbox_hdd.qcow2"
-    if not hdd_path.exists():
-        missing.append(f"  hdd_path: {hdd_path}")
-
-    if missing:
-        lines = "\n".join(missing)
-        raise RuntimeError(
-            f"xemu asset files not found:\n{lines}\n"
-            f"Place the missing files in {data_dir}."
-        )
 
 
 def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
@@ -241,10 +178,9 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     Raises:
         FileNotFoundError: If the executable, BIOS files, or xbox_hdd.qcow2
-            are missing.
+            are missing (gated by validate_bios_from_descriptor("xemu")).
         ValueError: If the media extension is unsupported.
-        RuntimeError: If XEMU_PATH is not configured, the data/ directory
-            declared in xemu.toml is missing/empty, or launch fails.
+        RuntimeError: If XEMU_PATH is not configured or launch fails.
     """
     _xemu_install = get_install_path("xemu")
     executable_path = str(_xemu_install) if _xemu_install and _xemu_install.is_file() else ""
@@ -288,7 +224,6 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     logger.debug(
         "xemu.launch: dvd_posix=%s vm_dir=%s data_dir=%s", dvd_posix, vm_dir, data_dir
     )
-    validate_bios_path(data_dir)
     config_path = provision_xemu_defaults(exe_path, data_dir, dvd_path=dvd_posix)
 
     args = ["-dvd_path", dvd_posix] if dvd_posix else []

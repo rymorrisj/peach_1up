@@ -149,7 +149,7 @@ def _prepare_config(
 
 
 
-def _resolve_rom_path(box86_binary: Path) -> Path:
+def resolve_rom_path(box86_binary: Path) -> Path:
     """Derive the effective ROM path from the 86Box binary location.
 
     Checks the descriptor's canonical roms/ directory first — the same
@@ -279,7 +279,7 @@ def launch(spec: "LaunchSpec") -> tuple:
 
     validate_bios_from_descriptor("86box")
 
-    effective_rom_path = _resolve_rom_path(Path(box86_path))
+    effective_rom_path = resolve_rom_path(Path(box86_path))
 
     _prepare_config(
         working_image_path=spec.working_image_path,
