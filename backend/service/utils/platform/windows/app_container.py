@@ -12,12 +12,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import yaml
-
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import get_emulator, get_emulator_era
-from backend.service.utils.eras_config import get_cpu_min_rate
+from backend.service.utils.eras_config import get_cpu_min_rate, get_era
 from backend.service.utils.platform.windows.sandbox import sandbox
 from backend.service.utils.platform.windows.sandbox.sandbox_config import BrokerFile, SandboxConfig
 from backend.service.utils.platform.windows.sandbox.sandbox_error import SandboxError
@@ -26,8 +24,6 @@ from backend.service.utils.platform.windows.sandbox.sandbox_event import Sandbox
 logger = get_logger(__name__)
 
 EXE_NAME: str = "sandbox_host.exe"
-
-_ERAS_PATH: Path = get_base_path() / "config" / "eras.yaml"
 
 # Floor mirrors MinRate in job_objects.py (cpu_min_rate_percent * 100 / 10000).
 _CPU_MIN_RATE: int = get_cpu_min_rate("")
@@ -38,8 +34,7 @@ def _load_era(slug: str) -> dict:
         era_key = get_emulator_era(slug)
     except (ValueError, Exception):
         return {}
-    eras = yaml.safe_load(_ERAS_PATH.read_text(encoding="utf-8")) or {}
-    return eras.get(era_key, {})
+    return get_era(era_key)
 
 
 def _resolve_path_key(path_key: str, slug: str) -> str:

@@ -46,29 +46,25 @@ class TestLoadEraLimits:
             _load_era_limits("nonexistent_era_xyz")
 
     def test_missing_file_raises_file_not_found(self, monkeypatch, tmp_path):
+        import backend.service.utils.eras_config as eras_config_mod
         import backend.service.utils.platform.windows.process.launcher as jo
-        monkeypatch.setattr(jo, "_ERAS_YAML", tmp_path / "missing.yaml")
+        monkeypatch.setattr(eras_config_mod, "_ERAS_CACHE", None)
+        monkeypatch.setattr(eras_config_mod, "_ERAS_PATH", tmp_path / "missing.yaml")
 
         with pytest.raises(FileNotFoundError):
             jo._load_era_limits("dos")
 
-    def test_missing_memory_field_raises_runtime_error(self, monkeypatch, tmp_path):
-        import yaml
+    def test_missing_memory_field_raises_runtime_error(self, monkeypatch):
+        import backend.service.utils.eras_config as eras_config_mod
         import backend.service.utils.platform.windows.process.launcher as jo
-        data = {"dos": {"cpu_limit_percent": 50}}
-        p = tmp_path / "eras.yaml"
-        p.write_text(yaml.safe_dump(data), encoding="utf-8")
-        monkeypatch.setattr(jo, "_ERAS_YAML", p)
+        monkeypatch.setattr(eras_config_mod, "_ERAS_CACHE", {"dos": {"cpu_limit_percent": 50}})
         with pytest.raises(RuntimeError, match="memory_limit_mb not defined"):
             jo._load_era_limits("dos")
 
-    def test_missing_cpu_field_raises_runtime_error(self, monkeypatch, tmp_path):
-        import yaml
+    def test_missing_cpu_field_raises_runtime_error(self, monkeypatch):
+        import backend.service.utils.eras_config as eras_config_mod
         import backend.service.utils.platform.windows.process.launcher as jo
-        data = {"dos": {"memory_limit_mb": 256}}
-        p = tmp_path / "eras.yaml"
-        p.write_text(yaml.safe_dump(data), encoding="utf-8")
-        monkeypatch.setattr(jo, "_ERAS_YAML", p)
+        monkeypatch.setattr(eras_config_mod, "_ERAS_CACHE", {"dos": {"memory_limit_mb": 256}})
         with pytest.raises(RuntimeError, match="cpu_limit_percent not defined"):
             jo._load_era_limits("dos")
 

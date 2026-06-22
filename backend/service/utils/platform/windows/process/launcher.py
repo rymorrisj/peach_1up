@@ -28,6 +28,7 @@ from backend.service.utils.platform.windows.win32_types import (
 )
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
+from backend.service.utils.eras_config import get_eras
 from backend.service.utils.platform.windows.sandbox import sandbox as _sandbox
 from backend.service.utils.platform.windows.sandbox.sandbox_config import SandboxConfig
 from backend.service.utils.platform.windows.sandbox.sandbox_error import SandboxError
@@ -43,8 +44,7 @@ _ERAS_YAML: Path = get_base_path() / "config" / "eras.yaml"
 def _load_era_limits(era: str) -> tuple[int, int]:
     """Load memory_limit_mb and cpu_limit_percent for *era* from eras.yaml."""
     try:
-        with _ERAS_YAML.open('r') as f:
-            eras_config = yaml.safe_load(f)
+        eras_config = get_eras()
     except FileNotFoundError:
         raise FileNotFoundError(f"eras.yaml not found at {_ERAS_YAML}")
     except yaml.YAMLError as exc:

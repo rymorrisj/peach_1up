@@ -2,17 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
-
-from backend.core.settings import get_base_path
-
-_ERAS_PATH = get_base_path() / "config" / "eras.yaml"
+from backend.service.utils.eras_config import get_eras
 
 
 def all_supported_extensions() -> frozenset[str]:
     """Return every media extension across all eras in eras.yaml, lowercased."""
     try:
-        eras = yaml.safe_load(_ERAS_PATH.read_text(encoding="utf-8")) or {}
+        eras = get_eras()
         exts: set[str] = set()
         for era_data in eras.values():
             if isinstance(era_data, dict):
@@ -25,7 +21,7 @@ def all_supported_extensions() -> frozenset[str]:
 
 def supported_extensions_for_era(era: str) -> list[str]:
     try:
-        eras = yaml.safe_load(_ERAS_PATH.read_text(encoding="utf-8")) or {}
+        eras = get_eras()
         return [ext.lower() for ext in eras.get(era, {}).get("supported_media", [])]
     except Exception:
         return []

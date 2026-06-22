@@ -5,10 +5,9 @@ import tomllib
 from pathlib import Path
 from typing import Dict, Any
 
-import yaml as _yaml
-
 from backend.core.settings import get_base_path
 from backend.service.utils import settings as _settings
+from backend.service.utils.eras_config import get_eras as _get_eras
 
 _logger = logging.getLogger(__name__)
 
@@ -18,7 +17,6 @@ _PROFILES_PATH = get_base_path() / "library" / "system" / "templates" / "86box" 
 _PROFILES_DIR = get_base_path() / "library" / "system" / "templates" / "86box"
 
 _catalog_cache: dict | None = None
-_ERAS_CONFIG_CACHE: Dict[str, Any] | None = None
 
 
 def _load_raw_catalog() -> dict:
@@ -51,12 +49,8 @@ def _load_raw_catalog() -> dict:
 
 
 def _get_eras_config() -> Dict[str, Any]:
-    global _ERAS_CONFIG_CACHE
-    if _ERAS_CONFIG_CACHE is None:
-        config_path = get_base_path() / "config" / "eras.yaml"
-        with config_path.open("r", encoding="utf-8") as f:
-            _ERAS_CONFIG_CACHE = _yaml.safe_load(f) or {}
-    return _ERAS_CONFIG_CACHE
+    """Return the parsed eras.yaml config — delegates to eras_config.get_eras()."""
+    return _get_eras()
 
 
 def get_settings_key(slug: str) -> str:

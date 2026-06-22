@@ -81,8 +81,8 @@ class TestResolveBackendName:
         assert resolve_backend_name(era) != BackendSlug.DOSBOX.value
 
     def test_resolve_raises_value_error_for_missing_era_in_config(self, monkeypatch):
-        import backend.service.utils.emulator_catalog as catalog_mod
-        monkeypatch.setattr(catalog_mod, "_ERAS_CONFIG_CACHE", {})
+        import backend.service.utils.eras_config as eras_config_mod
+        monkeypatch.setattr(eras_config_mod, "_ERAS_CACHE", {})
         from backend.service.utils.backend_router import resolve_backend_name
         with pytest.raises((ValueError, RuntimeError)):
             resolve_backend_name(Era.DOS)

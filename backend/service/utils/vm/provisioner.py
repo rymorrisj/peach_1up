@@ -12,7 +12,6 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-import yaml
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
@@ -20,6 +19,7 @@ from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.models.platform import Platform
 from backend.service.utils.emulator_catalog import get_86box_profile
+from backend.service.utils.eras_config import get_eras
 from backend.service.utils.ini_writer import patch_ini
 from backend.service.utils.emulator_catalog import get_install_path
 from backend.service.utils.vm.vhd import _build_vhd_footer
@@ -33,8 +33,7 @@ def _load_default_disk_size_mb(era: str) -> int:
     """Load default_disk_size_mb for *era* from eras.yaml."""
     eras_yaml = get_base_path() / "config" / "eras.yaml"
     try:
-        with eras_yaml.open("r", encoding="utf-8") as fh:
-            eras_config = yaml.safe_load(fh)
+        eras_config = get_eras()
     except FileNotFoundError:
         raise FileNotFoundError(f"eras.yaml not found at {eras_yaml}")
     if not isinstance(eras_config, dict) or era not in eras_config:
