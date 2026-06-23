@@ -58,6 +58,16 @@ def require_self_or_admin(request: Request, active_user: User = Depends(get_acti
     return active_user
 
 
+def require_library_or_platform_editor(active_user: User = Depends(get_active_user)) -> User:
+    """Allow owners and anyone who can edit the library or platforms (e.g. filesystem browsing)."""
+    if active_user.is_owner or active_user.can_edit_library or active_user.can_edit_platforms:
+        return active_user
+    raise HTTPException(
+        status_code=403,
+        detail="Permission denied: requires can_edit_library or can_edit_platforms.",
+    )
+
+
 def require_permission(flag: str):
     """Dependency factory that enforces a boolean permission flag on the active user.
 
