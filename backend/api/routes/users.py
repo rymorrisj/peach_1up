@@ -178,6 +178,8 @@ def reset_pin(
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
+    if user.is_owner:
+        raise HTTPException(status_code=403, detail="Owner account cannot be modified here.")
     _validate_pin(body.pin)
     user.pin_hash = _hash_pin(body.pin)
     user.pin_required = True
@@ -197,6 +199,8 @@ def unlock_user(
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
+    if user.is_owner:
+        raise HTTPException(status_code=403, detail="Owner account cannot be modified here.")
     user.is_locked = False
     user.failed_pin_attempts = 0
     db.commit()
