@@ -116,8 +116,6 @@ Permission flags on sub-accounts:
   No registry scanning.
 - Arguments are constructed from validated `Profile` fields only. No string interpolation
   of raw user input into argument lists.
-- One concurrent launch is permitted per profile. A second launch request while a
-  session is active must be rejected.
 - A launch cooldown is enforced between successive requests to prevent rapid-fire
   spawning.
 - All spawned processes are tracked and recorded in `LaunchHistory` (emulator, profile,

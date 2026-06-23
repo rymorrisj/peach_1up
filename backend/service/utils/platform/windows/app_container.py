@@ -30,11 +30,19 @@ _CPU_MIN_RATE: int = get_cpu_min_rate("")
 
 
 def _load_era(slug: str) -> dict:
-    try:
-        era_key = get_emulator_era(slug)
-    except (ValueError, Exception):
-        return {}
-    return get_era(era_key)
+    """Load the eras.yaml block for *slug*'s era.
+
+    Raises (matching launcher._load_era_limits's fail-loud behaviour for the
+    same condition): ValueError if the emulator descriptor has no usable
+    ``era`` field, RuntimeError if that era has no block in eras.yaml.
+    """
+    era_key = get_emulator_era(slug)
+    era = get_era(era_key)
+    if not era:
+        raise RuntimeError(
+            f"Era '{era_key}' (used by emulator '{slug}') not found in eras.yaml."
+        )
+    return era
 
 
 def _resolve_path_key(path_key: str, slug: str) -> str:
@@ -174,12 +182,21 @@ def get_container_config(
         for entry in files_raw
     ]
 
-    cpu_max_rate: int = int(era.get("cpu_limit_percent", 50))
-    memory_limit_mb: int | None = (
-        None
-        if descriptor.get("skip_memory_limit", False)
-        else int(era.get("memory_limit_mb", 512))
-    )
+    cpu_limit_percent = era.get("cpu_limit_percent")
+    if cpu_limit_percent is None:
+        raise RuntimeError(
+            f"cpu_limit_percent not defined in eras.yaml for the era used by emulator '{emulator_slug}'."
+        )
+    cpu_max_rate: int = int(cpu_limit_percent)
+
+    memory_limit_mb: int | None = None
+    if not descriptor.get("skip_memory_limit", False):
+        memory_limit_mb_cfg = era.get("memory_limit_mb")
+        if memory_limit_mb_cfg is None:
+            raise RuntimeError(
+                f"memory_limit_mb not defined in eras.yaml for the era used by emulator '{emulator_slug}'."
+            )
+        memory_limit_mb = int(memory_limit_mb_cfg)
 
     return SandboxConfig(
         moniker=f"Peach1UP.{emulator_slug}",

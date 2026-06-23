@@ -1,19 +1,7 @@
-"""Tests for launch concurrency and validation guards in
-service/launch/coordinator.py.
-"""
+"""Tests for launch validation guards in service/launch/coordinator.py."""
 
 import pytest
 from fastapi import HTTPException
-
-
-@pytest.fixture(autouse=True)
-def _clear_process_registry():
-    from backend.core import process_registry
-    with process_registry._lock:
-        process_registry._registry.clear()
-    yield
-    with process_registry._lock:
-        process_registry._registry.clear()
 
 
 @pytest.fixture
@@ -30,42 +18,6 @@ def mem_session():
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
         yield session
-
-
-class TestGateSingleActiveLaunch:
-    def test_second_launch_for_same_profile_rejected_with_409(self):
-        from backend.core import process_registry
-        from backend.core.process_registry import ProcessEntry
-        from backend.service.launch.coordinator import _gate_single_active_launch
-
-        process_registry.register(
-            1234,
-            ProcessEntry(process_handle=object(), job_handle=object(), library_item_id=1, profile_id=7),
-        )
-
-        with pytest.raises(HTTPException) as exc_info:
-            _gate_single_active_launch(7)
-
-        assert exc_info.value.status_code == 409
-
-    def test_different_profile_is_not_gated(self):
-        from backend.core import process_registry
-        from backend.core.process_registry import ProcessEntry
-        from backend.service.launch.coordinator import _gate_single_active_launch
-
-        process_registry.register(
-            1234,
-            ProcessEntry(process_handle=object(), job_handle=object(), library_item_id=1, profile_id=7),
-        )
-
-        # Should not raise — different profile is unaffected.
-        _gate_single_active_launch(8)
-
-    def test_no_profile_id_is_not_gated(self):
-        from backend.service.launch.coordinator import _gate_single_active_launch
-
-        # gate_profile_id=None short-circuits regardless of registry contents.
-        _gate_single_active_launch(None)
 
 
 class TestResolveProfileForItem:

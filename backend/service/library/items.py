@@ -240,15 +240,13 @@ def _prepare_item(
     if row["era"] and row["era"] != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(row["era"])
         if _emulator_slug and _profile_era:
-            # platform_id is resolved here too, but launch_item() resolves the
-            # platform via the profile, not item.platform_id, so it's not written
-            # here. See dev_docs (FIX-SOON 3-5) — frontend EditForm/useEditForm
-            # and library.py's list filter still read item.platform_id directly.
             _def_platform_id, _def_profile_id = lookup_platform_and_profile(
                 _emulator_slug, _profile_era, db
             )
             if _def_profile_id is not None:
                 row["profile_id"] = _def_profile_id
+            if _def_platform_id is not None:
+                row["platform_id"] = _def_platform_id
 
     if override_profile_id is not None:
         row["profile_id"] = override_profile_id

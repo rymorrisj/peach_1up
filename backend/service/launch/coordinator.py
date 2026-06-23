@@ -109,14 +109,6 @@ def _resolve_profile_for_environment(platform: Platform, profile_id: int | None,
     return profile
 
 
-def _gate_single_active_launch(gate_profile_id: int | None) -> None:
-    if gate_profile_id is None:
-        return
-    for _, entry in process_registry.get_all().items():
-        if entry.profile_id == gate_profile_id:
-            raise HTTPException(status_code=409, detail="A launch is already active for this profile.")
-
-
 def _build_spec_for_item(
     item: LibraryItem,
     profile: Profile,
@@ -314,8 +306,6 @@ async def launch_item(item: LibraryItem, profile_id: int | None, db: Session) ->
     if exited:
         await asyncio.to_thread(write_session_ends, exited)
 
-    _gate_single_active_launch(profile_id if profile_id is not None else item.profile_id)
-
     profile = _resolve_profile_for_item(item, profile_id, db)
     platform_record = db.query(Platform).filter(Platform.profile_id == profile.id).first()
 
@@ -338,8 +328,6 @@ async def launch_environment(platform: Platform, profile_id: int | None, db: Ses
     exited = process_registry.cleanup_exited()
     if exited:
         await asyncio.to_thread(write_session_ends, exited)
-
-    _gate_single_active_launch(profile_id if profile_id is not None else platform.profile_id)
 
     profile = _resolve_profile_for_environment(platform, profile_id, db)
 
