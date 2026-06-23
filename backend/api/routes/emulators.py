@@ -78,7 +78,7 @@ class EmulatorStatusData(BaseModel):
     binary_detected: bool
     binary_path: Optional[str] = None
     installer_present: Optional[bool] = None
-    status: str
+    status: install_registry.InstallStatus
     error: Optional[str] = None
     install_path: Optional[str] = None
 
