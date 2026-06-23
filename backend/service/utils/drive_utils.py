@@ -6,12 +6,11 @@ flow and the on-demand launch-time creation path.
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from backend.service.utils.era_media import media_type_from_path
-from backend.service.utils.fat import FAT16_SIZE_MAX_MB, FAT16_SIZE_MIN_MB
+from backend.service.utils.fat import FAT16_SIZE_MIN_MB
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -93,95 +92,6 @@ def create_drive_for_item(item: "LibraryItem", db: "Session") -> "Drive":
     db.flush()
     item.drive_id = drive.id
     db.add(item)
-    db.commit()
-    db.refresh(drive)
-    return drive
-
-
-def update_drive_for_item(item: "LibraryItem", new_size_mb: int, db: "Session") -> "Drive":
-    """Resize the Drive image for a library item, preserving its file contents.
-
-    FAT16 has no in-place resize primitive: format_fat16 refuses to overwrite
-    an existing image, and growing/shrinking the filesystem structures
-    requires rebuilding the FAT and directory tables from scratch. So this
-    builds a new image at new_size_mb, copies every existing file across, and
-    only swaps it in for the original once the copy is verified byte-for-byte.
-    The original is kept as a .bak until the swap succeeds, so a failure at
-    any point (bad size, full new image, crash mid-copy) leaves the original
-    image untouched rather than silently losing data.
-
-    Args:
-        item: LibraryItem ORM instance with an existing drive_id.
-        new_size_mb: Target image size in MB.
-        db: Active SQLAlchemy session.
-
-    Returns:
-        The updated and refreshed Drive instance.
-    """
-    from backend.models.drive import Drive
-    from backend.service.utils.fat import (
-        format_fat16,
-        list_files_in_image,
-        read_file_from_image,
-        write_file_to_image,
-    )
-
-    if item.drive_id is None:
-        raise RuntimeError("update_drive_for_item: item has no associated drive")
-
-    drive = db.get(Drive, item.drive_id)
-    if drive is None:
-        raise RuntimeError(f"update_drive_for_item: drive_id={item.drive_id} not found")
-
-    if not (FAT16_SIZE_MIN_MB <= new_size_mb <= FAT16_SIZE_MAX_MB):
-        raise RuntimeError(
-            f"update_drive_for_item: new_size_mb={new_size_mb} is outside the "
-            f"supported range ({FAT16_SIZE_MIN_MB}-{FAT16_SIZE_MAX_MB})"
-        )
-
-    if not drive.image_path or not Path(drive.image_path).exists():
-        # Nothing to migrate — no image has been created yet, so resizing is
-        # just bookkeeping; the next create/hydrate pass will use the new size.
-        drive.size_mb = new_size_mb
-        db.add(drive)
-        db.commit()
-        db.refresh(drive)
-        return drive
-
-    image_path = Path(drive.image_path)
-    files = list_files_in_image(image_path)
-
-    tmp_path = image_path.with_name(image_path.name + ".new")
-    if tmp_path.exists():
-        tmp_path.unlink()
-    try:
-        format_fat16(tmp_path, new_size_mb)
-        for dest_path, data in files:
-            write_file_to_image(tmp_path, dest_path, data)
-            src_md5 = hashlib.md5(data).hexdigest()
-            img_md5 = hashlib.md5(read_file_from_image(tmp_path, dest_path)).hexdigest()
-            if src_md5 != img_md5:
-                raise RuntimeError(
-                    f"update_drive_for_item: MD5 mismatch migrating '{dest_path}' into resized image"
-                )
-    except Exception:
-        if tmp_path.exists():
-            tmp_path.unlink()
-        raise
-
-    backup_path = image_path.with_name(image_path.name + ".bak")
-    if backup_path.exists():
-        backup_path.unlink()
-    image_path.replace(backup_path)
-    try:
-        tmp_path.replace(image_path)
-    except Exception:
-        backup_path.replace(image_path)
-        raise
-    backup_path.unlink()
-
-    drive.size_mb = new_size_mb
-    db.add(drive)
     db.commit()
     db.refresh(drive)
     return drive
