@@ -35,22 +35,3 @@ export interface EmulatorStatusData {
   error: string | null
   install_path: string | null
 }
-
-export interface BiosRequirement {
-  slug: string
-  name: string
-  platform: string
-  bios_path: string
-  guidance_text: string
-  guidance_url: string
-  is_present: boolean
-  required: boolean
-}
-
-export interface BiosPlaceResult {
-  slug: string
-  is_present: boolean
-  copied: string[]
-  skipped: string[]
-  warnings: string[]
-}

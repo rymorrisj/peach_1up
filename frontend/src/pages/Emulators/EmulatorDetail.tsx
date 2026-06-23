@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import TopBar from '@/components/layout/TopBar'
 import { EMULATOR_ERA_MAP, ERA_COLOR } from '@/types/era'
-import type { BiosRequirement, EmulatorStatusData } from '@/pages/FirstRun/types'
+import type { EmulatorStatusData } from '@/pages/FirstRun/types'
 import type { components } from '@shared/types'
 import { TabBtn, type Tab } from './components/EmulatorDetailPrimitives'
 import { OverviewTab } from './components/OverviewTab'
@@ -14,6 +14,7 @@ import { LimitationsTab } from './components/LimitationsTab'
 import { ProfilesTabContent } from './components/ProfilesTabContent'
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
 type LaunchProfile = components['schemas']['ProfileRead']
+type BiosRequirement = components['schemas']['BiosRequirement']
 
 
 const EMULATOR_BIOS_PLATFORM: Record<string, string> = {

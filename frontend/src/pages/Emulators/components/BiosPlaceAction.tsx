@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import FileBrowser from '@/components/common/FileBrowser'
 import { getCsrfToken } from '@/api/client'
-import type { BiosPlaceResult, BiosRequirement } from '@/pages/FirstRun/types'
+import type { components } from '@shared/types'
+type BiosPlaceResult = components['schemas']['BiosPlaceResult']
+type BiosRequirement = components['schemas']['BiosRequirement']
 
 // Multipart-only endpoint (accepts source_path or file uploads) — uses raw
 // fetch + FormData here rather than apiFetch, matching the existing

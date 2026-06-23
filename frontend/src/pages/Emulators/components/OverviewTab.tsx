@@ -1,9 +1,9 @@
 import { GuidanceNote, KVTable, SandboxToggle, StatusDot } from './EmulatorDetailPrimitives'
 import { BiosPlaceAction } from './BiosPlaceAction'
 import { CloneRomPackButton } from './CloneRomPackButton'
-import type { BiosRequirement } from '@/pages/FirstRun/types'
 import type { components } from '@shared/types'
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
+type BiosRequirement = components['schemas']['BiosRequirement']
 
 interface OverviewTabProps {
   entry: CatalogEntry

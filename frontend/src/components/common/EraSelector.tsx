@@ -8,7 +8,9 @@ export type EraValue =
   | 'ps2'
   | 'xbox'
   | 'nes'
+  | 'snes'
   | 'n64'
+  | 'dreamcast'
 
 interface Era {
   value: EraValue
@@ -38,7 +40,9 @@ const ERA_GROUPS: EraGroup[] = [
       { value: 'ps2', label: 'PlayStation 2' },
       { value: 'xbox', label: 'Original Xbox' },
       { value: 'nes', label: 'NES' },
+      { value: 'snes', label: 'Super Nintendo' },
       { value: 'n64', label: 'Nintendo 64' },
+      { value: 'dreamcast', label: 'Dreamcast' },
     ],
   },
 ]

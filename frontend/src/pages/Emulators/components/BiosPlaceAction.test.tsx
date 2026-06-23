@@ -1,7 +1,8 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BiosPlaceAction } from './BiosPlaceAction'
-import type { BiosRequirement } from '@/pages/FirstRun/types'
+import type { components } from '@shared/types'
+type BiosRequirement = components['schemas']['BiosRequirement']
 
 // FileBrowser drives its own dialog/query plumbing — out of scope here. Stubbed
 // to a single button that immediately fires onSelect with a fixed path, so
