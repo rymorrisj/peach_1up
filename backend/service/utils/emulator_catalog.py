@@ -335,7 +335,7 @@ def get_container_enabled(slug: str) -> bool:
     return bool(toml_val)
 
 
-def get_container_config(slug: str, exe_path: str) -> "SandboxConfig | None":
+def get_container_config(slug: str, exe_path: str, user_id: int | None = None) -> "SandboxConfig | None":
     """Return a SandboxConfig for *slug*, or None if container_enabled is false.
 
     Calls app_container.get_container_config() internally.  Returns None
@@ -351,7 +351,7 @@ def get_container_config(slug: str, exe_path: str) -> "SandboxConfig | None":
     from backend.service.utils.platform.windows.app_container import (
         get_container_config as _build_config,
     )
-    return _build_config(slug, exe_path)
+    return _build_config(slug, exe_path, user_id=user_id)
 
 
 def load_bios_requirements() -> list[dict]:

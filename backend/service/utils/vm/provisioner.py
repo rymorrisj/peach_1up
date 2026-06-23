@@ -169,11 +169,16 @@ def provision_86box_vm(
 
 
 
-def provision_platform(platform: Platform) -> tuple[str | None, str | None, str | None]:
+def provision_platform(
+    platform: Platform,
+) -> tuple[str | None, str | None, str | None, str | None, str | None]:
     """Provision a working image for a platform, selecting the backend by era.
 
-    Returns (base_image_path, working_image_path, config_path) but never
-    persists them — the caller owns the write, since it owns the db session.
+    Returns (base_image_path, working_image_path, config_path, install_path,
+    rom_path) but never persists them — the caller owns the write, since it
+    owns the db session. install_path and rom_path are the 86Box binary and
+    ROM directory already resolved during provisioning, returned so a launch
+    that immediately follows can reuse them instead of re-resolving from scratch.
     """
     era = platform.era
 
@@ -188,6 +193,6 @@ def provision_platform(platform: Platform) -> tuple[str | None, str | None, str 
         rom_dir = get_86box_rom_path(Path(box86_path))
         hw_profile = getattr(platform, "hardware_profile", None) or "standard"
         iso_path, img_path, cfg_path = provision_86box_vm(platform, box86_path, str(rom_dir), hw_profile)
-        return iso_path, img_path, cfg_path
+        return iso_path, img_path, cfg_path, box86_path, str(rom_dir)
 
-    return None, None, None
+    return None, None, None, None, None

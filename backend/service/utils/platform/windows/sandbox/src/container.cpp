@@ -133,6 +133,8 @@ HRESULT AppContainer::secure_existing_file(const std::wstring& path, DWORD acces
 }
 
 HRESULT AppContainer::grant_directory(const std::wstring& path, DWORD access_mask) {
+    // TODO: Per-user ACEs accumulate on shared grant dirs with no cleanup on user
+    // deletion; revisit when PX-4 grant-scoping work lands.
     if (!sid_) return E_POINTER;
 
     PACL existing_acl = nullptr;

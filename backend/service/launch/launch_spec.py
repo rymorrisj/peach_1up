@@ -30,6 +30,10 @@ class LaunchSpec:
     use_drive: bool = True
     container_enabled: bool | None = None
 
+    # Owning user of the launching profile — scopes the AppContainer moniker
+    # per-user. None means the profile has no associated user (e.g. bundled).
+    user_id: int | None = None
+
     # Drive plain fields (consumed by dosbox only)
     drive_id: int | None = None
     drive_image_path: Path | None = None
@@ -43,6 +47,10 @@ class LaunchSpec:
     hardware_profile: str = "standard"
     platform_name: str | None = None
     platform_slug: str | None = None
+
+    # Pre-resolved by provisioning when a launch triggers it (box86 only) —
+    # lets box86.launch skip re-resolving the ROM path it already computed.
+    resolved_rom_path: Path | None = None
 
     # History metadata — coordinator only, not used by backends
     item_id: int | None = None

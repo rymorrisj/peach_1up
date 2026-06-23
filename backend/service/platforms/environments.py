@@ -65,7 +65,7 @@ def create_platform(body: PlatformCreate, db: Session) -> Platform:
     if not platform.working_image_path and platform.era in _PROVISIONABLE_ERAS:
         try:
             from backend.service.utils.vm import provision_platform
-            _iso, working_path, config_path = provision_platform(platform)
+            _iso, working_path, config_path, _install_path, _rom_path = provision_platform(platform)
             if _iso and not platform.base_image_path:
                 platform.base_image_path = _iso
             if working_path:

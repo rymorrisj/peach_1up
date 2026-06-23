@@ -242,6 +242,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             "xemu",
             executable_path,
             launch_paths={"hdd_image": str(hdd_path)},
+            user_id=spec.user_id,
         )
         if spec.media_path is not None:
             sandbox_config.broker_files.append(

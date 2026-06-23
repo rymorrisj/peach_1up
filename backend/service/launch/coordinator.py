@@ -179,6 +179,7 @@ def _build_spec_for_item(
         profile_launch_commands=list(profile.launch_commands or []),
         use_drive=bool(profile.use_drive),
         container_enabled=profile.container_enabled,
+        user_id=profile.user_id,
         drive_id=drive_id,
         drive_image_path=drive_image_path,
         drive_size_mb=drive_size_mb,
@@ -197,8 +198,15 @@ def _build_spec_for_item(
 def _build_spec_for_environment(
     platform: Platform,
     profile: Profile,
+    resolved_install_path: str | None = None,
+    resolved_rom_path: str | None = None,
 ) -> LaunchSpec:
-    """Resolve all ORM fields to plain values and construct a LaunchSpec."""
+    """Resolve all ORM fields to plain values and construct a LaunchSpec.
+
+    resolved_install_path / resolved_rom_path are set only when this launch
+    just ran provisioning (box86) — they let box86.launch reuse the binary
+    and ROM paths provisioning already resolved instead of re-resolving them.
+    """
     from backend.constants_generated import Era
     from backend.service.utils.backend_router import resolve_backend_name
 
@@ -212,10 +220,11 @@ def _build_spec_for_environment(
         era=platform.era,
         emulator_slug=profile.emulator_slug,
         media_path=None,
-        executable_path=None,
+        executable_path=resolved_install_path,
         enable_networking=bool(profile.enable_networking),
         enable_dgvoodoo2=bool(profile.enable_dgvoodoo2),
         profile_id=profile.id,
+        user_id=profile.user_id,
         vm_dir=vm_dir,
         config_path=config_path,
         working_image_path=Path(platform.working_image_path) if platform.working_image_path else None,
@@ -224,6 +233,7 @@ def _build_spec_for_environment(
         platform_name=platform.name,
         platform_slug=platform.slug,
         platform_id=platform.id,
+        resolved_rom_path=Path(resolved_rom_path) if resolved_rom_path else None,
     )
 
 
@@ -331,10 +341,18 @@ async def launch_environment(platform: Platform, profile_id: int | None, db: Ses
 
     profile = _resolve_profile_for_environment(platform, profile_id, db)
 
+    resolved_install_path: str | None = None
+    resolved_rom_path: str | None = None
     if platform.working_image_path is None and platform.era in {"win95", "win98", "winxp"}:
         try:
             from backend.service.utils.vm import provision_platform
-            _iso_path, working_path, config_path = await asyncio.to_thread(provision_platform, platform)
+            (
+                _iso_path,
+                working_path,
+                config_path,
+                resolved_install_path,
+                resolved_rom_path,
+            ) = await asyncio.to_thread(provision_platform, platform)
             if _iso_path and not platform.base_image_path:
                 db.execute(
                     update(Platform)
@@ -362,7 +380,11 @@ async def launch_environment(platform: Platform, profile_id: int | None, db: Ses
         )
 
     try:
-        spec = _build_spec_for_environment(platform, profile)
+        spec = _build_spec_for_environment(
+            platform, profile,
+            resolved_install_path=resolved_install_path,
+            resolved_rom_path=resolved_rom_path,
+        )
     except Exception:
         logger.exception(
             "launch_environment failed to build LaunchSpec: platform_id=%d era=%s config_path=%r",

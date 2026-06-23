@@ -2,10 +2,12 @@ import asyncio
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy.orm import Session
 
 from backend.core import install_registry
+from backend.core.database import get_db
 from backend.core.dependencies import require_permission
 from backend.core.logger import get_logger
 from backend.models.user import User
@@ -176,11 +178,13 @@ def get_sandbox_reset_token(_: User = require_permission("is_admin")):
 @router.delete("/sandbox-state")
 def reset_sandbox_state(
     body: SandboxResetRequest,
+    db: Session = Depends(get_db),
     _: User = require_permission("is_admin"),
 ):
     if not install_registry.consume_confirm_token("sandbox-state", body.confirmation_token):
         raise HTTPException(status_code=403, detail="Invalid or expired confirmation token.")
 
+    from backend.models.profile import Profile
     from backend.service.utils.platform.windows.app_container import reset_container as _reset_container
 
     catalog = load_catalog()
@@ -189,12 +193,23 @@ def reset_sandbox_state(
     for entry in catalog:
         if entry.get("container_enabled", False):
             slug = entry["slug"]
-            try:
-                _reset_container(slug)
-                reset_count += 1
-            except Exception as exc:
-                logger.warning("Failed to reset AppContainer for %s: %s", slug, exc)
-                errors.append(slug)
+            # Monikers are now scoped per profile.user_id — sweep every user
+            # scope on record for this emulator, plus the "shared" scope used
+            # by profiles with no user_id, to match the old per-slug sweep.
+            user_ids: set[int | None] = {
+                row[0] for row in db.query(Profile.user_id).filter(Profile.emulator_slug == slug).distinct()
+            }
+            user_ids.add(None)
+            for user_id in user_ids:
+                scope_label = str(user_id) if user_id is not None else "shared"
+                try:
+                    _reset_container(slug, user_id)
+                    reset_count += 1
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to reset AppContainer for %s (user=%s): %s", slug, scope_label, exc
+                    )
+                    errors.append(f"{slug}:{scope_label}")
 
     return {"reset": reset_count, "errors": errors}
 

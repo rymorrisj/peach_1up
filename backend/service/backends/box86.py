@@ -268,18 +268,23 @@ def launch(spec: "LaunchSpec") -> tuple:
             "Complete platform registration before launching."
         )
 
-    _box86_install = get_install_path("86box")
-    box86_path = str(_box86_install) if _box86_install and _box86_install.is_file() else ""
-    if not box86_path:
-        raise RuntimeError(
-            "86Box executable not found. Install it via the Emulators page."
-        )
+    if spec.executable_path:
+        # Already resolved by provisioning earlier in this same launch — avoid
+        # re-resolving from scratch. Non-provisioning launches leave this unset.
+        box86_path = spec.executable_path
+    else:
+        _box86_install = get_install_path("86box")
+        box86_path = str(_box86_install) if _box86_install and _box86_install.is_file() else ""
+        if not box86_path:
+            raise RuntimeError(
+                "86Box executable not found. Install it via the Emulators page."
+            )
     if not Path(box86_path).exists():
         raise FileNotFoundError(f"86Box executable not found: {box86_path}")
 
     validate_bios_from_descriptor("86box")
 
-    effective_rom_path = resolve_rom_path(Path(box86_path))
+    effective_rom_path = spec.resolved_rom_path or resolve_rom_path(Path(box86_path))
 
     _prepare_config(
         working_image_path=spec.working_image_path,
@@ -349,7 +354,7 @@ def launch(spec: "LaunchSpec") -> tuple:
     container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
 
     if container_enabled:
-        sandbox_config = get_emulator_container_config("86box", box86_path)
+        sandbox_config = get_emulator_container_config("86box", box86_path, user_id=spec.user_id)
         if spec.base_image_path is not None:
             sandbox_config.broker_files.append(
                 BrokerFile(path=str(spec.base_image_path), access="r", mode="grant"))

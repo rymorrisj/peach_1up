@@ -126,10 +126,20 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
     )
 
 
+def _moniker_user_scope(user_id: int | None) -> str:
+    """Map a profile's user_id to the moniker's user-scope segment.
+
+    Profiles with no associated user (e.g. bundled profiles) fall back to a
+    fixed "shared" scope rather than a per-user one.
+    """
+    return str(user_id) if user_id is not None else "shared"
+
+
 def get_container_config(
     emulator_slug: str,
     exe_path: str,
     launch_paths: dict[str, str] | None = None,
+    user_id: int | None = None,
 ) -> SandboxConfig:
     """Build a SandboxConfig for the given emulator.
 
@@ -143,6 +153,10 @@ def get_container_config(
         launch_paths: Optional mapping of path_key → absolute path.  When a
             path_key appears in this dict, the provided value is used directly
             instead of the normal resolution path.
+        user_id: The launching profile's user_id, used to scope the
+            AppContainer moniker per-user so two users sharing an emulator
+            don't collide on the same sandbox profile/SID. None falls back to
+            a "shared" scope (e.g. bundled profiles with no user_id).
 
     Returns:
         A fully populated SandboxConfig.
@@ -199,7 +213,7 @@ def get_container_config(
         memory_limit_mb = int(memory_limit_mb_cfg)
 
     return SandboxConfig(
-        moniker=f"Peach1UP.{emulator_slug}",
+        moniker=f"Peach1UP.{emulator_slug}.{_moniker_user_scope(user_id)}",
         exe_path=exe_path,
         broker_files=broker_files,
         cpu_max_rate=cpu_max_rate,
@@ -243,16 +257,18 @@ def validate_descriptor_grant_surface() -> None:
         )
 
 
-def reset_container(emulator_slug: str) -> None:
-    """Delete the persisted AppContainer profile for the given emulator.
+def reset_container(emulator_slug: str, user_id: int | None = None) -> None:
+    """Delete the persisted AppContainer profile for the given emulator and user scope.
 
     Safe to call even if the container has never been provisioned — the
     sandbox_host.exe --reset command treats a missing moniker as a no-op.
 
     Args:
         emulator_slug: Slug matching an entry in emulators.toml.
+        user_id: The user scope to reset (matches the user_id used to build
+            the moniker at launch time). None resets the "shared" scope.
 
     Raises:
         SandboxError: stage=CONTAINER_PROVISION if the reset command fails.
     """
-    sandbox.reset_container(f"Peach1UP.{emulator_slug}")
+    sandbox.reset_container(f"Peach1UP.{emulator_slug}.{_moniker_user_scope(user_id)}")

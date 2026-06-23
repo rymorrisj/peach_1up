@@ -89,7 +89,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
 
     if container_enabled:
-        sandbox_config = get_emulator_container_config(spec.slug, spec.executable_path)
+        sandbox_config = get_emulator_container_config(spec.slug, spec.executable_path, user_id=spec.user_id)
         if spec.media_path is not None:
             sandbox_config.broker_files.append(
                 BrokerFile(path=str(spec.media_path.parent), access="r", mode="grant"))
