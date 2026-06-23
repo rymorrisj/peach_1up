@@ -2,6 +2,7 @@ import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
+from sqlalchemy import case, update
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -60,6 +61,31 @@ def _set_csrf_cookie(response: Response, session_token_ttl) -> None:
         secure=_cookies_secure(),
         max_age=max_age,
     )
+
+
+def _record_failed_pin_attempt(db: Session, user: User) -> None:
+    """Atomically increment failed_pin_attempts and lock the account at the threshold.
+
+    A single UPDATE (not read-then-write on the ORM attribute) so concurrent
+    requests can't each read the same pre-increment count and both slip past
+    the >= 4 threshold.
+    """
+    stmt = (
+        update(User)
+        .where(User.id == user.id)
+        .values(
+            failed_pin_attempts=User.failed_pin_attempts + 1,
+            is_locked=case(
+                (User.failed_pin_attempts + 1 >= 4, True),
+                else_=User.is_locked,
+            ),
+        )
+    )
+    db.execute(stmt)
+    db.commit()
+    db.refresh(user)
+    if user.is_locked:
+        logger.warning("User %d locked after %d failed PIN attempts.", user.id, user.failed_pin_attempts)
 
 
 def _verify_pin(pin: str, pin_hash: str) -> bool:
@@ -130,11 +156,7 @@ def switch_user(body: SwitchRequest, response: Response, db: Session = Depends(g
         if not body.pin:
             raise HTTPException(status_code=400, detail="Owner account requires a PIN.")
         if user.pin_hash is None or not _verify_pin(body.pin, user.pin_hash):
-            user.failed_pin_attempts = (user.failed_pin_attempts or 0) + 1
-            if user.failed_pin_attempts >= 4:
-                user.is_locked = True
-                logger.warning("User %d locked after %d failed PIN attempts.", user.id, user.failed_pin_attempts)
-            db.commit()
+            _record_failed_pin_attempt(db, user)
             raise HTTPException(status_code=401, detail="Invalid PIN.")
         user.failed_pin_attempts = 0
         db.commit()
@@ -152,11 +174,7 @@ def switch_user(body: SwitchRequest, response: Response, db: Session = Depends(g
         return {"user": user}
 
     if user.pin_hash is None or not _verify_pin(body.pin, user.pin_hash):
-        user.failed_pin_attempts = (user.failed_pin_attempts or 0) + 1
-        if user.failed_pin_attempts >= 4:
-            user.is_locked = True
-            logger.warning("User %d locked after %d failed PIN attempts.", user.id, user.failed_pin_attempts)
-        db.commit()
+        _record_failed_pin_attempt(db, user)
         raise HTTPException(status_code=401, detail="Invalid PIN.")
 
     user.failed_pin_attempts = 0

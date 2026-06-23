@@ -175,6 +175,11 @@ def _prepare_item(
                 log.warning("Could not resolve media file for '%s': %s", title, exc)
 
     elif media_src.is_file():
+        try:
+            media_src = normalise_path(str(media_src))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"media_path: {e}")
+
         if games_root_str:
             dest_folder = Path(games_root_str) / media_src.stem
             dest = dest_folder / media_src.name

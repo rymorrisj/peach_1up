@@ -7,6 +7,7 @@ from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
 from backend.models.drive import Drive, DriveRead
+from backend.models.library import LibraryItem
 from backend.models.user import User
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
@@ -56,5 +57,7 @@ def delete_drive(
         if img_path.exists():
             img_path.unlink()
             logger.info("Deleted drive image: %s", img_path)
+    db.query(LibraryItem).filter(LibraryItem.drive_id == drive_id).update({"drive_id": None})
+    db.flush()
     db.delete(drive)
     db.commit()
