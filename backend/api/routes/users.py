@@ -173,13 +173,15 @@ def reset_pin(
     user_id: int,
     body: ResetPinBody,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin_or_self_manage),
+    active_user: User = Depends(require_admin_or_self_manage),
 ):
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     if user.is_owner:
         raise HTTPException(status_code=403, detail="Owner account cannot be modified here.")
+    if user.is_locked and not (active_user.is_owner or active_user.is_admin):
+        raise HTTPException(status_code=403, detail="Account is locked; an admin must reset this PIN.")
     _validate_pin(body.pin)
     user.pin_hash = hash_pin(body.pin)
     user.pin_required = True

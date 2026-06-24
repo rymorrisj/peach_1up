@@ -100,7 +100,9 @@ flowchart TD
     TG2 -- No --> Z403e[403 Permission denied]
     TG2 -- Yes --> TO
     TO -- Yes --> Z403d[403 Owner account\ncannot be modified here]
-    TO -- No --> TO2{"Caller is owner/admin\nediting via PATCH?"}
+    TO -- No --> TRP{"reset-pin AND\ntarget user.is_locked AND\nactive_user not owner/admin?"}
+    TRP -- Yes --> Z403g["403 Account is locked;\nan admin must reset this PIN\n(self-reset unavailable regardless\nof can_manage_users)"]
+    TRP -- No --> TO2{"Caller is owner/admin\nediting via PATCH?"}
     TO2 -- Yes --> TPASS[Pass — full UserPatch applied]
     TO2 -- No --> TF{"Self-edit via\ncan_manage_users only\n— body fields besides name?"}
     TF -- Yes --> Z403f["403 Self-edit may only\nchange name"]
@@ -371,6 +373,11 @@ Users page: admin clicks key icon on a user → Reset PIN modal
           a sub-account resetting its own PIN; body only ever contains `pin`, so no
           field-restriction logic is needed here the way it is on PATCH)
         else → 403
+    → target user.is_owner → 403 Owner account cannot be modified here
+    → target user.is_locked AND active_user is NOT owner/admin → 403 Account is locked;
+        an admin must reset this PIN (self-reset is unavailable the moment is_locked is
+        true, regardless of can_manage_users — falls through to the admin/owner path only,
+        checked in the route handler in addition to require_admin_or_self_manage)
     → _validate_pin(pin) — 4-6 digit regex
     → _hash_pin → new Argon2id hash with fresh urandom(16) salt
     → user.pin_hash = new_hash, pin_required=true, failed_pin_attempts=0, is_locked=false
