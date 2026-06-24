@@ -1,3 +1,5 @@
+import type { InstallType } from '@/generated/constants'
+
 export interface EmulatorStatus {
   slug: string
   name: string
@@ -27,7 +29,7 @@ export interface OwnerStatus {
 
 export interface EmulatorStatusData {
   slug: string
-  install_type: 'zip' | 'installer' | 'rom_pack'
+  install_type: InstallType
   binary_detected: boolean
   binary_path: string | null
   installer_present: boolean

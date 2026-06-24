@@ -79,6 +79,7 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     media_types: dict[str, str] = data["media_types"]
     hardware_profiles: dict[str, str] = data["hardware_profiles"]
     tag_colors: list[dict[str, str]] = data["tag_colors"]
+    install_types: dict[str, str] = data["install_types"]
 
     lines: list[str] = [HEADER_PY, "from enum import Enum\n", "from typing import Literal\n\n\n"]
 
@@ -155,7 +156,10 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     lines.append("TAG_COLOR_HEX: dict[str, str] = {\n")
     for c in tag_colors:
         lines.append(f'    "{c["id"]}": "{c["hex"]}",\n')
-    lines.append("}\n")
+    lines.append("}\n\n")
+
+    # InstallType literal
+    lines.append(_py_literal_type("InstallType", list(install_types)))
 
     return "".join(lines)
 
@@ -169,6 +173,7 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     media_types: dict[str, str] = data["media_types"]
     hardware_profiles: dict[str, str] = data["hardware_profiles"]
     tag_colors: list[dict[str, str]] = data["tag_colors"]
+    install_types: dict[str, str] = data["install_types"]
 
     lines: list[str] = [HEADER_TS, "\n"]
 
@@ -247,7 +252,10 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     for c in tag_colors:
         key = c["id"]
         lines.append(f'  {key}: "{c["hex"]}",\n')
-    lines.append("}\n")
+    lines.append("}\n\n")
+
+    # InstallType union
+    lines.append(_ts_union_type("InstallType", list(install_types)))
 
     return "".join(lines)
 

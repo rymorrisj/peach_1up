@@ -124,3 +124,5 @@ TAG_COLOR_HEX: dict[str, str] = {
     "violet": "#8b6dc4",
     "rose": "#c46d8b",
 }
+
+InstallType = Literal["zip", "bundled", "rom_pack", "installer"]

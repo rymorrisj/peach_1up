@@ -6,6 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
+from backend.constants_generated import InstallType
 from backend.core import install_registry, process_registry
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
@@ -36,7 +37,7 @@ class CatalogEntryResponse(BaseModel):
     version: str
     description: str
     license: str
-    install_type: str
+    install_type: InstallType
     required: bool
     is_installed: bool
     install_path: Optional[str] = None
@@ -75,7 +76,7 @@ class SandboxResetRequest(BaseModel):
 
 class EmulatorStatusData(BaseModel):
     slug: str
-    install_type: str
+    install_type: InstallType
     binary_detected: bool
     binary_path: Optional[str] = None
     installer_present: Optional[bool] = None

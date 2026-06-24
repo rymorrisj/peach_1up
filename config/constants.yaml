@@ -77,6 +77,12 @@ hardware_profiles:
   dos_fm:   "DOS / FM Music"
   midi:     "MIDI Music"
 
+install_types:
+  zip:       "ZIP Archive"
+  bundled:   "Bundled"
+  rom_pack:  "ROM Pack"
+  installer: "Installer"
+
 tag_colors:
   - id: "slate"
     hex: "#7a8499"
