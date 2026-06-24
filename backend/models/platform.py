@@ -3,7 +3,7 @@ from typing import Optional
 
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, SQLModel
-from backend.constants_generated import EmulatorCatalogSlug, EraValue
+from backend.constants_generated import EmulatorCatalogSlug, EraValue, HardwareProfile
 
 
 class PlatformBase(SQLModel):
@@ -20,7 +20,7 @@ class PlatformBase(SQLModel):
     supported_eras: Optional[str] = None
     default_flags: Optional[str] = None
     installed_at: Optional[datetime] = None
-    hardware_profile: str = "standard"
+    hardware_profile: HardwareProfile = Field(default="standard", sa_column=Column(String, nullable=False))
     machine_override: Optional[str] = None
     launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
 
@@ -65,7 +65,7 @@ class PlatformUpdate(SQLModel):
     supported_eras: Optional[str] = None
     default_flags: Optional[str] = None
     installed_at: Optional[datetime] = None
-    hardware_profile: Optional[str] = None
+    hardware_profile: Optional[HardwareProfile] = None
     machine_override: Optional[str] = None
     launch_commands: Optional[list[str]] = None
 

@@ -77,6 +77,7 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     ratings: list[dict[str, str]] = data["content_ratings"]
     dgvoodoo2_eras: list[str] = data.get("dgvoodoo2_supported_eras", [])
     media_types: dict[str, str] = data["media_types"]
+    hardware_profiles: dict[str, str] = data["hardware_profiles"]
 
     lines: list[str] = [HEADER_PY, "from enum import Enum\n", "from typing import Literal\n\n\n"]
 
@@ -137,6 +138,15 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
 
     # EmulatorCatalogSlug literal (sourced from config/emulators/*.toml, not constants.yaml)
     lines.append(_py_literal_type("EmulatorCatalogSlug", catalog_slugs))
+    lines.append("\n")
+
+    # HardwareProfile literal + labels
+    lines.append(_py_literal_type("HardwareProfile", list(hardware_profiles)))
+    lines.append("\n")
+    lines.append("HARDWARE_PROFILE_LABELS: dict[str, str] = {\n")
+    for slug, label in hardware_profiles.items():
+        lines.append(f'    "{slug}": "{label}",\n')
+    lines.append("}\n")
 
     return "".join(lines)
 
@@ -148,6 +158,7 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     ratings: list[dict[str, str]] = data["content_ratings"]
     dgvoodoo2_eras: list[str] = data.get("dgvoodoo2_supported_eras", [])
     media_types: dict[str, str] = data["media_types"]
+    hardware_profiles: dict[str, str] = data["hardware_profiles"]
 
     lines: list[str] = [HEADER_TS, "\n"]
 
@@ -208,6 +219,16 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
 
     # EmulatorCatalogSlug union (sourced from config/emulators/*.toml, not constants.yaml)
     lines.append(_ts_union_type("EmulatorCatalogSlug", catalog_slugs))
+    lines.append("\n")
+
+    # HardwareProfile union + labels
+    lines.append(_ts_union_type("HardwareProfile", list(hardware_profiles)))
+    lines.append("\n")
+    lines.append("export const HARDWARE_PROFILE_LABELS: Record<string, string> = {\n")
+    for slug, label in hardware_profiles.items():
+        key = f'"{slug}"' if not slug.isidentifier() else slug
+        lines.append(f'  {key}: "{label}",\n')
+    lines.append("}\n")
 
     return "".join(lines)
 

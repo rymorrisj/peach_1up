@@ -70,3 +70,9 @@ media_types:
   hdd:       "Hard Disk Image"
   exe:       "Executable"
   unknown:   "Unknown"
+
+hardware_profiles:
+  standard: "Standard"
+  3d_glide: "3D / Glide"
+  dos_fm:   "DOS / FM Music"
+  midi:     "MIDI Music"

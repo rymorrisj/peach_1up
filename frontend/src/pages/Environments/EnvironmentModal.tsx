@@ -4,6 +4,7 @@ import PathInput from '@/components/common/PathInput'
 import FileUpload from '@/components/common/FileUpload'
 import FileBrowser from '@/components/common/FileBrowser'
 import LaunchCommandList from '@/components/LaunchCommandList'
+import type { HardwareProfile } from '@/generated/constants'
 
 type PCEra = 'dos' | 'win31' | 'win95' | 'win98' | 'winxp'
 
@@ -30,8 +31,6 @@ const EMULATOR_LABELS: Record<string, string> = {
 
 const BOX86_ERAS = new Set<PCEra>(['win95', 'win98', 'winxp'])
 const INSTALL_MEDIA_ERAS = new Set<PCEra>(['win95', 'win98', 'winxp'])
-
-type HardwareProfile = 'standard' | '3d_glide' | 'dos_fm' | 'midi'
 
 const HARDWARE_PROFILES: { value: HardwareProfile; label: string; description: string }[] = [
   {

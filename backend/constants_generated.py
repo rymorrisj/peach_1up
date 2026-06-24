@@ -103,3 +103,12 @@ MEDIA_TYPE_LABELS: dict[str, str] = {
 }
 
 EmulatorCatalogSlug = Literal["86box", "dosbox-x", "duckstation", "flycast", "mesen", "pcsx2", "project64", "xemu"]
+
+HardwareProfile = Literal["standard", "3d_glide", "dos_fm", "midi"]
+
+HARDWARE_PROFILE_LABELS: dict[str, str] = {
+    "standard": "Standard",
+    "3d_glide": "3D / Glide",
+    "dos_fm": "DOS / FM Music",
+    "midi": "MIDI Music",
+}
