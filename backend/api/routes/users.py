@@ -1,5 +1,3 @@
-import os
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -9,6 +7,7 @@ from backend.core.dependencies import get_active_user, require_permission, requi
 from backend.core.identity import clear_session, generate_identity_secret
 from backend.core.logger import get_logger
 from backend.models.user import User, UserRead
+from backend.service.utils.pin_hashing import hash_pin
 
 logger = get_logger(__name__)
 
@@ -45,20 +44,6 @@ class UserPatch(BaseModel):
 
 class ResetPinBody(BaseModel):
     pin: str
-
-
-def _hash_pin(pin: str) -> str:
-    from argon2.low_level import Type, hash_secret
-    salt = os.urandom(16)
-    return hash_secret(
-        secret=pin.encode(),
-        salt=salt,
-        time_cost=3,
-        memory_cost=65536,
-        parallelism=4,
-        hash_len=32,
-        type=Type.ID,
-    ).decode()
 
 
 def _validate_pin(pin: str) -> None:
@@ -98,7 +83,7 @@ def create_user(
     pin_hash: str | None = None
     if body.pin is not None:
         _validate_pin(body.pin)
-        pin_hash = _hash_pin(body.pin)
+        pin_hash = hash_pin(body.pin)
 
     user = User(
         name=body.name,
@@ -181,7 +166,7 @@ def reset_pin(
     if user.is_owner:
         raise HTTPException(status_code=403, detail="Owner account cannot be modified here.")
     _validate_pin(body.pin)
-    user.pin_hash = _hash_pin(body.pin)
+    user.pin_hash = hash_pin(body.pin)
     user.pin_required = True
     user.failed_pin_attempts = 0
     user.is_locked = False

@@ -40,6 +40,10 @@ _DEFAULTS: dict = {
     "PROFILES_PATH": "",
     "suppress_confirmations": [],
     "reset_db": False,
+    # Opt-in Argon2id PIN pepper. Empty string means disabled — there is no
+    # default pepper value, it must be explicitly set by the operator via
+    # the Settings page.
+    "PIN_PEPPER": "",
 }
 
 # Path keys whose values are normalised to forward slashes on save.

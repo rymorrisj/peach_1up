@@ -1,6 +1,121 @@
 import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
-import { Button, Modal } from '@/ui'
+import { useAppContext } from '@/context/useAppContext'
+import { Button, Modal, Input, FormField } from '@/ui'
+
+function PinPepperSection() {
+  const { state: appState } = useAppContext()
+  const queryClient = useQueryClient()
+  const [modalOpen, setModalOpen] = useState(false)
+  const [pepper, setPepper] = useState('')
+  const [ownerPin, setOwnerPin] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<string | null>(null)
+
+  const { data: status } = useQuery<{ enabled: boolean }>({
+    queryKey: ['pin-pepper-status'],
+    queryFn: () => apiFetch('/api/v1/settings/pin-pepper/status'),
+    enabled: !!appState.activeUser?.is_owner,
+  })
+
+  if (!appState.activeUser?.is_owner) return null
+
+  const enabled = status?.enabled ?? false
+
+  function openModal() {
+    setPepper('')
+    setOwnerPin('')
+    setError(null)
+    setResult(null)
+    setModalOpen(true)
+  }
+
+  async function handleSubmit() {
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await apiFetch<{
+        pepper_enabled: boolean
+        owner_rehashed: boolean
+        sub_accounts_reset: string[]
+      }>('/api/v1/settings/pin-pepper', {
+        method: 'PATCH',
+        body: JSON.stringify({ pepper, owner_pin: ownerPin || null }),
+      })
+      await queryClient.invalidateQueries({ queryKey: ['pin-pepper-status'] })
+      setResult(
+        res.sub_accounts_reset.length > 0
+          ? `Done. ${res.sub_accounts_reset.join(', ')} must set a new PIN before next login.`
+          : 'Done.',
+      )
+      setModalOpen(false)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : 'Failed to update pepper.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+        PIN Pepper
+      </h2>
+      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        Optional app-level secret mixed into every PIN hash. Currently{' '}
+        <strong>{enabled ? 'enabled' : 'disabled'}</strong>. Changing this invalidates every
+        existing PIN — sub-accounts will need their PIN reset by an admin, and you'll re-set
+        your own PIN here using your current one.
+      </p>
+      <div>
+        <Button variant="secondary" size="sm" onClick={openModal}>
+          {enabled ? 'Rotate or disable pepper' : 'Enable pepper'}
+        </Button>
+      </div>
+      {result && <p className="text-sm text-green-600 dark:text-green-400">{result}</p>}
+
+      <Modal
+        open={modalOpen}
+        title="Change PIN pepper"
+        onClose={() => setModalOpen(false)}
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setModalOpen(false)} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button size="sm" loading={submitting} onClick={handleSubmit}>
+              Save
+            </Button>
+          </>
+        }
+      >
+        <FormField label="New pepper value" hint="Leave blank to disable the pepper.">
+          <Input
+            type="password"
+            value={pepper}
+            onChange={(e) => setPepper(e.target.value)}
+            autoComplete="off"
+          />
+        </FormField>
+        <FormField label="Your current owner PIN" hint="Required to re-hash your own PIN under the new pepper.">
+          <Input
+            type="password"
+            value={ownerPin}
+            onChange={(e) => setOwnerPin(e.target.value)}
+            autoComplete="off"
+          />
+        </FormField>
+        {error && (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            ❌ {error}
+          </p>
+        )}
+      </Modal>
+    </section>
+  )
+}
 
 export default function AdvancedTab() {
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -31,6 +146,8 @@ export default function AdvancedTab() {
 
   return (
     <div className="mt-6 space-y-6">
+      <PinPepperSection />
+
       <section className="space-y-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
           Sandbox

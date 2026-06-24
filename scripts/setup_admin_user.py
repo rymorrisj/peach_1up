@@ -6,7 +6,6 @@ Invoked by the FastAPI lifespan on first start (no owner record present).
 """
 
 import getpass
-import os
 import re
 import sys
 from pathlib import Path
@@ -48,22 +47,6 @@ def _prompt_pin() -> str:
         return pin
 
 
-def _hash_pin(pin: str) -> tuple[str, str]:
-    from argon2.low_level import Type, hash_secret
-
-    salt = os.urandom(16)
-    pin_hash = hash_secret(
-        secret=pin.encode(),
-        salt=salt,
-        time_cost=3,
-        memory_cost=65536,
-        parallelism=4,
-        hash_len=32,
-        type=Type.ID,
-    ).decode()
-    return pin_hash, salt.hex()
-
-
 def run_setup(db_path: str | Path, force: bool = False) -> bool:
     """Create or overwrite the owner account interactively.
 
@@ -74,10 +57,14 @@ def run_setup(db_path: str | Path, force: bool = False) -> bool:
     try:
         name = _prompt_name()
         pin = _prompt_pin()
-        pin_hash, _ = _hash_pin(pin)
     except KeyboardInterrupt:
         print("\nAborted.")
         return False
+
+    from backend.core.settings import init_settings
+    from backend.service.utils.pin_hashing import hash_pin
+    init_settings()  # this script runs standalone, outside the FastAPI lifespan
+    pin_hash = hash_pin(pin)
 
     from sqlalchemy import create_engine, event
     from sqlalchemy.orm import sessionmaker
