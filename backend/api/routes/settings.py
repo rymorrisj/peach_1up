@@ -38,11 +38,6 @@ class ValidateResponse(BaseModel):
     results: list[PathValidationResult]
 
 
-class EmulatorPathBody(BaseModel):
-    slug: str
-    path: str
-
-
 class LibraryPathBody(BaseModel):
     key: Literal["library_path", "media_path", "os_path", "roms_path", "profiles_path"]
     path: str
@@ -53,7 +48,7 @@ def _check_traversal(path_str: str) -> Path:
     return normalise_path(path_str)
 
 
-_SENSITIVE_KEYS = {"AI_API_KEY", "IGDB_API_KEY"}
+_SENSITIVE_KEYS = {"AI_API_KEY", "IGDB_API_KEY", "PIN_PEPPER"}
 
 
 @router.get("", response_model=dict)
@@ -68,6 +63,13 @@ def get_all_settings():
 
 @router.patch("")
 def patch_settings(body: SettingsPatch, _: User = require_permission("can_edit_settings")):
+    if "PIN_PEPPER" in body.updates:
+        raise HTTPException(
+            status_code=400,
+            detail="PIN_PEPPER must be set via PATCH /api/v1/settings/pin-pepper, "
+            "not the generic settings endpoint — changing it requires re-hashing "
+            "the owner PIN and invalidating sub-account PINs.",
+        )
     svc = get_settings()
     for key, value in body.updates.items():
         if key in _ALL_PATH_KEYS:
@@ -77,6 +79,81 @@ def patch_settings(body: SettingsPatch, _: User = require_permission("can_edit_s
             state[key] = value
             svc._save()
     return {"updated": list(body.updates.keys())}
+
+
+class PinPepperBody(BaseModel):
+    pepper: str
+    owner_pin: str | None = None
+
+
+@router.get("/pin-pepper/status")
+def get_pin_pepper_status(_: User = require_permission("is_owner")):
+    """Whether a pepper is currently configured. Never returns the pepper value itself."""
+    svc = get_settings()
+    return {"enabled": bool(svc.get("PIN_PEPPER", ""))}
+
+
+@router.patch("/pin-pepper")
+def patch_pin_pepper(
+    body: PinPepperBody,
+    db: Session = Depends(get_db),
+    _: User = require_permission("is_owner"),
+):
+    """Enable, disable, or rotate the Argon2id PIN pepper.
+
+    Owner-only: this changes how every PIN in the system is hashed. The
+    pepper is mixed directly into the hashed secret (see pin_hashing.py),
+    so any change automatically makes every existing hash fail to verify —
+    that's the desired clean break, but it must be handled deliberately
+    here rather than left to surface as silent wrong-PIN lockouts:
+
+    - The owner's own PIN is re-hashed immediately under the new pepper,
+      proven via `owner_pin` (the current, still-valid PIN) — otherwise the
+      owner who just changed this setting would lock themselves out with
+      no recovery path (reset-pin/unlock both explicitly refuse to touch
+      the owner account).
+    - Every other account's pin_hash is cleared and pin_required is kept
+      set, so they fall through to the existing admin reset-pin flow
+      instead of silently accumulating failed attempts against a hash
+      that can never match again.
+    """
+    from backend.service.utils.pin_hashing import hash_pin, verify_pin
+
+    svc = get_settings()
+    current_pepper = svc.get("PIN_PEPPER", "") or ""
+    new_pepper = body.pepper or ""
+
+    if new_pepper == current_pepper:
+        return {"pepper_enabled": bool(new_pepper), "owner_rehashed": False, "sub_accounts_reset": []}
+
+    owner = db.query(User).filter(User.is_owner.is_(True)).first()
+    owner_rehashed = False
+    if owner is not None and owner.pin_hash is not None:
+        if not body.owner_pin or not verify_pin(body.owner_pin, owner.pin_hash, pepper=current_pepper):
+            raise HTTPException(
+                status_code=401,
+                detail="Current owner PIN required to change the pepper.",
+            )
+        owner.pin_hash = hash_pin(body.owner_pin, pepper=new_pepper)
+        owner_rehashed = True
+
+    affected: list[str] = []
+    others = db.query(User).filter(User.is_owner.is_(False), User.pin_hash.isnot(None)).all()
+    for user in others:
+        user.pin_hash = None
+        user.pin_required = True
+        user.failed_pin_attempts = 0
+        user.is_locked = False
+        affected.append(user.name)
+
+    db.commit()
+    svc.set_flag("PIN_PEPPER", new_pepper)
+
+    return {
+        "pepper_enabled": bool(new_pepper),
+        "owner_rehashed": owner_rehashed,
+        "sub_accounts_reset": affected,
+    }
 
 
 @router.post("/validate", response_model=ValidateResponse)
@@ -113,33 +190,6 @@ def get_owner_status(db: Session = Depends(get_db)):
     a missing/locked owner row and render the recovery fallback page."""
     owner = db.query(User).filter(User.is_owner.is_(True)).first()
     return {"owner_broken": owner is None or owner.is_locked}
-
-
-@router.post("/emulator-path")
-def set_emulator_path(body: EmulatorPathBody, _: User = require_permission("can_edit_settings")):
-    from backend.service.utils.emulator_catalog import get_settings_key as _get_settings_key, get_emulator as _get_emulator
-    try:
-        _get_emulator(body.slug)
-        settings_key = _get_settings_key(body.slug)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Unknown emulator slug: {body.slug!r}")
-    if settings_key not in _ALL_PATH_KEYS:
-        raise HTTPException(status_code=400, detail=f"Unknown emulator slug: {body.slug!r}")
-
-    try:
-        resolved = _check_traversal(body.path)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
-    if not resolved.exists():
-        raise HTTPException(status_code=400, detail="Path does not exist.")
-    if not resolved.is_file():
-        raise HTTPException(status_code=400, detail="Path is not a file.")
-
-    svc = get_settings()
-    svc.set_path(settings_key, str(resolved))
-
-    return {"slug": body.slug, "path": str(resolved), "available": True}
 
 
 @router.post("/library-path")
