@@ -15,10 +15,21 @@ class ProcessEntry:
     library_item_id: int | None
     profile_id: int | None
     launch_history_id: int | None = None
+    emulator_slug: str | None = None
+    user_id: int | None = None
     started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+@dataclass(frozen=True)
+class Reservation:
+    """Token returned by try_reserve(); pass to release() exactly once."""
+    profile_id: int | None
+    emulator_scope: tuple[str, int | None] | None
+
+
 _registry: dict[int, ProcessEntry] = {}
+_pending_profiles: set[int] = set()
+_pending_emulator_scopes: set[tuple[str, int | None]] = set()
 _lock = threading.Lock()
 
 
@@ -42,6 +53,47 @@ def get(pid: int) -> ProcessEntry | None:
 def get_all() -> dict[int, ProcessEntry]:
     with _lock:
         return dict(_registry)
+
+
+def try_reserve(profile_id: int | None, emulator_slug: str | None, user_id: int | None) -> Reservation | None:
+    """Atomically check both launch-guard keys against current state and reserve them.
+
+    Closes the TOCTOU window between "is anything already running for this
+    key" and the new process landing in the registry: the check and the
+    reservation happen under the same lock, so two concurrent callers for the
+    same key can never both succeed. Returns None if either key (profile_id,
+    or the (emulator_slug, user_id) pair) is already active or pending.
+    Callers must call release() exactly once, regardless of outcome.
+    """
+    emulator_scope = (emulator_slug, user_id) if emulator_slug is not None else None
+    with _lock:
+        if profile_id is not None:
+            active_profiles = {e.profile_id for e in _registry.values() if e.profile_id is not None}
+            if profile_id in active_profiles or profile_id in _pending_profiles:
+                return None
+        if emulator_scope is not None:
+            active_scopes = {
+                (e.emulator_slug, e.user_id) for e in _registry.values() if e.emulator_slug is not None
+            }
+            if emulator_scope in active_scopes or emulator_scope in _pending_emulator_scopes:
+                return None
+        if profile_id is not None:
+            _pending_profiles.add(profile_id)
+        if emulator_scope is not None:
+            _pending_emulator_scopes.add(emulator_scope)
+        return Reservation(profile_id=profile_id, emulator_scope=emulator_scope)
+
+
+def release(reservation: Reservation | None) -> None:
+    """Release a reservation from try_reserve(). Safe to call once registration has
+    superseded it -- it only clears the pending marker, never touches _registry."""
+    if reservation is None:
+        return
+    with _lock:
+        if reservation.profile_id is not None:
+            _pending_profiles.discard(reservation.profile_id)
+        if reservation.emulator_scope is not None:
+            _pending_emulator_scopes.discard(reservation.emulator_scope)
 
 
 def terminate(pid: int) -> bool:

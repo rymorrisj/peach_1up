@@ -71,6 +71,8 @@ def _finalize_launch(
     network_blocked: bool,
     item_id: int | None = None,
     profile_id: int | None = None,
+    emulator_slug: str | None = None,
+    user_id: int | None = None,
 ) -> None:
     proc = result[0] if isinstance(result, tuple) else result
     job = result[1] if isinstance(result, tuple) and len(result) > 1 else None
@@ -95,8 +97,28 @@ def _finalize_launch(
             library_item_id=item_id,
             profile_id=profile_id,
             launch_history_id=history.id,
+            emulator_slug=emulator_slug,
+            user_id=user_id,
         )
-        process_registry.register(proc.pid, entry)
+        try:
+            process_registry.register(proc.pid, entry)
+        except Exception as exc:
+            logger.error("Failed to register process pid=%s during launch: %s", getattr(proc, "pid", "?"), exc)
+            try:
+                proc.kill()
+            except Exception as kill_exc:
+                logger.error(
+                    "Failed to kill process %s after registration failure: %s",
+                    getattr(proc, "pid", "?"), kill_exc,
+                )
+            history.error_message = "Launch failed during process registration; process was terminated."
+            history.ended_at = datetime.now(timezone.utc)
+            history.exit_code = -1
+            db.commit()
+            raise HTTPException(
+                status_code=500,
+                detail="Launch failed during process registration; process was terminated.",
+            )
         history.job_isolated = True
         history.sandboxed = True
         history.sandbox_memory_limit_mb = job.memory_limit_mb
@@ -285,75 +307,95 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
     # item_id is set for item launches; environment launches have platform_id only.
     is_environment = spec.item_id is None
 
-    history = LaunchHistory(
-        target_type="environment" if is_environment else "library_item",
-        library_item_id=spec.item_id,
-        platform_id=spec.platform_id,
-        profile_id=spec.profile_id,
-        emulator_slug=spec.emulator_slug,
-        started_at=datetime.now(timezone.utc),
-        network_blocked=False,
-        job_isolated=False,
-    )
-    db.add(history)
-    db.commit()
-    db.refresh(history)
-
-    _LAUNCH_TIMEOUT = 30.0
-    try:
-        result = await asyncio.wait_for(
-            asyncio.to_thread(dispatch, spec),
-            timeout=_LAUNCH_TIMEOUT,
+    # Reserve both guard keys before any spawn work starts. The check and the
+    # reservation happen atomically under process_registry's lock, so a
+    # concurrent second request for the same profile or (emulator_slug,
+    # user_id) cannot slip through the gap between "nothing's running" and
+    # "this launch is now registered."
+    reservation = process_registry.try_reserve(spec.profile_id, spec.emulator_slug, spec.user_id)
+    if reservation is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Launch rejected: a launch for this profile or emulator is already active.",
         )
-    except asyncio.TimeoutError:
-        logger.error("Launch timed out after %.0fs for slug=%s", _LAUNCH_TIMEOUT, spec.slug)
-        history.error_message = f"Launch timed out after {_LAUNCH_TIMEOUT:.0f}s."
-        history.ended_at = datetime.now(timezone.utc)
-        history.exit_code = -1
+    try:
+        history = LaunchHistory(
+            target_type="environment" if is_environment else "library_item",
+            library_item_id=spec.item_id,
+            platform_id=spec.platform_id,
+            profile_id=spec.profile_id,
+            emulator_slug=spec.emulator_slug,
+            started_at=datetime.now(timezone.utc),
+            network_blocked=False,
+            job_isolated=False,
+        )
+        db.add(history)
         db.commit()
-        raise HTTPException(status_code=500, detail="Launch timed out. The emulator did not start within 30 seconds.")
-    except Exception as exc:
-        logger.exception("Launch failed")
-        history.error_message = str(exc)
-        history.ended_at = datetime.now(timezone.utc)
-        history.exit_code = -1
-        db.commit()
-        raise HTTPException(status_code=500, detail=f"Launch failed: {exc}")
+        db.refresh(history)
 
-    proc = result[0] if isinstance(result, tuple) else result
-    _finalize_launch(
-        history, result, db,
-        network_blocked=network_blocked,
-        item_id=spec.item_id,
-        profile_id=spec.profile_id,
-    )
-
-    if proc is not None and not is_environment:
-        launch_time = time.monotonic()
-        exit_code = await _poll_for_immediate_exit(proc)
-        if exit_code is not None:
-            logger.error(
-                "Launch for item_id=%s exited immediately (exit_code=%s) within %.2fs of spawn",
-                spec.item_id, exit_code, _INLINE_CRASH_CHECK_TIMEOUT,
+        _LAUNCH_TIMEOUT = 30.0
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(dispatch, spec),
+                timeout=_LAUNCH_TIMEOUT,
             )
-            process_registry.terminate(proc.pid)
-            history.error_message = (
-                f"Process exited immediately after launch (exit code {exit_code})."
-            )
+        except asyncio.TimeoutError:
+            logger.error("Launch timed out after %.0fs for slug=%s", _LAUNCH_TIMEOUT, spec.slug)
+            history.error_message = f"Launch timed out after {_LAUNCH_TIMEOUT:.0f}s."
             history.ended_at = datetime.now(timezone.utc)
-            history.exit_code = exit_code
+            history.exit_code = -1
             db.commit()
-            raise HTTPException(
-                status_code=500,
-                detail=f"Launch failed: the emulator process exited immediately (exit code {exit_code}).",
-            )
-        register_short_lived_check(spec.item_id, proc, launch_time)
+            raise HTTPException(status_code=500, detail="Launch timed out. The emulator did not start within 30 seconds.")
+        except Exception as exc:
+            logger.exception("Launch failed")
+            history.error_message = str(exc)
+            history.ended_at = datetime.now(timezone.utc)
+            history.exit_code = -1
+            db.commit()
+            raise HTTPException(status_code=500, detail=f"Launch failed: {exc}")
 
-    return LaunchResult(
-        history_id=history.id,
-        warnings=[],
-        launch_review_flagged=spec.launch_review_flagged,
-    )
+        proc = result[0] if isinstance(result, tuple) else result
+        _finalize_launch(
+            history, result, db,
+            network_blocked=network_blocked,
+            item_id=spec.item_id,
+            profile_id=spec.profile_id,
+            emulator_slug=spec.emulator_slug,
+            user_id=spec.user_id,
+        )
+
+        if proc is not None and not is_environment:
+            launch_time = time.monotonic()
+            exit_code = await _poll_for_immediate_exit(proc)
+            if exit_code is not None:
+                logger.error(
+                    "Launch for item_id=%s exited immediately (exit_code=%s) within %.2fs of spawn",
+                    spec.item_id, exit_code, _INLINE_CRASH_CHECK_TIMEOUT,
+                )
+                process_registry.terminate(proc.pid)
+                history.error_message = (
+                    f"Process exited immediately after launch (exit code {exit_code})."
+                )
+                history.ended_at = datetime.now(timezone.utc)
+                history.exit_code = exit_code
+                db.commit()
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Launch failed: the emulator process exited immediately (exit code {exit_code}).",
+                )
+            register_short_lived_check(spec.item_id, proc, launch_time)
+
+        return LaunchResult(
+            history_id=history.id,
+            warnings=[],
+            launch_review_flagged=spec.launch_review_flagged,
+        )
+    finally:
+        # Once registered, process_registry itself is the active-state source
+        # of truth for these keys (try_reserve scans it too), so releasing the
+        # now-redundant pending marker here -- on every exit path, success or
+        # failure -- never reopens a window for a duplicate launch to slip in.
+        process_registry.release(reservation)
 
 
 async def launch_item(item: LibraryItem, profile_id: int | None, db: Session) -> LaunchResult:
