@@ -6,10 +6,11 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
-from backend.core import install_registry
+from backend.core import install_registry, process_registry
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
 from backend.core.logger import get_logger
+from backend.models.profile import Profile
 from backend.models.user import User
 from backend.service.utils.emulator_catalog import (
     get_emulator,
@@ -169,6 +170,22 @@ def list_emulators():
     return result
 
 
+def _active_emulator_scopes(db: Session) -> set[tuple[str, Optional[int]]]:
+    """(emulator_slug, user_id) pairs for every profile with a currently running process.
+
+    Sourced from process_registry (in-memory, live processes only) joined
+    against Profile so AppContainer reset and emulator delete can refuse to
+    act on an emulator that's actively running underneath an in-flight launch.
+    """
+    profile_ids = {
+        e.profile_id for e in process_registry.get_all().values() if e.profile_id is not None
+    }
+    if not profile_ids:
+        return set()
+    rows = db.query(Profile.emulator_slug, Profile.user_id).filter(Profile.id.in_(profile_ids)).all()
+    return {(slug, uid) for slug, uid in rows}
+
+
 @router.get("/sandbox-state/confirm-token")
 def get_sandbox_reset_token(_: User = require_permission("is_admin")):
     token = install_registry.generate_confirm_token("sandbox-state")
@@ -188,8 +205,10 @@ def reset_sandbox_state(
     from backend.service.utils.platform.windows.app_container import reset_container as _reset_container
 
     catalog = load_catalog()
+    active_scopes = _active_emulator_scopes(db)
     reset_count = 0
     errors: list[str] = []
+    skipped: list[str] = []
     for entry in catalog:
         if entry.get("container_enabled", False):
             slug = entry["slug"]
@@ -202,6 +221,13 @@ def reset_sandbox_state(
             user_ids.add(None)
             for user_id in user_ids:
                 scope_label = str(user_id) if user_id is not None else "shared"
+                if (slug, user_id) in active_scopes:
+                    logger.warning(
+                        "Skipped AppContainer reset for %s (user=%s): emulator is actively running",
+                        slug, scope_label,
+                    )
+                    skipped.append(f"{slug}:{scope_label}")
+                    continue
                 try:
                     _reset_container(slug, user_id)
                     reset_count += 1
@@ -211,7 +237,7 @@ def reset_sandbox_state(
                     )
                     errors.append(f"{slug}:{scope_label}")
 
-    return {"reset": reset_count, "errors": errors}
+    return {"reset": reset_count, "errors": errors, "skipped_active": skipped}
 
 
 @router.get("/xemu/asset-paths", response_model=XemuAssetPathsResponse)
@@ -398,11 +424,22 @@ def patch_sandbox(slug: str, body: SandboxPatchRequest, _: User = require_permis
 
 
 @router.delete("/{slug}")
-def delete_emulator(slug: str, body: DeleteRequest, _: User = require_permission("is_admin")):
+def delete_emulator(
+    slug: str,
+    body: DeleteRequest,
+    db: Session = Depends(get_db),
+    _: User = require_permission("is_admin"),
+):
     try:
         get_emulator(slug)
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
+
+    if any(active_slug == slug for active_slug, _user_id in _active_emulator_scopes(db)):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete '{slug}': it has an active running session. Stop it first.",
+        )
 
     if not install_registry.consume_confirm_token(slug, body.confirmation_token):
         raise HTTPException(status_code=403, detail="Invalid or expired confirmation token.")
