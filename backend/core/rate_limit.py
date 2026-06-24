@@ -3,6 +3,14 @@ import time
 
 _lock = threading.Lock()
 _attempts: dict[str, list[float]] = {}
+_windows: dict[str, float] = {}
+
+# Entries are swept lazily on each call rather than via a background task —
+# growth only happens while calls are coming in, so checking the clock on
+# every call (cheap) is enough to keep the dict bounded under sustained or
+# distributed attack without adding an asyncio loop just for this.
+_SWEEP_INTERVAL_SECONDS = 60.0
+_last_sweep = 0.0
 
 
 def check_and_record(key: str, limit: int, window_seconds: float) -> tuple[bool, float]:
@@ -19,8 +27,10 @@ def check_and_record(key: str, limit: int, window_seconds: float) -> tuple[bool,
     """
     now = time.monotonic()
     with _lock:
+        _sweep_expired_locked(now)
         cutoff = now - window_seconds
         timestamps = [t for t in _attempts.get(key, ()) if t > cutoff]
+        _windows[key] = window_seconds
         if len(timestamps) >= limit:
             _attempts[key] = timestamps
             retry_after = timestamps[0] + window_seconds - now
@@ -28,3 +38,25 @@ def check_and_record(key: str, limit: int, window_seconds: float) -> tuple[bool,
         timestamps.append(now)
         _attempts[key] = timestamps
         return True, 0.0
+
+
+def _sweep_expired_locked(now: float) -> None:
+    """Drop keys whose window has fully elapsed since their last attempt.
+
+    Must be called with `_lock` held. Runs at most once per
+    `_SWEEP_INTERVAL_SECONDS` so it stays cheap on the hot path while still
+    bounding dict growth under a distributed attack (many unique keys, each
+    queried once) where per-key pruning alone never removes the key.
+    """
+    global _last_sweep
+    if now - _last_sweep < _SWEEP_INTERVAL_SECONDS:
+        return
+    _last_sweep = now
+    stale_keys = [
+        key
+        for key, timestamps in _attempts.items()
+        if not timestamps or timestamps[-1] <= now - _windows.get(key, 0.0)
+    ]
+    for key in stale_keys:
+        _attempts.pop(key, None)
+        _windows.pop(key, None)

@@ -363,16 +363,17 @@ drive path is within the `library/` tree via `is_relative_to()`.
 IMGMAKE receives the absolute path derived from the slug — no user string
 reaches the IMGMAKE command directly.
 
-### /auth/switch rate limiter is in-memory, unbounded
+### /auth/switch rate limiter is in-memory, TTL-swept
 
 The IP-keyed rate limiter added for /auth/switch (backend/core/rate_limit.py)
-stores attempt counts in a process-local dict with no eviction. A distributed
-attack using many unique source IPs grows this dict unbounded for the life of
-the process. This matches the existing in-memory-only precedent set by
-install_registry and process_registry, accepted for the same reason: no
-persistence requirement, and a backend restart clears it. If this becomes a
-real vector (observed in the wild, not just theoretical), add a periodic TTL
-sweep or move to a bounded LRU rather than persisting attempts to the DB.
+stores attempt counts in a process-local dict. A distributed attack using
+many unique source IPs no longer grows this dict unbounded: `check_and_record`
+lazily sweeps keys whose window has fully elapsed since their last attempt,
+at most once every 60 seconds, so the dict stays bounded by the volume of
+*recent* distinct keys rather than every key ever seen. Still matches the
+existing in-memory-only precedent set by install_registry and
+process_registry — no persistence requirement, and a backend restart clears
+it.
 
 `NOTE:` Peach 1UP is a household application first and foremost. We will add some basic
 level protections but network safety is the users concern.
