@@ -15,6 +15,7 @@ from backend.core.startup_tasks import (
     _ensure_default_paths,
     _ensure_owner_user,
     _flag_corrupt_platform_working_paths,
+    _heal_interrupted_rom_pack_clones,
     _scan_installed_emulators,
     _sync_detected_emulator_paths,
     _sync_first_run_from_db,
@@ -68,6 +69,7 @@ async def lifespan(app: FastAPI):
             "Startup aborted: required seed data could not be created — see logs above."
         )
 
+    _heal_interrupted_rom_pack_clones()
     _scan_installed_emulators()
     _sync_detected_emulator_paths()
 

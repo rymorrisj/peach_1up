@@ -1,3 +1,4 @@
+import shutil
 from datetime import datetime, timezone
 
 from backend.core import install_registry
@@ -91,6 +92,53 @@ def _sync_detected_emulator_paths() -> None:
         logger.info("Startup: emulator configure pass complete")
     except Exception as exc:
         logger.warning("Startup emulator path sync failed: %s", exc)
+
+
+def _heal_interrupted_rom_pack_clones() -> None:
+    """Clean up a rom_pack target directory left half-populated by a git
+    clone that was interrupted (e.g. backend restart mid-clone).
+
+    install_registry's "cloning" state is in-memory only and resets to
+    "idle" on restart, but the partial roms/ directory on disk survives —
+    the next install attempt then fails with FileExistsError since
+    clone_rom_pack() refuses to clone into a non-empty target. Detecting
+    and clearing an interrupted clone here lets that retry succeed.
+    """
+    try:
+        from backend.service.utils.emulator_catalog import load_catalog
+
+        for entry in load_catalog():
+            if entry.get("install_type") != "rom_pack":
+                continue
+            binary = entry.get("binary", "")
+            if not binary:
+                continue
+            target = (get_base_path() / binary).resolve()
+            if not target.is_dir():
+                continue
+            try:
+                children = list(target.iterdir())
+            except OSError:
+                continue
+            if not children:
+                continue
+
+            # An interrupted `git clone` leaves either a stale .git/index.lock
+            # (killed during checkout) or a .git dir with nothing checked out
+            # yet (killed during fetch). A completed clone has .git plus
+            # checked-out ROM content and no lock file — leave that alone.
+            git_dir = target / ".git"
+            checked_out = any(c.name != ".git" for c in children)
+            interrupted = (git_dir / "index.lock").exists() or (git_dir.is_dir() and not checked_out)
+            if interrupted:
+                shutil.rmtree(target, ignore_errors=True)
+                logger.warning(
+                    "Startup: removed half-populated rom pack directory for '%s' (%s) — "
+                    "a previous clone was interrupted by a restart; ready to retry.",
+                    entry.get("slug"), target,
+                )
+    except Exception as exc:
+        logger.warning("Rom pack self-heal check failed: %s", exc)
 
 
 def _scan_installed_emulators() -> None:
