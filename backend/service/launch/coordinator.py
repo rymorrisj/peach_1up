@@ -36,6 +36,33 @@ class LaunchResult:
     launch_review_flagged: bool = False
 
 
+# Synchronous post-spawn liveness check, run inline before the launch response
+# is returned. Bounded short on purpose -- this adds to every launch's
+# response time, success or failure, so it only catches the common
+# near-instant-crash case (missing DLL, bad args, immediate fault). Slower
+# crashes (up to the existing 3s short-lived window) are still caught
+# asynchronously by register_short_lived_check/poll_short_lived, which only
+# flags the item for the *next* launch's response, not this one.
+_INLINE_CRASH_CHECK_TIMEOUT = 0.75
+_INLINE_CRASH_CHECK_INTERVAL = 0.1
+
+
+async def _poll_for_immediate_exit(proc, timeout: float = _INLINE_CRASH_CHECK_TIMEOUT) -> int | None:
+    """Poll proc.poll() for up to *timeout* seconds.
+
+    Returns the exit code if the process has already exited within that
+    window, or None if it is still running when the window elapses.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        exit_code = proc.poll()
+        if exit_code is not None:
+            return exit_code
+        if time.monotonic() >= deadline:
+            return None
+        await asyncio.sleep(_INLINE_CRASH_CHECK_INTERVAL)
+
+
 def _finalize_launch(
     history: LaunchHistory,
     result: object,
@@ -252,7 +279,6 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
     Returns:
         LaunchResult with history_id and any warnings.
     """
-    from backend.constants_generated import BackendSlug
     from backend.service.utils.backend_router import dispatch
 
     network_blocked = not spec.enable_networking
@@ -302,8 +328,26 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
         profile_id=spec.profile_id,
     )
 
-    if proc is not None and spec.slug == BackendSlug.DOSBOX.value:
-        register_short_lived_check(spec.item_id, proc, time.monotonic())
+    if proc is not None and not is_environment:
+        launch_time = time.monotonic()
+        exit_code = await _poll_for_immediate_exit(proc)
+        if exit_code is not None:
+            logger.error(
+                "Launch for item_id=%s exited immediately (exit_code=%s) within %.2fs of spawn",
+                spec.item_id, exit_code, _INLINE_CRASH_CHECK_TIMEOUT,
+            )
+            process_registry.terminate(proc.pid)
+            history.error_message = (
+                f"Process exited immediately after launch (exit code {exit_code})."
+            )
+            history.ended_at = datetime.now(timezone.utc)
+            history.exit_code = exit_code
+            db.commit()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Launch failed: the emulator process exited immediately (exit code {exit_code}).",
+            )
+        register_short_lived_check(spec.item_id, proc, launch_time)
 
     return LaunchResult(
         history_id=history.id,

@@ -1,13 +1,16 @@
-"""Tests for short-lived launch detection in monitor.py.
+"""Tests for short-lived launch detection in monitor.py and coordinator.py.
 
 Covers:
-- Process exits within 3s → launch_review_flagged set on item
+- Process exits within 3s → launch_review_flagged set on item (async, next launch)
 - Process survives the 3s window → flag not set
 - launch_review_flagged already True → returned immediately in LaunchResponse
 - Environment launch → monitor not triggered
-- Non-DOSBox backend → monitor not triggered (structural check)
+- Item launch scope is backend-agnostic (is_environment), not a slug list
+- coordinator._poll_for_immediate_exit — synchronous inline crash check that
+  makes the *current* launch response reflect failure, not just flag for later
 """
 
+import asyncio
 import inspect
 import time
 from unittest.mock import MagicMock
@@ -210,15 +213,18 @@ class TestEnvironmentLaunchNoMonitor:
 
 
 # ---------------------------------------------------------------------------
-# Non-DOSBox backend — monitor must be guarded by backend check
+# Backend-agnostic scope — monitor covers any item launch, not a slug list
 # ---------------------------------------------------------------------------
 
-class TestNonDosboxBackendNoMonitor:
-    def test_coordinator_launch_gates_monitor_on_dosbox_backend(self):
-        """coordinator.launch() shows short-lived check is gated on DOSBox slug."""
+class TestItemLaunchScopeNotSlugList:
+    def test_coordinator_launch_gates_monitor_on_item_id_not_slug(self):
+        """coordinator.launch() gates the short-lived check on is_environment
+        (i.e. any library-item launch), not on a hardcoded backend slug —
+        covers DuckStation/PCSX2/Mesen/Project64/Flycast/DOSBox uniformly."""
         import backend.service.launch.coordinator as coord
         src = inspect.getsource(coord.launch)
-        assert "BackendSlug.DOSBOX" in src
+        assert "BackendSlug.DOSBOX" not in src
+        assert "not is_environment" in src
         assert "register_short_lived_check" in src
 
     def test_coordinator_uses_resolve_backend_name(self):
@@ -226,3 +232,57 @@ class TestNonDosboxBackendNoMonitor:
         import backend.service.launch.coordinator as coord
         src = inspect.getsource(coord._build_spec_for_item)
         assert "resolve_backend_name" in src
+
+
+# ---------------------------------------------------------------------------
+# _poll_for_immediate_exit — synchronous inline crash check
+# ---------------------------------------------------------------------------
+
+class TestPollForImmediateExit:
+    def test_returns_exit_code_when_already_exited(self):
+        """proc already exited before the first poll → returns that code immediately."""
+        from backend.service.launch.coordinator import _poll_for_immediate_exit
+
+        proc = _make_proc(poll_return=7)
+        result = asyncio.run(_poll_for_immediate_exit(proc, timeout=0.3))
+        assert result == 7
+
+    def test_returns_exit_code_zero_when_already_exited(self):
+        """Exit code 0 (clean exit) is still treated as 'exited', not 'still running'."""
+        from backend.service.launch.coordinator import _poll_for_immediate_exit
+
+        proc = _make_proc(poll_return=0)
+        result = asyncio.run(_poll_for_immediate_exit(proc, timeout=0.3))
+        assert result == 0
+
+    def test_returns_none_when_process_survives_window(self):
+        """proc.poll() always returns None → window elapses, returns None."""
+        from backend.service.launch.coordinator import _poll_for_immediate_exit
+
+        proc = _make_proc(poll_return=None)
+        result = asyncio.run(_poll_for_immediate_exit(proc, timeout=0.2))
+        assert result is None
+
+    def test_detects_exit_partway_through_window(self):
+        """proc exits after a couple of poll iterations, within the window."""
+        from backend.service.launch.coordinator import _poll_for_immediate_exit
+
+        proc = MagicMock()
+        proc.poll.side_effect = [None, None, 1]
+        result = asyncio.run(_poll_for_immediate_exit(proc, timeout=1.0))
+        assert result == 1
+
+
+class TestInlineCheckFailsCurrentResponse:
+    def test_immediate_exit_raises_http_exception_not_success(self, monkeypatch):
+        """The whole point of the inline check: an immediate exit must raise
+        HTTPException for *this* request, not just flag the item for later."""
+        import backend.service.launch.coordinator as coord
+        from fastapi import HTTPException
+
+        src = inspect.getsource(coord.launch)
+        # The inline check must run before LaunchResult is constructed, and
+        # must raise rather than silently falling through to a 200 response.
+        assert "_poll_for_immediate_exit" in src
+        assert "raise HTTPException" in src
+        assert src.index("_poll_for_immediate_exit") < src.index("return LaunchResult(")
