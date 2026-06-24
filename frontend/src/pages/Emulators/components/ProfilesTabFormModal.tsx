@@ -1,6 +1,7 @@
 import { Button, FormField, Input, Modal, Textarea } from '@/ui'
 import LaunchCommandList from '@/components/LaunchCommandList'
 import { DGVOODOO2_SUPPORTED_ERAS } from '@/generated/constants'
+import type { EmulatorCatalogSlug } from '@/generated/constants'
 import type { DriveMode, DriveRecord, EmulatorEntry, ProfileForm, ProfileModalState } from '@/types/profiles'
 
 const ERA_DEFAULT_DRIVE_SIZE: Record<string, number> = {
@@ -19,13 +20,14 @@ interface ProfilesTabFormModalProps {
   emulators: EmulatorEntry[]
   drives: DriveRecord[]
   eraOptions: Array<{ value: string; label: string }>
+  emulatorOptions: Array<{ value: string; label: string }>
   setField: <K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) => void
   onSubmit: () => void
   onClose: () => void
 }
 
 export function ProfilesTabFormModal({
-  modal, form, formErrors, submitError, submitting, emulators, drives, eraOptions, setField, onSubmit, onClose,
+  modal, form, formErrors, submitError, submitting, emulators, drives, eraOptions, emulatorOptions, setField, onSubmit, onClose,
 }: ProfilesTabFormModalProps) {
   const modalTitle = modal?.mode === 'create' ? 'Add Launch Profile' : 'Edit Launch Profile'
 
@@ -71,20 +73,20 @@ export function ProfilesTabFormModal({
         />
       </FormField>
 
-      <FormField
-        label="Emulator Slug"
-        htmlFor="lp-emulator"
-        required
-        hint="e.g. dosbox-x, 86box, duckstation"
-        error={formErrors.emulator_slug}
-      >
-        <Input
+      <FormField label="Emulator Slug" htmlFor="lp-emulator" required error={formErrors.emulator_slug}>
+        <select
           id="lp-emulator"
           value={form.emulator_slug}
-          onChange={(e) => setField('emulator_slug', e.target.value)}
-          placeholder="dosbox-x"
-          hasError={!!formErrors.emulator_slug}
-        />
+          onChange={(e) => setField('emulator_slug', e.target.value as EmulatorCatalogSlug | '')}
+          className={SELECT_CLASS}
+        >
+          <option value="">— Select emulator —</option>
+          {emulatorOptions.map((e) => (
+            <option key={e.value} value={e.value}>
+              {e.label}
+            </option>
+          ))}
+        </select>
       </FormField>
 
       <FormField label="Era" htmlFor="lp-era" required error={formErrors.era}>

@@ -1,4 +1,5 @@
 import type { components } from '@shared/types'
+import type { EmulatorCatalogSlug } from '@/generated/constants'
 
 export type LaunchProfile = components['schemas']['ProfileRead']
 export type DriveRecord = components['schemas']['DriveRead'] & { slug: string; era: string }
@@ -9,7 +10,7 @@ export type DriveMode = 'none' | 'existing' | 'create'
 export interface ProfileForm {
   name: string
   slug: string
-  emulator_slug: string
+  emulator_slug: EmulatorCatalogSlug | ''
   era: string
   extra_args: string
   enable_networking: boolean

@@ -6,7 +6,7 @@ import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useConfirm } from '@/hooks/useConfirm'
-import { ERA_LABELS } from '@/generated/constants'
+import { ERA_LABELS, EMULATOR_CATALOG_SLUGS } from '@/generated/constants'
 import { ProfilesTabList } from './components/ProfilesTabList'
 import { ProfilesTabFormModal } from './components/ProfilesTabFormModal'
 import type { DriveRecord, EmulatorEntry, LaunchProfile, ProfileForm, ProfileModalState } from '@/types/profiles'
@@ -18,6 +18,7 @@ const ERA_DEFAULT_DRIVE_SIZE: Record<string, number> = {
 }
 
 const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
+const EMULATOR_OPTIONS = EMULATOR_CATALOG_SLUGS.map((slug) => ({ value: slug, label: slug }))
 
 const EMPTY_PROFILE_FORM: ProfileForm = {
   name: '',
@@ -92,7 +93,7 @@ export default function ProfilesTab() {
     setForm({
       name: profile.name,
       slug: profile.slug,
-      emulator_slug: profile.emulator_slug,
+      emulator_slug: profile.emulator_slug as ProfileForm['emulator_slug'],
       era: profile.era,
       extra_args: profile.extra_args ?? '',
       enable_networking: profile.enable_networking,
@@ -262,6 +263,7 @@ export default function ProfilesTab() {
         emulators={emulators}
         drives={drives}
         eraOptions={ERA_OPTIONS}
+        emulatorOptions={EMULATOR_OPTIONS}
         setField={setField}
         onSubmit={handleSubmit}
         onClose={closeModal}
