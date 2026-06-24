@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import case, update
 from sqlalchemy.orm import Session
 
+from backend.core import rate_limit
 from backend.core.database import get_db
 from backend.core.identity import clear_session, extend_session, generate_identity_secret, issue_session, parse_session_cookie, validate_session
 from backend.core.logger import get_logger
@@ -16,6 +17,18 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 _COOKIE_NAME = "peach_token"
 _CSRF_COOKIE_NAME = "peach_csrf"
+
+# Bounds total /auth/switch attempts per source IP, independent of the
+# per-user PIN lockout counter — without this, a remote actor can enumerate
+# users via GET /api/v1/users and brute-force/lock any account (including
+# owner) with unlimited unauthenticated requests. This is a household
+# device where several sub-accounts share one source IP (same LAN/localhost),
+# so the budget has to absorb normal multi-account traffic — the per-account
+# 4-attempt lockout is the actual brake on guessing any single account's PIN;
+# this cap exists to stop high-volume automated sweeps across many accounts,
+# not to police ordinary retries.
+_SWITCH_RATE_LIMIT = 30
+_SWITCH_RATE_WINDOW_SECONDS = 60.0
 
 
 class SwitchRequest(BaseModel):
@@ -89,17 +102,8 @@ def _record_failed_pin_attempt(db: Session, user: User) -> None:
 
 
 def _verify_pin(pin: str, pin_hash: str) -> bool:
-    from argon2 import PasswordHasher
-    from argon2.exceptions import VerificationError, VerifyMismatchError
-
-    ph = PasswordHasher()
-    try:
-        return ph.verify(pin_hash, pin)
-    except VerifyMismatchError:
-        return False
-    except (VerificationError, Exception) as exc:
-        logger.warning("PIN verification error: %s", exc)
-        return False
+    from backend.service.utils.pin_hashing import verify_pin
+    return verify_pin(pin, pin_hash)
 
 
 @router.post("/setup-owner", response_model=UserResponse)
@@ -115,9 +119,8 @@ def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depen
     if body.pin != body.confirm_pin:
         raise HTTPException(status_code=400, detail="PINs do not match.")
 
-    from argon2 import PasswordHasher
-    ph = PasswordHasher()
-    pin_hash = ph.hash(body.pin)
+    from backend.service.utils.pin_hashing import hash_pin
+    pin_hash = hash_pin(body.pin)
 
     owner = User(
         name=body.name.strip(),
@@ -144,7 +147,22 @@ def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depen
 
 
 @router.post("/switch", response_model=UserResponse)
-def switch_user(body: SwitchRequest, response: Response, db: Session = Depends(get_db)):
+def switch_user(body: SwitchRequest, request: Request, response: Response, db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    # Keyed on the immediate TCP peer, not X-Forwarded-For — that header is
+    # attacker-controlled unless a trusted reverse proxy strips/sets it, and
+    # trusting it here would let the same attacker we're rate-limiting just
+    # spoof a fresh IP on every request to bypass the limit.
+    allowed, retry_after = rate_limit.check_and_record(
+        f"auth-switch:{client_ip}", _SWITCH_RATE_LIMIT, _SWITCH_RATE_WINDOW_SECONDS
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts from this address. Try again shortly.",
+            headers={"Retry-After": str(int(retry_after) + 1)},
+        )
+
     user = db.get(User, body.user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found.")
