@@ -36,9 +36,9 @@ middleware chain. Read alongside `SECURITY.md` (policy rules) and `TECH.md` (sta
 | Property | Value |
 |----------|-------|
 | Session cookie name | `peach_token` |
-| Session cookie flags | `HttpOnly`, `SameSite=Lax`, `Secure=False` (localhost only) |
+| Session cookie flags | `HttpOnly`, `SameSite=Lax`, `Secure` follows `ALLOW_NETWORK_ACCESS` — `False` while it's off (default, localhost only), `True` once it's set to `true`. With `Secure=True` and no TLS-terminating reverse proxy in front of the service, browsers silently drop the cookie over plain HTTP — login appears to succeed but every subsequent request looks unauthenticated, producing an infinite re-login loop with no error shown (see SECURITY.md § Network Rules) |
 | CSRF cookie name | `peach_csrf` |
-| CSRF cookie flags | **Not** HttpOnly (JS-readable), `SameSite=Lax`, `Secure=False`; same `max_age` as session token |
+| CSRF cookie flags | **Not** HttpOnly (JS-readable), `SameSite=Lax`, `Secure` follows `ALLOW_NETWORK_ACCESS` the same way as the session cookie; same `max_age` as session token |
 | CSRF enforcement | `CSRFMiddleware` — all state-mutating requests must send `X-CSRF-Token` header matching `peach_csrf` value; auth endpoints (`/api/v1/auth/*`) exempt |
 | Token storage | Columns on the `User` row — `identity_token_secret`, `session_token_hash`, `session_token_expires_at`, `session_token_ttl`. No separate table |
 | Token value | `mint_session_token(identity_token_secret)` → HMAC-SHA256(`identity_token_secret`, `nonce + issued_at`), hex digest. Cookie stores `{user_id}.{session_token}`; only `hash_session_token()` (plain SHA-256) of it is persisted |

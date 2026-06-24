@@ -140,6 +140,15 @@ Permission flags on sub-accounts:
   recommended pattern is a reverse proxy with an external auth provider (e.g. Authentik,
   Authelia) in front of this service. Peach 1UP does not manage TLS termination or
   external routing.
+- **Setting `ALLOW_NETWORK_ACCESS=true` creates a hard TLS dependency.** The session and
+  CSRF cookies' `Secure` flag is derived directly from `ALLOW_NETWORK_ACCESS` (see AUTH.md
+  § Token & Cookie Model) — enabling network access flips `Secure` to `True` regardless of
+  whether a reverse proxy is actually in place. A browser will not send a `Secure` cookie
+  back over plain HTTP, so without a TLS-terminating reverse proxy already running in front
+  of the service, authentication silently breaks: login appears to succeed, but the cookie
+  is dropped and every following request looks unauthenticated, producing an infinite
+  re-login loop with no error message. Do not set `ALLOW_NETWORK_ACCESS=true` until TLS
+  termination is actually in place.
 
 ### Network isolation is emulator-native
 
