@@ -30,14 +30,43 @@ def _validate_image_path(path_str: str) -> Path:
     return resolved
 
 
+def _probe_image_integrity(path: Path) -> bool:
+    """Cheap interrupted-write/corruption check for a working image.
+
+    Not a format validator (working images may be raw .img, .vhd, or a
+    pre-installed copy with varying internal layouts) — just confirms the
+    file is non-empty and its header and tail (where a VHD footer would
+    live, per vm/vhd.py) are actually readable. A zero-byte or truncated
+    file from an interrupted copy fails this; a legitimately fresh,
+    not-yet-installed disk image does not.
+    """
+    try:
+        size = path.stat().st_size
+        if size == 0:
+            return False
+        with path.open("rb") as f:
+            if not f.read(512):
+                return False
+            f.seek(max(0, size - 512))
+            if not f.read(512):
+                return False
+    except OSError:
+        return False
+    return True
+
+
 def _compute_status(working: str | None, base: str | None) -> str:
     if not working and not base:
         return "unconfigured"
     working_ok = bool(working and Path(working).is_file())
     base_ok = bool(base and Path(base).is_file())
-    if working_ok:
-        return "healthy"
-    return "degraded" if base_ok else "error"
+    if not working_ok:
+        return "degraded" if base_ok else "error"
+    if not base_ok:
+        return "degraded"
+    if not _probe_image_integrity(Path(working)):
+        return "degraded"
+    return "healthy"
 
 
 def create_platform(body: PlatformCreate, db: Session) -> Platform:
@@ -164,7 +193,9 @@ def get_health_summary(db: Session) -> dict:
     )
 
     user_platforms = db.query(Platform).filter(Platform.is_system == False).all()
-    platform_healthy = sum(1 for p in user_platforms if p.status in ("ok", "healthy", "unknown"))
+    platform_healthy = sum(1 for p in user_platforms if p.status in ("ok", "healthy"))
+    platform_unknown = sum(1 for p in user_platforms if p.status == "unknown")
+    platform_degraded = len(user_platforms) - platform_healthy - platform_unknown
 
     library_count = db.query(LibraryItem).count()
     drive_count = db.query(Drive).count()
@@ -198,7 +229,8 @@ def get_health_summary(db: Session) -> dict:
         "platforms": {
             "total": len(user_platforms),
             "healthy": platform_healthy,
-            "degraded": len(user_platforms) - platform_healthy,
+            "degraded": platform_degraded,
+            "unknown": platform_unknown,
         },
         "library": {"total": library_count},
         "drives": {"total": drive_count},
@@ -246,6 +278,24 @@ def get_storage_stats(db: Session) -> dict:
     }
 
 
+def _atomic_copy(src: Path, dest: Path) -> None:
+    """Copy src onto dest via a same-directory tmp file + atomic replace.
+
+    Mirrors the .tmp + os.replace pattern in routes/emulators.py's
+    _write_xemu_toml. A failure partway through shutil.copy2 (disk full,
+    process killed) leaves only the orphaned tmp file — dest, if it already
+    existed (e.g. a live working image being restored onto), is never seen
+    in a partially-written state.
+    """
+    tmp = dest.parent / (dest.name + ".tmp")
+    try:
+        shutil.copy2(src, tmp)
+        os.replace(tmp, dest)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def create_snapshot(platform_id: int, body: SnapshotCreate, db: Session) -> Snapshot:
     platform = db.get(Platform, platform_id)
     if not platform:
@@ -256,7 +306,7 @@ def create_snapshot(platform_id: int, body: SnapshotCreate, db: Session) -> Snap
     if not src.exists():
         raise HTTPException(status_code=422, detail="Working image file does not exist.")
     dest = src.parent / f"{src.stem}_snapshot_{body.name}{src.suffix}"
-    shutil.copy2(src, dest)
+    _atomic_copy(src, dest)
     size = dest.stat().st_size
     snap = Snapshot(
         platform_id=platform_id,
@@ -282,7 +332,7 @@ def restore_snapshot(platform_id: int, snapshot_id: int, token: str, db: Session
         raise HTTPException(status_code=422, detail="Platform working image not set.")
     src = _validate_image_path(snap.image_path)
     dest = _validate_image_path(platform.working_image_path)
-    shutil.copy2(src, dest)
+    _atomic_copy(src, dest)
     return {"restored": True, "snapshot": snap.name}
 
 

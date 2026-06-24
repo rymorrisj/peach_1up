@@ -29,7 +29,7 @@ interface StorageFootprint {
 }
 
 interface HealthSummary {
-  platforms:  { total: number; healthy: number; degraded: number }
+  platforms:  { total: number; healthy: number; degraded: number; unknown: number }
   library:    { total: number }
   drives:     { total: number }
   extensions: { total: number }
