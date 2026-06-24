@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import re
 import textwrap
+import tomllib
 from pathlib import Path
 
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "config" / "constants.yaml"
+EMULATORS_DIR = ROOT / "config" / "emulators"
 PY_OUT = ROOT / "backend" / "constants_generated.py"
 TS_OUT = ROOT / "frontend" / "src" / "generated" / "constants.ts"
 
@@ -49,7 +51,26 @@ def _py_literal_type(type_name: str, slugs: list[str]) -> str:
     return f"{type_name} = Literal[{members}]\n"
 
 
-def generate_python(data: dict) -> str:
+def discover_catalog_slugs() -> list[str]:
+    """Scan config/emulators/*.toml for launchable catalog slugs.
+
+    The TOMLs are the source of truth for the emulator catalog domain — this
+    is distinct from constants.yaml's backend_slugs (the dispatch domain).
+    Entries with install_type == "rom_pack" are dependency-only assets
+    (e.g. 86box-roms), never a launchable emulator_slug value, and are
+    excluded.
+    """
+    slugs: list[str] = []
+    for path in sorted(EMULATORS_DIR.glob("*.toml")):
+        with path.open("rb") as fh:
+            entry = tomllib.load(fh)
+        if entry.get("install_type") == "rom_pack":
+            continue
+        slugs.append(entry["slug"])
+    return slugs
+
+
+def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     eras: dict[str, str] = data["eras"]
     backends: dict[str, str] = data["backend_slugs"]
     system_labels: dict[str, str] = data["backend_system_labels"]
@@ -107,12 +128,15 @@ def generate_python(data: dict) -> str:
     lines.append("MEDIA_TYPE_LABELS: dict[str, str] = {\n")
     for slug, label in media_types.items():
         lines.append(f'    "{slug}": "{label}",\n')
-    lines.append("}\n")
+    lines.append("}\n\n")
+
+    # EmulatorCatalogSlug literal (sourced from config/emulators/*.toml, not constants.yaml)
+    lines.append(_py_literal_type("EmulatorCatalogSlug", catalog_slugs))
 
     return "".join(lines)
 
 
-def generate_typescript(data: dict) -> str:
+def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     eras: dict[str, str] = data["eras"]
     backends: dict[str, str] = data["backend_slugs"]
     system_labels: dict[str, str] = data["backend_system_labels"]
@@ -147,6 +171,10 @@ def generate_typescript(data: dict) -> str:
     slugs_ts = ", ".join(f'"{s}"' for s in backends)
     lines.append(f"export const BACKEND_SLUGS: string[] = [{slugs_ts}]\n\n")
 
+    # BackendSlug union
+    lines.append(_ts_union_type("BackendSlug", list(backends)))
+    lines.append("\n")
+
     # RATING_OPTIONS — includes a leading empty option for form use
     lines.append(
         "export const RATING_OPTIONS: { value: string; label: string }[] = [\n"
@@ -167,7 +195,10 @@ def generate_typescript(data: dict) -> str:
     lines.append("export const MEDIA_TYPE_LABELS: Record<string, string> = {\n")
     for slug, label in media_types.items():
         lines.append(f'  {slug}: "{label}",\n')
-    lines.append("}\n")
+    lines.append("}\n\n")
+
+    # EmulatorCatalogSlug union (sourced from config/emulators/*.toml, not constants.yaml)
+    lines.append(_ts_union_type("EmulatorCatalogSlug", catalog_slugs))
 
     return "".join(lines)
 
@@ -176,8 +207,10 @@ def main() -> None:
     with CONFIG.open("r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
 
-    py_src = generate_python(data)
-    ts_src = generate_typescript(data)
+    catalog_slugs = discover_catalog_slugs()
+
+    py_src = generate_python(data, catalog_slugs)
+    ts_src = generate_typescript(data, catalog_slugs)
 
     PY_OUT.write_text(py_src, encoding="utf-8")
     print(f"wrote {PY_OUT.relative_to(ROOT)}")

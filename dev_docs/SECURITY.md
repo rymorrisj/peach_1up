@@ -362,6 +362,33 @@ drive path is within the `library/` tree via `is_relative_to()`.
 IMGMAKE receives the absolute path derived from the slug — no user string
 reaches the IMGMAKE command directly.
 
+### /auth/switch rate limiter is in-memory, unbounded
+
+The IP-keyed rate limiter added for /auth/switch (backend/core/rate_limit.py)
+stores attempt counts in a process-local dict with no eviction. A distributed
+attack using many unique source IPs grows this dict unbounded for the life of
+the process. This matches the existing in-memory-only precedent set by
+install_registry and process_registry, accepted for the same reason: no
+persistence requirement, and a backend restart clears it. If this becomes a
+real vector (observed in the wild, not just theoretical), add a periodic TTL
+sweep or move to a bounded LRU rather than persisting attempts to the DB.
+
+`NOTE:` Peach 1UP is a household application first and foremost. We will add some basic
+level protections but network safety is the users concern.
+
+### Platform health check is a shallow integrity probe, not full validation
+
+\_compute_status's integrity check confirms the working and base image files
+exist and have a readable, non-empty header and tail (mirroring the cheap
+footer-location check already used in vm/vhd.py). It does not parse or
+validate the disk image format itself. A working image with a corrupted
+middle section, or a header that matches by coincidence, will report
+"healthy." This is an intentional cost/coverage tradeoff — full validation
+would require format-specific parsing for every supported image type. If
+corrupted-but-passing images become a real support burden, revisit with a
+format-aware checksum or a guest-OS-level boot probe instead of a byte-range
+check.
+
 ---
 
 ## Known Gaps

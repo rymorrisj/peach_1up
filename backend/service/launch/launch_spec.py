@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from backend.constants_generated import EmulatorCatalogSlug
+
 
 @dataclass
 class LaunchSpec:
@@ -11,7 +13,7 @@ class LaunchSpec:
     era: str
 
     # Emulator catalog slug for history records (e.g. "dosbox-x", not "dosbox")
-    emulator_slug: str = ""
+    emulator_slug: EmulatorCatalogSlug | None = None
 
     # Media and executable
     media_path: Path | None = None

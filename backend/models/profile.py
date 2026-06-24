@@ -1,14 +1,15 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import JSON, Column, DateTime, func
+from sqlalchemy import JSON, Column, DateTime, String, func
 from sqlmodel import Field, SQLModel
+from backend.constants_generated import EmulatorCatalogSlug
 
 
 class ProfileBase(SQLModel):
     name: str = Field(unique=True)
     slug: str = Field(unique=True)
-    emulator_slug: str
+    emulator_slug: EmulatorCatalogSlug = Field(sa_column=Column(String, nullable=False))
     era: str
     config_path: Optional[str] = None
     extra_args: Optional[str] = None
@@ -44,7 +45,7 @@ class ProfileCreate(ProfileBase):
 class ProfileUpdate(SQLModel):
     name: Optional[str] = None
     slug: Optional[str] = None
-    emulator_slug: Optional[str] = None
+    emulator_slug: Optional[EmulatorCatalogSlug] = None
     era: Optional[str] = None
     config_path: Optional[str] = None
     extra_args: Optional[str] = None

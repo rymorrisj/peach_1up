@@ -97,3 +97,5 @@ MEDIA_TYPE_LABELS: dict[str, str] = {
     "exe": "Executable",
     "unknown": "Unknown",
 }
+
+EmulatorCatalogSlug = Literal["86box", "dosbox-x", "duckstation", "flycast", "mesen", "pcsx2", "project64", "xemu"]

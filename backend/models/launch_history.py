@@ -1,13 +1,14 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, SQLModel
+from backend.constants_generated import EmulatorCatalogSlug
 
 
 class LaunchHistoryBase(SQLModel):
     target_type: str = "library_item"
-    emulator_slug: str
+    emulator_slug: EmulatorCatalogSlug = Field(sa_column=Column(String, nullable=False))
     network_blocked: bool = True
     job_isolated: bool = False
     sandboxed: bool = False
