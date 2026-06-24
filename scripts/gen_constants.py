@@ -78,6 +78,7 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     dgvoodoo2_eras: list[str] = data.get("dgvoodoo2_supported_eras", [])
     media_types: dict[str, str] = data["media_types"]
     hardware_profiles: dict[str, str] = data["hardware_profiles"]
+    tag_colors: list[dict[str, str]] = data["tag_colors"]
 
     lines: list[str] = [HEADER_PY, "from enum import Enum\n", "from typing import Literal\n\n\n"]
 
@@ -146,6 +147,14 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     lines.append("HARDWARE_PROFILE_LABELS: dict[str, str] = {\n")
     for slug, label in hardware_profiles.items():
         lines.append(f'    "{slug}": "{label}",\n')
+    lines.append("}\n\n")
+
+    # TagColor literal + hex map
+    lines.append(_py_literal_type("TagColor", [c["id"] for c in tag_colors]))
+    lines.append("\n")
+    lines.append("TAG_COLOR_HEX: dict[str, str] = {\n")
+    for c in tag_colors:
+        lines.append(f'    "{c["id"]}": "{c["hex"]}",\n')
     lines.append("}\n")
 
     return "".join(lines)
@@ -159,6 +168,7 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     dgvoodoo2_eras: list[str] = data.get("dgvoodoo2_supported_eras", [])
     media_types: dict[str, str] = data["media_types"]
     hardware_profiles: dict[str, str] = data["hardware_profiles"]
+    tag_colors: list[dict[str, str]] = data["tag_colors"]
 
     lines: list[str] = [HEADER_TS, "\n"]
 
@@ -228,6 +238,15 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     for slug, label in hardware_profiles.items():
         key = f'"{slug}"' if not slug.isidentifier() else slug
         lines.append(f'  {key}: "{label}",\n')
+    lines.append("}\n\n")
+
+    # TagColor union + hex map
+    lines.append(_ts_union_type("TagColor", [c["id"] for c in tag_colors]))
+    lines.append("\n")
+    lines.append("export const TAG_COLOR_HEX: Record<string, string> = {\n")
+    for c in tag_colors:
+        key = c["id"]
+        lines.append(f'  {key}: "{c["hex"]}",\n')
     lines.append("}\n")
 
     return "".join(lines)

@@ -112,3 +112,15 @@ HARDWARE_PROFILE_LABELS: dict[str, str] = {
     "dos_fm": "DOS / FM Music",
     "midi": "MIDI Music",
 }
+
+TagColor = Literal["slate", "coral", "amber", "mint", "sky", "violet", "rose"]
+
+TAG_COLOR_HEX: dict[str, str] = {
+    "slate": "#7a8499",
+    "coral": "#e07463",
+    "amber": "#d4954a",
+    "mint": "#59b87a",
+    "sky": "#5ba4cf",
+    "violet": "#8b6dc4",
+    "rose": "#c46d8b",
+}
