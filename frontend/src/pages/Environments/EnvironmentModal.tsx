@@ -31,7 +31,7 @@ const EMULATOR_LABELS: Record<string, string> = {
 const BOX86_ERAS = new Set<PCEra>(['win95', 'win98', 'winxp'])
 const INSTALL_MEDIA_ERAS = new Set<PCEra>(['win95', 'win98', 'winxp'])
 
-type HardwareProfile = 'standard' | '3dfx' | 'opl' | 'midi'
+type HardwareProfile = 'standard' | '3d_glide' | 'dos_fm' | 'midi'
 
 const HARDWARE_PROFILES: { value: HardwareProfile; label: string; description: string }[] = [
   {
@@ -40,12 +40,12 @@ const HARDWARE_PROFILES: { value: HardwareProfile; label: string; description: s
     description: 'Works for most software. Good 2D performance.',
   },
   {
-    value: '3dfx',
+    value: '3d_glide',
     label: '3D / Glide',
     description: 'For 3dfx titles: Tomb Raider, NFS, Quake. Requires Voodoo drivers after install.',
   },
   {
-    value: 'opl',
+    value: 'dos_fm',
     label: 'DOS / FM Music',
     description: 'For older DOS games run under Windows with AdLib/OPL music.',
   },
