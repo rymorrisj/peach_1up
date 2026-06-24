@@ -58,6 +58,22 @@ def require_self_or_admin(request: Request, active_user: User = Depends(get_acti
     return active_user
 
 
+def require_admin_or_self_manage(request: Request, active_user: User = Depends(get_active_user)) -> User:
+    """Allow owner/admin to target any user, or a user with can_manage_users to target themselves.
+
+    Used by PATCH /users/{id} and POST /users/{id}/reset-pin so a sub-account can edit
+    its own name/PIN without granting any capability over other users' accounts.
+    can_manage_users never widens access to other targets and never bypasses the
+    owner-target guard each caller still applies after this dependency passes.
+    """
+    if active_user.is_owner or active_user.is_admin:
+        return active_user
+    user_id = int(request.path_params.get("user_id", 0))
+    if active_user.id == user_id and active_user.can_manage_users:
+        return active_user
+    raise HTTPException(status_code=403, detail="Permission denied.")
+
+
 def require_library_or_platform_editor(active_user: User = Depends(get_active_user)) -> User:
     """Allow owners and anyone who can edit the library or platforms (e.g. filesystem browsing)."""
     if active_user.is_owner or active_user.can_edit_library or active_user.can_edit_platforms:

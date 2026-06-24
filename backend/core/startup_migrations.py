@@ -35,6 +35,7 @@ def _apply_schema_migrations() -> None:
         ("users", "session_token_expires_at", "DATETIME"),
         ("users", "session_token_ttl", "INTEGER"),
         ("tags", "is_system", "INTEGER NOT NULL DEFAULT 0"),
+        ("users", "can_manage_users", "INTEGER NOT NULL DEFAULT 0"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)

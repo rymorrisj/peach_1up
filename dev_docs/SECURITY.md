@@ -50,9 +50,10 @@ Permission flags on sub-accounts:
 | `can_launch_media`    | Launch any permitted library item (default: true)         |
 | `can_edit_platforms`  | Register or modify OS platforms                           |
 | `can_edit_library`    | Add, edit, or remove library items                        |
-| `can_manage_profiles` | Create or modify sub-accounts (never grants owner powers) |
+| `can_manage_profiles` | Create, modify, or delete launch profiles (the `Profile` model in `routes/profiles.py` — emulator/era launch presets). Unrelated to sub-account management despite the name |
 | `can_edit_settings`   | Modify application settings                               |
-| `is_admin`            | All of the above except owner-only operations             |
+| `can_manage_users`    | Lets a sub-account edit its own `name` and reset its own PIN only — no capability over any other account, no self-delete, no create/delete of any sub-account. Owner-only to grant, like every flag here. Checked in addition to (not instead of) the `is_admin` path on the same two endpoints |
+| `is_admin`            | Edit/reset-pin/unlock/force-logout an existing sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other flag in this table — each is checked independently. Creating or deleting a sub-account requires `is_owner`, not `is_admin` |
 
 **PIN security:**
 

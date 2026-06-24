@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user, require_permission, require_self_or_admin
+from backend.core.dependencies import get_active_user, require_admin_or_self_manage, require_permission
 from backend.core.identity import clear_session, generate_identity_secret
 from backend.core.logger import get_logger
 from backend.models.user import User, UserRead
@@ -22,6 +22,7 @@ class UserCreate(BaseModel):
     can_edit_library: bool = False
     can_manage_profiles: bool = False
     can_edit_settings: bool = False
+    can_manage_users: bool = False
     is_admin: bool = False
     max_content_rating: str | None = None
     block_unrated_media: bool = False
@@ -35,6 +36,7 @@ class UserPatch(BaseModel):
     can_edit_library: bool | None = None
     can_manage_profiles: bool | None = None
     can_edit_settings: bool | None = None
+    can_manage_users: bool | None = None
     is_admin: bool | None = None
     max_content_rating: str | None = None
     block_unrated_media: bool | None = None
@@ -78,7 +80,7 @@ def get_user(
 def create_user(
     body: UserCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("is_admin"),
+    _: User = require_permission("is_owner"),
 ):
     pin_hash: str | None = None
     if body.pin is not None:
@@ -96,6 +98,7 @@ def create_user(
         can_edit_library=body.can_edit_library,
         can_manage_profiles=body.can_manage_profiles,
         can_edit_settings=body.can_edit_settings,
+        can_manage_users=body.can_manage_users,
         is_admin=body.is_admin,
         max_content_rating=body.max_content_rating,
         block_unrated_media=body.block_unrated_media,
@@ -112,7 +115,7 @@ def update_user(
     user_id: int,
     body: UserPatch,
     db: Session = Depends(get_db),
-    _: User = require_permission("is_admin"),
+    active_user: User = Depends(require_admin_or_self_manage),
 ):
     user = db.get(User, user_id)
     if not user:
@@ -120,7 +123,19 @@ def update_user(
     if user.is_owner:
         raise HTTPException(status_code=403, detail="Owner account cannot be modified here.")
 
-    for field, value in body.model_dump(exclude_none=True).items():
+    updates = body.model_dump(exclude_none=True)
+    if not (active_user.is_owner or active_user.is_admin):
+        # Self-edit via can_manage_users only: name and nothing else. Reject
+        # rather than silently drop, so the caller can't be misled into
+        # thinking a permission/rating field was actually applied.
+        disallowed = sorted(set(updates) - {"name"})
+        if disallowed:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Self-edit may only change name; cannot modify: {', '.join(disallowed)}.",
+            )
+
+    for field, value in updates.items():
         setattr(user, field, value)
     db.commit()
     db.refresh(user)
@@ -131,7 +146,7 @@ def update_user(
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
-    active_user: User = Depends(require_self_or_admin),
+    _: User = require_permission("is_owner"),
 ):
     user = db.get(User, user_id)
     if not user:
@@ -158,7 +173,7 @@ def reset_pin(
     user_id: int,
     body: ResetPinBody,
     db: Session = Depends(get_db),
-    _: User = require_permission("is_admin"),
+    _: User = Depends(require_admin_or_self_manage),
 ):
     user = db.get(User, user_id)
     if not user:

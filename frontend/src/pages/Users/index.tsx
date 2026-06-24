@@ -21,6 +21,7 @@ const EMPTY_ADD_FORM: AddUserForm = {
   can_edit_platforms: false,
   can_manage_profiles: false,
   can_edit_settings: false,
+  can_manage_users: false,
   is_admin: false,
   max_content_rating: "",
   block_unrated_media: false,
@@ -37,6 +38,7 @@ export default function Users() {
   const { state: appState } = useAppContext();
   const queryClient = useQueryClient();
   const isAdmin = appState.activeUser?.is_admin ?? false;
+  const isOwner = appState.activeUser?.is_owner ?? false;
 
   const { data: users, isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["users"],
@@ -88,6 +90,7 @@ export default function Users() {
           can_edit_platforms: addForm.can_edit_platforms,
           can_manage_profiles: addForm.can_manage_profiles,
           can_edit_settings: addForm.can_edit_settings,
+          can_manage_users: addForm.can_manage_users,
           is_admin: addForm.is_admin,
           max_content_rating: addForm.max_content_rating || null,
           block_unrated_media: addForm.block_unrated_media,
@@ -166,7 +169,7 @@ export default function Users() {
               <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
                 Users
               </h2>
-              {isAdmin && (
+              {isOwner && (
                 <Button
                   size="sm"
                   onClick={() => {
@@ -190,6 +193,7 @@ export default function Users() {
               <UserList
                 users={users ?? []}
                 isAdmin={isAdmin}
+                isOwner={isOwner}
                 actionState={actionState}
                 onResetPin={(user) =>
                   setResetPinTarget({

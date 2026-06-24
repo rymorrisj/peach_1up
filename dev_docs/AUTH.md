@@ -27,7 +27,7 @@ middleware chain. Read alongside `SECURITY.md` (policy rules) and `TECH.md` (sta
 | `frontend/src/pages/FirstRun/Step0Owner.tsx` | Form that calls `POST /auth/setup-owner` and sets `activeUser` |
 | `frontend/src/components/UserSwitcher.tsx` | User-switch UI; PIN modal; calls `POST /auth/switch` |
 | `frontend/src/components/layout/AppShell.tsx` | Shows signed-out banner on `showUnauthModal`; navigates to `/users` (the standalone switch-account page) when unauthenticated |
-| `frontend/src/pages/Users/index.tsx` | Standalone Users/switch-account page (moved out of Settings) — lists accounts via unauthenticated `GET /api/v1/users`, admin-only create/edit/delete controls |
+| `frontend/src/pages/Users/index.tsx` | Standalone Users/switch-account page (moved out of Settings) — lists accounts via unauthenticated `GET /api/v1/users`, owner-only create/delete controls, admin-only edit/reset-pin/unlock controls |
 
 ---
 
@@ -57,15 +57,62 @@ middleware chain. Read alongside `SECURITY.md` (policy rules) and `TECH.md` (sta
 
 | Flag | Default for owner | Default for sub-account | What it gates |
 |------|:-:|:-:|------|
-| `is_owner` | `True` | always `False` | Bypasses all `require_permission` checks; owner-only operations |
-| `is_admin` | `True` | `False` | All permission flags; cannot grant owner powers |
+| `is_owner` | `True` | always `False` | Bypasses all `require_permission` checks; owner-only operations, including create/delete sub-account (`is_owner` is also used directly as the gating flag on those two endpoints — see Flow 9, Flow 13) |
+| `is_admin` | `True` | `False` | Gates endpoints that check `is_admin` directly: edit/reset-pin/unlock/force-logout sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other `can_*` flag — `require_permission()` only special-cases `is_owner` for bypass; every other flag (including `is_admin` itself) is checked independently via `getattr(active_user, flag, False)` |
 | `can_launch_media` | `True` | `True` | Launch any permitted library item |
 | `can_edit_library` | `True` | `False` | Add/edit/delete library items and drive |
 | `can_edit_platforms` | `True` | `False` | Register/modify OS platforms |
-| `can_manage_profiles` | `True` | `False` | Create/modify sub-accounts |
+| `can_manage_profiles` | `True` | `False` | Create/modify/delete launch profiles (the `Profile` model in `routes/profiles.py` — emulator/era launch presets). **Not** related to sub-account management despite the name; see `routes/profiles.py:87,115,130` |
 | `can_edit_settings` | `True` | `False` | Modify application settings |
+| `can_manage_users` | `True` (irrelevant — owner bypasses) | `False` | Lets a sub-account edit **its own** `name` via `PATCH /users/{id}` and reset **its own** PIN via `POST /users/{id}/reset-pin` — nothing else. Grants no capability over any other user's account, no delete, and none of the owner-only create/delete-sub-account operations. Owner-only to grant, like every permission flag. Gated by `require_admin_or_self_manage` in `dependencies.py`, which is checked in addition to (not instead of) the existing `is_admin`-targets-others path on those two endpoints |
 
-`require_permission(flag)` in `dependencies.py`: owner bypasses unconditionally; others must have the boolean flag set. Returns 403 on failure.
+`require_permission(flag)` in `dependencies.py`: owner bypasses unconditionally; others must have the literal boolean flag set (`is_admin` included — it grants no other flag implicitly). Returns 403 on failure.
+
+### ACL Decision Tree
+
+```mermaid
+flowchart TD
+    A[Request arrives with peach_token cookie] --> B{Cookie present?}
+    B -- No --> Z401[401 Not authenticated]
+    B -- Yes --> C{parse_session_cookie\nsplits user_id.token?}
+    C -- No / malformed --> Z401
+    C -- Yes --> D{validate_session:\nuser exists AND\nsession_token_hash not NULL AND\nnot expired AND\nhmac.compare_digest matches?}
+    D -- No --> Z401b[401 Invalid or expired session]
+    D -- Yes --> E[active_user resolved]
+
+    E --> F{require_permission flag}
+    F --> G{active_user.is_owner?}
+    G -- Yes --> PASS1[Pass — owner bypasses every\nrequire_permission check]
+    G -- No --> H["getattr(active_user, flag, False)\nflag is literal: can_edit_library,\ncan_edit_platforms, can_manage_profiles,\ncan_edit_settings, can_launch_media,\nis_admin, or is_owner"]
+    H -- True --> PASS2[Pass]
+    H -- False --> Z403[403 Permission denied: requires flag\nis_admin grants no other flag implicitly]
+
+    E --> S{"POST /users (create)\nor DELETE /users/id (delete)"}
+    S --> SG{require_permission\n'is_owner'}
+    SG -- "active_user.is_owner == False" --> Z403b["403 — owner-only,\nadmin sub-accounts cannot\ncreate or delete sub-accounts"]
+    SG -- "active_user.is_owner == True" --> SPASS[Pass]
+
+    E --> T{"PATCH /users/id\nor reset-pin"}
+    T --> TG{require_admin_or_self_manage}
+    TG --> TG1{"active_user.is_owner\nOR active_user.is_admin?"}
+    TG1 -- Yes --> TO{target user.is_owner?}
+    TG1 -- No --> TG2{"active_user.id == path user_id\nAND active_user.can_manage_users?"}
+    TG2 -- No --> Z403e[403 Permission denied]
+    TG2 -- Yes --> TO
+    TO -- Yes --> Z403d[403 Owner account\ncannot be modified here]
+    TO -- No --> TO2{"Caller is owner/admin\nediting via PATCH?"}
+    TO2 -- Yes --> TPASS[Pass — full UserPatch applied]
+    TO2 -- No --> TF{"Self-edit via\ncan_manage_users only\n— body fields besides name?"}
+    TF -- Yes --> Z403f["403 Self-edit may only\nchange name"]
+    TF -- No --> TPASS2["Pass — name only\n(or reset-pin: PIN only,\nno field restriction needed)"]
+
+    E --> U{"unlock, force-logout"}
+    U --> UG{require_permission 'is_admin'}
+    UG -- fail --> Z403c[403]
+    UG -- pass --> UO{target user.is_owner?}
+    UO -- Yes --> Z403d
+    UO -- No --> UPASS[Pass]
+```
 
 ---
 
@@ -274,14 +321,17 @@ Any logout action (no explicit logout button exists in UI currently — flow via
 
 ---
 
-## Flow 9 — Create Sub-Account (admin only)
+## Flow 9 — Create Sub-Account (owner only)
 
 ```
-Users page: admin clicks "+ Add Account" → modal opens
+Users page: owner clicks "+ Add Account" → modal opens (button hidden from admin
+  sub-accounts — frontend gates on is_owner, not is_admin)
   → fill name, optional PIN, permissions checkboxes, content rating, session expiry
 
-Admin submits → POST /api/v1/users
-  → require_permission("is_admin") → owner bypasses; non-owner needs is_admin=true
+Owner submits → POST /api/v1/users
+  → require_permission("is_owner") → owner bypasses; this is owner-only, an
+    is_admin=true sub-account gets 403 here even though it can edit/reset-pin/
+    unlock/force-logout existing sub-accounts
   → validate PIN (4-6 digits regex) if provided
   → Argon2id hash PIN (argon2.low_level.hash_secret, urandom(16) salt)
   → insert User row (is_owner=false always)
@@ -290,25 +340,37 @@ Admin submits → POST /api/v1/users
 
 ---
 
-## Flow 10 — Edit Sub-Account Permissions
+## Flow 10 — Edit Sub-Account Permissions (admin-edits-other, OR self-edit via can_manage_users)
 
 ```
 Users page: admin edits permissions (currently no inline edit UI — PATCH is backend-only)
   → PATCH /api/v1/users/{user_id}
-    → require_permission("is_admin")
-    → target user.is_owner=true → 403 (owner cannot be modified here)
-    → apply fields from UserPatch (name, permissions, content rating, pin_required, session_token_ttl)
+    → require_admin_or_self_manage:
+        active_user.is_owner OR active_user.is_admin → pass (existing path, unchanged)
+        else: active_user.id == user_id AND active_user.can_manage_users → pass (new path)
+        else → 403
+    → target user.is_owner=true → 403 (owner cannot be modified here, regardless of which path passed)
+    → if caller is owner/admin: apply all fields from UserPatch (name, permissions,
+      content rating, pin_required, session_token_ttl) — unchanged
+    → if caller is self-editing via can_manage_users only (not owner/admin): any
+      UserPatch field other than name is rejected with 403 — self-edit cannot touch
+      its own permission flags, rating, pin_required, or session_token_ttl
     → db.commit → return updated UserRead
 ```
 
 ---
 
-## Flow 11 — Reset PIN (admin resets another user's PIN)
+## Flow 11 — Reset PIN (admin resets another user's PIN, OR self-reset via can_manage_users)
 
 ```
 Users page: admin clicks key icon on a user → Reset PIN modal
   → enter new PIN → POST /api/v1/users/{user_id}/reset-pin { pin }
-    → require_permission("is_admin")
+    → require_admin_or_self_manage:
+        active_user.is_owner OR active_user.is_admin → pass (existing path, unchanged)
+        else: active_user.id == user_id AND active_user.can_manage_users → pass (new path —
+          a sub-account resetting its own PIN; body only ever contains `pin`, so no
+          field-restriction logic is needed here the way it is on PATCH)
+        else → 403
     → _validate_pin(pin) — 4-6 digit regex
     → _hash_pin → new Argon2id hash with fresh urandom(16) salt
     → user.pin_hash = new_hash, pin_required=true, failed_pin_attempts=0, is_locked=false
@@ -329,13 +391,18 @@ Users page: admin clicks unlock icon on a locked user
 
 ---
 
-## Flow 13 — Delete Sub-Account (admin)
+## Flow 13 — Delete Sub-Account (owner only)
 
 ```
-Users page: admin clicks trash icon → browser confirm() dialog
+Users page: owner clicks trash icon → browser confirm() dialog (button hidden
+  from admin sub-accounts — frontend gates on is_owner, not is_admin)
   → DELETE /api/v1/users/{user_id}
-    → require_self_or_admin: active_user.id == user_id OR active_user.is_admin
-    → target user.is_owner → 403
+    → require_permission("is_owner") → owner-only; no self-delete side door —
+      an admin sub-account can no longer delete itself or any other sub-account
+      (this replaced require_self_or_admin, which previously allowed both)
+    → target user.is_owner → 403 — since only the owner can call this endpoint
+      at all, the only way the target is the owner is the owner targeting their
+      own account; this guard is what actually blocks owner self-deletion
     → delete MediaRestriction rows for user_id
     → reassign Profile.user_id → owner.id (profiles are not deleted)
     → db.delete(user) → commit
@@ -451,10 +518,13 @@ present a user_id + PIN, not a cookie — so gating the *list* of users behind a
 lockout: a session-expired user was redirected to /users to log back in, but the page's own
 GET /api/v1/users call 401'd, leaving no way to see which account to switch to.
 
-All mutating endpoints on this router remain authenticated/admin-gated as before:
-GET /api/v1/users/{id}, POST (create), PATCH, DELETE, /reset-pin, /unlock, /force-logout
-all still require Depends(get_active_user) or require_permission("is_admin") /
-require_self_or_admin.
+All mutating endpoints on this router remain authenticated/gated as before:
+GET /api/v1/users/{id} requires Depends(get_active_user); POST (create) and DELETE
+require require_permission("is_owner") (owner-only, see Flow 9 / Flow 13); PATCH
+and /reset-pin require require_admin_or_self_manage (admin/owner targeting anyone,
+OR a sub-account with can_manage_users targeting itself only — see Flow 10 / Flow 11);
+/unlock and /force-logout require require_permission("is_admin") (unchanged). All
+five carry an owner-target guard regardless of which path let the caller in.
 ```
 
 ---

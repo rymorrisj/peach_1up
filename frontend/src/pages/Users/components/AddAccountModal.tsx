@@ -10,6 +10,7 @@ export interface AddUserForm {
   can_edit_platforms: boolean;
   can_manage_profiles: boolean;
   can_edit_settings: boolean;
+  can_manage_users: boolean;
   is_admin: boolean;
   max_content_rating: string;
   block_unrated_media: boolean;
@@ -22,6 +23,7 @@ const PERMISSION_FLAGS: { key: keyof AddUserForm; label: string }[] = [
   { key: "can_edit_platforms", label: "Edit platforms" },
   { key: "can_manage_profiles", label: "Manage profiles" },
   { key: "can_edit_settings", label: "Edit settings" },
+  { key: "can_manage_users", label: "Manage own account" },
   { key: "is_admin", label: "Admin" },
 ];
 

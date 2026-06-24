@@ -17,6 +17,7 @@ function permissionSummary(user: User): string {
   if (user.can_edit_platforms) labels.push("platforms");
   if (user.can_manage_profiles) labels.push("profiles");
   if (user.can_edit_settings) labels.push("settings");
+  if (user.can_manage_users) labels.push("self-manage");
   if (user.is_admin) labels.push("admin");
   return labels.length ? labels.join(", ") : "no permissions";
 }
@@ -24,13 +25,14 @@ function permissionSummary(user: User): string {
 interface UserListProps {
   users: User[];
   isAdmin: boolean;
+  isOwner: boolean;
   actionState: ActionState;
   onResetPin: (user: User) => void;
   onUnlock: (user: User) => void;
   onDelete: (user: User) => void;
 }
 
-export function UserList({ users, isAdmin, actionState, onResetPin, onUnlock, onDelete }: UserListProps) {
+export function UserList({ users, isAdmin, isOwner, actionState, onResetPin, onUnlock, onDelete }: UserListProps) {
   return (
     <ul
       role="list"
@@ -94,15 +96,17 @@ export function UserList({ users, isAdmin, actionState, onResetPin, onUnlock, on
                       <Unlock size={14} />
                     </Button>
                   )}
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    title="Delete account"
-                    disabled={isBusy}
-                    onClick={() => onDelete(user)}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
+                  {isOwner && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      title="Delete account"
+                      disabled={isBusy}
+                      onClick={() => onDelete(user)}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

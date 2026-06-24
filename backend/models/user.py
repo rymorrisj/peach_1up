@@ -14,6 +14,7 @@ class UserBase(SQLModel):
     can_edit_library: bool = False
     can_manage_profiles: bool = False
     can_edit_settings: bool = False
+    can_manage_users: bool = False
     is_admin: bool = False
     max_content_rating: Optional[str] = None
     block_unrated_media: bool = False
