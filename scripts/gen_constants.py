@@ -79,7 +79,7 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     media_types: dict[str, str] = data["media_types"]
     hardware_profiles: dict[str, str] = data["hardware_profiles"]
     tag_colors: list[dict[str, str]] = data["tag_colors"]
-    install_types: dict[str, str] = data["install_types"]
+    install_types: list[str] = data["install_types"]
 
     lines: list[str] = [HEADER_PY, "from enum import Enum\n", "from typing import Literal\n\n\n"]
 
@@ -130,13 +130,9 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
         lines.append(f'    "{era}",\n')
     lines.append("]\n\n")
 
-    # MediaType literal + labels
+    # MediaType literal
     lines.append(_py_literal_type("MediaType", list(media_types)))
     lines.append("\n")
-    lines.append("MEDIA_TYPE_LABELS: dict[str, str] = {\n")
-    for slug, label in media_types.items():
-        lines.append(f'    "{slug}": "{label}",\n')
-    lines.append("}\n\n")
 
     # EmulatorCatalogSlug literal (sourced from config/emulators/*.toml, not constants.yaml)
     lines.append(_py_literal_type("EmulatorCatalogSlug", catalog_slugs))
@@ -173,7 +169,7 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     media_types: dict[str, str] = data["media_types"]
     hardware_profiles: dict[str, str] = data["hardware_profiles"]
     tag_colors: list[dict[str, str]] = data["tag_colors"]
-    install_types: dict[str, str] = data["install_types"]
+    install_types: list[str] = data["install_types"]
 
     lines: list[str] = [HEADER_TS, "\n"]
 
@@ -224,17 +220,17 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     eras_ts = ", ".join(f'"{e}"' for e in dgvoodoo2_eras)
     lines.append(f"export const DGVOODOO2_SUPPORTED_ERAS: string[] = [{eras_ts}]\n\n")
 
-    # MediaType union + labels
+    # MediaType union
     lines.append(_ts_union_type("MediaType", list(media_types)))
     lines.append("\n")
-    lines.append("export const MEDIA_TYPE_LABELS: Record<string, string> = {\n")
-    for slug, label in media_types.items():
-        lines.append(f'  {slug}: "{label}",\n')
-    lines.append("}\n\n")
 
     # EmulatorCatalogSlug union (sourced from config/emulators/*.toml, not constants.yaml)
     lines.append(_ts_union_type("EmulatorCatalogSlug", catalog_slugs))
     lines.append("\n")
+
+    # EMULATOR_CATALOG_SLUGS — runtime companion for <select> options
+    catalog_slugs_ts = ", ".join(f'"{s}"' for s in catalog_slugs)
+    lines.append(f"export const EMULATOR_CATALOG_SLUGS: string[] = [{catalog_slugs_ts}]\n\n")
 
     # HardwareProfile union + labels
     lines.append(_ts_union_type("HardwareProfile", list(hardware_profiles)))

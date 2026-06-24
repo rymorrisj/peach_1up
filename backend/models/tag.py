@@ -29,6 +29,7 @@ class Tag(SQLModel, table=True):
         default="slate",
         sa_column=Column(String, nullable=False, server_default=text("'slate'")),
     )
+    is_system: bool = False
 
     library_items: list["LibraryItem"] = Relationship(
         back_populates="tags",
@@ -46,3 +47,4 @@ class TagRead(SQLModel):
     name: str
     color: TagColor = "slate"
     item_count: int = 0
+    is_system: bool = False

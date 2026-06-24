@@ -18,7 +18,7 @@ def _tag_read(tag: Tag, db: Session) -> TagRead:
         .scalar()
         or 0
     )
-    return TagRead(id=tag.id, name=tag.name, color=tag.color, item_count=count)
+    return TagRead(id=tag.id, name=tag.name, color=tag.color, item_count=count, is_system=tag.is_system)
 
 
 @router.get("", response_model=list[TagRead])
@@ -54,6 +54,8 @@ def delete_tag(
     tag = db.get(Tag, tag_id)
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found.")
+    if tag.is_system:
+        raise HTTPException(status_code=403, detail="System tags cannot be deleted.")
     db.delete(tag)
     db.commit()
 

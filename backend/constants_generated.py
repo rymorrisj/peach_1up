@@ -92,16 +92,6 @@ DGVOODOO2_SUPPORTED_ERAS: list[str] = [
 
 MediaType = Literal["directory", "iso", "cue", "floppy", "hdd", "exe", "unknown"]
 
-MEDIA_TYPE_LABELS: dict[str, str] = {
-    "directory": "Directory",
-    "iso": "ISO Image",
-    "cue": "CUE/BIN",
-    "floppy": "Floppy Image",
-    "hdd": "Hard Disk Image",
-    "exe": "Executable",
-    "unknown": "Unknown",
-}
-
 EmulatorCatalogSlug = Literal["86box", "dosbox-x", "duckstation", "flycast", "mesen", "pcsx2", "project64", "xemu"]
 
 HardwareProfile = Literal["standard", "3d_glide", "dos_fm", "midi"]

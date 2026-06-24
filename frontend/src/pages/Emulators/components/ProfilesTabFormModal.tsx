@@ -75,14 +75,14 @@ export function ProfilesTabFormModal({
         label="Emulator Slug"
         htmlFor="lp-emulator"
         required
-        hint="e.g. dosbox, box86, duckstation"
+        hint="e.g. dosbox-x, 86box, duckstation"
         error={formErrors.emulator_slug}
       >
         <Input
           id="lp-emulator"
           value={form.emulator_slug}
           onChange={(e) => setField('emulator_slug', e.target.value)}
-          placeholder="dosbox"
+          placeholder="dosbox-x"
           hasError={!!formErrors.emulator_slug}
         />
       </FormField>
