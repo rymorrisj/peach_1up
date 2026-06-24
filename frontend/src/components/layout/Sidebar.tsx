@@ -1,6 +1,10 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAppContext } from "@/context/useAppContext";
 
+const DOCS_BASE_URL =
+  (import.meta.env.VITE_DOCS_BASE_URL as string | undefined) ??
+  "http://localhost:3000";
+
 const ERA_ITEMS = [
   { label: "DOS", slug: "dos", color: "var(--era-dos)" },
   { label: "WIN31", slug: "win31", color: "var(--era-win31)" },
@@ -37,7 +41,12 @@ const NAV_ITEMS = [
   { to: "/profiles", label: "Profiles", glyph: "💾" },
   { to: "/tags", label: "Tags", glyph: "🏷️" },
   { to: "/users", label: "Users", glyph: "👤" },
-  { to: "https://docs.site.com/user-guide", label: "Guides", glyph: "📖", external: true },
+  {
+    to: `${DOCS_BASE_URL}/docs/user-guide`,
+    label: "Guides",
+    glyph: "📖",
+    external: true,
+  },
   { to: "/settings", label: "Settings", glyph: "⚙️" },
 ] as const;
 

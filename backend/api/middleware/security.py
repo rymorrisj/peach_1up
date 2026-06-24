@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+from urllib.parse import urlsplit
 
 from fastapi import Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,10 +10,11 @@ from starlette.responses import RedirectResponse
 
 _LOCALHOST_ORIGINS = {"127.0.0.1", "::1", "localhost"}
 
-# Host the Docusaurus docs sub-app is mounted on (see main.py app.host() call).
-# Still subject to SecurityMiddleware's localhost-only gate — only exempted
-# from FirstRunGuardMiddleware below so docs are reachable pre-setup.
-_DOCS_HOST = "docs.site.com"
+# Bare hostname for the Docusaurus docs sub-app's Host() route (see main.py's
+# app.host() call), derived from DOCS_BASE_URL. Still subject to
+# SecurityMiddleware's localhost-only gate — only exempted from
+# FirstRunGuardMiddleware below so docs are reachable pre-setup.
+_DOCS_HOST = urlsplit(os.environ.get("DOCS_BASE_URL", "http://localhost:3000")).hostname or "localhost"
 
 
 def _apply_cors_headers(response: Response, request: Request) -> None:

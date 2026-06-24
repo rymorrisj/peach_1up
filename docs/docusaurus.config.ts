@@ -4,6 +4,10 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
+// Full URL this docs site is reachable at. Set DOCS_BASE_URL in the
+// environment when building (defaults to the local dev server).
+const DOCS_BASE_URL = process.env.DOCS_BASE_URL ?? 'http://localhost:3000';
+
 const config: Config = {
   title: 'Peach 1UP',
   tagline: 'Documentation',
@@ -15,7 +19,7 @@ const config: Config = {
   },
 
   // Set the production url of your site here
-  url: 'https://docs.site.com',
+  url: DOCS_BASE_URL,
   // Set the /<baseUrl>/ pathname under which your site is served
   baseUrl: '/',
 
