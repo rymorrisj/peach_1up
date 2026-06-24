@@ -18,6 +18,7 @@ ERA_MEDIA_TYPES: Dict[Era, Set[str]] = {
     Era.PS2:       {'.iso', '.bin', '.cue', '.chd', '.zip'},
     Era.XBOX:      {'.iso', '.xiso', '.zip'},
     Era.NES:       {'.nes', '.chd', '.zip'},
+    Era.SNES:      {'.sfc', '.smc', '.fig', '.swc', '.zip'},
     Era.N64:       {'.z64', '.n64', '.v64', '.zip'},
     Era.DREAMCAST: {'.gdi', '.cdi', '.chd', '.zip'},
 }

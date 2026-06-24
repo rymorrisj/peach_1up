@@ -146,6 +146,10 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
 
     lines: list[str] = [HEADER_TS, "\n"]
 
+    # Era union
+    lines.append(_ts_union_type("Era", list(eras)))
+    lines.append("\n")
+
     # ERA_LABELS
     lines.append("export const ERA_LABELS: Record<string, string> = {\n")
     for slug, label in eras.items():

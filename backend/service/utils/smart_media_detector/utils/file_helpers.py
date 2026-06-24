@@ -3,7 +3,8 @@ import os
 from pathlib import Path
 from typing import List
 
-from ..constants import Era, ERA_MEDIA_TYPES
+from backend.constants import ERA_MEDIA_TYPES
+from backend.constants_generated import Era
 
 
 def _list_files(path: str) -> List[Path]:
