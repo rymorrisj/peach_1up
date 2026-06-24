@@ -1,4 +1,4 @@
-import { Lock, Unlock, Trash2, KeyRound } from "lucide-react";
+import { Lock, Unlock, Trash2, KeyRound, Pencil } from "lucide-react";
 import { Button } from "@/ui";
 import type { components } from "@shared/types";
 
@@ -24,15 +24,27 @@ function permissionSummary(user: User): string {
 
 interface UserListProps {
   users: User[];
+  activeUserId: number | undefined;
   isAdmin: boolean;
   isOwner: boolean;
   actionState: ActionState;
+  onEdit: (user: User) => void;
   onResetPin: (user: User) => void;
   onUnlock: (user: User) => void;
   onDelete: (user: User) => void;
 }
 
-export function UserList({ users, isAdmin, isOwner, actionState, onResetPin, onUnlock, onDelete }: UserListProps) {
+export function UserList({
+  users,
+  activeUserId,
+  isAdmin,
+  isOwner,
+  actionState,
+  onEdit,
+  onResetPin,
+  onUnlock,
+  onDelete,
+}: UserListProps) {
   return (
     <ul
       role="list"
@@ -41,6 +53,11 @@ export function UserList({ users, isAdmin, isOwner, actionState, onResetPin, onU
       {users.map((user) => {
         const isBusy =
           actionState?.userId === user.id && actionState.submitting;
+        const canManage =
+          !user.is_owner &&
+          (isAdmin ||
+            isOwner ||
+            (user.id === activeUserId && user.can_manage_users));
         return (
           <li key={user.id} className="py-3">
             <div className="flex items-start justify-between gap-4">
@@ -69,18 +86,29 @@ export function UserList({ users, isAdmin, isOwner, actionState, onResetPin, onU
                 </p>
               </div>
 
-              {isAdmin && !user.is_owner && (
+              {canManage && (
                 <div className="flex shrink-0 items-center gap-1.5">
                   <Button
                     variant="ghost"
                     size="sm"
-                    title="Reset PIN"
+                    title="Edit account"
                     disabled={isBusy}
-                    onClick={() => onResetPin(user)}
+                    onClick={() => onEdit(user)}
                   >
-                    <KeyRound size={14} />
+                    <Pencil size={14} />
                   </Button>
-                  {user.is_locked && (
+                  {isAdmin && !user.is_owner && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Reset PIN"
+                      disabled={isBusy}
+                      onClick={() => onResetPin(user)}
+                    >
+                      <KeyRound size={14} />
+                    </Button>
+                  )}
+                  {isAdmin && !user.is_owner && user.is_locked && (
                     <Button
                       variant="ghost"
                       size="sm"

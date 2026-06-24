@@ -201,6 +201,165 @@ class TestSetupOwnerSession:
         assert owner.identity_token_secret is not None
 
 
+class TestUpdateUser:
+    """PATCH /api/v1/users/{user_id} — Manage User edit flow (Flow 10 in dev_docs/AUTH.md)."""
+
+    def _cookie(self, mem_session, user):
+        from backend.core.identity import issue_session
+
+        token, _expires_at = issue_session(mem_session, user)
+        return f"{user.id}.{token}"
+
+    def test_self_edit_without_can_manage_users_is_rejected(self, app_client, mem_session):
+        from backend.models.user import User
+
+        sub = User(name="Kid", is_owner=False, is_admin=False, can_manage_users=False)
+        mem_session.add(sub)
+        mem_session.commit()
+        mem_session.refresh(sub)
+
+        resp = app_client.patch(
+            f"/api/v1/users/{sub.id}",
+            json={"name": "New Name"},
+            cookies={"peach_token": self._cookie(mem_session, sub)},
+        )
+        assert resp.status_code == 403
+
+    def test_self_edit_name_succeeds_with_can_manage_users(self, app_client, mem_session):
+        from backend.models.user import User
+
+        sub = User(name="Kid", is_owner=False, is_admin=False, can_manage_users=True)
+        mem_session.add(sub)
+        mem_session.commit()
+        mem_session.refresh(sub)
+
+        resp = app_client.patch(
+            f"/api/v1/users/{sub.id}",
+            json={"name": "New Name"},
+            cookies={"peach_token": self._cookie(mem_session, sub)},
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["name"] == "New Name"
+
+    def test_self_edit_password_pin_succeeds_with_can_manage_users(self, app_client, mem_session):
+        from backend.models.user import User
+
+        sub = User(name="Kid", is_owner=False, is_admin=False, can_manage_users=True)
+        mem_session.add(sub)
+        mem_session.commit()
+        mem_session.refresh(sub)
+
+        resp = app_client.post(
+            f"/api/v1/users/{sub.id}/reset-pin",
+            json={"pin": "4321"},
+            cookies={"peach_token": self._cookie(mem_session, sub)},
+        )
+        assert resp.status_code == 200, resp.text
+        refreshed = mem_session.get(User, sub.id)
+        assert refreshed.pin_hash is not None
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"is_admin": True},
+            {"can_manage_users": True},
+            {"can_edit_settings": True},
+            {"session_token_ttl": 60},
+            {"name": "New Name", "is_admin": True},
+        ],
+    )
+    def test_self_edit_permission_flags_or_ttl_rejected_even_with_can_manage_users(
+        self, app_client, mem_session, body
+    ):
+        """A well-formed PATCH that touches anything besides `name` must be rejected
+        server-side for a self-editing non-owner/non-admin, regardless of can_manage_users."""
+        from backend.models.user import User
+
+        sub = User(name="Kid", is_owner=False, is_admin=False, can_manage_users=True)
+        mem_session.add(sub)
+        mem_session.commit()
+        mem_session.refresh(sub)
+
+        resp = app_client.patch(
+            f"/api/v1/users/{sub.id}",
+            json=body,
+            cookies={"peach_token": self._cookie(mem_session, sub)},
+        )
+        assert resp.status_code == 403
+
+        refreshed = mem_session.get(User, sub.id)
+        assert refreshed.is_admin is False
+        assert refreshed.session_token_ttl is None
+
+    def test_non_admin_cannot_patch_another_users_permission_flags(self, app_client, mem_session):
+        from backend.models.user import User
+
+        actor = User(name="Kid", is_owner=False, is_admin=False, can_manage_users=True)
+        other = User(name="Other Kid", is_owner=False, is_admin=False)
+        mem_session.add_all([actor, other])
+        mem_session.commit()
+        mem_session.refresh(actor)
+        mem_session.refresh(other)
+
+        resp = app_client.patch(
+            f"/api/v1/users/{other.id}",
+            json={"is_admin": True},
+            cookies={"peach_token": self._cookie(mem_session, actor)},
+        )
+        assert resp.status_code == 403
+
+        refreshed = mem_session.get(User, other.id)
+        assert refreshed.is_admin is False
+
+    def test_owner_can_edit_another_users_permissions(self, app_client, mem_session, owner):
+        from backend.models.user import User
+
+        sub = User(name="Kid", is_owner=False, is_admin=False)
+        mem_session.add(sub)
+        mem_session.commit()
+        mem_session.refresh(sub)
+
+        resp = app_client.patch(
+            f"/api/v1/users/{sub.id}",
+            json={"is_admin": True, "can_edit_settings": True, "session_token_ttl": 120},
+            cookies={"peach_token": self._cookie(mem_session, owner)},
+        )
+        assert resp.status_code == 200, resp.text
+
+        refreshed = mem_session.get(User, sub.id)
+        assert refreshed.is_admin is True
+        assert refreshed.can_edit_settings is True
+        assert refreshed.session_token_ttl == 120
+
+    def test_admin_can_edit_another_users_permissions(self, app_client, mem_session):
+        from backend.models.user import User
+
+        admin = User(name="Admin", is_owner=False, is_admin=True)
+        sub = User(name="Kid", is_owner=False, is_admin=False)
+        mem_session.add_all([admin, sub])
+        mem_session.commit()
+        mem_session.refresh(admin)
+        mem_session.refresh(sub)
+
+        resp = app_client.patch(
+            f"/api/v1/users/{sub.id}",
+            json={"can_manage_profiles": True},
+            cookies={"peach_token": self._cookie(mem_session, admin)},
+        )
+        assert resp.status_code == 200, resp.text
+
+        refreshed = mem_session.get(User, sub.id)
+        assert refreshed.can_manage_profiles is True
+
+    def test_owner_as_edit_target_is_rejected(self, app_client, mem_session, owner):
+        resp = app_client.patch(
+            f"/api/v1/users/{owner.id}",
+            json={"name": "Renamed"},
+            cookies={"peach_token": self._cookie(mem_session, owner)},
+        )
+        assert resp.status_code == 403
+
+
 class TestUnlockSubAccount:
     def test_owner_can_unlock_sub_account(self, app_client, mem_session, owner):
         from backend.core.identity import issue_session

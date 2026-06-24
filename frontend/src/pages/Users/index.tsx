@@ -7,13 +7,17 @@ import { Button } from "@/ui";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import UserSwitcher from "@/components/UserSwitcher";
 import { UserList } from "./components/UserList";
-import { AddAccountModal, type AddUserForm } from "./components/AddAccountModal";
+import {
+  ManageUserModal,
+  type ManageUserForm,
+  type ManageUserMode,
+} from "./components/ManageUserModal";
 import { ResetPinModal, type ResetPinTarget } from "./components/ResetPinModal";
 import type { components } from "@shared/types";
 
 type User = components["schemas"]["UserRead"];
 
-const EMPTY_ADD_FORM: AddUserForm = {
+const EMPTY_MANAGE_USER_FORM: ManageUserForm = {
   name: "",
   pin: "",
   can_launch_media: true,
@@ -39,75 +43,152 @@ export default function Users() {
   const queryClient = useQueryClient();
   const isAdmin = appState.activeUser?.is_admin ?? false;
   const isOwner = appState.activeUser?.is_owner ?? false;
+  const activeUserId = appState.activeUser?.id;
 
   const { data: users, isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["users"],
     queryFn: () => apiFetch<User[]>("/api/v1/users"),
   });
 
-  const [addOpen, setAddOpen] = useState(false);
-  const [addForm, setAddForm] = useState<AddUserForm>(EMPTY_ADD_FORM);
-  const [addErrors, setAddErrors] = useState<
-    Partial<Record<keyof AddUserForm, string>>
+  const [manageOpen, setManageOpen] = useState(false);
+  const [manageMode, setManageMode] = useState<ManageUserMode>("create");
+  const [manageTargetId, setManageTargetId] = useState<number | null>(null);
+  const [manageTargetName, setManageTargetName] = useState<string>("");
+  const [manageCanEditAdminFields, setManageCanEditAdminFields] = useState(true);
+  const [manageForm, setManageForm] = useState<ManageUserForm>(EMPTY_MANAGE_USER_FORM);
+  const [manageErrors, setManageErrors] = useState<
+    Partial<Record<keyof ManageUserForm, string>>
   >({});
-  const [addSubmitting, setAddSubmitting] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
+  const [manageSubmitting, setManageSubmitting] = useState(false);
+  const [manageError, setManageError] = useState<string | null>(null);
 
   const [resetPinTarget, setResetPinTarget] = useState<ResetPinTarget | null>(
     null,
   );
   const [actionState, setActionState] = useState<ActionState>(null);
 
-  function setAddField<K extends keyof AddUserForm>(
+  function setManageField<K extends keyof ManageUserForm>(
     key: K,
-    value: AddUserForm[K],
+    value: ManageUserForm[K],
   ) {
-    setAddForm((prev) => ({ ...prev, [key]: value }));
-    setAddErrors((prev) => ({ ...prev, [key]: undefined }));
+    setManageForm((prev) => ({ ...prev, [key]: value }));
+    setManageErrors((prev) => ({ ...prev, [key]: undefined }));
   }
 
-  function validateAdd(): boolean {
-    const errors: Partial<Record<keyof AddUserForm, string>> = {};
-    if (!addForm.name.trim()) errors.name = "Name is required.";
-    if (addForm.pin && !/^\d{4,6}$/.test(addForm.pin))
+  function openAddUser() {
+    setManageMode("create");
+    setManageTargetId(null);
+    setManageTargetName("");
+    setManageCanEditAdminFields(true);
+    setManageForm(EMPTY_MANAGE_USER_FORM);
+    setManageErrors({});
+    setManageError(null);
+    setManageOpen(true);
+  }
+
+  function openEditUser(user: User) {
+    setManageMode("edit");
+    setManageTargetId(user.id);
+    setManageTargetName(user.name);
+    setManageCanEditAdminFields(isOwner || isAdmin);
+    setManageForm({
+      name: user.name,
+      pin: "",
+      can_launch_media: user.can_launch_media,
+      can_edit_library: user.can_edit_library,
+      can_edit_platforms: user.can_edit_platforms,
+      can_manage_profiles: user.can_manage_profiles,
+      can_edit_settings: user.can_edit_settings,
+      can_manage_users: user.can_manage_users,
+      is_admin: user.is_admin,
+      max_content_rating: user.max_content_rating ?? "",
+      block_unrated_media: user.block_unrated_media,
+      session_token_ttl:
+        user.session_token_ttl != null ? String(user.session_token_ttl) : "",
+    });
+    setManageErrors({});
+    setManageError(null);
+    setManageOpen(true);
+  }
+
+  function validateManage(): boolean {
+    const errors: Partial<Record<keyof ManageUserForm, string>> = {};
+    if (!manageForm.name.trim()) errors.name = "Name is required.";
+    if (manageForm.pin && !/^\d{4,6}$/.test(manageForm.pin))
       errors.pin = "PIN must be 4–6 digits.";
-    setAddErrors(errors);
+    setManageErrors(errors);
     return Object.keys(errors).length === 0;
   }
 
-  async function handleAddUser() {
-    if (!validateAdd()) return;
-    setAddSubmitting(true);
-    setAddError(null);
+  async function handleManageSubmit() {
+    if (!validateManage()) return;
+    setManageSubmitting(true);
+    setManageError(null);
     try {
-      await apiFetch("/api/v1/users", {
-        method: "POST",
-        body: JSON.stringify({
-          name: addForm.name.trim(),
-          pin: addForm.pin || undefined,
-          can_launch_media: addForm.can_launch_media,
-          can_edit_library: addForm.can_edit_library,
-          can_edit_platforms: addForm.can_edit_platforms,
-          can_manage_profiles: addForm.can_manage_profiles,
-          can_edit_settings: addForm.can_edit_settings,
-          can_manage_users: addForm.can_manage_users,
-          is_admin: addForm.is_admin,
-          max_content_rating: addForm.max_content_rating || null,
-          block_unrated_media: addForm.block_unrated_media,
-          session_token_ttl: addForm.session_token_ttl
-            ? parseInt(addForm.session_token_ttl, 10)
-            : null,
-        }),
-      });
-      setAddOpen(false);
-      setAddForm(EMPTY_ADD_FORM);
+      if (manageMode === "create") {
+        await apiFetch("/api/v1/users", {
+          method: "POST",
+          body: JSON.stringify({
+            name: manageForm.name.trim(),
+            pin: manageForm.pin || undefined,
+            can_launch_media: manageForm.can_launch_media,
+            can_edit_library: manageForm.can_edit_library,
+            can_edit_platforms: manageForm.can_edit_platforms,
+            can_manage_profiles: manageForm.can_manage_profiles,
+            can_edit_settings: manageForm.can_edit_settings,
+            can_manage_users: manageForm.can_manage_users,
+            is_admin: manageForm.is_admin,
+            max_content_rating: manageForm.max_content_rating || null,
+            block_unrated_media: manageForm.block_unrated_media,
+            session_token_ttl: manageForm.session_token_ttl
+              ? parseInt(manageForm.session_token_ttl, 10)
+              : null,
+          }),
+        });
+      } else if (manageTargetId != null) {
+        const patchBody: Record<string, unknown> = {
+          name: manageForm.name.trim(),
+        };
+        if (manageCanEditAdminFields) {
+          patchBody.can_launch_media = manageForm.can_launch_media;
+          patchBody.can_edit_library = manageForm.can_edit_library;
+          patchBody.can_edit_platforms = manageForm.can_edit_platforms;
+          patchBody.can_manage_profiles = manageForm.can_manage_profiles;
+          patchBody.can_edit_settings = manageForm.can_edit_settings;
+          patchBody.can_manage_users = manageForm.can_manage_users;
+          patchBody.is_admin = manageForm.is_admin;
+          patchBody.max_content_rating = manageForm.max_content_rating || null;
+          patchBody.block_unrated_media = manageForm.block_unrated_media;
+          if (isOwner) {
+            patchBody.session_token_ttl = manageForm.session_token_ttl
+              ? parseInt(manageForm.session_token_ttl, 10)
+              : null;
+          }
+        }
+        await apiFetch(`/api/v1/users/${manageTargetId}`, {
+          method: "PATCH",
+          body: JSON.stringify(patchBody),
+        });
+        if (manageForm.pin) {
+          await apiFetch(`/api/v1/users/${manageTargetId}/reset-pin`, {
+            method: "POST",
+            body: JSON.stringify({ pin: manageForm.pin }),
+          });
+        }
+      }
+      setManageOpen(false);
+      setManageForm(EMPTY_MANAGE_USER_FORM);
       await queryClient.invalidateQueries({ queryKey: ["users"] });
     } catch (err) {
-      setAddError(
-        err instanceof ApiError ? err.detail : "Failed to create user.",
+      setManageError(
+        err instanceof ApiError
+          ? err.detail
+          : manageMode === "create"
+            ? "Failed to create user."
+            : "Failed to update user.",
       );
     } finally {
-      setAddSubmitting(false);
+      setManageSubmitting(false);
     }
   }
 
@@ -170,15 +251,7 @@ export default function Users() {
                 Users
               </h2>
               {isOwner && (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setAddForm(EMPTY_ADD_FORM);
-                    setAddError(null);
-                    setAddErrors({});
-                    setAddOpen(true);
-                  }}
-                >
+                <Button size="sm" onClick={openAddUser}>
                   + Add Account
                 </Button>
               )}
@@ -192,9 +265,11 @@ export default function Users() {
             ) : (
               <UserList
                 users={users ?? []}
+                activeUserId={activeUserId}
                 isAdmin={isAdmin}
                 isOwner={isOwner}
                 actionState={actionState}
+                onEdit={openEditUser}
                 onResetPin={(user) =>
                   setResetPinTarget({
                     user,
@@ -210,16 +285,19 @@ export default function Users() {
           </section>
         </div>
 
-        <AddAccountModal
-          open={addOpen}
-          form={addForm}
-          errors={addErrors}
-          submitting={addSubmitting}
-          error={addError}
-          isOwner={!!appState.activeUser?.is_owner}
-          setField={setAddField}
-          onSubmit={handleAddUser}
-          onClose={() => setAddOpen(false)}
+        <ManageUserModal
+          mode={manageMode}
+          open={manageOpen}
+          targetName={manageTargetName}
+          form={manageForm}
+          errors={manageErrors}
+          submitting={manageSubmitting}
+          error={manageError}
+          isOwner={isOwner}
+          canEditAdminFields={manageCanEditAdminFields}
+          setField={setManageField}
+          onSubmit={handleManageSubmit}
+          onClose={() => setManageOpen(false)}
         />
 
         {resetPinTarget && (
