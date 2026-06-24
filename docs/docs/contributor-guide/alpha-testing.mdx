@@ -139,9 +139,6 @@ These are confirmed issues in this build. Do not report these as bugs — they a
 **xemu (Xbox OG) — no AppContainer isolation**
 xemu runs on QEMU TCG which requires a kernel call that AppContainer blocks. xemu runs under Job Object isolation only. This is a permanent platform constraint, not a pending fix. The Emulators page shows a warning banner instead of a sandbox toggle for xemu.
 
-**LaunchProfiles — launch commands wiped on save**
-If a profile has custom launch commands configured, editing and saving the profile will wipe those commands. Avoid editing profiles that have launch commands set until this is fixed.
-
 **Library path configuration — no UI**
 The library path settings panel is not available in the UI for this build. If your media lives outside the default install directory, edit `config/settings.yaml` directly. The 86Box ROM path is the most common case — if 86Box fails to launch, check that `ROMS_PATH` in `settings.yaml` points to the correct directory.
 
@@ -179,8 +176,8 @@ python scripts/setup_admin_user.py
 
 This overwrites the owner account interactively. You will need to set a new PIN.
 
-**86Box launches but immediately closes**
-The ROM pack may not be detected. Check Settings → Emulators → 86Box for a ROM path warning. If the path is wrong, edit `config/settings.yaml` and set `ROMS_PATH` to the correct directory, then restart the backend from the system tray.
+**86Box launch fails with an error**
+A missing ROM pack or an immediate post-launch crash now fails the launch attempt outright with a visible error message (HTTP 500) rather than appearing to launch successfully. If you see this, check Settings → Emulators → 86Box for a ROM path warning. If the path is wrong, edit `config/settings.yaml` and set `ROMS_PATH` to the correct directory, then restart the backend from the system tray.
 
 **Environment (Win95/98/XP) shows driver prompts on every boot**
 This is the PnP hardware detection loop. It should not occur in this build — if you see repeated driver prompts on consecutive boots of the same environment, report it with the era and any steps to reproduce.
