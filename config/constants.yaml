@@ -60,3 +60,12 @@ dgvoodoo2_supported_eras:
   - "win95"
   - "win98"
   - "winxp"
+
+media_types:
+  directory: "Directory"
+  iso:       "ISO Image"
+  cue:       "CUE/BIN"
+  floppy:    "Floppy Image"
+  hdd:       "Hard Disk Image"
+  exe:       "Executable"
+  unknown:   "Unknown"

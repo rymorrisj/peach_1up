@@ -37,14 +37,27 @@ def _enum_name(slug: str) -> str:
     return s
 
 
+def _ts_union_type(type_name: str, slugs: list[str]) -> str:
+    """Emit a TS string-literal union type, e.g. export type Foo = 'a' | 'b';"""
+    members = " | ".join(f"'{slug}'" for slug in slugs)
+    return f"export type {type_name} = {members};\n"
+
+
+def _py_literal_type(type_name: str, slugs: list[str]) -> str:
+    """Emit a Python typing.Literal alias, e.g. Foo = Literal["a", "b"]"""
+    members = ", ".join(f'"{slug}"' for slug in slugs)
+    return f"{type_name} = Literal[{members}]\n"
+
+
 def generate_python(data: dict) -> str:
     eras: dict[str, str] = data["eras"]
     backends: dict[str, str] = data["backend_slugs"]
     system_labels: dict[str, str] = data["backend_system_labels"]
     ratings: list[dict[str, str]] = data["content_ratings"]
     dgvoodoo2_eras: list[str] = data.get("dgvoodoo2_supported_eras", [])
+    media_types: dict[str, str] = data["media_types"]
 
-    lines: list[str] = [HEADER_PY, "from enum import Enum\n\n\n"]
+    lines: list[str] = [HEADER_PY, "from enum import Enum\n", "from typing import Literal\n\n\n"]
 
     # Era enum
     lines.append("class Era(Enum):\n")
@@ -86,7 +99,15 @@ def generate_python(data: dict) -> str:
     lines.append("DGVOODOO2_SUPPORTED_ERAS: list[str] = [\n")
     for era in dgvoodoo2_eras:
         lines.append(f'    "{era}",\n')
-    lines.append("]\n")
+    lines.append("]\n\n")
+
+    # MediaType literal + labels
+    lines.append(_py_literal_type("MediaType", list(media_types)))
+    lines.append("\n")
+    lines.append("MEDIA_TYPE_LABELS: dict[str, str] = {\n")
+    for slug, label in media_types.items():
+        lines.append(f'    "{slug}": "{label}",\n')
+    lines.append("}\n")
 
     return "".join(lines)
 
@@ -97,6 +118,7 @@ def generate_typescript(data: dict) -> str:
     system_labels: dict[str, str] = data["backend_system_labels"]
     ratings: list[dict[str, str]] = data["content_ratings"]
     dgvoodoo2_eras: list[str] = data.get("dgvoodoo2_supported_eras", [])
+    media_types: dict[str, str] = data["media_types"]
 
     lines: list[str] = [HEADER_TS, "\n"]
 
@@ -137,7 +159,15 @@ def generate_typescript(data: dict) -> str:
 
     # DGVOODOO2_SUPPORTED_ERAS
     eras_ts = ", ".join(f'"{e}"' for e in dgvoodoo2_eras)
-    lines.append(f"export const DGVOODOO2_SUPPORTED_ERAS: string[] = [{eras_ts}]\n")
+    lines.append(f"export const DGVOODOO2_SUPPORTED_ERAS: string[] = [{eras_ts}]\n\n")
+
+    # MediaType union + labels
+    lines.append(_ts_union_type("MediaType", list(media_types)))
+    lines.append("\n")
+    lines.append("export const MEDIA_TYPE_LABELS: Record<string, string> = {\n")
+    for slug, label in media_types.items():
+        lines.append(f'  {slug}: "{label}",\n')
+    lines.append("}\n")
 
     return "".join(lines)
 

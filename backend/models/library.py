@@ -3,8 +3,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from pydantic import model_validator
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, func
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, Relationship, SQLModel
+from backend.constants_generated import MediaType
 from backend.models.tag import LibraryItemTag, TagRead
 
 from backend.models.drive import DriveRead
@@ -20,7 +21,7 @@ class LibraryItemBase(SQLModel):
     era: str
     category: Optional[str] = None
     media_path: str
-    media_type: Optional[str] = None
+    media_type: Optional[MediaType] = Field(default=None, sa_column=Column(String))
     folder_path: Optional[str] = Field(default=None, index=True)
     cover_art_path: Optional[str] = None
     description: Optional[str] = None
@@ -92,7 +93,7 @@ class LibraryItemUpdate(SQLModel):
     era: Optional[str] = None
     category: Optional[str] = None
     media_path: Optional[str] = None
-    media_type: Optional[str] = None
+    media_type: Optional[MediaType] = None
     folder_path: Optional[str] = None
     platform_id: Optional[int] = None
     profile_id: Optional[int] = None

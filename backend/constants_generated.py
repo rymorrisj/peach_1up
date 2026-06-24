@@ -1,5 +1,6 @@
 # Auto-generated from config/constants.yaml — do not edit.
 from enum import Enum
+from typing import Literal
 
 
 class Era(Enum):
@@ -84,3 +85,15 @@ DGVOODOO2_SUPPORTED_ERAS: list[str] = [
     "win98",
     "winxp",
 ]
+
+MediaType = Literal["directory", "iso", "cue", "floppy", "hdd", "exe", "unknown"]
+
+MEDIA_TYPE_LABELS: dict[str, str] = {
+    "directory": "Directory",
+    "iso": "ISO Image",
+    "cue": "CUE/BIN",
+    "floppy": "Floppy Image",
+    "hdd": "Hard Disk Image",
+    "exe": "Executable",
+    "unknown": "Unknown",
+}
