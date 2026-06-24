@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemUpdate
@@ -23,6 +24,10 @@ class _ItemAlreadyExists(Exception):
     """Raised by _prepare_item when the media path is already tracked."""
     def __init__(self, item: LibraryItem):
         self.item = item
+
+
+class _SlugCollision(Exception):
+    """Raised when a concurrent insert claimed the same slug between generation and commit."""
 
 
 def best_detect_path(folder: Path, executable_path: str | None) -> Path:
@@ -277,12 +282,17 @@ def _ingest_media_entry(
     """
     Single shared ingest pipeline: prepare → persist → optional drive creation.
     Called by both the manual add route and the scanner import endpoint.
-    Raises _ItemAlreadyExists if the path is already tracked.
+    Raises _ItemAlreadyExists if the path is already tracked, or _SlugCollision
+    if a concurrent insert claimed the generated slug first (rare TOCTOU race).
     """
     row = _prepare_item(media_path, title, db, override_profile_id=override_profile_id)
     item = LibraryItem(**row)
     db.add(item)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise _SlugCollision() from exc
 
     if item.era in _DRIVE_ERAS:
         create_drive_for_item(item, db)

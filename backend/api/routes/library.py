@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -70,6 +71,8 @@ def add_library_item(
         )
     except lib_svc._ItemAlreadyExists:
         raise HTTPException(status_code=409, detail="This media path is already in the library.")
+    except lib_svc._SlugCollision:
+        raise HTTPException(status_code=409, detail="Import collided with a concurrent change, please retry.")
 
 
 @router.post("/upload", response_model=LibraryItemRead, status_code=201)
@@ -112,6 +115,9 @@ async def upload_library_media(
     except lib_svc._ItemAlreadyExists:
         shutil.rmtree(dest_dir, ignore_errors=True)
         raise HTTPException(status_code=409, detail="This media path is already in the library.")
+    except lib_svc._SlugCollision:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        raise HTTPException(status_code=409, detail="Import collided with a concurrent change, please retry.")
     except HTTPException:
         shutil.rmtree(dest_dir, ignore_errors=True)
         raise
@@ -276,10 +282,20 @@ def import_scan_results(
             for i in range(0, len(lst), n):
                 yield lst[i: i + n]
 
-        # Bulk-insert item records chunked at 500 to stay within SQLite variable limits
-        for chunk in _chunks(prepared, 500):
-            db.bulk_insert_mappings(LibraryItem, chunk)
-        db.commit()
+        # Bulk-insert item records chunked at 500 to stay within SQLite variable limits.
+        # used_slugs is seeded once above, so a concurrent import landing between
+        # that seed and this commit can still collide on the unique slug index —
+        # surface that as a clear retry signal instead of a raw 500.
+        try:
+            for chunk in _chunks(prepared, 500):
+                db.bulk_insert_mappings(LibraryItem, chunk)
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Import collided with a concurrent import, please retry.",
+            )
 
         # Drive creation requires item IDs — query back PC-era items by their slugs
         drive_slugs = [r["slug"] for r in prepared if r["era"] in _DRIVE_ERAS]

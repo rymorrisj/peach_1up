@@ -117,3 +117,42 @@ def _apply_schema_migrations() -> None:
                 )
             conn.commit()
             logger.info("Schema migration: backfilled slugs for %d library item(s)", len(items))
+
+        # Dedupe any pre-existing duplicate slugs, then enforce uniqueness via index.
+        # Required before creating a UNIQUE index — SQLite refuses to build one
+        # over data that already violates it.
+        existing_indexes = {ix["name"]: ix["unique"] for ix in inspector.get_indexes("library_items")}
+        if not existing_indexes.get("ix_library_items_slug"):
+            dupes = conn.execute(text(
+                "SELECT slug FROM library_items WHERE slug IS NOT NULL "
+                "GROUP BY slug HAVING COUNT(*) > 1"
+            )).fetchall()
+            for (slug,) in dupes:
+                rows = conn.execute(
+                    text("SELECT id FROM library_items WHERE slug = :s ORDER BY id"),
+                    {"s": slug},
+                ).fetchall()
+                n = 2
+                for (item_id,) in rows[1:]:  # keep the first row's slug as-is
+                    new_slug = f"{slug}-{n}"
+                    while conn.execute(
+                        text("SELECT 1 FROM library_items WHERE slug = :s"), {"s": new_slug}
+                    ).fetchone():
+                        n += 1
+                        new_slug = f"{slug}-{n}"
+                    conn.execute(
+                        text("UPDATE library_items SET slug = :s WHERE id = :id"),
+                        {"s": new_slug, "id": item_id},
+                    )
+                    n += 1
+            if dupes:
+                conn.commit()
+                logger.info("Schema migration: deduplicated %d colliding slug group(s)", len(dupes))
+
+            if "ix_library_items_slug" in existing_indexes:
+                conn.execute(text("DROP INDEX ix_library_items_slug"))
+            conn.execute(text(
+                "CREATE UNIQUE INDEX ix_library_items_slug ON library_items (slug)"
+            ))
+            conn.commit()
+            logger.info("Schema migration: enforced unique index on library_items.slug")
