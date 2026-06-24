@@ -3,12 +3,12 @@ from typing import Optional
 
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, SQLModel
-from backend.constants_generated import EmulatorCatalogSlug
+from backend.constants_generated import EmulatorCatalogSlug, EraValue
 
 
 class PlatformBase(SQLModel):
     name: str
-    era: str
+    era: EraValue = Field(sa_column=Column(String, nullable=False))
     emulator_slug: EmulatorCatalogSlug = Field(sa_column=Column(String, nullable=False))
     base_image_path: Optional[str] = None
     working_image_path: Optional[str] = None
@@ -52,7 +52,7 @@ class PlatformCreate(PlatformBase):
 
 class PlatformUpdate(SQLModel):
     name: Optional[str] = None
-    era: Optional[str] = None
+    era: Optional[EraValue] = None
     emulator_slug: Optional[EmulatorCatalogSlug] = None
     profile_id: Optional[int] = None
     base_image_path: Optional[str] = None

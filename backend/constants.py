@@ -6,7 +6,18 @@ ERA_MEDIA_TYPES, which maps each era to its supported file extensions.
 
 from typing import Dict, Set
 
-from backend.constants_generated import Era
+from backend.constants_generated import Era, EraValue
+
+
+def era_to_enum(value: EraValue) -> Era:
+    """Construct the Era enum from a boundary value (DB column / API I/O).
+
+    Use at the edge of internal dispatch code that needs named-member
+    access (e.g. backend_router.resolve_backend_name); never store or pass
+    the Enum itself across a DB/API boundary — use EraValue there instead.
+    """
+    return Era(value)
+
 
 ERA_MEDIA_TYPES: Dict[Era, Set[str]] = {
     Era.DOS:       {'.iso', '.img', '.cue', '.exe', '.bat'},

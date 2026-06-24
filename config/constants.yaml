@@ -11,6 +11,7 @@ eras:
   snes:      "SNES"
   n64:       "Nintendo 64"
   dreamcast: "Dreamcast"
+  unknown:   "Unknown"
 
 content_ratings:
   - value: "EC"

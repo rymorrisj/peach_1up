@@ -117,10 +117,11 @@ def _build_spec_for_item(
     effective_media_path: str,
 ) -> LaunchSpec:
     """Resolve all ORM fields to plain values and construct a LaunchSpec."""
-    from backend.constants_generated import BackendSlug, Era
+    from backend.constants_generated import BackendSlug
+    from backend.constants import era_to_enum
     from backend.service.utils.backend_router import resolve_backend_name, get_executable_path
 
-    era_enum = Era(item.era)
+    era_enum = era_to_enum(item.era)
     slug = resolve_backend_name(era_enum)
 
     # box86 and xemu resolve their own binary paths internally.
@@ -207,10 +208,10 @@ def _build_spec_for_environment(
     just ran provisioning (box86) — they let box86.launch reuse the binary
     and ROM paths provisioning already resolved instead of re-resolving them.
     """
-    from backend.constants_generated import Era
+    from backend.constants import era_to_enum
     from backend.service.utils.backend_router import resolve_backend_name
 
-    slug = resolve_backend_name(Era(platform.era))
+    slug = resolve_backend_name(era_to_enum(platform.era))
 
     config_path = Path(platform.config_path)
     vm_dir = config_path.parent.resolve()

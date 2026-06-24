@@ -86,6 +86,11 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
         lines.append(f'    {_enum_name(slug)} = "{slug}"\n')
     lines.append("\n\n")
 
+    # EraValue literal — boundary type (DB columns, API I/O); Era enum above is
+    # for internal named-member dispatch only, see era_to_enum().
+    lines.append(_py_literal_type("EraValue", list(eras)))
+    lines.append("\n")
+
     # BackendSlug enum
     lines.append("class BackendSlug(Enum):\n")
     for slug in backends:

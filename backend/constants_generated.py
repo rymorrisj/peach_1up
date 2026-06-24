@@ -16,7 +16,10 @@ class Era(Enum):
     SNES = "snes"
     N64 = "n64"
     DREAMCAST = "dreamcast"
+    UNKNOWN = "unknown"
 
+
+EraValue = Literal["dos", "win31", "win95", "win98", "winxp", "ps1", "ps2", "xbox", "nes", "snes", "n64", "dreamcast", "unknown"]
 
 class BackendSlug(Enum):
     DOSBOX = "dosbox"
@@ -42,6 +45,7 @@ ERA_LABELS: dict[str, str] = {
     "snes": "SNES",
     "n64": "Nintendo 64",
     "dreamcast": "Dreamcast",
+    "unknown": "Unknown",
 }
 
 BACKEND_LABELS: dict[str, str] = {

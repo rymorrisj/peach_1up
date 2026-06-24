@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Optional
 from pydantic import model_validator
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, Relationship, SQLModel
-from backend.constants_generated import MediaType
+from backend.constants_generated import EraValue, MediaType
 from backend.models.tag import LibraryItemTag, TagRead
 
 from backend.models.drive import DriveRead
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 class LibraryItemBase(SQLModel):
     title: str
     sort_title: Optional[str] = None
-    era: str
+    era: EraValue = Field(sa_column=Column(String, nullable=False))
     category: Optional[str] = None
     media_path: str
     media_type: Optional[MediaType] = Field(default=None, sa_column=Column(String))
@@ -82,7 +82,7 @@ class LibraryItem(LibraryItemBase, table=True):
 
 
 class LibraryItemCreate(LibraryItemBase):
-    era: str = "unknown"
+    era: EraValue = "unknown"
     platform_id: Optional[int] = None
     profile_id: Optional[int] = None
 
@@ -90,7 +90,7 @@ class LibraryItemCreate(LibraryItemBase):
 class LibraryItemUpdate(SQLModel):
     title: Optional[str] = None
     sort_title: Optional[str] = None
-    era: Optional[str] = None
+    era: Optional[EraValue] = None
     category: Optional[str] = None
     media_path: Optional[str] = None
     media_type: Optional[MediaType] = None

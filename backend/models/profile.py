@@ -3,14 +3,14 @@ from typing import Optional
 
 from sqlalchemy import JSON, Column, DateTime, String, func
 from sqlmodel import Field, SQLModel
-from backend.constants_generated import EmulatorCatalogSlug
+from backend.constants_generated import EmulatorCatalogSlug, EraValue
 
 
 class ProfileBase(SQLModel):
     name: str = Field(unique=True)
     slug: str = Field(unique=True)
     emulator_slug: EmulatorCatalogSlug = Field(sa_column=Column(String, nullable=False))
-    era: str
+    era: EraValue = Field(sa_column=Column(String, nullable=False))
     config_path: Optional[str] = None
     extra_args: Optional[str] = None
     is_bundled: bool = False
@@ -46,7 +46,7 @@ class ProfileUpdate(SQLModel):
     name: Optional[str] = None
     slug: Optional[str] = None
     emulator_slug: Optional[EmulatorCatalogSlug] = None
-    era: Optional[str] = None
+    era: Optional[EraValue] = None
     config_path: Optional[str] = None
     extra_args: Optional[str] = None
     enable_networking: Optional[bool] = None
