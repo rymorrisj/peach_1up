@@ -7,6 +7,7 @@ the emulator's bundled dosbox-x.conf with Peach's [autoexec] and SDL overrides
 appended. The temp directory is cleaned up after the process exits.
 """
 
+import math
 import os
 import re
 import shutil
@@ -196,7 +197,9 @@ def _build_drive_mount_lines(
             geo = _read_geometry(drive_image_path)
             spt = 63        # standard sectors per track for CHS geometry
             hpc = 255       # standard heads per cylinder
-            cyl = geo["total_sectors"] // (spt * hpc)
+            # Round up so the CHS triple covers at least the BPB's total_sectors;
+            # floor division under-declared capacity and truncated the mounted drive.
+            cyl = math.ceil(geo["total_sectors"] / (spt * hpc))
             drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd -size 512,{spt},{hpc},{cyl}")
 
 
