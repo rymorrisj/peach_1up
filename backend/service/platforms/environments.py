@@ -241,8 +241,21 @@ def get_health_summary(db: Session) -> dict:
     }
 
 
-def get_storage_stats(db: Session) -> dict:
+def _safe_file_size(path: str | None) -> int:
+    if not path:
+        return 0
+    try:
+        return os.path.getsize(path) if os.path.isfile(path) else 0
+    except OSError:
+        return 0
+
+
+def get_drive_images_bytes(db: Session) -> int:
     from backend.models.drive import Drive
+    return sum(_safe_file_size(d.image_path) for d in db.query(Drive).all())
+
+
+def get_storage_stats(db: Session) -> dict:
     from backend.models.library import LibraryItem
     from backend.service.utils import settings as _settings
     from backend.service.utils.emulator_catalog import (
@@ -250,22 +263,14 @@ def get_storage_stats(db: Session) -> dict:
         load_catalog as _load_catalog,
     )
 
-    def safe_size(path: str | None) -> int:
-        if not path:
-            return 0
-        try:
-            return os.path.getsize(path) if os.path.isfile(path) else 0
-        except OSError:
-            return 0
-
-    drive_images_bytes = sum(safe_size(d.image_path) for d in db.query(Drive).all())
-    source_media_bytes = sum(safe_size(item.media_path) for item in db.query(LibraryItem).all())
+    drive_images_bytes = get_drive_images_bytes(db)
+    source_media_bytes = sum(_safe_file_size(item.media_path) for item in db.query(LibraryItem).all())
     os_images_bytes = sum(
-        safe_size(p.base_image_path) + safe_size(p.working_image_path)
+        _safe_file_size(p.base_image_path) + _safe_file_size(p.working_image_path)
         for p in db.query(Platform).all()
     )
     emulator_binaries_bytes = sum(
-        safe_size(_settings.get(_get_settings_key(e["slug"])) or "")
+        _safe_file_size(_settings.get(_get_settings_key(e["slug"])) or "")
         for e in _load_catalog()
         if e.get("install_type") != "rom_pack"
     )

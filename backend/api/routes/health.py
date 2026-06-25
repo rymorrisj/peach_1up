@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from backend.core import process_registry
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
 from backend.models.user import User
+from backend.service.platforms.environments import get_drive_images_bytes
 
 router = APIRouter(prefix="/api/v1", tags=["health"])
 
@@ -80,11 +82,21 @@ def health_check():
     )
 
 
-@router.get("/health/storage")
-def storage_footprint(
-    db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_platforms"),
-):
+# storage_footprint() walks several directory trees unboundedly (see
+# _dir_size), so re-running it on every health-page poll is what causes the
+# slow/occasionally-timed-out responses this cache exists to fix. Storage
+# usage only moves in bursts (upload/import/delete, snapshot, install,
+# drive create/delete) rather than continuously, so a short TTL is enough —
+# 60s matches the sweep cadence rate_limit.py already uses elsewhere in this
+# codebase. No lock: like emulator_catalog.py's module-global cache, a rare
+# concurrent recompute is just wasted (idempotent) work, not a correctness
+# issue.
+_STORAGE_CACHE_TTL_SECONDS = 60.0
+_storage_cache: dict | None = None
+_storage_cache_time: float = 0.0
+
+
+def _compute_storage_footprint(db: Session) -> dict:
     from backend.core.settings import get_base_path
     base = get_base_path()
 
@@ -102,6 +114,7 @@ def storage_footprint(
         db_bytes = 0
 
     log_size = _dir_size(base / "logs")
+    drive_size = get_drive_images_bytes(db)
 
     sized_rows = db.execute(
         text("SELECT era, file_size_bytes FROM library_items WHERE file_size_bytes IS NOT NULL")
@@ -130,6 +143,7 @@ def storage_footprint(
         {"key": "emulators",      "label": "Emulator Binaries",        "size_bytes": emu_size,   "breakdown": []},
         {"key": "library_media",  "label": "Library / Media",           "size_bytes": media_size, "breakdown": breakdown, "unsized_count": unsized_count},
         {"key": "library_system", "label": "Library / System",          "size_bytes": sys_size,   "breakdown": []},
+        {"key": "drive_images",   "label": "Drive Images",              "size_bytes": drive_size, "breakdown": []},
         {"key": "environments",   "label": "Environments (86Box VMs)",  "size_bytes": env_size,   "breakdown": []},
         {"key": "external",       "label": "External (AppData)",        "size_bytes": ext_size,   "breakdown": []},
         {"key": "database",       "label": "Database",                  "size_bytes": db_bytes,   "breakdown": []},
@@ -141,6 +155,23 @@ def storage_footprint(
         "total_bytes": sum(c["size_bytes"] for c in categories),
         "last_updated": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _get_storage_footprint(db: Session, force_refresh: bool = False) -> dict:
+    global _storage_cache, _storage_cache_time
+    now = time.monotonic()
+    if force_refresh or _storage_cache is None or (now - _storage_cache_time) >= _STORAGE_CACHE_TTL_SECONDS:
+        _storage_cache = _compute_storage_footprint(db)
+        _storage_cache_time = now
+    return _storage_cache
+
+
+@router.get("/health/storage")
+def storage_footprint(
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_platforms"),
+):
+    return _get_storage_footprint(db)
 
 
 @router.post("/health/storage/rescan")
@@ -166,4 +197,5 @@ def rescan_file_sizes(
         except (OSError, TypeError):
             pass
     db.commit()
+    _get_storage_footprint(db, force_refresh=True)
     return {"updated": updated}

@@ -99,6 +99,7 @@ const CAT_COLORS: Record<string, string> = {
   emulators:      '#6a9fd8',
   library_media:  'var(--peach-500)',
   library_system: '#8f72c8',
+  drive_images:   '#d87fb0',
   environments:   '#5ab87a',
   external:       'var(--fg-3)',
   database:       '#c8a84a',
