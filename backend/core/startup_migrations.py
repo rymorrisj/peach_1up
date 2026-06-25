@@ -37,6 +37,7 @@ def _apply_schema_migrations() -> None:
         ("tags", "is_system", "INTEGER NOT NULL DEFAULT 0"),
         ("users", "can_manage_users", "INTEGER NOT NULL DEFAULT 0"),
         ("launch_history", "library_set_id", "INTEGER REFERENCES library_sets(id) ON DELETE CASCADE"),
+        ("library_sets", "display_disk_id", "INTEGER"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)

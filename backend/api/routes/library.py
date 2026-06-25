@@ -12,7 +12,7 @@ from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, get_filtered_item, get_filtered_library, require_permission
 from backend.core.logger import get_logger
 from backend.models.library import ImportResult, LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate, ScanStatus
-from backend.models.library_set import LibrarySet, LibrarySetItem, LibrarySetRead, set_to_read
+from backend.models.library_set import LibrarySet, LibrarySetItem, LibrarySetRead, LibrarySetUpdate, set_to_read
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
 from backend.service.library import items as lib_svc
@@ -531,4 +531,28 @@ def get_library_set(
     s = db.get(LibrarySet, set_id)
     if not s:
         raise HTTPException(status_code=404, detail="Library set not found.")
+    return set_to_read(s, db)
+
+
+@sets_router.patch("/{set_id}", response_model=LibrarySetRead)
+def update_library_set(
+    set_id: int,
+    body: LibrarySetUpdate,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    from sqlalchemy import select as _select
+    s = db.get(LibrarySet, set_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Library set not found.")
+    if body.display_disk_id is not None:
+        item_ids = set(
+            db.execute(_select(LibrarySetItem.id).where(LibrarySetItem.set_id == set_id)).scalars().all()
+        )
+        if body.display_disk_id not in item_ids:
+            raise HTTPException(status_code=422, detail="disc does not belong to this set.")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(s, field, value)
+    db.commit()
+    db.refresh(s)
     return set_to_read(s, db)

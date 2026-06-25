@@ -63,9 +63,11 @@ class LibrarySet(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("drives.id", ondelete="SET NULL"), nullable=True),
     )
-    # Logical FK to library_set_items.id. Not a DB-level constraint to avoid a circular
+    # Logical FKs to library_set_items.id. Not DB-level constraints to avoid a circular
     # reference between library_sets and library_set_items during table creation.
     launch_disk_id: Optional[int] = Field(default=None)
+    # Which item's art is shown as the stack front-face. Falls back to launch_disk_id when null.
+    display_disk_id: Optional[int] = Field(default=None)
 
     last_launched_at: Optional[datetime] = None
     launch_count: int = 0
@@ -122,11 +124,16 @@ class LibrarySetRead(SQLModel):
     profile_id: Optional[int] = None
     drive_id: Optional[int] = None
     launch_disk_id: Optional[int] = None
+    display_disk_id: Optional[int] = None
     last_launched_at: Optional[datetime] = None
     launch_count: int = 0
     created_at: datetime
     updated_at: datetime
     items: list[LibrarySetItemRead] = []
+
+
+class LibrarySetUpdate(SQLModel):
+    display_disk_id: Optional[int] = None
 
 
 def set_to_read(s: LibrarySet, db: "Session") -> LibrarySetRead:

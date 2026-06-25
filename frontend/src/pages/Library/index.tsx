@@ -57,6 +57,14 @@ export default function Library() {
     queryFn: () => apiFetch<LibrarySetData[]>('/api/v1/library/sets'),
   })
 
+  const handleSetDisplayDisk = async (setId: number, discId: number) => {
+    await apiFetch(`/api/v1/library/sets/${setId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ display_disk_id: discId }),
+    })
+    queryClient.invalidateQueries({ queryKey: ['library-sets'] })
+  }
+
   const { data: profiles = [] } = useQuery<LaunchProfile[]>({
     queryKey: ['profiles'],
     queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
@@ -183,7 +191,7 @@ export default function Library() {
             ) : (
               <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
                 {filteredSets.map((s) => (
-                  <SetCard key={`set-${s.id}`} set={s} />
+                  <SetCard key={`set-${s.id}`} set={s} onSetDisplayDisk={handleSetDisplayDisk} />
                 ))}
                 {filteredItems.map((item) => (
                   <ItemCard
