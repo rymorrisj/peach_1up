@@ -82,3 +82,31 @@ async def stream_upload_to_disk(file: UploadFile, dest_path: Path, max_bytes: in
                 )
             fh.write(chunk)
     return written
+
+
+def find_existing_duplicate(media_root: Path, uploaded_path: Path, uploaded_size: int) -> Path | None:
+    """Search media_root for a file byte-identical to uploaded_path.
+
+    Browser uploads always land in a fresh, uniquely-named directory (see
+    begin_upload), so re-uploading content that's already in the library —
+    e.g. re-adding a file after its prior library item was removed, which
+    intentionally leaves the media file on disk — would otherwise always be
+    treated as new. The actual lookup is index-backed (media_dup_index) rather
+    than a fresh directory scan per call; see that module for the build/cache/
+    invalidation design.
+
+    Returns the path of the matching existing file, or None.
+    """
+    from backend.service.library.items import _MEDIA_SUFFIXES
+    from backend.service.utils import media_dup_index
+    from backend.service.utils.era_media import all_supported_extensions
+
+    # .img is deliberately excluded even though some eras list it under
+    # supported_media: drive images are app-generated containers, never
+    # something a browser upload could legitimately match against, and
+    # they're rewritten in place on every pre-install launch (see
+    # drive_hydration.hydrate_drive_for_item) and unlinked on item removal —
+    # the most volatile file type under media_root, for zero dedup benefit.
+    candidate_exts = (_MEDIA_SUFFIXES | all_supported_extensions()) - {".img"}
+
+    return media_dup_index.find_duplicate(media_root, candidate_exts, uploaded_path, uploaded_size)

@@ -72,9 +72,9 @@ export default function Library() {
     queryClient.invalidateQueries({ queryKey: ['library'] })
   }
 
-  async function handleDelete(item: LibraryItem) {
+  async function handleRemove(item: LibraryItem) {
     const confirmed = await confirm({
-      title: `Delete "${item.title}"?`,
+      title: `Remove "${item.title}"?`,
       consequence: 'This removes the item from your library. The media file on disk is not deleted.',
       destructive: true,
     })
@@ -84,7 +84,7 @@ export default function Library() {
       await consumeToken(`/api/v1/library/${item.id}`, token)
       queryClient.invalidateQueries({ queryKey: ['library'] })
     } catch (err) {
-      const msg = err instanceof ApiError ? err.detail : 'Delete failed.'
+      const msg = err instanceof ApiError ? err.detail : 'Remove failed.'
       alert(msg)
     }
   }
@@ -172,7 +172,7 @@ export default function Library() {
                     key={item.id}
                     item={item}
                     profiles={profiles}
-                    onDelete={handleDelete}
+                    onRemove={handleRemove}
                   />
                 ))}
               </div>

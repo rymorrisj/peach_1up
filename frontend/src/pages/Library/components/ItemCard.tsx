@@ -95,10 +95,10 @@ function TagPills({ item }: { item: LibraryItem }) {
 interface ItemCardProps {
   item: LibraryItem
   profiles: LaunchProfile[]
-  onDelete: (item: LibraryItem) => void
+  onRemove: (item: LibraryItem) => void
 }
 
-export function ItemCard({ item, profiles, onDelete }: ItemCardProps) {
+export function ItemCard({ item, profiles, onRemove }: ItemCardProps) {
   const profile = item.profile_id != null ? profiles.find((p) => p.id === item.profile_id) : null
   const detailHref = `/library/${item.slug ?? item.id}`
   const hasCoverArt = !!item.cover_art_url
@@ -165,12 +165,12 @@ export function ItemCard({ item, profiles, onDelete }: ItemCardProps) {
         <TagPills item={item} />
       </Link>
 
-      {/* Delete — hover-revealed, outside Link to avoid navigation */}
+      {/* Remove — hover-revealed, outside Link to avoid navigation */}
       <button
         type="button"
-        onClick={() => onDelete(item)}
+        onClick={() => onRemove(item)}
         className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-md border border-transparent bg-black/70 text-neutral-400 opacity-0 backdrop-blur-sm transition-opacity duration-[120ms] group-hover:opacity-100 hover:border-red-500/40 hover:text-red-400"
-        aria-label={`Delete ${item.title}`}
+        aria-label={`Remove ${item.title}`}
       >
         <Trash2 size={14} />
       </button>

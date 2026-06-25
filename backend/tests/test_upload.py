@@ -195,6 +195,131 @@ class TestLibraryUploadRoute:
         media_file_path = Path(resp.json()["media_path"]).resolve()
         assert media_file_path.is_relative_to(media_path.resolve())
 
+    def test_duplicate_content_on_still_tracked_item_is_rejected_without_extra_copy(self, client):
+        """Uploading byte-identical content under a different filename, while the
+        first upload is still a tracked library item, hits the existing
+        _ItemAlreadyExists path (via the matched file) — same 409 as a literal
+        path collision — and leaves no second physical copy behind."""
+        c, media_path = client
+        content = b"identical bytes for dedup test"
+        first = c.post(
+            "/api/v1/library/upload",
+            files={"file": ("doom.iso", content, "application/octet-stream")},
+        )
+        assert first.status_code == 201, first.text
+
+        second = c.post(
+            "/api/v1/library/upload",
+            files={"file": ("doom-copy.iso", content, "application/octet-stream")},
+        )
+        assert second.status_code == 409, second.text
+
+        media_files = [p for p in media_path.rglob("*") if p.is_file()]
+        assert len(media_files) == 1
+
+    def test_duplicate_content_after_remove_reuses_orphaned_file(self, client):
+        """The realistic re-add scenario: an item is removed (file kept on disk,
+        per the project's remove-not-delete semantics), then the same content is
+        re-uploaded under a new filename. The orphaned file is no longer tracked
+        by any item, so it should be reused in place rather than copied again."""
+        c, media_path = client
+        content = b"identical bytes for dedup test"
+        first = c.post(
+            "/api/v1/library/upload",
+            files={"file": ("doom.iso", content, "application/octet-stream")},
+        )
+        assert first.status_code == 201, first.text
+        item_id = first.json()["id"]
+        original_media_path = Path(first.json()["media_path"])
+
+        token_resp = c.post(f"/api/v1/library/{item_id}/confirm-delete")
+        assert token_resp.status_code == 200, token_resp.text
+        token = token_resp.json()["confirmation_token"]
+        del_resp = c.delete(f"/api/v1/library/{item_id}", params={"confirmation_token": token})
+        assert del_resp.status_code == 204, del_resp.text
+        assert original_media_path.exists()  # remove, not delete — file stays on disk
+
+        second = c.post(
+            "/api/v1/library/upload",
+            files={"file": ("doom-readded.iso", content, "application/octet-stream")},
+        )
+        assert second.status_code == 201, second.text
+        body = second.json()
+        assert body["reused_existing_media"] is True
+        assert Path(body["media_path"]) == original_media_path
+
+        media_files = [p for p in media_path.rglob("*") if p.is_file()]
+        assert len(media_files) == 1
+
+    def test_duplicate_detection_uses_warm_index_not_a_fresh_scan(self, client, monkeypatch):
+        """Second upload's duplicate match must come from the warm in-memory
+        index (media_dup_index), not a second directory walk. Spies on
+        Path.rglob, filtered to calls against media_path itself, so the
+        assertion is specific to the dedup index's own walk and isn't
+        confused by any other code calling rglob for unrelated reasons. This
+        also proves the index reflects the first upload immediately — the
+        second call finds the match on the very next request, no lag."""
+        c, media_path = client
+        from backend.service.utils import media_dup_index
+
+        root = media_path.resolve()
+        rglob_calls_on_root = []
+        original_rglob = media_dup_index.Path.rglob
+
+        def spy_rglob(self, pattern):
+            if self == root:
+                rglob_calls_on_root.append(pattern)
+            return original_rglob(self, pattern)
+
+        monkeypatch.setattr(media_dup_index.Path, "rglob", spy_rglob)
+
+        content = b"identical bytes for warm-index test"
+        first = c.post(
+            "/api/v1/library/upload",
+            files={"file": ("warm-a.iso", content, "application/octet-stream")},
+        )
+        assert first.status_code == 201, first.text
+        assert len(rglob_calls_on_root) == 1  # initial index build
+
+        second = c.post(
+            "/api/v1/library/upload",
+            files={"file": ("warm-b.iso", content, "application/octet-stream")},
+        )
+        assert second.status_code == 409, second.text  # still-tracked duplicate, via the index
+        assert len(rglob_calls_on_root) == 1  # no rebuild — index stayed warm
+
+    def test_index_does_not_return_stale_match_after_file_removed_from_disk(self, client):
+        """No in-app flow deletes a tracked media file directly today — DELETE
+        /api/v1/library/{item_id} explicitly leaves it on disk (see the
+        remove-not-delete test above), and the only file it does unlink (a
+        Drive.image_path .img file) is outside the dedup extension allowlist
+        by design (see upload_utils.find_existing_duplicate). To exercise the
+        index's self-healing path for content that's genuinely gone — the
+        drift scenario the index must never get wrong — this test removes the
+        file directly, the way an out-of-band filesystem change would, and
+        confirms re-uploading identical bytes is treated as new rather than
+        falsely matched against the now-stale index entry."""
+        c, media_path = client
+        content = b"identical bytes for stale-index test"
+        first = c.post(
+            "/api/v1/library/upload",
+            files={"file": ("gone.iso", content, "application/octet-stream")},
+        )
+        assert first.status_code == 201, first.text
+        original_path = Path(first.json()["media_path"])
+
+        original_path.unlink()  # simulates the file genuinely disappearing
+
+        second = c.post(
+            "/api/v1/library/upload",
+            files={"file": ("gone-again.iso", content, "application/octet-stream")},
+        )
+        assert second.status_code == 201, second.text
+        body = second.json()
+        assert body.get("reused_existing_media") is not True
+        assert Path(body["media_path"]) != original_path
+        assert Path(body["media_path"]).exists()
+
 
 # ---------------------------------------------------------------------------
 # POST /api/v1/media/upload (OS images only)

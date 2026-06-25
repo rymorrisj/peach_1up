@@ -87,12 +87,24 @@ async def upload_library_media(
     writes straight into MEDIA_PATH and chains into the same ingest pipeline
     (_prepare_item) used by manual add and scan import — era detection,
     platform/profile auto-assignment, and dedup all apply identically.
+
+    Before ingesting, the uploaded bytes are checked against existing files
+    under MEDIA_PATH by content hash (find_existing_duplicate). If a match is
+    found, the freshly-written copy is discarded and the existing file is
+    reused instead of creating a second physical copy — surfaced to the
+    caller via reused_existing_media in the response.
     """
     if not file.filename:
         raise HTTPException(status_code=422, detail="A filename is required.")
 
     from backend.core.settings import get_settings
-    from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES, begin_upload, stream_upload_to_disk
+    from backend.service.utils import media_dup_index
+    from backend.service.utils.upload_utils import (
+        DEFAULT_MAX_BYTES,
+        begin_upload,
+        find_existing_duplicate,
+        stream_upload_to_disk,
+    )
 
     svc = get_settings()
     max_bytes = int(svc.get("UPLOAD_MAX_BYTES", DEFAULT_MAX_BYTES) or DEFAULT_MAX_BYTES)
@@ -101,7 +113,7 @@ async def upload_library_media(
     dest_dir, dest_path = begin_upload(media_root, file.filename)
 
     try:
-        await stream_upload_to_disk(file, dest_path, max_bytes)
+        written = await stream_upload_to_disk(file, dest_path, max_bytes)
     except HTTPException:
         shutil.rmtree(dest_dir, ignore_errors=True)
         raise
@@ -109,18 +121,34 @@ async def upload_library_media(
         shutil.rmtree(dest_dir, ignore_errors=True)
         raise HTTPException(status_code=500, detail=f"Upload failed: {exc}") from exc
 
-    title = dest_path.stem.replace("-", " ").title()
+    duplicate_path = find_existing_duplicate(media_root, dest_path, written)
+    reused_existing = duplicate_path is not None
+    ingest_path = duplicate_path if reused_existing else dest_path
+    if reused_existing:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+
+    title = ingest_path.stem.replace("-", " ").title()
     try:
-        return lib_svc._ingest_media_entry(str(dest_path), title, db)
+        item = lib_svc._ingest_media_entry(str(ingest_path), title, db)
     except lib_svc._ItemAlreadyExists:
         shutil.rmtree(dest_dir, ignore_errors=True)
+        media_dup_index.forget(dest_path)
         raise HTTPException(status_code=409, detail="This media path is already in the library.")
     except lib_svc._SlugCollision:
         shutil.rmtree(dest_dir, ignore_errors=True)
+        media_dup_index.forget(dest_path)
         raise HTTPException(status_code=409, detail="Import collided with a concurrent change, please retry.")
     except HTTPException:
         shutil.rmtree(dest_dir, ignore_errors=True)
+        media_dup_index.forget(dest_path)
         raise
+
+    if reused_existing:
+        from fastapi.responses import JSONResponse
+        payload = LibraryItemRead.model_validate(item).model_dump(mode="json")
+        payload["reused_existing_media"] = True
+        return JSONResponse(status_code=201, content=payload)
+    return item
 
 
 @router.get("/scan/status", response_model=ScanStatus)

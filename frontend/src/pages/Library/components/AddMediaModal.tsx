@@ -8,7 +8,7 @@ interface UploadEntry {
   id: string
   file: File
   progress: number
-  status: 'uploading' | 'success' | 'error'
+  status: 'uploading' | 'success' | 'reused' | 'error'
   error?: string
 }
 
@@ -37,12 +37,17 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
   }, [open, busy])
 
   function startUpload(entry: UploadEntry) {
-    const { promise } = uploadFile<{ title: string }>('/api/v1/library/upload', entry.file, (pct) => {
-      setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, progress: pct } : e)))
-    })
+    const { promise } = uploadFile<{ title: string; reused_existing_media?: boolean }>(
+      '/api/v1/library/upload',
+      entry.file,
+      (pct) => {
+        setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, progress: pct } : e)))
+      },
+    )
     promise
-      .then(() => {
-        setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'success', progress: 100 } : e)))
+      .then((body) => {
+        const status = body.reused_existing_media ? 'reused' : 'success'
+        setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status, progress: 100 } : e)))
         onAdded()
       })
       .catch((err: Error) => {
@@ -71,7 +76,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
     if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files)
   }
 
-  const succeeded = entries.filter((e) => e.status === 'success').length
+  const succeeded = entries.filter((e) => e.status === 'success' || e.status === 'reused').length
   const failed = entries.filter((e) => e.status === 'error').length
   const showSummary = entries.length > 0 && !busy
 
@@ -138,6 +143,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
                 <span className="shrink-0 text-xs font-medium">
                   {entry.status === 'uploading' && <span className="text-neutral-400">{entry.progress}%</span>}
                   {entry.status === 'success' && <span className="text-emerald-500">✓ Added</span>}
+                  {entry.status === 'reused' && <span className="text-emerald-500">✓ Reused existing file</span>}
                   {entry.status === 'error' && <span className="text-red-500">Failed</span>}
                 </span>
               </div>
