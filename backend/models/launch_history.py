@@ -24,6 +24,10 @@ class LaunchHistory(LaunchHistoryBase, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("library_items.id", ondelete="CASCADE"), nullable=True),
     )
+    library_set_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("library_sets.id", ondelete="CASCADE"), nullable=True),
+    )
     platform_id: Optional[int] = Field(
         default=None,
         sa_column=Column(Integer, ForeignKey("platforms.id", ondelete="CASCADE"), nullable=True),
@@ -44,6 +48,7 @@ class LaunchHistory(LaunchHistoryBase, table=True):
 class LaunchHistoryRead(LaunchHistoryBase):
     id: int
     library_item_id: Optional[int] = None
+    library_set_id: Optional[int] = None
     platform_id: Optional[int] = None
     profile_id: Optional[int] = None
     started_at: datetime

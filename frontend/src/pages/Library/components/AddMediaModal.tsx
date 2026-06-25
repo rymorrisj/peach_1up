@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
-import { UploadCloud } from 'lucide-react'
+import { UploadCloud, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { uploadFile } from '@/lib/uploadFile'
+import { getCsrfToken } from '@/api/client'
 import { Button, Modal } from '@/ui'
+
+const _BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000'
 
 interface UploadEntry {
   id: string
@@ -10,6 +13,11 @@ interface UploadEntry {
   progress: number
   status: 'uploading' | 'success' | 'reused' | 'error'
   error?: string
+}
+
+interface StagedDisc {
+  id: string
+  file: File
 }
 
 function newEntryId() {
@@ -28,11 +36,23 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const busy = entries.some((e) => e.status === 'uploading')
+  // Multi-disc state
+  const [multiDisc, setMultiDisc] = useState(false)
+  const [stagedDiscs, setStagedDiscs] = useState<StagedDisc[]>([])
+  const [setTitle, setSetTitle] = useState('')
+  const [setStatus, setSetStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
+  const [setError, setSetError] = useState<string | null>(null)
+
+  const busy = entries.some((e) => e.status === 'uploading') || setStatus === 'uploading'
 
   useEffect(() => {
     if (!open && !busy) {
       setEntries([])
+      setStagedDiscs([])
+      setSetTitle('')
+      setSetStatus('idle')
+      setSetError(null)
+      setMultiDisc(false)
     }
   }, [open, busy])
 
@@ -60,6 +80,15 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
   function handleFiles(fileList: FileList | File[]) {
     const files = Array.from(fileList)
     if (files.length === 0) return
+
+    if (multiDisc) {
+      setStagedDiscs((prev) => [
+        ...prev,
+        ...files.map((f) => ({ id: newEntryId(), file: f })),
+      ])
+      return
+    }
+
     const next: UploadEntry[] = files.map((file) => ({
       id: newEntryId(),
       file,
@@ -76,6 +105,52 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
     if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files)
   }
 
+  function moveDisc(id: string, dir: -1 | 1) {
+    setStagedDiscs((prev) => {
+      const idx = prev.findIndex((d) => d.id === id)
+      if (idx < 0) return prev
+      const next = [...prev]
+      const swap = idx + dir
+      if (swap < 0 || swap >= next.length) return prev
+      ;[next[idx], next[swap]] = [next[swap], next[idx]]
+      return next
+    })
+  }
+
+  function removeDisc(id: string) {
+    setStagedDiscs((prev) => prev.filter((d) => d.id !== id))
+  }
+
+  async function submitSet() {
+    if (!setTitle.trim()) return
+    if (stagedDiscs.length === 0) return
+
+    setSetStatus('uploading')
+    setSetError(null)
+
+    const fd = new FormData()
+    fd.append('title', setTitle.trim())
+    for (const disc of stagedDiscs) fd.append('files', disc.file)
+
+    try {
+      const res = await fetch(`${_BASE_URL}/api/v1/library/sets`, {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': getCsrfToken() },
+        credentials: 'include',
+        body: fd,
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(body.detail ?? `Upload failed (HTTP ${res.status})`)
+      }
+      setSetStatus('success')
+      onAdded()
+    } catch (err) {
+      setSetStatus('error')
+      setSetError(err instanceof Error ? err.message : 'Upload failed.')
+    }
+  }
+
   const succeeded = entries.filter((e) => e.status === 'success' || e.status === 'reused').length
   const failed = entries.filter((e) => e.status === 'error').length
   const showSummary = entries.length > 0 && !busy
@@ -86,11 +161,60 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       title="Add Media"
       onClose={onClose}
       footer={
-        <Button onClick={onClose}>
-          {busy ? 'Upload in progress…' : 'Done'}
-        </Button>
+        multiDisc ? (
+          <div className="flex items-center gap-3">
+            <Button
+              variant="secondary"
+              onClick={onClose}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={submitSet}
+              disabled={busy || !setTitle.trim() || stagedDiscs.length === 0 || setStatus === 'success'}
+            >
+              {setStatus === 'uploading' ? 'Creating set…' : setStatus === 'success' ? 'Done' : 'Create Set'}
+            </Button>
+          </div>
+        ) : (
+          <Button onClick={onClose}>
+            {busy ? 'Upload in progress…' : 'Done'}
+          </Button>
+        )
       }
     >
+      {/* Multi-disc toggle */}
+      <label className="mb-3 flex cursor-pointer items-center gap-2 text-sm text-neutral-300">
+        <input
+          type="checkbox"
+          className="accent-[#ff8a5c]"
+          checked={multiDisc}
+          disabled={busy}
+          onChange={(e) => {
+            setMultiDisc(e.target.checked)
+            setStagedDiscs([])
+            setSetTitle('')
+            setSetStatus('idle')
+            setSetError(null)
+          }}
+        />
+        Multi-disc set
+      </label>
+
+      {/* Set title field (multi-disc mode only) */}
+      {multiDisc && (
+        <input
+          type="text"
+          placeholder="Set title (e.g. Final Fantasy VII)"
+          value={setTitle}
+          onChange={(e) => setSetTitle(e.target.value)}
+          disabled={busy}
+          className="mb-3 w-full rounded-lg border border-neutral-600 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-500 outline-none focus:border-[#ff8a5c]"
+        />
+      )}
+
+      {/* Drop zone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
         onDragLeave={() => setDragActive(false)}
@@ -107,10 +231,12 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       >
         <UploadCloud size={28} className="text-neutral-400" aria-hidden="true" />
         <p className="text-sm text-neutral-600 dark:text-neutral-300">
-          Drag and drop files here, or click to browse
+          {multiDisc ? 'Add disc files (one per disc, in order)' : 'Drag and drop files here, or click to browse'}
         </p>
         <p className="text-xs text-neutral-400 dark:text-neutral-500">
-          Multiple files are supported — each uploads and imports independently.
+          {multiDisc
+            ? 'Files will appear below — drag to reorder before creating the set.'
+            : 'Multiple files are supported — each uploads and imports independently.'}
         </p>
         <input
           ref={fileInputRef}
@@ -126,13 +252,8 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
         />
       </div>
 
-      <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
-        {mediaPath
-          ? `Tip: uploads are copied through the browser, which can be slow for very large files. For faster imports of large files, place them directly in ${mediaPath} and use Scan instead.`
-          : 'Tip: uploads are copied through the browser, which can be slow for very large files. Set a media library path in Settings to enable faster imports of large files via Scan.'}
-      </p>
-
-      {entries.length > 0 && (
+      {/* Single-upload progress list */}
+      {!multiDisc && entries.length > 0 && (
         <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto">
           {entries.map((entry) => (
             <li key={entry.id} className="rounded-md border border-neutral-200 dark:border-neutral-700 px-3 py-2">
@@ -163,7 +284,67 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
         </ul>
       )}
 
-      {showSummary && (
+      {/* Multi-disc staged list */}
+      {multiDisc && stagedDiscs.length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {stagedDiscs.map((disc, idx) => (
+            <li
+              key={disc.id}
+              className="flex items-center gap-2 rounded-md border border-neutral-700 bg-neutral-800/60 px-3 py-2"
+            >
+              <span className="w-5 shrink-0 font-mono text-xs text-neutral-500">{idx + 1}</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-neutral-200">{disc.file.name}</span>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => moveDisc(disc.id, -1)}
+                  disabled={idx === 0 || busy}
+                  className="rounded p-0.5 text-neutral-500 hover:text-neutral-200 disabled:opacity-30"
+                  aria-label="Move disc up"
+                >
+                  <ChevronUp size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveDisc(disc.id, 1)}
+                  disabled={idx === stagedDiscs.length - 1 || busy}
+                  className="rounded p-0.5 text-neutral-500 hover:text-neutral-200 disabled:opacity-30"
+                  aria-label="Move disc down"
+                >
+                  <ChevronDown size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeDisc(disc.id)}
+                  disabled={busy}
+                  className="rounded p-0.5 text-neutral-500 hover:text-red-400 disabled:opacity-30"
+                  aria-label={`Remove ${disc.file.name}`}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Set upload status */}
+      {multiDisc && setStatus === 'success' && (
+        <p className="mt-3 text-sm text-emerald-400">
+          Set created successfully.
+        </p>
+      )}
+      {multiDisc && setStatus === 'error' && setError && (
+        <p role="alert" className="mt-3 text-sm text-red-400">{setError}</p>
+      )}
+
+      <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
+        {mediaPath
+          ? `Tip: uploads are copied through the browser, which can be slow for very large files. For faster imports of large files, place them directly in ${mediaPath} and use Scan instead.`
+          : 'Tip: uploads are copied through the browser, which can be slow for very large files. Set a media library path in Settings to enable faster imports of large files via Scan.'}
+      </p>
+
+      {!multiDisc && showSummary && (
         <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
           {succeeded} of {entries.length} file{entries.length !== 1 ? 's' : ''} added successfully
           {failed > 0 && `, ${failed} failed`}.

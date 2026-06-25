@@ -230,7 +230,7 @@ class TestItemLaunchScopeNotSlugList:
     def test_coordinator_uses_resolve_backend_name(self):
         """Backend selection is dynamic via resolve_backend_name in the coordinator."""
         import backend.service.launch.coordinator as coord
-        src = inspect.getsource(coord._build_spec_for_item)
+        src = inspect.getsource(coord._build_spec_for_entity)
         assert "resolve_backend_name" in src
 
 

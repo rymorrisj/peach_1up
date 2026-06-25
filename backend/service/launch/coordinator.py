@@ -15,7 +15,7 @@ from backend.core import process_registry
 from backend.core.logger import get_logger
 from backend.core.process_registry import ProcessEntry
 from backend.models import LaunchHistory, LibraryItem, Platform, Profile
-from backend.service.launch.drive_hydration import hydrate_drive_for_item
+from backend.service.launch.drive_hydration import hydrate_drive_for_entity
 from backend.service.launch.history import write_session_ends
 from backend.service.launch.launch_spec import LaunchSpec
 from backend.service.launch.monitor import register_short_lived_check
@@ -23,6 +23,7 @@ from backend.service.utils.era_media import resolve_media_file_from_directory
 
 if TYPE_CHECKING:
     from backend.models.drive import Drive
+    from backend.service.launch.launchable_resolver import LaunchableEntity
 
 logger = get_logger(__name__)
 
@@ -127,14 +128,14 @@ def _finalize_launch(
         db.commit()
 
 
-def _resolve_profile_for_item(item: LibraryItem, profile_id: int | None, db: Session) -> Profile:
+def _resolve_profile_for_item(entity_profile_id: int | None, profile_id: int | None, db: Session) -> Profile:
     profile: Profile | None = None
     if profile_id:
         profile = db.get(Profile, profile_id)
         if not profile:
             raise HTTPException(status_code=404, detail="Profile not found.")
-    if profile is None and item.profile_id:
-        profile = db.get(Profile, item.profile_id)
+    if profile is None and entity_profile_id:
+        profile = db.get(Profile, entity_profile_id)
     if profile is None:
         raise HTTPException(status_code=422, detail="No profile associated with this library item.")
     return profile
@@ -158,19 +159,19 @@ def _resolve_profile_for_environment(platform: Platform, profile_id: int | None,
     return profile
 
 
-def _build_spec_for_item(
-    item: LibraryItem,
+def _build_spec_for_entity(
+    entity: "LaunchableEntity",
     profile: Profile,
     platform: Platform | None,
-    drive: Drive | None,
+    drive: "Drive | None",
     effective_media_path: str,
 ) -> LaunchSpec:
-    """Resolve all ORM fields to plain values and construct a LaunchSpec."""
+    """Resolve all entity fields to plain values and construct a LaunchSpec."""
     from backend.constants_generated import BackendSlug
     from backend.constants import era_to_enum
     from backend.service.utils.backend_router import resolve_backend_name, get_executable_path
 
-    era_enum = era_to_enum(item.era)
+    era_enum = era_to_enum(entity.era)
     slug = resolve_backend_name(era_enum)
 
     # box86 and xemu resolve their own binary paths internally.
@@ -181,7 +182,7 @@ def _build_spec_for_item(
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    f"The emulator for era '{item.era}' is not installed. "
+                    f"The emulator for era '{entity.era}' is not installed. "
                     "Install it via the Emulators page."
                 ),
             )
@@ -218,13 +219,13 @@ def _build_spec_for_item(
 
     return LaunchSpec(
         slug=slug,
-        era=item.era,
+        era=entity.era,
         emulator_slug=profile.emulator_slug,
         media_path=Path(effective_media_path),
         executable_path=executable_path,
         enable_networking=bool(profile.enable_networking),
         enable_dgvoodoo2=bool(profile.enable_dgvoodoo2),
-        launch_commands=list(item.launch_commands or []),
+        launch_commands=list(entity.launch_commands or []),
         profile_id=profile.id,
         profile_launch_commands=list(profile.launch_commands or []),
         use_drive=bool(profile.use_drive),
@@ -240,9 +241,15 @@ def _build_spec_for_item(
         hardware_profile=hardware_profile,
         platform_name=platform_name,
         platform_slug=platform_slug_val,
-        item_id=item.id,
-        launch_review_flagged=bool(item.launch_review_flagged),
+        item_id=entity.item_id,
+        set_id=entity.set_id,
+        launch_review_flagged=bool(entity.launch_review_flagged),
     )
+
+
+# Keep the old name as an alias so existing callers (tests, etc.) that reference
+# _build_spec_for_item by name continue to work.
+_build_spec_for_item = _build_spec_for_entity
 
 
 def _build_spec_for_environment(
@@ -291,8 +298,8 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
     """Execute a fully resolved LaunchSpec under Job Object isolation.
 
     ORM resolution must be complete before constructing the spec.
-    Use launch_item() or launch_environment() as convenience entry points
-    that handle resolution and pre-launch gates.
+    Use launch_item(), launch_set(), or launch_environment() as convenience
+    entry points that handle resolution and pre-launch gates.
 
     Args:
         spec: Fully resolved LaunchSpec with all plain-value fields set.
@@ -304,8 +311,15 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
     from backend.service.utils.backend_router import dispatch
 
     network_blocked = not spec.enable_networking
-    # item_id is set for item launches; environment launches have platform_id only.
-    is_environment = spec.item_id is None
+    # is_environment: neither a library item nor a library set.
+    is_environment = spec.item_id is None and spec.set_id is None
+
+    if is_environment:
+        target_type = "environment"
+    elif spec.set_id is not None:
+        target_type = "library_set"
+    else:
+        target_type = "library_item"
 
     # Reserve both guard keys before any spawn work starts. The check and the
     # reservation happen atomically under process_registry's lock, so a
@@ -320,8 +334,9 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
         )
     try:
         history = LaunchHistory(
-            target_type="environment" if is_environment else "library_item",
+            target_type=target_type,
             library_item_id=spec.item_id,
+            library_set_id=spec.set_id,
             platform_id=spec.platform_id,
             profile_id=spec.profile_id,
             emulator_slug=spec.emulator_slug,
@@ -369,8 +384,8 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
             exit_code = await _poll_for_immediate_exit(proc)
             if exit_code is not None and exit_code != 0:
                 logger.error(
-                    "Launch for item_id=%s exited immediately (exit_code=%s) within %.2fs of spawn",
-                    spec.item_id, exit_code, _INLINE_CRASH_CHECK_TIMEOUT,
+                    "Launch for item_id=%s set_id=%s exited immediately (exit_code=%s) within %.2fs of spawn",
+                    spec.item_id, spec.set_id, exit_code, _INLINE_CRASH_CHECK_TIMEOUT,
                 )
                 process_registry.terminate(proc.pid)
                 history.error_message = (
@@ -383,7 +398,10 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
                     status_code=500,
                     detail=f"Launch failed: the emulator process exited immediately (exit code {exit_code}).",
                 )
-            register_short_lived_check(spec.item_id, proc, launch_time)
+            # Short-lived async detection only supports LibraryItem (flags launch_review_flagged).
+            # Set launches use the inline crash check above but skip the async 3s window check.
+            if spec.item_id is not None:
+                register_short_lived_check(spec.item_id, proc, launch_time)
 
         return LaunchResult(
             history_id=history.id,
@@ -398,26 +416,53 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
         process_registry.release(reservation)
 
 
-async def launch_item(item: LibraryItem, profile_id: int | None, db: Session) -> LaunchResult:
-    exited = process_registry.cleanup_exited()
-    if exited:
-        await asyncio.to_thread(write_session_ends, exited)
+async def _launch_entity(entity: "LaunchableEntity", profile_id: int | None, db: Session) -> LaunchResult:
+    """Internal shared entry point for both item and set launches.
 
-    profile = _resolve_profile_for_item(item, profile_id, db)
+    Expects the caller (launch_item or launch_set) to have already called
+    process_registry.cleanup_exited() and write_session_ends.
+    """
+    profile = _resolve_profile_for_item(entity.profile_id, profile_id, db)
     platform_record = db.query(Platform).filter(Platform.profile_id == profile.id).first()
 
-    drive = hydrate_drive_for_item(item, db)
+    drive = hydrate_drive_for_entity(entity, db)
 
-    effective_media_path = item.executable_path if item.executable_path else item.media_path
+    effective_media_path = entity.executable_path if entity.executable_path else entity.media_path
     if Path(effective_media_path).is_dir() and drive is None:
         try:
-            resolved = _resolve_media_file_from_directory(Path(effective_media_path), item.era)
+            resolved = _resolve_media_file_from_directory(Path(effective_media_path), entity.era)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         effective_media_path = str(resolved)
 
-    spec = _build_spec_for_item(item, profile, platform_record, drive, effective_media_path)
+    spec = _build_spec_for_entity(entity, profile, platform_record, drive, effective_media_path)
     return await launch(spec, db)
+
+
+async def launch_item(item: LibraryItem, profile_id: int | None, db: Session) -> LaunchResult:
+    """Entry point for library item launches. Public API — signature is stable."""
+    exited = process_registry.cleanup_exited()
+    if exited:
+        await asyncio.to_thread(write_session_ends, exited)
+
+    from backend.service.launch.launchable_resolver import resolve_launchable
+    entity = resolve_launchable(item_id=item.id, db=db)
+    return await _launch_entity(entity, profile_id, db)
+
+
+async def launch_set(set_id: int, profile_id: int | None, db: Session) -> LaunchResult:
+    """Entry point for library set launches. Resolves the set's launch disc."""
+    exited = process_registry.cleanup_exited()
+    if exited:
+        await asyncio.to_thread(write_session_ends, exited)
+
+    from fastapi import HTTPException as _HTTPException
+    from backend.service.launch.launchable_resolver import resolve_launchable
+    try:
+        entity = resolve_launchable(set_id=set_id, db=db)
+    except ValueError as exc:
+        raise _HTTPException(status_code=422, detail=str(exc)) from exc
+    return await _launch_entity(entity, profile_id, db)
 
 
 async def launch_environment(platform: Platform, profile_id: int | None, db: Session) -> LaunchResult:

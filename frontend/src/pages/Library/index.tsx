@@ -13,6 +13,8 @@ import { ERA_LABELS } from '@/generated/constants'
 import { AddMediaModal } from './components/AddMediaModal'
 import { ScanModal } from './components/ScanModal'
 import { ItemCard } from './components/ItemCard'
+import { SetCard } from './components/SetCard'
+import type { LibrarySetData } from './components/SetCard'
 import type { components } from '@shared/types'
 type LibraryItem = components['schemas']['LibraryItemRead']
 type LaunchProfile = components['schemas']['ProfileRead']
@@ -50,6 +52,11 @@ export default function Library() {
     queryFn: () => apiFetch<LibraryItem[]>('/api/v1/library'),
   })
 
+  const { data: sets = [] } = useQuery<LibrarySetData[]>({
+    queryKey: ['library-sets'],
+    queryFn: () => apiFetch<LibrarySetData[]>('/api/v1/library/sets'),
+  })
+
   const { data: profiles = [] } = useQuery<LaunchProfile[]>({
     queryKey: ['profiles'],
     queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
@@ -68,8 +75,16 @@ export default function Library() {
     return true
   })
 
+  const filteredSets = sets.filter((s) => {
+    if (filters.era && s.era !== filters.era) return false
+    if (filters.profileFilter === 'assigned' && s.profile_id === null) return false
+    if (filters.profileFilter === 'unassigned' && s.profile_id !== null) return false
+    return true
+  })
+
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['library'] })
+    queryClient.invalidateQueries({ queryKey: ['library-sets'] })
   }
 
   async function handleRemove(item: LibraryItem) {
@@ -107,7 +122,7 @@ export default function Library() {
             <LoadingSpinner label="Loading library…" />
             <span aria-hidden="true">Loading library…</span>
           </div>
-        ) : !items || items.length === 0 ? (
+        ) : (!items || items.length === 0) && sets.length === 0 ? (
           <EmptyState
             heading="Your library is empty"
             subtext="Add media files to get started, or scan a directory to import in bulk."
@@ -157,16 +172,19 @@ export default function Library() {
                 </button>
               )}
               <span className="ml-auto" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)' }}>
-                {filteredItems.length} of {items.length}
+                {filteredItems.length + filteredSets.length} of {(items?.length ?? 0) + sets.length}
               </span>
             </div>
 
-            {filteredItems.length === 0 ? (
+            {filteredItems.length === 0 && filteredSets.length === 0 ? (
               <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--fg-3)' }}>
                 No items match the current filters.
               </p>
             ) : (
               <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+                {filteredSets.map((s) => (
+                  <SetCard key={`set-${s.id}`} set={s} />
+                ))}
                 {filteredItems.map((item) => (
                   <ItemCard
                     key={item.id}

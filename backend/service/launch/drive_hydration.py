@@ -15,7 +15,7 @@ from backend.service.utils.fat import (
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
     from backend.models.drive import Drive
-    from backend.models.library import LibraryItem
+    from backend.service.launch.launchable_resolver import LaunchableEntity
 
 
 def _copy_loose_files_to_drive(src_dir: Path, img_path: Path, size_mb: int) -> None:
@@ -38,43 +38,45 @@ def _copy_loose_files_to_drive(src_dir: Path, img_path: Path, size_mb: int) -> N
             raise RuntimeError(f"MD5 mismatch for {f}: src={src_md5} img={img_md5}")
 
 
-def hydrate_drive_for_item(item: "LibraryItem", db: "Session") -> "Drive | None":
+def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Drive | None":
     """Resolve or create drive; copy loose files on first launch.
 
-    On first launch of a loose-file DOS item, the drive image is (re)created
-    and all source files are written into it. Raises RuntimeError on any
-    filesystem or integrity failure — callers must not swallow this.
+    Uses the pre-resolved drive on the entity. For item-based entities, auto-creates
+    a drive for DOS/win31 eras when none exists. For set-based entities, the drive
+    is either pre-configured on the set or absent — no auto-creation.
 
-    SECURITY NOTE: img_path.unlink() silently discards any prior image content
-    on every pre-install launch. This is intentional but means a user who
-    manually placed data in the image will lose it on retry.
+    The installed=True write-back goes through entity._db_item (None for sets,
+    where the loose-file copy path can never trigger since disc images are files
+    rather than directories).
     """
     from backend.models.drive import Drive
     from backend.service.library.items import _DRIVE_ERAS
     from backend.service.utils.drive_utils import compute_drive_size_mb, create_drive_for_item
 
-    drive = db.query(Drive).filter(Drive.library_item_id == item.id).first()
-    if drive is None and item.era in _DRIVE_ERAS:
-        drive = create_drive_for_item(item, db)
+    drive = entity.drive
+
+    # Auto-create a drive for item-based DOS/win31 entities that don't have one yet.
+    if drive is None and entity.era in _DRIVE_ERAS and entity._db_item is not None:
+        drive = create_drive_for_item(entity._db_item, db)
 
     if (
         drive is not None
-        and not item.installed
-        and not item.requires_install
-        and Path(item.media_path).is_dir()
+        and not entity.installed
+        and not entity.requires_install
+        and Path(entity.media_path).is_dir()
     ):
         if not drive.image_path:
             raise RuntimeError(f"Drive id={drive.id!r} has no image_path — re-add the library item.")
         img_path = Path(drive.image_path)
         if img_path.exists():
-            if item.installed:
+            if entity.installed:
                 raise RuntimeError(
                     f"Drive image at {img_path} already contains installed data and will not be automatically overwritten. "
                     "To force a reinstall, manually delete the drive image file."
                 )
             img_path.unlink()
         fresh_size = max(FAT16_SIZE_MIN_MB, min(
-            compute_drive_size_mb(Path(item.media_path), item.media_type or ""),
+            compute_drive_size_mb(Path(entity.media_path), entity.media_type or ""),
             FAT16_SIZE_MAX_MB,
         ))
         if fresh_size != drive.size_mb:
@@ -82,9 +84,10 @@ def hydrate_drive_for_item(item: "LibraryItem", db: "Session") -> "Drive | None"
             db.add(drive)
             db.commit()
         format_fat16(img_path, fresh_size)
-        _copy_loose_files_to_drive(Path(item.media_path), img_path, fresh_size)
-        item.installed = True
-        db.add(item)
-        db.commit()
+        _copy_loose_files_to_drive(Path(entity.media_path), img_path, fresh_size)
+        if entity._db_item is not None:
+            entity._db_item.installed = True
+            db.add(entity._db_item)
+            db.commit()
 
     return drive

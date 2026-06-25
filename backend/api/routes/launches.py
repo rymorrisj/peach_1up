@@ -38,6 +38,25 @@ async def launch_item(
         launch_review_flagged=result.launch_review_flagged,
     )
 
+
+@router.post("/library/sets/{set_id}/launch", status_code=202, response_model=LaunchResponse)
+async def launch_library_set(
+    set_id: int,
+    body: LaunchRequest = LaunchRequest(),
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_launch_media"),
+):
+    from backend.models.library_set import LibrarySet
+    s = db.get(LibrarySet, set_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Library set not found.")
+    result = await svc.launch_set(set_id, body.profile_id, db)
+    return LaunchResponse(
+        launch_history_id=result.history_id,
+        warnings=result.warnings,
+        launch_review_flagged=result.launch_review_flagged,
+    )
+
 @router.post("/environments/{platform_id}/launch", status_code=202, response_model=LaunchResponse)
 async def launch_environment(
     platform_id: int,

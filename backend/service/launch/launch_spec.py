@@ -56,5 +56,6 @@ class LaunchSpec:
 
     # History metadata — coordinator only, not used by backends
     item_id: int | None = None
+    set_id: int | None = None
     platform_id: int | None = None
     launch_review_flagged: bool = False

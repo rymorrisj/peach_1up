@@ -119,16 +119,11 @@ def _make_platform(db, *, profile, era="ps1"):
 
 class TestResolveProfileForItem:
     def test_nonexistent_profile_id_returns_404(self, mem_session):
-        from backend.models.library import LibraryItem
         from backend.service.launch.coordinator import _resolve_profile_for_item
 
-        item = LibraryItem(title="Test Game", era="dos", media_path="/tmp/test")
-        mem_session.add(item)
-        mem_session.commit()
-        mem_session.refresh(item)
-
+        # entity_profile_id=None, explicit profile_id=9999 (does not exist) → 404
         with pytest.raises(HTTPException) as exc_info:
-            _resolve_profile_for_item(item, 9999, mem_session)
+            _resolve_profile_for_item(None, 9999, mem_session)
 
         assert exc_info.value.status_code == 404
 
