@@ -260,6 +260,45 @@ class TestRollbackOnImmediateExit:
 
 
 # ---------------------------------------------------------------------------
+# 4b. A clean exit (code 0) within the inline window is not a crash -- the
+#     launch must succeed, unlike a non-zero exit in the same window.
+# ---------------------------------------------------------------------------
+
+class TestCleanExitZeroNotTreatedAsCrash:
+    def test_immediate_clean_exit_does_not_raise(self, mem_session, monkeypatch):
+        from backend.service.launch.coordinator import launch_item
+
+        profile = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_id=1)
+        item = _make_item(mem_session, profile=profile)
+
+        def fake_dispatch(spec):
+            return (_make_proc(poll_return=0), _make_job())
+
+        _patch_backend_router(monkeypatch, fake_dispatch)
+
+        # Exit code 0 within the inline window must not be treated as a
+        # crash -- the launch should succeed, not raise a 500.
+        result = _run(launch_item(item, None, mem_session))
+        assert result.history_id is not None
+
+    def test_immediate_nonzero_exit_still_raises(self, mem_session, monkeypatch):
+        """Non-zero exit within the same window is unchanged: still a 500."""
+        from backend.service.launch.coordinator import launch_item
+
+        profile = _make_profile(mem_session, name="P2", emulator_slug="flycast", user_id=2, era="dreamcast")
+        item = _make_item(mem_session, profile=profile, era="dreamcast")
+
+        def fake_dispatch(spec):
+            return (_make_proc(poll_return=1), _make_job())
+
+        _patch_backend_router(monkeypatch, fake_dispatch)
+
+        with pytest.raises(HTTPException) as exc_info:
+            _run(launch_item(item, None, mem_session))
+        assert exc_info.value.status_code == 500
+
+
+# ---------------------------------------------------------------------------
 # 5. Back-to-back reservation calls close the TOCTOU race, not just narrow it
 # ---------------------------------------------------------------------------
 

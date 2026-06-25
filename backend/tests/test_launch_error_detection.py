@@ -286,3 +286,12 @@ class TestInlineCheckFailsCurrentResponse:
         assert "_poll_for_immediate_exit" in src
         assert "raise HTTPException" in src
         assert src.index("_poll_for_immediate_exit") < src.index("return LaunchResult(")
+
+    def test_gate_excludes_clean_exit_code_zero(self):
+        """A clean exit (code 0) within the inline window is not a crash --
+        the gate must check exit_code != 0, not just exit_code is not None,
+        or a deliberate fast-exiting launch would be flagged as a failure."""
+        import backend.service.launch.coordinator as coord
+
+        src = inspect.getsource(coord.launch)
+        assert "exit_code is not None and exit_code != 0" in src

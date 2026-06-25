@@ -367,7 +367,7 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
         if proc is not None and not is_environment:
             launch_time = time.monotonic()
             exit_code = await _poll_for_immediate_exit(proc)
-            if exit_code is not None:
+            if exit_code is not None and exit_code != 0:
                 logger.error(
                     "Launch for item_id=%s exited immediately (exit_code=%s) within %.2fs of spawn",
                     spec.item_id, exit_code, _INLINE_CRASH_CHECK_TIMEOUT,
