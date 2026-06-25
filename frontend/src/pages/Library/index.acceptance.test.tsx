@@ -56,6 +56,9 @@ describe('Library acceptance', () => {
       createMockLibraryItem({ id: 2, title: 'Ultima VII', era: 'dos', slug: 'ultima-vii' }),
     ]
     vi.mocked(apiFetch).mockImplementation((url) => {
+      if (typeof url === 'string' && url.includes('/api/v1/library/sets')) {
+        return Promise.resolve([])
+      }
       if (typeof url === 'string' && url.includes('/api/v1/library')) {
         return Promise.resolve(items)
       }
