@@ -482,6 +482,34 @@ def update_library_set(
     return set_to_read(s, db)
 
 
+@router.get("/sets/{set_id}/restrictions")
+def get_set_restrictions(
+    set_id: int,
+    db: Session = Depends(get_db),
+    _: User = require_permission("is_admin"),
+):
+    if not db.get(LibrarySet, set_id):
+        raise HTTPException(status_code=404, detail="Library set not found.")
+    rows = db.query(MediaRestriction).filter(MediaRestriction.library_set_id == set_id).all()
+    return {"restricted_user_ids": [r.user_id for r in rows]}
+
+
+@router.put("/sets/{set_id}/restrictions")
+def set_set_restrictions(
+    set_id: int,
+    body: RestrictionsBody,
+    db: Session = Depends(get_db),
+    _: User = require_permission("is_admin"),
+):
+    if not db.get(LibrarySet, set_id):
+        raise HTTPException(status_code=404, detail="Library set not found.")
+    db.query(MediaRestriction).filter(MediaRestriction.library_set_id == set_id).delete()
+    for user_id in body.user_ids:
+        db.add(MediaRestriction(user_id=user_id, library_set_id=set_id))
+    db.commit()
+    return {"restricted_user_ids": body.user_ids}
+
+
 @router.get("/by-slug/{slug}", response_model=LibraryItemRead)
 def get_library_item_by_slug(
     slug: str,

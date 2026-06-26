@@ -6,15 +6,21 @@ import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal'
 import type { EditForm as EditFormFields } from '@/hooks/useEditForm'
 import type { components } from '@shared/types'
 
-type LibraryItem = components['schemas']['LibraryItemRead']
 type LaunchProfile = components['schemas']['ProfileRead']
 type Platform = components['schemas']['PlatformRead']
+
+type EditableItem = {
+  era: string
+  detection_reason?: string | null
+  media_path?: string | null
+  folder_path?: string | null
+}
 
 const SELECT_CLASS =
   'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
 
 interface EditFormProps {
-  item: LibraryItem
+  item: EditableItem
   form: EditFormFields
   setField: <K extends keyof EditFormFields>(key: K, value: EditFormFields[K]) => void
   handleSave: () => void
@@ -23,8 +29,8 @@ interface EditFormProps {
   saveSuccess: boolean
   execBrowserOpen: boolean
   setExecBrowserOpen: (open: boolean) => void
-  launchCommands: string[] | null
-  setLaunchCommands: (cmds: string[]) => void
+  launchCommands?: string[] | null
+  setLaunchCommands?: (cmds: string[]) => void
   profiles: LaunchProfile[]
   platforms: Platform[]
 }
@@ -44,6 +50,7 @@ export function EditForm({
 }: EditFormProps) {
   const ROM_ERAS = new Set(['nes', 'n64', 'ps1', 'ps2', 'xbox', 'dreamcast'])
   const isRomEra = ROM_ERAS.has(item.era)
+  const showLaunchFile = item.media_path !== undefined || item.folder_path !== undefined
   const eraLabel = ERA_LABELS[item.era] ?? (item.era === 'unknown' ? 'Unknown' : item.era)
   const effectiveProfileId = form.profile_id ? parseInt(form.profile_id, 10) : null
   const eraProfiles = profiles.filter((p) => p.era === item.era)
@@ -149,7 +156,7 @@ export function EditForm({
         />
       </FormField>
 
-      <FormField label="Launch File" htmlFor="detail-executable">
+      {showLaunchFile && <FormField label="Launch File" htmlFor="detail-executable">
         {isRomEra ? (
           <>
             <span
@@ -200,7 +207,7 @@ export function EditForm({
             </p>
           </>
         )}
-      </FormField>
+      </FormField>}
 
       <div className="grid grid-cols-2 gap-4">
         <FormField label="Era" htmlFor="detail-era">

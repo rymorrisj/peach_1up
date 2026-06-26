@@ -1,12 +1,8 @@
 import { useState } from 'react'
 import { Button } from '@/ui'
 import LaunchCommandList from '@/components/LaunchCommandList'
-import type { components } from '@shared/types'
-
-type LibraryItem = components['schemas']['LibraryItemRead']
-
 interface AdvancedSectionProps {
-  item: LibraryItem
+  item: { launch_review_flagged: boolean }
   flagging: boolean
   flagError: string | null
   onFlagLaunch: () => void

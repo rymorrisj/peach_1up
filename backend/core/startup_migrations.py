@@ -89,6 +89,27 @@ def _apply_schema_migrations() -> None:
                 conn.commit()
                 logger.info("Schema migration: rebuilt launch_history with target_type and platform_id")
 
+        # Rebuild media_restrictions to add library_set_id and make library_item_id nullable
+        if "media_restrictions" in inspector.get_table_names():
+            mr_cols = {c["name"] for c in inspector.get_columns("media_restrictions")}
+            if "library_set_id" not in mr_cols:
+                conn.execute(text("""
+                    CREATE TABLE media_restrictions_new (
+                        id INTEGER PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        library_item_id INTEGER REFERENCES library_items(id) ON DELETE CASCADE,
+                        library_set_id INTEGER REFERENCES library_sets(id) ON DELETE CASCADE
+                    )
+                """))
+                conn.execute(text("""
+                    INSERT INTO media_restrictions_new (user_id, library_item_id)
+                    SELECT user_id, library_item_id FROM media_restrictions
+                """))
+                conn.execute(text("DROP TABLE media_restrictions"))
+                conn.execute(text("ALTER TABLE media_restrictions_new RENAME TO media_restrictions"))
+                conn.commit()
+                logger.info("Schema migration: rebuilt media_restrictions with library_set_id")
+
         # Drop legacy user_restrictions table
         if "user_restrictions" in sa_inspect(engine).get_table_names():
             conn.execute(text("DROP TABLE user_restrictions"))

@@ -1,17 +1,47 @@
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch } from '@/api/client'
-import { Button } from '@/ui'
-import TopBar from '@/components/layout/TopBar'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, ApiError } from '@/api/client'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import { useAppContext } from '@/context/useAppContext'
 import { useLaunch } from '@/hooks/useLaunch'
+import { useSetRestrictions } from '@/hooks/useSetRestrictions'
+import { LibraryEntityDetail } from './components/LibraryEntityDetail'
 import { ERA_LABELS } from '@/generated/constants'
 import type { LibrarySetData } from './components/SetCard'
+import type { EditForm as EditFormFields } from '@/hooks/useEditForm'
+import type { components } from '@shared/types'
+
+type User = components['schemas']['UserRead']
+type LaunchHistory = components['schemas']['LaunchHistoryRead']
+type LaunchProfile = components['schemas']['ProfileRead']
+type Platform = components['schemas']['PlatformRead']
+
+function formFromSet(set: LibrarySetData): EditFormFields {
+  return {
+    title: set.title,
+    sort_title: set.sort_title ?? '',
+    description: set.description ?? '',
+    publisher: set.publisher ?? '',
+    year: set.year?.toString() ?? '',
+    category: set.category ?? '',
+    cover_art_path: '',
+    content_rating: set.content_rating ?? '',
+    era: set.era && set.era !== 'unknown' ? set.era : '',
+    platform_id: set.platform_id?.toString() ?? '',
+    profile_id: set.profile_id?.toString() ?? '',
+    executable_path: '',
+  }
+}
 
 export default function SetDetail() {
   const { id } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
+  const { state: appState } = useAppContext()
   const setId = Number(id)
+
+  const isAdminOrOwner =
+    (appState.activeUser?.is_admin ?? false) || (appState.activeUser?.is_owner ?? false)
 
   const { data: set, isLoading } = useQuery({
     queryKey: ['library', 'sets', setId],
@@ -19,11 +49,80 @@ export default function SetDetail() {
     enabled: !isNaN(setId),
   })
 
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ['users'],
+    queryFn: () => apiFetch<User[]>('/api/v1/users'),
+    enabled: isAdminOrOwner,
+  })
+
+  const { data: profiles = [] } = useQuery<LaunchProfile[]>({
+    queryKey: ['profiles'],
+    queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
+  })
+
+  const { data: platforms = [] } = useQuery<Platform[]>({
+    queryKey: ['platforms'],
+    queryFn: () => apiFetch<Platform[]>('/api/v1/platforms'),
+  })
+
+  const { data: restrictionsData, refetch: refetchRestrictions } = useQuery<{
+    restricted_user_ids: number[]
+  }>({
+    queryKey: ['restrictions', 'set', setId],
+    queryFn: () =>
+      apiFetch<{ restricted_user_ids: number[] }>(`/api/v1/library/sets/${setId}/restrictions`),
+    enabled: isAdminOrOwner && !isNaN(setId),
+  })
+
+  const { data: launchHistory = [] } = useQuery<LaunchHistory[]>({
+    queryKey: ['launches', 'set', setId],
+    queryFn: () => apiFetch<LaunchHistory[]>(`/api/v1/library/sets/${setId}/launches`),
+    enabled: !isNaN(setId),
+  })
+
+  const [form, setFormState] = useState<EditFormFields | null>(null)
+  const [execBrowserOpen, setExecBrowserOpen] = useState(false)
+
+  useEffect(() => {
+    if (set && !form) setFormState(formFromSet(set))
+  }, [set, form])
+
+  const saveMutation = useMutation<LibrarySetData, Error, EditFormFields>({
+    mutationFn: (f) =>
+      apiFetch<LibrarySetData>(`/api/v1/library/sets/${setId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: f.title.trim() || undefined,
+          sort_title: f.sort_title.trim() || null,
+          description: f.description.trim() || null,
+          publisher: f.publisher.trim() || null,
+          year: f.year ? parseInt(f.year, 10) : null,
+          category: f.category.trim() || null,
+          cover_art_path: f.cover_art_path.trim() || undefined,
+          content_rating: f.content_rating || null,
+          era: f.era || null,
+          platform_id: f.platform_id ? parseInt(f.platform_id, 10) : null,
+          profile_id: f.profile_id ? parseInt(f.profile_id, 10) : null,
+        }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['library', 'sets', setId] })
+    },
+  })
+
+  const restrictions = useSetRestrictions({
+    setId: isNaN(setId) ? undefined : setId,
+    isAdminOrOwner,
+    restrictionsData,
+    refetchRestrictions,
+  })
+
   const { launch, isLaunching, error: launchError, launchSuccess, launchWarnings } = useLaunch({
     targetId: setId,
     targetType: 'set',
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['library', 'sets', setId] })
+      queryClient.invalidateQueries({ queryKey: ['launches', 'set', setId] })
     },
   })
 
@@ -36,7 +135,7 @@ export default function SetDetail() {
     )
   }
 
-  if (!set) {
+  if (!set || !form) {
     return (
       <div className="space-y-2">
         <p className="text-sm text-neutral-500">Set not found.</p>
@@ -49,39 +148,46 @@ export default function SetDetail() {
 
   const eraLabel = ERA_LABELS[set.era] ?? (set.era === 'unknown' ? 'Unknown' : set.era)
   const sortedItems = set.items.slice().sort((a, b) => a.disc_number - b.disc_number)
-  // ps1 → DuckStation, ps2 → PCSX2: disc swap is manual via emulator's in-app menu
   const showDiscSwapWarning = (set.era === 'ps1' || set.era === 'ps2') && sortedItems.length > 1
+  const nonOwnerUsers = users.filter((u) => !u.is_owner)
+
+  const effectiveProfileId = form.profile_id
+    ? parseInt(form.profile_id, 10)
+    : (set.profile_id ?? null)
+  const hasProfile = effectiveProfileId != null
+
+  function setFormField<K extends keyof EditFormFields>(key: K, value: EditFormFields[K]) {
+    setFormState((prev) => prev && { ...prev, [key]: value })
+  }
 
   return (
-    <div className="flex flex-col min-h-full">
-      <TopBar title={set.title} />
-
-      <div className="p-6">
-        <div className="mb-6">
-          <Link to="/library" className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200">
-            ← Library
-          </Link>
+    <LibraryEntityDetail
+      title={set.title}
+      eraLabel={eraLabel}
+      launchCount={set.launch_count}
+      lastLaunchedAt={set.last_launched_at}
+      metaAfter={
+        <div>
+          <span className="font-medium">Discs:</span> {set.items.length}
         </div>
-
-        <div className="max-w-xl space-y-10">
-
-          <section className="space-y-1 text-sm text-neutral-600 dark:text-neutral-300">
-            <div>
-              <span className="font-medium">Era:</span> {eraLabel}
-            </div>
-            <div>
-              <span className="font-medium">Discs:</span> {set.items.length}
-            </div>
-            {set.launch_count > 0 && (
-              <div>
-                <span className="font-medium">Launches:</span> {set.launch_count}
-                {set.last_launched_at && (
-                  <> · Last {new Date(set.last_launched_at + 'Z').toLocaleDateString()}</>
-                )}
-              </div>
-            )}
-          </section>
-
+      }
+      editForm={{
+        item: { era: form.era || set.era },
+        form,
+        setField: setFormField,
+        handleSave: () => saveMutation.mutate(form),
+        saving: saveMutation.isPending,
+        saveError: saveMutation.isError
+          ? (saveMutation.error instanceof ApiError ? saveMutation.error.detail : 'Failed to save.')
+          : null,
+        saveSuccess: saveMutation.isSuccess,
+        execBrowserOpen,
+        setExecBrowserOpen,
+        profiles,
+        platforms,
+      }}
+      beforeLaunch={
+        <>
           <section className="space-y-2">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
               Discs
@@ -124,41 +230,36 @@ export default function SetDetail() {
               </p>
             </div>
           )}
-
-          <section className="space-y-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Launch
-            </h2>
-            <Button
-              onClick={() => launch(set.profile_id)}
-              loading={isLaunching}
-              disabled={isLaunching}
-              className="w-full justify-center py-3 text-base"
-            >
-              Launch
-            </Button>
-
-            {launchSuccess && (
-              <p className="text-center text-sm text-green-600 dark:text-green-400">
-                Launch started. The emulator should open shortly.
-              </p>
-            )}
-
-            {launchWarnings.map((w, i) => (
-              <p key={i} className="text-center text-xs text-amber-600 dark:text-amber-400">
-                ⚠ {w}
-              </p>
-            ))}
-
-            {launchError && (
-              <p role="alert" className="text-center text-sm text-red-600 dark:text-red-400">
-                ❌ {launchError}
-              </p>
-            )}
-          </section>
-
-        </div>
-      </div>
-    </div>
+        </>
+      }
+      onLaunch={() => { if (effectiveProfileId != null) launch(effectiveProfileId) }}
+      launching={isLaunching}
+      launchDisabled={!hasProfile || isLaunching}
+      launchButtonLabel={hasProfile ? 'Launch' : 'Assign a profile to launch'}
+      launchNote={
+        !hasProfile ? (
+          <p className="text-center text-xs text-neutral-400 dark:text-neutral-500">
+            Select a launch profile above to enable launch.
+          </p>
+        ) : undefined
+      }
+      launchSuccess={launchSuccess}
+      launchWarnings={launchWarnings}
+      launchError={launchError}
+      restrictions={
+        isAdminOrOwner
+          ? {
+              users: nonOwnerUsers,
+              restrictedIds: restrictions.restrictedIds,
+              restrictionsDirty: restrictions.restrictionsDirty,
+              toggleRestriction: restrictions.toggleRestriction,
+              onSave: restrictions.handleSaveRestrictions,
+              saving: restrictions.savingRestrictions,
+              error: restrictions.restrictionsError,
+            }
+          : undefined
+      }
+      launchHistory={launchHistory}
+    />
   )
 }

@@ -81,6 +81,21 @@ async def launch_environment(
         launch_review_flagged=result.launch_review_flagged,
     )
 
+@router.get("/library/sets/{set_id}/launches", response_model=list[LaunchHistoryRead])
+def list_set_launches(
+    set_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
+    return (
+        db.query(LaunchHistory)
+        .filter(LaunchHistory.library_set_id == set_id)
+        .order_by(LaunchHistory.started_at.desc())
+        .limit(20)
+        .all()
+    )
+
+
 @router.get("/library/{item_id}/launches", response_model=list[LaunchHistoryRead])
 def list_item_launches(
     item_id: int,
