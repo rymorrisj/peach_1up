@@ -400,7 +400,30 @@ async def create_library_set(
             shutil.rmtree(dest_dir, ignore_errors=True)
         raise
 
-    library_set = LibrarySet(title=title, era=era, profile_id=profile_id)
+    from backend.service.utils.smart_media_detector import detect as _smart_detect
+    from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
+
+    launch_disc_path = uploaded_paths[0][1]
+    _scan = _smart_detect(launch_disc_path)
+    detected_era: str = _scan.era if _scan.era is not None else era
+
+    detected_platform_id: int | None = None
+    detected_profile_id: int | None = None
+    if detected_era and detected_era != "unknown":
+        _emulator_slug, _profile_era = defaults_for_era(detected_era)
+        if _emulator_slug and _profile_era:
+            detected_platform_id, detected_profile_id = lookup_platform_and_profile(
+                _emulator_slug, _profile_era, db
+            )
+
+    resolved_profile_id = detected_profile_id if profile_id is None else profile_id
+
+    library_set = LibrarySet(
+        title=title,
+        era=detected_era,
+        platform_id=detected_platform_id,
+        profile_id=resolved_profile_id,
+    )
     db.add(library_set)
     db.flush()
 

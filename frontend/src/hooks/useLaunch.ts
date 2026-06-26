@@ -38,6 +38,8 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
       const path =
         targetType === 'environment'
           ? `/api/v1/environments/${targetId}/launch`
+          : targetType === 'set'
+          ? `/api/v1/library/sets/${targetId}/launch`
           : `/api/v1/library/${targetId}/launch`
       return apiFetch<LaunchResponse>(path, {
         method: 'POST',

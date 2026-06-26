@@ -171,8 +171,8 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
               Cancel
             </Button>
             <Button
-              onClick={submitSet}
-              disabled={busy || !setTitle.trim() || stagedDiscs.length === 0 || setStatus === 'success'}
+              onClick={setStatus === 'success' ? onClose : submitSet}
+              disabled={busy || !setTitle.trim() || stagedDiscs.length === 0}
             >
               {setStatus === 'uploading' ? 'Creating set…' : setStatus === 'success' ? 'Done' : 'Create Set'}
             </Button>
@@ -329,6 +329,15 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       )}
 
       {/* Set upload status */}
+      {multiDisc && setStatus === 'uploading' && (
+        <div className="mt-3 flex items-center gap-2 text-sm text-neutral-400">
+          <svg className="animate-spin h-4 w-4 shrink-0 text-[#ff8a5c]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+          Uploading discs…
+        </div>
+      )}
       {multiDisc && setStatus === 'success' && (
         <p className="mt-3 text-sm text-emerald-400">
           Set created successfully.

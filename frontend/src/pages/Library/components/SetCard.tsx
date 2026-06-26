@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 import { ERA_LABEL, ERA_PLACEHOLDER, ERA_PLACEHOLDER_DEFAULT } from '@/types/era'
 
@@ -139,8 +139,6 @@ interface SetCardProps {
 }
 
 export function SetCard({ set, onRemove, onSetDisplayDisk }: SetCardProps) {
-  const [isFocused, setIsFocused] = useState(false)
-
   // Effective display disc — display_disk_id overrides, falls back to launch_disk_id
   const effectiveDisplayId = set.display_disk_id ?? set.launch_disk_id
   const displayDisc = set.items.find((d) => d.id === effectiveDisplayId) ?? set.items[0]
@@ -158,11 +156,11 @@ export function SetCard({ set, onRemove, onSetDisplayDisk }: SetCardProps) {
   const chipHex = eraHex(set.era)
 
   return (
-    <div
-      className="group relative flex flex-col gap-2.5"
-      onFocus={() => setIsFocused(true)}
-      onBlur={() => setIsFocused(false)}
-    >
+    <div className="group relative flex flex-col gap-2.5">
+      <Link
+        to={`/library/sets/${set.id}`}
+        className="flex flex-col gap-2.5 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a5c] focus-visible:ring-offset-2 focus-visible:ring-offset-surface-950"
+      >
       {/* Padding-right/top gives space for the peeking background layers */}
       <div style={{ padding: '12px 12px 0 0' }}>
         <div className="relative aspect-video">
@@ -192,10 +190,7 @@ export function SetCard({ set, onRemove, onSetDisplayDisk }: SetCardProps) {
           )}
 
           {/* Layer A — front (display disc), z=3 */}
-          <div
-            className={`${LAYER_BASE} z-[3] group-hover:-translate-y-0.5 group-hover:shadow-[0_4px_12px_rgb(20_12_6/0.45)]`}
-            style={{ outline: isFocused ? '2px solid #ff8a5c' : '2px solid transparent', outlineOffset: 2 }}
-          >
+          <div className={`${LAYER_BASE} z-[3] group-hover:-translate-y-0.5 group-hover:shadow-[0_4px_12px_rgb(20_12_6/0.45)]`}>
             {displayDisc?.cover_art_url ? (
               <img src={displayDisc.cover_art_url} alt={set.title} loading="lazy" className="h-full w-full object-cover" />
             ) : (
@@ -286,6 +281,7 @@ export function SetCard({ set, onRemove, onSetDisplayDisk }: SetCardProps) {
           </span>
         </div>
       </div>
+      </Link>
 
       {/* Remove — hover-revealed, outside stack area to avoid z-index conflicts */}
       {onRemove && (
