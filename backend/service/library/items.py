@@ -205,24 +205,38 @@ def _prepare_item(
                 if Path(set_path).resolve().as_posix() in (incoming_norm, dest_norm):
                     raise _ItemAlreadyExists(None)
 
-            dest_folder.mkdir(parents=True, exist_ok=True)
-            row["folder_path"] = str(dest_folder)
-
-            if dest.exists():
-                if dest.stat().st_size == media_src.stat().st_size:
-                    # Identical file already in place — reuse without re-copy
-                    row["media_path"] = str(dest)
-                else:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=f"A different file named '{media_src.name}' already exists in '{dest_folder}'.",
-                    )
+            # If the file already lives in a direct subfolder of games_root that
+            # only needs renaming to match the canonical stem, rename in place
+            # instead of creating a new folder and moving the file out.
+            _games_root = Path(games_root_str).resolve()
+            _src_parent = media_src.parent
+            if (
+                _src_parent.resolve() != _games_root
+                and _src_parent.parent.resolve() == _games_root
+                and not dest_folder.exists()
+            ):
+                _src_parent.rename(dest_folder)
+                row["folder_path"] = str(dest_folder)
+                row["media_path"] = str(dest)
             else:
-                if media_src.resolve() == dest.resolve():
-                    row["media_path"] = str(dest)
+                dest_folder.mkdir(parents=True, exist_ok=True)
+                row["folder_path"] = str(dest_folder)
+
+                if dest.exists():
+                    if dest.stat().st_size == media_src.stat().st_size:
+                        # Identical file already in place — reuse without re-copy
+                        row["media_path"] = str(dest)
+                    else:
+                        raise HTTPException(
+                            status_code=409,
+                            detail=f"A different file named '{media_src.name}' already exists in '{dest_folder}'.",
+                        )
                 else:
-                    shutil.move(str(media_src), str(dest))
-                    row["media_path"] = str(dest)
+                    if media_src.resolve() == dest.resolve():
+                        row["media_path"] = str(dest)
+                    else:
+                        shutil.move(str(media_src), str(dest))
+                        row["media_path"] = str(dest)
 
             cover = _find_cover(dest_folder)
             if cover:

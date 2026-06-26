@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { SetCard } from './SetCard'
 import type { LibrarySetData } from './SetCard'
 
@@ -37,7 +38,7 @@ function makeSet(overrides?: Partial<LibrarySetData>): LibrarySetData {
 describe('SetCard', () => {
   it('renders the launch disc as front face when display_disk_id is null', () => {
     const set = makeSet({ launch_disk_id: 10, display_disk_id: null })
-    render(<SetCard set={set} />)
+    render(<MemoryRouter><SetCard set={set} /></MemoryRouter>)
     // Front face image (layer A, z=3) — alt text is the set title
     const frontImg = screen.getByAltText('Test Collection')
     expect(frontImg).toHaveAttribute('src', 'http://x/disc1.jpg')
@@ -45,7 +46,7 @@ describe('SetCard', () => {
 
   it('renders display_disk_id disc as front face without changing launch_disk_id', () => {
     const set = makeSet({ launch_disk_id: 10, display_disk_id: 20 })
-    render(<SetCard set={set} />)
+    render(<MemoryRouter><SetCard set={set} /></MemoryRouter>)
     // Front face shows disc 2 (display)
     const frontImg = screen.getByAltText('Test Collection')
     expect(frontImg).toHaveAttribute('src', 'http://x/disc2.jpg')
@@ -56,11 +57,11 @@ describe('SetCard', () => {
   })
 
   it('shows divergence badge when display_disk_id differs from launch_disk_id and hides it when they match', () => {
-    const { rerender } = render(<SetCard set={makeSet({ launch_disk_id: 10, display_disk_id: 20 })} />)
+    const { rerender } = render(<MemoryRouter><SetCard set={makeSet({ launch_disk_id: 10, display_disk_id: 20 })} /></MemoryRouter>)
     expect(screen.getByTitle('Disc 1 will launch')).toBeInTheDocument()
 
     // When display == launch, no divergence badge
-    rerender(<SetCard set={makeSet({ launch_disk_id: 10, display_disk_id: null })} />)
+    rerender(<MemoryRouter><SetCard set={makeSet({ launch_disk_id: 10, display_disk_id: null })} /></MemoryRouter>)
     expect(screen.queryByTitle(/will launch/)).not.toBeInTheDocument()
   })
 
@@ -68,7 +69,7 @@ describe('SetCard', () => {
     const user = userEvent.setup()
     const onSetDisplayDisk = vi.fn()
     const set = makeSet({ launch_disk_id: 10, display_disk_id: null })
-    render(<SetCard set={set} onSetDisplayDisk={onSetDisplayDisk} />)
+    render(<MemoryRouter><SetCard set={set} onSetDisplayDisk={onSetDisplayDisk} /></MemoryRouter>)
 
     // Disc 2 is the first non-display disc button with this title
     const [disc2btn] = screen.getAllByTitle('Set as display cover')
