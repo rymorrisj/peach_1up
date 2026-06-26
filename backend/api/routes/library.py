@@ -215,6 +215,14 @@ def _run_scan(directory: str) -> None:
                 .all()
             }
 
+            _set_resolved = [
+                str(Path(mp).resolve())
+                for (mp,) in db.query(LibrarySetItem.media_path).all()
+            ]
+            existing_set_media_dirs: set[str] = {
+                str(Path(p).parent) for p in _set_resolved
+            }
+
             for entry in entries:
                 is_loose = (
                     entry.executable_path is not None
@@ -225,12 +233,12 @@ def _run_scan(directory: str) -> None:
                 if is_loose:
                     # Dedup by the destination folder the file would be copied into
                     dest_folder = str((base_path / entry.executable_path.stem).resolve())
-                    if dest_folder in existing_folder_paths:
+                    if dest_folder in existing_folder_paths or dest_folder in existing_set_media_dirs:
                         continue
                     scan_path = entry.executable_path
                 else:
                     folder = str(entry.folder_path.resolve())
-                    if folder in existing_folder_paths:
+                    if folder in existing_folder_paths or folder in existing_set_media_dirs:
                         continue
                     scan_path = entry.folder_path
 
@@ -339,6 +347,118 @@ def import_scan_results(
     return {"imported": len(prepared), "skipped": skipped, "errors": errors}
 
 
+@router.get("/sets", response_model=list[LibrarySetRead])
+def list_library_sets(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
+    sets = db.query(LibrarySet).order_by(LibrarySet.title).all()
+    return [set_to_read(s, db) for s in sets]
+
+
+@router.post("/sets", response_model=LibrarySetRead, status_code=201)
+async def create_library_set(
+    title: str = Form(...),
+    era: str = Form("unknown"),
+    profile_id: Optional[int] = Form(None),
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    """Create a multi-disc set from N uploaded files."""
+    from backend.core.settings import get_settings
+    from backend.service.utils.upload_utils import (
+        DEFAULT_MAX_BYTES,
+        begin_upload,
+        stream_upload_to_disk,
+    )
+
+    if not files:
+        raise HTTPException(status_code=422, detail="At least one file is required.")
+
+    svc = get_settings()
+    max_bytes = int(svc.get("UPLOAD_MAX_BYTES", DEFAULT_MAX_BYTES) or DEFAULT_MAX_BYTES)
+    media_root = Path(svc.get_env_var("MEDIA_PATH")).resolve()
+
+    uploaded_paths: list[tuple[Path, Path]] = []
+    try:
+        for f in files:
+            if not f.filename:
+                raise HTTPException(status_code=422, detail="Each file must have a filename.")
+            dest_dir, dest_path = begin_upload(media_root, f.filename)
+            try:
+                await stream_upload_to_disk(f, dest_path, max_bytes)
+            except HTTPException:
+                shutil.rmtree(dest_dir, ignore_errors=True)
+                raise
+            except Exception as exc:
+                shutil.rmtree(dest_dir, ignore_errors=True)
+                raise HTTPException(status_code=500, detail=f"Upload failed for {f.filename}: {exc}") from exc
+            uploaded_paths.append((dest_dir, dest_path))
+    except HTTPException:
+        for dest_dir, _ in uploaded_paths:
+            shutil.rmtree(dest_dir, ignore_errors=True)
+        raise
+
+    library_set = LibrarySet(title=title, era=era, profile_id=profile_id)
+    db.add(library_set)
+    db.flush()
+
+    items: list[LibrarySetItem] = []
+    for disc_number, (_, dest_path) in enumerate(uploaded_paths, start=1):
+        item = LibrarySetItem(
+            set_id=library_set.id,
+            disc_number=disc_number,
+            media_path=str(dest_path),
+            file_size_bytes=dest_path.stat().st_size if dest_path.exists() else None,
+        )
+        db.add(item)
+        items.append(item)
+    db.flush()
+
+    library_set.launch_disk_id = items[0].id
+    db.add(library_set)
+    db.commit()
+    db.refresh(library_set)
+    return set_to_read(library_set, db)
+
+
+@router.get("/sets/{set_id}", response_model=LibrarySetRead)
+def get_library_set(
+    set_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
+    s = db.get(LibrarySet, set_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Library set not found.")
+    return set_to_read(s, db)
+
+
+@router.patch("/sets/{set_id}", response_model=LibrarySetRead)
+def update_library_set(
+    set_id: int,
+    body: LibrarySetUpdate,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    from sqlalchemy import select as _select
+    s = db.get(LibrarySet, set_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Library set not found.")
+    if body.display_disk_id is not None:
+        item_ids = set(
+            db.execute(_select(LibrarySetItem.id).where(LibrarySetItem.set_id == set_id)).scalars().all()
+        )
+        if body.display_disk_id not in item_ids:
+            raise HTTPException(status_code=422, detail="disc does not belong to this set.")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(s, field, value)
+    db.commit()
+    db.refresh(s)
+    return set_to_read(s, db)
+
+
 @router.get("/by-slug/{slug}", response_model=LibraryItemRead)
 def get_library_item_by_slug(
     slug: str,
@@ -432,127 +552,3 @@ def set_restrictions(
     db.commit()
     return {"restricted_user_ids": body.user_ids}
 
-
-# ---------------------------------------------------------------------------
-# Library set routes
-# ---------------------------------------------------------------------------
-
-sets_router = APIRouter(prefix="/api/v1/library/sets", tags=["library-sets"])
-
-
-@sets_router.get("", response_model=list[LibrarySetRead])
-def list_library_sets(
-    db: Session = Depends(get_db),
-    _: User = Depends(get_active_user),
-):
-    sets = db.query(LibrarySet).order_by(LibrarySet.title).all()
-    return [set_to_read(s, db) for s in sets]
-
-
-@sets_router.post("", response_model=LibrarySetRead, status_code=201)
-async def create_library_set(
-    title: str = Form(...),
-    era: str = Form("unknown"),
-    profile_id: Optional[int] = Form(None),
-    files: List[UploadFile] = File(...),
-    db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
-):
-    """Create a multi-disc set from N uploaded files.
-
-    Files are stored under MEDIA_PATH using the same per-upload isolated
-    subdirectory pattern as single-file uploads. Disc numbers are assigned
-    by file submission order; launch_disk_id is set to disc 1's item.
-    """
-    from backend.core.settings import get_settings
-    from backend.service.utils.upload_utils import (
-        DEFAULT_MAX_BYTES,
-        begin_upload,
-        stream_upload_to_disk,
-    )
-
-    if not files:
-        raise HTTPException(status_code=422, detail="At least one file is required.")
-
-    svc = get_settings()
-    max_bytes = int(svc.get("UPLOAD_MAX_BYTES", DEFAULT_MAX_BYTES) or DEFAULT_MAX_BYTES)
-    media_root = Path(svc.get_env_var("MEDIA_PATH")).resolve()
-
-    uploaded_paths: list[tuple[Path, Path]] = []  # (dest_dir, dest_path)
-    try:
-        for f in files:
-            if not f.filename:
-                raise HTTPException(status_code=422, detail="Each file must have a filename.")
-            dest_dir, dest_path = begin_upload(media_root, f.filename)
-            try:
-                await stream_upload_to_disk(f, dest_path, max_bytes)
-            except HTTPException:
-                shutil.rmtree(dest_dir, ignore_errors=True)
-                raise
-            except Exception as exc:
-                shutil.rmtree(dest_dir, ignore_errors=True)
-                raise HTTPException(status_code=500, detail=f"Upload failed for {f.filename}: {exc}") from exc
-            uploaded_paths.append((dest_dir, dest_path))
-    except HTTPException:
-        # Clean up any already-written files before propagating.
-        for dest_dir, _ in uploaded_paths:
-            shutil.rmtree(dest_dir, ignore_errors=True)
-        raise
-
-    library_set = LibrarySet(title=title, era=era, profile_id=profile_id)
-    db.add(library_set)
-    db.flush()
-
-    items: list[LibrarySetItem] = []
-    for disc_number, (_, dest_path) in enumerate(uploaded_paths, start=1):
-        item = LibrarySetItem(
-            set_id=library_set.id,
-            disc_number=disc_number,
-            media_path=str(dest_path),
-            file_size_bytes=dest_path.stat().st_size if dest_path.exists() else None,
-        )
-        db.add(item)
-        items.append(item)
-    db.flush()
-
-    library_set.launch_disk_id = items[0].id
-    db.add(library_set)
-    db.commit()
-    db.refresh(library_set)
-    return set_to_read(library_set, db)
-
-
-@sets_router.get("/{set_id}", response_model=LibrarySetRead)
-def get_library_set(
-    set_id: int,
-    db: Session = Depends(get_db),
-    _: User = Depends(get_active_user),
-):
-    s = db.get(LibrarySet, set_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="Library set not found.")
-    return set_to_read(s, db)
-
-
-@sets_router.patch("/{set_id}", response_model=LibrarySetRead)
-def update_library_set(
-    set_id: int,
-    body: LibrarySetUpdate,
-    db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
-):
-    from sqlalchemy import select as _select
-    s = db.get(LibrarySet, set_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="Library set not found.")
-    if body.display_disk_id is not None:
-        item_ids = set(
-            db.execute(_select(LibrarySetItem.id).where(LibrarySetItem.set_id == set_id)).scalars().all()
-        )
-        if body.display_disk_id not in item_ids:
-            raise HTTPException(status_code=422, detail="disc does not belong to this set.")
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(s, field, value)
-    db.commit()
-    db.refresh(s)
-    return set_to_read(s, db)

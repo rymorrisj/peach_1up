@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemUpdate
+from backend.models.library_set import LibrarySetItem
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.drive_utils import create_drive_for_item
 from backend.service.utils.era_media import media_type_from_path, resolve_media_file_from_directory
@@ -22,7 +23,7 @@ _DRIVE_ERAS = frozenset({"dos", "win31"})
 
 class _ItemAlreadyExists(Exception):
     """Raised by _prepare_item when the media path is already tracked."""
-    def __init__(self, item: LibraryItem):
+    def __init__(self, item: LibraryItem | None):
         self.item = item
 
 
@@ -138,6 +139,10 @@ def _prepare_item(
         ).first()
         if existing:
             raise _ItemAlreadyExists(existing)
+        if db.query(LibrarySetItem.media_path).filter(
+            LibrarySetItem.media_path.like(str(media_src) + "/%")
+        ).first():
+            raise _ItemAlreadyExists(None)
 
         row["folder_path"] = str(media_src)
         row["media_path"] = str(media_src)
@@ -163,7 +168,7 @@ def _prepare_item(
             if row["executable_path"]:
                 break
 
-        _scan = _smart_detect(media_src)
+        _scan = _smart_detect(best_detect_path(media_src, row["executable_path"]))
         if _scan.era is not None:
             row["era"] = _scan.era
             row["detection_reason"] = _scan.reason
@@ -196,6 +201,9 @@ def _prepare_item(
             ).filter(LibraryItem.media_path.isnot(None)).all():
                 if Path(stored_path).resolve().as_posix() in (incoming_norm, dest_norm):
                     raise _ItemAlreadyExists(db.get(LibraryItem, item_id))
+            for (set_path,) in db.query(LibrarySetItem.media_path).all():
+                if Path(set_path).resolve().as_posix() in (incoming_norm, dest_norm):
+                    raise _ItemAlreadyExists(None)
 
             dest_folder.mkdir(parents=True, exist_ok=True)
             row["folder_path"] = str(dest_folder)
@@ -225,6 +233,9 @@ def _prepare_item(
             ).filter(LibraryItem.media_path.isnot(None)).all():
                 if Path(stored_path).resolve().as_posix() == incoming_norm:
                     raise _ItemAlreadyExists(db.get(LibraryItem, item_id))
+            for (set_path,) in db.query(LibrarySetItem.media_path).all():
+                if Path(set_path).resolve().as_posix() == incoming_norm:
+                    raise _ItemAlreadyExists(None)
             row["folder_path"] = str(media_src.parent)
 
         _scan = _smart_detect(Path(row["media_path"]))
