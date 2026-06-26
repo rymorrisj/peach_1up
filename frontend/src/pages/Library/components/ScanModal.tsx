@@ -73,11 +73,19 @@ export function ScanModal({ open, onClose, onImported, mediaPath }: ScanModalPro
       }
     >
       {!status && !scanning && (
-        <p className="text-xs text-neutral-400 dark:text-neutral-500">
-          {mediaPath
-            ? `Scan only looks for new files inside ${mediaPath}. Files outside this folder won't be found.`
-            : 'Scan only looks for new files inside your configured media library path. Set one in Settings before scanning.'}
-        </p>
+        <div className="space-y-2">
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">
+            {mediaPath
+              ? `Scan only looks for new files inside ${mediaPath}. Files outside this folder won't be found.`
+              : 'Scan only looks for new files inside your configured media library path. Set one in Settings before scanning.'}
+          </p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">
+            Multi-disc games should be added manually via the{' '}
+            <span className="font-medium text-neutral-500 dark:text-neutral-400">Add Media</span>{' '}
+            button's multi-file checkbox. Scanning a folder of individual disc files will import
+            each disc as a separate standalone item.
+          </p>
+        </div>
       )}
 
       {scanning && (
