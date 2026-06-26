@@ -241,6 +241,7 @@ def _build_spec_for_entity(
         hardware_profile=hardware_profile,
         platform_name=platform_name,
         platform_slug=platform_slug_val,
+        disc_paths=[Path(p) for p in entity.disc_paths],
         item_id=entity.item_id,
         set_id=entity.set_id,
         launch_review_flagged=bool(entity.launch_review_flagged),

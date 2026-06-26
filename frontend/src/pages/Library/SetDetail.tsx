@@ -49,6 +49,8 @@ export default function SetDetail() {
 
   const eraLabel = ERA_LABELS[set.era] ?? (set.era === 'unknown' ? 'Unknown' : set.era)
   const sortedItems = set.items.slice().sort((a, b) => a.disc_number - b.disc_number)
+  // ps1 → DuckStation, ps2 → PCSX2: disc swap is manual via emulator's in-app menu
+  const showDiscSwapWarning = (set.era === 'ps1' || set.era === 'ps2') && sortedItems.length > 1
 
   return (
     <div className="flex flex-col min-h-full">
@@ -105,6 +107,23 @@ export default function SetDetail() {
               })}
             </ul>
           </section>
+
+          {showDiscSwapWarning && (
+            <div
+              role="note"
+              className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3"
+            >
+              <div className="flex items-center gap-2 font-medium text-sm text-amber-600 dark:text-amber-400 mb-1">
+                <span aria-hidden="true">⚠</span>
+                Manual disc swap required
+              </div>
+              <p className="text-xs text-amber-700/80 dark:text-amber-400/80 leading-relaxed">
+                Discs must be swapped manually using the emulator's own disc-swap menu (e.g.{' '}
+                <span className="font-mono">System → Change Disc</span>) once the game is running.
+                Peach 1UP does not automate disc swapping for console platforms.
+              </p>
+            </div>
+          )}
 
           <section className="space-y-2">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">

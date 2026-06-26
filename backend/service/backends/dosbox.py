@@ -162,11 +162,32 @@ def _validate_shell_line(line: str) -> None:
         raise RuntimeError("launch_commands line must not contain '#' (DOSBox-X comment character)")
 
 
+def _build_multi_iso_mount_line(disc_paths: list[Path]) -> str:
+    """Build IMGMOUNT line for multiple ISO/CUE disc images (set launch).
+
+    DOSBox-X supports listing multiple image paths on one IMGMOUNT command;
+    the user cycles between them with Ctrl+F11 (Windows) / Ctrl+F12 (other)
+    or via DOS menu → Swap CD.
+
+    SECURITY: each path is validated against library/ before inclusion.
+    """
+    library_path = get_base_path() / "library"
+    for dp in disc_paths:
+        if not dp.resolve().is_relative_to(library_path.resolve()):
+            raise ValueError(
+                f"Disc path escaped library: {dp}. "
+                "This indicates a data integrity problem."
+            )
+    all_hosts = " ".join(_dosbox_cmd_path(p) for p in disc_paths)
+    return f"imgmount D {all_hosts} -t iso"
+
+
 def _build_drive_mount_lines(
     drive_image_path: Path | None,
     drive_size_mb: int | None,
     use_drive: bool,
     media_path: Path,
+    disc_paths: list[Path] | None = None,
 ) -> tuple[list[str], str | None, str, str]:
     """Return (drive_setup_lines, mount_line, drive_line, media_drive).
 
@@ -212,7 +233,10 @@ def _build_drive_mount_lines(
             drive_line = "C:"
             media_drive = "D:"
         elif suffix in {".iso", ".cue"}:
-            mount_line = f"imgmount D {host} -t iso -ro"
+            if disc_paths and len(disc_paths) > 1:
+                mount_line = _build_multi_iso_mount_line(disc_paths)
+            else:
+                mount_line = f"imgmount D {host} -t iso -ro"
             drive_line = "C:"
             media_drive = "D:"
         elif suffix in {".exe", ".bat"}:
@@ -234,7 +258,10 @@ def _build_drive_mount_lines(
             drive_line = "C:"
             media_drive = "C:"
         elif suffix in {".iso", ".cue"}:
-            mount_line = f"imgmount D {host} -t iso -ro"
+            if disc_paths and len(disc_paths) > 1:
+                mount_line = _build_multi_iso_mount_line(disc_paths)
+            else:
+                mount_line = f"imgmount D {host} -t iso -ro"
             drive_line = "D:"
             media_drive = "D:"
         elif suffix in {".exe", ".bat"}:
@@ -309,7 +336,8 @@ def write_launch_conf(
     executable_path = Path(spec.executable_path)
 
     drive_setup_lines, mount_line, drive_line, media_drive = _build_drive_mount_lines(
-        spec.drive_image_path, spec.drive_size_mb, spec.use_drive, media_path
+        spec.drive_image_path, spec.drive_size_mb, spec.use_drive, media_path,
+        disc_paths=spec.disc_paths or [],
     )
 
     # Layer 1: profile commands (base defaults, run first).

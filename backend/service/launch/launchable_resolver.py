@@ -37,6 +37,9 @@ class LaunchableEntity:
     # Pre-resolved Drive ORM object (None if no drive associated).
     drive: "Drive | None" = None
 
+    # For set launches: all disc media_paths in disc_number order. Empty for item launches.
+    disc_paths: list[str] = field(default_factory=list)
+
     # ORM back-reference for item.installed write-back after loose-file copy.
     # None for set entities — disc images never trigger loose-file hydration.
     _db_item: "LibraryItem | None" = None
@@ -90,6 +93,12 @@ def resolve_launchable(
                 f"LibrarySet {set_id}: launch disc item {s.launch_disk_id} not found"
             )
         drive = db.get(Drive, s.drive_id) if s.drive_id else None
+        all_items = (
+            db.query(LibrarySetItem)
+            .filter(LibrarySetItem.set_id == s.id)
+            .order_by(LibrarySetItem.disc_number)
+            .all()
+        )
         return LaunchableEntity(
             item_id=None,
             set_id=s.id,
@@ -105,6 +114,7 @@ def resolve_launchable(
             requires_install=s.requires_install,
             media_type=None,
             drive=drive,
+            disc_paths=[item.media_path for item in all_items],
             _db_item=None,
         )
 
