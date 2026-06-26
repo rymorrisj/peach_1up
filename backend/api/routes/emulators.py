@@ -53,6 +53,7 @@ class CatalogEntryResponse(BaseModel):
     expert_mode_set: Optional[bool] = None
     container_enabled: bool = False
     container_hardcap_disabled: bool = False
+    container_hardcap_note: Optional[str] = None
     skip_cpu_limit: bool = False
     skip_memory_limit: bool = False
     known_limitations: list[dict] = []
@@ -160,6 +161,8 @@ def list_emulators():
             _override = _settings.get(f"sandbox_{slug}_{_sf}", None)
             item[_sf] = bool(_override) if _override is not None else _toml_val
         item["container_hardcap_disabled"] = bool(entry.get("container_hardcap_disabled", False))
+        if "container_hardcap_note" in entry:
+            item["container_hardcap_note"] = entry["container_hardcap_note"]
         item["rom_pack_slug"] = next(
             (dep["name"] for dep in entry.get("dependencies", []) if dep.get("name") in rom_pack_slugs),
             None,

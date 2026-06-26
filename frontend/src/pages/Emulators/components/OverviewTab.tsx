@@ -60,23 +60,28 @@ export function OverviewTab({
                 marginBottom: 2,
               }}>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: '#ef4444', lineHeight: 1.5 }}>
-                  AppContainer isolation is not supported for this emulator. This is a permanent platform limitation.{' '}
-                  <button
-                    type="button"
-                    onClick={onShowLimitations}
-                    style={{ background: 'none', border: 'none', padding: 0, color: 'var(--peach-400)', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 12 }}
-                  >
-                    Known Limitations
-                  </button>
-                  {' · '}
-                  <a
-                    href="https://www.qemu.org/docs/master/system/security.html"
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: 'var(--peach-400)', textDecoration: 'underline' }}
-                  >
-                    Learn more
-                  </a>
+                  {entry.container_hardcap_note ?? 'AppContainer isolation is not supported for this emulator. This is a permanent platform limitation.'}
+                  {!entry.container_hardcap_note && (
+                    <>
+                      {' '}
+                      <button
+                        type="button"
+                        onClick={onShowLimitations}
+                        style={{ background: 'none', border: 'none', padding: 0, color: 'var(--peach-400)', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 12 }}
+                      >
+                        Known Limitations
+                      </button>
+                      {' · '}
+                      <a
+                        href="https://www.qemu.org/docs/master/system/security.html"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: 'var(--peach-400)', textDecoration: 'underline' }}
+                      >
+                        Learn more
+                      </a>
+                    </>
+                  )}
                 </div>
               </div>
             ) : (
