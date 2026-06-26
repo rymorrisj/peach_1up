@@ -12,7 +12,7 @@ from backend.models.library_set import LibrarySetItem
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.drive_utils import create_drive_for_item
 from backend.service.utils.era_media import media_type_from_path, resolve_media_file_from_directory
-from backend.service.utils.path_utils import normalise_path
+from backend.service.utils.path_utils import normalise_path, resolve_under
 from backend.service.utils.slug_generator import generate_item_slug, unique_slug
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
@@ -125,6 +125,8 @@ def _prepare_item(
         "file_size_bytes": None,
     }
 
+    _dir_ingest_root: Path | None = None
+
     if media_src.is_dir():
         if games_root_str:
             media_root = Path(games_root_str).resolve()
@@ -144,6 +146,7 @@ def _prepare_item(
         ).first():
             raise _ItemAlreadyExists(None)
 
+        _dir_ingest_root = media_src
         row["folder_path"] = str(media_src)
         row["media_path"] = str(media_src)
 
@@ -268,6 +271,31 @@ def _prepare_item(
         used_slugs.add(row["slug"])
     else:
         row["slug"] = generate_item_slug(title, db)
+
+    # For folder ingests: rename the existing folder to its slug-based name.
+    # resolve_under confirms the target stays within the same parent directory
+    # (defense-in-depth — slugify already guarantees [a-z0-9-] only).
+    if _dir_ingest_root is not None:
+        try:
+            slug_folder = resolve_under(_dir_ingest_root.parent, row["slug"])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"Slug-based folder name is invalid: {exc}")
+        if slug_folder != _dir_ingest_root.resolve():
+            if slug_folder.exists():
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"A folder named '{row['slug']}' already exists in the media library.",
+                )
+            _dir_ingest_root.rename(slug_folder)
+            for field in ("folder_path", "media_path", "executable_path", "cover_art_path"):
+                val = row.get(field)
+                if val:
+                    try:
+                        field_path = Path(val)
+                        if field_path == _dir_ingest_root or field_path.is_relative_to(_dir_ingest_root):
+                            row[field] = str(slug_folder / field_path.relative_to(_dir_ingest_root))
+                    except (ValueError, TypeError):
+                        pass
 
     row["media_type"] = media_type_from_path(Path(row["media_path"]))
     row["requires_install"] = _scan.requires_install
