@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { ApiError } from '@/api/client'
+import { apiFetch, ApiError } from '@/api/client'
 import { Button } from '@/ui'
 import TopBar from '@/components/layout/TopBar'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
@@ -50,10 +50,22 @@ export default function ItemDetail() {
     },
   })
 
-  function handleLaunch() {
+  async function handleLaunch() {
     if (!item || !actions.form) return
     const profileId = actions.form.profile_id ? parseInt(actions.form.profile_id, 10) : null
     if (!profileId) return
+    // Persist profile_id if it hasn't been saved yet, so it survives page reloads.
+    if (profileId !== item.profile_id) {
+      try {
+        await apiFetch(`/api/v1/library/${item.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ profile_id: profileId }),
+        })
+        queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
+      } catch {
+        // Save errors shown by server; still launch since profile_id is in the request.
+      }
+    }
     launch(profileId)
   }
 
