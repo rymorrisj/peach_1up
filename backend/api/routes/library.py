@@ -1,7 +1,7 @@
 import shutil
 import threading
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel
@@ -16,12 +16,25 @@ from backend.models.library_set import LibrarySet, LibrarySetItem, LibrarySetRea
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
 from backend.service.library import items as lib_svc
+from backend.service.library import enrich as enrich_svc
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
 
 
 class RestrictionsBody(BaseModel):
     user_ids: list[int]
+
+
+class EnrichBody(BaseModel):
+    entity_type: Literal["library_item", "library_set", "library_set_item"]
+    entity_id: int
+    title: Optional[str] = None
+    description: Optional[str] = None
+    publisher: Optional[str] = None
+    year: Optional[int] = None
+    content_rating: Optional[str] = None
+    metadata_source: Optional[str] = None
+    cover_art_url: Optional[str] = None
 
 
 class ScanImportBody(BaseModel):
@@ -352,6 +365,32 @@ def import_scan_results(
                     logger.warning("Drive creation failed for '%s': %s", pc_item.title, exc)
 
     return {"imported": len(prepared), "skipped": skipped, "errors": errors}
+
+
+@router.post("/enrich")
+def enrich_library_entity(
+    body: EnrichBody,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    entity, entity_type = enrich_svc.enrich_entity(
+        body.entity_type,
+        body.entity_id,
+        title=body.title,
+        description=body.description,
+        publisher=body.publisher,
+        year=body.year,
+        content_rating=body.content_rating,
+        metadata_source=body.metadata_source,
+        cover_art_url=body.cover_art_url,
+        db=db,
+    )
+    if entity_type == "library_item":
+        return item_to_read(entity, db)
+    if entity_type == "library_set":
+        return set_to_read(entity, db)
+    from backend.models.library_set import LibrarySetItemRead
+    return LibrarySetItemRead.model_validate(entity)
 
 
 @router.get("/sets", response_model=list[LibrarySetRead])
