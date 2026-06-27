@@ -48,7 +48,7 @@ def _check_traversal(path_str: str) -> Path:
     return normalise_path(path_str)
 
 
-_SENSITIVE_KEYS = {"AI_API_KEY", "IGDB_API_KEY", "PIN_PEPPER"}
+_SENSITIVE_KEYS = {"AI_API_KEY", "IGDB_API_KEY", "PIN_PEPPER", "THEGAMESDB_API_KEY"}
 
 
 @router.get("", response_model=dict)
@@ -91,6 +91,13 @@ def get_pin_pepper_status(_: User = require_permission("is_owner")):
     """Whether a pepper is currently configured. Never returns the pepper value itself."""
     svc = get_settings()
     return {"enabled": bool(svc.get("PIN_PEPPER", ""))}
+
+
+@router.get("/thegamesdb-api-key/status")
+def get_thegamesdb_api_key_status(_: User = require_permission("is_owner")):
+    """Whether a TheGamesDB API key is currently configured. Never returns the key value itself."""
+    svc = get_settings()
+    return {"enabled": bool(svc.get("THEGAMESDB_API_KEY", ""))}
 
 
 @router.patch("/pin-pepper")
