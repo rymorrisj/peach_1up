@@ -444,6 +444,15 @@ Highest-risk case: ROMS_PATH defaults to {project_root}/library/system/roms/86bo
   default is wrong.
 - GeneralTab.tsx is orphaned and can be deleted when convenient.
 
+#### TheGamesDB Metadata fetching
+
+- TheGamesDB API key is passed as a URL query parameter (apikey=...) per the
+  third-party API's own convention. It is never logged or returned in responses
+  today, but if HTTP debug/trace logging is ever enabled for outbound httpx calls,
+  this key would leak into logs via the request URL. Any future logging
+  middleware must redact query params on outbound third-party requests, or
+  scrub this specific param.
+
 ---
 
 ## Reporting Security Issues
