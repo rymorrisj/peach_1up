@@ -116,6 +116,18 @@ def _apply_schema_migrations() -> None:
             conn.commit()
             logger.info("Schema migration: dropped user_restrictions table")
 
+        # Migrate library_item_tags → entity_tags (polymorphic tag assignments).
+        # entity_tags is created by create_tables() via EntityTag(table=True) before this
+        # migration runs. We only need to copy existing rows and drop the old table.
+        if "library_item_tags" in sa_inspect(engine).get_table_names():
+            conn.execute(text("""
+                INSERT OR IGNORE INTO entity_tags (tag_id, entity_type, entity_id)
+                SELECT tag_id, 'library_item', library_item_id FROM library_item_tags
+            """))
+            conn.execute(text("DROP TABLE library_item_tags"))
+            conn.commit()
+            logger.info("Schema migration: migrated library_item_tags → entity_tags and dropped old table")
+
         # Backfill slugs for existing library items
         items = conn.execute(
             text("SELECT id, title FROM library_items WHERE slug IS NULL")

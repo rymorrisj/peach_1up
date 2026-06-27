@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.models.library import LibraryItem
-from backend.models.tag import LibraryItemTag, Tag, TagCreate, TagRead
+from backend.models.library_set import LibrarySet
+from backend.models.tag import EntityTag, Tag, TagCreate, TagRead
 from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1/tags", tags=["tags"])
@@ -13,8 +14,8 @@ router = APIRouter(prefix="/api/v1/tags", tags=["tags"])
 
 def _tag_read(tag: Tag, db: Session) -> TagRead:
     count = (
-        db.query(func.count(LibraryItemTag.library_item_id))
-        .filter(LibraryItemTag.tag_id == tag.id)
+        db.query(func.count(EntityTag.entity_id))
+        .filter(EntityTag.tag_id == tag.id)
         .scalar()
         or 0
     )
@@ -72,12 +73,12 @@ def add_tag_to_item(
     if not db.get(LibraryItem, item_id):
         raise HTTPException(status_code=404, detail="Library item not found.")
     exists = (
-        db.query(LibraryItemTag)
-        .filter(LibraryItemTag.tag_id == tag_id, LibraryItemTag.library_item_id == item_id)
+        db.query(EntityTag)
+        .filter(EntityTag.tag_id == tag_id, EntityTag.entity_type == "library_item", EntityTag.entity_id == item_id)
         .first()
     )
     if not exists:
-        db.add(LibraryItemTag(tag_id=tag_id, library_item_id=item_id))
+        db.add(EntityTag(tag_id=tag_id, entity_type="library_item", entity_id=item_id))
         db.commit()
 
 
@@ -89,11 +90,50 @@ def remove_tag_from_item(
     _: User = require_permission("can_edit_library"),
 ):
     link = (
-        db.query(LibraryItemTag)
-        .filter(LibraryItemTag.tag_id == tag_id, LibraryItemTag.library_item_id == item_id)
+        db.query(EntityTag)
+        .filter(EntityTag.tag_id == tag_id, EntityTag.entity_type == "library_item", EntityTag.entity_id == item_id)
         .first()
     )
     if not link:
         raise HTTPException(status_code=404, detail="Tag not assigned to this item.")
+    db.delete(link)
+    db.commit()
+
+
+@router.post("/{tag_id}/sets/{set_id}", status_code=204)
+def add_tag_to_set(
+    tag_id: int,
+    set_id: int,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    if not db.get(Tag, tag_id):
+        raise HTTPException(status_code=404, detail="Tag not found.")
+    if not db.get(LibrarySet, set_id):
+        raise HTTPException(status_code=404, detail="Library set not found.")
+    exists = (
+        db.query(EntityTag)
+        .filter(EntityTag.tag_id == tag_id, EntityTag.entity_type == "library_set", EntityTag.entity_id == set_id)
+        .first()
+    )
+    if not exists:
+        db.add(EntityTag(tag_id=tag_id, entity_type="library_set", entity_id=set_id))
+        db.commit()
+
+
+@router.delete("/{tag_id}/sets/{set_id}", status_code=204)
+def remove_tag_from_set(
+    tag_id: int,
+    set_id: int,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    link = (
+        db.query(EntityTag)
+        .filter(EntityTag.tag_id == tag_id, EntityTag.entity_type == "library_set", EntityTag.entity_id == set_id)
+        .first()
+    )
+    if not link:
+        raise HTTPException(status_code=404, detail="Tag not assigned to this set.")
     db.delete(link)
     db.commit()

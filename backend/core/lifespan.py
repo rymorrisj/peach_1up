@@ -24,7 +24,7 @@ from backend.service.launch.history import write_session_ends as _write_session_
 import backend.models.user  # noqa: F401 — registers User with SQLModel.metadata
 import backend.models.media_restriction  # noqa: F401 — registers MediaRestriction with SQLModel.metadata
 import backend.models.drive  # noqa: F401 — registers Drive with SQLModel.metadata
-import backend.models.tag  # noqa: F401 — registers Tag and LibraryItemTag with SQLModel.metadata
+import backend.models.tag  # noqa: F401 — registers Tag and EntityTag with SQLModel.metadata
 
 logger = get_logger(__name__)
 

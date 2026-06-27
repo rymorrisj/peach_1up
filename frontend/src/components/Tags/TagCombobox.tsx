@@ -6,7 +6,6 @@ import type { components } from '@shared/types'
 type TagRead = components['schemas']['TagRead']
 
 interface Props {
-  itemId: number
   assignedTagIds: number[]
   onAssign: (tagId: number) => void
 }

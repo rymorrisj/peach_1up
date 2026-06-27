@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 import { ERA_LABEL, ERA_PLACEHOLDER, ERA_PLACEHOLDER_DEFAULT } from '@/types/era'
+import type { components } from '@shared/types'
+
+type TagRead = components['schemas']['TagRead']
 
 export interface LibrarySetItemData {
   id: number
@@ -35,6 +38,7 @@ export interface LibrarySetData {
   created_at: string
   updated_at: string
   items: LibrarySetItemData[]
+  tags: TagRead[]
 }
 
 // Literal hex tints per era key (lowercase) for chip borders/backgrounds

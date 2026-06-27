@@ -6,13 +6,14 @@ from pydantic import model_validator
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, Relationship, SQLModel
 from backend.constants_generated import EraValue, MediaType
-from backend.models.tag import LibraryItemTag, TagRead
+from backend.models.tag import TagRead, get_tags_for_entity
 
 from backend.models.drive import DriveRead
 
 if TYPE_CHECKING:
     from backend.models.drive import Drive
     from backend.models.tag import Tag
+    from sqlalchemy.orm import Session
 
 
 class LibraryItemBase(SQLModel):
@@ -75,10 +76,6 @@ class LibraryItem(LibraryItemBase, table=True):
         },
     )
 
-    tags: list["Tag"] = Relationship(
-        back_populates="library_items",
-        link_model=LibraryItemTag,
-    )
 
 
 class LibraryItemCreate(LibraryItemBase):
@@ -166,3 +163,10 @@ class ImportResult(SQLModel):
     imported: int
     skipped: int
     errors: list[ImportErrorItem]
+
+
+def item_to_read(item: "LibraryItem", db: "Session") -> LibraryItemRead:
+    """Build a LibraryItemRead from a LibraryItem ORM object, populating tags via entity_tags."""
+    read = LibraryItemRead.model_validate(item)
+    read.tags = get_tags_for_entity("library_item", item.id, db)
+    return read

@@ -142,7 +142,7 @@ export default function ItemDetail() {
           ) : undefined
         }
         tags={{
-          item,
+          entity: { id: item.id, tags: item.tags ?? [] },
           isAdminOrOwner,
           onRemove: actions.handleRemoveTag,
           onAssign: actions.handleAssignTag,

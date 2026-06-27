@@ -110,6 +110,28 @@ export default function SetDetail() {
     },
   })
 
+  const [tagError, setTagError] = useState<string | null>(null)
+
+  async function handleRemoveTag(tagId: number) {
+    setTagError(null)
+    try {
+      await apiFetch(`/api/v1/tags/${tagId}/sets/${setId}`, { method: 'DELETE' })
+      queryClient.invalidateQueries({ queryKey: ['library', 'sets', setId] })
+    } catch (err) {
+      setTagError(err instanceof ApiError ? err.detail : 'Failed to remove tag.')
+    }
+  }
+
+  async function handleAssignTag(tagId: number) {
+    setTagError(null)
+    try {
+      await apiFetch(`/api/v1/tags/${tagId}/sets/${setId}`, { method: 'POST' })
+      queryClient.invalidateQueries({ queryKey: ['library', 'sets', setId] })
+    } catch (err) {
+      setTagError(err instanceof ApiError ? err.detail : 'Failed to add tag.')
+    }
+  }
+
   const restrictions = useSetRestrictions({
     setId: isNaN(setId) ? undefined : setId,
     isAdminOrOwner,
@@ -170,6 +192,17 @@ export default function SetDetail() {
         <div>
           <span className="font-medium">Discs:</span> {set.items.length}
         </div>
+      }
+      tags={
+        isAdminOrOwner || set.tags.length > 0
+          ? {
+              entity: { id: set.id, tags: set.tags },
+              isAdminOrOwner,
+              onRemove: handleRemoveTag,
+              onAssign: handleAssignTag,
+              error: tagError,
+            }
+          : undefined
       }
       editForm={{
         item: { era: form.era || set.era },

@@ -41,19 +41,32 @@ Realistic threats specific to this application:
 
 ---
 
+## Sequential integer primary keys (accepted tradeoff)
+
+All primary keys in this codebase — `LibraryItem.id`, `LibrarySet.id`,
+`Profile.id`, etc. — are sequential auto-increment integers, exposed directly in
+API route paths E.G.: (`/api/v1/library/{item_id}`, `/api/v1/library/sets/{set_id}`,
+`/api/v1/tags/{tag_id}/items/{item_id}`, etc.). These IDs are enumerable by any authenticated user.
+
+It is documented here as a standing, accepted tradeoff.
+A migration to opaque identifiers (e.g. UUIDs) has been flagged as a separate,
+larger future discussion if the threat model ever warrants revisiting it.
+
+---
+
 ## Authorisation and Permissions
 
 Permission flags on sub-accounts:
 
-| Flag                  | What it controls                                          |
-| --------------------- | --------------------------------------------------------- |
-| `can_launch_media`    | Launch any permitted library item (default: true)         |
-| `can_edit_platforms`  | Register or modify OS platforms                           |
-| `can_edit_library`    | Add, edit, or remove library items                        |
-| `can_manage_profiles` | Create, modify, or delete launch profiles (the `Profile` model in `routes/profiles.py` — emulator/era launch presets). Unrelated to sub-account management despite the name |
-| `can_edit_settings`   | Modify application settings                               |
+| Flag                  | What it controls                                                                                                                                                                                                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `can_launch_media`    | Launch any permitted library item (default: true)                                                                                                                                                                                                                                               |
+| `can_edit_platforms`  | Register or modify OS platforms                                                                                                                                                                                                                                                                 |
+| `can_edit_library`    | Add, edit, or remove library items                                                                                                                                                                                                                                                              |
+| `can_manage_profiles` | Create, modify, or delete launch profiles (the `Profile` model in `routes/profiles.py` — emulator/era launch presets). Unrelated to sub-account management despite the name                                                                                                                     |
+| `can_edit_settings`   | Modify application settings                                                                                                                                                                                                                                                                     |
 | `can_manage_users`    | Lets a sub-account edit its own `name` and reset its own PIN only — no capability over any other account, no self-delete, no create/delete of any sub-account. Owner-only to grant, like every flag here. Checked in addition to (not instead of) the `is_admin` path on the same two endpoints |
-| `is_admin`            | Edit/reset-pin/unlock/force-logout an existing sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other flag in this table — each is checked independently. Creating or deleting a sub-account requires `is_owner`, not `is_admin` |
+| `is_admin`            | Edit/reset-pin/unlock/force-logout an existing sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other flag in this table — each is checked independently. Creating or deleting a sub-account requires `is_owner`, not `is_admin`        |
 
 **PIN security:**
 
@@ -365,12 +378,12 @@ reaches the IMGMAKE command directly.
 
 ### /auth/switch rate limiter is in-memory, TTL-swept
 
-The IP-keyed rate limiter added for /auth/switch (backend/core/rate_limit.py)
+The IP-keyed rate limiter added for /auth/switch (backend/core/rate*limit.py)
 stores attempt counts in a process-local dict. A distributed attack using
 many unique source IPs no longer grows this dict unbounded: `check_and_record`
 lazily sweeps keys whose window has fully elapsed since their last attempt,
 at most once every 60 seconds, so the dict stays bounded by the volume of
-*recent* distinct keys rather than every key ever seen. Still matches the
+\_recent* distinct keys rather than every key ever seen. Still matches the
 existing in-memory-only precedent set by install_registry and
 process_registry — no persistence requirement, and a backend restart clears
 it.

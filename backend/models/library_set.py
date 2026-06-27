@@ -9,6 +9,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, SQLModel
 
 from backend.constants_generated import EraValue
+from backend.models.tag import TagRead, get_tags_for_entity
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -130,10 +131,21 @@ class LibrarySetRead(SQLModel):
     created_at: datetime
     updated_at: datetime
     items: list[LibrarySetItemRead] = []
+    tags: list[TagRead] = []
 
 
 class LibrarySetUpdate(SQLModel):
     display_disk_id: Optional[int] = None
+    title: Optional[str] = None
+    sort_title: Optional[str] = None
+    era: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    publisher: Optional[str] = None
+    year: Optional[int] = None
+    content_rating: Optional[str] = None
+    platform_id: Optional[int] = None
+    profile_id: Optional[int] = None
 
 
 def set_to_read(s: LibrarySet, db: "Session") -> LibrarySetRead:
@@ -153,4 +165,5 @@ def set_to_read(s: LibrarySet, db: "Session") -> LibrarySetRead:
 
     read = LibrarySetRead.model_validate(s)
     read.items = [LibrarySetItemRead.model_validate(i) for i in items_orm]
+    read.tags = get_tags_for_entity("library_set", s.id, db)
     return read

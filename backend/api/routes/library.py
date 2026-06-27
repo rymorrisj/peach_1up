@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, get_filtered_item, get_filtered_library, require_permission
 from backend.core.logger import get_logger
-from backend.models.library import ImportResult, LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate, ScanStatus
+from backend.models.library import ImportResult, LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate, ScanStatus, item_to_read
 from backend.models.library_set import LibrarySet, LibrarySetItem, LibrarySetRead, LibrarySetUpdate, set_to_read
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
@@ -52,9 +52,15 @@ def list_library(
     if platform_id is not None:
         q = q.filter(LibraryItem.platform_id == platform_id)
     if tag:
-        from backend.models.tag import Tag
-        q = q.join(LibraryItem.tags).filter(Tag.name == tag)
-    return q.all()
+        from backend.models.tag import Tag, EntityTag
+        subq = (
+            db.query(EntityTag.entity_id)
+            .join(Tag, EntityTag.tag_id == Tag.id)
+            .filter(EntityTag.entity_type == "library_item", Tag.name == tag)
+            .subquery()
+        )
+        q = q.filter(LibraryItem.id.in_(subq))
+    return [item_to_read(i, db) for i in q.all()]
 
 
 @router.post("", response_model=LibraryItemRead, status_code=201)
@@ -64,12 +70,13 @@ def add_library_item(
     _: User = require_permission("can_edit_library"),
 ):
     try:
-        return lib_svc._ingest_media_entry(
+        item = lib_svc._ingest_media_entry(
             body.media_path,
             body.title,
             db,
             override_profile_id=body.profile_id,
         )
+        return item_to_read(item, db)
     except lib_svc._ItemAlreadyExists:
         raise HTTPException(status_code=409, detail="This media path is already in the library.")
     except lib_svc._SlugCollision:
@@ -146,10 +153,10 @@ async def upload_library_media(
 
     if reused_existing:
         from fastapi.responses import JSONResponse
-        payload = LibraryItemRead.model_validate(item).model_dump(mode="json")
+        payload = item_to_read(item, db).model_dump(mode="json")
         payload["reused_existing_media"] = True
         return JSONResponse(status_code=201, content=payload)
-    return item
+    return item_to_read(item, db)
 
 
 @router.get("/scan/status", response_model=ScanStatus)
@@ -516,7 +523,7 @@ def get_library_item_by_slug(
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
 ):
-    return get_filtered_item(slug, active_user, db)
+    return item_to_read(get_filtered_item(slug, active_user, db), db)
 
 
 @router.get("/{item_id}", response_model=LibraryItemRead)
@@ -525,7 +532,7 @@ def get_library_item(
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
 ):
-    return get_filtered_item(item_id, active_user, db)
+    return item_to_read(get_filtered_item(item_id, active_user, db), db)
 
 
 @router.patch("/{item_id}", response_model=LibraryItemRead)
@@ -535,7 +542,7 @@ def update_library_item(
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_library"),
 ):
-    return lib_svc.update_library_item(item_id, body, db)
+    return item_to_read(lib_svc.update_library_item(item_id, body, db), db)
 
 
 @router.post("/{item_id}/flag-launch", response_model=LibraryItemRead)
@@ -550,7 +557,7 @@ def flag_launch(
     item.launch_review_flagged = True
     db.commit()
     db.refresh(item)
-    return item
+    return item_to_read(item, db)
 
 
 @router.post("/{item_id}/confirm-delete")
