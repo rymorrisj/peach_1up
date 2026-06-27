@@ -38,6 +38,8 @@ interface LibraryEntityDetailProps {
   editForm?: ComponentProps<typeof EditForm>
   /** Advanced section props — renders AdvancedSection when provided */
   advancedSection?: ComponentProps<typeof AdvancedSection>
+  /** Optional action rendered between EditForm and AdvancedSection (e.g. Fetch Metadata button) */
+  fetchMetadataAction?: ReactNode
   /** Extra content between the form sections and launch (e.g. disc list for sets) */
   beforeLaunch?: ReactNode
   onLaunch: () => void
@@ -66,6 +68,7 @@ export function LibraryEntityDetail({
   tags,
   editForm,
   advancedSection,
+  fetchMetadataAction,
   beforeLaunch,
   onLaunch,
   launching,
@@ -116,6 +119,8 @@ export function LibraryEntityDetail({
           {tags && <TagsSection {...tags} />}
 
           {editForm && <EditForm {...editForm} />}
+
+          {fetchMetadataAction}
 
           {advancedSection && <AdvancedSection {...advancedSection} />}
 

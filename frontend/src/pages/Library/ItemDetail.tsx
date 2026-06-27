@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { Button } from '@/ui'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
@@ -9,15 +10,26 @@ import { useLaunch } from '@/hooks/useLaunch'
 import { useLibraryItem } from '@/hooks/useLibraryItem'
 import { useLibraryItemActions } from '@/hooks/useLibraryItemActions'
 import { LibraryEntityDetail } from './components/LibraryEntityDetail'
+import { FetchMetadataModal } from './components/FetchMetadataModal'
 import { ERA_LABELS } from '@/generated/constants'
 
 export default function ItemDetail() {
   const { slug } = useParams<{ slug: string }>()
   const queryClient = useQueryClient()
   const { state: appState } = useAppContext()
+  const [fetchMetadataOpen, setFetchMetadataOpen] = useState(false)
 
   const isAdminOrOwner =
     (appState.activeUser?.is_admin ?? false) || (appState.activeUser?.is_owner ?? false)
+  const isOwner = appState.activeUser?.is_owner ?? false
+
+  const { data: apiKeyStatus } = useQuery({
+    queryKey: ['thegamesdb-api-key-status'],
+    queryFn: () => apiFetch<{ enabled: boolean }>('/api/v1/settings/thegamesdb-api-key/status'),
+    enabled: isOwner,
+    staleTime: 30_000,
+  })
+  const theGamesDbEnabled = isOwner && (apiKeyStatus?.enabled !== false)
 
   const { item, itemLoading, profiles, platforms, users, restrictionsData, refetchRestrictions, launchHistory } =
     useLibraryItem(slug, isAdminOrOwner)
@@ -88,6 +100,8 @@ export default function ItemDetail() {
   const effectiveProfileId = actions.form.profile_id ? parseInt(actions.form.profile_id, 10) : null
   const hasProfile = effectiveProfileId != null
   const nonOwnerUsers = users.filter((u) => !u.is_owner)
+
+  const storageKey = `fetch_metadata_${window.location.pathname}`
 
   return (
     <>
@@ -171,6 +185,31 @@ export default function ItemDetail() {
           launchCommands: actions.launchCommands,
           setLaunchCommands: actions.setLaunchCommands as (cmds: string[]) => void,
         }}
+        fetchMetadataAction={
+          isOwner ? (
+            <section className="space-y-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                Metadata
+              </h2>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setFetchMetadataOpen(true)}
+                  disabled={!theGamesDbEnabled}
+                  title={!theGamesDbEnabled ? 'TheGamesDB API key not configured — set it in Settings > Metadata' : undefined}
+                >
+                  Fetch Metadata
+                </Button>
+                {!theGamesDbEnabled && (
+                  <span className="text-xs text-neutral-400">
+                    Requires a TheGamesDB API key (Settings &gt; Metadata)
+                  </span>
+                )}
+              </div>
+            </section>
+          ) : null
+        }
         onLaunch={handleLaunch}
         launching={launching}
         launchDisabled={!hasProfile || launching}
@@ -199,6 +238,16 @@ export default function ItemDetail() {
             : undefined
         }
         launchHistory={launchHistory}
+      />
+
+      <FetchMetadataModal
+        open={fetchMetadataOpen}
+        onClose={() => setFetchMetadataOpen(false)}
+        entityType="library_item"
+        entityId={item.id}
+        entityTitle={item.title}
+        storageKey={storageKey}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })}
       />
 
       <ConfirmModal

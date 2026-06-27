@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
+import { Button } from '@/ui'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useAppContext } from '@/context/useAppContext'
 import { useLaunch } from '@/hooks/useLaunch'
 import { useSetRestrictions } from '@/hooks/useSetRestrictions'
 import { LibraryEntityDetail } from './components/LibraryEntityDetail'
+import { FetchMetadataModal } from './components/FetchMetadataModal'
 import { ERA_LABELS } from '@/generated/constants'
 import type { LibrarySetData } from './components/SetCard'
 import type { EditForm as EditFormFields } from '@/hooks/useEditForm'
@@ -42,6 +44,18 @@ export default function SetDetail() {
 
   const isAdminOrOwner =
     (appState.activeUser?.is_admin ?? false) || (appState.activeUser?.is_owner ?? false)
+  const isOwner = appState.activeUser?.is_owner ?? false
+
+  const { data: apiKeyStatus } = useQuery({
+    queryKey: ['thegamesdb-api-key-status'],
+    queryFn: () => apiFetch<{ enabled: boolean }>('/api/v1/settings/thegamesdb-api-key/status'),
+    enabled: isOwner,
+    staleTime: 30_000,
+  })
+  const theGamesDbEnabled = isOwner && (apiKeyStatus?.enabled !== false)
+
+  const [fetchMetadataOpen, setFetchMetadataOpen] = useState(false)
+  const [fetchDiscId, setFetchDiscId] = useState<number | null>(null)
 
   const { data: set, isLoading } = useQuery({
     queryKey: ['library', 'sets', setId],
@@ -182,7 +196,11 @@ export default function SetDetail() {
     setFormState((prev) => prev && { ...prev, [key]: value })
   }
 
+  const setStorageKey = `fetch_metadata_${window.location.pathname}`
+  const activeDisc = fetchDiscId != null ? sortedItems.find((d) => d.id === fetchDiscId) : undefined
+
   return (
+    <>
     <LibraryEntityDetail
       title={set.title}
       eraLabel={eraLabel}
@@ -219,6 +237,31 @@ export default function SetDetail() {
         profiles,
         platforms,
       }}
+      fetchMetadataAction={
+        isOwner ? (
+          <section className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+              Metadata
+            </h2>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setFetchMetadataOpen(true)}
+                disabled={!theGamesDbEnabled}
+                title={!theGamesDbEnabled ? 'TheGamesDB API key not configured — set it in Settings > Metadata' : undefined}
+              >
+                Fetch Metadata
+              </Button>
+              {!theGamesDbEnabled && (
+                <span className="text-xs text-neutral-400">
+                  Requires a TheGamesDB API key (Settings &gt; Metadata)
+                </span>
+              )}
+            </div>
+          </section>
+        ) : null
+      }
       beforeLaunch={
         <>
           <section className="space-y-2">
@@ -240,6 +283,18 @@ export default function SetDetail() {
                       <span className="shrink-0 rounded-[4px] border border-[#ff8a5c]/40 bg-[#ff8a5c]/10 px-1.5 py-0.5 font-mono text-[10px] text-[#ff8a5c]">
                         Launch disc
                       </span>
+                    )}
+                    {isOwner && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setFetchDiscId(disc.id)}
+                        disabled={!theGamesDbEnabled}
+                        title={!theGamesDbEnabled ? 'TheGamesDB API key not configured' : 'Fetch cover art for this disc'}
+                        className="shrink-0"
+                      >
+                        Cover Art
+                      </Button>
                     )}
                   </li>
                 )
@@ -294,5 +349,31 @@ export default function SetDetail() {
       }
       launchHistory={launchHistory}
     />
+
+    <FetchMetadataModal
+      open={fetchMetadataOpen}
+      onClose={() => setFetchMetadataOpen(false)}
+      entityType="library_set"
+      entityId={setId}
+      entityTitle={set.title}
+      storageKey={setStorageKey}
+      onSuccess={() => queryClient.invalidateQueries({ queryKey: ['library', 'sets', setId] })}
+    />
+
+    {fetchDiscId != null && activeDisc != null && (
+      <FetchMetadataModal
+        open={fetchDiscId != null}
+        onClose={() => setFetchDiscId(null)}
+        entityType="library_set_item"
+        entityId={fetchDiscId}
+        entityTitle={activeDisc.media_path.split(/[\\/]/).pop() ?? set.title}
+        storageKey={`${setStorageKey}#disc-${fetchDiscId}`}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['library', 'sets', setId] })
+          setFetchDiscId(null)
+        }}
+      />
+    )}
+    </>
   )
 }
