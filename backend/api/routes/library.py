@@ -172,6 +172,92 @@ async def upload_library_media(
     return item_to_read(item, db)
 
 
+def _pick_folder_launch_file(files: list[Path]) -> Path:
+    """Fail-fast guard: confirm at least one recognizable launch file exists in the folder.
+
+    Checks in priority order: .gdi first (Dreamcast-exclusive), .cue second,
+    then remaining common launch formats. Raises 422 if nothing is found so the
+    caller can clean up the dest dir before responding.
+    """
+    for ext in (".gdi", ".cue", ".iso", ".chd", ".xiso", ".zip", ".exe"):
+        hit = next((f for f in files if f.suffix.lower() == ext), None)
+        if hit:
+            return hit
+    raise HTTPException(
+        status_code=422,
+        detail=(
+            "No recognizable launch file found in the uploaded folder. "
+            "Expected: .gdi, .cue, .iso, .chd, .xiso, .zip, or .exe."
+        ),
+    )
+
+
+@router.post("/upload-folder", response_model=LibraryItemRead, status_code=201)
+async def upload_folder_media(
+    files: list[UploadFile] = File(...),
+    title: str = Form(...),
+    folder_name: str = Form(default=""),
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    """Upload a folder of game media files as a single library item.
+
+    All files are written flat into a slug-named dest dir under MEDIA_PATH,
+    then the existing folder-ingest branch of _prepare_item handles era
+    detection, launch-file selection, dedup, and DB write.
+    """
+    if not files:
+        raise HTTPException(status_code=422, detail="At least one file is required.")
+    if not title.strip():
+        raise HTTPException(status_code=422, detail="A title is required.")
+
+    from backend.core.settings import get_settings
+    from backend.service.utils.path_utils import resolve_under, sanitize_filename
+    from backend.service.utils.slug_generator import unique_slug
+    from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES, stream_upload_to_disk
+
+    svc = get_settings()
+    max_bytes = int(svc.get("UPLOAD_MAX_BYTES", DEFAULT_MAX_BYTES) or DEFAULT_MAX_BYTES)
+    media_root = Path(svc.get_env_var("MEDIA_PATH")).resolve()
+
+    folder_slug = unique_slug(title.strip(), lambda s: (media_root / s).exists())
+    try:
+        dest_dir = resolve_under(media_root, folder_slug)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid folder name.") from exc
+    dest_dir.mkdir(parents=True, exist_ok=False)
+
+    written_paths: list[Path] = []
+    try:
+        for upload in files:
+            raw_name = upload.filename or "upload"
+            safe_name = sanitize_filename(raw_name)
+            try:
+                dest_path = resolve_under(dest_dir, safe_name)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=f"Invalid filename: {raw_name}") from exc
+            await stream_upload_to_disk(upload, dest_path, max_bytes)
+            written_paths.append(dest_path)
+
+        _pick_folder_launch_file(written_paths)
+
+        item = lib_svc._ingest_media_entry(str(dest_dir), title.strip(), db)
+    except lib_svc._ItemAlreadyExists:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        raise HTTPException(status_code=409, detail="This folder's content is already in the library.")
+    except lib_svc._SlugCollision:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        raise HTTPException(status_code=409, detail="Import collided with a concurrent change, please retry.")
+    except HTTPException:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        raise
+    except Exception as exc:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        raise HTTPException(status_code=500, detail=f"Folder upload failed: {exc}") from exc
+
+    return item_to_read(item, db)
+
+
 @router.get("/scan/status", response_model=ScanStatus)
 def scan_status():
     with _scan_lock:

@@ -99,6 +99,28 @@ Detection runs in tier order and short-circuits on the first confident match:
 4. **Directory heuristics** — inspects root-level filenames and subdirectory structure for OS installer markers (`I386`, `WIN98`, `XPSP`, `SYSTEM.CNF`, `AUTORUN.INF`, DOS tool names, `.WAD` files, etc.).
 5. **Extension / size fallback** — lowest-confidence tier; uses file extension and file size as weak signals when no structural match is found.
 
+## Upload System
+
+Single-file and folder uploads are handled via `POST /api/v1/library/upload`
+and `POST /api/v1/library/upload-folder` respectively. Both routes require
+`can_edit_library` permission.
+
+**File size limits:** enforced per-file via `stream_upload_to_disk` (see
+`upload_utils.py` for the current cap). No total-folder-size limit exists
+for folder uploads — each file in a multipart folder upload is individually
+capped, but the aggregate is unbounded. Acceptable for local household use;
+revisit if a cap is ever needed.
+
+**Folder upload browser support:** uses the `webkitdirectory` input attribute.
+Originally Chrome-specific but now widely supported across all major browsers
+(Chrome, Edge, Firefox, Safari). Browsers that do not support it will fall
+back to a standard file picker silently.
+
+**Path safety:** all uploaded filenames pass through `sanitize_filename` +
+`resolve_under` before any write to `MEDIA_PATH`. Folder uploads clean up
+the entire destination directory on any single file failure — no partial
+folder ingest is possible.
+
 ### Known limitations
 
 - **Xbox OG ISOs without `DEFAULT.XBE` at the ISO root** will not resolve platform via structural scan (the `.xbe` directory scan comes up empty). The magic-byte check still applies as a fallback. Standard Xbox rips typically include `DEFAULT.XBE` at the root, so this case is expected to be rare in practice.
