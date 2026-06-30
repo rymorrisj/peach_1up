@@ -20,6 +20,7 @@ type LaunchProfile = components['schemas']['ProfileRead']
 type Platform = components['schemas']['PlatformRead']
 
 function formFromSet(set: LibrarySetData): EditFormFields {
+  const launchDisc = set.items.find(i => i.id === set.launch_disk_id) ?? set.items[0]
   return {
     title: set.title,
     sort_title: set.sort_title ?? '',
@@ -32,7 +33,7 @@ function formFromSet(set: LibrarySetData): EditFormFields {
     era: set.era && set.era !== 'unknown' ? set.era : '',
     platform_id: set.platform_id?.toString() ?? '',
     profile_id: set.profile_id?.toString() ?? '',
-    executable_path: '',
+    executable_path: launchDisc?.executable_path ?? '',
   }
 }
 
@@ -102,8 +103,8 @@ export default function SetDetail() {
   }, [set, form])
 
   const saveMutation = useMutation<LibrarySetData, Error, EditFormFields>({
-    mutationFn: (f) =>
-      apiFetch<LibrarySetData>(`/api/v1/library/sets/${setId}`, {
+    mutationFn: async (f) => {
+      const result = await apiFetch<LibrarySetData>(`/api/v1/library/sets/${setId}`, {
         method: 'PATCH',
         body: JSON.stringify({
           title: f.title.trim() || undefined,
@@ -118,7 +119,16 @@ export default function SetDetail() {
           platform_id: f.platform_id ? parseInt(f.platform_id, 10) : null,
           profile_id: f.profile_id ? parseInt(f.profile_id, 10) : null,
         }),
-      }),
+      })
+      const disc = set?.items.find(i => i.id === set.launch_disk_id) ?? set?.items[0]
+      if (disc) {
+        await apiFetch(`/api/v1/library/sets/${setId}/items/${disc.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ executable_path: f.executable_path.trim() || null }),
+        })
+      }
+      return result
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['library', 'sets', setId] })
     },
@@ -223,7 +233,10 @@ export default function SetDetail() {
           : undefined
       }
       editForm={{
-        item: { era: form.era || set.era },
+        item: {
+          era: form.era || set.era,
+          media_path: (set.items.find(i => i.id === set.launch_disk_id) ?? set.items[0])?.media_path,
+        },
         form,
         setField: setFormField,
         handleSave: () => saveMutation.mutate(form),

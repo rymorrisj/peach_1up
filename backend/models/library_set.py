@@ -134,6 +134,10 @@ class LibrarySetRead(SQLModel):
     tags: list[TagRead] = []
 
 
+class LibrarySetItemUpdate(SQLModel):
+    executable_path: Optional[str] = None
+
+
 class LibrarySetUpdate(SQLModel):
     display_disk_id: Optional[int] = None
     title: Optional[str] = None

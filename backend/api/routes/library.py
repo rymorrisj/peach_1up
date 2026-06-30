@@ -12,7 +12,7 @@ from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, get_filtered_item, get_filtered_library, require_permission
 from backend.core.logger import get_logger
 from backend.models.library import ImportResult, LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate, ScanStatus, item_to_read
-from backend.models.library_set import LibrarySet, LibrarySetItem, LibrarySetRead, LibrarySetUpdate, set_to_read
+from backend.models.library_set import LibrarySet, LibrarySetItem, LibrarySetItemUpdate, LibrarySetRead, LibrarySetUpdate, set_to_read
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
 from backend.service.library import items as lib_svc
@@ -669,6 +669,25 @@ def set_set_restrictions(
         db.add(MediaRestriction(user_id=user_id, library_set_id=set_id))
     db.commit()
     return {"restricted_user_ids": body.user_ids}
+
+
+@router.patch("/sets/{set_id}/items/{item_id}")
+def update_library_set_item(
+    set_id: int,
+    item_id: int,
+    body: LibrarySetItemUpdate,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    from backend.models.library_set import LibrarySetItemRead
+    item = db.get(LibrarySetItem, item_id)
+    if not item or item.set_id != set_id:
+        raise HTTPException(status_code=404, detail="Item not found.")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(item, field, value)
+    db.commit()
+    db.refresh(item)
+    return LibrarySetItemRead.model_validate(item)
 
 
 @router.get("/by-slug/{slug}", response_model=LibraryItemRead)
