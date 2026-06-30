@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemUpdate
-from backend.models.library_set import LibrarySetItem
+from backend.models.library_set import LibrarySet, LibrarySetItem
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.drive_utils import create_drive_for_item
 from backend.service.utils.era_media import media_type_from_path, resolve_media_file_from_directory
@@ -353,6 +353,60 @@ def _ingest_media_entry(
     db.commit()
     db.refresh(item)
     return item
+
+
+def _create_multi_disc_set(
+    disc_files: list[Path],
+    title: str,
+    db: Session,
+) -> LibrarySet:
+    """
+    Create a LibrarySet with one LibrarySetItem per disc file.
+    disc_files must be pre-sorted alphabetically (disc 1 first).
+    Each disc file becomes both media_path and executable_path for its item.
+    """
+    from backend.service.utils.smart_media_detector import detect as _smart_detect
+    from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
+
+    _scan = _smart_detect(disc_files[0])
+    detected_era: str = _scan.era if _scan.era is not None else "unknown"
+
+    detected_platform_id: int | None = None
+    detected_profile_id: int | None = None
+    if detected_era and detected_era != "unknown":
+        _emulator_slug, _profile_era = defaults_for_era(detected_era)
+        if _emulator_slug and _profile_era:
+            detected_platform_id, detected_profile_id = lookup_platform_and_profile(
+                _emulator_slug, _profile_era, db
+            )
+
+    library_set = LibrarySet(
+        title=title,
+        era=detected_era,
+        platform_id=detected_platform_id,
+        profile_id=detected_profile_id,
+    )
+    db.add(library_set)
+    db.flush()
+
+    set_items: list[LibrarySetItem] = []
+    for disc_number, disc_file in enumerate(disc_files, start=1):
+        set_item = LibrarySetItem(
+            set_id=library_set.id,
+            disc_number=disc_number,
+            media_path=str(disc_file),
+            executable_path=str(disc_file),
+            file_size_bytes=disc_file.stat().st_size if disc_file.exists() else None,
+        )
+        db.add(set_item)
+        set_items.append(set_item)
+    db.flush()
+
+    library_set.launch_disk_id = set_items[0].id
+    db.add(library_set)
+    db.commit()
+    db.refresh(library_set)
+    return library_set
 
 
 def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryItem, bool]:

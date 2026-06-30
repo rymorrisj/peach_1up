@@ -50,6 +50,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
   const [folderTitle, setFolderTitle] = useState('')
   const [folderStatus, setFolderStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const [folderError, setFolderError] = useState<string | null>(null)
+  const [folderResult, setFolderResult] = useState<{ type: 'item' | 'set'; title: string; discCount?: number } | null>(null)
 
   const busy =
     entries.some((e) => e.status === 'uploading') ||
@@ -68,6 +69,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       setFolderTitle('')
       setFolderStatus('idle')
       setFolderError(null)
+      setFolderResult(null)
       setFolderMode(false)
     }
   }, [open, busy])
@@ -188,6 +190,16 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
         const body = (await res.json().catch(() => ({}))) as { detail?: string }
         throw new Error(body.detail ?? `Upload failed (HTTP ${res.status})`)
       }
+      const body = (await res.json()) as {
+        result_type: string
+        title: string
+        items?: unknown[]
+      }
+      setFolderResult(
+        body.result_type === 'library_set'
+          ? { type: 'set', title: body.title, discCount: body.items?.length }
+          : { type: 'item', title: body.title },
+      )
       setFolderStatus('success')
       onAdded()
     } catch (err) {
@@ -277,6 +289,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
               setFolderTitle('')
               setFolderStatus('idle')
               setFolderError(null)
+              setFolderResult(null)
             }}
           />
           Folder upload
@@ -356,8 +369,12 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
               Uploading folder…
             </div>
           )}
-          {folderStatus === 'success' && (
-            <p className="text-sm text-emerald-400">Folder uploaded successfully.</p>
+          {folderStatus === 'success' && folderResult && (
+            <p className="text-sm text-emerald-400">
+              {folderResult.type === 'set'
+                ? `Added "${folderResult.title}" as a ${folderResult.discCount}-disc set.`
+                : `Added "${folderResult.title}" as a library item.`}
+            </p>
           )}
           {folderStatus === 'error' && folderError && (
             <p role="alert" className="text-sm text-red-400">{folderError}</p>

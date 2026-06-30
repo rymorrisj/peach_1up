@@ -172,6 +172,31 @@ async def upload_library_media(
     return item_to_read(item, db)
 
 
+def _detect_disc_files(files: list[Path]) -> list[Path]:
+    """
+    Returns a sorted list of .cue/.gdi files when 2+ exist (multi-disc signal).
+    Returns empty list when 0 or 1 disc files exist (single-item path unchanged).
+    Raises 422 when both .cue and .gdi are present — ambiguous mixed-format folder.
+    """
+    cue_files = sorted(f for f in files if f.suffix.lower() == ".cue")
+    gdi_files = sorted(f for f in files if f.suffix.lower() == ".gdi")
+
+    if cue_files and gdi_files:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Folder contains both .cue and .gdi files. "
+                "These formats imply different consoles and cannot be mixed in one multi-disc set. "
+                "Upload only one format at a time."
+            ),
+        )
+
+    disc_files = gdi_files or cue_files
+    if len(disc_files) <= 1:
+        return []
+    return disc_files
+
+
 def _pick_folder_launch_file(files: list[Path]) -> Path:
     """Fail-fast guard: confirm at least one recognizable launch file exists in the folder.
 
@@ -192,7 +217,7 @@ def _pick_folder_launch_file(files: list[Path]) -> Path:
     )
 
 
-@router.post("/upload-folder", response_model=LibraryItemRead, status_code=201)
+@router.post("/upload-folder", response_model=None, status_code=201)
 async def upload_folder_media(
     files: list[UploadFile] = File(...),
     title: str = Form(...),
@@ -200,12 +225,16 @@ async def upload_folder_media(
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_library"),
 ):
-    """Upload a folder of game media files as a single library item.
+    """Upload a folder of game media files as a single library item or multi-disc set.
 
-    All files are written flat into a slug-named dest dir under MEDIA_PATH,
-    then the existing folder-ingest branch of _prepare_item handles era
-    detection, launch-file selection, dedup, and DB write.
+    If the folder contains 2+ .cue files or 2+ .gdi files, a LibrarySet is created
+    with one LibrarySetItem per disc (result_type: "library_set"). Otherwise the
+    existing folder-ingest path runs and a single LibraryItem is created
+    (result_type: "library_item"). The response always includes result_type as a
+    discriminator field so callers can handle both shapes.
     """
+    from fastapi.responses import JSONResponse
+
     if not files:
         raise HTTPException(status_code=422, detail="At least one file is required.")
     if not title.strip():
@@ -239,8 +268,15 @@ async def upload_folder_media(
             await stream_upload_to_disk(upload, dest_path, max_bytes)
             written_paths.append(dest_path)
 
-        _pick_folder_launch_file(written_paths)
+        disc_files = _detect_disc_files(written_paths)
 
+        if disc_files:
+            library_set = lib_svc._create_multi_disc_set(disc_files, title.strip(), db)
+            payload = set_to_read(library_set, db).model_dump(mode="json")
+            payload["result_type"] = "library_set"
+            return JSONResponse(status_code=201, content=payload)
+
+        _pick_folder_launch_file(written_paths)
         item = lib_svc._ingest_media_entry(str(dest_dir), title.strip(), db)
     except lib_svc._ItemAlreadyExists:
         shutil.rmtree(dest_dir, ignore_errors=True)
@@ -255,7 +291,9 @@ async def upload_folder_media(
         shutil.rmtree(dest_dir, ignore_errors=True)
         raise HTTPException(status_code=500, detail=f"Folder upload failed: {exc}") from exc
 
-    return item_to_read(item, db)
+    payload = item_to_read(item, db).model_dump(mode="json")
+    payload["result_type"] = "library_item"
+    return JSONResponse(status_code=201, content=payload)
 
 
 @router.get("/scan/status", response_model=ScanStatus)
