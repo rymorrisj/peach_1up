@@ -16,7 +16,7 @@ from backend.service.utils.era_media import all_supported_extensions
 _COVER_STEMS: frozenset[str] = frozenset({"cover"})
 _COVER_EXTENSIONS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 
-_EXECUTABLE_PRIORITY: list[str] = [".cue", ".iso", ".chd", ".xiso", ".zip", ".exe"]
+_EXECUTABLE_PRIORITY: list[str] = [".gdi", ".cue", ".iso", ".chd", ".xiso", ".zip", ".exe"]
 
 
 @dataclass
