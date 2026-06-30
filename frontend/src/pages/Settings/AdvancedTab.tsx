@@ -51,7 +51,7 @@ function TheGamesDbSection() {
         <strong>{enabled ? 'configured' : 'not configured'}</strong>. The key is never
         displayed after saving.{' '}
         <a
-          href="https://forums.thegamesdb.net/viewforum.php?f=10"
+          href="https://api.thegamesdb.net/key.php"
           target="_blank"
           rel="noopener noreferrer"
           className="underline hover:text-neutral-900 dark:hover:text-neutral-100"
@@ -60,7 +60,7 @@ function TheGamesDbSection() {
         </a>{' '}
         ·{' '}
         <a
-          href="https://thegamesdb.net/user_account.php"
+          href="https://api.thegamesdb.net/key.php"
           target="_blank"
           rel="noopener noreferrer"
           className="underline hover:text-neutral-900 dark:hover:text-neutral-100"
