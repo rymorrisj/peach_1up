@@ -1,0 +1,74 @@
+---
+title: Metadata Enrichment
+---
+
+# Metadata Enrichment
+
+Peach 1UP can fetch cover art, descriptions, content ratings, platform details, and release
+dates from [TheGamesDB](https://thegamesdb.net) for individual library items and sets.
+Enrichment is always manual and on-demand — it never runs automatically during a scan and
+never delays or blocks launching a game.
+
+:::note Owner-only feature
+Metadata enrichment is currently owner-only. Sub-accounts cannot see or use the
+**Fetch Metadata** / **Cover Art** buttons, regardless of their other permissions. This may
+be extended to a dedicated permission flag in a future release.
+:::
+
+---
+
+## Getting a TheGamesDB API Key
+
+TheGamesDB requires a free API key to use its data. Request one from the
+[TheGamesDB API key request forum](https://forums.thegamesdb.net/viewforum.php?f=10) — the
+thread there explains the approval process and typical turnaround.
+
+Once you have a key, add it in Peach 1UP:
+
+1. Go to **Settings → Advanced**.
+2. Enter your API key in the **TheGamesDB** field and save.
+
+The key is stored encrypted and is never returned in plaintext by the API.
+
+---
+
+## Using Metadata Enrichment
+
+The **Fetch Metadata** button appears on library item and set detail pages when an API key is
+configured. If no key is set, the button is disabled with a tooltip pointing here.
+
+1. Open any library item or set detail page.
+2. Click **Fetch Metadata**.
+3. In the modal that opens, type the game's name and run the search.
+4. Select one result from the list.
+5. Click **Fetch Now** — Peach 1UP pulls the full details and cover art for your selection
+   and shows a preview.
+6. Click **Keep** to apply the fetched data, or **Redo** to go back and pick a different
+   result.
+
+---
+
+## API Call Cost
+
+Each enrichment uses roughly **2–3 TheGamesDB API requests**: one search call, plus one
+images request and/or one details request when you confirm a result. TheGamesDB accounts
+have a monthly request allowance. If you are tracking yours, check your
+[TheGamesDB account page](https://thegamesdb.net/user_account.php) for current usage and
+limits.
+
+---
+
+## What Gets Written
+
+When you keep a result, Peach 1UP writes the following fields to the library item or set:
+
+- Title
+- Description
+- Content rating
+- Platform
+- Release date
+- Cover art
+
+**Genre, developer, and publisher are not currently stored.** TheGamesDB returns these as
+raw IDs that require additional lookup calls; the resolution strategy is undecided and those
+fields have no database columns yet. They will not appear even if TheGamesDB returns them.
