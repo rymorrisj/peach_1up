@@ -5,10 +5,13 @@ Provides the public entry point ``launch_under_job_object`` which runs an
 emulator executable under the current user account inside a Windows Job Object
 with memory and CPU limits sourced from eras.yaml.
 
-Processes are launched without CREATE_SUSPENDED and assigned to the Job Object
-immediately after CreateProcessW returns.  There is a small race window between
-launch and assignment; if Job Object assignment fails the process is terminated
-and the launch is aborted — there is no unsandboxed fallback.
+Native (non-container) processes are launched with CREATE_SUSPENDED; the main
+thread is resumed only after the Job Object's memory and CPU limits have been
+applied and the process assigned, so an emulator can never execute even briefly
+outside its resource cap.  Container launches are created suspended and resumed
+inside sandbox_host.exe, which enforces the same ordering.  If Job Object
+assignment fails the process is terminated and the launch is aborted — there is
+no unsandboxed fallback.
 """
 
 import asyncio
@@ -21,6 +24,7 @@ from pathlib import Path
 
 from backend.service.utils.platform.windows.win32_types import (
     _CREATE_BREAKAWAY_FROM_JOB,
+    _CREATE_SUSPENDED,
     _STARTF_USESHOWWINDOW,
     _SW_SHOWNORMAL,
     STARTUPINFOW,
@@ -78,7 +82,14 @@ def _launch_process(
     creation_flags: int,
     cwd: str | None = None,
 ) -> SandboxProcess:
-    """Launch a process under the current user account via CreateProcessW."""
+    """Launch a suspended process under the current user account via CreateProcessW.
+
+    The process is created with CREATE_SUSPENDED and the returned
+    SandboxProcess retains the main-thread handle; the caller MUST call
+    ``process.resume()`` exactly once after the process is assigned to its Job
+    Object (or terminate it), otherwise the process is left permanently
+    suspended and its thread handle leaks.
+    """
     cmd_line = subprocess.list2cmdline([executable_path] + args)
     cmd_buf = ctypes.create_unicode_buffer(cmd_line)
 
@@ -90,9 +101,13 @@ def _launch_process(
     si.wShowWindow = _SW_SHOWNORMAL
     pi = PROCESS_INFORMATION()
 
+    # CREATE_SUSPENDED: the process must not run before the Job Object limits
+    # are applied and it is assigned, so it can never execute uncapped.
+    suspended_flags = creation_flags | _CREATE_SUSPENDED
+
     logger.debug(
         "launch_process: exe=%s cwd=%s flags=%#x args=%s cmd=%s",
-        executable_path, cwd, creation_flags, args, cmd_line,
+        executable_path, cwd, suspended_flags, args, cmd_line,
     )
 
     result = ctypes.windll.kernel32.CreateProcessW(
@@ -101,7 +116,7 @@ def _launch_process(
         None,
         None,
         False,
-        ctypes.wintypes.DWORD(creation_flags),
+        ctypes.wintypes.DWORD(suspended_flags),
         None,
         ctypes.c_wchar_p(cwd) if cwd else None,
         ctypes.byref(si),
@@ -115,14 +130,14 @@ def _launch_process(
             f"Error code: {error_code}."
         )
 
-    proc = SandboxProcess(
+    # Retain hThread — it is needed for ResumeThread after Job Object
+    # assignment. resume() (or _close_handles() on teardown) closes it.
+    return SandboxProcess(
         pid=pi.dwProcessId,
         process_handle=pi.hProcess,
-        thread_handle=None,
+        thread_handle=pi.hThread,
         args=[executable_path] + args,
     )
-    ctypes.windll.kernel32.CloseHandle(pi.hThread)
-    return proc
 
 
 def _launch_process_in_container(
@@ -238,6 +253,9 @@ def launch_under_job_object(
     except Exception as e:
         cleanup_errors = []
         if process:
+            # Terminate directly while suspended — TerminateProcess works on a
+            # suspended process, so there is no need to resume it first (which
+            # would let this doomed process run uncapped, however briefly).
             try:
                 process.kill()
                 process.wait()
@@ -259,6 +277,7 @@ def launch_under_job_object(
         job_object.add_process(process)
     except RuntimeError as exc:
         if "retry_with_breakaway" not in str(exc):
+            # Terminate the still-suspended process directly (see phase 1).
             try:
                 process.kill()
                 process.wait()
@@ -272,6 +291,7 @@ def launch_under_job_object(
         _needs_breakaway_retry = True
 
     if _needs_breakaway_retry:
+        # Terminate the still-suspended process directly (see phase 1).
         try:
             process.kill()
             process.wait()
@@ -306,6 +326,7 @@ def launch_under_job_object(
         try:
             job_object.add_process(process)
         except Exception as exc3:
+            # Terminate the still-suspended breakaway process directly (see phase 1).
             try:
                 process.kill()
                 process.wait()
@@ -319,7 +340,30 @@ def launch_under_job_object(
                 f"Failed to assign breakaway process to job object: {exc3}"
             )
 
-    # pi.hThread was closed in _launch_process immediately after process creation.
-    # pi.hProcess is kept open so SandboxProcess.poll() can call GetExitCodeProcess.
-    # _close_handles() (called from poll() on exit) closes it exactly once.
+    # Assignment succeeded and limits are in force — resume the suspended main
+    # thread (native launches only; container launches were resumed inside
+    # sandbox_host.exe and carry no thread handle). resume() closes hThread.
+    # A resume failure here would leave the emulator hung, so it is fatal:
+    # terminate and abort rather than return a permanently-suspended process.
+    if not container_enabled:
+        try:
+            process.resume()
+        except Exception as exc:
+            try:
+                process.kill()
+                process.wait()
+            except Exception as exc2:
+                logger.error(
+                    "kill failed for pid=%s after resume failure: %s", process.pid, exc2
+                )
+            try:
+                job_object.teardown()
+            except Exception:
+                pass
+            raise RuntimeError(
+                f"Failed to resume process {process.pid} after job assignment: {exc}"
+            )
+
+    # pi.hProcess is kept open so SandboxProcess.poll() can call
+    # GetExitCodeProcess. _close_handles() (from poll() on exit) closes it once.
     return (process, job_object)
