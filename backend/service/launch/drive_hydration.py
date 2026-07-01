@@ -69,11 +69,6 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
             raise RuntimeError(f"Drive id={drive.id!r} has no image_path — re-add the library item.")
         img_path = Path(drive.image_path)
         if img_path.exists():
-            if entity.installed:
-                raise RuntimeError(
-                    f"Drive image at {img_path} already contains installed data and will not be automatically overwritten. "
-                    "To force a reinstall, manually delete the drive image file."
-                )
             img_path.unlink()
         fresh_size = max(FAT16_SIZE_MIN_MB, min(
             compute_drive_size_mb(Path(entity.media_path), entity.media_type or ""),

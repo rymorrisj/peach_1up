@@ -47,7 +47,7 @@ def _prompt_pin() -> str:
         return pin
 
 
-def run_setup(db_path: str | Path, force: bool = False) -> bool:
+def run_setup(db_path: str | Path) -> bool:
     """Create or overwrite the owner account interactively.
 
     Prompts for name and PIN on stdin. Returns True on success, False if the
