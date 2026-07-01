@@ -16,6 +16,21 @@ from backend.service.utils.slug_generator import unique_slug
 _PLATFORM_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
 _PROVISIONABLE_ERAS = frozenset({"win95", "win98", "winxp"})
 
+MAX_SNAPSHOTS_PER_PLATFORM = 10
+
+
+def _check_free_space(dest_dir: Path, required_bytes: int) -> None:
+    """Raise HTTPException(507) if *dest_dir* has less free space than *required_bytes*."""
+    usage = shutil.disk_usage(dest_dir)
+    if usage.free < required_bytes:
+        raise HTTPException(
+            status_code=507,
+            detail=(
+                f"Insufficient disk space: need {required_bytes // (1024 * 1024)} MiB, "
+                f"only {usage.free // (1024 * 1024)} MiB free."
+            ),
+        )
+
 
 def _validate_image_path(path_str: str) -> Path:
     from backend.service.utils.path_utils import normalise_path
@@ -307,10 +322,25 @@ def create_snapshot(platform_id: int, body: SnapshotCreate, db: Session) -> Snap
         raise HTTPException(status_code=404, detail="Platform not found.")
     if not platform.working_image_path:
         raise HTTPException(status_code=422, detail="Platform has no working image to snapshot.")
+    existing_count = (
+        db.query(Snapshot).filter(Snapshot.platform_id == platform_id).count()
+    )
+    if existing_count >= MAX_SNAPSHOTS_PER_PLATFORM:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Snapshot limit reached ({MAX_SNAPSHOTS_PER_PLATFORM} per platform). "
+                "Delete an existing snapshot before creating a new one."
+            ),
+        )
     src = _validate_image_path(platform.working_image_path)
     if not src.exists():
         raise HTTPException(status_code=422, detail="Working image file does not exist.")
-    dest = src.parent / f"{src.stem}_snapshot_{body.name}{src.suffix}"
+    safe_name = body.name.replace("/", "_").replace("\\", "_").replace("..", "_")
+    if not safe_name or safe_name.strip(".") == "":
+        raise HTTPException(status_code=422, detail="Snapshot name is invalid.")
+    dest = src.parent / f"{src.stem}_snapshot_{safe_name}{src.suffix}"
+    _check_free_space(dest.parent, src.stat().st_size)
     _atomic_copy(src, dest)
     size = dest.stat().st_size
     snap = Snapshot(
@@ -337,6 +367,7 @@ def restore_snapshot(platform_id: int, snapshot_id: int, token: str, db: Session
         raise HTTPException(status_code=422, detail="Platform working image not set.")
     src = _validate_image_path(snap.image_path)
     dest = _validate_image_path(platform.working_image_path)
+    _check_free_space(dest.parent, src.stat().st_size)
     _atomic_copy(src, dest)
     return {"restored": True, "snapshot": snap.name}
 

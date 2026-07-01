@@ -1,6 +1,8 @@
+import re
 from datetime import datetime
 from typing import Optional
 
+from pydantic import field_validator
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, func
 from sqlmodel import Field, SQLModel
 
@@ -25,9 +27,22 @@ class Snapshot(SnapshotBase, table=True):
     )
 
 
+_SAFE_SNAPSHOT_NAME = re.compile(r"^[^/\\]+$")
+
+
 class SnapshotCreate(SQLModel):
     name: str
     notes: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def _no_path_separators(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Snapshot name must not be empty.")
+        if not _SAFE_SNAPSHOT_NAME.match(v):
+            raise ValueError("Snapshot name must not contain path separators (/ or \\).")
+        return v
 
 
 class SnapshotRead(SnapshotBase):
