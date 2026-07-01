@@ -50,9 +50,23 @@ def _check_traversal(path_str: str) -> Path:
 
 _SENSITIVE_KEYS = {"AI_API_KEY", "IGDB_API_KEY", "PIN_PEPPER", "THEGAMESDB_API_KEY"}
 
+# The only keys a can_edit_settings user may write through the generic PATCH
+# endpoint. Anything not listed here is refused — notably ALLOW_NETWORK_ACCESS
+# (relaxes the network security boundary), reset_db (destructive), and any
+# rating_ordinals key (would silently reshape every user's content-rating cap).
+# PIN_PEPPER is handled by its own dedicated route and is intentionally absent.
+# Path keys are included because they are routed through the validated
+# set_path() call below rather than written to state raw.
+_USER_WRITABLE_KEYS = _ALL_PATH_KEYS | {
+    "THEGAMESDB_API_KEY",
+    "AI_API_KEY",
+    "IGDB_API_KEY",
+    "suppress_confirmations",
+}
+
 
 @router.get("", response_model=dict)
-def get_all_settings():
+def get_all_settings(_: User = require_permission("can_edit_settings")):
     svc = get_settings()
     state = svc._require_init()
     return {
@@ -69,6 +83,12 @@ def patch_settings(body: SettingsPatch, _: User = require_permission("can_edit_s
             detail="PIN_PEPPER must be set via PATCH /api/v1/settings/pin-pepper, "
             "not the generic settings endpoint — changing it requires re-hashing "
             "the owner PIN and invalidating sub-account PINs.",
+        )
+    disallowed = sorted(set(body.updates) - _USER_WRITABLE_KEYS)
+    if disallowed:
+        raise HTTPException(
+            status_code=403,
+            detail=f"These settings cannot be changed here: {', '.join(disallowed)}.",
         )
     svc = get_settings()
     for key, value in body.updates.items():

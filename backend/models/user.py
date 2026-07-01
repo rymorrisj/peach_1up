@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
+from pydantic import field_validator
 from sqlalchemy import Column, DateTime, func
 from sqlmodel import Field, SQLModel
 
@@ -21,6 +22,14 @@ class UserBase(SQLModel):
     is_locked: bool = False
     failed_pin_attempts: int = 0
     session_token_ttl: Optional[int] = None
+
+    @field_validator("max_content_rating")
+    @classmethod
+    def _check_max_content_rating(cls, v: Optional[str]) -> Optional[str]:
+        # An unrecognised ceiling silently uncaps the user (see
+        # get_filtered_library), so reject it wherever a User is validated.
+        from backend.core.dependencies import validate_max_content_rating
+        return validate_max_content_rating(v)
 
 
 class User(UserBase, table=True):

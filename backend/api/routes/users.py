@@ -1,9 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user, require_admin_or_self_manage, require_permission
+from backend.core.dependencies import (
+    get_active_user,
+    require_admin_or_self_manage,
+    require_permission,
+    validate_max_content_rating,
+)
 from backend.core.identity import clear_session, generate_identity_secret
 from backend.core.logger import get_logger
 from backend.models.user import User, UserRead
@@ -12,6 +17,19 @@ from backend.service.utils.pin_hashing import hash_pin
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
+
+# Fields that grant privilege: only the owner may change these. An admin may
+# manage a sub-account's name/PIN-policy/rating cap, but must not be able to
+# hand out admin rights or capability flags — that is the owner's alone.
+_OWNER_ONLY_FIELDS = {
+    "is_admin",
+    "can_launch_media",
+    "can_edit_platforms",
+    "can_edit_library",
+    "can_manage_profiles",
+    "can_edit_settings",
+    "can_manage_users",
+}
 
 
 class UserCreate(BaseModel):
@@ -28,6 +46,11 @@ class UserCreate(BaseModel):
     block_unrated_media: bool = False
     session_token_ttl: int | None = None
 
+    @field_validator("max_content_rating")
+    @classmethod
+    def _check_max_content_rating(cls, v: str | None) -> str | None:
+        return validate_max_content_rating(v)
+
 
 class UserPatch(BaseModel):
     name: str | None = None
@@ -42,6 +65,11 @@ class UserPatch(BaseModel):
     block_unrated_media: bool | None = None
     pin_required: bool | None = None
     session_token_ttl: int | None = None
+
+    @field_validator("max_content_rating")
+    @classmethod
+    def _check_max_content_rating(cls, v: str | None) -> str | None:
+        return validate_max_content_rating(v)
 
 
 class ResetPinBody(BaseModel):
@@ -124,7 +152,20 @@ def update_user(
         raise HTTPException(status_code=403, detail="Owner account cannot be modified here.")
 
     updates = body.model_dump(exclude_none=True)
-    if not (active_user.is_owner or active_user.is_admin):
+    if active_user.is_owner:
+        pass  # Owner may set any field UserPatch exposes (is_owner is not one).
+    elif active_user.is_admin:
+        # Admins manage sub-accounts but must not escalate privilege: is_admin
+        # and the can_* capability flags are owner-only. Reject rather than
+        # silently drop so the caller can't be misled into thinking a
+        # capability was granted.
+        elevated = sorted(set(updates) & _OWNER_ONLY_FIELDS)
+        if elevated:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Only the owner may change privilege fields: {', '.join(elevated)}.",
+            )
+    else:
         # Self-edit via can_manage_users only: name and nothing else. Reject
         # rather than silently drop, so the caller can't be misled into
         # thinking a permission/rating field was actually applied.
