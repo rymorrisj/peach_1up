@@ -59,10 +59,17 @@ def _iter_dir_entries(f, geo: dict, dir_cluster):
             if entry is not None:
                 yield off, entry
     else:
-        cluster   = dir_cluster
-        csz       = _cluster_size_bytes(geo)
-        epc       = csz // _DIR_ENTRY_SIZE
+        cluster     = dir_cluster
+        csz         = _cluster_size_bytes(geo)
+        epc         = csz // _DIR_ENTRY_SIZE
+        max_cluster = _CLUSTER_FIRST + geo["data_clusters"]
+        seen: set   = set()
         while cluster < 0xFFF8:
+            if cluster in seen:
+                raise RuntimeError(f"corrupt FAT: cluster chain loops at cluster {cluster}")
+            if cluster < _CLUSTER_FIRST or cluster >= max_cluster:
+                raise RuntimeError(f"corrupt FAT: cluster {cluster} is out of valid range")
+            seen.add(cluster)
             base = _cluster_byte_offset(geo, cluster)
             for i in range(epc):
                 off = base + i * _DIR_ENTRY_SIZE
@@ -90,10 +97,17 @@ def _find_free_dir_slot(f, geo: dict, dir_cluster) -> int:
                 return off
         raise RuntimeError("root directory is full (512 entries used)")
     else:
-        cluster = dir_cluster
-        csz     = _cluster_size_bytes(geo)
-        epc     = csz // _DIR_ENTRY_SIZE
+        cluster     = dir_cluster
+        csz         = _cluster_size_bytes(geo)
+        epc         = csz // _DIR_ENTRY_SIZE
+        max_cluster = _CLUSTER_FIRST + geo["data_clusters"]
+        seen: set   = set()
         while cluster < 0xFFF8:
+            if cluster in seen:
+                raise RuntimeError(f"corrupt FAT: cluster chain loops at cluster {cluster}")
+            if cluster < _CLUSTER_FIRST or cluster >= max_cluster:
+                raise RuntimeError(f"corrupt FAT: cluster {cluster} is out of valid range")
+            seen.add(cluster)
             base = _cluster_byte_offset(geo, cluster)
             for i in range(epc):
                 off = base + i * _DIR_ENTRY_SIZE
