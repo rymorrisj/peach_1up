@@ -3,6 +3,7 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import case, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.core import rate_limit
@@ -108,6 +109,11 @@ def _verify_pin(pin: str, pin_hash: str) -> bool:
 
 @router.post("/setup-owner", response_model=UserResponse)
 def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depends(get_db)):
+    # Fast-path / friendly-error only. This SELECT COUNT is NOT the real guard:
+    # two concurrent requests can both read count==0 here and both fall through
+    # to the INSERT before either commits (TOCTOU). The idx_single_owner partial
+    # unique index is the actual guarantee — the losing racer's commit raises
+    # IntegrityError, caught below and mapped to the same 409.
     has_owner = db.query(User).filter(User.is_owner.is_(True)).count() > 0
     if has_owner:
         raise HTTPException(status_code=409, detail="Owner account already exists.")
@@ -136,7 +142,14 @@ def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depen
         identity_token_secret=generate_identity_secret(),
     )
     db.add(owner)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Lost the race: another request committed the owner between our
+        # pre-check and this commit, and idx_single_owner rejected this second
+        # owner row. Surface the same 409 as the pre-check, never a raw 500.
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Owner account already exists.")
     db.refresh(owner)
 
     token, _expires_at = issue_session(db, owner)

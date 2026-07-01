@@ -193,3 +193,29 @@ def _apply_schema_migrations() -> None:
             ))
             conn.commit()
             logger.info("Schema migration: enforced unique index on library_items.slug")
+
+        # Enforce at most one owner account via a partial unique index. This is
+        # the real backstop behind POST /auth/setup-owner's has_owner pre-check:
+        # without it, two concurrent setup-owner requests can both pass the
+        # SELECT COUNT and both INSERT an owner row (TOCTOU). The pre-check stays
+        # for clean error messages; this index is the guarantee.
+        users_indexes = {ix["name"] for ix in inspector.get_indexes("users")}
+        if "idx_single_owner" not in users_indexes:
+            owner_count = conn.execute(
+                text("SELECT COUNT(*) FROM users WHERE is_owner = 1")
+            ).scalar()
+            if owner_count and owner_count > 1:
+                # Fail loud: the DB already holds multiple owner rows (a prior
+                # race or manual tampering). We refuse to silently demote one —
+                # picking which owner survives is a security decision for an
+                # operator, not something a startup migration should guess.
+                raise RuntimeError(
+                    f"Cannot enforce single-owner constraint: {owner_count} owner "
+                    "accounts already exist. Resolve the extra owner row(s) "
+                    "manually, then restart."
+                )
+            conn.execute(text(
+                "CREATE UNIQUE INDEX idx_single_owner ON users (is_owner) WHERE is_owner = 1"
+            ))
+            conn.commit()
+            logger.info("Schema migration: enforced single-owner partial unique index on users")
