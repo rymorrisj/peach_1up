@@ -108,6 +108,14 @@ def provision_86box_vm(
 
     if is_pre_installed:
         vhd_path = cfg_dir / ("disk" + base_img.suffix.lower())
+        required = base_img.stat().st_size
+        usage = shutil.disk_usage(cfg_dir)
+        if usage.free < required:
+            raise OSError(
+                f"Insufficient disk space to copy pre-installed image: "
+                f"need {required // (1024 * 1024)} MiB, "
+                f"only {usage.free // (1024 * 1024)} MiB free in {cfg_dir}."
+            )
         try:
             shutil.copy2(str(base_img), str(vhd_path))
         except OSError as exc:
@@ -116,6 +124,13 @@ def provision_86box_vm(
             ) from exc
     else:
         vhd_path = cfg_dir / "disk.vhd"
+        usage = shutil.disk_usage(cfg_dir)
+        if usage.free < size_bytes:
+            raise OSError(
+                f"Insufficient disk space to create VHD: "
+                f"need {size_bytes // (1024 * 1024)} MiB, "
+                f"only {usage.free // (1024 * 1024)} MiB free in {cfg_dir}."
+            )
         footer = _build_vhd_footer(size_bytes)
         with vhd_path.open("wb") as f:
             f.seek(size_bytes - 512 - 1)
