@@ -10,15 +10,11 @@ from sqlalchemy.orm import Session
 from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemUpdate
 from backend.models.library_set import LibrarySet, LibrarySetItem
 from backend.service.utils.confirmation_tokens import consume as _consume
-from backend.service.utils.drive_utils import create_drive_for_item
 from backend.service.utils.era_media import media_type_from_path, resolve_media_file_from_directory
 from backend.service.utils.path_utils import normalise_path, resolve_under
 from backend.service.utils.slug_generator import generate_item_slug, unique_slug
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
-# Per-item FAT16 drives are for dos/win31 only; win95/win98/winxp use the
-# shared OSPlatform base/working-image model (dev_docs/DECISIONS.md 2026-05-03/05-19).
-_DRIVE_ERAS = frozenset({"dos", "win31"})
 
 
 class _ItemAlreadyExists(Exception):
@@ -120,7 +116,6 @@ def _prepare_item(
         "detection_reason": None,
         "platform_id": None,
         "profile_id": None,
-        "drive_id": None,
         "last_launched_at": None,
         "launch_count": 0,
         "file_size_bytes": None,
@@ -340,7 +335,7 @@ def _ingest_media_entry(
     override_profile_id: int | None = None,
 ) -> LibraryItem:
     """
-    Single shared ingest pipeline: prepare → persist → optional drive creation.
+    Single shared ingest pipeline: prepare → persist.
     Called by both the manual add route and the scanner import endpoint.
     Raises _ItemAlreadyExists if the path is already tracked, or _SlugCollision
     if a concurrent insert claimed the generated slug first (rare TOCTOU race).
@@ -360,9 +355,9 @@ def _ingest_media_entry(
                 pass
         raise _SlugCollision() from exc
 
-    if item.era in _DRIVE_ERAS:
-        create_drive_for_item(item, db)
-
+    # DOS/Win3.1 no longer get a per-item drive at upload time — they run
+    # against the shared per-era environment C: image, provisioned on first
+    # launch (see backend/service/launch/dos_environment.py).
     db.commit()
     db.refresh(item)
     return item
@@ -436,30 +431,13 @@ def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryIt
 
 
 def delete_library_item(item_id: int, token: str, db: Session) -> None:
-    from backend.models.drive import Drive
-
     if not _consume(token, "library", item_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
     item = db.get(LibraryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found.")
-    drives = db.query(Drive).filter(Drive.library_item_id == item_id).all()
-    for drive in drives:
-        if drive.image_path:
-            img = Path(drive.image_path)
-            if img.exists():
-                try:
-                    img.unlink()
-                except OSError as exc:
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Could not delete drive image {drive.image_path}: {exc}",
-                    )
-    if item.drive_id is not None:
-        item.drive_id = None
-        db.flush()
-    db.query(Drive).filter(Drive.library_item_id == item_id).delete()
-    db.flush()
+    # DOS/Win3.1 saves live in the shared environment C: image, not a per-item
+    # drive, so deleting an item no longer removes any drive image.
     db.delete(item)
     db.commit()
 

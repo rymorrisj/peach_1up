@@ -427,10 +427,10 @@ def import_scan_results(
 ):
     """
     Phase 2: import the user-selected paths from the Phase 1 preview.
-    Bulk-inserts item records in chunks of 500, then creates drives for PC-era items.
+    Bulk-inserts item records in chunks of 500. DOS/Win3.1 items no longer get a
+    per-item drive here — they use the shared per-era environment C: image.
     """
-    from backend.service.library.items import _DRIVE_ERAS, _ItemAlreadyExists, _prepare_item
-    from backend.service.utils.drive_utils import create_drive_for_item
+    from backend.service.library.items import _ItemAlreadyExists, _prepare_item
 
     with _scan_lock:
         preview_snapshot = list(_scan_state.get("preview", []))
@@ -477,16 +477,6 @@ def import_scan_results(
                 status_code=409,
                 detail="Import collided with a concurrent import, please retry.",
             )
-
-        # Drive creation requires item IDs — query back PC-era items by their slugs
-        drive_slugs = [r["slug"] for r in prepared if r["era"] in _DRIVE_ERAS]
-        if drive_slugs:
-            pc_items = db.query(LibraryItem).filter(LibraryItem.slug.in_(drive_slugs)).all()
-            for pc_item in pc_items:
-                try:
-                    create_drive_for_item(pc_item, db)
-                except Exception as exc:
-                    logger.warning("Drive creation failed for '%s': %s", pc_item.title, exc)
 
     return {"imported": len(prepared), "skipped": skipped, "errors": errors}
 

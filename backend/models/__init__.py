@@ -1,5 +1,4 @@
 from backend.models.bios import BiosRequirement
-from backend.models.drive import Drive, DriveBase, DriveRead
 from backend.models.filesystem import BrowseResult, DirEntry, DriveEntry, DrivesResult, FileEntry
 from backend.models.library import ImportErrorItem, ImportResult, LibraryItem, LibraryItemBase, LibraryItemCreate, LibraryItemUpdate, LibraryItemRead, ScanPreviewItem, ScanStatus
 from backend.models.library_set import LibrarySet, LibrarySetItem, LibrarySetItemRead, LibrarySetRead, set_to_read

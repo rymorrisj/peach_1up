@@ -23,7 +23,6 @@ def _apply_schema_migrations() -> None:
         ("platforms", "installed_at", "DATETIME"),
         ("platforms", "hardware_profile", "TEXT DEFAULT 'standard'"),
         ("platforms", "machine_override", "TEXT"),
-        ("profiles", "drive_slug", "TEXT"),
         ("profiles", "use_drive", "INTEGER NOT NULL DEFAULT 1"),
         ("profiles", "container_enabled", "INTEGER"),
         ("profiles", "enable_dgvoodoo2", "INTEGER NOT NULL DEFAULT 0"),

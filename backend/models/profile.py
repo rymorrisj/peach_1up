@@ -19,7 +19,8 @@ class ProfileBase(SQLModel):
     notes: Optional[str] = None
     user_id: Optional[int] = None
     launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
-    drive_slug: Optional[str] = None
+    # use_drive is retained (legacy column) but no longer consumed: DOS/Win3.1
+    # always run against the shared per-era environment C: image.
     use_drive: bool = True
     container_enabled: Optional[bool] = None
 
@@ -53,7 +54,6 @@ class ProfileUpdate(SQLModel):
     enable_dgvoodoo2: Optional[bool] = None
     notes: Optional[str] = None
     launch_commands: Optional[list[str]] = None
-    drive_slug: Optional[str] = None
     use_drive: Optional[bool] = None
     container_enabled: Optional[bool] = None
 

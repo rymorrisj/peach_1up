@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
-    from backend.models.drive import Drive
     from backend.models.library import LibraryItem
 
 
@@ -24,18 +23,16 @@ class LaunchableEntity:
 
     profile_id: int | None
     era: str
+    slug: str | None
     media_path: str
     executable_path: str | None
     launch_commands: list[str] = field(default_factory=list)
     launch_review_flagged: bool = False
 
-    # Drive hydration fields
+    # Environment hydration fields (DOS/Win3.1 pattern-1 copy gate).
     installed: bool = False
     requires_install: bool = False
     media_type: str | None = None
-
-    # Pre-resolved Drive ORM object (None if no drive associated).
-    drive: "Drive | None" = None
 
     # For set launches: all disc media_paths in disc_number order. Empty for item launches.
     disc_paths: list[str] = field(default_factory=list)
@@ -56,7 +53,6 @@ def resolve_launchable(
     Exactly one of item_id / set_id must be provided.
     Raises ValueError if the record or its launch disc is not found.
     """
-    from backend.models.drive import Drive
     from backend.models.library import LibraryItem
     from backend.models.library_set import LibrarySet, LibrarySetItem
 
@@ -64,12 +60,12 @@ def resolve_launchable(
         item = db.get(LibraryItem, item_id)
         if item is None:
             raise ValueError(f"LibraryItem {item_id} not found")
-        drive = db.query(Drive).filter(Drive.library_item_id == item.id).first()
         return LaunchableEntity(
             item_id=item.id,
             set_id=None,
             profile_id=item.profile_id,
             era=item.era,
+            slug=item.slug,
             media_path=item.media_path,
             executable_path=item.executable_path,
             launch_commands=list(item.launch_commands or []),
@@ -77,7 +73,6 @@ def resolve_launchable(
             installed=item.installed,
             requires_install=item.requires_install,
             media_type=str(item.media_type) if item.media_type is not None else None,
-            drive=drive,
             _db_item=item,
         )
 
@@ -92,7 +87,6 @@ def resolve_launchable(
             raise ValueError(
                 f"LibrarySet {set_id}: launch disc item {s.launch_disk_id} not found"
             )
-        drive = db.get(Drive, s.drive_id) if s.drive_id else None
         all_items = (
             db.query(LibrarySetItem)
             .filter(LibrarySetItem.set_id == s.id)
@@ -104,6 +98,7 @@ def resolve_launchable(
             set_id=s.id,
             profile_id=s.profile_id,
             era=s.era,
+            slug=getattr(s, "slug", None),
             media_path=launch_disc.media_path,
             executable_path=launch_disc.executable_path,
             launch_commands=[],
@@ -113,7 +108,6 @@ def resolve_launchable(
             installed=True,
             requires_install=s.requires_install,
             media_type=None,
-            drive=drive,
             disc_paths=[item.media_path for item in all_items],
             _db_item=None,
         )

@@ -8,10 +8,7 @@ from sqlmodel import Field, Relationship, SQLModel
 from backend.constants_generated import EraValue, MediaType
 from backend.models.tag import TagRead, get_tags_for_entity
 
-from backend.models.drive import DriveRead
-
 if TYPE_CHECKING:
-    from backend.models.drive import Drive
     from backend.models.tag import Tag
     from sqlalchemy.orm import Session
 
@@ -53,10 +50,6 @@ class LibraryItem(LibraryItemBase, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
     )
-    drive_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("drives.id"), nullable=True),
-    )
     last_launched_at: Optional[datetime] = None
     launch_count: int = 0
     created_at: Optional[datetime] = Field(
@@ -67,15 +60,6 @@ class LibraryItem(LibraryItemBase, table=True):
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False),
     )
-
-    drive: Optional["Drive"] = Relationship(
-        back_populates="library_item",
-        sa_relationship_kwargs={
-            "foreign_keys": "[Drive.library_item_id]",
-            "uselist": False,
-        },
-    )
-
 
 
 class LibraryItemCreate(LibraryItemBase):
@@ -126,7 +110,6 @@ class LibraryItemRead(LibraryItemBase):
     slug: Optional[str] = None
     platform_id: Optional[int] = None
     profile_id: Optional[int] = None
-    drive_id: Optional[int] = None
     last_launched_at: Optional[datetime] = None
     launch_count: int
     created_at: datetime
@@ -136,7 +119,6 @@ class LibraryItemRead(LibraryItemBase):
     installed: bool = False
     detection_reason: Optional[str] = None
     cover_art_url: Optional[str] = None
-    drive: Optional[DriveRead] = None
     tags: list[TagRead] = []
 
     @model_validator(mode='after')

@@ -60,10 +60,6 @@ class LibrarySet(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
     )
-    drive_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("drives.id", ondelete="SET NULL"), nullable=True),
-    )
     # Logical FKs to library_set_items.id. Not DB-level constraints to avoid a circular
     # reference between library_sets and library_set_items during table creation.
     launch_disk_id: Optional[int] = Field(default=None)
@@ -123,7 +119,6 @@ class LibrarySetRead(SQLModel):
     launch_review_flagged: bool = False
     platform_id: Optional[int] = None
     profile_id: Optional[int] = None
-    drive_id: Optional[int] = None
     launch_disk_id: Optional[int] = None
     display_disk_id: Optional[int] = None
     last_launched_at: Optional[datetime] = None
