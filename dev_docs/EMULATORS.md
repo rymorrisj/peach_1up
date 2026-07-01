@@ -296,3 +296,20 @@ Dependencies are included in `peach_1up\emulators\flycast\dependencies`. The rel
 ```bash
 cmake -S . -B build -A x64 -DUSE_DX9=OFF -DUSE_VULKAN=ON -DUSE_DX11=ON -DUSE_OPENGL=ON
 ```
+
+---
+
+## Legal
+
+The root `LICENSE` file for this repository is GPL-2.0-or-later. DuckStation is distributed unmodified under CC BY-NC-ND 4.0 (non-GPL, non-commercial only). All other bundled emulators are GPL-2.0 or GPL-3.0.
+
+| Emulator    | License         | License File   | SOURCE_OFFER.txt | Install Type     |
+| ----------- | --------------- | -------------- | ---------------- | ---------------- |
+| 86Box       | GPL-2.0         | COPYING        | Yes              | github_release   |
+| DOSBox-X    | GPL-2.0         | COPYING        | Yes              | github_release   |
+| DuckStation | CC BY-NC-ND 4.0 | LICENSE.txt    | No               | zip              |
+| Flycast     | GPL-2.0         | LICENSE        | Yes              | github_release   |
+| Mesen       | GPL-3.0         | LICENSE        | Yes              | github_release   |
+| PCSX2       | GPL-3.0         | COPYING.GPLv3  | Yes              | bundled          |
+| Project64   | GPL-2.0         | license.md     | Yes              | bundled          |
+| xemu        | GPL-2.0         | LICENSE.txt    | Yes              | github_release   |
