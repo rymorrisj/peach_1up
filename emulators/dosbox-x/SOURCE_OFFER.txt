@@ -1,0 +1,15 @@
+Written Source-Code Offer — DOSBox-X
+=====================================
+
+DOSBox-X is distributed under the GNU General Public License v2 or later
+(GPL-2.0-or-later). In accordance with GPL section 3, the complete
+corresponding source code is available at:
+
+  Source repository: https://github.com/joncampbell123/dosbox-x
+  Release downloads: https://github.com/joncampbell123/dosbox-x/releases
+
+These URLs are derived from config/emulators/dosbox-x.toml (source_url,
+release_url) and are the single source of truth for this offer.
+
+This offer is valid for three years from the date of distribution of the
+corresponding binary, as required by GPL section 3(b).

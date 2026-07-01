@@ -1,0 +1,15 @@
+Written Source-Code Offer — PCSX2
+==================================
+
+PCSX2 is distributed under the GNU General Public License v3 or later
+(GPL-3.0-or-later). In accordance with GPL section 13, the complete
+corresponding source code is available at:
+
+  Source repository: https://github.com/PCSX2/pcsx2
+  Release downloads: https://github.com/PCSX2/pcsx2/releases
+
+These URLs are derived from config/emulators/pcsx2.toml (source_url,
+release_url) and are the single source of truth for this offer.
+
+This offer is valid for three years from the date of distribution of the
+corresponding binary, as required by GPL section 6(b).
