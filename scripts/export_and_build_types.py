@@ -19,7 +19,7 @@ def main() -> None:
     try:
         from fastapi import FastAPI
         from backend.api.routes import (
-            auth, bios, drives, emulators, filesystem, health, launches, library,
+            auth, bios, emulators, filesystem, health, launches, library,
             media, platforms, profiles, settings, tags, users,
         )
 
@@ -34,7 +34,6 @@ def main() -> None:
         )
         app.include_router(auth.router)
         app.include_router(users.router)
-        app.include_router(drives.router)
         app.include_router(health.router)
         app.include_router(settings.router)
         app.include_router(emulators.router)
