@@ -179,7 +179,7 @@ def _build_multi_iso_mount_line(disc_paths: list[Path]) -> str:
                 "This indicates a data integrity problem."
             )
     all_hosts = " ".join(_dosbox_cmd_path(p) for p in disc_paths)
-    return f"imgmount D {all_hosts} -t iso"
+    return f"imgmount D {all_hosts} -t iso -ro"
 
 
 def _build_drive_mount_lines(
@@ -229,7 +229,7 @@ def _build_drive_mount_lines(
             drive_line = "C:"
             media_drive = "C:"
         elif suffix == ".img":
-            mount_line = f"imgmount D {host} -t hdd"
+            mount_line = f"imgmount D {host} -t hdd -ro"
             drive_line = "C:"
             media_drive = "D:"
         elif suffix in {".iso", ".cue"}:
@@ -241,7 +241,7 @@ def _build_drive_mount_lines(
             media_drive = "D:"
         elif suffix in {".exe", ".bat"}:
             parent_dir = _dosbox_cmd_path(media_path.parent)
-            mount_line = f"MOUNT D {parent_dir} -freesize 1024"
+            mount_line = f"MOUNT D {parent_dir} -ro -freesize 1024"
             drive_line = "C:"
             media_drive = "D:"
         else:
@@ -254,7 +254,7 @@ def _build_drive_mount_lines(
                 "Directory media requires a persistent drive. This indicates a misconfiguration."
             )
         elif suffix == ".img":
-            mount_line = f"imgmount C {host} -t hdd"
+            mount_line = f"imgmount C {host} -t hdd -ro"
             drive_line = "C:"
             media_drive = "C:"
         elif suffix in {".iso", ".cue"}:
@@ -266,7 +266,7 @@ def _build_drive_mount_lines(
             media_drive = "D:"
         elif suffix in {".exe", ".bat"}:
             parent_dir = _dosbox_cmd_path(media_path.parent)
-            mount_line = f"MOUNT D {parent_dir} -freesize 1024"
+            mount_line = f"MOUNT D {parent_dir} -ro -freesize 1024"
             drive_line = "D:"
             media_drive = "D:"
         else:
