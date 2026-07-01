@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, Relationship, SQLModel
 from backend.constants_generated import EraValue, MediaType
@@ -84,6 +84,10 @@ class LibraryItemCreate(LibraryItemBase):
     profile_id: Optional[int] = None
 
 
+_YEAR_MIN = 1970
+_YEAR_MAX = 2050
+
+
 class LibraryItemUpdate(SQLModel):
     title: Optional[str] = None
     sort_title: Optional[str] = None
@@ -97,7 +101,7 @@ class LibraryItemUpdate(SQLModel):
     cover_art_path: Optional[str] = None
     description: Optional[str] = None
     publisher: Optional[str] = None
-    year: Optional[int] = None
+    year: Optional[int] = Field(default=None, ge=_YEAR_MIN, le=_YEAR_MAX)
     igdb_id: Optional[int] = None
     metadata_source: Optional[str] = None
     content_rating: Optional[str] = None
@@ -105,7 +109,16 @@ class LibraryItemUpdate(SQLModel):
     launch_commands: Optional[list[str]] = None
     launch_review_flagged: Optional[bool] = None
     installed: Optional[bool] = None
-    drive_size_mb: Optional[int] = None
+    # drive_size_mb intentionally absent — no DB column; requests containing it are rejected below.
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_dead_fields(cls, data: object) -> object:
+        if isinstance(data, dict) and "drive_size_mb" in data:
+            raise ValueError(
+                "drive_size_mb is not a valid update field and has no database column."
+            )
+        return data
 
 
 class LibraryItemRead(LibraryItemBase):

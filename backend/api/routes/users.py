@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -17,6 +17,10 @@ from backend.service.utils.pin_hashing import hash_pin
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
+
+# session_token_ttl is in minutes. Ceiling = 1 year; floor = 1 minute.
+_TTL_MIN = 1
+_TTL_MAX = 525_600  # 365 days × 24 h × 60 min
 
 # Fields that grant privilege: only the owner may change these. An admin may
 # manage a sub-account's name/PIN-policy/rating cap, but must not be able to
@@ -44,7 +48,7 @@ class UserCreate(BaseModel):
     is_admin: bool = False
     max_content_rating: str | None = None
     block_unrated_media: bool = False
-    session_token_ttl: int | None = None
+    session_token_ttl: int | None = Field(default=None, ge=_TTL_MIN, le=_TTL_MAX)
 
     @field_validator("max_content_rating")
     @classmethod
@@ -64,7 +68,7 @@ class UserPatch(BaseModel):
     max_content_rating: str | None = None
     block_unrated_media: bool | None = None
     pin_required: bool | None = None
-    session_token_ttl: int | None = None
+    session_token_ttl: int | None = Field(default=None, ge=_TTL_MIN, le=_TTL_MAX)
 
     @field_validator("max_content_rating")
     @classmethod
