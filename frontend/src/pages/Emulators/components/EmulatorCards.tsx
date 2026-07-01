@@ -59,6 +59,22 @@ export function ZipCard({ entry }: { entry: CatalogEntry }) {
   )
 }
 
+export function BundledCard({ entry }: { entry: CatalogEntry }) {
+  return (
+    <div className="space-y-2">
+      <EmulatorStatus status={entry.is_installed ? 'Detected' : 'Not detected'} />
+      <p className="text-sm text-neutral-500 dark:text-neutral-400">
+        Included with this build — no installation required.
+      </p>
+      {entry.is_installed && entry.install_path && (
+        <p className="font-mono text-xs text-neutral-400 dark:text-neutral-500 break-all">
+          {entry.install_path}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function InstallerCard({ entry }: { entry: CatalogEntry }) {
   const qc = useQueryClient()
   const [isActing, setIsActing] = useState(false)

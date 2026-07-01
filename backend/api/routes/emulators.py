@@ -359,6 +359,9 @@ async def install_emulator(slug: str, background_tasks: BackgroundTasks, _: User
         background_tasks.add_task(_run_clone, slug)
         return {"status": "cloning", "slug": slug}
 
+    if install_type == "bundled":
+        return {"status": "bundled", "slug": slug}
+
     raise HTTPException(
         status_code=400,
         detail=f"Unknown install_type '{install_type}' for '{slug}'.",
