@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -112,10 +113,20 @@ def list_item_launches(
 
 @router.get("/launches", response_model=list[LaunchHistoryRead])
 def list_launches(
+    target_id: Optional[int] = Query(default=None),
+    target_type: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
     _: User = Depends(get_active_user),
 ):
-    return db.query(LaunchHistory).order_by(LaunchHistory.started_at.desc()).limit(50).all()
+    q = db.query(LaunchHistory)
+    if target_id is not None and target_type is not None:
+        if target_type == "environment":
+            q = q.filter(LaunchHistory.platform_id == target_id)
+        elif target_type == "library_set":
+            q = q.filter(LaunchHistory.library_set_id == target_id)
+        else:
+            q = q.filter(LaunchHistory.library_item_id == target_id)
+    return q.order_by(LaunchHistory.started_at.desc()).limit(50).all()
 
 @router.get("/launches/{history_id}")
 def get_launch(
