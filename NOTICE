@@ -1,0 +1,56 @@
+NOTICE — Third-Party Emulators Bundled with Peach 1UP
+======================================================
+
+Peach 1UP bundles or installs the following third-party emulators. Each is
+distributed under its own open-source license, reproduced in the per-emulator
+directory listed below. The Peach 1UP project itself is released under the
+GNU General Public License v2 or later (see root LICENSE).
+
+-------------------------------------------------------------------------------
+
+1. 86Box
+   License:   GNU General Public License v2 or later (GPL-2.0-or-later)
+   Copyright: Copyright 2015–2024 86Box contributors
+   Source:    https://github.com/86Box/86Box
+   License file: emulators/86box/COPYING
+
+2. DOSBox-X
+   License:   GNU General Public License v2 or later (GPL-2.0-or-later)
+   Copyright: Copyright 2011–2024 The DOSBox-X Team
+   Source:    https://github.com/joncampbell123/dosbox-x
+   License file: emulators/dosbox-x/COPYING
+
+3. Mesen
+   License:   GNU General Public License v3 or later (GPL-3.0-or-later)
+   Copyright: Copyright 2014–2024 M. Bibeau and contributors
+   Source:    https://github.com/SourMesen/Mesen2
+   License file: emulators/mesen/LICENSE
+
+4. PCSX2
+   License:   GNU General Public License v3 or later (GPL-3.0-or-later)
+   Copyright: Copyright 2002–2024 PCSX2 Dev Team
+   Source:    https://github.com/PCSX2/pcsx2
+   License file: emulators/pcsx2/COPYING.GPLv3
+
+5. Project64
+   License:   GNU General Public License v2 or later (GPL-2.0-or-later)
+   Copyright: Copyright 2001–2024 Project64 Ltd and contributors
+   Source:    https://github.com/project64/project64
+   License file: emulators/project64/license.md
+
+6. Flycast
+   License:   GNU General Public License v2 or later (GPL-2.0-or-later)
+   Copyright: Copyright 2018–2024 The Flycast Team
+   Source:    https://github.com/flyinghead/flycast
+   License file: emulators/flycast/LICENSE
+
+7. xemu
+   License:   GNU General Public License v2 or later (GPL-2.0-or-later)
+   Copyright: Copyright 2020–2024 Matt Borgerson and contributors
+   Source:    https://github.com/xemu-project/xemu
+   License file: emulators/xemu/LICENSE.txt
+
+-------------------------------------------------------------------------------
+
+Source code for each emulator is available at the upstream URLs listed above.
+See each emulator's SOURCE_OFFER.txt for the written source-code offer.
