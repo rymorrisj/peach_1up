@@ -473,6 +473,12 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
                     access="rw",
                     mode="grant",
                 ))
+            sandbox_config.broker_files.append(
+                BrokerFile(
+                    path=str(spec.drive_image_path),
+                    access="rw",
+                    mode="secure",
+                ))
     else:
         sandbox_config = None
 
