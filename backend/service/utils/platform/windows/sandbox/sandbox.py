@@ -206,7 +206,10 @@ def _fire(
 def launch(config: SandboxConfig) -> SandboxHandle:
     _validate(config)
 
-    stdin_data = json.dumps(_build_stdin_payload(config)).encode()
+    # ensure_ascii=False so non-ASCII path characters survive as raw UTF-8
+    # across the C++ boundary — json_parse.h copies non-escape bytes verbatim,
+    # so \uXXXX escapes (the ensure_ascii=True default) would corrupt them.
+    stdin_data = json.dumps(_build_stdin_payload(config), ensure_ascii=False).encode()
 
     try:
         proc = subprocess.Popen(
