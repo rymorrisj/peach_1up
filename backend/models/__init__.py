@@ -11,5 +11,6 @@ from backend.models.settings import Settings, SettingsPatch
 from backend.models.user import User, UserBase, UserRead
 from backend.models.media_restriction import MediaRestriction
 from backend.models.tag import EntityTag, Tag, TagCreate, TagRead, get_tags_for_entity
+from backend.models.emulator_install import EmulatorInstall
 
 # We do not maintain a __all__ as * wildcard imports are to be avoided per project practices
