@@ -1,3 +1,5 @@
+import re
+
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -27,15 +29,61 @@ _DEFAULT_RATING_ORDINALS: dict[str, int] = {
 
 
 def _load_rating_ordinals() -> dict[str, int]:
-    """Return the rating ordinal map from settings.yaml (key: rating_ordinals) or defaults."""
+    """Return the rating ordinal map from settings.yaml (key: rating_ordinals) or defaults.
+
+    Falls back to _DEFAULT_RATING_ORDINALS when settings are unavailable
+    (RuntimeError before init) or malformed (TypeError/ValueError) — the
+    default vocabulary is the safe, restrictive baseline, never a widening.
+    """
     try:
         from backend.core.settings import get_settings
         custom = get_settings().get("rating_ordinals")
         if isinstance(custom, dict):
             return {str(k): int(v) for k, v in custom.items()}
-    except (TypeError, ValueError):
+    except (RuntimeError, TypeError, ValueError):
         pass
     return dict(_DEFAULT_RATING_ORDINALS)
+
+
+def normalize_content_rating(raw: str | None) -> str | None:
+    """Map a free-form rating string onto the known rating vocabulary.
+
+    Sources like TheGamesDB return ratings such as ``"M - Mature 17+"`` or
+    ``"E - Everyone"``; only the leading code is meaningful. Any value that
+    does not resolve to a recognised key returns ``None`` (stored as unrated)
+    rather than a guessed default, so the content-rating filter never has to
+    reason about a string it doesn't understand.
+    """
+    if not raw or not raw.strip():
+        return None
+    text = raw.strip()
+    canonical = {k.casefold(): k for k in _DEFAULT_RATING_ORDINALS}
+    if text.casefold() in canonical:
+        return canonical[text.casefold()]
+    # Fall back to the leading token, e.g. "M - Mature 17+" -> "M",
+    # "E10+ - Everyone 10+" -> "E10+", "ESRB: T" -> "ESRB" (unrecognised -> None).
+    lead = re.split(r"\s*[-:–]\s*", text, maxsplit=1)[0].strip()
+    return canonical.get(lead.casefold())
+
+
+def validate_max_content_rating(value: str | None) -> str | None:
+    """Return *value* if it is a recognised rating key, else raise ValueError.
+
+    ``None`` means "no ceiling" and always passes. An unknown value must be
+    rejected on write: get_filtered_library looks the ceiling up in the
+    ordinal map, gets ``None`` for an unrecognised value, and then skips the
+    rating filter entirely — silently uncapping the user. Rejecting here keeps
+    that bypass closed.
+    """
+    if value is None:
+        return None
+    known = _load_rating_ordinals()
+    if value not in known:
+        raise ValueError(
+            f"Unknown max_content_rating {value!r}; expected one of: "
+            f"{', '.join(sorted(known))}."
+        )
+    return value
 
 
 def get_active_user(request: Request, db: Session = Depends(get_db)) -> User:
@@ -111,8 +159,10 @@ def get_filtered_library(active_user: User, db: Session):
 
     Owner sees all items. For non-owners:
     - ``block_unrated_media=True`` excludes items with null or empty content_rating.
-    - ``max_content_rating`` limits results to ratings at or below the ordinal threshold;
-      items with unrecognised rating strings pass through (foreign rating systems).
+    - ``max_content_rating`` limits results to ratings at or below the ordinal threshold.
+      For a user with a ceiling, items whose rating is unrecognised are DENIED, not
+      passed through — an unknown rating must never leak past a parental cap. Null/empty
+      ratings are governed separately by ``block_unrated_media`` above.
 
     Returns a SQLAlchemy Query that callers can chain additional filters onto.
     """
@@ -137,13 +187,11 @@ def get_filtered_library(active_user: User, db: Session):
         max_ord = ordinal_map.get(active_user.max_content_rating)
         if max_ord is not None:
             allowed = {r for r, o in ordinal_map.items() if o <= max_ord}
-            known = set(ordinal_map.keys())
             q = q.filter(
                 or_(
                     LibraryItem.content_rating.is_(None),
                     LibraryItem.content_rating == "",
                     LibraryItem.content_rating.in_(list(allowed)),
-                    ~LibraryItem.content_rating.in_(list(known)),
                 )
             )
 

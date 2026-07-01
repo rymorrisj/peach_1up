@@ -75,9 +75,16 @@ def enrich_entity(
         "description": description,
         "publisher": publisher,
         "year": year,
-        "content_rating": content_rating,
         "metadata_source": metadata_source,
     }.items() if v is not None}
+
+    if content_rating is not None:
+        # Normalise free-form ratings (e.g. TheGamesDB "M - Mature 17+") onto
+        # the known vocabulary. An unrecognised value is written as null rather
+        # than stored verbatim, so it can never slip past the content-rating
+        # filter as an unknown string. content_rating=None means "leave as-is".
+        from backend.core.dependencies import normalize_content_rating
+        metadata_fields["content_rating"] = normalize_content_rating(content_rating)
 
     if entity_type == "library_item":
         entity = db.get(LibraryItem, entity_id)
