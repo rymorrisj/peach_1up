@@ -349,9 +349,23 @@ class WindowsJobObject:
             )
 
     def close(self) -> None:
-        """Close the job object handle without terminating any processes."""
+        """Close the job object handle.
+
+        Because KILL_ON_JOB_CLOSE is always set at creation (via set_memory_limit
+        or set_kill_on_close), closing the last handle to this job will terminate
+        all processes assigned to it.  Call teardown() instead when an explicit
+        TerminateJobObject call is required before closing.
+        """
         if self.job_handle:
             ctypes.windll.kernel32.CloseHandle(self.job_handle)
+            self.job_handle = None
+
+    def __del__(self) -> None:
+        if self.job_handle:
+            try:
+                ctypes.windll.kernel32.CloseHandle(self.job_handle)
+            except Exception:
+                pass
             self.job_handle = None
 
     # NAMING: handle_is_open checks only that the job handle is open and queryable —

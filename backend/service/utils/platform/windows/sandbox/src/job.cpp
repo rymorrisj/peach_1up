@@ -15,6 +15,13 @@ HRESULT JobObject::create() {
     }
 
     // Children inherit job membership and are killed when job closes.
+    // BREAKAWAY_OK: allows child processes of the emulator to escape this job
+    // by spawning with CREATE_BREAKAWAY_FROM_JOB.  This is NOT required for the
+    // host's breakaway-retry logic (Python launcher.py or the C++ retry in
+    // main.cpp) — those retry paths govern sandbox_host.exe escaping ITS OWN
+    // parent job, not the emulator's children escaping this one.  BREAKAWAY_OK
+    // here weakens job containment; candidate for removal if no emulator
+    // sub-process is documented to require it.
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION eli = {};
     eli.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE |
@@ -45,6 +52,8 @@ HRESULT JobObject::apply_limits(const JobConfig& cfg) {
 #else
     // JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE is not available in this MinGW
     // installation (requires Windows 10+ SDK headers). Fall back to HARD_CAP.
+    // MinRate will not be enforced in this build; only MaxRate (cpu_max_rate) applies.
+#pragma message("sandbox: JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE unavailable — HARD_CAP fallback active; MinRate scheduling floor will not be enforced")
     cpu.ControlFlags = JOB_OBJECT_CPU_RATE_CONTROL_ENABLE |
                        JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP;
     cpu.CpuRate = cfg.cpu_max_rate * 100;
@@ -58,6 +67,8 @@ HRESULT JobObject::apply_limits(const JobConfig& cfg) {
 
     if (!cfg.skip_memory_limit && cfg.memory_limit_bytes > 0) {
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION eli = {};
+        // BREAKAWAY_OK: see create() comment — same caveat applies when
+        // memory limits are re-applied via apply_limits().
         eli.BasicLimitInformation.LimitFlags =
             JOB_OBJECT_LIMIT_JOB_MEMORY |
             JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE |

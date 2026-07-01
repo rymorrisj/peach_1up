@@ -91,6 +91,9 @@ class SandboxHandle:
     )
     _proc: subprocess.Popen = field(compare=False, hash=False, repr=False,
                                     default=None)  # type: ignore[assignment]
+    # Set to True by _fire() once CLEANED_UP has been dispatched, so that
+    # terminate() can detect the event already fired before it registered.
+    _cleaned_up: bool = field(default=False, compare=False, hash=False)
 
     def on(
         self,
@@ -107,9 +110,17 @@ class SandboxHandle:
             if not cleanup_future.done():
                 loop.call_soon_threadsafe(cleanup_future.set_result, None)
 
+        # Register the callback BEFORE inspecting _cleaned_up so that a
+        # CLEANED_UP event fired between registration and the check below
+        # still resolves the future via the callback, not just the check.
         self.on(SandboxEvent.CLEANED_UP, _on_cleaned_up)
 
-        if self._proc and self._proc.poll() is None:
+        if self._cleaned_up:
+            # CLEANED_UP already fired before we registered the callback;
+            # the callback will never be invoked, so resolve the future now.
+            if not cleanup_future.done():
+                cleanup_future.set_result(None)
+        elif self._proc and self._proc.poll() is None:
             self._proc.terminate()
 
         await cleanup_future
@@ -191,6 +202,10 @@ def _fire(
     event: SandboxEvent,
     payload: SandboxPayload,
 ) -> None:
+    # Mark before calling callbacks so terminate() sees the flag even if a
+    # callback re-enters _fire or inspects _cleaned_up synchronously.
+    if event == SandboxEvent.CLEANED_UP:
+        handle._cleaned_up = True
     for cb in handle._callbacks.get(event, []):
         try:
             cb(payload)
