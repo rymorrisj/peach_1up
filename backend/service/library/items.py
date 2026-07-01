@@ -53,6 +53,7 @@ def _prepare_item(
     *,
     used_slugs: set[str] | None = None,
     override_profile_id: int | None = None,
+    _undo_stack: list | None = None,
 ) -> dict:
     """
     Run the full ingest pipeline for one media path without writing to the DB.
@@ -219,6 +220,8 @@ def _prepare_item(
                 and not dest_folder.exists()
             ):
                 _src_parent.rename(dest_folder)
+                if _undo_stack is not None:
+                    _undo_stack.append(lambda _o=_src_parent, _n=dest_folder: _n.rename(_o) if _n.exists() else None)
                 row["folder_path"] = str(dest_folder)
                 row["media_path"] = str(dest)
             else:
@@ -239,6 +242,8 @@ def _prepare_item(
                         row["media_path"] = str(dest)
                     else:
                         shutil.move(str(media_src), str(dest))
+                        if _undo_stack is not None:
+                            _undo_stack.append(lambda _s=media_src, _d=dest: shutil.move(str(_d), str(_s)) if _d.exists() else None)
                         row["media_path"] = str(dest)
 
             cover = _find_cover(dest_folder)
@@ -287,6 +292,8 @@ def _prepare_item(
                     detail=f"A folder named '{row['slug']}' already exists in the media library.",
                 )
             _dir_ingest_root.rename(slug_folder)
+            if _undo_stack is not None:
+                _undo_stack.append(lambda _o=_dir_ingest_root, _n=slug_folder: _n.rename(_o) if _n.exists() else None)
             for field in ("folder_path", "media_path", "executable_path", "cover_art_path"):
                 val = row.get(field)
                 if val:
@@ -338,13 +345,19 @@ def _ingest_media_entry(
     Raises _ItemAlreadyExists if the path is already tracked, or _SlugCollision
     if a concurrent insert claimed the generated slug first (rare TOCTOU race).
     """
-    row = _prepare_item(media_path, title, db, override_profile_id=override_profile_id)
+    _undo_ops: list = []
+    row = _prepare_item(media_path, title, db, override_profile_id=override_profile_id, _undo_stack=_undo_ops)
     item = LibraryItem(**row)
     db.add(item)
     try:
         db.flush()
     except IntegrityError as exc:
         db.rollback()
+        for _undo in reversed(_undo_ops):
+            try:
+                _undo()
+            except OSError:
+                pass
         raise _SlugCollision() from exc
 
     if item.era in _DRIVE_ERAS:
