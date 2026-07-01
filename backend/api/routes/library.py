@@ -549,7 +549,11 @@ def get_metadata_details(
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="TheGamesDB API request timed out.")
 
-    games_map = details_raw.get("data", {}).get("games", {})
+    games_raw = details_raw.get("data", {}).get("games", {})
+    if isinstance(games_raw, list):
+        games_map = {str(g["id"]): g for g in games_raw if g.get("id") is not None}
+    else:
+        games_map = games_raw if isinstance(games_raw, dict) else {}
     game = games_map.get(str(game_id))
     if game is None and games_map:
         game = next(iter(games_map.values()), None)
