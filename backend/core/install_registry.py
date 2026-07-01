@@ -3,7 +3,7 @@ from typing import Literal
 
 from backend.service.utils import confirmation_tokens
 
-InstallStatus = Literal["idle", "complete", "error", "installer_launched", "cloning"]
+InstallStatus = Literal["idle", "complete", "error", "installer_launched", "cloning", "downloading"]
 
 _registry: dict[str, dict] = {}
 _lock = threading.Lock()

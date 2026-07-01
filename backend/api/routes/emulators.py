@@ -25,6 +25,7 @@ from backend.service.utils.emulator_installer import (
     launch_installer,
     remove_emulator,
 )
+from backend.service.utils.github_release_installer import install_from_github_release
 from backend.service.utils import settings as _settings
 
 router = APIRouter(prefix="/api/v1/emulators", tags=["emulators"])
@@ -359,6 +360,17 @@ async def install_emulator(slug: str, background_tasks: BackgroundTasks, _: User
         background_tasks.add_task(_run_clone, slug)
         return {"status": "cloning", "slug": slug}
 
+    if install_type == "github_release":
+        current = install_registry.get_status(slug)
+        if current.get("status") == "downloading":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Download already in progress for '{slug}'.",
+            )
+        install_registry.set_status(slug, "downloading")
+        background_tasks.add_task(_run_github_release_install, slug)
+        return {"status": "downloading", "slug": slug}
+
     if install_type == "bundled":
         return {"status": "bundled", "slug": slug}
 
@@ -366,6 +378,23 @@ async def install_emulator(slug: str, background_tasks: BackgroundTasks, _: User
         status_code=400,
         detail=f"Unknown install_type '{install_type}' for '{slug}'.",
     )
+
+
+async def _run_github_release_install(slug: str) -> None:
+    try:
+        result = await asyncio.to_thread(install_from_github_release, slug)
+        install_registry.set_status(
+            slug, "complete", install_path=result.get("install_path")
+        )
+        if not result.get("digest_verified"):
+            logger.warning(
+                "GitHub release install %s completed without digest verification "
+                "(asset had no digest to check against).",
+                slug,
+            )
+    except Exception as exc:
+        install_registry.set_status(slug, "error", error=str(exc))
+        logger.error("GitHub release install %s failed: %s", slug, exc)
 
 
 async def _run_clone(slug: str) -> None:

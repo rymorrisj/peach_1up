@@ -1,4 +1,4 @@
-import { ZipCard, InstallerCard, RomPackCard, BundledCard } from './EmulatorCards'
+import { ZipCard, InstallerCard, RomPackCard, BundledCard, GithubReleaseCard } from './EmulatorCards'
 import { useAppContext } from '@/context/useAppContext'
 import type { components } from '@shared/types'
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
@@ -46,6 +46,7 @@ export function MergedEmulatorCard({
       {entry.install_type === 'installer' && <InstallerCard entry={entry} />}
       {entry.install_type === 'rom_pack' && <RomPackCard entry={entry} />}
       {entry.install_type === 'bundled' && <BundledCard entry={entry} />}
+      {entry.install_type === 'github_release' && <GithubReleaseCard entry={entry} />}
 
     </div>
   )

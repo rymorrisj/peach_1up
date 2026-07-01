@@ -82,6 +82,7 @@ install_types:
   - "bundled"
   - "rom_pack"
   - "installer"
+  - "github_release"
 
 tag_colors:
   - id: "slate"

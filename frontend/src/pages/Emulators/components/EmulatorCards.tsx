@@ -236,6 +236,80 @@ export function RomPackCard({ entry }: { entry: CatalogEntry }) {
   )
 }
 
+export function GithubReleaseCard({ entry }: { entry: CatalogEntry }) {
+  const qc = useQueryClient()
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [installed, setInstalled] = useState(entry.is_installed)
+
+  const { data: statusData } = useQuery<EmulatorStatusData>({
+    queryKey: ['emulator-status', entry.slug],
+    queryFn: () => apiFetch<EmulatorStatusData>(`/api/v1/emulators/${entry.slug}/status`),
+    refetchInterval: isDownloading ? 3000 : false,
+    enabled: isDownloading,
+  })
+
+  useEffect(() => {
+    if (!statusData) return
+    if (statusData.status === 'complete' || statusData.binary_detected) {
+      setInstalled(true)
+      setIsDownloading(false)
+      qc.invalidateQueries({ queryKey: ['emulators-catalog'] })
+    }
+    if (statusData.status === 'error') {
+      setIsDownloading(false)
+      setDownloadError(statusData.error ?? 'Download failed.')
+    }
+  }, [statusData, qc])
+
+  async function handleDownload() {
+    setIsDownloading(true)
+    setDownloadError(null)
+    try {
+      await apiFetch(`/api/v1/emulators/${entry.slug}/install`, { method: 'POST' })
+    } catch (err) {
+      setIsDownloading(false)
+      setDownloadError(err instanceof ApiError ? err.detail : 'Failed to start download.')
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <EmulatorStatus status={installed ? 'Installed' : 'Not installed'} />
+        {!installed && (
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className="rounded-md bg-[#ff8a5c] px-3 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {isDownloading ? 'Downloading…' : 'Download'}
+          </button>
+        )}
+      </div>
+      {!installed && !isDownloading && (
+        <GuidanceBlock text={entry.guidance_text} url={entry.guidance_url} />
+      )}
+      {isDownloading && (
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          Downloading the latest release from GitHub — this may take a minute.
+        </p>
+      )}
+      {installed && entry.install_path && (
+        <p className="font-mono text-xs text-neutral-400 dark:text-neutral-500 break-all">
+          {entry.install_path}
+        </p>
+      )}
+      {downloadError && (
+        <p role="alert" className="text-xs text-[#ff6a55]">
+          {downloadError}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function BiosCard({ bios }: { bios: BiosRequirement }) {
   return (
     <div className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">

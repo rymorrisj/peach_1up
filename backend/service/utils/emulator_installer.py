@@ -18,7 +18,7 @@ def detect_binary(slug: str) -> Path | None:
     if not binary:
         return None
 
-    if install_type == "zip":
+    if install_type in ("zip", "github_release"):
         slug_dir = (_BASE_DIR / slug).resolve()
         path = (slug_dir / binary).resolve()
         try:

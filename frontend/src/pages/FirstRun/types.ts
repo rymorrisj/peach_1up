@@ -33,7 +33,7 @@ export interface EmulatorStatusData {
   binary_detected: boolean
   binary_path: string | null
   installer_present: boolean
-  status: 'idle' | 'complete' | 'error' | 'installer_launched' | 'cloning'
+  status: 'idle' | 'complete' | 'error' | 'installer_launched' | 'cloning' | 'downloading'
   error: string | null
   install_path: string | null
 }
