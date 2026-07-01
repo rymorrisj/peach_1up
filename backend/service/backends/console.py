@@ -37,6 +37,12 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     Args:
         spec: LaunchSpec with slug, era, media_path, executable_path set.
             slug must be one of 'mesen', 'project64', 'duckstation', 'pcsx2'.
+            enable_networking is honored per-emulator, not universally: PCSX2
+            emulates the PS2 DEV9/SMAP Ethernet adapter, so when networking is
+            off its [DEV9/Eth] EthEnable key is forced false. Mesen (NES),
+            Project64 (N64), and DuckStation (PS1) emulate consoles with no
+            network hardware — there is nothing to disable, so enable_networking
+            is intentionally ignored for those three.
 
     Returns:
         Tuple of (SandboxProcess, WindowsJobObject).
@@ -73,10 +79,12 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             "GameList", "RecursivePaths", str(spec.media_path.parent),
         )
     elif spec.slug == "pcsx2":
-        set_ini_key(
-            Path(spec.executable_path).parent / "inis" / "PCSX2.ini",
-            "GameList", "RecursivePaths", str(spec.media_path.parent),
-        )
+        pcsx2_ini = Path(spec.executable_path).parent / "inis" / "PCSX2.ini"
+        set_ini_key(pcsx2_ini, "GameList", "RecursivePaths", str(spec.media_path.parent))
+        if not spec.enable_networking:
+            # PS2 DEV9/SMAP Ethernet: disable the network adapter unless the
+            # profile explicitly opts in. Section is [DEV9/Eth], key EthEnable.
+            set_ini_key(pcsx2_ini, "DEV9/Eth", "EthEnable", "false")
 
     cli_args_prefix = entry.get("cli_args_prefix", [])
     if spec.slug in {"duckstation", "pcsx2"}:

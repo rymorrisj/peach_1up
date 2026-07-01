@@ -33,8 +33,9 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     Args:
         spec: LaunchSpec with slug, era, media_path, executable_path set.
-            enable_networking is accepted but ignored (no meaningful network
-            capability per SECURITY.md).
+            enable_networking gates Dreamcast/NAOMI netplay: when False the
+            emu.cfg [network] Enable and GGPO keys are forced to ``no``; when
+            True the emulator default is used.
 
     Returns:
         Tuple of ``(process, job_object)``.
@@ -64,10 +65,13 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             f"Flycast supports: {', '.join(sorted(SUPPORTED_MEDIA))}"
         )
 
-    set_ini_key(
-        Path(spec.executable_path).parent / "emu.cfg",
-        "config", "Dreamcast.ContentPath", str(spec.media_path.parent),
-    )
+    emu_cfg = Path(spec.executable_path).parent / "emu.cfg"
+    set_ini_key(emu_cfg, "config", "Dreamcast.ContentPath", str(spec.media_path.parent))
+    if not spec.enable_networking:
+        # Dreamcast/NAOMI netplay: disable both the network stack and GGPO
+        # rollback netplay unless the profile explicitly opts in.
+        set_ini_key(emu_cfg, "network", "Enable", "no")
+        set_ini_key(emu_cfg, "network", "GGPO", "no")
 
     args: list[str] = [str(spec.media_path.resolve())]
     job_name_prefix = f"Peach1UP_flycast_{spec.era}_{spec.media_path.stem}"

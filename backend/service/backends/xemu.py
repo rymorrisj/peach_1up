@@ -100,7 +100,12 @@ def resolve_launch_config() -> str:
     return DEFAULT_CONFIG_NAME
 
 
-def provision_xemu_defaults(exe_path: Path, data_dir: Path, dvd_path: str | None = None) -> Path:
+def provision_xemu_defaults(
+    exe_path: Path,
+    data_dir: Path,
+    dvd_path: str | None = None,
+    enable_networking: bool = False,
+) -> Path:
     """Write (or overwrite) the xemu.toml portable-mode sentinel; return its path.
 
     xemu detects xemu.toml next to its own binary on startup and treats that
@@ -124,6 +129,10 @@ def provision_xemu_defaults(exe_path: Path, data_dir: Path, dvd_path: str | None
         exe_path: Absolute path to the xemu executable (xemu.exe).
         data_dir: Resolved config directory holding the BIOS/HDD asset files
             for this launch.
+        enable_networking: When False (default), the xemu.toml [net] enable key
+            is written false, disabling the Xbox network stack (Xbox Live /
+            System Link). When True the [net] section is omitted so xemu's own
+            default applies.
 
     Returns:
         Path to the xemu.toml sentinel file inside exe_path.parent.
@@ -141,6 +150,8 @@ def provision_xemu_defaults(exe_path: Path, data_dir: Path, dvd_path: str | None
         if f.name.lower() not in ("mcpx_1.0.bin", "eeprom.bin")
     ]
 
+    net_section = "" if enable_networking else "\n[net]\nenable = false\n"
+
     content = (
         "[general]\n"
         "show_welcome = false\n\n"
@@ -150,6 +161,7 @@ def provision_xemu_defaults(exe_path: Path, data_dir: Path, dvd_path: str | None
         f'eeprom_path = "{eeprom_path.resolve().as_posix()}"\n'
         f'hdd_path = "{hdd_path.resolve().as_posix()}"\n'
         f'dvd_path = "{dvd_path or ""}"\n'
+        f"{net_section}"
     )
 
     tmp = toml_path.with_suffix(".tmp")
@@ -169,8 +181,9 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     Args:
         spec: LaunchSpec with era set. media_path is optional — omit to boot
-            with no disc. enable_networking is accepted but ignored (no
-            meaningful network capability per SECURITY.md).
+            with no disc. enable_networking gates the Xbox network stack (Xbox
+            Live / System Link): when False the xemu.toml [net] enable = false
+            key disables it; when True the emulator default is used.
 
     Returns:
         Tuple of (SandboxProcess, WindowsJobObject instance).
@@ -224,7 +237,10 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     logger.debug(
         "xemu.launch: dvd_posix=%s vm_dir=%s data_dir=%s", dvd_posix, vm_dir, data_dir
     )
-    config_path = provision_xemu_defaults(exe_path, data_dir, dvd_path=dvd_posix)
+    config_path = provision_xemu_defaults(
+        exe_path, data_dir, dvd_path=dvd_posix,
+        enable_networking=spec.enable_networking,
+    )
 
     args = ["-dvd_path", dvd_posix] if dvd_posix else []
 

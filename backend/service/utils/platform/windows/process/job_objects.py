@@ -12,8 +12,12 @@ aborted.  There is no unsandboxed fallback.
 Resource limits (memory cap, CPU hard cap, kill-on-close) are sourced
 exclusively from eras.yaml.  There is no per-profile override path.
 
-Network isolation is handled at the emulator level — each backend disables
-its network adapter when enable_networking is false on the active profile.
+Network isolation is handled at the emulator level: backends whose emulated
+system has a network device disable it when enable_networking is false on the
+active profile (e.g. DOSBox-X NE2000, PCSX2 DEV9/SMAP, xemu Xbox Live/System
+Link, Flycast netplay/GGPO). Consoles with no network hardware (NES/Mesen,
+N64/Project64, PS1/DuckStation) have nothing to disable, so enable_networking
+is intentionally ignored there.
 """
 
 import ctypes
