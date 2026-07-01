@@ -95,18 +95,20 @@ the service and removes all files; `config\settings.yaml` is preserved.
 
 ---
 
+## Documentation
+
+- [SCOPE.md](dev_docs/SCOPE.md) — Development roadmap and current task
+- [DECISIONS.md](dev_docs/DECISIONS.md) — Design decision log
+- [CLAUDE.md](dev_docs/CLAUDE.md) — Project technical reference
+- [TECH.md](dev_docs/TECH.md) — Full technology stack with reasoning
+- [EMULATORS.md](dev_docs/EMULATORS.md) — Emulator reference, portable mode, BIOS requirements, version coupling notes
+
+---
+
 ## Configuration
 
 Binary paths and runtime settings live in `config/settings.yaml`. A `.env`
 file is supported as a legacy override — values in `.env` take precedence over
 `settings.yaml`. See `settings.yaml` for documented defaults.
 
----
 
-## Documentation
-
-- [CONTEXT.md](CONTEXT.md) — Development roadmap and current task
-- [DECISIONS.md](DECISIONS.md) — Design decision log
-- [CLAUDE.md](CLAUDE.md) — Project technical reference
-- [TECH.md](TECH.md) — Full technology stack with reasoning
-- [EMULATORS.md](docs/EMULATORS.md) — Emulator reference, portable mode, BIOS requirements, version coupling notes
