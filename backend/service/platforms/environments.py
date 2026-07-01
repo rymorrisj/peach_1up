@@ -14,7 +14,9 @@ from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.slug_generator import unique_slug
 
 _PLATFORM_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
-_PROVISIONABLE_ERAS = frozenset({"win95", "win98", "winxp"})
+# DOS/Win3.1 now provision a shared FAT16 C: image the same way 86Box eras
+# provision a working VHD (see provisioner.provision_dosbox_drive).
+_PROVISIONABLE_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
 
 MAX_SNAPSHOTS_PER_PLATFORM = 10
 
@@ -198,7 +200,6 @@ def batch_health_check(db: Session) -> dict:
 
 def get_health_summary(db: Session) -> dict:
     from sqlalchemy import func, distinct as sa_distinct
-    from backend.models.drive import Drive
     from backend.models.library import LibraryItem
     from backend.service.utils.emulator_catalog import (
         check_bios_presence,
@@ -213,7 +214,8 @@ def get_health_summary(db: Session) -> dict:
     platform_degraded = len(user_platforms) - platform_healthy - platform_unknown
 
     library_count = db.query(LibraryItem).count()
-    drive_count = db.query(Drive).count()
+    # "Drives" now means the shared DOS/Win3.1 environment C: images.
+    drive_count = db.query(Platform).filter(Platform.era.in_(("dos", "win31"))).count()
     extension_count = (
         db.query(func.count(sa_distinct(LibraryItem.media_type)))
         .filter(LibraryItem.media_type.isnot(None))
@@ -266,8 +268,10 @@ def _safe_file_size(path: str | None) -> int:
 
 
 def get_drive_images_bytes(db: Session) -> int:
-    from backend.models.drive import Drive
-    return sum(_safe_file_size(d.image_path) for d in db.query(Drive).all())
+    # Per-item drives are retired; the on-disk DOS/Win3.1 drives are now the
+    # shared environment working images (library/system/os/<era>/<era>.img).
+    dosbox_platforms = db.query(Platform).filter(Platform.era.in_(("dos", "win31"))).all()
+    return sum(_safe_file_size(p.working_image_path) for p in dosbox_platforms)
 
 
 def get_storage_stats(db: Session) -> dict:

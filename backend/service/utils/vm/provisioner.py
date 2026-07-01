@@ -24,6 +24,7 @@ from backend.service.utils.vm.vhd import _build_vhd_footer
 logger = get_logger(__name__)
 
 _86BOX_ERAS = frozenset({"win95", "win98", "winxp"})
+_DOSBOX_ERAS = frozenset({"dos", "win31"})
 
 
 def _load_default_disk_size_mb(era: str) -> int:
@@ -184,6 +185,59 @@ def provision_86box_vm(
 
 
 
+def provision_dosbox_drive(
+    platform: Platform,
+) -> tuple[str | None, str | None, str | None, str | None, str | None]:
+    """Provision the shared FAT16 C: image for a DOS / Windows 3.1 environment.
+
+    Unlike the 86Box path, DOSBox-X environments do not need a machine config
+    file (a per-launch temp conf is generated at launch time), so config_path
+    stays null. ``working_image_path`` is preset on the seeded platform; this
+    formats a real, correctly-structured FAT16 filesystem at that path via the
+    shared ``format_fat16`` service so DOSBox-X mounts a valid C: on first use.
+
+    Returns the (base, working, config, install, rom) tuple shared with the
+    86Box path; only ``working`` is populated. Raises loudly on any failure —
+    a missing preset path, an out-of-range size, or a formatting error — rather
+    than degrading into an opaque DOSBox-X console error at launch.
+    """
+    era = platform.era
+    if era not in _DOSBOX_ERAS:
+        raise ValueError(f"provision_dosbox_drive: unsupported era '{era}'")
+
+    from backend.service.utils.fat import format_fat16
+    from backend.service.utils.path_utils import normalise_path
+
+    if not platform.working_image_path:
+        raise RuntimeError(
+            f"DOS/Win3.1 environment '{platform.slug or platform.id}' has no "
+            "working_image_path preset — cannot provision its C: drive."
+        )
+
+    target = normalise_path(platform.working_image_path)
+    if target.exists():
+        return None, str(target), None, None, None
+
+    size_mb = _load_default_disk_size_mb(era)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    required_bytes = size_mb * 1024 * 1024
+    usage = shutil.disk_usage(target.parent)
+    if usage.free < required_bytes:
+        raise OSError(
+            f"Insufficient disk space to create DOS drive image: "
+            f"need {required_bytes // (1024 * 1024)} MiB, "
+            f"only {usage.free // (1024 * 1024)} MiB free in {target.parent}."
+        )
+
+    # format_fat16 refuses to overwrite an existing file and validates the
+    # size against the FAT16 range, raising RuntimeError on either — surfaced
+    # to the caller as a normal Python exception, never a silent fallback.
+    format_fat16(target, size_mb)
+    logger.info("Provisioned DOS/Win3.1 drive image %s (%d MB)", target, size_mb)
+    return None, str(target), None, None, None
+
+
 def provision_platform(
     platform: Platform,
 ) -> tuple[str | None, str | None, str | None, str | None, str | None]:
@@ -196,6 +250,9 @@ def provision_platform(
     that immediately follows can reuse them instead of re-resolving from scratch.
     """
     era = platform.era
+
+    if era in _DOSBOX_ERAS:
+        return provision_dosbox_drive(platform)
 
     if era in _86BOX_ERAS:
         _box86_install = get_install_path("86box")

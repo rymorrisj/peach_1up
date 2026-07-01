@@ -137,3 +137,59 @@ def _seed_default_profiles(db) -> bool:
         db.rollback()
         logger.error("Default profile seeding failed: %s", exc)
         return False
+
+
+# DOS / Windows 3.1 environments. Each is a single shared, persistent C: image
+# (the environment-style model 86Box already uses), linked to the era's bundled
+# profile so item launches resolve it via Platform.profile_id. The image itself
+# is provisioned (FAT16-formatted) lazily on first launch, not at seed time.
+_DOSBOX_ENVIRONMENTS = [
+    {"slug": "dos",   "name": "DOS",          "era": "dos",   "profile_slug": "dos-default",   "image_rel": "os/dos/dos.img"},
+    {"slug": "win31", "name": "Windows 3.1",  "era": "win31", "profile_slug": "win31-default", "image_rel": "os/win31/win31.img"},
+]
+
+
+def _seed_dosbox_environments(db) -> bool:
+    """Seed the DOS and Windows 3.1 environment platforms.
+
+    Must run after _seed_default_profiles so the bundled dos-default /
+    win31-default profiles exist to link via profile_id. working_image_path is
+    preset to the canonical shared image path under library/system/os/; the
+    file is created on first launch by provisioner.provision_dosbox_drive.
+    """
+    try:
+        from backend.models import Platform, Profile
+        from backend.core.settings import get_base_path
+
+        os_root = get_base_path() / "library" / "system"
+        added = 0
+        for env in _DOSBOX_ENVIRONMENTS:
+            if db.query(Platform).filter(Platform.slug == env["slug"]).first():
+                continue
+            profile = db.query(Profile).filter(Profile.slug == env["profile_slug"]).first()
+            if profile is None:
+                logger.error(
+                    "Cannot seed '%s' environment: bundled profile '%s' not found",
+                    env["slug"], env["profile_slug"],
+                )
+                return False
+            image_path = str((os_root / env["image_rel"]).resolve())
+            db.add(Platform(
+                slug=env["slug"],
+                name=env["name"],
+                era=env["era"],
+                emulator_slug="dosbox-x",
+                profile_id=profile.id,
+                working_image_path=image_path,
+                is_system=True,
+                status="unconfigured",
+            ))
+            added += 1
+        if added:
+            db.flush()
+            logger.info("Seeded %d DOS/Win3.1 environment(s)", added)
+        return True
+    except Exception as exc:
+        db.rollback()
+        logger.error("DOS/Win3.1 environment seeding failed: %s", exc)
+        return False

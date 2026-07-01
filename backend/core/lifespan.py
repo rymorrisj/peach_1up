@@ -9,7 +9,11 @@ from backend.core.logger import get_logger
 from backend.core.process_monitor import _process_monitor_loop
 from backend.core.settings import get_base_path, init_settings
 from backend.core.startup_migrations import _apply_schema_migrations
-from backend.core.startup_seed import _seed_default_profiles, _seed_system_platforms
+from backend.core.startup_seed import (
+    _seed_default_profiles,
+    _seed_dosbox_environments,
+    _seed_system_platforms,
+)
 from backend.core.startup_tasks import (
     _cleanup_stale_sessions,
     _ensure_default_paths,
@@ -23,7 +27,6 @@ from backend.core.startup_tasks import (
 from backend.service.launch.history import write_session_ends as _write_session_ends
 import backend.models.user  # noqa: F401 — registers User with SQLModel.metadata
 import backend.models.media_restriction  # noqa: F401 — registers MediaRestriction with SQLModel.metadata
-import backend.models.drive  # noqa: F401 — registers Drive with SQLModel.metadata
 import backend.models.tag  # noqa: F401 — registers Tag and EntityTag with SQLModel.metadata
 
 logger = get_logger(__name__)
@@ -59,12 +62,14 @@ async def lifespan(app: FastAPI):
         _sync_first_run_from_db(db)
         _platforms_seeded = _seed_system_platforms(db)
         _profiles_seeded = _seed_default_profiles(db)
+        # Must follow profile seeding — links to the bundled dos/win31 profiles.
+        _dosbox_envs_seeded = _seed_dosbox_environments(db)
         _cleanup_stale_sessions(db)
         _flag_corrupt_platform_working_paths(db)
         db.commit()
 
-    app.state.seed_warnings = not (_platforms_seeded and _profiles_seeded)
-    if not _platforms_seeded or not _profiles_seeded:
+    app.state.seed_warnings = not (_platforms_seeded and _profiles_seeded and _dosbox_envs_seeded)
+    if not _platforms_seeded or not _profiles_seeded or not _dosbox_envs_seeded:
         raise RuntimeError(
             "Startup aborted: required seed data could not be created — see logs above."
         )
