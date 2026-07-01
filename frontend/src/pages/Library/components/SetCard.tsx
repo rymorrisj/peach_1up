@@ -30,7 +30,6 @@ export interface LibrarySetData {
   launch_review_flagged: boolean
   platform_id: number | null
   profile_id: number | null
-  drive_id: number | null
   launch_disk_id: number | null
   display_disk_id: number | null
   last_launched_at: string | null

@@ -2,11 +2,7 @@ import { Button, FormField, Input, Modal, Textarea } from '@/ui'
 import LaunchCommandList from '@/components/LaunchCommandList'
 import { DGVOODOO2_SUPPORTED_ERAS } from '@/generated/constants'
 import type { EmulatorCatalogSlug } from '@/generated/constants'
-import type { DriveMode, DriveRecord, EmulatorEntry, ProfileForm, ProfileModalState } from '@/types/profiles'
-
-const ERA_DEFAULT_DRIVE_SIZE: Record<string, number> = {
-  dos: 500, win31: 500, win95: 2048, win98: 4096, winxp: 8192,
-}
+import type { EmulatorEntry, ProfileForm, ProfileModalState } from '@/types/profiles'
 
 const SELECT_CLASS =
   'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
@@ -18,7 +14,6 @@ interface ProfilesTabFormModalProps {
   submitError: string | null
   submitting: boolean
   emulators: EmulatorEntry[]
-  drives: DriveRecord[]
   eraOptions: Array<{ value: string; label: string }>
   emulatorOptions: Array<{ value: string; label: string }>
   setField: <K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) => void
@@ -27,7 +22,7 @@ interface ProfilesTabFormModalProps {
 }
 
 export function ProfilesTabFormModal({
-  modal, form, formErrors, submitError, submitting, emulators, drives, eraOptions, emulatorOptions, setField, onSubmit, onClose,
+  modal, form, formErrors, submitError, submitting, emulators, eraOptions, emulatorOptions, setField, onSubmit, onClose,
 }: ProfilesTabFormModalProps) {
   const modalTitle = modal?.mode === 'create' ? 'Add Launch Profile' : 'Edit Launch Profile'
 
@@ -214,73 +209,6 @@ export function ProfilesTabFormModal({
             <option value="false">Disabled</option>
           </select>
         </FormField>
-      )}
-
-      <FormField label="Persistent drive" htmlFor="lp-drive-mode">
-        <select
-          id="lp-drive-mode"
-          value={form.drive_mode}
-          onChange={(e) => {
-            const mode = e.target.value as DriveMode
-            setField('drive_mode', mode)
-            if (mode === 'create' && !form.new_drive_name) {
-              setField('new_drive_name', form.slug ? `${form.slug}-drive` : '')
-              setField('new_drive_size_mb', ERA_DEFAULT_DRIVE_SIZE[form.era] ?? 500)
-            }
-          }}
-          className={SELECT_CLASS}
-        >
-          <option value="none">No drive</option>
-          <option value="existing">Use existing drive</option>
-          <option value="create">Create new drive</option>
-        </select>
-        {form.drive_mode === 'none' && (
-          <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-            Without a drive, sound configuration and save files will not persist between sessions.
-          </p>
-        )}
-      </FormField>
-
-      {form.drive_mode === 'existing' && (
-        <FormField label="Select drive" htmlFor="lp-drive-slug" error={formErrors.drive_slug}>
-          <select
-            id="lp-drive-slug"
-            value={form.drive_slug}
-            onChange={(e) => setField('drive_slug', e.target.value)}
-            className={SELECT_CLASS}
-          >
-            <option value="">— Select a drive —</option>
-            {drives.map((d) => (
-              <option key={d.slug} value={d.slug}>
-                {d.name} ({d.size_mb} MB, {d.era})
-              </option>
-            ))}
-          </select>
-        </FormField>
-      )}
-
-      {form.drive_mode === 'create' && (
-        <>
-          <FormField label="Drive name" htmlFor="lp-drive-name" error={formErrors.new_drive_name}>
-            <Input
-              id="lp-drive-name"
-              value={form.new_drive_name}
-              onChange={(e) => setField('new_drive_name', e.target.value)}
-              placeholder={`${form.slug || 'profile'}-drive`}
-              hasError={!!formErrors.new_drive_name}
-            />
-          </FormField>
-          <FormField label="Drive size (MB)" htmlFor="lp-drive-size">
-            <Input
-              id="lp-drive-size"
-              type="number"
-              min={64}
-              max={32768}
-              value={form.new_drive_size_mb}
-              onChange={(e) => setField('new_drive_size_mb', parseInt(e.target.value, 10) || 500)}
-            />
-          </FormField>
-        </>
       )}
 
       {submitError && (

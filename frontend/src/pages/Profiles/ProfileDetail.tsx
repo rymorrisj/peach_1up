@@ -247,14 +247,7 @@ export default function ProfileDetail() {
                   <span style={{ color: 'var(--fg-3)' }}>—</span>
                 </FieldRow>
                 <FieldRow label="HDD image">
-                  {profile.drive_slug ? (
-                    <button type="button" onClick={() => navigate(`/drives/${profile.drive_slug}`)}
-                      style={{ background: 'none', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--peach-500)', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
-                      {profile.drive_slug}
-                    </button>
-                  ) : (
-                    <span style={{ color: 'var(--fg-3)' }}>—</span>
-                  )}
+                  <span style={{ color: 'var(--fg-3)' }}>—</span>
                 </FieldRow>
                 <FieldRow label="Mounted ROM packs" last>
                   <span style={{ color: 'var(--fg-3)' }}>—</span>

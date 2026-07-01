@@ -144,14 +144,6 @@ export default function ItemDetail() {
                   {actions.localInstalled ? 'Mark as not installed' : 'Mark as installed'}
                 </Button>
               </div>
-              <div>
-                <span className="font-medium">Drive size:</span>{' '}
-                <span className="text-neutral-500 dark:text-neutral-400">
-                  {item.drive?.size_mb != null
-                    ? `${item.drive.size_mb} MB`
-                    : <span className="italic text-neutral-400 dark:text-neutral-500">Drive created on first launch</span>}
-                </span>
-              </div>
             </>
           ) : undefined
         }

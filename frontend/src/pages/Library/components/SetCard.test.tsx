@@ -19,7 +19,6 @@ function makeSet(overrides?: Partial<LibrarySetData>): LibrarySetData {
     launch_review_flagged: false,
     platform_id: null,
     profile_id: null,
-    drive_id: null,
     launch_disk_id: 10,
     display_disk_id: null,
     last_launched_at: null,
@@ -31,6 +30,7 @@ function makeSet(overrides?: Partial<LibrarySetData>): LibrarySetData {
       { id: 20, set_id: 1, disc_number: 2, media_path: '/b.iso', cover_art_path: null, cover_art_url: 'http://x/disc2.jpg', executable_path: null, file_size_bytes: null },
       { id: 30, set_id: 1, disc_number: 3, media_path: '/c.iso', cover_art_path: null, cover_art_url: 'http://x/disc3.jpg', executable_path: null, file_size_bytes: null },
     ],
+    tags: [],
     ...overrides,
   }
 }

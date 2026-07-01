@@ -9,13 +9,7 @@ import { useConfirm } from '@/hooks/useConfirm'
 import { ERA_LABELS, EMULATOR_CATALOG_SLUGS } from '@/generated/constants'
 import { ProfilesTabList } from './components/ProfilesTabList'
 import { ProfilesTabFormModal } from './components/ProfilesTabFormModal'
-import type { DriveRecord, EmulatorEntry, LaunchProfile, ProfileForm, ProfileModalState } from '@/types/profiles'
-
-const DOS_WIN31_ERAS = new Set(['dos', 'win31'])
-
-const ERA_DEFAULT_DRIVE_SIZE: Record<string, number> = {
-  dos: 500, win31: 500, win95: 2048, win98: 4096, winxp: 8192,
-}
+import type { EmulatorEntry, LaunchProfile, ProfileForm, ProfileModalState } from '@/types/profiles'
 
 const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
 const EMULATOR_OPTIONS = EMULATOR_CATALOG_SLUGS.map((slug) => ({ value: slug, label: slug }))
@@ -31,10 +25,6 @@ const EMPTY_PROFILE_FORM: ProfileForm = {
   notes: '',
   launch_commands: [],
   container_enabled: null,
-  drive_mode: 'none',
-  drive_slug: '',
-  new_drive_name: '',
-  new_drive_size_mb: 500,
 }
 
 function slugify(name: string): string {
@@ -56,11 +46,6 @@ export default function ProfilesTab() {
   const { data: profiles, isLoading } = useQuery<LaunchProfile[]>({
     queryKey: ['profiles'],
     queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
-  })
-
-  const { data: drives = [] } = useQuery<DriveRecord[]>({
-    queryKey: ['drives'],
-    queryFn: () => apiFetch<DriveRecord[]>('/api/v1/drives'),
   })
 
   const { data: emulators = [] } = useQuery<EmulatorEntry[]>({
@@ -86,10 +71,7 @@ export default function ProfilesTab() {
       launch_commands?: string[] | null
       container_enabled?: boolean | null
       enable_dgvoodoo2?: boolean
-      drive_slug?: string | null
-      use_drive?: boolean
     }
-    const hasDrive = !!(ext.drive_slug && ext.use_drive !== false)
     setForm({
       name: profile.name,
       slug: profile.slug,
@@ -101,10 +83,6 @@ export default function ProfilesTab() {
       notes: profile.notes ?? '',
       launch_commands: ext.launch_commands ?? [],
       container_enabled: ext.container_enabled ?? null,
-      drive_mode: ext.use_drive === false ? 'none' : hasDrive ? 'existing' : 'none',
-      drive_slug: ext.drive_slug ?? '',
-      new_drive_name: '',
-      new_drive_size_mb: ERA_DEFAULT_DRIVE_SIZE[profile.era] ?? 500,
     })
     setFormErrors({})
     setSubmitError(null)
@@ -121,14 +99,6 @@ export default function ProfilesTab() {
       if (key === 'name' && modal?.mode === 'create') {
         next.slug = slugify(value as string)
       }
-      if (key === 'era' && modal?.mode === 'create') {
-        const era = value as string
-        next.drive_mode = DOS_WIN31_ERAS.has(era) ? 'create' : 'none'
-        next.new_drive_size_mb = ERA_DEFAULT_DRIVE_SIZE[era] ?? 500
-      }
-      if (key === 'slug' && modal?.mode === 'create' && !prev.new_drive_name) {
-        next.new_drive_name = `${value as string}-drive`
-      }
       return next
     })
     setFormErrors((prev) => ({ ...prev, [key]: undefined }))
@@ -140,8 +110,6 @@ export default function ProfilesTab() {
     if (!form.slug.trim()) errors.slug = 'Slug is required.'
     if (!form.emulator_slug.trim()) errors.emulator_slug = 'Emulator slug is required.'
     if (!form.era) errors.era = 'Era is required.'
-    if (form.drive_mode === 'existing' && !form.drive_slug) errors.drive_slug = 'Select a drive.'
-    if (form.drive_mode === 'create' && !form.new_drive_name.trim()) errors.new_drive_name = 'Drive name is required.'
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -151,27 +119,6 @@ export default function ProfilesTab() {
     setSubmitting(true)
     setSubmitError(null)
     try {
-      let resolvedDriveSlug: string | null = null
-      let resolvedUseDrive = false
-
-      if (form.drive_mode === 'existing' && form.drive_slug) {
-        resolvedDriveSlug = form.drive_slug
-        resolvedUseDrive = true
-      } else if (form.drive_mode === 'create') {
-        const newDrive = await apiFetch<DriveRecord>('/api/v1/drives', {
-          method: 'POST',
-          body: JSON.stringify({
-            slug: form.new_drive_name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
-            name: form.new_drive_name.trim(),
-            size_mb: form.new_drive_size_mb,
-            era: form.era,
-          }),
-        })
-        resolvedDriveSlug = newDrive.slug
-        resolvedUseDrive = true
-        await queryClient.invalidateQueries({ queryKey: ['drives'] })
-      }
-
       const body: Record<string, unknown> = {
         name: form.name.trim(),
         slug: form.slug.trim(),
@@ -181,8 +128,6 @@ export default function ProfilesTab() {
         enable_dgvoodoo2: form.enable_dgvoodoo2,
         launch_commands: form.launch_commands,
         container_enabled: form.container_enabled,
-        drive_slug: resolvedDriveSlug,
-        use_drive: resolvedUseDrive,
       }
       if (form.extra_args.trim()) body.extra_args = form.extra_args.trim()
       if (form.notes.trim()) body.notes = form.notes.trim()
@@ -261,7 +206,6 @@ export default function ProfilesTab() {
         submitError={submitError}
         submitting={submitting}
         emulators={emulators}
-        drives={drives}
         eraOptions={ERA_OPTIONS}
         emulatorOptions={EMULATOR_OPTIONS}
         setField={setField}
