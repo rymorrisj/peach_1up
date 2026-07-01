@@ -84,7 +84,7 @@ profiles/conf/
 /library/media
 /library/system/os
 
-# Bundled emulator binaries (drop-in, never committed — legal/compliance files are tracked)
+# Bundled emulator binaries (drop-in, never committed. Legal/compliance files are tracked)
 # Use ** (not trailing /) so git descends into the directory and evaluates the negations below
 # Nested .git dirs are stripped on install; only the root .git should ever exist in this project
 /emulators/**
