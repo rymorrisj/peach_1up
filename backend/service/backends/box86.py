@@ -116,10 +116,18 @@ def _prepare_config(
     _set_if_absent(parser, "Input devices", "mouse_type",    "ps2")
     _set_if_absent(parser, "Input devices", "keyboard_type", "keyboard_ps2")
 
+    try:
+        image_size_bytes = working_image_path.stat().st_size
+    except OSError as exc:
+        raise OSError(
+            f"Cannot stat disk image for platform '{platform_name}': {working_image_path}"
+        ) from exc
+    cylinders = max(1, image_size_bytes // (16 * 63 * 512))
+
     _ensure_section(parser, "Hard disks")
     parser.set("Hard disks", "hdd_01_fn", working_image_path.name)
     parser.set("Hard disks", "hdd_01_ide_channel", "0:0")
-    parser.set("Hard disks", "hdd_01_parameters", "63, 16, 4161, 0, ide")
+    parser.set("Hard disks", "hdd_01_parameters", f"63, 16, {cylinders}, 0, ide")
     parser.set("Hard disks", "hdd_01_speed", "ramdisk")
 
     cdrom_section = "Floppy and CD-ROM drives"
