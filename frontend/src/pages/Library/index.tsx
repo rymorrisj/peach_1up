@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
@@ -111,10 +111,15 @@ export default function Library() {
     staleTime: 60_000,
   })
 
-  function invalidate() {
+  const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['library'] })
     queryClient.invalidateQueries({ queryKey: ['library-sets'] })
-  }
+  }, [queryClient])
+
+  useEffect(() => {
+    window.addEventListener('upload-complete', invalidate)
+    return () => window.removeEventListener('upload-complete', invalidate)
+  }, [invalidate])
 
   async function handleRemove(item: LibraryItem) {
     const confirmed = await confirm({

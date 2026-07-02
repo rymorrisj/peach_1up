@@ -62,6 +62,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(iv)
   }, [activeJobCount])
 
+  // Emit 'upload-complete' whenever an upload job transitions processing → done
+  // so the library grid can invalidate without polling or a manual refresh.
+  const prevJobsRef = useRef<BackgroundJob[]>([])
+  useEffect(() => {
+    const prev = prevJobsRef.current
+    const justFinished = state.backgroundJobs.filter(
+      (j) => j.kind === 'upload' && j.status === 'done' &&
+        prev.some((p) => p.id === j.id && p.status === 'processing'),
+    )
+    if (justFinished.length > 0) {
+      window.dispatchEvent(new CustomEvent('upload-complete'))
+    }
+    prevJobsRef.current = state.backgroundJobs
+  }, [state.backgroundJobs])
+
   return (
     <AppContext.Provider value={{ state, dispatch }}>
       {children}

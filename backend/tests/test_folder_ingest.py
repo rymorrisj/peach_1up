@@ -28,12 +28,12 @@ from fastapi import HTTPException
 
 class TestPickFolderLaunchFile:
     def _call(self, *names: str, base: Path | None = None) -> Path:
-        from backend.api.routes.library import _pick_folder_launch_file
+        from backend.service.library.folder_ingest import pick_folder_launch_file
         if base is None:
             paths = [Path(n) for n in names]
         else:
             paths = [base / n for n in names]
-        return _pick_folder_launch_file(paths)
+        return pick_folder_launch_file(paths)
 
     def test_gdi_returned_first_dreamcast_era(self, tmp_path):
         (tmp_path / "track.gdi").write_bytes(b"")
@@ -52,9 +52,9 @@ class TestPickFolderLaunchFile:
         assert result.suffix.lower() == ".gdi"
 
     def test_no_launch_file_raises_422(self):
-        from backend.api.routes.library import _pick_folder_launch_file
+        from backend.service.library.folder_ingest import pick_folder_launch_file
         with pytest.raises(HTTPException) as exc_info:
-            _pick_folder_launch_file([Path("readme.txt"), Path("cover.jpg")])
+            pick_folder_launch_file([Path("readme.txt"), Path("cover.jpg")])
         assert exc_info.value.status_code == 422
 
     def test_iso_returned_when_no_gdi_or_cue(self, tmp_path):
@@ -69,8 +69,8 @@ class TestPickFolderLaunchFile:
 
 class TestDetectDiscFiles:
     def _call(self, *names: str) -> list[Path]:
-        from backend.api.routes.library import _detect_disc_files
-        return _detect_disc_files([Path(n) for n in names])
+        from backend.service.library.folder_ingest import detect_disc_files
+        return detect_disc_files([Path(n) for n in names])
 
     def test_zero_disc_files_returns_empty(self):
         result = self._call("game.iso", "cover.jpg")
