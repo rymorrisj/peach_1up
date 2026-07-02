@@ -107,7 +107,7 @@ echo [OK] Docs dependencies installed
 
 REM ── Generate API types ───────────────────────────────────────
 echo Generating OpenAPI spec and frontend types...
-py scripts\export_and_build_types.py
+.venv\Scripts\python.exe scripts\export_and_build_types.py
 if errorlevel 1 (
     echo ERROR: Type generation failed. Aborting.
     exit /b 1
@@ -132,7 +132,7 @@ REM ── Settings check ──────────────────
 if not exist "config\settings.yaml" (
     echo.
     echo WARNING: config\settings.yaml not found.
-    echo Copy config\settings.yaml.template to config\settings.yaml and fill in paths.
+    echo settings.yaml will be created automatically on first launch.
 ) else (
     echo [OK] config\settings.yaml found
 )
@@ -143,7 +143,7 @@ if exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
 ) else (
     echo sandbox_host.exe not found. Attempting to build via MSYS2 UCRT64...
     if exist "C:\msys64\msys2_shell.cmd" (
-        "C:\msys64\msys2_shell.cmd" -ucrt64 -defterm -no-start -here -c "bash build.sh"
+        "C:\msys64\msys2_shell.cmd" -ucrt64 -defterm -no-start -here -c "bash backend/service/utils/platform/windows/sandbox/build.sh"
         if errorlevel 1 (
             echo ERROR: sandbox_host.exe build failed.
             echo Run build.sh manually from an MSYS2 UCRT64 shell.
@@ -159,7 +159,7 @@ if exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
         echo ERROR: sandbox_host.exe not found and MSYS2 is not installed.
         echo To build it manually:
         echo   1. Install MSYS2 from https://www.msys2.org/
-        echo   2. Open an MSYS2 UCRT64 shell and run: bash build.sh
+        echo   2. Open an MSYS2 UCRT64 shell and run: bash backend/service/utils/platform/windows/sandbox/build.sh
         echo   3. Re-run start.bat
         exit /b 1
     )
@@ -172,7 +172,7 @@ echo.
 echo Starting Peach 1UP (frontend :5173, backend :8000, docs :3000)...
 start "Peach 1UP Frontend" /d "%~dp0frontend" cmd /k "npm run dev"
 start "Peach 1UP Docs" /d "%~dp0docs" cmd /k "npm run start"
-py -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload --reload-dir backend
+.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload --reload-dir backend
 
 echo.
 echo Backend stopped.

@@ -58,7 +58,7 @@ echo "[OK] Frontend dependencies installed"
 if [ ! -f "config/settings.yaml" ]; then
   echo
   echo "WARNING: config/settings.yaml not found."
-  echo "Copy config/settings.yaml.template to config/settings.yaml and fill in paths."
+  echo "settings.yaml will be created automatically on first launch."
 else
   echo "[OK] config/settings.yaml found"
 fi
@@ -69,7 +69,7 @@ if [ ! -f "backend/service/utils/platform/windows/sandbox/sandbox_host.exe" ]; t
   echo
   echo "NOTICE: backend/service/utils/platform/windows/sandbox/sandbox_host.exe not found."
   echo "sandbox_host.exe is a Windows-only artifact and is not required on this platform."
-  echo "To build it for a Windows deployment, run build.sh from an MSYS2 UCRT64 shell."
+  echo "To build it for a Windows deployment, run backend/service/utils/platform/windows/sandbox/build.sh from an MSYS2 UCRT64 shell."
 else
   echo "[OK] sandbox_host.exe found"
 fi

@@ -126,7 +126,7 @@ REM ── Generate API types ────────────────�
 REM Must run before the docs build below — it produces shared/openapi.json,
 REM which docusaurus-plugin-openapi-docs reads to generate docs/docs/api/.
 echo Generating OpenAPI spec and frontend types...
-py scripts\export_and_build_types.py
+.venv\Scripts\python.exe scripts\export_and_build_types.py
 if errorlevel 1 (
     echo ERROR: Type generation failed. Aborting.
     exit /b 1
@@ -157,7 +157,7 @@ REM ── Settings check ──────────────────
 if not exist "config\settings.yaml" (
     echo.
     echo WARNING: config\settings.yaml not found.
-    echo Copy config\settings.yaml.template to config\settings.yaml and fill in paths.
+    echo settings.yaml will be created automatically on first launch.
 ) else (
     echo [OK] config\settings.yaml found
 )

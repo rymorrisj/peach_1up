@@ -67,6 +67,10 @@ a.datas = [
     and not any(seg in dest for seg in ("test_", "_test.", "/tests/", "/test/"))
     and not any(part in dest for part in ("roms", "bios", "saves", "vms"))
     and dest.replace("\\", "/") != "config/emulators.yaml"
+    and dest.replace("\\", "/") not in (
+        "scripts/manage_test_users.py",
+        "scripts/run_tests.py",
+    )
 ]
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
