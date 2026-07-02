@@ -8,7 +8,7 @@ as an open source project.
 
 ## Infrastructure
 
-PyInstaller compiles the Python backend to a standalone executable. React builds to static files served by FastAPI. pystray provides a system tray icon. Windows installer via NSIS/WiX, Linux via deb/AppImage. GitHub Actions handles release builds. P7.
+PyInstaller compiles the Python backend to a standalone executable. React builds to static files served by FastAPI. pystray provides a system tray icon. Windows installer via NSIS/WiX, Linux via deb/AppImage. CI/CD pipeline planned (P7).
 
 ## Platform
 

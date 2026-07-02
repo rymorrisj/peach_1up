@@ -5,7 +5,7 @@ image, pick an era, and it launches the correct emulator with the media mounted
 and sensible defaults applied — no manual emulator configuration required.
 
 Covers PC platforms from DOS through Windows XP and first-generation consoles
-(PS1, PS2, Xbox OG, NES, N64).
+(PS1, PS2, Xbox OG, Dreamcast, NES, SNES, N64).
 
 ---
 
@@ -22,7 +22,7 @@ Covers PC platforms from DOS through Windows XP and first-generation consoles
 | PCSX2       | PS2              | [pcsx2.net](https://pcsx2.net) — requires PS2 BIOS                                        |
 | xemu        | Xbox OG          | [xemu.app](https://xemu.app) — requires Xbox BIOS                                         |
 | Flycast     | Dreamcast        | [github.com/flyinghead/flycast](https://github.com/flyinghead/flycast) — requires DC BIOS |
-| Mesen       | NES              | [mesen.ca](https://www.mesen.ca)                                                          |
+| Mesen       | NES, SNES        | [mesen.ca](https://www.mesen.ca)                                                          |
 | Project64   | N64              | [pj64-emu.com](https://www.pj64-emu.com)                                                  |
 
 Emulators marked "requires BIOS" need a BIOS image sourced from your own hardware. Peach 1UP does not provide BIOS files.
