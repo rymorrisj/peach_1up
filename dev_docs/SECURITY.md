@@ -357,7 +357,7 @@ get_skip_cpu_limit() in emulator_catalog.py.
 
 Each emulator requires smoke test and full test matrix (OS × GPU × audio × controller ×
 install path × locale) before `container_enabled` is set to true. Until then, that emulator
-runs under Job Object only. See CONTEXT.md P9-6 for the test matrix definition.
+runs under Job Object only. See SCOPE.md P9-6 for the test matrix definition.
 
 ### Linux sandbox implementation (planned)
 
