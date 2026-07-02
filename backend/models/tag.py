@@ -62,3 +62,27 @@ def get_tags_for_entity(entity_type: str, entity_id: int, db: "Session") -> list
         .order_by(Tag.name)
     ).scalars().all()
     return [TagRead.model_validate(t) for t in rows]
+
+
+def get_tags_for_entities(
+    entity_type: str, entity_ids: list[int], db: "Session"
+) -> dict[int, list[TagRead]]:
+    """Bulk variant of get_tags_for_entity: one query for many entity ids.
+
+    Returns ``{entity_id: [tags sorted by name]}``. Entity ids with no tags are
+    absent from the map, so callers should default to ``[]``. Replaces calling
+    get_tags_for_entity in a loop over a list response (the N+1).
+    """
+    if not entity_ids:
+        return {}
+    from sqlalchemy import select as _select
+    rows = db.execute(
+        _select(EntityTag.entity_id, Tag)
+        .join(EntityTag, EntityTag.tag_id == Tag.id)
+        .where(EntityTag.entity_type == entity_type, EntityTag.entity_id.in_(entity_ids))
+        .order_by(Tag.name)
+    ).all()
+    result: dict[int, list[TagRead]] = {}
+    for entity_id, tag in rows:
+        result.setdefault(entity_id, []).append(TagRead.model_validate(tag))
+    return result

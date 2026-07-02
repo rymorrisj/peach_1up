@@ -6,7 +6,7 @@ from pydantic import field_validator, model_validator
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, Relationship, SQLModel
 from backend.constants_generated import EraValue, MediaType
-from backend.models.tag import TagRead, get_tags_for_entity
+from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_entity
 
 if TYPE_CHECKING:
     from backend.models.tag import Tag
@@ -165,3 +165,13 @@ def item_to_read(item: "LibraryItem", db: "Session") -> LibraryItemRead:
     read = LibraryItemRead.model_validate(item)
     read.tags = get_tags_for_entity("library_item", item.id, db)
     return read
+
+
+def items_to_read_bulk(items: list["LibraryItem"], db: "Session") -> list[LibraryItemRead]:
+    """Like ``[item_to_read(i, db) for i in items]`` but loads every item's tags
+    in a single query instead of one per item (removes the N+1)."""
+    reads = [LibraryItemRead.model_validate(i) for i in items]
+    tag_map = get_tags_for_entities("library_item", [i.id for i in items], db)
+    for read, item in zip(reads, items):
+        read.tags = tag_map.get(item.id, [])
+    return reads

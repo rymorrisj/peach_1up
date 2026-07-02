@@ -9,7 +9,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, SQLModel
 
 from backend.constants_generated import EraValue
-from backend.models.tag import TagRead, get_tags_for_entity
+from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_entity
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -166,3 +166,32 @@ def set_to_read(s: LibrarySet, db: "Session") -> LibrarySetRead:
     read.items = [LibrarySetItemRead.model_validate(i) for i in items_orm]
     read.tags = get_tags_for_entity("library_set", s.id, db)
     return read
+
+
+def sets_to_read_bulk(sets: list[LibrarySet], db: "Session") -> list[LibrarySetRead]:
+    """set_to_read over a list of sets in two bulk queries total (all set items,
+    then all tags) instead of the two-queries-per-set N+1 of calling set_to_read
+    in a loop."""
+    from sqlalchemy import select as _select
+
+    if not sets:
+        return []
+    set_ids = [s.id for s in sets]
+    items_orm = db.execute(
+        _select(LibrarySetItem)
+        .where(LibrarySetItem.set_id.in_(set_ids))
+        .order_by(LibrarySetItem.set_id, LibrarySetItem.disc_number)
+    ).scalars().all()
+    items_by_set: dict[int, list[LibrarySetItemRead]] = {}
+    for it in items_orm:
+        items_by_set.setdefault(it.set_id, []).append(LibrarySetItemRead.model_validate(it))
+
+    tag_map = get_tags_for_entities("library_set", set_ids, db)
+
+    reads: list[LibrarySetRead] = []
+    for s in sets:
+        read = LibrarySetRead.model_validate(s)
+        read.items = items_by_set.get(s.id, [])
+        read.tags = tag_map.get(s.id, [])
+        reads.append(read)
+    return reads
