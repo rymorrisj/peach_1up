@@ -1,0 +1,75 @@
+---
+title: Dev Setup
+---
+
+# Dev Setup
+
+This page covers the contributor workflow: cloning, verifying changes, branching, and opening a pull request. For installing prerequisites (Python, Node.js, emulators) see [Getting Started](../getting-started/index.md).
+
+## Clone and run
+
+```bash
+git clone <repo-url>
+cd peach_1up
+```
+
+Then run the setup script for your OS from the project root:
+
+```bash
+# Windows
+start.bat
+
+# Linux
+./start.sh
+```
+
+The script creates a Python virtual environment, installs backend and frontend dependencies, generates the OpenAPI spec and typed API client, and starts every service. When it finishes:
+
+| Service | URL |
+| ------- | --- |
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:8000 |
+| Docs site | http://localhost:3000 (Windows only) |
+
+## Static verification
+
+The project enforces **static-only verification** — never run the test suite (`pytest`, `vitest`) or install/remove packages as part of development. Verify correctness by reading the code and tracing call sites.
+
+**TypeScript type check:**
+
+```bash
+cd frontend && npx tsc --noEmit
+```
+
+**Python linting:**
+
+```bash
+.venv\Scripts\python.exe -m ruff check backend\   # Windows
+.venv/bin/python -m ruff check backend/            # Linux
+```
+
+## Branching and PR workflow
+
+Create a feature branch off `main`:
+
+```bash
+git checkout -b feat/your-topic
+```
+
+Keep branches short-lived and focused on a single concern. Open a pull request against `main` when ready. Before pushing, run the static checks above and confirm there are no type errors.
+
+For the commit message format, allowed types and scopes, and PR rules, see the root [CONTRIBUTING.md](../../CONTRIBUTING.md).
+
+## Key files to know
+
+| File / directory | Purpose |
+| ---------------- | ------- |
+| `backend/main.py` | FastAPI app entry point; mounts all routers |
+| `scripts/export_and_build_types.py` | Generates `shared/openapi.json` and `shared/types.ts` — run this when routers change |
+| `config/settings.yaml` | Runtime settings; gitignored, auto-generated on first launch |
+| `config/emulators/` | Per-emulator configuration `.toml` files |
+| `frontend/src/api/generated/` | Generated API client; never edit by hand |
+
+:::caution
+`export_and_build_types.py` must include every router that `main.py` mounts. A router added to `main.py` but missing from the script produces a stale OpenAPI spec and broken TypeScript types. Always check both files when adding or removing routers.
+:::

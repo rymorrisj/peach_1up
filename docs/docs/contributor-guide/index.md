@@ -6,6 +6,7 @@ slug: /contributor-guide
 
 Reference material for testing, building, and contributing to Peach 1UP.
 
+- [Dev Setup](./dev-setup.mdx) — clone, run, static verification, branch and PR workflow.
 - [Alpha Tester Guide](./alpha-testing.mdx) — installing the alpha build, walking through every feature, known limitations, and how to report bugs.
 - [Emulator Reference](./emulators.mdx) — portable-mode setup, required BIOS/ROM files, and version coupling for every supported emulator.
 - [Security Architecture](./security.mdx) — threat model, input validation, process spawning, and network rules that PRs touching these areas must follow.
