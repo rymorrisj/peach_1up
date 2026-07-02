@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import List, TYPE_CHECKING, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
-from backend.service.utils.fat.geometry import _read_geometry
+from backend.service.utils.fat.geometry import _is_bare_fat_superfloppy, _read_geometry
 from backend.constants_generated import Era
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
@@ -188,6 +188,7 @@ def _build_drive_mount_lines(
     use_drive: bool,
     media_path: Path,
     disc_paths: list[Path] | None = None,
+    run_from_c: bool = False,
 ) -> tuple[list[str], str | None, str, str]:
     """Return (drive_setup_lines, mount_line, drive_line, media_drive).
 
@@ -214,17 +215,35 @@ def _build_drive_mount_lines(
         if not drive_image_path.exists():
             drive_setup_lines.append(f"IMGMAKE {drive_cmd_path} -t hd -size {drive_size_mb}")
             drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
-        else:
+        elif _is_bare_fat_superfloppy(drive_image_path):
             geo = _read_geometry(drive_image_path)
             spt = 63        # standard sectors per track for CHS geometry
             hpc = 255       # standard heads per cylinder
             # Round up so the CHS triple covers at least the BPB's total_sectors;
             # floor division under-declared capacity and truncated the mounted drive.
             cyl = math.ceil(geo["total_sectors"] / (spt * hpc))
-            drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd -size 512,{spt},{hpc},{cyl}")
+            # sectoff=0 forces DOSBox-X to read the FAT BPB at sector 0 instead of
+            # searching for an MBR/partition table. format_fat16 writes a bare
+            # "superfloppy" (BPB at sector 0, no partition table); without this the
+            # -t hdd path misclassifies it as MBR, finds no FAT partition, and fails
+            # with "Cannot create drive from file".
+            drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd -size 512,{spt},{hpc},{cyl} -o sectoff=0")
+        else:
+            # Partitioned image (e.g. created by the IMGMAKE branch above on an
+            # earlier launch). DOSBox-X reads geometry from the MBR partition
+            # table; sectoff=0 must NOT be used here — it would force reading a
+            # BPB at sector 0, where the partition table actually lives, and
+            # mismount the drive.
+            drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
 
 
-        if media_path.is_dir():
+        if run_from_c:
+            # Hydrated loose-file item: files already live on the writable C:
+            # drive; run from there and skip the read-only D: source mount.
+            mount_line = None
+            drive_line = "C:"
+            media_drive = "C:"
+        elif media_path.is_dir():
             mount_line = None
             drive_line = "C:"
             media_drive = "C:"
@@ -338,6 +357,7 @@ def write_launch_conf(
     drive_setup_lines, mount_line, drive_line, media_drive = _build_drive_mount_lines(
         spec.drive_image_path, spec.drive_size_mb, spec.use_drive, media_path,
         disc_paths=spec.disc_paths or [],
+        run_from_c=spec.run_from_c,
     )
 
     # Layer 1: profile commands (base defaults, run first).
@@ -350,6 +370,30 @@ def write_launch_conf(
         _validate_game_executable(game_executable, media_drive)
         exe_cmds = [game_executable]
     item_cmds: list[str] = list(spec.launch_commands) + exe_cmds
+
+    # Auto-run: when launch_commands was never configured (auto_run_media), run
+    # the game automatically from its mounted drive. Drive-qualified so it runs
+    # regardless of the landing drive. An explicitly-cleared command list
+    # ([] -> auto_run_media False) intentionally drops the user at the prompt.
+    #   * run_from_c: the files were copied to the writable C: drive, so run the
+    #     copied executable (c_run_command) from C:.
+    #   * otherwise: the resolved media is itself a runnable executable mounted
+    #     on media_drive — run it by name.
+    if spec.auto_run_media and not item_cmds:
+        auto_run: str | None = None
+        if spec.run_from_c:
+            if spec.c_run_command:
+                auto_run = f"{media_drive}\\{spec.c_run_command}"
+        elif media_path.suffix.lower() in _EXEC_SUFFIXES:
+            auto_run = f"{media_drive}\\{media_path.name}"
+        if auto_run is not None:
+            _validate_game_executable(auto_run, media_drive)
+            item_cmds = [auto_run]
+
+    # Media-drive fallback: when nothing will run, land the shell on the media
+    # drive so the installer/game is visible instead of an empty C: prompt.
+    if not (profile_cmds + item_cmds):
+        drive_line = media_drive
 
     autoexec = _build_autoexec(
         drive_setup_lines, mount_line, drive_line, media_drive, profile_cmds, item_cmds
@@ -472,6 +516,15 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
                     path=str(spec.drive_image_path.parent),
                     access="rw",
                     mode="grant",
+                ))
+            # A pre-existing .img does not inherit the parent-dir grant, so apply
+            # an explicit ACE to the file itself or the AppContainer SID cannot
+            # write it (drive changes would silently fail).
+            sandbox_config.broker_files.append(
+                BrokerFile(
+                    path=str(spec.drive_image_path),
+                    access="rw",
+                    mode="secure",
                 ))
     else:
         sandbox_config = None

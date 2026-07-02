@@ -63,15 +63,20 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
         drive is not None
         and not entity.installed
         and not entity.requires_install
-        and Path(entity.media_path).is_dir()
+        and entity.folder_path is not None
+        and Path(entity.folder_path).is_dir()
     ):
+        # media_path is a single resolved launch file (items.py reassigns it at
+        # add time); folder_path is the loose-file source directory to size from
+        # and copy in full.
+        src_dir = Path(entity.folder_path)
         if not drive.image_path:
             raise RuntimeError(f"Drive id={drive.id!r} has no image_path — re-add the library item.")
         img_path = Path(drive.image_path)
         if img_path.exists():
             img_path.unlink()
         fresh_size = max(FAT16_SIZE_MIN_MB, min(
-            compute_drive_size_mb(Path(entity.media_path), entity.media_type or ""),
+            compute_drive_size_mb(src_dir, entity.media_type or ""),
             FAT16_SIZE_MAX_MB,
         ))
         if fresh_size != drive.size_mb:
@@ -79,7 +84,7 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
             db.add(drive)
             db.commit()
         format_fat16(img_path, fresh_size)
-        _copy_loose_files_to_drive(Path(entity.media_path), img_path, fresh_size)
+        _copy_loose_files_to_drive(src_dir, img_path, fresh_size)
         if entity._db_item is not None:
             entity._db_item.installed = True
             db.add(entity._db_item)

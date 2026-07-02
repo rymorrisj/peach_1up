@@ -123,3 +123,19 @@ def _cluster_byte_offset(geo: dict, cluster: int) -> int:
 
 def _cluster_size_bytes(geo: dict) -> int:
     return geo["sectors_per_cluster"] * _BYTES_PER_SECTOR
+
+
+def _is_bare_fat_superfloppy(img_path: Path) -> bool:
+    """True if img_path is a bare FAT superfloppy written by ``format_fat16``.
+
+    ``_build_boot_sector`` stamps the OEM name ``PEACH1UP`` at offset 3 of
+    sector 0, and the volume has no MBR/partition table (BPB lives at sector 0).
+    A partitioned image (e.g. one produced by DOSBox-X ``IMGMAKE``) has an MBR at
+    sector 0 with no such marker. The distinction decides the ``IMGMOUNT`` flags:
+    a superfloppy must be mounted with ``-o sectoff=0`` (read the BPB at sector 0,
+    skip partition detection), whereas a partitioned image must NOT use it — that
+    would misread the partition table as a BPB.
+    """
+    with img_path.open("rb") as f:
+        head = f.read(11)
+    return head[3:11] == b"PEACH1UP"

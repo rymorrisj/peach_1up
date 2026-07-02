@@ -197,6 +197,30 @@ def _build_spec_for_entity(
             drive_image_path = Path(drive.image_path)
         drive_size_mb = drive.size_mb
 
+    # Hydrated loose-file items run from the writable C: drive (their files were
+    # copied there by drive_hydration), not the read-only D: source mount. This
+    # mirrors the hydration copy condition so mount and hydration agree, but
+    # omits `installed` — the files live on C: on every launch, not just the
+    # first. c_run_command is the executable relative to the copied folder root.
+    run_from_c = False
+    c_run_command: str | None = None
+    if (
+        drive is not None
+        and bool(profile.use_drive)
+        and not entity.requires_install
+        and entity.folder_path is not None
+        and Path(entity.folder_path).is_dir()
+    ):
+        run_from_c = True
+        folder = Path(entity.folder_path)
+        exe_src = entity.executable_path or entity.media_path
+        if exe_src:
+            try:
+                rel = Path(exe_src).resolve().relative_to(folder.resolve())
+            except ValueError:
+                rel = Path(Path(exe_src).name)
+            c_run_command = str(rel).replace("/", "\\")
+
     vm_dir: Path | None = None
     config_path: Path | None = None
     working_image_path: Path | None = None
@@ -226,6 +250,9 @@ def _build_spec_for_entity(
         enable_networking=bool(profile.enable_networking),
         enable_dgvoodoo2=bool(profile.enable_dgvoodoo2),
         launch_commands=list(entity.launch_commands or []),
+        auto_run_media=entity.launch_commands is None,
+        run_from_c=run_from_c,
+        c_run_command=c_run_command,
         profile_id=profile.id,
         profile_launch_commands=list(profile.launch_commands or []),
         use_drive=bool(profile.use_drive),

@@ -47,15 +47,18 @@ export function useEditForm({ item, slug }: UseEditFormOptions) {
 
   const [form, setFormState] = useState<EditForm | null>(null)
   const [execBrowserOpen, setExecBrowserOpen] = useState(false)
-  const [launchCommands, setLaunchCommands] = useState<string[] | null>(null)
+  // undefined = not yet loaded; null = never configured (preserve, media may
+  // auto-run); [] = explicitly cleared (persist as empty → no auto-run).
+  // Using undefined as the load sentinel keeps null distinguishable from [].
+  const [launchCommands, setLaunchCommands] = useState<string[] | null | undefined>(undefined)
 
   useEffect(() => {
     if (item && !form) setFormState(formFromItem(item))
   }, [item, form])
 
   useEffect(() => {
-    if (item && launchCommands === null) {
-      setLaunchCommands(item.launch_commands ?? [])
+    if (item && launchCommands === undefined) {
+      setLaunchCommands(item.launch_commands ?? null)
     }
   }, [item, launchCommands])
 
@@ -63,7 +66,7 @@ export function useEditForm({ item, slug }: UseEditFormOptions) {
     setFormState((prev) => prev && { ...prev, [key]: value })
   }
 
-  const saveMutation = useMutation<void, Error, { form: EditForm; launchCommands: string[] }>({
+  const saveMutation = useMutation<void, Error, { form: EditForm; launchCommands: string[] | null }>({
     mutationFn: async ({ form: f, launchCommands: cmds }) => {
       if (!item) return
       await apiFetch(`/api/v1/library/${item.id}`, {
@@ -91,14 +94,21 @@ export function useEditForm({ item, slug }: UseEditFormOptions) {
     },
   })
 
+  // Send state verbatim so [] (cleared) and null (unset) are preserved. null is
+  // dropped server-side (exclude_none), leaving the stored value untouched — so
+  // an incidental save without touching commands can't flip null → [].
+  function resolveLaunchCommands(): string[] | null {
+    return launchCommands === undefined ? (item?.launch_commands ?? null) : launchCommands
+  }
+
   function handleSave() {
     if (!form) return
-    saveMutation.mutate({ form, launchCommands: launchCommands ?? item?.launch_commands ?? [] })
+    saveMutation.mutate({ form, launchCommands: resolveLaunchCommands() })
   }
 
   function handleSaveAdvanced() {
     if (!form) return
-    saveMutation.mutate({ form, launchCommands: launchCommands ?? item?.launch_commands ?? [] })
+    saveMutation.mutate({ form, launchCommands: resolveLaunchCommands() })
   }
 
   const saving = saveMutation.isPending
@@ -116,7 +126,7 @@ export function useEditForm({ item, slug }: UseEditFormOptions) {
     saveSuccess,
     execBrowserOpen,
     setExecBrowserOpen,
-    launchCommands,
+    launchCommands: launchCommands ?? null,
     setLaunchCommands,
     handleSaveAdvanced,
   }

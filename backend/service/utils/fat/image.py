@@ -20,8 +20,11 @@ from backend.service.utils.fat.geometry import (
     FAT16_SIZE_MIN_MB,
     _ATTR_DIR,
     _ATTR_FILE,
+    _BYTES_PER_SECTOR,
     _FAT_EOC,
     _FAT_RESERVED,
+    _HEAD_COUNT,
+    _SECTORS_PER_TRACK,
     _calc_geometry,
     _cluster_byte_offset,
     _cluster_size_bytes,
@@ -48,8 +51,22 @@ def format_fat16(img_path: Path, size_mb: int) -> None:
             f"(supported range: {FAT16_SIZE_MIN_MB}–{FAT16_SIZE_MAX_MB})"
         )
 
-    geo         = _calc_geometry(size_mb)
-    total_bytes = size_mb * 1024 * 1024
+    geo = _calc_geometry(size_mb)
+
+    # Size the image up to a whole CHS cylinder (63 * 255 sectors) so the file's
+    # byte length exactly matches the cylinder-aligned geometry that
+    # dosbox._build_drive_mount_lines declares via `IMGMOUNT ... -t hdd -size`.
+    # That call rounds the cylinder count UP from the BPB's total_sectors using
+    # the same 63/255 values baked into the boot sector below, and DOSBox-X
+    # refuses to mount a -t hdd image whose backing file is smaller than its
+    # declared geometry ("Cannot create drive from file"). The BPB total_sectors
+    # is left unchanged, so the FAT volume and its FAT16 cluster count are
+    # unaffected — the result is a valid FAT volume on a slightly larger,
+    # cylinder-aligned disk. Rounding total_sectors itself up would instead push
+    # boundary sizes (e.g. 512 MB) past the FAT16 65,524-cluster limit.
+    cylinder_sectors = _SECTORS_PER_TRACK * _HEAD_COUNT
+    aligned_sectors  = math.ceil(geo["total_sectors"] / cylinder_sectors) * cylinder_sectors
+    total_bytes      = aligned_sectors * _BYTES_PER_SECTOR
 
     with img_path.open("wb") as f:
         f.seek(total_bytes - 1)

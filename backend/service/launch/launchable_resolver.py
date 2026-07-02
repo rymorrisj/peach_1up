@@ -26,13 +26,20 @@ class LaunchableEntity:
     era: str
     media_path: str
     executable_path: str | None
-    launch_commands: list[str] = field(default_factory=list)
+    # None = never configured (media file may auto-run); [] = explicitly cleared
+    # (no auto-run, drop to the DOS prompt); non-empty = run these commands.
+    launch_commands: list[str] | None = None
     launch_review_flagged: bool = False
 
     # Drive hydration fields
     installed: bool = False
     requires_install: bool = False
     media_type: str | None = None
+    # Source folder of loose files to copy onto the drive. media_path is
+    # reassigned to a single resolved launch file at add time (items.py), so
+    # folder_path is the authoritative directory for loose-file hydration.
+    # None for set entities (disc images are never loose-file hydrated).
+    folder_path: str | None = None
 
     # Pre-resolved Drive ORM object (None if no drive associated).
     drive: "Drive | None" = None
@@ -71,8 +78,9 @@ def resolve_launchable(
             profile_id=item.profile_id,
             era=item.era,
             media_path=item.media_path,
+            folder_path=item.folder_path,
             executable_path=item.executable_path,
-            launch_commands=list(item.launch_commands or []),
+            launch_commands=item.launch_commands,
             launch_review_flagged=bool(item.launch_review_flagged),
             installed=item.installed,
             requires_install=item.requires_install,

@@ -186,7 +186,9 @@ export default function LaunchProfiles() {
       }
       if (form.extra_args.trim()) body.extra_args = form.extra_args.trim()
       if (form.notes.trim()) body.notes = form.notes.trim()
-      if (form.launch_commands.length > 0) body.launch_commands = form.launch_commands
+      // Always send launch_commands (including []) so clearing them persists;
+      // omitting the field left a stale list on the profile (exclude_unset).
+      body.launch_commands = form.launch_commands
 
       if (modal?.mode === 'create') {
         await apiFetch('/api/v1/profiles', { method: 'POST', body: JSON.stringify(body) })

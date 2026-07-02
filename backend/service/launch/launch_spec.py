@@ -26,6 +26,18 @@ class LaunchSpec:
     # Item-level launch commands (appended after profile commands in dosbox)
     launch_commands: list[str] = field(default_factory=list)
 
+    # True only when the item never had launch_commands configured (None in the
+    # DB). Lets dosbox auto-run a runnable media file by default, while an
+    # explicitly-cleared ([]) command list drops the user at the DOS prompt.
+    auto_run_media: bool = False
+
+    # Hydrated loose-file items (dosbox): their files were copied onto the
+    # writable C: drive, so the game runs from C: and the read-only D: source
+    # mount is skipped. c_run_command is the executable relative to C:'s root
+    # (e.g. "RALLY.EXE" or "BIN\\GAME.EXE"), or None when none was resolved.
+    run_from_c: bool = False
+    c_run_command: str | None = None
+
     # Profile plain fields (consumed by dosbox; ignored by other backends)
     profile_id: int | None = None
     profile_launch_commands: list[str] = field(default_factory=list)
