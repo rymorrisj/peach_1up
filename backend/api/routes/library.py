@@ -3,16 +3,18 @@ import threading
 from pathlib import Path
 from typing import Any, List, Literal, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from backend.core import jobs, rate_limit
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, get_filtered_item, get_filtered_library, require_permission
 from backend.core.logger import get_logger
-from backend.models.library import ImportResult, LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate, ScanStatus, item_to_read
-from backend.models.library_set import LibrarySet, LibrarySetItem, LibrarySetItemUpdate, LibrarySetRead, LibrarySetUpdate, set_to_read
+from backend.models.library import ImportResult, LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate, ScanStatus, item_to_read, items_to_read_bulk
+from backend.models.library_set import LibrarySet, LibrarySetItem, LibrarySetItemUpdate, LibrarySetRead, LibrarySetUpdate, set_to_read, sets_to_read_bulk
+from backend.models.pagination import Page
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
 from backend.service.library import items as lib_svc
@@ -45,15 +47,46 @@ router = APIRouter(prefix="/api/v1/library", tags=["library"])
 logger = get_logger(__name__)
 
 _scan_lock = threading.Lock()
-_scan_state: dict[str, Any] = {"running": False, "preview": [], "error": None}
+_scan_state: dict[str, Any] = {"running": False, "preview": [], "error": None, "job_id": None}
+
+# Rate limits for endpoints that hit external services (TheGamesDB, cover-art
+# fetch) or do expensive local work (filesystem scans, hash-dedup uploads).
+# In-memory + per-IP, reusing backend.core.rate_limit exactly as auth.switch_user
+# does — single-instance deployment, no shared store needed. Keyed on the
+# immediate TCP peer, not X-Forwarded-For, for the same spoofing reason
+# documented there.
+_METADATA_RATE_LIMIT = 30
+_METADATA_RATE_WINDOW_SECONDS = 60.0
+_ENRICH_RATE_LIMIT = 30
+_ENRICH_RATE_WINDOW_SECONDS = 60.0
+_SCAN_RATE_LIMIT = 5
+_SCAN_RATE_WINDOW_SECONDS = 60.0
+_UPLOAD_RATE_LIMIT = 10
+_UPLOAD_RATE_WINDOW_SECONDS = 60.0
 
 
-@router.get("", response_model=list[LibraryItemRead])
+def _enforce_rate_limit(bucket: str, request: Request, limit: int, window_seconds: float) -> None:
+    """Raise 429 (with Retry-After) if the caller's IP has exceeded *limit* in
+    *window_seconds* for *bucket*. No-op when allowed."""
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, retry_after = rate_limit.check_and_record(f"{bucket}:{client_ip}", limit, window_seconds)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many requests, please slow down.",
+            headers={"Retry-After": str(int(retry_after) + 1)},
+        )
+
+
+@router.get("", response_model=Page[LibraryItemRead])
 def list_library(
     era: str | None = None,
     category: str | None = None,
     platform_id: int | None = None,
     tag: str | None = None,
+    profile_assigned: bool | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
 ):
@@ -64,6 +97,10 @@ def list_library(
         q = q.filter(LibraryItem.category == category)
     if platform_id is not None:
         q = q.filter(LibraryItem.platform_id == platform_id)
+    if profile_assigned is True:
+        q = q.filter(LibraryItem.profile_id.isnot(None))
+    elif profile_assigned is False:
+        q = q.filter(LibraryItem.profile_id.is_(None))
     if tag:
         from backend.models.tag import Tag, EntityTag
         subq = (
@@ -73,7 +110,9 @@ def list_library(
             .subquery()
         )
         q = q.filter(LibraryItem.id.in_(subq))
-    return [item_to_read(i, db) for i in q.all()]
+    total = q.count()
+    rows = q.order_by(LibraryItem.id).offset(offset).limit(limit).all()
+    return Page(items=items_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 
 @router.post("", response_model=LibraryItemRead, status_code=201)
@@ -94,206 +133,6 @@ def add_library_item(
         raise HTTPException(status_code=409, detail="This media path is already in the library.")
     except lib_svc._SlugCollision:
         raise HTTPException(status_code=409, detail="Import collided with a concurrent change, please retry.")
-
-
-@router.post("/upload", response_model=LibraryItemRead, status_code=201)
-async def upload_library_media(
-    file: UploadFile,
-    db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
-):
-    """Upload a game media file directly into the library.
-
-    Browser uploads only ever provide bytes, never a real host path, so this
-    writes straight into MEDIA_PATH and chains into the same ingest pipeline
-    (_prepare_item) used by manual add and scan import — era detection,
-    platform/profile auto-assignment, and dedup all apply identically.
-
-    Before ingesting, the uploaded bytes are checked against existing files
-    under MEDIA_PATH by content hash (find_existing_duplicate). If a match is
-    found, the freshly-written copy is discarded and the existing file is
-    reused instead of creating a second physical copy — surfaced to the
-    caller via reused_existing_media in the response.
-    """
-    if not file.filename:
-        raise HTTPException(status_code=422, detail="A filename is required.")
-
-    from backend.core.settings import get_settings
-    from backend.service.utils import media_dup_index
-    from backend.service.utils.upload_utils import (
-        DEFAULT_MAX_BYTES,
-        begin_upload,
-        find_existing_duplicate,
-        stream_upload_to_disk,
-    )
-
-    svc = get_settings()
-    max_bytes = int(svc.get("UPLOAD_MAX_BYTES", DEFAULT_MAX_BYTES) or DEFAULT_MAX_BYTES)
-    media_root = Path(svc.get_env_var("MEDIA_PATH")).resolve()
-
-    dest_dir, dest_path = begin_upload(media_root, file.filename)
-
-    try:
-        written = await stream_upload_to_disk(file, dest_path, max_bytes)
-    except HTTPException:
-        shutil.rmtree(dest_dir, ignore_errors=True)
-        raise
-    except Exception as exc:
-        shutil.rmtree(dest_dir, ignore_errors=True)
-        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}") from exc
-
-    duplicate_path = find_existing_duplicate(media_root, dest_path, written)
-    reused_existing = duplicate_path is not None
-    ingest_path = duplicate_path if reused_existing else dest_path
-    if reused_existing:
-        shutil.rmtree(dest_dir, ignore_errors=True)
-
-    title = ingest_path.stem.replace("-", " ").title()
-    try:
-        item = lib_svc._ingest_media_entry(str(ingest_path), title, db)
-    except lib_svc._ItemAlreadyExists:
-        shutil.rmtree(dest_dir, ignore_errors=True)
-        media_dup_index.forget(dest_path)
-        raise HTTPException(status_code=409, detail="This media path is already in the library.")
-    except lib_svc._SlugCollision:
-        shutil.rmtree(dest_dir, ignore_errors=True)
-        media_dup_index.forget(dest_path)
-        raise HTTPException(status_code=409, detail="Import collided with a concurrent change, please retry.")
-    except HTTPException:
-        shutil.rmtree(dest_dir, ignore_errors=True)
-        media_dup_index.forget(dest_path)
-        raise
-
-    if reused_existing:
-        from fastapi.responses import JSONResponse
-        payload = item_to_read(item, db).model_dump(mode="json")
-        payload["reused_existing_media"] = True
-        return JSONResponse(status_code=201, content=payload)
-    return item_to_read(item, db)
-
-
-def _detect_disc_files(files: list[Path]) -> list[Path]:
-    """
-    Returns a sorted list of .cue/.gdi files when 2+ exist (multi-disc signal).
-    Returns empty list when 0 or 1 disc files exist (single-item path unchanged).
-    Raises 422 when both .cue and .gdi are present — ambiguous mixed-format folder.
-    """
-    cue_files = sorted(f for f in files if f.suffix.lower() == ".cue")
-    gdi_files = sorted(f for f in files if f.suffix.lower() == ".gdi")
-
-    if cue_files and gdi_files:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "Folder contains both .cue and .gdi files. "
-                "These formats imply different consoles and cannot be mixed in one multi-disc set. "
-                "Upload only one format at a time."
-            ),
-        )
-
-    disc_files = gdi_files or cue_files
-    if len(disc_files) <= 1:
-        return []
-    return disc_files
-
-
-def _pick_folder_launch_file(files: list[Path]) -> Path:
-    """Fail-fast guard: confirm at least one recognizable launch file exists in the folder.
-
-    Checks in priority order: .gdi first (Dreamcast-exclusive), .cue second,
-    then remaining common launch formats. Raises 422 if nothing is found so the
-    caller can clean up the dest dir before responding.
-    """
-    for ext in (".gdi", ".cue", ".iso", ".chd", ".xiso", ".zip", ".exe"):
-        hit = next((f for f in files if f.suffix.lower() == ext), None)
-        if hit:
-            return hit
-    raise HTTPException(
-        status_code=422,
-        detail=(
-            "No recognizable launch file found in the uploaded folder. "
-            "Expected: .gdi, .cue, .iso, .chd, .xiso, .zip, or .exe."
-        ),
-    )
-
-
-@router.post("/upload-folder", response_model=None, status_code=201)
-async def upload_folder_media(
-    files: list[UploadFile] = File(...),
-    title: str = Form(...),
-    folder_name: str = Form(default=""),
-    db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
-):
-    """Upload a folder of game media files as a single library item or multi-disc set.
-
-    If the folder contains 2+ .cue files or 2+ .gdi files, a LibrarySet is created
-    with one LibrarySetItem per disc (result_type: "library_set"). Otherwise the
-    existing folder-ingest path runs and a single LibraryItem is created
-    (result_type: "library_item"). The response always includes result_type as a
-    discriminator field so callers can handle both shapes.
-    """
-    from fastapi.responses import JSONResponse
-
-    if not files:
-        raise HTTPException(status_code=422, detail="At least one file is required.")
-    if not title.strip():
-        raise HTTPException(status_code=422, detail="A title is required.")
-
-    from backend.core.settings import get_settings
-    from backend.service.utils.path_utils import resolve_under, sanitize_filename
-    from backend.service.utils.slug_generator import unique_slug
-    from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES, stream_upload_to_disk
-
-    svc = get_settings()
-    max_bytes = int(svc.get("UPLOAD_MAX_BYTES", DEFAULT_MAX_BYTES) or DEFAULT_MAX_BYTES)
-    media_root = Path(svc.get_env_var("MEDIA_PATH")).resolve()
-
-    folder_slug = unique_slug(title.strip(), lambda s: (media_root / s).exists())
-    try:
-        dest_dir = resolve_under(media_root, folder_slug)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Invalid folder name.") from exc
-    dest_dir.mkdir(parents=True, exist_ok=False)
-
-    written_paths: list[Path] = []
-    try:
-        for upload in files:
-            raw_name = upload.filename or "upload"
-            safe_name = sanitize_filename(raw_name)
-            try:
-                dest_path = resolve_under(dest_dir, safe_name)
-            except ValueError as exc:
-                raise HTTPException(status_code=400, detail=f"Invalid filename: {raw_name}") from exc
-            await stream_upload_to_disk(upload, dest_path, max_bytes)
-            written_paths.append(dest_path)
-
-        disc_files = _detect_disc_files(written_paths)
-
-        if disc_files:
-            library_set = lib_svc._create_multi_disc_set(disc_files, title.strip(), db)
-            payload = set_to_read(library_set, db).model_dump(mode="json")
-            payload["result_type"] = "library_set"
-            return JSONResponse(status_code=201, content=payload)
-
-        _pick_folder_launch_file(written_paths)
-        item = lib_svc._ingest_media_entry(str(dest_dir), title.strip(), db)
-    except lib_svc._ItemAlreadyExists:
-        shutil.rmtree(dest_dir, ignore_errors=True)
-        raise HTTPException(status_code=409, detail="This folder's content is already in the library.")
-    except lib_svc._SlugCollision:
-        shutil.rmtree(dest_dir, ignore_errors=True)
-        raise HTTPException(status_code=409, detail="Import collided with a concurrent change, please retry.")
-    except HTTPException:
-        shutil.rmtree(dest_dir, ignore_errors=True)
-        raise
-    except Exception as exc:
-        shutil.rmtree(dest_dir, ignore_errors=True)
-        raise HTTPException(status_code=500, detail=f"Folder upload failed: {exc}") from exc
-
-    payload = item_to_read(item, db).model_dump(mode="json")
-    payload["result_type"] = "library_item"
-    return JSONResponse(status_code=201, content=payload)
 
 
 @router.get("/scan/status", response_model=ScanStatus)
@@ -319,24 +158,55 @@ def _resolve_scan_directory() -> Path:
     return resolved
 
 
+def _dir_size_fast(root: Path) -> int:
+    """Sum of file sizes under *root* using stat only (no hashing/detection).
+    Fast even for large trees; used to classify a scan as inline vs nav-bell."""
+    total = 0
+    for path in root.rglob("*"):
+        try:
+            if path.is_file():
+                total += path.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
+def _scan_nav_threshold() -> int:
+    from backend.core.settings import get_settings
+    from backend.service.utils.upload_utils import DEFAULT_SCAN_NAV_THRESHOLD_BYTES
+    try:
+        return int(get_settings().get("SCAN_NAV_THRESHOLD_BYTES", DEFAULT_SCAN_NAV_THRESHOLD_BYTES)
+                   or DEFAULT_SCAN_NAV_THRESHOLD_BYTES)
+    except (TypeError, ValueError):
+        return DEFAULT_SCAN_NAV_THRESHOLD_BYTES
+
+
 @router.post("/scan")
-def trigger_scan(background_tasks: BackgroundTasks = BackgroundTasks()):
+def trigger_scan(request: Request, background_tasks: BackgroundTasks = BackgroundTasks()):
+    _enforce_rate_limit("library-scan", request, _SCAN_RATE_LIMIT, _SCAN_RATE_WINDOW_SECONDS)
     with _scan_lock:
         if _scan_state["running"]:
             raise HTTPException(status_code=409, detail="A scan is already running.")
     resolved = _resolve_scan_directory()
+    # Fast stat-only pre-pass classifies the scan so the UI knows immediately
+    # whether to keep the inline modal (small) or drop to the nav bell (large).
+    background = _dir_size_fast(resolved) > _scan_nav_threshold()
+    job_id = jobs.create("scan", message="Scanning media library…")
     with _scan_lock:
         _scan_state["running"] = True
         _scan_state["preview"] = []
         _scan_state["error"] = None
-    background_tasks.add_task(_run_scan, str(resolved))
-    return {"started": True, "directory": str(resolved)}
+        _scan_state["job_id"] = job_id
+    background_tasks.add_task(_run_scan, str(resolved), job_id)
+    return {"started": True, "directory": str(resolved), "job_id": job_id, "background": background}
 
 
-def _run_scan(directory: str) -> None:
+def _run_scan(directory: str, job_id: str | None = None) -> None:
     """
     Phase 1: walk the media directory, dedup against the DB, run era detection,
-    and store a preview list. Does NOT write to the DB.
+    and store a preview list. Does NOT write to the DB. Reports progress into the
+    core.jobs registry so a large scan can surface in the nav-bell notification
+    centre.
     """
     from backend.core.database import get_engine
     from backend.service.library.items import best_detect_path
@@ -350,6 +220,7 @@ def _run_scan(directory: str) -> None:
 
     try:
         entries = scan_media_folders(base_path)
+        total_entries = len(entries) or 1
         db = Session(get_engine())
         try:
             existing_folder_paths: set[str] = {
@@ -367,7 +238,10 @@ def _run_scan(directory: str) -> None:
                 str(Path(p).parent) for p in _set_resolved
             }
 
-            for entry in entries:
+            for _idx, entry in enumerate(entries):
+                if job_id is not None and _idx % 10 == 0:
+                    jobs.update(job_id, progress=_idx / total_entries,
+                                message=f"Scanned {_idx} of {total_entries} folders…")
                 is_loose = (
                     entry.executable_path is not None
                     and entry.executable_path.resolve().parent == base_path
@@ -417,6 +291,15 @@ def _run_scan(directory: str) -> None:
             _scan_state["running"] = False
             _scan_state["preview"] = preview
             _scan_state["error"] = error_msg
+        if job_id is not None:
+            if error_msg is not None:
+                jobs.fail(job_id, error_msg)
+            else:
+                jobs.complete(
+                    job_id,
+                    result={"preview_count": len(preview)},
+                    message=f"Scan complete — {len(preview)} item(s) ready to import.",
+                )
 
 
 @router.post("/scan/import", response_model=ImportResult)
@@ -483,9 +366,12 @@ def import_scan_results(
 
 @router.get("/metadata-search")
 def search_metadata(
+    request: Request,
     name: str = Query(...),
     _: User = require_permission("is_owner"),
 ):
+    _enforce_rate_limit("library-metadata", request, _METADATA_RATE_LIMIT, _METADATA_RATE_WINDOW_SECONDS)
+
     import httpx
     from backend.service.thegamesdb_client import search_games
 
@@ -520,9 +406,12 @@ def search_metadata(
 
 @router.get("/metadata-details")
 def get_metadata_details(
+    request: Request,
     game_id: int = Query(...),
     _: User = require_permission("is_owner"),
 ):
+    _enforce_rate_limit("library-metadata", request, _METADATA_RATE_LIMIT, _METADATA_RATE_WINDOW_SECONDS)
+
     import httpx
     from backend.service.thegamesdb_client import get_game_details, get_game_images
 
@@ -602,10 +491,13 @@ def get_metadata_details(
 
 @router.post("/enrich")
 def enrich_library_entity(
+    request: Request,
     body: EnrichBody,
     db: Session = Depends(get_db),
     _: User = require_permission("is_owner"),
 ):
+    _enforce_rate_limit("library-enrich", request, _ENRICH_RATE_LIMIT, _ENRICH_RATE_WINDOW_SECONDS)
+
     entity, entity_type = enrich_svc.enrich_entity(
         body.entity_type,
         body.entity_id,
@@ -626,17 +518,30 @@ def enrich_library_entity(
     return LibrarySetItemRead.model_validate(entity)
 
 
-@router.get("/sets", response_model=list[LibrarySetRead])
+@router.get("/sets", response_model=Page[LibrarySetRead])
 def list_library_sets(
+    era: str | None = None,
+    profile_assigned: bool | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     _: User = Depends(get_active_user),
 ):
-    sets = db.query(LibrarySet).order_by(LibrarySet.title).all()
-    return [set_to_read(s, db) for s in sets]
+    q = db.query(LibrarySet)
+    if era:
+        q = q.filter(LibrarySet.era == era)
+    if profile_assigned is True:
+        q = q.filter(LibrarySet.profile_id.isnot(None))
+    elif profile_assigned is False:
+        q = q.filter(LibrarySet.profile_id.is_(None))
+    total = q.count()
+    rows = q.order_by(LibrarySet.title).offset(offset).limit(limit).all()
+    return Page(items=sets_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 
 @router.post("/sets", response_model=LibrarySetRead, status_code=201)
 async def create_library_set(
+    request: Request,
     title: str = Form(...),
     era: str = Form("unknown"),
     profile_id: Optional[int] = Form(None),
@@ -645,6 +550,8 @@ async def create_library_set(
     _: User = require_permission("can_edit_library"),
 ):
     """Create a multi-disc set from N uploaded files."""
+    _enforce_rate_limit("library-upload", request, _UPLOAD_RATE_LIMIT, _UPLOAD_RATE_WINDOW_SECONDS)
+
     from backend.core.settings import get_settings
     from backend.service.utils.upload_utils import (
         DEFAULT_MAX_BYTES,

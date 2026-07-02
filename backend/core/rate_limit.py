@@ -40,6 +40,21 @@ def check_and_record(key: str, limit: int, window_seconds: float) -> tuple[bool,
         return True, 0.0
 
 
+def enforce(bucket: str, ip: str, limit: int, window_seconds: float) -> None:
+    """check_and_record + raise HTTPException(429) with Retry-After when the
+    caller (keyed ``bucket:ip``) is over the limit. Shared by the library and
+    uploads routers so the 429 shape stays identical."""
+    from fastapi import HTTPException
+
+    allowed, retry_after = check_and_record(f"{bucket}:{ip}", limit, window_seconds)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many requests, please slow down.",
+            headers={"Retry-After": str(int(retry_after) + 1)},
+        )
+
+
 def _sweep_expired_locked(now: float) -> None:
     """Drop keys whose window has fully elapsed since their last attempt.
 

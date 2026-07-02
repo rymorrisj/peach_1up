@@ -1,13 +1,14 @@
 import re
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.models.launch_history import LaunchHistory
-from backend.models.library import LibraryItem, LibraryItemRead
+from backend.models.library import LibraryItem, LibraryItemRead, items_to_read_bulk
+from backend.models.pagination import Page
 from backend.models.profile import Profile, ProfileCreate, ProfileRead, ProfileUpdate
 from backend.models.user import User
 
@@ -103,12 +104,21 @@ def get_profile(slug: str, db: Session = Depends(get_db), _: User = Depends(get_
     return _with_stats(profile, db)
 
 
-@router.get("/{slug}/items", response_model=list[LibraryItemRead])
-def get_profile_items(slug: str, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+@router.get("/{slug}/items", response_model=Page[LibraryItemRead])
+def get_profile_items(
+    slug: str,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
     profile = db.query(Profile).filter(Profile.slug == slug).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
-    return db.query(LibraryItem).filter(LibraryItem.profile_id == profile.id).all()
+    q = db.query(LibraryItem).filter(LibraryItem.profile_id == profile.id)
+    total = q.count()
+    rows = q.order_by(LibraryItem.id).offset(offset).limit(limit).all()
+    return Page(items=items_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 
 @router.patch("/{slug}", response_model=ProfileRead)

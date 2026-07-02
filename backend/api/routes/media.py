@@ -20,15 +20,16 @@ async def upload_media(
 ):
     """Stream-write an uploaded OS install/disk image for environment registration.
 
-    Game media uploads moved to POST /api/v1/library/upload, which chains into
-    the full library ingest pipeline (era detection, profile assignment, dedup).
+    Game media uploads use the chunked endpoints under
+    /api/v1/library/uploads (init → chunks → complete), which chain into the
+    full library ingest pipeline (era detection, profile assignment, dedup).
     OS images are Platform fields, not LibraryItems — never scanned, never
     deduped against the library — so they keep this minimal upload-only path.
 
     Args:
         file:       Multipart file upload.
         era:        Gaming era string (e.g. 'win98'). Must be a PC era.
-        media_type: Must be 'os' — 'game' moved to the library upload endpoint.
+        media_type: Must be 'os' — 'game' uses the library chunked upload flow.
 
     Returns:
         { path, slug, size_bytes }
@@ -36,7 +37,7 @@ async def upload_media(
     if media_type != "os":
         raise HTTPException(
             status_code=400,
-            detail="media_type must be 'os'. Game media uploads now use POST /api/v1/library/upload.",
+            detail="media_type must be 'os'. Game media uploads use the /api/v1/library/uploads chunked flow.",
         )
     if era not in _PC_ERAS:
         raise HTTPException(

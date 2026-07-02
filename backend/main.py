@@ -20,7 +20,7 @@ def resource_path(relative: str) -> Path:
     return Path(__file__).resolve().parent.parent / relative
 
 from backend.api.middleware.security import CSRFMiddleware, FirstRunGuardMiddleware, SecurityMiddleware, _DOCS_HOST, _LOCALHOST_ORIGINS, configure_cors
-from backend.api.routes import auth, bios, emulators, filesystem, health, launches, library, media, platforms, profiles, settings, tags, users
+from backend.api.routes import auth, bios, emulators, filesystem, health, jobs, launches, library, media, platforms, profiles, settings, tags, uploads, users
 from backend.core.lifespan import lifespan
 
 app = FastAPI(
@@ -49,6 +49,8 @@ app.include_router(emulators.router)
 app.include_router(bios.router)
 app.include_router(profiles.router)
 app.include_router(library.router)
+app.include_router(uploads.router)
+app.include_router(jobs.router)
 app.include_router(launches.router)
 app.include_router(platforms.router)
 app.include_router(filesystem.router)

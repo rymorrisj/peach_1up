@@ -15,8 +15,16 @@ from fastapi import HTTPException, UploadFile
 from backend.service.utils.path_utils import resolve_under, sanitize_filename
 from backend.service.utils.slug_generator import unique_slug
 
-DEFAULT_MAX_BYTES = 25 * 1024 ** 3  # 25 GB
+DEFAULT_MAX_BYTES = 25 * 1024 ** 3  # 25 GB — absolute per-file cap
 _CHUNK_SIZE = 1024 * 1024  # 1 MB — avoids loading the full file into memory
+
+# Chunked / background upload tuning (all overridable via settings of the same
+# UPPER_SNAKE name). See api/routes/uploads.py and service/library/chunked_uploads.py.
+DEFAULT_BACKGROUND_THRESHOLD_BYTES = 5 * 1024 ** 3   # 5 GB — finalize inline at/under, background above
+DEFAULT_CHUNK_MAX_BYTES = 64 * 1024 ** 2             # 64 MB — largest single chunk the server will accept
+DEFAULT_SCAN_NAV_THRESHOLD_BYTES = 1 * 1024 ** 3     # 1 GB — scans above surface in the nav bell
+DEFAULT_UPLOAD_TMP_TTL_SECONDS = 24 * 3600           # orphaned tmp_chunks dirs older than this are swept
+TMP_CHUNKS_DIRNAME = "tmp_chunks"
 
 
 def begin_upload(base_dir: Path, filename: str) -> tuple[Path, Path]:

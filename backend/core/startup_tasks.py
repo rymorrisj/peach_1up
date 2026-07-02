@@ -141,6 +141,28 @@ def _heal_interrupted_rom_pack_clones() -> None:
         logger.warning("Rom pack self-heal check failed: %s", exc)
 
 
+def _sweep_upload_tmp() -> None:
+    """Reap tmp_chunks staging dirs left behind by uploads interrupted before
+    complete/abort (crash or restart lost the in-memory session)."""
+    try:
+        from pathlib import Path
+
+        from backend.core.settings import get_settings
+        from backend.service.library.chunked_uploads import sweep_orphans
+        from backend.service.utils.upload_utils import DEFAULT_UPLOAD_TMP_TTL_SECONDS
+
+        media_path = get_settings().get("MEDIA_PATH", "") or ""
+        if not media_path:
+            return
+        ttl = int(get_settings().get("UPLOAD_TMP_TTL_SECONDS", DEFAULT_UPLOAD_TMP_TTL_SECONDS)
+                  or DEFAULT_UPLOAD_TMP_TTL_SECONDS)
+        removed = sweep_orphans(Path(media_path), ttl)
+        if removed:
+            logger.info("Startup: swept %d orphaned upload tmp dir(s)", removed)
+    except Exception as exc:
+        logger.warning("Upload tmp sweep failed: %s", exc)
+
+
 def _scan_installed_emulators() -> None:
     try:
         from backend.service.utils.emulator_catalog import load_catalog
