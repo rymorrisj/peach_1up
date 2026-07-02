@@ -15,20 +15,17 @@ from backend.core import process_registry
 from backend.core.logger import get_logger
 from backend.core.process_registry import ProcessEntry
 from backend.models import LaunchHistory, LibraryItem, Platform, Profile
-from backend.service.launch.dos_environment import ensure_working_image, prepare_pattern1_media
+from backend.service.launch.drive_hydration import hydrate_drive_for_entity
 from backend.service.launch.history import write_session_ends
 from backend.service.launch.launch_spec import LaunchSpec
 from backend.service.launch.monitor import register_short_lived_check
 from backend.service.utils.era_media import resolve_media_file_from_directory
 
 if TYPE_CHECKING:
+    from backend.models.drive import Drive
     from backend.service.launch.launchable_resolver import LaunchableEntity
 
 logger = get_logger(__name__)
-
-# Eras backed by DOSBox-X, which now use a shared per-era environment C: image
-# (library/system/os/<era>/<era>.img) instead of a per-item drive.
-_DOSBOX_ERAS = frozenset({"dos", "win31"})
 
 _resolve_media_file_from_directory = resolve_media_file_from_directory
 
@@ -166,10 +163,8 @@ def _build_spec_for_entity(
     entity: "LaunchableEntity",
     profile: Profile,
     platform: Platform | None,
+    drive: "Drive | None",
     effective_media_path: str,
-    *,
-    env_run_dir: str | None = None,
-    extra_launch_commands: list[str] | None = None,
 ) -> LaunchSpec:
     """Resolve all entity fields to plain values and construct a LaunchSpec."""
     from backend.constants_generated import BackendSlug
@@ -192,6 +187,39 @@ def _build_spec_for_entity(
                 ),
             )
         executable_path = path
+
+    drive_id: int | None = None
+    drive_image_path: Path | None = None
+    drive_size_mb: int | None = None
+    if drive is not None:
+        drive_id = drive.id
+        if drive.image_path:
+            drive_image_path = Path(drive.image_path)
+        drive_size_mb = drive.size_mb
+
+    # Hydrated loose-file items run from the writable C: drive (their files were
+    # copied there by drive_hydration), not the read-only D: source mount. This
+    # mirrors the hydration copy condition so mount and hydration agree, but
+    # omits `installed` — the files live on C: on every launch, not just the
+    # first. c_run_command is the executable relative to the copied folder root.
+    run_from_c = False
+    c_run_command: str | None = None
+    if (
+        drive is not None
+        and bool(profile.use_drive)
+        and not entity.requires_install
+        and entity.folder_path is not None
+        and Path(entity.folder_path).is_dir()
+    ):
+        run_from_c = True
+        folder = Path(entity.folder_path)
+        exe_src = entity.executable_path or entity.media_path
+        if exe_src:
+            try:
+                rel = Path(exe_src).resolve().relative_to(folder.resolve())
+            except ValueError:
+                rel = Path(Path(exe_src).name)
+            c_run_command = str(rel).replace("/", "\\")
 
     vm_dir: Path | None = None
     config_path: Path | None = None
@@ -221,12 +249,18 @@ def _build_spec_for_entity(
         executable_path=executable_path,
         enable_networking=bool(profile.enable_networking),
         enable_dgvoodoo2=bool(profile.enable_dgvoodoo2),
-        launch_commands=list(entity.launch_commands or []) + list(extra_launch_commands or []),
+        launch_commands=list(entity.launch_commands or []),
+        auto_run_media=entity.launch_commands is None,
+        run_from_c=run_from_c,
+        c_run_command=c_run_command,
         profile_id=profile.id,
         profile_launch_commands=list(profile.launch_commands or []),
+        use_drive=bool(profile.use_drive),
         container_enabled=profile.container_enabled,
         user_id=profile.user_id,
-        env_run_dir=env_run_dir,
+        drive_id=drive_id,
+        drive_image_path=drive_image_path,
+        drive_size_mb=drive_size_mb,
         vm_dir=vm_dir,
         config_path=config_path,
         working_image_path=working_image_path,
@@ -419,36 +453,17 @@ async def _launch_entity(entity: "LaunchableEntity", profile_id: int | None, db:
     profile = _resolve_profile_for_item(entity.profile_id, profile_id, db)
     platform_record = db.query(Platform).filter(Platform.profile_id == profile.id).first()
 
-    env_run_dir: str | None = None
-    extra_launch_commands: list[str] = []
-
-    if entity.era in _DOSBOX_ERAS:
-        # DOS/Win3.1 run against the shared per-era environment C: image,
-        # resolved via the profile→platform link the 86Box item path uses.
-        if platform_record is None or not platform_record.working_image_path:
-            raise HTTPException(
-                status_code=422,
-                detail="No DOS/Windows 3.1 environment is configured for this profile.",
-            )
-        working_image = ensure_working_image(platform_record, db)
-        run_dir, run_command = prepare_pattern1_media(entity, working_image, db)
-        env_run_dir = run_dir
-        # Auto-run the game only when the user has not set explicit commands.
-        if run_dir is not None and not entity.launch_commands and run_command:
-            extra_launch_commands = [run_command]
+    drive = hydrate_drive_for_entity(entity, db)
 
     effective_media_path = entity.executable_path if entity.executable_path else entity.media_path
-    if Path(effective_media_path).is_dir():
+    if Path(effective_media_path).is_dir() and drive is None:
         try:
             resolved = _resolve_media_file_from_directory(Path(effective_media_path), entity.era)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         effective_media_path = str(resolved)
 
-    spec = _build_spec_for_entity(
-        entity, profile, platform_record, effective_media_path,
-        env_run_dir=env_run_dir, extra_launch_commands=extra_launch_commands,
-    )
+    spec = _build_spec_for_entity(entity, profile, platform_record, drive, effective_media_path)
     return await launch(spec, db)
 
 

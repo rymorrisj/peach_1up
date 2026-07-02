@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import List, TYPE_CHECKING, Tuple
 
 from backend.constants import ERA_MEDIA_TYPES
-from backend.service.utils.fat.geometry import _read_geometry
+from backend.service.utils.fat.geometry import _is_bare_fat_superfloppy, _read_geometry
 from backend.constants_generated import Era
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
@@ -115,18 +115,12 @@ def _strip_autoexec(conf_text: str) -> str:
     return result
 
 
-def _validate_game_executable(game_executable: str, allowed_drives: set[str]) -> None:
+def _validate_game_executable(game_executable: str, expected_drive: str) -> None:
     """Validate game_executable before inserting into a DOSBox-X autoexec section.
-
-    ``allowed_drives`` is the set of drive letters (e.g. {"C:", "D:"}) the
-    command may reference. Under the environment model a command may run from
-    the writable shared C: (an installed game) or the read-only media D: (an
-    installer), so more than one drive can be valid for a single launch.
 
     Raises:
         ValueError: If the value is empty, contains unsafe characters, starts
-                    with a DOSBox-X meta-character, or references a drive that
-                    is not mounted for this launch.
+                    with a DOSBox-X meta-character, or references the wrong drive.
     """
     if not game_executable:
         raise ValueError("game_executable must be a non-empty string")
@@ -147,14 +141,12 @@ def _validate_game_executable(game_executable: str, allowed_drives: set[str]) ->
         )
 
     # If game_executable specifies an absolute drive path (e.g. C:\GAME.EXE),
-    # the drive letter must be one of the drives mounted for this launch.
+    # the drive letter must match the mounted drive to prevent cross-drive references.
     if len(game_executable) >= 2 and game_executable[1] == ":":
         specified = game_executable[0].upper() + ":"
-        allowed_upper = {d.upper() for d in allowed_drives}
-        if specified not in allowed_upper:
+        if specified != expected_drive.upper():
             raise ValueError(
-                f"game_executable references drive '{specified}' but the mounted "
-                f"drives for this launch are {sorted(allowed_upper)}"
+                f"game_executable references drive '{specified}' but media is mounted at '{expected_drive}'"
             )
 
 
@@ -190,89 +182,139 @@ def _build_multi_iso_mount_line(disc_paths: list[Path]) -> str:
     return f"imgmount D {all_hosts} -t iso -ro"
 
 
-def _validate_within_library(path: Path, label: str) -> None:
-    """SECURITY: reject any path that escapes library/. Must not be weakened."""
-    library_path = get_base_path() / "library"
-    if not path.resolve().is_relative_to(library_path.resolve()):
-        raise ValueError(
-            f"{label} escaped library: {path}. This indicates a data integrity problem."
-        )
+def _build_drive_mount_lines(
+    drive_image_path: Path | None,
+    drive_size_mb: int | None,
+    use_drive: bool,
+    media_path: Path,
+    disc_paths: list[Path] | None = None,
+    run_from_c: bool = False,
+) -> tuple[list[str], str | None, str, str]:
+    """Return (drive_setup_lines, mount_line, drive_line, media_drive).
 
+    mount_line is None when media_path is a directory on a persistent drive
+    (files are already on C:, so no additional mount is needed).
 
-def _build_c_drive_mount_line(working_image_path: Path) -> str:
-    """Return the IMGMOUNT line for the shared, writable C: environment image.
-
-    The image is provisioned (format_fat16) before launch, so it must already
-    exist — a missing file is a provisioning failure and raises loudly rather
-    than being silently re-created via IMGMAKE.
+    SECURITY: drive_image_path is validated against library/ to prevent path traversal.
+    This check must not be removed or weakened.
     """
-    _validate_within_library(working_image_path, "Working image path")
-    if not working_image_path.exists():
-        raise FileNotFoundError(
-            f"DOS/Win3.1 C: image not found (should have been provisioned before launch): "
-            f"{working_image_path}"
-        )
-    drive_cmd_path = _dosbox_cmd_path(working_image_path)
-    geo = _read_geometry(working_image_path)
-    spt = 63        # standard sectors per track for CHS geometry
-    hpc = 255       # standard heads per cylinder
-    # Round up so the CHS triple covers at least the BPB's total_sectors;
-    # floor division under-declared capacity and truncated the mounted drive.
-    cyl = math.ceil(geo["total_sectors"] / (spt * hpc))
-    return f"IMGMOUNT C {drive_cmd_path} -t hdd -size 512,{spt},{hpc},{cyl}"
-
-
-def _build_media_mount_line(media_path: Path, disc_paths: list[Path] | None) -> str:
-    """Return the read-only D: mount line for installer / disc media (pattern 2/3)."""
-    _validate_within_library(media_path, "Media path")
-    host = _dosbox_cmd_path(media_path)
     suffix = media_path.suffix.lower()
-    if media_path.is_dir():
-        return f"MOUNT D {host} -ro -freesize 1024"
-    if suffix == ".img":
-        return f"imgmount D {host} -t hdd -ro"
-    if suffix in {".iso", ".cue"}:
-        if disc_paths and len(disc_paths) > 1:
-            return _build_multi_iso_mount_line(disc_paths)
-        return f"imgmount D {host} -t iso -ro"
-    if suffix in {".exe", ".bat"}:
-        parent_dir = _dosbox_cmd_path(media_path.parent)
-        return f"MOUNT D {parent_dir} -ro -freesize 1024"
-    raise ValueError(
-        f"Unhandled media suffix '{suffix}'. This indicates a programming error."
-    )
+    host = _dosbox_cmd_path(media_path)
+    has_persistent_drive = drive_image_path is not None and use_drive
+
+    drive_setup_lines: list[str] = []
+
+    if has_persistent_drive:
+        library_path = get_base_path() / "library"
+        if not drive_image_path.resolve().is_relative_to(library_path.resolve()):
+            raise ValueError(
+                f"Drive image path escaped library: {drive_image_path}. "
+                "This indicates a data integrity problem."
+            )
+        drive_cmd_path = _dosbox_cmd_path(drive_image_path)
+        if not drive_image_path.exists():
+            drive_setup_lines.append(f"IMGMAKE {drive_cmd_path} -t hd -size {drive_size_mb}")
+            drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
+        elif _is_bare_fat_superfloppy(drive_image_path):
+            geo = _read_geometry(drive_image_path)
+            spt = 63        # standard sectors per track for CHS geometry
+            hpc = 255       # standard heads per cylinder
+            # Round up so the CHS triple covers at least the BPB's total_sectors;
+            # floor division under-declared capacity and truncated the mounted drive.
+            cyl = math.ceil(geo["total_sectors"] / (spt * hpc))
+            # sectoff=0 forces DOSBox-X to read the FAT BPB at sector 0 instead of
+            # searching for an MBR/partition table. format_fat16 writes a bare
+            # "superfloppy" (BPB at sector 0, no partition table); without this the
+            # -t hdd path misclassifies it as MBR, finds no FAT partition, and fails
+            # with "Cannot create drive from file".
+            drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd -size 512,{spt},{hpc},{cyl} -o sectoff=0")
+        else:
+            # Partitioned image (e.g. created by the IMGMAKE branch above on an
+            # earlier launch). DOSBox-X reads geometry from the MBR partition
+            # table; sectoff=0 must NOT be used here — it would force reading a
+            # BPB at sector 0, where the partition table actually lives, and
+            # mismount the drive.
+            drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
 
 
-def _validate_run_dir(run_dir: str) -> None:
-    """Reject anything but a plain relative subdir (letters, digits, _, -, backslash)."""
-    if not run_dir or run_dir[0] == "\\":
-        raise ValueError(f"env_run_dir must be a relative subdir, got '{run_dir}'")
-    if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_\\.-]*", run_dir):
-        raise ValueError(f"env_run_dir contains unsupported characters: '{run_dir}'")
+        if run_from_c:
+            # Hydrated loose-file item: files already live on the writable C:
+            # drive; run from there and skip the read-only D: source mount.
+            mount_line = None
+            drive_line = "C:"
+            media_drive = "C:"
+        elif media_path.is_dir():
+            mount_line = None
+            drive_line = "C:"
+            media_drive = "C:"
+        elif suffix == ".img":
+            mount_line = f"imgmount D {host} -t hdd -ro"
+            drive_line = "C:"
+            media_drive = "D:"
+        elif suffix in {".iso", ".cue"}:
+            if disc_paths and len(disc_paths) > 1:
+                mount_line = _build_multi_iso_mount_line(disc_paths)
+            else:
+                mount_line = f"imgmount D {host} -t iso -ro"
+            drive_line = "C:"
+            media_drive = "D:"
+        elif suffix in {".exe", ".bat"}:
+            parent_dir = _dosbox_cmd_path(media_path.parent)
+            mount_line = f"MOUNT D {parent_dir} -ro -freesize 1024"
+            drive_line = "C:"
+            media_drive = "D:"
+        else:
+            raise ValueError(
+                f"Unhandled media suffix '{suffix}'. This indicates a programming error."
+            )
+    else:
+        if media_path.is_dir():
+            raise ValueError(
+                "Directory media requires a persistent drive. This indicates a misconfiguration."
+            )
+        elif suffix == ".img":
+            mount_line = f"imgmount C {host} -t hdd -ro"
+            drive_line = "C:"
+            media_drive = "C:"
+        elif suffix in {".iso", ".cue"}:
+            if disc_paths and len(disc_paths) > 1:
+                mount_line = _build_multi_iso_mount_line(disc_paths)
+            else:
+                mount_line = f"imgmount D {host} -t iso -ro"
+            drive_line = "D:"
+            media_drive = "D:"
+        elif suffix in {".exe", ".bat"}:
+            parent_dir = _dosbox_cmd_path(media_path.parent)
+            mount_line = f"MOUNT D {parent_dir} -ro -freesize 1024"
+            drive_line = "D:"
+            media_drive = "D:"
+        else:
+            raise ValueError(
+                f"Unhandled media suffix '{suffix}'. This indicates a programming error."
+            )
+
+    return drive_setup_lines, mount_line, drive_line, media_drive
 
 
 def _build_autoexec(
-    c_mount_line: str,
-    media_mount_line: str | None,
-    landing_drive: str,
-    run_dir: str | None,
-    allowed_drives: set[str],
+    drive_setup_lines: list[str],
+    mount_line: str | None,
+    drive_line: str,
+    media_drive: str,
     profile_cmds: list[str],
     item_cmds: list[str],
 ) -> str:
     """Return the full [autoexec] block as a string."""
     merged = profile_cmds + item_cmds
     autoexec = "[autoexec]\n"
-    autoexec += f"{c_mount_line}\n"
-    if media_mount_line is not None:
-        autoexec += f"{media_mount_line}\n"
-    autoexec += f"{landing_drive}\n"
-    if run_dir:
-        _validate_run_dir(run_dir)
-        autoexec += f"cd \\{run_dir}\n"
+    for setup_line in drive_setup_lines:
+        autoexec += f"{setup_line}\n"
+    if mount_line is not None:
+        autoexec += f"{mount_line}\n"
+    autoexec += f"{drive_line}\n"
     for line in merged:
         if any(line.rstrip().lower().endswith(ext) for ext in _EXEC_SUFFIXES):
-            _validate_game_executable(line, allowed_drives)
+            _validate_game_executable(line, media_drive)
         else:
             _validate_shell_line(line)
         autoexec += f"{line}\n"
@@ -285,24 +327,19 @@ def write_launch_conf(
 ) -> Path:
     """Write the DOSBox-X launch conf to a private temp directory and return its path.
 
-    Reads library/system/templates/dosbox-x/base.conf, strips any existing
-    [autoexec] section, then appends a generated [autoexec] block. The result
-    is written to a temporary directory as dosbox-x.conf and the path is
-    returned; the caller passes it to DOSBox-X via the -conf flag.
+    Reads library/system/templates/dosbox-x/base.conf, strips any existing [autoexec]
+    section, then appends a generated [autoexec] block. The result is written
+    to a temporary directory as dosbox-x.conf and the path is returned; the
+    caller passes it to DOSBox-X via the -conf flag.
 
-    The shared, writable environment image (``spec.working_image_path``) is
-    always mounted as C:. Behaviour then splits on ``spec.env_run_dir``:
-
-      * Set (pattern-1, ready-to-run): the game's files already live in
-        ``C:\\<env_run_dir>``; the shell cds there and runs from the writable
-        drive. No D: mount.
-      * None (pattern-2/3, installer/disc): the source media mounts read-only
-        on D:. The shell lands on D: when there are no commands to run (so the
-        user sees the installer) and on C: otherwise.
+    When ``spec.drive_image_path`` is set and ``spec.use_drive`` is True, a
+    persistent HDD image is mounted as C: (created via IMGMAKE if absent).
+    Media is then mounted as D:.
 
     Args:
-        spec: LaunchSpec providing media_path, era, working_image_path,
-            env_run_dir, profile_launch_commands, and launch_commands.
+        spec: LaunchSpec providing media_path, executable_path, era,
+            use_drive, profile_launch_commands, launch_commands,
+            drive_image_path, and drive_size_mb.
         game_executable: Optional single DOS executable command appended after
             item-level launch_commands.
 
@@ -310,49 +347,56 @@ def write_launch_conf(
         Path to the written dosbox-x.conf file inside the temp directory.
 
     Raises:
-        FileNotFoundError: If base.conf or the provisioned C: image is missing.
-        ValueError: If the media suffix is not handled or a path escapes library/.
+        FileNotFoundError: If base.conf does not exist.
+        ValueError: If the media suffix is not handled or the drive path escapes
+            the library directory.
     """
     media_path = spec.media_path
+    executable_path = Path(spec.executable_path)
 
-    if spec.working_image_path is None:
-        raise ValueError(
-            "DOSBox-X launch requires a shared environment C: image "
-            "(working_image_path); none was resolved for this launch."
-        )
-
-    c_mount_line = _build_c_drive_mount_line(spec.working_image_path)
+    drive_setup_lines, mount_line, drive_line, media_drive = _build_drive_mount_lines(
+        spec.drive_image_path, spec.drive_size_mb, spec.use_drive, media_path,
+        disc_paths=spec.disc_paths or [],
+        run_from_c=spec.run_from_c,
+    )
 
     # Layer 1: profile commands (base defaults, run first).
     profile_cmds: list[str] = list(spec.profile_launch_commands)
     # Layer 2: item commands (item-specific paths, appended after).
+    # Scan candidates and executable_path are display-only — they must never
+    # reach this list. Only the user's explicit launch_commands field feeds here.
     exe_cmds: list[str] = []
-
-    if spec.env_run_dir:
-        # Pattern-1: run from the copied game directory on the writable C:.
-        media_mount_line = None
-        allowed_drives = {"C:"}
-        landing_drive = "C:"
-        run_dir: str | None = spec.env_run_dir
-    else:
-        # Pattern-2/3: mount source media read-only on D:; installer writes to C:.
-        media_mount_line = _build_media_mount_line(media_path, spec.disc_paths or [])
-        allowed_drives = {"C:", "D:"}
-        run_dir = None
-
     if game_executable:
-        _validate_game_executable(game_executable, allowed_drives)
+        _validate_game_executable(game_executable, media_drive)
         exe_cmds = [game_executable]
     item_cmds: list[str] = list(spec.launch_commands) + exe_cmds
 
-    if not spec.env_run_dir:
-        # Land on the media drive when nothing runs, so the installer/game is
-        # visible instead of dropping the user on an empty C: prompt.
-        landing_drive = "C:" if (profile_cmds + item_cmds) else "D:"
+    # Auto-run: when launch_commands was never configured (auto_run_media), run
+    # the game automatically from its mounted drive. Drive-qualified so it runs
+    # regardless of the landing drive. An explicitly-cleared command list
+    # ([] -> auto_run_media False) intentionally drops the user at the prompt.
+    #   * run_from_c: the files were copied to the writable C: drive, so run the
+    #     copied executable (c_run_command) from C:.
+    #   * otherwise: the resolved media is itself a runnable executable mounted
+    #     on media_drive — run it by name.
+    if spec.auto_run_media and not item_cmds:
+        auto_run: str | None = None
+        if spec.run_from_c:
+            if spec.c_run_command:
+                auto_run = f"{media_drive}\\{spec.c_run_command}"
+        elif media_path.suffix.lower() in _EXEC_SUFFIXES:
+            auto_run = f"{media_drive}\\{media_path.name}"
+        if auto_run is not None:
+            _validate_game_executable(auto_run, media_drive)
+            item_cmds = [auto_run]
+
+    # Media-drive fallback: when nothing will run, land the shell on the media
+    # drive so the installer/game is visible instead of an empty C: prompt.
+    if not (profile_cmds + item_cmds):
+        drive_line = media_drive
 
     autoexec = _build_autoexec(
-        c_mount_line, media_mount_line, landing_drive, run_dir,
-        allowed_drives, profile_cmds, item_cmds,
+        drive_setup_lines, mount_line, drive_line, media_drive, profile_cmds, item_cmds
     )
 
     base_conf = get_base_path() / "library" / "system" / "templates" / "dosbox-x" / "base.conf"
@@ -432,7 +476,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     Args:
         spec: LaunchSpec with media_path, era, executable_path,
             enable_networking, launch_commands, profile_launch_commands,
-            container_enabled, working_image_path, env_run_dir set.
+            use_drive, container_enabled, drive_image_path, drive_size_mb set.
 
     Returns:
         Tuple of ``(process, job_object)``. The caller is responsible for
@@ -466,16 +510,19 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             BrokerFile(path=str(get_base_path() / "library"), access="r", mode="grant"))
         sandbox_config.broker_files.append(
             BrokerFile(path=str(tmpdir), access="r", mode="grant"))
-        if spec.working_image_path is not None:
+        if spec.drive_image_path is not None and spec.use_drive:
             sandbox_config.broker_files.append(
                 BrokerFile(
-                    path=str(spec.working_image_path.parent),
+                    path=str(spec.drive_image_path.parent),
                     access="rw",
                     mode="grant",
                 ))
+            # A pre-existing .img does not inherit the parent-dir grant, so apply
+            # an explicit ACE to the file itself or the AppContainer SID cannot
+            # write it (drive changes would silently fail).
             sandbox_config.broker_files.append(
                 BrokerFile(
-                    path=str(spec.working_image_path),
+                    path=str(spec.drive_image_path),
                     access="rw",
                     mode="secure",
                 ))

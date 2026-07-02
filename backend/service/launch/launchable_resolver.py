@@ -26,13 +26,20 @@ class LaunchableEntity:
     slug: str | None
     media_path: str
     executable_path: str | None
-    launch_commands: list[str] = field(default_factory=list)
+    # None = never configured (media file may auto-run); [] = explicitly cleared
+    # (no auto-run, drop to the DOS prompt); non-empty = run these commands.
+    launch_commands: list[str] | None = None
     launch_review_flagged: bool = False
 
     # Environment hydration fields (DOS/Win3.1 pattern-1 copy gate).
     installed: bool = False
     requires_install: bool = False
     media_type: str | None = None
+    # Source folder of loose files to copy onto the drive. media_path is
+    # reassigned to a single resolved launch file at add time (items.py), so
+    # folder_path is the authoritative directory for loose-file hydration.
+    # None for set entities (disc images are never loose-file hydrated).
+    folder_path: str | None = None
 
     # For set launches: all disc media_paths in disc_number order. Empty for item launches.
     disc_paths: list[str] = field(default_factory=list)
@@ -67,8 +74,9 @@ def resolve_launchable(
             era=item.era,
             slug=item.slug,
             media_path=item.media_path,
+            folder_path=item.folder_path,
             executable_path=item.executable_path,
-            launch_commands=list(item.launch_commands or []),
+            launch_commands=item.launch_commands,
             launch_review_flagged=bool(item.launch_review_flagged),
             installed=item.installed,
             requires_install=item.requires_install,

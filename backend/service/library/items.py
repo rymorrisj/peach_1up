@@ -355,9 +355,6 @@ def _ingest_media_entry(
                 pass
         raise _SlugCollision() from exc
 
-    # DOS/Win3.1 no longer get a per-item drive at upload time — they run
-    # against the shared per-era environment C: image, provisioned on first
-    # launch (see backend/service/launch/dos_environment.py).
     db.commit()
     db.refresh(item)
     return item

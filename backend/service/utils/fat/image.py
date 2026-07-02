@@ -55,7 +55,7 @@ def format_fat16(img_path: Path, size_mb: int) -> None:
 
     # Size the image up to a whole CHS cylinder (63 * 255 sectors) so the file's
     # byte length exactly matches the cylinder-aligned geometry that
-    # dosbox._build_c_drive_mount_line declares via `IMGMOUNT ... -t hdd -size`.
+    # dosbox._build_drive_mount_lines declares via `IMGMOUNT ... -t hdd -size`.
     # That call rounds the cylinder count UP from the BPB's total_sectors using
     # the same 63/255 values baked into the boot sector below, and DOSBox-X
     # refuses to mount a -t hdd image whose backing file is smaller than its
