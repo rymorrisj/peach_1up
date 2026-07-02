@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { UploadCloud, ChevronUp, ChevronDown, X } from 'lucide-react'
-import { uploadFile } from '@/lib/uploadFile'
+import { chunkedUpload } from '@/lib/chunkedUpload'
 import { getCsrfToken } from '@/api/client'
+import { useAppContext } from '@/context/useAppContext'
 import { Button, Modal } from '@/ui'
 
 const _BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000'
@@ -32,6 +33,7 @@ interface AddMediaModalProps {
 }
 
 export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaModalProps) {
+  const { dispatch } = useAppContext()
   const [entries, setEntries] = useState<UploadEntry[]>([])
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -50,6 +52,8 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
   const [folderTitle, setFolderTitle] = useState('')
   const [folderStatus, setFolderStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const [folderError, setFolderError] = useState<string | null>(null)
+  const [folderProgress, setFolderProgress] = useState(0)
+  const [folderBackground, setFolderBackground] = useState(false)
   const [folderResult, setFolderResult] = useState<{ type: 'item' | 'set'; title: string; discCount?: number } | null>(null)
 
   const busy =
@@ -69,22 +73,31 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       setFolderTitle('')
       setFolderStatus('idle')
       setFolderError(null)
+      setFolderProgress(0)
+      setFolderBackground(false)
       setFolderResult(null)
       setFolderMode(false)
     }
   }, [open, busy])
 
   function startUpload(entry: UploadEntry) {
-    const { promise } = uploadFile<{ title: string; reused_existing_media?: boolean }>(
-      '/api/v1/library/upload',
-      entry.file,
-      (pct) => {
-        setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, progress: pct } : e)))
-      },
-    )
+    const title = entry.file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim()
+    const { promise } = chunkedUpload('file', title, [entry.file], (pct) => {
+      setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, progress: pct } : e)))
+    })
     promise
-      .then((body) => {
-        const status = body.reused_existing_media ? 'reused' : 'success'
+      .then((res) => {
+        // Over the server threshold: finalize runs as a background job surfaced
+        // in the nav bell. The item appears in the grid once that job finishes.
+        if (res.status === 202 && res.body.job_id) {
+          dispatch({
+            type: 'UPSERT_JOB',
+            payload: { id: res.body.job_id, kind: 'upload', status: 'processing', progress: 0, message: `Finalizing "${title}"…` },
+          })
+          setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'success', progress: 100 } : e)))
+          return
+        }
+        const status = res.body.reused_existing_media ? 'reused' : 'success'
         setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status, progress: 100 } : e)))
         onAdded()
       })
@@ -172,33 +185,29 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
   async function submitFolderUpload() {
     if (!folderTitle.trim() || folderFiles.length === 0) return
 
+    const title = folderTitle.trim()
     setFolderStatus('uploading')
     setFolderError(null)
+    setFolderProgress(0)
+    setFolderBackground(false)
 
-    const fd = new FormData()
-    fd.append('title', folderTitle.trim())
-    for (const f of folderFiles) fd.append('files', f)
-
+    const { promise } = chunkedUpload('folder', title, folderFiles, setFolderProgress)
     try {
-      const res = await fetch(`${_BASE_URL}/api/v1/library/upload-folder`, {
-        method: 'POST',
-        headers: { 'X-CSRF-Token': getCsrfToken() },
-        credentials: 'include',
-        body: fd,
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { detail?: string }
-        throw new Error(body.detail ?? `Upload failed (HTTP ${res.status})`)
-      }
-      const body = (await res.json()) as {
-        result_type: string
-        title: string
-        items?: unknown[]
+      const res = await promise
+      if (res.status === 202 && res.body.job_id) {
+        dispatch({
+          type: 'UPSERT_JOB',
+          payload: { id: res.body.job_id, kind: 'upload', status: 'processing', progress: 0, message: `Finalizing "${title}"…` },
+        })
+        setFolderBackground(true)
+        setFolderResult({ type: 'item', title })
+        setFolderStatus('success')
+        return
       }
       setFolderResult(
-        body.result_type === 'library_set'
-          ? { type: 'set', title: body.title, discCount: body.items?.length }
-          : { type: 'item', title: body.title },
+        res.body.result_type === 'library_set'
+          ? { type: 'set', title: res.body.title ?? title, discCount: res.body.disc_count }
+          : { type: 'item', title: res.body.title ?? title },
       )
       setFolderStatus('success')
       onAdded()
@@ -361,17 +370,21 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
             </ul>
           )}
           {folderStatus === 'uploading' && (
-            <div className="flex items-center gap-2 text-sm text-neutral-400">
-              <svg className="animate-spin h-4 w-4 shrink-0 text-[#ff8a5c]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-              </svg>
-              Uploading folder…
+            <div>
+              <div className="mb-1 flex items-center justify-between text-xs text-neutral-400">
+                <span>Uploading folder…</span>
+                <span>{folderProgress}%</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                <div className="h-full rounded-full bg-[#ff8a5c] transition-all duration-100" style={{ width: `${folderProgress}%` }} />
+              </div>
             </div>
           )}
           {folderStatus === 'success' && folderResult && (
             <p className="text-sm text-emerald-400">
-              {folderResult.type === 'set'
+              {folderBackground
+                ? `Upload complete — "${folderResult.title}" is being finalized in the background. Track it in the Activity panel.`
+                : folderResult.type === 'set'
                 ? `Added "${folderResult.title}" as a ${folderResult.discCount}-disc set.`
                 : `Added "${folderResult.title}" as a library item.`}
             </p>

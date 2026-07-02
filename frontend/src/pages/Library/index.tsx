@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { Button } from '@/ui'
 import TopBar from '@/components/layout/TopBar'
@@ -18,6 +18,17 @@ import type { LibrarySetData } from './components/SetCard'
 import type { components } from '@shared/types'
 type LibraryItem = components['schemas']['LibraryItemRead']
 type LaunchProfile = components['schemas']['ProfileRead']
+
+// Server-side pagination envelope (backend models/pagination.py). Typed locally
+// so the app builds before @shared/types is regenerated from the OpenAPI spec.
+interface Page<T> {
+  items: T[]
+  total: number
+  limit: number
+  offset: number
+}
+
+const PAGE_SIZE = 50
 
 const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
 
@@ -40,22 +51,46 @@ export default function Library() {
   const [addOpen, setAddOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [filters, setFilters] = useState<Filters>({ era: searchParams.get('era') ?? '', profileFilter: 'all' })
+  const [offset, setOffset] = useState(0)
 
   useEffect(() => {
     setFilters((f) => ({ ...f, era: searchParams.get('era') ?? '' }))
+    setOffset(0)
   }, [searchParams])
   const { confirm, isOpen: confirmOpen, options: confirmOptions, handleConfirm, handleCancel } = useConfirm()
   const { issue: issueToken, consume: consumeToken } = useConfirmToken()
 
-  const { data: items, isLoading: itemsLoading } = useQuery<LibraryItem[]>({
-    queryKey: ['library'],
-    queryFn: () => apiFetch<LibraryItem[]>('/api/v1/library'),
-  })
+  // Filtering is done server-side now: the frontend only forwards the filter
+  // params, and each list response is a paginated Page envelope.
+  const listParams = (extra: Record<string, string>) => {
+    const params = new URLSearchParams(extra)
+    if (filters.era) params.set('era', filters.era)
+    if (filters.profileFilter === 'assigned') params.set('profile_assigned', 'true')
+    else if (filters.profileFilter === 'unassigned') params.set('profile_assigned', 'false')
+    return params.toString()
+  }
 
-  const { data: sets = [] } = useQuery<LibrarySetData[]>({
-    queryKey: ['library-sets'],
-    queryFn: () => apiFetch<LibrarySetData[]>('/api/v1/library/sets'),
+  const { data: itemsPage, isLoading: itemsLoading } = useQuery<Page<LibraryItem>>({
+    queryKey: ['library', filters.era, filters.profileFilter, offset],
+    queryFn: () =>
+      apiFetch<Page<LibraryItem>>(
+        `/api/v1/library?${listParams({ limit: String(PAGE_SIZE), offset: String(offset) })}`,
+      ),
+    placeholderData: keepPreviousData,
   })
+  const items = itemsPage?.items ?? []
+  const itemsTotal = itemsPage?.total ?? 0
+
+  // Multi-disc sets are far fewer than items; fetch up to the server's max page
+  // (200) in one shot and show them above the paginated item grid rather than
+  // running a second, separate paginator.
+  const { data: setsPage } = useQuery<Page<LibrarySetData>>({
+    queryKey: ['library-sets', filters.era, filters.profileFilter],
+    queryFn: () =>
+      apiFetch<Page<LibrarySetData>>(`/api/v1/library/sets?${listParams({ limit: '200' })}`),
+    placeholderData: keepPreviousData,
+  })
+  const sets = setsPage?.items ?? []
 
   const handleSetDisplayDisk = async (setId: number, discId: number) => {
     await apiFetch(`/api/v1/library/sets/${setId}`, {
@@ -74,20 +109,6 @@ export default function Library() {
     queryKey: ['first-run-status'],
     queryFn: () => apiFetch('/api/v1/settings/first-run-status'),
     staleTime: 60_000,
-  })
-
-  const filteredItems = (items ?? []).filter((item) => {
-    if (filters.era && item.era !== filters.era) return false
-    if (filters.profileFilter === 'assigned' && item.profile_id === null) return false
-    if (filters.profileFilter === 'unassigned' && item.profile_id !== null) return false
-    return true
-  })
-
-  const filteredSets = sets.filter((s) => {
-    if (filters.era && s.era !== filters.era) return false
-    if (filters.profileFilter === 'assigned' && s.profile_id === null) return false
-    if (filters.profileFilter === 'unassigned' && s.profile_id !== null) return false
-    return true
   })
 
   function invalidate() {
@@ -130,7 +151,7 @@ export default function Library() {
             <LoadingSpinner label="Loading library…" />
             <span aria-hidden="true">Loading library…</span>
           </div>
-        ) : (!items || items.length === 0) && sets.length === 0 ? (
+        ) : itemsTotal === 0 && sets.length === 0 && !hasActiveFilters ? (
           <EmptyState
             heading="Your library is empty"
             subtext="Add media files to get started, or scan a directory to import in bulk."
@@ -145,6 +166,7 @@ export default function Library() {
                 onChange={(e) => {
                   const v = e.target.value
                   setFilters((f) => ({ ...f, era: v }))
+                  setOffset(0)
                   setSearchParams((p) => { if (v) p.set('era', v); else p.delete('era'); return p })
                 }}
                 className={SELECT_CLASS}
@@ -157,9 +179,10 @@ export default function Library() {
               </select>
               <select
                 value={filters.profileFilter}
-                onChange={(e) =>
+                onChange={(e) => {
                   setFilters((f) => ({ ...f, profileFilter: e.target.value as Filters['profileFilter'] }))
-                }
+                  setOffset(0)
+                }}
                 className={SELECT_CLASS}
                 style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--fg-1)' }}
               >
@@ -172,6 +195,7 @@ export default function Library() {
                   type="button"
                   onClick={() => {
                     setFilters({ era: '', profileFilter: 'all' })
+                    setOffset(0)
                     setSearchParams((p) => { p.delete('era'); return p })
                   }}
                   style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}
@@ -180,20 +204,21 @@ export default function Library() {
                 </button>
               )}
               <span className="ml-auto" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)' }}>
-                {filteredItems.length + filteredSets.length} of {(items?.length ?? 0) + sets.length}
+                {itemsTotal} item{itemsTotal === 1 ? '' : 's'}
+                {sets.length > 0 ? ` · ${sets.length} set${sets.length === 1 ? '' : 's'}` : ''}
               </span>
             </div>
 
-            {filteredItems.length === 0 && filteredSets.length === 0 ? (
+            {items.length === 0 && sets.length === 0 ? (
               <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--fg-3)' }}>
                 No items match the current filters.
               </p>
             ) : (
               <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
-                {filteredSets.map((s) => (
+                {sets.map((s) => (
                   <SetCard key={`set-${s.id}`} set={s} onSetDisplayDisk={handleSetDisplayDisk} />
                 ))}
-                {filteredItems.map((item) => (
+                {items.map((item) => (
                   <ItemCard
                     key={item.id}
                     item={item}
@@ -201,6 +226,28 @@ export default function Library() {
                     onRemove={handleRemove}
                   />
                 ))}
+              </div>
+            )}
+
+            {itemsTotal > PAGE_SIZE && (
+              <div className="mt-6 flex items-center justify-center gap-4">
+                <Button
+                  variant="secondary"
+                  disabled={offset === 0}
+                  onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                >
+                  Previous
+                </Button>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)' }}>
+                  {offset + 1}–{Math.min(offset + PAGE_SIZE, itemsTotal)} of {itemsTotal}
+                </span>
+                <Button
+                  variant="secondary"
+                  disabled={offset + PAGE_SIZE >= itemsTotal}
+                  onClick={() => setOffset((o) => o + PAGE_SIZE)}
+                >
+                  Next
+                </Button>
               </div>
             )}
           </>

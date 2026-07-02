@@ -2,6 +2,7 @@ import React, { useEffect, useReducer, useRef } from 'react'
 import { apiFetch } from '@/api/client'
 import type { components } from '@shared/types'
 import { AppContext, initialState, appReducer, applyTheme } from './_AppContext'
+import type { BackgroundJob } from './_AppContext'
 
 type User = components['schemas']['UserRead']
 
@@ -46,6 +47,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('api-error', handleApiError)
     return () => window.removeEventListener('api-error', handleApiError)
   }, [])
+
+  // Poll background jobs (upload finalize, large scans) while any is processing.
+  // Keyed on the active-job count so the interval stays stable across progress
+  // ticks and tears down once everything has finished.
+  const activeJobCount = state.backgroundJobs.filter((j) => j.status === 'processing').length
+  useEffect(() => {
+    if (activeJobCount === 0) return
+    const iv = setInterval(() => {
+      apiFetch<BackgroundJob[]>('/api/v1/jobs')
+        .then((jobs) => dispatch({ type: 'SET_JOBS', payload: jobs }))
+        .catch(() => {})
+    }, 1500)
+    return () => clearInterval(iv)
+  }, [activeJobCount])
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>

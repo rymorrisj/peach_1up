@@ -15,6 +15,16 @@ export interface Toast {
   message: string
 }
 
+export interface BackgroundJob {
+  id: string
+  kind: 'upload' | 'scan'
+  status: 'processing' | 'done' | 'error'
+  progress: number
+  message: string
+  result?: unknown
+  error?: string | null
+}
+
 export interface AppState {
   theme: Theme
   sidebarCollapsed: boolean
@@ -23,6 +33,7 @@ export interface AppState {
   activeLaunches: Map<number, LaunchEntry>
   showUnauthModal: boolean
   toasts: Toast[]
+  backgroundJobs: BackgroundJob[]
 }
 
 export type AppAction =
@@ -34,6 +45,9 @@ export type AppAction =
   | { type: 'DISMISS_UNAUTH_MODAL' }
   | { type: 'ADD_TOAST'; payload: Toast }
   | { type: 'DISMISS_TOAST'; payload: string }
+  | { type: 'UPSERT_JOB'; payload: BackgroundJob }
+  | { type: 'SET_JOBS'; payload: BackgroundJob[] }
+  | { type: 'DISMISS_JOB'; payload: string }
 
 export const initialState: AppState = {
   theme: 'dark',
@@ -43,6 +57,7 @@ export const initialState: AppState = {
   activeLaunches: new Map(),
   showUnauthModal: false,
   toasts: [],
+  backgroundJobs: [],
 }
 
 export function applyTheme(theme: Theme) {
@@ -72,6 +87,19 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, toasts: [...state.toasts, action.payload] }
     case 'DISMISS_TOAST':
       return { ...state, toasts: state.toasts.filter((t) => t.id !== action.payload) }
+    case 'UPSERT_JOB': {
+      const exists = state.backgroundJobs.some((j) => j.id === action.payload.id)
+      return {
+        ...state,
+        backgroundJobs: exists
+          ? state.backgroundJobs.map((j) => (j.id === action.payload.id ? action.payload : j))
+          : [...state.backgroundJobs, action.payload],
+      }
+    }
+    case 'SET_JOBS':
+      return { ...state, backgroundJobs: action.payload }
+    case 'DISMISS_JOB':
+      return { ...state, backgroundJobs: state.backgroundJobs.filter((j) => j.id !== action.payload) }
   }
 }
 

@@ -9,6 +9,15 @@ import type { components } from '@shared/types'
 type LaunchProfile = components['schemas']['ProfileRead']
 type LibraryItem = components['schemas']['LibraryItemRead']
 
+// Server-side pagination envelope (backend models/pagination.py). Typed locally
+// so the app builds before @shared/types is regenerated from the OpenAPI spec.
+interface Page<T> {
+  items: T[]
+  total: number
+  limit: number
+  offset: number
+}
+
 type Tab = 'identity' | 'emulator' | 'media' | 'performance' | 'library'
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -87,11 +96,12 @@ export default function ProfileDetail() {
 
   const profile = profiles.find((p) => p.slug === slug)
 
-  const { data: items = [] } = useQuery<LibraryItem[]>({
+  const { data: itemsPage } = useQuery<Page<LibraryItem>>({
     queryKey: ['profile-items', slug],
-    queryFn: () => apiFetch<LibraryItem[]>(`/api/v1/profiles/${slug}/items`),
+    queryFn: () => apiFetch<Page<LibraryItem>>(`/api/v1/profiles/${slug}/items?limit=200`),
     enabled: !!slug,
   })
+  const items = itemsPage?.items ?? []
 
   useEffect(() => {
     if (!profile) return

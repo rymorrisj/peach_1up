@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAppContext } from "@/context/useAppContext";
+import JobsBell from "./JobsBell";
 
 const DOCS_BASE_URL =
   (import.meta.env.VITE_DOCS_BASE_URL as string | undefined) ??
@@ -187,6 +188,11 @@ export default function Sidebar() {
             );
           })}
         </ul>
+
+        {/* Background activity (uploads, large scans) — hidden when idle */}
+        <div className="mt-1 px-1">
+          <JobsBell />
+        </div>
 
         {/* Eras jump-list */}
         <div

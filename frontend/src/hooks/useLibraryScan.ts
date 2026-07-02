@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
+import { useAppContext } from '@/context/useAppContext'
 
 export interface ScanPreviewItem {
   title: string
@@ -27,7 +28,15 @@ interface UseLibraryScanOptions {
   onImported: () => void
 }
 
+interface ScanTriggerResponse {
+  started: boolean
+  directory: string
+  job_id?: string
+  background?: boolean
+}
+
 export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
+  const { dispatch } = useAppContext()
   const [scanning, setScanning] = useState(false)
   const [status, setStatus] = useState<ScanStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -45,13 +54,27 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
       setImporting(false)
       setImportResult(null)
       if (pollRef.current) clearInterval(pollRef.current)
+    } else {
+      // Hydrate an already-finished background scan's preview so reopening the
+      // modal (e.g. from the Activity bell) shows results without re-scanning.
+      apiFetch<ScanStatus>('/api/v1/library/scan/status')
+        .then((s) => { if (!s.running && s.preview.length > 0) setStatus(s) })
+        .catch(() => {})
     }
   }, [open])
 
-  const scanMutation = useMutation<void, Error>({
-    mutationFn: () => apiFetch('/api/v1/library/scan', { method: 'POST' }),
-    onSuccess: () => {
+  const scanMutation = useMutation<ScanTriggerResponse, Error>({
+    mutationFn: () => apiFetch<ScanTriggerResponse>('/api/v1/library/scan', { method: 'POST' }),
+    onSuccess: (resp) => {
       setScanning(true)
+      if (resp?.job_id) {
+        // Surface the scan in the nav-bell Activity panel; for a large
+        // (background) scan the user can close this modal and watch it there.
+        dispatch({
+          type: 'UPSERT_JOB',
+          payload: { id: resp.job_id, kind: 'scan', status: 'processing', progress: 0, message: 'Scanning media library…' },
+        })
+      }
       pollRef.current = setInterval(async () => {
         try {
           const s = await apiFetch<ScanStatus>('/api/v1/library/scan/status')
