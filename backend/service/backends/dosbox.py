@@ -384,9 +384,14 @@ def write_launch_conf(
         if spec.run_from_c:
             if spec.c_run_command:
                 auto_run = f"{media_drive}\\{spec.c_run_command}"
+                _validate_game_executable(auto_run, media_drive)
+                if "\\" in spec.c_run_command:
+                    dir_part = spec.c_run_command.rsplit("\\", 1)[0]
+                    item_cmds = [f"cd \\{dir_part}", auto_run]
+                else:
+                    item_cmds = [auto_run]
         elif media_path.suffix.lower() in _EXEC_SUFFIXES:
             auto_run = f"{media_drive}\\{media_path.name}"
-        if auto_run is not None:
             _validate_game_executable(auto_run, media_drive)
             item_cmds = [auto_run]
 
