@@ -139,10 +139,10 @@ def _seed_default_profiles(db) -> bool:
         return False
 
 
-# DOS / Windows 3.1 environments. Each is a single shared, persistent C: image
-# (the environment-style model 86Box already uses), linked to the era's bundled
-# profile so item launches resolve it via Platform.profile_id. The image itself
-# is provisioned (FAT16-formatted) lazily on first launch, not at seed time.
+# DOS / Windows 3.1 environments. Seeded to provide a Platform record with a
+# linked bundled profile so item launches resolve the right emulator/settings
+# via Platform.profile_id. Per-item drives are created lazily by drive_hydration
+# at launch time; no shared working image is mounted by DOSBox-X item launches.
 _DOSBOX_ENVIRONMENTS = [
     {"slug": "dos",   "name": "DOS",          "era": "dos",   "profile_slug": "dos-default",   "image_rel": "os/dos/dos.img"},
     {"slug": "win31", "name": "Windows 3.1",  "era": "win31", "profile_slug": "win31-default", "image_rel": "os/win31/win31.img"},
@@ -154,8 +154,8 @@ def _seed_dosbox_environments(db) -> bool:
 
     Must run after _seed_default_profiles so the bundled dos-default /
     win31-default profiles exist to link via profile_id. working_image_path is
-    preset to the canonical shared image path under library/system/os/; the
-    file is created on first launch by provisioner.provision_dosbox_drive.
+    preset to a canonical path under library/system/os/ but is not mounted by
+    DOSBox-X item launches; per-item drives are created lazily by drive_hydration.
     """
     try:
         from backend.models import Platform, Profile

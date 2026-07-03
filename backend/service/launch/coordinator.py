@@ -307,8 +307,11 @@ def _build_spec_for_environment(
 
     slug = resolve_backend_name(era_to_enum(platform.era))
 
-    config_path = Path(platform.config_path)
-    vm_dir = config_path.parent.resolve()
+    config_path: Path | None = None
+    vm_dir: Path | None = None
+    if platform.config_path:
+        config_path = Path(platform.config_path)
+        vm_dir = config_path.parent.resolve()
 
     return LaunchSpec(
         slug=slug,
