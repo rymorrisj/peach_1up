@@ -37,7 +37,7 @@ export default function EnvironmentCard({
   const queryClient = useQueryClient()
   const eraLabel = ERA_LABELS[platform.era] ?? platform.era
   const emulatorLabel = EMULATOR_LABELS[platform.emulator_slug] ?? platform.emulator_slug
-  const { launch, stop, isLaunching, error: launchError, warnings } = useLaunch({
+  const { launch, stop, isLaunching, error: launchError, launchWarnings } = useLaunch({
     targetId: platform.id,
     targetType: 'environment',
   })
@@ -153,9 +153,9 @@ export default function EnvironmentCard({
         </p>
       )}
 
-      {warnings.length > 0 && (
+      {launchWarnings.length > 0 && (
         <div className="space-y-1">
-          {warnings.map((w: string, i: number) => (
+          {launchWarnings.map((w: string, i: number) => (
             <p key={i} className="text-xs text-amber-600 dark:text-amber-400">
               ⚠ {w}
             </p>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import type { components } from '@shared/types'
@@ -16,6 +16,9 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
   const [launchSuccess, setLaunchSuccess] = useState(false)
   const [launchWarnings, setLaunchWarnings] = useState<string[]>([])
 
+  const onSettledRef = useRef(onSettled)
+  useEffect(() => { onSettledRef.current = onSettled })
+
   useEffect(() => {
     if (!launchId) return
     const id = setInterval(async () => {
@@ -24,14 +27,14 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
         if (rec.ended_at != null) {
           setLaunchSuccess(false)
           setLaunchId(null)
-          onSettled?.()
+          onSettledRef.current?.()
         }
       } catch {
         // poll errors are non-fatal
       }
     }, 2000)
     return () => clearInterval(id)
-  }, [launchId, onSettled])
+  }, [launchId])
 
   const launchMutation = useMutation<LaunchResponse, Error, number | null>({
     mutationFn: (profileId) => {
@@ -76,5 +79,5 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
     ? (launchMutation.error instanceof ApiError ? launchMutation.error.detail : 'Launch failed.')
     : null
 
-  return { launch, stop, isLaunching, error, warnings: launchWarnings, launchSuccess, launchWarnings }
+  return { launch, stop, isLaunching, error, launchSuccess, launchWarnings }
 }

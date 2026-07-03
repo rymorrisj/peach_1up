@@ -45,22 +45,23 @@ interface UseEditFormOptions {
 export function useEditForm({ item, slug }: UseEditFormOptions) {
   const queryClient = useQueryClient()
 
-  const [form, setFormState] = useState<EditForm | null>(null)
+  const [form, setFormState] = useState<EditForm | null>(() => item ? formFromItem(item) : null)
   const [execBrowserOpen, setExecBrowserOpen] = useState(false)
   // undefined = not yet loaded; null = never configured (preserve, media may
   // auto-run); [] = explicitly cleared (persist as empty → no auto-run).
   // Using undefined as the load sentinel keeps null distinguishable from [].
-  const [launchCommands, setLaunchCommands] = useState<string[] | null | undefined>(undefined)
+  const [launchCommands, setLaunchCommands] = useState<string[] | null | undefined>(
+    () => item ? (item.launch_commands ?? null) : undefined,
+  )
 
+  // Seed/reset form when item loads or when navigating between items.
   useEffect(() => {
-    if (item && !form) setFormState(formFromItem(item))
-  }, [item, form])
-
-  useEffect(() => {
-    if (item && launchCommands === undefined) {
+    if (item) {
+      setFormState(formFromItem(item))
       setLaunchCommands(item.launch_commands ?? null)
     }
-  }, [item, launchCommands])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id])
 
   function setField<K extends keyof EditForm>(key: K, value: EditForm[K]) {
     setFormState((prev) => prev && { ...prev, [key]: value })
@@ -106,11 +107,6 @@ export function useEditForm({ item, slug }: UseEditFormOptions) {
     saveMutation.mutate({ form, launchCommands: resolveLaunchCommands() })
   }
 
-  function handleSaveAdvanced() {
-    if (!form) return
-    saveMutation.mutate({ form, launchCommands: resolveLaunchCommands() })
-  }
-
   const saving = saveMutation.isPending
   const saveError = saveMutation.isError
     ? (saveMutation.error instanceof ApiError ? saveMutation.error.detail : 'Failed to save.')
@@ -128,6 +124,5 @@ export function useEditForm({ item, slug }: UseEditFormOptions) {
     setExecBrowserOpen,
     launchCommands: launchCommands ?? null,
     setLaunchCommands,
-    handleSaveAdvanced,
   }
 }
