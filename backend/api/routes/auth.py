@@ -107,6 +107,28 @@ def _verify_pin(pin: str, pin_hash: str) -> bool:
     return verify_pin(pin, pin_hash)
 
 
+def _complete_login(response: Response, db: Session, user: User) -> dict:
+    user.failed_pin_attempts = 0
+    db.commit()
+    token, _expires_at = issue_session(db, user)
+    _set_auth_cookie(response, user.id, token, user.session_token_ttl)
+    _set_csrf_cookie(response, user.session_token_ttl)
+    return {"user": user}
+
+
+def _get_session_user(request: Request, db: Session) -> tuple[User, str]:
+    cookie = request.cookies.get(_COOKIE_NAME)
+    if not cookie:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    parsed = parse_session_cookie(cookie)
+    if parsed is None:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    user = validate_session(db, parsed[0], parsed[1])
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired session.")
+    return user, parsed[1]
+
+
 @router.post("/setup-owner", response_model=UserResponse)
 def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depends(get_db)):
     # Fast-path / friendly-error only. This SELECT COUNT is NOT the real guard:
@@ -189,31 +211,16 @@ def switch_user(body: SwitchRequest, request: Request, response: Response, db: S
         if user.pin_hash is None or not _verify_pin(body.pin, user.pin_hash):
             _record_failed_pin_attempt(db, user)
             raise HTTPException(status_code=401, detail="Invalid PIN.")
-        user.failed_pin_attempts = 0
-        db.commit()
-        token, _expires_at = issue_session(db, user)
-        _set_auth_cookie(response, user.id, token, user.session_token_ttl)
-        _set_csrf_cookie(response, user.session_token_ttl)
-        return {"user": user}
+        return _complete_login(response, db, user)
 
     if not user.pin_required:
-        user.failed_pin_attempts = 0
-        db.commit()
-        token, _expires_at = issue_session(db, user)
-        _set_auth_cookie(response, user.id, token, user.session_token_ttl)
-        _set_csrf_cookie(response, user.session_token_ttl)
-        return {"user": user}
+        return _complete_login(response, db, user)
 
     if user.pin_hash is None or not _verify_pin(body.pin, user.pin_hash):
         _record_failed_pin_attempt(db, user)
         raise HTTPException(status_code=401, detail="Invalid PIN.")
 
-    user.failed_pin_attempts = 0
-    db.commit()
-    token, _expires_at = issue_session(db, user)
-    _set_auth_cookie(response, user.id, token, user.session_token_ttl)
-    _set_csrf_cookie(response, user.session_token_ttl)
-    return {"user": user}
+    return _complete_login(response, db, user)
 
 
 @router.post("/logout")
@@ -236,15 +243,7 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserRead)
 def me(request: Request, db: Session = Depends(get_db)):
-    cookie = request.cookies.get(_COOKIE_NAME)
-    if not cookie:
-        raise HTTPException(status_code=401, detail="Not authenticated.")
-    parsed = parse_session_cookie(cookie)
-    if parsed is None:
-        raise HTTPException(status_code=401, detail="Not authenticated.")
-    user = validate_session(db, parsed[0], parsed[1])
-    if user is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired session.")
+    user, _ = _get_session_user(request, db)
     return user
 
 
@@ -259,17 +258,9 @@ def refresh_session(request: Request, response: Response, db: Session = Depends(
     second legitimate caller. Token issuance stays exclusive to
     login/switch/setup-owner.
     """
-    cookie = request.cookies.get(_COOKIE_NAME)
-    if not cookie:
-        raise HTTPException(status_code=401, detail="Not authenticated.")
-    parsed = parse_session_cookie(cookie)
-    if parsed is None:
-        raise HTTPException(status_code=401, detail="Not authenticated.")
-    user = validate_session(db, parsed[0], parsed[1])
-    if user is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired session.")
+    user, token = _get_session_user(request, db)
     extend_session(db, user)
     if user.session_token_ttl is not None:
-        _set_auth_cookie(response, user.id, parsed[1], user.session_token_ttl)
+        _set_auth_cookie(response, user.id, token, user.session_token_ttl)
     _set_csrf_cookie(response, user.session_token_ttl)
     return {"user": user}
