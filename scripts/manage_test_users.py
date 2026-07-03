@@ -8,7 +8,6 @@ setup_admin_user.py.
 """
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
@@ -41,24 +40,10 @@ def _session_factory(db_path: Path):
     return sessionmaker(bind=engine)
 
 
-def _hash_pin(pin: str) -> str:
-    from argon2.low_level import Type, hash_secret
-
-    salt = os.urandom(16)
-    return hash_secret(
-        secret=pin.encode(),
-        salt=salt,
-        time_cost=3,
-        memory_cost=65536,
-        parallelism=4,
-        hash_len=32,
-        type=Type.ID,
-    ).decode()
-
-
 def create_test_user(name: str, pin: str | None) -> int:
     from backend.core.identity import generate_identity_secret
     from backend.models.user import User
+    from backend.service.utils.pin_hashing import hash_pin
 
     session_factory = _session_factory(_get_db_path())
     with session_factory() as db:
@@ -66,7 +51,7 @@ def create_test_user(name: str, pin: str | None) -> int:
             name=name,
             is_owner=False,
             pin_required=pin is not None,
-            pin_hash=_hash_pin(pin) if pin else None,
+            pin_hash=hash_pin(pin) if pin else None,
             identity_token_secret=generate_identity_secret(),
             can_launch_media=True,
         )
