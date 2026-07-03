@@ -42,7 +42,7 @@ class InitFile(BaseModel):
 
 
 class InitBody(BaseModel):
-    kind: Literal["file", "folder"]
+    kind: Literal["file", "folder", "set"]
     title: Optional[str] = None
     files: list[InitFile]
 
@@ -70,8 +70,8 @@ def init_upload(
     rate_limit.enforce("library-upload", client_ip, _INIT_RATE_LIMIT, _INIT_RATE_WINDOW_SECONDS)
 
     title = (body.title or "").strip()
-    if body.kind == "folder" and not title:
-        raise HTTPException(status_code=422, detail="A title is required for folder uploads.")
+    if body.kind in ("folder", "set") and not title:
+        raise HTTPException(status_code=422, detail="A title is required for folder and set uploads.")
     try:
         upload_id = cu.init_session(
             _media_root(),

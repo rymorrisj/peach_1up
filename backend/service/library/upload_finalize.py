@@ -51,6 +51,18 @@ def _finalize(upload_id: str, media_root: Path, db: Session) -> dict:
                 "reused_existing_media": reused,
             }
 
+        if reasm.kind == "set":
+            # Paths are in manifest (file_index) order — disc 1 first. Pass them
+            # directly so the client's declared disc order is preserved rather
+            # than re-sorting alphabetically as folder_ingest does.
+            library_set = lib_svc._create_multi_disc_set(reasm.paths, reasm.title, db)
+            return {
+                "result_type": "library_set",
+                "id": library_set.id,
+                "title": library_set.title,
+                "disc_count": len(reasm.paths),
+            }
+
         result_type, entity = folder_ingest.ingest_folder(
             reasm.dest_dir, reasm.paths, reasm.title, db
         )

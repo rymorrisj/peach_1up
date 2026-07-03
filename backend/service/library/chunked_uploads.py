@@ -53,8 +53,8 @@ def init_session(media_root: Path, kind: str, title: str, files: list[dict]) -> 
     unguessable upload_id. Raises ValueError on a malformed manifest."""
     import uuid
 
-    if kind not in ("file", "folder"):
-        raise ValueError("kind must be 'file' or 'folder'.")
+    if kind not in ("file", "folder", "set"):
+        raise ValueError("kind must be 'file', 'folder', or 'set'.")
     if not files:
         raise ValueError("At least one file is required.")
 
