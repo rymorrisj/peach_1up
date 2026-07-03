@@ -57,10 +57,10 @@ describe('Library acceptance', () => {
     ]
     vi.mocked(apiFetch).mockImplementation((url) => {
       if (typeof url === 'string' && url.includes('/api/v1/library/sets')) {
-        return Promise.resolve([])
+        return Promise.resolve({ items: [], total: 0, limit: 50, offset: 0 })
       }
       if (typeof url === 'string' && url.includes('/api/v1/library')) {
-        return Promise.resolve(items)
+        return Promise.resolve({ items, total: items.length, limit: 50, offset: 0 })
       }
       return Promise.resolve([])
     })

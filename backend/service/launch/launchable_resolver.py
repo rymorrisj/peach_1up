@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+    from backend.models.drive import Drive
     from backend.models.library import LibraryItem
 
 
@@ -40,6 +41,11 @@ class LaunchableEntity:
     # folder_path is the authoritative directory for loose-file hydration.
     # None for set entities (disc images are never loose-file hydrated).
     folder_path: str | None = None
+
+    # Pre-resolved Drive ORM object (None if no drive associated). Populated from
+    # the item's restored LibraryItem.drive relationship; always None for sets,
+    # which have no per-item drive in the current model.
+    drive: "Drive | None" = None
 
     # For set launches: all disc media_paths in disc_number order. Empty for item launches.
     disc_paths: list[str] = field(default_factory=list)
@@ -81,6 +87,7 @@ def resolve_launchable(
             installed=item.installed,
             requires_install=item.requires_install,
             media_type=str(item.media_type) if item.media_type is not None else None,
+            drive=item.drive,
             _db_item=item,
         )
 
@@ -116,6 +123,9 @@ def resolve_launchable(
             installed=True,
             requires_install=s.requires_install,
             media_type=None,
+            # Sets have no per-item drive in the current model (LibrarySet has no
+            # drive_id); hydration never auto-creates one for sets (_db_item is None).
+            drive=None,
             disc_paths=[item.media_path for item in all_items],
             _db_item=None,
         )

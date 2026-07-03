@@ -161,7 +161,7 @@ def reassemble(upload_id: str, media_root: Path) -> ReassembledUpload:
         session_dir: Path = session["dir"]
         files = session["files"]
 
-    base_title = (title or Path(files[0]["name"]).stem).strip() or "upload"
+    base_title = (title or Path(files[0]["name"]).stem.replace("-", " ").title()).strip() or "upload"
     slug = unique_slug(base_title, lambda s: (media_root / s).exists())
     media_root.mkdir(parents=True, exist_ok=True)
     dest_dir = resolve_under(media_root, slug)

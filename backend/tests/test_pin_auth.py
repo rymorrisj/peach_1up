@@ -331,7 +331,7 @@ class TestUpdateUser:
         assert refreshed.can_edit_settings is True
         assert refreshed.session_token_ttl == 120
 
-    def test_admin_can_edit_another_users_permissions(self, app_client, mem_session):
+    def test_admin_cannot_escalate_privilege_fields(self, app_client, mem_session):
         from backend.models.user import User
 
         admin = User(name="Admin", is_owner=False, is_admin=True)
@@ -346,10 +346,11 @@ class TestUpdateUser:
             json={"can_manage_profiles": True},
             cookies={"peach_token": self._cookie(mem_session, admin)},
         )
-        assert resp.status_code == 200, resp.text
+        # P2.4: can_manage_profiles is a privilege field; only the owner may set it.
+        assert resp.status_code == 403
 
         refreshed = mem_session.get(User, sub.id)
-        assert refreshed.can_manage_profiles is True
+        assert refreshed.can_manage_profiles is False
 
     def test_owner_as_edit_target_is_rejected(self, app_client, mem_session, owner):
         resp = app_client.patch(

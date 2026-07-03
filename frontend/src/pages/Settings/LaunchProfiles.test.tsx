@@ -111,7 +111,7 @@ describe('LaunchProfiles submit payload', () => {
     )
   })
 
-  it('omits launch_commands from the create payload when none are configured', async () => {
+  it('sends launch_commands as [] in the create payload when none are configured', async () => {
     const user = userEvent.setup()
     let postBody: Record<string, unknown> | null = null
 
@@ -146,9 +146,9 @@ describe('LaunchProfiles submit payload', () => {
 
     await waitFor(() => expect(postBody).not.toBeNull())
 
-    // EMPTY_FORM defaults launch_commands to [], but handleSubmit() never
-    // adds the key to the request body at all — so for the "no commands
-    // configured" case the field is simply absent (rather than sent as []).
-    expect((postBody as unknown as Record<string, unknown>).launch_commands).toBeUndefined()
+    // launch_commands is always sent (even as []) so that an explicit clear
+    // persists through Pydantic's exclude_unset. Omitting it would leave a
+    // stale list on the profile.
+    expect((postBody as unknown as Record<string, unknown>).launch_commands).toEqual([])
   })
 })

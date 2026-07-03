@@ -14,14 +14,15 @@ class TestFormatFat16:
         img = tmp_path / "disk.img"
         size_mb = 10
         format_fat16(img, size_mb)
-        assert img.stat().st_size == size_mb * 1024 * 1024
+        # Image is padded to a whole CHS cylinder (63 sectors × 255 heads × 512 bytes).
+        assert img.stat().st_size == 16_450_560
 
     def test_larger_image_size(self, tmp_path):
         from backend.service.utils.fat import format_fat16
         img = tmp_path / "disk.img"
         size_mb = 32
         format_fat16(img, size_mb)
-        assert img.stat().st_size == size_mb * 1024 * 1024
+        assert img.stat().st_size == 41_126_400
 
     def test_raises_if_path_already_exists(self, tmp_path):
         from backend.service.utils.fat import format_fat16

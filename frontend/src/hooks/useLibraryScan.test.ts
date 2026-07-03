@@ -1,6 +1,7 @@
 import React from 'react'
 import { renderHook, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { AppProvider } from '@/context/AppContext'
 import { useLibraryScan } from '@/hooks/useLibraryScan'
 import { apiFetch, ApiError } from '@/api/client'
 
@@ -16,7 +17,32 @@ function createWrapper() {
     defaultOptions: { mutations: { retry: false } },
   })
   return ({ children }: { children: React.ReactNode }) =>
-    React.createElement(QueryClientProvider, { client: qc }, children)
+    React.createElement(
+      QueryClientProvider,
+      { client: qc },
+      React.createElement(AppProvider, null, children),
+    )
+}
+
+// Route apiFetch by endpoint instead of call order. AppProvider fires
+// /auth/me -> /auth/refresh on mount and the hook fires /library/scan/status on
+// mount; positional mockResolvedValueOnce queues are consumed by those calls
+// before a test's target call ever runs, which silently desyncs every
+// subsequent response. Routing by URL is immune to that ordering.
+type ApiHandler = (url: string, opts?: RequestInit) => unknown
+
+let apiRoutes: Record<string, ApiHandler>
+
+function setApiRoutes(overrides: Record<string, ApiHandler> = {}) {
+  apiRoutes = {
+    // AppProvider mount noise
+    '/api/v1/auth/me': () => ({ id: 1, username: 'tester' }),
+    '/api/v1/auth/refresh': () => ({ user: { id: 1, username: 'tester' } }),
+    '/api/v1/jobs': () => [],
+    // Hook mount hydration — idle by default so it is a no-op
+    '/api/v1/library/scan/status': () => ({ running: false, preview: [], error: null }),
+    ...overrides,
+  }
 }
 
 const RUNNING_STATUS = { running: true, preview: [], error: null }
@@ -30,14 +56,20 @@ const DONE_STATUS = {
 }
 
 describe('useLibraryScan', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setApiRoutes()
+    // A thrown handler becomes a rejected promise (for failure-path tests).
+    mockApiFetch.mockImplementation((url: string, opts?: RequestInit) =>
+      Promise.resolve().then(() => {
+        const handler = apiRoutes[url]
+        return handler ? handler(url, opts) : undefined
+      }),
+    )
+  })
   afterEach(() => vi.useRealTimers())
 
   it('handleScan triggers a POST to the scan endpoint', async () => {
-    mockApiFetch
-      .mockResolvedValueOnce(undefined)   // POST /scan
-      .mockResolvedValue(DONE_STATUS)     // GET /scan/status
-
     const { result } = renderHook(
       () => useLibraryScan({ open: true, onImported: vi.fn() }),
       { wrapper: createWrapper() },
@@ -54,10 +86,17 @@ describe('useLibraryScan', () => {
   it('polling stops and preview is populated when scan finishes', async () => {
     vi.useFakeTimers()
 
-    mockApiFetch
-      .mockResolvedValueOnce(undefined)       // POST /scan
-      .mockResolvedValueOnce(RUNNING_STATUS)  // first poll — still running
-      .mockResolvedValueOnce(DONE_STATUS)     // second poll — done
+    // Sequenced /scan/status: the first entry is consumed by the mount
+    // hydration (idle, no-op); the two polls then see running -> done.
+    const statusSeq = [
+      { running: false, preview: [], error: null },
+      RUNNING_STATUS,
+      DONE_STATUS,
+    ]
+    setApiRoutes({
+      '/api/v1/library/scan': () => ({ started: true, directory: '/lib' }),
+      '/api/v1/library/scan/status': () => statusSeq.shift() ?? DONE_STATUS,
+    })
 
     const onImported = vi.fn()
     const { result } = renderHook(
@@ -82,7 +121,7 @@ describe('useLibraryScan', () => {
 
   it('handleImport posts selected paths and calls onImported when items are imported', async () => {
     const IMPORT_RESULT = { imported: 1, skipped: 0, errors: [] }
-    mockApiFetch.mockResolvedValueOnce(IMPORT_RESULT)
+    setApiRoutes({ '/api/v1/library/scan/import': () => IMPORT_RESULT })
 
     const onImported = vi.fn()
     const { result } = renderHook(
@@ -105,7 +144,7 @@ describe('useLibraryScan', () => {
 
   it('handleImport does not call onImported when imported count is zero', async () => {
     const IMPORT_RESULT = { imported: 0, skipped: 2, errors: [] }
-    mockApiFetch.mockResolvedValueOnce(IMPORT_RESULT)
+    setApiRoutes({ '/api/v1/library/scan/import': () => IMPORT_RESULT })
 
     const onImported = vi.fn()
     const { result } = renderHook(
@@ -122,7 +161,9 @@ describe('useLibraryScan', () => {
   })
 
   it('error state is set when the scan POST fails', async () => {
-    mockApiFetch.mockRejectedValueOnce(new ApiError(503, 'Scan failed'))
+    setApiRoutes({
+      '/api/v1/library/scan': () => { throw new ApiError(503, 'Scan failed') },
+    })
 
     const { result } = renderHook(
       () => useLibraryScan({ open: true, onImported: vi.fn() }),
