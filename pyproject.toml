@@ -1,0 +1,19 @@
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["backend"]
+omit = [
+    "backend/tests/*",
+    "backend/.venv/*",
+]
+
+[tool.coverage.report]
+# Enforced when running: pytest --cov=backend --cov-report=term-missing
+# Requires: pip install pytest-cov
+fail_under = 65
+show_missing = true
+skip_covered = false

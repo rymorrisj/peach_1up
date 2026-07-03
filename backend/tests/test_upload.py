@@ -127,7 +127,7 @@ class TestLibraryUploadRoute:
     def client(self, tmp_path, mem_db_session, monkeypatch):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
-        from backend.api.routes import library, uploads
+        from backend.api.routes import library_items, uploads
         from backend.core.database import get_db
         from backend.core.dependencies import get_active_user
         import backend.core.rate_limit as rl
@@ -147,7 +147,7 @@ class TestLibraryUploadRoute:
 
         app = FastAPI()
         app.include_router(uploads.router)
-        app.include_router(library.router)
+        app.include_router(library_items.router)
         app.dependency_overrides[get_active_user] = _owner_user
         app.dependency_overrides[get_db] = lambda: mem_db_session
 
