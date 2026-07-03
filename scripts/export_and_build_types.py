@@ -18,10 +18,7 @@ sys.path.insert(0, str(REPO_ROOT))
 def main() -> None:
     try:
         from fastapi import FastAPI
-        from backend.api.routes import (
-            auth, bios, emulators, filesystem, health, launches, library,
-            media, platforms, profiles, settings, tags, users,
-        )
+        from backend.api.routes import ROUTERS
 
         app = FastAPI(
             title="Peach 1UP",
@@ -32,19 +29,8 @@ def main() -> None:
             openapi_url="/api/openapi.json",
             redirect_slashes=False,
         )
-        app.include_router(auth.router)
-        app.include_router(users.router)
-        app.include_router(health.router)
-        app.include_router(settings.router)
-        app.include_router(emulators.router)
-        app.include_router(bios.router)
-        app.include_router(profiles.router)
-        app.include_router(library.router)
-        app.include_router(launches.router)
-        app.include_router(platforms.router)
-        app.include_router(filesystem.router)
-        app.include_router(media.router)
-        app.include_router(tags.router)
+        for _router in ROUTERS:
+            app.include_router(_router)
 
         spec = app.openapi()
         OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
