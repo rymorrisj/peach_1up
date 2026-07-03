@@ -1,5 +1,4 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { useAppContext } from "@/context/useAppContext";
 import JobsBell from "./JobsBell";
 
 const DOCS_BASE_URL =
@@ -25,19 +24,9 @@ const CONSOLE_ERA_ITEMS = [
 ];
 
 const NAV_ITEMS = [
-  {
-    to: "/library",
-    label: "Library",
-    glyph: "📚",
-    activeLaunchType: "library_item" as const,
-  },
+  { to: "/library", label: "Library", glyph: "📚" },
   { to: "/emulators", label: "Emulators", glyph: "🖥️" },
-  {
-    to: "/environments",
-    label: "Environments",
-    glyph: "💻",
-    activeLaunchType: "environment" as const,
-  },
+  { to: "/environments", label: "Environments", glyph: "💻" },
   { to: "/platform-health", label: "Platform Health", glyph: "🩺" },
   { to: "/profiles", label: "Profiles", glyph: "💾" },
   { to: "/tags", label: "Tags", glyph: "🏷️" },
@@ -52,7 +41,6 @@ const NAV_ITEMS = [
 ] as const;
 
 export default function Sidebar() {
-  const { state } = useAppContext();
   const navigate = useNavigate();
 
   return (
@@ -111,15 +99,7 @@ export default function Sidebar() {
       <nav className="flex-1 overflow-y-auto px-2 py-1">
         <ul role="list" className="flex flex-col gap-0.5">
           {NAV_ITEMS.map(({ to, label, glyph, ...rest }) => {
-            const activeLaunchType =
-              "activeLaunchType" in rest ? rest.activeLaunchType : undefined;
             const isExternal = "external" in rest && rest.external;
-            const hasActiveLaunch = activeLaunchType
-              ? Array.from(state.activeLaunches.values()).some(
-                  (e) =>
-                    e.target_type === activeLaunchType && e.ended_at === null,
-                )
-              : false;
 
             if (isExternal) {
               return (
@@ -174,15 +154,6 @@ export default function Sidebar() {
                     {glyph}
                   </span>
                   <span className="flex-1">{label}</span>
-                  {hasActiveLaunch && (
-                    <span
-                      className="h-1.5 w-1.5 rounded-full bg-green-500"
-                      style={{
-                        animation: "dot-pulse 1.4s ease-in-out infinite",
-                      }}
-                      aria-hidden="true"
-                    />
-                  )}
                 </NavLink>
               </li>
             );

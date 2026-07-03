@@ -1,5 +1,4 @@
 import { ZipCard, InstallerCard, RomPackCard, BundledCard, GithubReleaseCard } from './EmulatorCards'
-import { useAppContext } from '@/context/useAppContext'
 import type { components } from '@shared/types'
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
 
@@ -8,19 +7,8 @@ export function MergedEmulatorCard({
 }: {
   entry: CatalogEntry
 }) {
-  const { state } = useAppContext()
-  const hasActiveLaunch = Array.from(state.activeLaunches.values()).some(
-    (e) => e.target_type === 'emulator' && e.ended_at === null,
-  )
-
   return (
     <div className="relative rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-      {hasActiveLaunch && (
-        <span
-          className="absolute right-2 top-2 h-2 w-2 rounded-full bg-green-500"
-          aria-hidden="true"
-        />
-      )}
       <div className="mb-3 flex items-start justify-between gap-4">
         <div>
           <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">{entry.name}</h3>

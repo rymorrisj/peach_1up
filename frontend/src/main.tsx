@@ -1,8 +1,9 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import AppShell from '@/components/layout/AppShell'
 import Library from '@/pages/Library'
 import ItemDetail from '@/pages/Library/ItemDetail'
@@ -22,6 +23,7 @@ import NotFound from '@/pages/NotFound'
 import OwnerBroken from '@/pages/OwnerBroken'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { apiFetch } from '@/api/client'
+import { useAppContext } from '@/context/useAppContext'
 import type { FirstRunStatus, OwnerStatus } from '@/pages/FirstRun/types'
 import '@/styles/global.css'
 
@@ -33,6 +35,25 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+function RequireAuth() {
+  const { state } = useAppContext()
+  const location = useLocation()
+
+  if (!state.authChecked) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-white dark:bg-surface-950">
+        <LoadingSpinner label="Checking authentication…" />
+      </main>
+    )
+  }
+
+  if (!state.activeUser && !location.pathname.startsWith('/users')) {
+    return <Navigate to="/users" replace />
+  }
+
+  return <Outlet />
+}
 
 function FirstRunGuard() {
   const { data, isLoading } = useQuery({
@@ -71,27 +92,30 @@ function FirstRunGuard() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <AppProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/first-run" element={<FirstRun />} />
             <Route element={<FirstRunGuard />}>
-              <Route path="/" element={<Navigate to="/library" replace />} />
-              <Route element={<AppShell />}>
-                <Route path="/library" element={<Library />} />
-                <Route path="/library/sets/:id" element={<SetDetail />} />
-                <Route path="/library/:slug" element={<ItemDetail />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/users" element={<Users />} />
-                <Route path="/environments" element={<Environments />} />
-                <Route path="/environments/:id" element={<EnvironmentDetail />} />
-                <Route path="/emulators" element={<Emulators />} />
-                <Route path="/emulators/:slug" element={<EmulatorDetail />} />
-                <Route path="/profiles" element={<Profiles />} />
-                <Route path="/profiles/:slug" element={<ProfileDetail />} />
-                <Route path="/platform-health" element={<PlatformHealth />} />
-                <Route path="/tags" element={<Tags />} />
+              <Route element={<RequireAuth />}>
+                <Route path="/" element={<Navigate to="/library" replace />} />
+                <Route element={<AppShell />}>
+                  <Route path="/library" element={<Library />} />
+                  <Route path="/library/sets/:id" element={<SetDetail />} />
+                  <Route path="/library/:slug" element={<ItemDetail />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/users" element={<Users />} />
+                  <Route path="/environments" element={<Environments />} />
+                  <Route path="/environments/:id" element={<EnvironmentDetail />} />
+                  <Route path="/emulators" element={<Emulators />} />
+                  <Route path="/emulators/:slug" element={<EmulatorDetail />} />
+                  <Route path="/profiles" element={<Profiles />} />
+                  <Route path="/profiles/:slug" element={<ProfileDetail />} />
+                  <Route path="/platform-health" element={<PlatformHealth />} />
+                  <Route path="/tags" element={<Tags />} />
+                </Route>
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />
@@ -99,5 +123,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         </BrowserRouter>
       </AppProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 )

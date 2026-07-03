@@ -3,11 +3,6 @@ import type { components } from '@shared/types'
 
 type User = components['schemas']['UserRead']
 
-interface LaunchEntry {
-  target_type: string
-  ended_at?: string | null
-}
-
 type Theme = 'dark' | 'light'
 
 export interface Toast {
@@ -30,7 +25,7 @@ export interface AppState {
   sidebarCollapsed: boolean
   activeProfileId: number | null
   activeUser: User | null
-  activeLaunches: Map<number, LaunchEntry>
+  authChecked: boolean
   showUnauthModal: boolean
   toasts: Toast[]
   backgroundJobs: BackgroundJob[]
@@ -54,7 +49,7 @@ export const initialState: AppState = {
   sidebarCollapsed: false,
   activeProfileId: null,
   activeUser: null,
-  activeLaunches: new Map(),
+  authChecked: false,
   showUnauthModal: false,
   toasts: [],
   backgroundJobs: [],
@@ -78,9 +73,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_ACTIVE_PROFILE':
       return { ...state, activeProfileId: action.payload }
     case 'SET_ACTIVE_USER':
-      return { ...state, activeUser: action.payload, ...(action.payload !== null && { showUnauthModal: false }) }
+      return { ...state, activeUser: action.payload, authChecked: true, ...(action.payload !== null && { showUnauthModal: false }) }
     case 'LOGOUT':
-      return { ...state, activeUser: null, showUnauthModal: true }
+      return { ...state, activeUser: null, authChecked: true, showUnauthModal: true }
     case 'DISMISS_UNAUTH_MODAL':
       return { ...state, showUnauthModal: false }
     case 'ADD_TOAST':
