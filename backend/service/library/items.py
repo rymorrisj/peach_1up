@@ -15,6 +15,9 @@ from backend.service.utils.path_utils import normalise_path, resolve_under
 from backend.service.utils.slug_generator import generate_item_slug, unique_slug
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
+# Per-item FAT16 drives are for dos/win31 only; win95/win98/winxp use the
+# shared OSPlatform base/working-image model.
+_DRIVE_ERAS = frozenset({"dos", "win31"})
 
 
 class _ItemAlreadyExists(Exception):
@@ -433,8 +436,11 @@ def delete_library_item(item_id: int, token: str, db: Session) -> None:
     item = db.get(LibraryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found.")
-    # DOS/Win3.1 saves live in the shared environment C: image, not a per-item
-    # drive, so deleting an item no longer removes any drive image.
+    # Remove the per-item drive row and its on-disk FAT16 image before deleting
+    # the item, so the image file is never orphaned (the FK cascade only drops
+    # the DB row, not the file). No-op for items without a drive.
+    from backend.service.utils.drive_utils import delete_drive_for_item
+    delete_drive_for_item(item, db)
     db.delete(item)
     db.commit()
 
