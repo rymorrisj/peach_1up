@@ -21,6 +21,7 @@ from typing import List, TYPE_CHECKING, Tuple
 from backend.constants import ERA_MEDIA_TYPES
 from backend.service.utils.fat.geometry import _is_bare_fat_superfloppy, _read_geometry
 from backend.constants_generated import Era
+from backend.service.utils.era_defaults import DOS_WIN_ERAS
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import get_container_enabled
@@ -34,8 +35,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_DOSBOX_ERAS = {Era.DOS, Era.WIN31}
-SUPPORTED_ERAS = {e.value for e in _DOSBOX_ERAS}
+SUPPORTED_ERAS = DOS_WIN_ERAS
 SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.DOS] | ERA_MEDIA_TYPES[Era.WIN31]
 
 

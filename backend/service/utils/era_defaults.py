@@ -1,5 +1,8 @@
 from sqlalchemy.orm import Session
 
+# Eras served by DOSBox-X (per-item FAT16 C: drive, not a shared working image).
+DOS_WIN_ERAS: frozenset[str] = frozenset({"dos", "win31"})
+
 
 def defaults_for_era(era_slug: str) -> tuple[str | None, str | None]:
     """Return (emulator_slug, profile_era) for a known era, or (None, None)."""

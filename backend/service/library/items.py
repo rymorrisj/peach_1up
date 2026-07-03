@@ -12,12 +12,10 @@ from backend.models.library_set import LibrarySet, LibrarySetItem
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.era_media import media_type_from_path, resolve_media_file_from_directory
 from backend.service.utils.path_utils import normalise_path, resolve_under
+from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DRIVE_ERAS
 from backend.service.utils.slug_generator import generate_item_slug, unique_slug
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
-# Per-item FAT16 drives are for dos/win31 only; win95/win98/winxp use the
-# shared OSPlatform base/working-image model.
-_DRIVE_ERAS = frozenset({"dos", "win31"})
 
 
 class _ItemAlreadyExists(Exception):

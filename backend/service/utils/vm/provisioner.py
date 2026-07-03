@@ -23,8 +23,9 @@ from backend.service.utils.vm.vhd import _build_vhd_footer
 
 logger = get_logger(__name__)
 
+from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DOSBOX_ERAS
+
 _86BOX_ERAS = frozenset({"win95", "win98", "winxp"})
-_DOSBOX_ERAS = frozenset({"dos", "win31"})
 
 
 def _load_default_disk_size_mb(era: str) -> int:

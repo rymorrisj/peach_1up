@@ -50,8 +50,8 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
     rather than directories).
     """
     from backend.models.drive import Drive
-    from backend.service.library.items import _DRIVE_ERAS
     from backend.service.utils.drive_utils import compute_drive_size_mb, create_drive_for_item
+    from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DRIVE_ERAS
 
     drive = entity.drive
 
