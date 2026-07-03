@@ -41,22 +41,29 @@ class LaunchSpec:
     # Profile plain fields (consumed by dosbox; ignored by other backends)
     profile_id: int | None = None
     profile_launch_commands: list[str] = field(default_factory=list)
+    use_drive: bool = True
     container_enabled: bool | None = None
 
     # Owning user of the launching profile — scopes the AppContainer moniker
     # per-user. None means the profile has no associated user (e.g. bundled).
     user_id: int | None = None
 
-    # Environment run hint (dosbox only). Set for pattern-1 (ready-to-run,
-    # requires_install=False) media whose files were copied onto the shared C:
-    # drive: the relative subdir to cd into and run from (e.g. "GAMES\\rally").
-    # None means the source media is mounted read-only on D: instead (installer
-    # pattern-2/3).
+    # Drive plain fields (consumed by dosbox only)
+    drive_id: int | None = None
+    drive_image_path: Path | None = None
+    drive_size_mb: int | None = None
+
+    # Run hint (dosbox only) for pattern-1 (ready-to-run, requires_install=False)
+    # media whose files were copied onto the per-item writable C: drive: the
+    # relative subdir to cd into and run from (e.g. "GAMES\\rally"). None means
+    # the source media is mounted read-only on D: instead (installer pattern-2/3).
+    # NOTE: currently unwired — no code reads this field (see audit queue).
     env_run_dir: str | None = None
 
-    # Platform plain fields. working_image_path is the shared, persistent C:
-    # image for the era's environment — the DOS/Win3.1 drive (dosbox) as well
-    # as the 86Box VM disk (box86/xemu).
+    # Platform plain fields. working_image_path is the shared, persistent
+    # working image for 86Box-style eras (box86/xemu). DOS/Win3.1 do NOT use it
+    # — dosbox mounts the per-item drive_image_path as C: instead — so it is
+    # populated but inert for those eras.
     vm_dir: Path | None = None          # resolved from platform.config_path parent
     config_path: Path | None = None     # resolved from platform.config_path
     working_image_path: Path | None = None

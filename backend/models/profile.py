@@ -19,8 +19,9 @@ class ProfileBase(SQLModel):
     notes: Optional[str] = None
     user_id: Optional[int] = None
     launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
-    # use_drive is retained (legacy column) but no longer consumed: DOS/Win3.1
-    # always run against the shared per-era environment C: image.
+    # When True, DOS/Win3.1 launches mount the item's per-item drive as a
+    # persistent writable C: (see dosbox has_persistent_drive / coordinator
+    # run_from_c gates). False runs without a persistent drive.
     use_drive: bool = True
     container_enabled: Optional[bool] = None
 

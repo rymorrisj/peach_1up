@@ -310,8 +310,9 @@ def import_scan_results(
 ):
     """
     Phase 2: import the user-selected paths from the Phase 1 preview.
-    Bulk-inserts item records in chunks of 500. DOS/Win3.1 items no longer get a
-    per-item drive here — they use the shared per-era environment C: image.
+    Bulk-inserts item records in chunks of 500. DOS/Win3.1 items are not given a
+    per-item drive here — the drive is created lazily on first launch
+    (drive_hydration.hydrate_drive_for_entity).
     """
     from backend.service.library.items import _ItemAlreadyExists, _prepare_item
 

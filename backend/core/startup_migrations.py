@@ -29,6 +29,7 @@ def _apply_schema_migrations() -> None:
         ("library_items", "requires_install", "INTEGER NOT NULL DEFAULT 0"),
         ("library_items", "detection_reason", "TEXT"),
         ("library_items", "file_size_bytes", "INTEGER"),
+        ("library_items", "drive_id", "INTEGER REFERENCES drives(id)"),
         ("users", "identity_token_secret", "TEXT"),
         ("users", "session_token_hash", "TEXT"),
         ("users", "session_token_expires_at", "DATETIME"),
