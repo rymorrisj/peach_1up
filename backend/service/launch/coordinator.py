@@ -20,6 +20,7 @@ from backend.service.launch.history import write_session_ends
 from backend.service.launch.launch_spec import LaunchSpec
 from backend.service.launch.monitor import register_short_lived_check
 from backend.service.utils.era_media import resolve_media_file_from_directory
+from backend.service.utils.fat.directory import _to_83_str
 
 if TYPE_CHECKING:
     from backend.models.drive import Drive
@@ -219,7 +220,16 @@ def _build_spec_for_entity(
                 rel = Path(exe_src).resolve().relative_to(folder.resolve())
             except ValueError:
                 rel = Path(Path(exe_src).name)
-            c_run_command = str(rel).replace("/", "\\")
+            raw_cmd = str(rel).replace("/", "\\")
+            try:
+                c_run_command = "\\".join(
+                    _to_83_str(part) for part in raw_cmd.split("\\")
+                )
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Cannot launch: executable path has a component that cannot be represented in 8.3 format: {exc}",
+                ) from exc
 
     vm_dir: Path | None = None
     config_path: Path | None = None

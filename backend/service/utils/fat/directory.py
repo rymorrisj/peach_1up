@@ -25,6 +25,29 @@ def _to_83(name: str) -> tuple:
     return name_bytes, ext_bytes
 
 
+def _to_83_str(component: str) -> str:
+    """Return the 8.3 on-image name for a single filename component (uppercase).
+
+    Raises ValueError if the component cannot be represented losslessly:
+    base name > 8 chars, extension > 3 chars, or non-ASCII characters.
+    """
+    upper = component.upper()
+    if "." in upper:
+        base, _, ext = upper.rpartition(".")
+    else:
+        base, ext = upper, ""
+    try:
+        base.encode("ascii")
+        ext.encode("ascii")
+    except UnicodeEncodeError as exc:
+        raise ValueError(f"'{component}' contains non-ASCII characters") from exc
+    if len(base) > 8:
+        raise ValueError(f"'{component}': base name '{base}' exceeds 8 characters")
+    if len(ext) > 3:
+        raise ValueError(f"'{component}': extension '{ext}' exceeds 3 characters")
+    return f"{base}.{ext}" if ext else base
+
+
 def _make_dir_entry(name83: bytes, ext83: bytes, attr: int, first_cluster: int, file_size: int) -> bytes:
     entry = bytearray(32)
     entry[0:8]  = name83
