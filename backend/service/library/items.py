@@ -7,21 +7,35 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.models.library import LibraryItem, LibraryItemCreate, LibraryItemUpdate
-from backend.models.library_set import LibrarySet, LibrarySetItem
+from backend.models.library import (
+    LibraryCollection, LibraryCollectionCreate, LibraryCollectionUpdate,
+    LibraryItem, LibraryItemUpdate,
+)
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.era_media import media_type_from_path, resolve_media_file_from_directory
 from backend.service.utils.path_utils import normalise_path, resolve_under
 from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DRIVE_ERAS
-from backend.service.utils.slug_generator import generate_item_slug, unique_slug
+from backend.service.utils.slug_generator import generate_collection_slug, unique_slug
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
+
+# Keys in the prepared row that belong to the collection (parent) vs the leaf.
+_COLLECTION_COLUMNS = {
+    "title", "era", "slug", "sort_title", "category", "description", "publisher",
+    "year", "external_game_id", "metadata_source", "content_rating",
+    "launch_commands", "launch_review_flagged", "installed", "requires_install",
+    "platform_id", "profile_id", "last_launched_at", "launch_count",
+}
+_LEAF_COLUMNS = {
+    "media_path", "executable_path", "cover_art_path", "media_type",
+    "folder_path", "detection_reason", "file_size_bytes",
+}
 
 
 class _ItemAlreadyExists(Exception):
     """Raised by _prepare_item when the media path is already tracked."""
-    def __init__(self, item: LibraryItem | None):
-        self.item = item
+    def __init__(self, collection: LibraryCollection | None):
+        self.collection = collection
 
 
 class _SlugCollision(Exception):
@@ -43,6 +57,12 @@ def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     return hit if hit is not None else folder
 
 
+def _collection_for_leaf(leaf: LibraryItem | None, db: Session) -> LibraryCollection | None:
+    if leaf is None:
+        return None
+    return db.get(LibraryCollection, leaf.library_collection_id)
+
+
 def _prepare_item(
     media_path: str,
     title: str,
@@ -56,11 +76,11 @@ def _prepare_item(
     Run the full ingest pipeline for one media path without writing to the DB.
 
     Performs filesystem operations (folder creation, file copy) and era
-    detection, then returns a mapping of all LibraryItem column values
-    (excluding auto-generated columns: id, created_at, updated_at).
+    detection, then returns a mapping of all column values (collection- and
+    leaf-level) for a collection-of-one.
 
     Raises:
-        _ItemAlreadyExists: if this path is already tracked as a library item.
+        _ItemAlreadyExists: if this path is already tracked as a library leaf.
         HTTPException: for path or conflict errors.
     """
     from backend.core.logger import get_logger
@@ -106,7 +126,7 @@ def _prepare_item(
         "description": None,
         "publisher": None,
         "year": None,
-        "igdb_id": None,
+        "external_game_id": None,
         "metadata_source": None,
         "content_rating": None,
         "executable_path": None,
@@ -137,11 +157,12 @@ def _prepare_item(
             LibraryItem.folder_path == str(media_src)
         ).first()
         if existing:
-            raise _ItemAlreadyExists(existing)
-        if db.query(LibrarySetItem.media_path).filter(
-            LibrarySetItem.media_path.like(str(media_src) + "/%")
-        ).first():
-            raise _ItemAlreadyExists(None)
+            raise _ItemAlreadyExists(_collection_for_leaf(existing, db))
+        sub = db.query(LibraryItem).filter(
+            LibraryItem.media_path.like(str(media_src) + "/%")
+        ).first()
+        if sub:
+            raise _ItemAlreadyExists(_collection_for_leaf(sub, db))
 
         _dir_ingest_root = media_src
         row["folder_path"] = str(media_src)
@@ -196,14 +217,11 @@ def _prepare_item(
             dest_norm = dest.resolve().as_posix()
 
             # Duplicate check: source path or destination copy already tracked
-            for stored_path, item_id in db.query(
+            for stored_path, leaf_id in db.query(
                 LibraryItem.media_path, LibraryItem.id
             ).filter(LibraryItem.media_path.isnot(None)).all():
                 if Path(stored_path).resolve().as_posix() in (incoming_norm, dest_norm):
-                    raise _ItemAlreadyExists(db.get(LibraryItem, item_id))
-            for (set_path,) in db.query(LibrarySetItem.media_path).all():
-                if Path(set_path).resolve().as_posix() in (incoming_norm, dest_norm):
-                    raise _ItemAlreadyExists(None)
+                    raise _ItemAlreadyExists(_collection_for_leaf(db.get(LibraryItem, leaf_id), db))
 
             # If the file already lives in a direct subfolder of games_root that
             # only needs renaming to match the canonical stem, rename in place
@@ -246,14 +264,11 @@ def _prepare_item(
             if cover:
                 row["cover_art_path"] = str(cover)
         else:
-            for stored_path, item_id in db.query(
+            for stored_path, leaf_id in db.query(
                 LibraryItem.media_path, LibraryItem.id
             ).filter(LibraryItem.media_path.isnot(None)).all():
                 if Path(stored_path).resolve().as_posix() == incoming_norm:
-                    raise _ItemAlreadyExists(db.get(LibraryItem, item_id))
-            for (set_path,) in db.query(LibrarySetItem.media_path).all():
-                if Path(set_path).resolve().as_posix() == incoming_norm:
-                    raise _ItemAlreadyExists(None)
+                    raise _ItemAlreadyExists(_collection_for_leaf(db.get(LibraryItem, leaf_id), db))
             row["folder_path"] = str(media_src.parent)
 
         _scan = _smart_detect(Path(row["media_path"]))
@@ -271,7 +286,7 @@ def _prepare_item(
         row["slug"] = unique_slug(title, lambda s: s in used_slugs)
         used_slugs.add(row["slug"])
     else:
-        row["slug"] = generate_item_slug(title, db)
+        row["slug"] = generate_collection_slug(title, db)
 
     # For folder ingests: rename the existing folder to its slug-based name.
     # resolve_under confirms the target stays within the same parent directory
@@ -328,25 +343,48 @@ def _prepare_item(
     return row
 
 
+def _persist_collection_of_one(row: dict, db: Session) -> LibraryCollection:
+    """Create a LibraryCollection + its single LibraryItem leaf from a prepared row.
+
+    Flushes both so ids exist and launch/display disk pointers are set to the
+    leaf. Does NOT commit — the caller owns the transaction (and any undo of
+    filesystem side effects on IntegrityError).
+    """
+    collection = LibraryCollection(**{k: row[k] for k in _COLLECTION_COLUMNS if k in row})
+    db.add(collection)
+    db.flush()
+
+    leaf = LibraryItem(
+        library_collection_id=collection.id,
+        disc_number=1,
+        **{k: row[k] for k in _LEAF_COLUMNS if k in row},
+    )
+    db.add(leaf)
+    db.flush()
+
+    collection.launch_disk_id = leaf.id
+    collection.display_disk_id = leaf.id
+    db.add(collection)
+    return collection
+
+
 def _ingest_media_entry(
     media_path: str,
     title: str,
     db: Session,
     *,
     override_profile_id: int | None = None,
-) -> LibraryItem:
+) -> LibraryCollection:
     """
-    Single shared ingest pipeline: prepare → persist.
+    Single shared ingest pipeline: prepare → persist a collection-of-one.
     Called by both the manual add route and the scanner import endpoint.
     Raises _ItemAlreadyExists if the path is already tracked, or _SlugCollision
     if a concurrent insert claimed the generated slug first (rare TOCTOU race).
     """
     _undo_ops: list = []
     row = _prepare_item(media_path, title, db, override_profile_id=override_profile_id, _undo_stack=_undo_ops)
-    item = LibraryItem(**row)
-    db.add(item)
     try:
-        db.flush()
+        collection = _persist_collection_of_one(row, db)
     except IntegrityError as exc:
         db.rollback()
         for _undo in reversed(_undo_ops):
@@ -357,19 +395,19 @@ def _ingest_media_entry(
         raise _SlugCollision() from exc
 
     db.commit()
-    db.refresh(item)
-    return item
+    db.refresh(collection)
+    return collection
 
 
-def _create_multi_disc_set(
+def _create_multi_disc_collection(
     disc_files: list[Path],
     title: str,
     db: Session,
-) -> LibrarySet:
+) -> LibraryCollection:
     """
-    Create a LibrarySet with one LibrarySetItem per disc file.
-    disc_files must be pre-sorted alphabetically (disc 1 first).
-    Each disc file becomes both media_path and executable_path for its item.
+    Create a LibraryCollection with one LibraryItem leaf per disc file.
+    disc_files must be pre-sorted (disc 1 first).
+    Each disc file becomes both media_path and executable_path for its leaf.
     """
     from backend.service.utils.smart_media_detector import detect as _smart_detect
     from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
@@ -386,37 +424,40 @@ def _create_multi_disc_set(
                 _emulator_slug, _profile_era, db
             )
 
-    library_set = LibrarySet(
+    collection = LibraryCollection(
         title=title,
         era=detected_era,
+        slug=generate_collection_slug(title, db),
         platform_id=detected_platform_id,
         profile_id=detected_profile_id,
     )
-    db.add(library_set)
+    db.add(collection)
     db.flush()
 
-    set_items: list[LibrarySetItem] = []
+    leaves: list[LibraryItem] = []
     for disc_number, disc_file in enumerate(disc_files, start=1):
-        set_item = LibrarySetItem(
-            set_id=library_set.id,
+        leaf = LibraryItem(
+            library_collection_id=collection.id,
             disc_number=disc_number,
             media_path=str(disc_file),
             executable_path=str(disc_file),
+            media_type=media_type_from_path(disc_file),
             file_size_bytes=disc_file.stat().st_size if disc_file.exists() else None,
         )
-        db.add(set_item)
-        set_items.append(set_item)
+        db.add(leaf)
+        leaves.append(leaf)
     db.flush()
 
-    library_set.launch_disk_id = set_items[0].id
-    db.add(library_set)
+    collection.launch_disk_id = leaves[0].id
+    collection.display_disk_id = leaves[0].id
+    db.add(collection)
     db.commit()
-    db.refresh(library_set)
-    return library_set
+    db.refresh(collection)
+    return collection
 
 
-def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryItem, bool]:
-    """Backward-compat wrapper. Returns (item, already_existed)."""
+def create_library_collection(body: LibraryCollectionCreate, db: Session) -> tuple[LibraryCollection, bool]:
+    """Backward-compat wrapper. Returns (collection, already_existed)."""
     try:
         return (
             _ingest_media_entry(
@@ -425,31 +466,57 @@ def create_library_item(body: LibraryItemCreate, db: Session) -> tuple[LibraryIt
             False,
         )
     except _ItemAlreadyExists as e:
-        return e.item, True
+        return e.collection, True
 
 
-def delete_library_item(item_id: int, token: str, db: Session) -> None:
-    if not _consume(token, "library", item_id):
+def delete_library_collection(collection_id: int, token: str, db: Session) -> None:
+    if not _consume(token, "library", collection_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
-    item = db.get(LibraryItem, item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Library item not found.")
-    # Remove the per-item drive row and its on-disk FAT16 image before deleting
-    # the item, so the image file is never orphaned (the FK cascade only drops
-    # the DB row, not the file). No-op for items without a drive.
-    from backend.service.utils.drive_utils import delete_drive_for_item
-    delete_drive_for_item(item, db)
-    db.delete(item)
+    collection = db.get(LibraryCollection, collection_id)
+    if not collection:
+        raise HTTPException(status_code=404, detail="Library collection not found.")
+    # Remove the collection-owned drive row and its on-disk FAT16 image before
+    # deleting the collection, so the image file is never orphaned (the FK cascade
+    # only drops the DB row, not the file). No-op for collections without a drive.
+    from backend.service.utils.drive_utils import delete_drive_for_collection
+    delete_drive_for_collection(collection, db)
+    db.delete(collection)  # ON DELETE CASCADE removes the leaf rows
     db.commit()
 
 
-_PATH_FIELDS = {"media_path", "executable_path", "folder_path", "cover_art_path"}
-_EXISTENCE_FIELDS = {"media_path", "executable_path"}
+def update_library_collection(
+    collection_id: int, body: LibraryCollectionUpdate, db: Session
+) -> LibraryCollection:
+    from sqlalchemy import select as _select
+
+    collection = db.get(LibraryCollection, collection_id)
+    if not collection:
+        raise HTTPException(status_code=404, detail="Library collection not found.")
+
+    fields = body.model_dump(exclude_unset=True)
+    for disk_field in ("display_disk_id", "launch_disk_id"):
+        if fields.get(disk_field) is not None:
+            leaf_ids = set(
+                db.execute(
+                    _select(LibraryItem.id).where(LibraryItem.library_collection_id == collection_id)
+                ).scalars().all()
+            )
+            if fields[disk_field] not in leaf_ids:
+                raise HTTPException(status_code=422, detail="disc does not belong to this collection.")
+    for key, value in fields.items():
+        setattr(collection, key, value)
+    db.commit()
+    db.refresh(collection)
+    return collection
 
 
-def update_library_item(item_id: int, body: LibraryItemUpdate, db: Session) -> LibraryItem:
-    item = db.get(LibraryItem, item_id)
-    if not item:
+_PATH_FIELDS = {"executable_path", "cover_art_path"}
+_EXISTENCE_FIELDS = {"executable_path"}
+
+
+def update_library_leaf(collection_id: int, leaf_id: int, body: LibraryItemUpdate, db: Session) -> LibraryItem:
+    leaf = db.get(LibraryItem, leaf_id)
+    if not leaf or leaf.library_collection_id != collection_id:
         raise HTTPException(status_code=404, detail="Library item not found.")
     fields = body.model_dump(exclude_none=True)
     for key in _PATH_FIELDS & fields.keys():
@@ -457,23 +524,11 @@ def update_library_item(item_id: int, body: LibraryItemUpdate, db: Session) -> L
             resolved = normalise_path(fields[key])
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"{key}: {e}")
-        if key in _EXISTENCE_FIELDS:
-            if not resolved.exists():
-                raise HTTPException(status_code=400, detail=f"{key} does not exist: {resolved}")
-            if key == "media_path" and resolved.is_dir():
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"media_path must be a file, not a directory: {resolved}",
-                )
+        if key in _EXISTENCE_FIELDS and not resolved.exists():
+            raise HTTPException(status_code=400, detail=f"{key} does not exist: {resolved}")
         fields[key] = str(resolved)
     for key, value in fields.items():
-        setattr(item, key, value)
-    if "media_path" in fields:
-        try:
-            p = Path(fields["media_path"])
-            item.file_size_bytes = p.stat().st_size if p.is_file() else None
-        except OSError:
-            item.file_size_bytes = None
+        setattr(leaf, key, value)
     db.commit()
-    db.refresh(item)
-    return item
+    db.refresh(leaf)
+    return leaf

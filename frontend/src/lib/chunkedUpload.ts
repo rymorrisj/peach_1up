@@ -10,7 +10,7 @@ export interface ChunkedUploadResult {
   /** 201 when finalized inline, 202 when a background job was created. */
   status: number
   body: {
-    result_type?: 'library_item' | 'library_set'
+    result_type?: 'library_collection'
     title?: string
     disc_count?: number
     reused_existing_media?: boolean

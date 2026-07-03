@@ -1,8 +1,13 @@
 from backend.models.bios import BiosRequirement
 from backend.models.drive import Drive, DriveBase, DriveRead
 from backend.models.filesystem import BrowseResult, DirEntry, DriveEntry, DrivesResult, FileEntry
-from backend.models.library import ImportErrorItem, ImportResult, LibraryItem, LibraryItemBase, LibraryItemCreate, LibraryItemUpdate, LibraryItemRead, ScanPreviewItem, ScanStatus
-from backend.models.library_set import LibrarySet, LibrarySetItem, LibrarySetItemRead, LibrarySetRead, set_to_read
+from backend.models.library import (
+    ImportErrorItem, ImportResult,
+    LibraryCollection, LibraryCollectionCreate, LibraryCollectionRead, LibraryCollectionUpdate,
+    LibraryItem, LibraryItemRead, LibraryItemUpdate,
+    ScanPreviewItem, ScanStatus,
+    collection_to_read, collections_to_read_bulk,
+)
 from backend.models.platform import BiosCounts, CountTotal, HealthSummary, InstalledCounts, Platform, PlatformBase, PlatformCreate, PlatformHealthCounts, PlatformUpdate, PlatformRead, StorageStats
 from backend.models.profile import Profile, ProfileBase, ProfileCreate, ProfileUpdate, ProfileRead
 from backend.models.snapshot import Snapshot, SnapshotBase, SnapshotCreate, SnapshotRead

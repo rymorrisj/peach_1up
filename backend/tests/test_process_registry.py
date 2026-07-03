@@ -28,7 +28,7 @@ def _make_entry(proc=None, job_handle=None):
     return ProcessEntry(
         process_handle=proc,
         job_handle=job_handle,
-        library_item_id=None,
+        library_collection_id=None,
         profile_id=None,
     )
 

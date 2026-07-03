@@ -41,23 +41,26 @@ def _copy_loose_files_to_drive(src_dir: Path, img_path: Path, size_mb: int) -> N
 def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Drive | None":
     """Resolve or create drive; copy loose files on first launch.
 
-    Uses the pre-resolved drive on the entity. For item-based entities, auto-creates
-    a drive for DOS/win31 eras when none exists. For set-based entities, the drive
-    is either pre-configured on the set or absent — no auto-creation.
+    Uses the pre-resolved drive on the entity (collection-owned). Auto-creates a
+    drive for DOS/win31 collections when none exists, keyed to the launch leaf's
+    folder_path and the collection slug. Disc-image collections never trigger the
+    loose-file copy path (media_path is a file, not a directory).
 
-    The installed=True write-back goes through entity._db_item (None for sets,
-    where the loose-file copy path can never trigger since disc images are files
-    rather than directories).
+    The installed=True write-back goes through entity._db_collection.
     """
     from backend.models.drive import Drive
-    from backend.service.utils.drive_utils import compute_drive_size_mb, create_drive_for_item
+    from backend.models.library import LibraryItem
+    from backend.service.utils.drive_utils import compute_drive_size_mb, create_drive_for_collection
     from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DRIVE_ERAS
 
     drive = entity.drive
 
-    # Auto-create a drive for item-based DOS/win31 entities that don't have one yet.
-    if drive is None and entity.era in _DRIVE_ERAS and entity._db_item is not None:
-        drive = create_drive_for_item(entity._db_item, db)
+    # Auto-create a drive for DOS/win31 collections that don't have one yet.
+    collection = entity._db_collection
+    if drive is None and entity.era in _DRIVE_ERAS and collection is not None:
+        launch_leaf = db.get(LibraryItem, collection.launch_disk_id) if collection.launch_disk_id else None
+        if launch_leaf is not None:
+            drive = create_drive_for_collection(collection, launch_leaf, db)
 
     if (
         drive is not None
@@ -85,9 +88,9 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
             db.commit()
         format_fat16(img_path, fresh_size)
         _copy_loose_files_to_drive(src_dir, img_path, fresh_size)
-        if entity._db_item is not None:
-            entity._db_item.installed = True
-            db.add(entity._db_item)
+        if collection is not None:
+            collection.installed = True
+            db.add(collection)
             db.commit()
 
     return drive

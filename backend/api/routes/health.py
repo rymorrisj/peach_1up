@@ -116,8 +116,13 @@ def _compute_storage_footprint(db: Session) -> dict:
     log_size = _dir_size(base / "logs")
     drive_size = get_drive_images_bytes(db)
 
+    # era lives on the collection; file sizes on the leaf — join to break down by era.
     sized_rows = db.execute(
-        text("SELECT era, file_size_bytes FROM library_items WHERE file_size_bytes IS NOT NULL")
+        text(
+            "SELECT c.era, i.file_size_bytes FROM library_items i "
+            "JOIN library_collections c ON c.id = i.library_collection_id "
+            "WHERE i.file_size_bytes IS NOT NULL"
+        )
     ).fetchall()
     unsized_count = db.execute(
         text("SELECT COUNT(*) FROM library_items WHERE file_size_bytes IS NULL")

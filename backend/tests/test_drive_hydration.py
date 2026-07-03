@@ -6,7 +6,7 @@
 
 Architecture note — P3.1 transactional gap (still present in the code):
   hydrate_drive_for_entity() issues two separate db.commit() calls: one when
-  drive.size_mb changes and a second when entity._db_item.installed = True is
+  drive.size_mb changes and a second when entity._db_collection.installed = True is
   written back.  A crash or exception between these two commits leaves the
   drive image freshly formatted but installed=False, causing a full re-format
   on the next launch.  No test here can paper over that race; it is noted for
@@ -43,13 +43,12 @@ def _make_entity(
     folder_path: str | None = None,
     media_type: str | None = "dir",
     drive=None,
-    db_item=None,
+    db_collection=None,
 ):
     from backend.service.launch.launchable_resolver import LaunchableEntity
 
     return LaunchableEntity(
-        item_id=1,
-        set_id=None,
+        collection_id=1,
         profile_id=None,
         era=era,
         slug=None,
@@ -60,7 +59,7 @@ def _make_entity(
         folder_path=folder_path,
         media_type=media_type,
         drive=drive,
-        _db_item=db_item,
+        _db_collection=db_collection,
     )
 
 
@@ -264,8 +263,8 @@ class TestHydrateDriveForEntity:
         monkeypatch.setattr(du_mod, "compute_drive_size_mb", MagicMock(return_value=50))
 
         drive = _make_drive(str(img), size_mb=50)
-        db_item = MagicMock()
-        db_item.installed = False
+        db_collection = MagicMock()
+        db_collection.installed = False
         db = MagicMock()
 
         entity = _make_entity(
@@ -275,7 +274,7 @@ class TestHydrateDriveForEntity:
             folder_path=str(src),
             media_type="dir",
             drive=drive,
-            db_item=db_item,
+            db_collection=db_collection,
         )
 
         result = dh.hydrate_drive_for_entity(entity, db=db)
@@ -285,7 +284,7 @@ class TestHydrateDriveForEntity:
         mock_format.assert_called_once()
         mock_copy.assert_called_once()
         # installed=True must be written back
-        assert db_item.installed is True
+        assert db_collection.installed is True
         db.commit.assert_called()
 
     def test_auto_creates_drive_for_dos_item_with_no_drive(self, tmp_path, monkeypatch):
@@ -300,13 +299,13 @@ class TestHydrateDriveForEntity:
         img = tmp_path / "auto.img"
         auto_drive = _make_drive(str(img), size_mb=50)
 
-        monkeypatch.setattr(du_mod, "create_drive_for_item", MagicMock(return_value=auto_drive))
+        monkeypatch.setattr(du_mod, "create_drive_for_collection", MagicMock(return_value=auto_drive))
         monkeypatch.setattr(du_mod, "compute_drive_size_mb", MagicMock(return_value=50))
         monkeypatch.setattr(dh, "format_fat16", MagicMock())
         monkeypatch.setattr(dh, "_copy_loose_files_to_drive", MagicMock())
 
-        db_item = MagicMock()
-        db_item.installed = False
+        db_collection = MagicMock()
+        db_collection.installed = False
         db = MagicMock()
 
         entity = _make_entity(
@@ -315,7 +314,7 @@ class TestHydrateDriveForEntity:
             requires_install=False,
             folder_path=str(src),
             drive=None,
-            db_item=db_item,
+            db_collection=db_collection,
         )
 
         result = dh.hydrate_drive_for_entity(entity, db=db)

@@ -43,11 +43,11 @@ def _finalize(upload_id: str, media_root: Path, db: Session) -> dict:
             if reused:
                 shutil.rmtree(reasm.dest_dir, ignore_errors=True)
             title = reasm.title or ingest_path.stem.replace("-", " ").title()
-            item = lib_svc._ingest_media_entry(str(ingest_path), title, db)
+            collection = lib_svc._ingest_media_entry(str(ingest_path), title, db)
             return {
-                "result_type": "library_item",
-                "id": item.id,
-                "title": item.title,
+                "result_type": "library_collection",
+                "id": collection.id,
+                "title": collection.title,
                 "reused_existing_media": reused,
             }
 
@@ -55,20 +55,19 @@ def _finalize(upload_id: str, media_root: Path, db: Session) -> dict:
             # Paths are in manifest (file_index) order — disc 1 first. Pass them
             # directly so the client's declared disc order is preserved rather
             # than re-sorting alphabetically as folder_ingest does.
-            library_set = lib_svc._create_multi_disc_set(reasm.paths, reasm.title, db)
+            collection = lib_svc._create_multi_disc_collection(reasm.paths, reasm.title, db)
             return {
-                "result_type": "library_set",
-                "id": library_set.id,
-                "title": library_set.title,
+                "result_type": "library_collection",
+                "id": collection.id,
+                "title": collection.title,
                 "disc_count": len(reasm.paths),
             }
 
-        result_type, entity = folder_ingest.ingest_folder(
+        result_type, collection = folder_ingest.ingest_folder(
             reasm.dest_dir, reasm.paths, reasm.title, db
         )
-        summary = {"result_type": result_type, "id": entity.id, "title": entity.title}
-        if result_type == "library_set":
-            summary["disc_count"] = len(reasm.paths)
+        summary = {"result_type": result_type, "id": collection.id, "title": collection.title}
+        summary["disc_count"] = len(reasm.paths)
         return summary
     except Exception:
         # Reassembled bytes live under MEDIA_PATH but were never persisted — drop

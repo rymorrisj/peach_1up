@@ -164,7 +164,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
     for (const disc of stagedDiscs) fd.append('files', disc.file)
 
     try {
-      const res = await fetch(`${_BASE_URL}/api/v1/library/sets`, {
+      const res = await fetch(`${_BASE_URL}/api/v1/library/multi`, {
         method: 'POST',
         headers: { 'X-CSRF-Token': getCsrfToken() },
         credentials: 'include',
@@ -205,7 +205,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
         return
       }
       setFolderResult(
-        res.body.result_type === 'library_set'
+        (res.body.disc_count ?? 1) > 1
           ? { type: 'set', title: res.body.title ?? title, discCount: res.body.disc_count }
           : { type: 'item', title: res.body.title ?? title },
       )

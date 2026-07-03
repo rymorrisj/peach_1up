@@ -14,7 +14,9 @@ from argon2 import PasswordHasher
 def mem_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    from backend.models.user import User  # noqa: F401
+    from backend.models.drive import Drive  # noqa: F401
+    from backend.models.library import LibraryCollection, LibraryItem  # noqa: F401
 
     engine = create_engine(
         "sqlite:///:memory:",

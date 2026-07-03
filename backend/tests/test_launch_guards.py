@@ -4,7 +4,7 @@ Covers the concurrent-launch guard: a launch is rejected if either (a) the
 same profile_id, or (b) the same (emulator_slug, user_id) pair, already has
 an active launch in flight. The guard is enforced inside coordinator.launch()
 via process_registry.try_reserve()/release(), the single point all three
-launch entry points (launch_item, launch_environment, launch) converge on.
+launch entry points (launch_collection, launch_environment, launch) converge on.
 
 No pytest-asyncio plugin is configured in this project, so async calls are
 driven through asyncio.run() from plain sync test functions.
@@ -93,12 +93,22 @@ def _make_profile(db, *, name, emulator_slug, user_id, era="ps1"):
 
 
 def _make_item(db, *, profile, era="ps1"):
-    from backend.models.library import LibraryItem
-    item = LibraryItem(title=f"Game-{profile.id}", era=era, media_path="/tmp/game.bin", profile_id=profile.id)
-    db.add(item)
+    # Build a collection-of-one (parent + single leaf) and return the collection,
+    # the sole game launch target after the set/item consolidation.
+    from backend.models.library import LibraryCollection, LibraryItem
+    collection = LibraryCollection(
+        title=f"Game-{profile.id}", era=era, slug=f"game-{profile.id}", profile_id=profile.id
+    )
+    db.add(collection)
+    db.flush()
+    leaf = LibraryItem(library_collection_id=collection.id, disc_number=1, media_path="/tmp/game.bin")
+    db.add(leaf)
+    db.flush()
+    collection.launch_disk_id = leaf.id
+    db.add(collection)
     db.commit()
-    db.refresh(item)
-    return item
+    db.refresh(collection)
+    return collection
 
 
 def _make_platform(db, *, profile, era="ps1"):
@@ -129,12 +139,12 @@ class TestResolveProfileForItem:
 
 
 # ---------------------------------------------------------------------------
-# 1. Same profile_id, second launch_item request while first is still active
+# 1. Same profile_id, second launch_collection request while first is still active
 # ---------------------------------------------------------------------------
 
 class TestSameProfileRejected:
     def test_second_launch_item_same_profile_rejected(self, mem_session, monkeypatch):
-        from backend.service.launch.coordinator import launch_item
+        from backend.service.launch.coordinator import launch_collection
 
         profile = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_id=1)
         item = _make_item(mem_session, profile=profile)
@@ -148,13 +158,13 @@ class TestSameProfileRejected:
         _patch_backend_router(monkeypatch, fake_dispatch)
 
         # First launch succeeds and remains "active" (proc never exits).
-        result = _run(launch_item(item, None, mem_session))
+        result = _run(launch_collection(item.id, None, mem_session))
         assert result.history_id is not None
         assert len(calls) == 1
 
         # Second launch for the same profile must be rejected before dispatch.
         with pytest.raises(HTTPException) as exc_info:
-            _run(launch_item(item, None, mem_session))
+            _run(launch_collection(item.id, None, mem_session))
         assert exc_info.value.status_code == 409
         assert len(calls) == 1  # dispatch was never reached for the rejected launch
 
@@ -227,7 +237,7 @@ class TestDifferentKeysSucceed:
 
 class TestRollbackOnImmediateExit:
     def test_reservation_released_after_immediate_crash(self, mem_session, monkeypatch):
-        from backend.service.launch.coordinator import launch_item
+        from backend.service.launch.coordinator import launch_collection
 
         profile = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_id=1)
         item = _make_item(mem_session, profile=profile)
@@ -244,13 +254,13 @@ class TestRollbackOnImmediateExit:
 
         # First launch: backend reports an immediate exit -> 500, not 409.
         with pytest.raises(HTTPException) as exc_info:
-            _run(launch_item(item, None, mem_session))
+            _run(launch_collection(item.id, None, mem_session))
         assert exc_info.value.status_code == 500
 
         # The crash must have released both the reservation and the registry
         # entry (process_registry.terminate at the immediate-exit path) -- a
         # retry for the same profile must succeed, not hit the 409 guard.
-        result = _run(launch_item(item, None, mem_session))
+        result = _run(launch_collection(item.id, None, mem_session))
         assert result.history_id is not None
 
 
@@ -261,7 +271,7 @@ class TestRollbackOnImmediateExit:
 
 class TestCleanExitZeroNotTreatedAsCrash:
     def test_immediate_clean_exit_does_not_raise(self, mem_session, monkeypatch):
-        from backend.service.launch.coordinator import launch_item
+        from backend.service.launch.coordinator import launch_collection
 
         profile = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_id=1)
         item = _make_item(mem_session, profile=profile)
@@ -273,12 +283,12 @@ class TestCleanExitZeroNotTreatedAsCrash:
 
         # Exit code 0 within the inline window must not be treated as a
         # crash -- the launch should succeed, not raise a 500.
-        result = _run(launch_item(item, None, mem_session))
+        result = _run(launch_collection(item.id, None, mem_session))
         assert result.history_id is not None
 
     def test_immediate_nonzero_exit_still_raises(self, mem_session, monkeypatch):
         """Non-zero exit within the same window is unchanged: still a 500."""
-        from backend.service.launch.coordinator import launch_item
+        from backend.service.launch.coordinator import launch_collection
 
         profile = _make_profile(mem_session, name="P2", emulator_slug="flycast", user_id=2, era="dreamcast")
         item = _make_item(mem_session, profile=profile, era="dreamcast")
@@ -289,7 +299,7 @@ class TestCleanExitZeroNotTreatedAsCrash:
         _patch_backend_router(monkeypatch, fake_dispatch)
 
         with pytest.raises(HTTPException) as exc_info:
-            _run(launch_item(item, None, mem_session))
+            _run(launch_collection(item.id, None, mem_session))
         assert exc_info.value.status_code == 500
 
 
@@ -339,7 +349,7 @@ class TestReservationRaceClosed:
 class TestRegistrationFailureKillsProcessAndReleasesReservation:
     def test_register_failure_kills_process_curates_error_and_releases_reservation(self, mem_session, monkeypatch):
         from backend.core import process_registry
-        from backend.service.launch.coordinator import launch_item
+        from backend.service.launch.coordinator import launch_collection
 
         profile = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_id=1)
         item = _make_item(mem_session, profile=profile)
@@ -360,7 +370,7 @@ class TestRegistrationFailureKillsProcessAndReleasesReservation:
         monkeypatch.setattr(process_registry, "register", failing_register)
 
         with pytest.raises(HTTPException) as exc_info:
-            _run(launch_item(item, None, mem_session))
+            _run(launch_collection(item.id, None, mem_session))
 
         # (b) curated 500, not the raw RuntimeError, surfaces to the caller.
         assert exc_info.value.status_code == 500
@@ -384,5 +394,5 @@ class TestRegistrationFailureKillsProcessAndReleasesReservation:
 
         # (c) reservation was released -- a retry for the same profile_id and
         # the same (emulator_slug, user_id) pair must succeed, not hit 409.
-        result = _run(launch_item(item, None, mem_session))
+        result = _run(launch_collection(item.id, None, mem_session))
         assert result.history_id is not None

@@ -6,8 +6,8 @@ Covers three functions introduced in the folder-upload / multi-disc feature:
   selection including GDI-first priority.
 - _detect_disc_files (library route): multi-disc detection and 422 guard for
   ambiguous mixed .cue/.gdi uploads.
-- _create_multi_disc_set (library service): DB creation of LibrarySet +
-  LibrarySetItem records for a multi-disc folder.
+- _create_multi_disc_collection (library service): DB creation of LibraryCollection +
+  LibraryItem records for a multi-disc folder.
 
 GDI divergence note: _EXECUTABLE_PRIORITY in profile_builder.py did NOT include
 .gdi, so _prepare_item would store executable_path=None for Dreamcast folders
@@ -109,7 +109,7 @@ class TestDetectDiscFiles:
 
 
 # ---------------------------------------------------------------------------
-# _create_multi_disc_set — DB integration
+# _create_multi_disc_collection — DB integration
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
@@ -117,7 +117,6 @@ def mem_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
     import backend.models  # noqa: F401 — registers all ORM tables
-    import backend.models.library_set  # noqa: F401
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -156,45 +155,45 @@ class TestCreateMultiDiscSet:
         return files
 
     def test_two_disc_set_creates_one_set_and_two_items(self, tmp_path, mem_session):
-        from backend.service.library.items import _create_multi_disc_set
-        from backend.models.library_set import LibrarySet, LibrarySetItem
+        from backend.service.library.items import _create_multi_disc_collection
+        from backend.models.library import LibraryCollection, LibraryItem
 
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
-        _create_multi_disc_set(disc_files, "Sonic Adventure", mem_session)
+        _create_multi_disc_collection(disc_files, "Sonic Adventure", mem_session)
 
-        sets = mem_session.query(LibrarySet).all()
+        sets = mem_session.query(LibraryCollection).all()
         assert len(sets) == 1
         assert sets[0].title == "Sonic Adventure"
 
-        items = mem_session.query(LibrarySetItem).filter(LibrarySetItem.set_id == sets[0].id).all()
+        items = mem_session.query(LibraryItem).filter(LibraryItem.library_collection_id == sets[0].id).all()
         assert len(items) == 2
 
     def test_launch_disk_id_points_to_first_disc(self, tmp_path, mem_session):
-        from backend.service.library.items import _create_multi_disc_set
-        from backend.models.library_set import LibrarySet, LibrarySetItem
+        from backend.service.library.items import _create_multi_disc_collection
+        from backend.models.library import LibraryCollection, LibraryItem
 
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
-        library_set = _create_multi_disc_set(disc_files, "Test Game", mem_session)
+        library_set = _create_multi_disc_collection(disc_files, "Test Game", mem_session)
 
         items = (
-            mem_session.query(LibrarySetItem)
-            .filter(LibrarySetItem.set_id == library_set.id)
-            .order_by(LibrarySetItem.disc_number)
+            mem_session.query(LibraryItem)
+            .filter(LibraryItem.library_collection_id == library_set.id)
+            .order_by(LibraryItem.disc_number)
             .all()
         )
         assert library_set.launch_disk_id == items[0].id
 
     def test_each_item_has_gdi_as_executable_path(self, tmp_path, mem_session):
-        from backend.service.library.items import _create_multi_disc_set
-        from backend.models.library_set import LibrarySetItem
+        from backend.service.library.items import _create_multi_disc_collection
+        from backend.models.library import LibraryItem
 
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
-        library_set = _create_multi_disc_set(disc_files, "Dreamcast Game", mem_session)
+        library_set = _create_multi_disc_collection(disc_files, "Dreamcast Game", mem_session)
 
         items = (
-            mem_session.query(LibrarySetItem)
-            .filter(LibrarySetItem.set_id == library_set.id)
-            .order_by(LibrarySetItem.disc_number)
+            mem_session.query(LibraryItem)
+            .filter(LibraryItem.library_collection_id == library_set.id)
+            .order_by(LibraryItem.disc_number)
             .all()
         )
         for idx, item in enumerate(items):
@@ -203,26 +202,26 @@ class TestCreateMultiDiscSet:
             assert Path(item.executable_path).suffix.lower() == ".gdi"
 
     def test_disc_numbers_are_sequential_from_one(self, tmp_path, mem_session):
-        from backend.service.library.items import _create_multi_disc_set
-        from backend.models.library_set import LibrarySetItem
+        from backend.service.library.items import _create_multi_disc_collection
+        from backend.models.library import LibraryItem
 
         disc_files = self._make_disc_files(tmp_path, ["disc1.cue", "disc2.cue", "disc3.cue"])
-        library_set = _create_multi_disc_set(disc_files, "Triple-Disc Game", mem_session)
+        library_set = _create_multi_disc_collection(disc_files, "Triple-Disc Game", mem_session)
 
         items = (
-            mem_session.query(LibrarySetItem)
-            .filter(LibrarySetItem.set_id == library_set.id)
-            .order_by(LibrarySetItem.disc_number)
+            mem_session.query(LibraryItem)
+            .filter(LibraryItem.library_collection_id == library_set.id)
+            .order_by(LibraryItem.disc_number)
             .all()
         )
         assert [i.disc_number for i in items] == [1, 2, 3]
 
     def test_era_from_detector_stored_on_set(self, tmp_path, mem_session):
-        from backend.service.library.items import _create_multi_disc_set
-        from backend.models.library_set import LibrarySet
+        from backend.service.library.items import _create_multi_disc_collection
+        from backend.models.library import LibraryCollection
 
         disc_files = self._make_disc_files(tmp_path, ["d1.gdi", "d2.gdi"])
-        library_set = _create_multi_disc_set(disc_files, "Era Test", mem_session)
+        library_set = _create_multi_disc_collection(disc_files, "Era Test", mem_session)
 
-        stored = mem_session.get(LibrarySet, library_set.id)
+        stored = mem_session.get(LibraryCollection, library_set.id)
         assert stored.era == "dreamcast"

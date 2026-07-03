@@ -51,7 +51,7 @@ class TestComputeDriveSizeMb:
         assert result != 3
 
 
-class TestDeleteDriveForItem:
+class TestDeleteDriveForCollection:
     @pytest.fixture
     def mem_session(self):
         from sqlmodel import SQLModel, Session, create_engine
@@ -62,36 +62,36 @@ class TestDeleteDriveForItem:
             yield session
 
     def test_drive_id_is_none_after_delete(self, mem_session):
-        from backend.models.library import LibraryItem
+        from backend.models.library import LibraryCollection
         from backend.models.drive import Drive
-        from backend.service.utils.drive_utils import delete_drive_for_item
+        from backend.service.utils.drive_utils import delete_drive_for_collection
 
-        item = LibraryItem(title="Test Game", era="dos", media_path="/tmp/test")
-        mem_session.add(item)
+        collection = LibraryCollection(title="Test Game", era="dos", slug="test-game")
+        mem_session.add(collection)
         mem_session.flush()
 
-        drive = Drive(library_item_id=item.id, name="Test Game", size_mb=10)
+        drive = Drive(library_collection_id=collection.id, name="Test Game", size_mb=10)
         mem_session.add(drive)
         mem_session.flush()
 
-        item.drive_id = drive.id
-        mem_session.add(item)
+        collection.drive_id = drive.id
+        mem_session.add(collection)
         mem_session.commit()
 
-        delete_drive_for_item(item, mem_session)
+        delete_drive_for_collection(collection, mem_session)
 
-        assert item.drive_id is None
+        assert collection.drive_id is None
 
     def test_delete_noop_when_no_drive(self, mem_session):
-        from backend.models.library import LibraryItem
-        from backend.service.utils.drive_utils import delete_drive_for_item
+        from backend.models.library import LibraryCollection
+        from backend.service.utils.drive_utils import delete_drive_for_collection
 
-        item = LibraryItem(title="Test Game", era="dos", media_path="/tmp/test")
-        mem_session.add(item)
+        collection = LibraryCollection(title="Test Game", era="dos", slug="test-game")
+        mem_session.add(collection)
         mem_session.commit()
 
-        delete_drive_for_item(item, mem_session)
+        delete_drive_for_collection(collection, mem_session)
 
-        assert item.drive_id is None
+        assert collection.drive_id is None
 
 

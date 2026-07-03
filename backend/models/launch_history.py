@@ -1,13 +1,13 @@
 from datetime import datetime
 from typing import Optional
 
+from pydantic import model_validator
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, SQLModel
 from backend.constants_generated import EmulatorCatalogSlug
 
 
 class LaunchHistoryBase(SQLModel):
-    target_type: str = "library_item"
     emulator_slug: EmulatorCatalogSlug = Field(sa_column=Column(String, nullable=False))
     network_blocked: bool = True
     job_isolated: bool = False
@@ -20,13 +20,9 @@ class LaunchHistory(LaunchHistoryBase, table=True):
     __tablename__ = "launch_history"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    library_item_id: Optional[int] = Field(
+    library_collection_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("library_items.id", ondelete="CASCADE"), nullable=True),
-    )
-    library_set_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("library_sets.id", ondelete="CASCADE"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("library_collections.id", ondelete="CASCADE"), nullable=True),
     )
     platform_id: Optional[int] = Field(
         default=None,
@@ -47,11 +43,20 @@ class LaunchHistory(LaunchHistoryBase, table=True):
 
 class LaunchHistoryRead(LaunchHistoryBase):
     id: int
-    library_item_id: Optional[int] = None
-    library_set_id: Optional[int] = None
+    library_collection_id: Optional[int] = None
     platform_id: Optional[int] = None
     profile_id: Optional[int] = None
     started_at: datetime
     ended_at: Optional[datetime] = None
     exit_code: Optional[int] = None
     error_message: Optional[str] = None
+    # Derived discriminator (not stored): a collection launch vs an environment launch.
+    target_type: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _derive_target_type(self) -> "LaunchHistoryRead":
+        if self.library_collection_id is not None:
+            self.target_type = "library_collection"
+        elif self.platform_id is not None:
+            self.target_type = "environment"
+        return self

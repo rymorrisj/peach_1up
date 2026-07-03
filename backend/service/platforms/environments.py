@@ -203,7 +203,7 @@ def batch_health_check(db: Session) -> dict:
 
 def get_health_summary(db: Session) -> dict:
     from sqlalchemy import func, distinct as sa_distinct
-    from backend.models.library import LibraryItem
+    from backend.models.library import LibraryCollection, LibraryItem
     from backend.service.utils.emulator_catalog import (
         check_bios_presence,
         get_install_path,
@@ -216,8 +216,9 @@ def get_health_summary(db: Session) -> dict:
     platform_unknown = sum(1 for p in user_platforms if p.status == "unknown")
     platform_degraded = len(user_platforms) - platform_healthy - platform_unknown
 
-    library_count = db.query(LibraryItem).count()
-    # Count actual per-item Drive rows (mirrors get_drive_images_bytes, which
+    # "library total" = number of games (collections); a multi-disc set counts once.
+    library_count = db.query(LibraryCollection).count()
+    # Count actual per-collection Drive rows (mirrors get_drive_images_bytes, which
     # sums those same rows' image files).
     from backend.models.drive import Drive
     drive_count = db.query(Drive).count()

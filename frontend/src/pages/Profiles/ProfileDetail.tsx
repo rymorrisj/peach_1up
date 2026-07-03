@@ -7,7 +7,7 @@ import { ERA_COLOR } from '@/types/era'
 import type { components } from '@shared/types'
 
 type LaunchProfile = components['schemas']['ProfileRead']
-type LibraryItem = components['schemas']['LibraryItemRead']
+type LibraryItem = components['schemas']['LibraryCollectionRead']
 
 // Server-side pagination envelope (backend models/pagination.py). Typed locally
 // so the app builds before @shared/types is regenerated from the OpenAPI spec.

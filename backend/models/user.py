@@ -27,7 +27,7 @@ class UserBase(SQLModel):
     @classmethod
     def _check_max_content_rating(cls, v: Optional[str]) -> Optional[str]:
         # An unrecognised ceiling silently uncaps the user (see
-        # get_filtered_library), so reject it wherever a User is validated.
+        # get_filtered_collections), so reject it wherever a User is validated.
         from backend.core.dependencies import validate_max_content_rating
         return validate_max_content_rating(v)
 

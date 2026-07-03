@@ -7,8 +7,7 @@ from sqlalchemy.orm import Session
 from backend.core import rate_limit
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
-from backend.models.library import item_to_read
-from backend.models.library_set import LibrarySetItemRead, set_to_read
+from backend.models.library import LibraryItemRead, collection_to_read
 from backend.models.user import User
 from backend.service.library import enrich as enrich_svc
 
@@ -32,7 +31,7 @@ def _enforce_rate_limit(bucket: str, request: Request, limit: int, window_second
 
 
 class EnrichBody(BaseModel):
-    entity_type: Literal["library_item", "library_set", "library_set_item"]
+    entity_type: Literal["library_collection", "library_item"]
     entity_id: int
     title: Optional[str] = None
     description: Optional[str] = None
@@ -189,8 +188,6 @@ def enrich_library_entity(
         cover_art_url=body.cover_art_url,
         db=db,
     )
-    if entity_type == "library_item":
-        return item_to_read(entity, db)
-    if entity_type == "library_set":
-        return set_to_read(entity, db)
-    return LibrarySetItemRead.model_validate(entity)
+    if entity_type == "library_collection":
+        return collection_to_read(entity, db)
+    return LibraryItemRead.model_validate(entity)

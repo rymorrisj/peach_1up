@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user, get_filtered_item, require_permission
+from backend.core.dependencies import get_active_user, get_filtered_collection, require_permission
 from backend.core.logger import get_logger
 from backend.models import LaunchHistory, Platform
 from backend.models.launch_history import LaunchHistoryRead
@@ -24,39 +24,23 @@ class LaunchResponse(BaseModel):
     warnings: list[str] = []
     launch_review_flagged: bool = False
 
-@router.post("/library/{item_id}/launch", status_code=202, response_model=LaunchResponse)
-async def launch_item(
-    item_id: int,
+
+@router.post("/library/{collection_id}/launch", status_code=202, response_model=LaunchResponse)
+async def launch_collection(
+    collection_id: int,
     body: LaunchRequest = LaunchRequest(),
     db: Session = Depends(get_db),
     active_user: User = require_permission("can_launch_media"),
 ):
-    item = get_filtered_item(item_id, active_user, db)
-    result = await svc.launch_item(item, body.profile_id, db)
+    # get_filtered_collection enforces the caller's restriction/rating filters and 404s otherwise.
+    collection = get_filtered_collection(collection_id, active_user, db)
+    result = await svc.launch_collection(collection.id, body.profile_id, db)
     return LaunchResponse(
         launch_history_id=result.history_id,
         warnings=result.warnings,
         launch_review_flagged=result.launch_review_flagged,
     )
 
-
-@router.post("/library/sets/{set_id}/launch", status_code=202, response_model=LaunchResponse)
-async def launch_library_set(
-    set_id: int,
-    body: LaunchRequest = LaunchRequest(),
-    db: Session = Depends(get_db),
-    _: User = require_permission("can_launch_media"),
-):
-    from backend.models.library_set import LibrarySet
-    s = db.get(LibrarySet, set_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="Library set not found.")
-    result = await svc.launch_set(set_id, body.profile_id, db)
-    return LaunchResponse(
-        launch_history_id=result.history_id,
-        warnings=result.warnings,
-        launch_review_flagged=result.launch_review_flagged,
-    )
 
 @router.post("/environments/{platform_id}/launch", status_code=202, response_model=LaunchResponse)
 async def launch_environment(
@@ -82,34 +66,21 @@ async def launch_environment(
         launch_review_flagged=result.launch_review_flagged,
     )
 
-@router.get("/library/sets/{set_id}/launches", response_model=list[LaunchHistoryRead])
-def list_set_launches(
-    set_id: int,
+
+@router.get("/library/{collection_id}/launches", response_model=list[LaunchHistoryRead])
+def list_collection_launches(
+    collection_id: int,
     db: Session = Depends(get_db),
     _: User = Depends(get_active_user),
 ):
     return (
         db.query(LaunchHistory)
-        .filter(LaunchHistory.library_set_id == set_id)
+        .filter(LaunchHistory.library_collection_id == collection_id)
         .order_by(LaunchHistory.started_at.desc())
         .limit(20)
         .all()
     )
 
-
-@router.get("/library/{item_id}/launches", response_model=list[LaunchHistoryRead])
-def list_item_launches(
-    item_id: int,
-    db: Session = Depends(get_db),
-    _: User = Depends(get_active_user),
-):
-    return (
-        db.query(LaunchHistory)
-        .filter(LaunchHistory.library_item_id == item_id)
-        .order_by(LaunchHistory.started_at.desc())
-        .limit(20)
-        .all()
-    )
 
 @router.get("/launches", response_model=list[LaunchHistoryRead])
 def list_launches(
@@ -122,10 +93,8 @@ def list_launches(
     if target_id is not None and target_type is not None:
         if target_type == "environment":
             q = q.filter(LaunchHistory.platform_id == target_id)
-        elif target_type == "library_set":
-            q = q.filter(LaunchHistory.library_set_id == target_id)
-        else:
-            q = q.filter(LaunchHistory.library_item_id == target_id)
+        elif target_type == "library_collection":
+            q = q.filter(LaunchHistory.library_collection_id == target_id)
     return q.order_by(LaunchHistory.started_at.desc()).limit(50).all()
 
 @router.get("/launches/{history_id}")

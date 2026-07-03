@@ -6,8 +6,7 @@ import { AppProvider } from '@/context/AppContext'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import AppShell from '@/components/layout/AppShell'
 import Library from '@/pages/Library'
-import ItemDetail from '@/pages/Library/ItemDetail'
-import SetDetail from '@/pages/Library/SetDetail'
+import CollectionDetail from '@/pages/Library/CollectionDetail'
 import Settings from '@/pages/Settings'
 import Users from '@/pages/Users'
 import Emulators from '@/pages/Emulators'
@@ -103,8 +102,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/" element={<Navigate to="/library" replace />} />
                 <Route element={<AppShell />}>
                   <Route path="/library" element={<Library />} />
-                  <Route path="/library/sets/:id" element={<SetDetail />} />
-                  <Route path="/library/:slug" element={<ItemDetail />} />
+                  <Route path="/library/:slug" element={<CollectionDetail />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/users" element={<Users />} />
                   <Route path="/environments" element={<Environments />} />

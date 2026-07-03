@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.identity import parse_session_cookie, validate_session
 from backend.core.logger import get_logger
-from backend.models.library import LibraryItem
+from backend.models.library import LibraryCollection
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
 
@@ -70,7 +70,7 @@ def validate_max_content_rating(value: str | None) -> str | None:
     """Return *value* if it is a recognised rating key, else raise ValueError.
 
     ``None`` means "no ceiling" and always passes. An unknown value must be
-    rejected on write: get_filtered_library looks the ceiling up in the
+    rejected on write: get_filtered_collections looks the ceiling up in the
     ordinal map, gets ``None`` for an unrecognised value, and then skips the
     rating filter entirely — silently uncapping the user. Rejecting here keeps
     that bypass closed.
@@ -154,32 +154,32 @@ def require_permission(flag: str):
     return Depends(_check)
 
 
-def get_filtered_library(active_user: User, db: Session):
-    """Return a LibraryItem query filtered to what *active_user* is allowed to see.
+def get_filtered_collections(active_user: User, db: Session):
+    """Return a LibraryCollection query filtered to what *active_user* may see.
 
-    Owner sees all items. For non-owners:
-    - ``block_unrated_media=True`` excludes items with null or empty content_rating.
+    Owner sees all collections. For non-owners:
+    - ``block_unrated_media=True`` excludes collections with null/empty content_rating.
     - ``max_content_rating`` limits results to ratings at or below the ordinal threshold.
-      For a user with a ceiling, items whose rating is unrecognised are DENIED, not
-      passed through — an unknown rating must never leak past a parental cap. Null/empty
-      ratings are governed separately by ``block_unrated_media`` above.
+      For a user with a ceiling, collections whose rating is unrecognised are DENIED,
+      not passed through — an unknown rating must never leak past a parental cap.
+      Null/empty ratings are governed separately by ``block_unrated_media`` above.
 
     Returns a SQLAlchemy Query that callers can chain additional filters onto.
     """
-    q = db.query(LibraryItem)
+    q = db.query(LibraryCollection)
 
     if active_user.is_owner:
         return q
 
-    restricted_ids = db.query(MediaRestriction.library_item_id).filter(
+    restricted_ids = db.query(MediaRestriction.library_collection_id).filter(
         MediaRestriction.user_id == active_user.id
     ).scalar_subquery()
-    q = q.filter(LibraryItem.id.not_in(restricted_ids))
+    q = q.filter(LibraryCollection.id.not_in(restricted_ids))
 
     if active_user.block_unrated_media:
         q = q.filter(
-            LibraryItem.content_rating.isnot(None),
-            LibraryItem.content_rating != "",
+            LibraryCollection.content_rating.isnot(None),
+            LibraryCollection.content_rating != "",
         )
 
     if active_user.max_content_rating:
@@ -189,29 +189,29 @@ def get_filtered_library(active_user: User, db: Session):
             allowed = {r for r, o in ordinal_map.items() if o <= max_ord}
             q = q.filter(
                 or_(
-                    LibraryItem.content_rating.is_(None),
-                    LibraryItem.content_rating == "",
-                    LibraryItem.content_rating.in_(list(allowed)),
+                    LibraryCollection.content_rating.is_(None),
+                    LibraryCollection.content_rating == "",
+                    LibraryCollection.content_rating.in_(list(allowed)),
                 )
             )
 
     return q
 
 
-def get_filtered_item(item_id_or_slug: int | str, active_user: User, db: Session) -> LibraryItem:
-    """Return a single LibraryItem if *active_user* is allowed to see it.
+def get_filtered_collection(id_or_slug: int | str, active_user: User, db: Session) -> LibraryCollection:
+    """Return a single LibraryCollection if *active_user* is allowed to see it.
 
-    Reuses get_filtered_library's owner-bypass and restriction/rating filters,
-    narrowed to one item. Raises 404 (not a different status) whether the item
-    doesn't exist or is filtered out, so existence isn't leaked to callers who
-    shouldn't see it.
+    Reuses get_filtered_collections' owner-bypass and restriction/rating filters,
+    narrowed to one collection. Raises 404 (not a different status) whether the
+    collection doesn't exist or is filtered out, so existence isn't leaked to
+    callers who shouldn't see it.
     """
-    q = get_filtered_library(active_user, db)
-    if isinstance(item_id_or_slug, int):
-        q = q.filter(LibraryItem.id == item_id_or_slug)
+    q = get_filtered_collections(active_user, db)
+    if isinstance(id_or_slug, int):
+        q = q.filter(LibraryCollection.id == id_or_slug)
     else:
-        q = q.filter(LibraryItem.slug == item_id_or_slug)
-    item = q.first()
-    if item is None:
-        raise HTTPException(status_code=404, detail="Library item not found.")
-    return item
+        q = q.filter(LibraryCollection.slug == id_or_slug)
+    collection = q.first()
+    if collection is None:
+        raise HTTPException(status_code=404, detail="Library collection not found.")
+    return collection

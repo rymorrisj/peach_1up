@@ -69,12 +69,11 @@ class LaunchSpec:
     # lets box86.launch skip re-resolving the ROM path it already computed.
     resolved_rom_path: Path | None = None
 
-    # For set launches: all disc paths in disc_number order. Empty for item launches.
+    # All disc paths in disc_number order (a collection-of-one yields one path).
     # Used by dosbox backend to generate multi-image IMGMOUNT for disc swap.
     disc_paths: list[Path] = field(default_factory=list)
 
     # History metadata — coordinator only, not used by backends
-    item_id: int | None = None
-    set_id: int | None = None
+    collection_id: int | None = None
     platform_id: int | None = None
     launch_review_flagged: bool = False

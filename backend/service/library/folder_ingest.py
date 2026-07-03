@@ -1,9 +1,11 @@
-"""Folder → library-item-or-set ingest logic.
+"""Folder → library-collection ingest logic.
 
 Extracted from the upload-folder route so both the (removed) synchronous route
 path and the chunked/background finalizer share one implementation. This is a
 helper imported by upload_finalize (the orchestration entry point); it funnels
-into the shared item/set ingester in service.library.items.
+into the shared collection ingester in service.library.items. Every upload —
+single disc or multi-disc — becomes a LibraryCollection (single-disc is a
+collection-of-one).
 """
 from __future__ import annotations
 
@@ -53,18 +55,18 @@ def pick_folder_launch_file(files: list[Path]) -> Path:
 
 
 def ingest_folder(dest_dir: Path, written_paths: list[Path], title: str, db: Session):
-    """Multi-disc set when 2+ disc files are present, else a single library item.
+    """Multi-disc collection when 2+ disc files are present, else a collection-of-one.
 
-    Returns ``(result_type, entity)`` where result_type is ``"library_set"`` or
-    ``"library_item"``. Raises the same 4xx HTTPExceptions as the ingester on a
-    duplicate/collision — callers translate those (inline route) or mark the job
-    failed (background finalizer).
+    Returns ``(result_type, collection)`` where result_type is always
+    ``"library_collection"``. Raises the same 4xx HTTPExceptions as the ingester
+    on a duplicate/collision — callers translate those (inline route) or mark the
+    job failed (background finalizer).
     """
     disc_files = detect_disc_files(written_paths)
     if disc_files:
-        library_set = lib_svc._create_multi_disc_set(disc_files, title.strip(), db)
-        return "library_set", library_set
+        collection = lib_svc._create_multi_disc_collection(disc_files, title.strip(), db)
+        return "library_collection", collection
 
     pick_folder_launch_file(written_paths)
-    item = lib_svc._ingest_media_entry(str(dest_dir), title.strip(), db)
-    return "library_item", item
+    collection = lib_svc._ingest_media_entry(str(dest_dir), title.strip(), db)
+    return "library_collection", collection

@@ -253,63 +253,63 @@ def mem_session():
 
 
 class TestEnrichEntity:
+    def test_library_collection_not_found_raises_404(self, mem_session):
+        from fastapi import HTTPException
+        from backend.service.library.enrich import enrich_entity
+
+        with pytest.raises(HTTPException) as exc_info:
+            enrich_entity("library_collection", 9999, title="New Title", db=mem_session)
+        assert exc_info.value.status_code == 404
+
     def test_library_item_not_found_raises_404(self, mem_session):
         from fastapi import HTTPException
         from backend.service.library.enrich import enrich_entity
 
         with pytest.raises(HTTPException) as exc_info:
-            enrich_entity("library_item", 9999, title="New Title", db=mem_session)
+            enrich_entity("library_item", 9999, cover_art_url="https://cdn.example.com/a.jpg", db=mem_session)
         assert exc_info.value.status_code == 404
 
-    def test_library_set_not_found_raises_404(self, mem_session):
+    def test_library_collection_with_cover_art_url_raises_422(self, mem_session):
+        """Collections don't support direct cover art — must be applied to individual discs."""
         from fastapi import HTTPException
+        from backend.models.library import LibraryCollection
         from backend.service.library.enrich import enrich_entity
 
-        with pytest.raises(HTTPException) as exc_info:
-            enrich_entity("library_set", 9999, title="New Title", db=mem_session)
-        assert exc_info.value.status_code == 404
-
-    def test_library_set_with_cover_art_url_raises_422(self, mem_session):
-        """Sets don't support direct cover art — must be applied to individual discs."""
-        from fastapi import HTTPException
-        from backend.models.library_set import LibrarySet
-        from backend.service.library.enrich import enrich_entity
-
-        s = LibrarySet(title="My Set", era="ps1")
-        mem_session.add(s)
+        c = LibraryCollection(title="My Set", era="ps1", slug="my-set")
+        mem_session.add(c)
         mem_session.commit()
-        mem_session.refresh(s)
+        mem_session.refresh(c)
 
         with pytest.raises(HTTPException) as exc_info:
             enrich_entity(
-                "library_set",
-                s.id,
+                "library_collection",
+                c.id,
                 cover_art_url="https://cdn.example.com/art.jpg",
                 db=mem_session,
             )
         assert exc_info.value.status_code == 422
         assert "cover_art_url" in exc_info.value.detail
 
-    def test_library_set_item_with_metadata_fields_raises_422(self, mem_session):
-        """Disc-level items (library_set_item) do not accept metadata fields."""
+    def test_library_item_with_metadata_fields_raises_422(self, mem_session):
+        """Disc-level leaves (library_item) do not accept metadata fields."""
         from fastapi import HTTPException
-        from backend.models.library_set import LibrarySet, LibrarySetItem
+        from backend.models.library import LibraryCollection, LibraryItem
         from backend.service.library.enrich import enrich_entity
 
-        s = LibrarySet(title="My Set", era="ps1")
-        mem_session.add(s)
+        c = LibraryCollection(title="My Set", era="ps1", slug="my-set")
+        mem_session.add(c)
         mem_session.commit()
-        mem_session.refresh(s)
+        mem_session.refresh(c)
 
-        item = LibrarySetItem(set_id=s.id, media_path="/tmp/disc1.bin", disc_number=1)
-        mem_session.add(item)
+        leaf = LibraryItem(library_collection_id=c.id, media_path="/tmp/disc1.bin", disc_number=1)
+        mem_session.add(leaf)
         mem_session.commit()
-        mem_session.refresh(item)
+        mem_session.refresh(leaf)
 
         with pytest.raises(HTTPException) as exc_info:
             enrich_entity(
-                "library_set_item",
-                item.id,
+                "library_item",
+                leaf.id,
                 title="Should Not Work",
                 db=mem_session,
             )

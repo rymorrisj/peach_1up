@@ -6,21 +6,19 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
     from backend.models.drive import Drive
-    from backend.models.library import LibraryItem
+    from backend.models.library import LibraryCollection
 
 
 @dataclass
 class LaunchableEntity:
-    """Fully-resolved inputs for a single launch, independent of source type.
+    """Fully-resolved inputs for a single launch of a library collection.
 
-    One of item_id / set_id is set; the other is None.
-    All fields are plain values — no ORM objects except drive (pre-resolved
-    to avoid divergent lookup patterns between items and sets) and _db_item
-    (back-ref for the installed=True write-back after loose-file hydration).
+    All fields are plain values — no ORM objects except drive (pre-resolved to
+    avoid divergent lookup patterns) and _db_collection (back-ref for the
+    installed=True write-back after loose-file hydration).
     """
 
-    item_id: int | None
-    set_id: int | None
+    collection_id: int
 
     profile_id: int | None
     era: str
@@ -39,95 +37,62 @@ class LaunchableEntity:
     # Source folder of loose files to copy onto the drive. media_path is
     # reassigned to a single resolved launch file at add time (items.py), so
     # folder_path is the authoritative directory for loose-file hydration.
-    # None for set entities (disc images are never loose-file hydrated).
     folder_path: str | None = None
 
     # Pre-resolved Drive ORM object (None if no drive associated). Populated from
-    # the item's restored LibraryItem.drive relationship; always None for sets,
-    # which have no per-item drive in the current model.
+    # the collection's LibraryCollection.drive relationship (None for non-DOS/win31).
     drive: "Drive | None" = None
 
-    # For set launches: all disc media_paths in disc_number order. Empty for item launches.
+    # All disc media_paths in disc_number order (a collection-of-one yields a
+    # single-element list — the multi-image builder no-ops when len <= 1).
     disc_paths: list[str] = field(default_factory=list)
 
-    # ORM back-reference for item.installed write-back after loose-file copy.
-    # None for set entities — disc images never trigger loose-file hydration.
-    _db_item: "LibraryItem | None" = None
+    # ORM back-reference for collection.installed write-back after loose-file copy.
+    _db_collection: "LibraryCollection | None" = None
 
 
 def resolve_launchable(
-    *,
-    item_id: int | None = None,
-    set_id: int | None = None,
+    collection_id: int,
     db: "Session",
 ) -> LaunchableEntity:
-    """Resolve a LibraryItem or LibrarySet into a LaunchableEntity.
+    """Resolve a LibraryCollection into a LaunchableEntity via its launch leaf.
 
-    Exactly one of item_id / set_id must be provided.
-    Raises ValueError if the record or its launch disc is not found.
+    Raises ValueError if the collection or its launch leaf is not found, or if
+    no launch disc is configured.
     """
-    from backend.models.library import LibraryItem
-    from backend.models.library_set import LibrarySet, LibrarySetItem
+    from backend.models.library import LibraryCollection, LibraryItem
 
-    if item_id is not None:
-        item = db.get(LibraryItem, item_id)
-        if item is None:
-            raise ValueError(f"LibraryItem {item_id} not found")
-        return LaunchableEntity(
-            item_id=item.id,
-            set_id=None,
-            profile_id=item.profile_id,
-            era=item.era,
-            slug=item.slug,
-            media_path=item.media_path,
-            folder_path=item.folder_path,
-            executable_path=item.executable_path,
-            launch_commands=item.launch_commands,
-            launch_review_flagged=bool(item.launch_review_flagged),
-            installed=item.installed,
-            requires_install=item.requires_install,
-            media_type=str(item.media_type) if item.media_type is not None else None,
-            drive=item.drive,
-            _db_item=item,
+    c = db.get(LibraryCollection, collection_id)
+    if c is None:
+        raise ValueError(f"LibraryCollection {collection_id} not found")
+    if not c.launch_disk_id:
+        raise ValueError(f"LibraryCollection {collection_id} has no launch disc configured")
+    launch_leaf = db.get(LibraryItem, c.launch_disk_id)
+    if launch_leaf is None:
+        raise ValueError(
+            f"LibraryCollection {collection_id}: launch disc leaf {c.launch_disk_id} not found"
         )
+    all_leaves = (
+        db.query(LibraryItem)
+        .filter(LibraryItem.library_collection_id == c.id)
+        .order_by(LibraryItem.disc_number)
+        .all()
+    )
 
-    if set_id is not None:
-        s = db.get(LibrarySet, set_id)
-        if s is None:
-            raise ValueError(f"LibrarySet {set_id} not found")
-        if not s.launch_disk_id:
-            raise ValueError(f"LibrarySet {set_id} has no launch disc configured")
-        launch_disc = db.get(LibrarySetItem, s.launch_disk_id)
-        if launch_disc is None:
-            raise ValueError(
-                f"LibrarySet {set_id}: launch disc item {s.launch_disk_id} not found"
-            )
-        all_items = (
-            db.query(LibrarySetItem)
-            .filter(LibrarySetItem.set_id == s.id)
-            .order_by(LibrarySetItem.disc_number)
-            .all()
-        )
-        return LaunchableEntity(
-            item_id=None,
-            set_id=s.id,
-            profile_id=s.profile_id,
-            era=s.era,
-            slug=getattr(s, "slug", None),
-            media_path=launch_disc.media_path,
-            executable_path=launch_disc.executable_path,
-            launch_commands=[],
-            launch_review_flagged=bool(s.launch_review_flagged),
-            # Disc images are never loose-file hydrated; installed=True short-circuits
-            # the hydration condition without needing a real installed state.
-            installed=True,
-            requires_install=s.requires_install,
-            media_type=None,
-            # Sets have no per-item drive in the current model (LibrarySet has no
-            # drive_id); hydration never auto-creates one for sets (_db_item is None).
-            drive=None,
-            disc_paths=[item.media_path for item in all_items],
-            _db_item=None,
-        )
-
-    raise ValueError("Must provide either item_id or set_id")
+    return LaunchableEntity(
+        collection_id=c.id,
+        profile_id=c.profile_id,
+        era=c.era,
+        slug=c.slug,
+        media_path=launch_leaf.media_path,
+        folder_path=launch_leaf.folder_path,
+        executable_path=launch_leaf.executable_path,
+        launch_commands=c.launch_commands,
+        launch_review_flagged=bool(c.launch_review_flagged),
+        installed=c.installed,
+        requires_install=c.requires_install,
+        media_type=str(launch_leaf.media_type) if launch_leaf.media_type is not None else None,
+        drive=c.drive,
+        disc_paths=[leaf.media_path for leaf in all_leaves],
+        _db_collection=c,
+    )

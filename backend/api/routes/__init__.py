@@ -1,6 +1,6 @@
 from backend.api.routes import (
     auth, bios, drives, emulators, filesystem, health, jobs, launches,
-    library_items, library_metadata, library_sets,
+    library_collections, library_metadata, libraryitems,
     media, platforms, profiles, settings, tags, uploads, users,
 )
 
@@ -13,12 +13,12 @@ ROUTERS = [
     bios.router,
     profiles.router,
     drives.router,
-    # library_metadata and library_sets must precede library_items — Starlette
-    # uses first-match-wins and library_items registers a /{item_id} wildcard
-    # that would otherwise shadow static paths like /metadata-search and /sets.
+    # library_metadata precedes the collection/item routers. The collection,
+    # item, and /library list routers use distinct top-level path segments
+    # (/librarycollection, /libraryitem, /library) so no wildcard shadows another.
     library_metadata.router,
-    library_sets.router,
-    library_items.router,
+    library_collections.router,
+    libraryitems.router,
     uploads.router,
     jobs.router,
     launches.router,

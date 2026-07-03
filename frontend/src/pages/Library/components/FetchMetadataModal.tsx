@@ -23,7 +23,7 @@ interface GameDetails {
 interface FetchMetadataModalProps {
   open: boolean
   onClose: () => void
-  entityType: 'library_item' | 'library_set' | 'library_set_item'
+  entityType: 'library_collection' | 'library_item'
   entityId: number
   entityTitle: string
   storageKey: string
@@ -131,8 +131,8 @@ export function FetchMetadataModal({
       metadata_source: 'TheGamesDB',
     }
 
-    if (entityType === 'library_item') {
-      if (details.cover_art_url) payload.cover_art_url = details.cover_art_url
+    if (entityType === 'library_collection') {
+      // Metadata lives on the collection — cover_art_url is not supported here.
       if (details.title) payload.title = details.title
       if (details.overview) payload.description = details.overview
       if (details.rating) payload.content_rating = details.rating
@@ -140,17 +140,8 @@ export function FetchMetadataModal({
         const year = parseInt(details.release_date.split('-')[0], 10)
         if (!isNaN(year)) payload.year = year
       }
-    } else if (entityType === 'library_set') {
-      // cover_art_url is not supported for library_set — omit it
-      if (details.title) payload.title = details.title
-      if (details.overview) payload.description = details.overview
-      if (details.rating) payload.content_rating = details.rating
-      if (details.release_date) {
-        const year = parseInt(details.release_date.split('-')[0], 10)
-        if (!isNaN(year)) payload.year = year
-      }
-    } else if (entityType === 'library_set_item') {
-      // only cover_art_url is supported for library_set_item
+    } else if (entityType === 'library_item') {
+      // Leaf: only per-disc cover_art_url is supported.
       if (details.cover_art_url) payload.cover_art_url = details.cover_art_url
     }
 
@@ -183,8 +174,8 @@ export function FetchMetadataModal({
     // results stay in state (and sessionStorage) — no re-search needed
   }
 
-  const showCoverArt = entityType === 'library_item' || entityType === 'library_set_item'
-  const showMetadata = entityType === 'library_item' || entityType === 'library_set'
+  const showCoverArt = entityType === 'library_item'
+  const showMetadata = entityType === 'library_collection'
 
   return (
     <Modal

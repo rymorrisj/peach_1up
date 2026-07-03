@@ -182,6 +182,27 @@ def _build_multi_iso_mount_line(disc_paths: list[Path]) -> str:
     return f"imgmount D {all_hosts} -t iso -ro"
 
 
+def _build_multi_floppy_mount_line(disc_paths: list[Path]) -> str:
+    """Build IMGMOUNT line for multiple floppy disk images (multi-floppy set).
+
+    DOSBox-X mounts every listed image on A: as a swappable floppy set; the user
+    cycles between them with Ctrl+F11 (Windows) / Ctrl+F12 (other) or via the DOS
+    menu → Swap Floppy. Mirrors _build_multi_iso_mount_line for the .img case so
+    multi-floppy install games get mid-session swap without a new launch.
+
+    SECURITY: each path is validated against library/ before inclusion.
+    """
+    library_path = get_base_path() / "library"
+    for dp in disc_paths:
+        if not dp.resolve().is_relative_to(library_path.resolve()):
+            raise ValueError(
+                f"Disc path escaped library: {dp}. "
+                "This indicates a data integrity problem."
+            )
+    all_hosts = " ".join(_dosbox_cmd_path(p) for p in disc_paths)
+    return f"imgmount A {all_hosts} -t floppy -ro"
+
+
 def _build_drive_mount_lines(
     drive_image_path: Path | None,
     drive_size_mb: int | None,
@@ -248,9 +269,15 @@ def _build_drive_mount_lines(
             drive_line = "C:"
             media_drive = "C:"
         elif suffix == ".img":
-            mount_line = f"imgmount D {host} -t hdd -ro"
-            drive_line = "C:"
-            media_drive = "D:"
+            if disc_paths and len(disc_paths) > 1:
+                # Multi-floppy install set: swappable A: floppies over the writable C:.
+                mount_line = _build_multi_floppy_mount_line(disc_paths)
+                drive_line = "C:"
+                media_drive = "A:"
+            else:
+                mount_line = f"imgmount D {host} -t hdd -ro"
+                drive_line = "C:"
+                media_drive = "D:"
         elif suffix in {".iso", ".cue"}:
             if disc_paths and len(disc_paths) > 1:
                 mount_line = _build_multi_iso_mount_line(disc_paths)
@@ -273,9 +300,15 @@ def _build_drive_mount_lines(
                 "Directory media requires a persistent drive. This indicates a misconfiguration."
             )
         elif suffix == ".img":
-            mount_line = f"imgmount C {host} -t hdd -ro"
-            drive_line = "C:"
-            media_drive = "C:"
+            if disc_paths and len(disc_paths) > 1:
+                # Multi-floppy set with no persistent drive: swappable A: floppies.
+                mount_line = _build_multi_floppy_mount_line(disc_paths)
+                drive_line = "A:"
+                media_drive = "A:"
+            else:
+                mount_line = f"imgmount C {host} -t hdd -ro"
+                drive_line = "C:"
+                media_drive = "C:"
         elif suffix in {".iso", ".cue"}:
             if disc_paths and len(disc_paths) > 1:
                 mount_line = _build_multi_iso_mount_line(disc_paths)

@@ -1,21 +1,26 @@
+import shutil
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile,
+)
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.core import jobs, rate_limit
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user, get_filtered_item, get_filtered_library, require_permission
+from backend.core.dependencies import (
+    get_active_user, get_filtered_collection, get_filtered_collections, require_permission,
+)
 from backend.core.logger import get_logger
 from backend.models.library import (
-    ImportResult, LibraryItem, LibraryItemCreate, LibraryItemRead, LibraryItemUpdate,
-    ScanStatus, item_to_read, items_to_read_bulk,
+    ImportResult, LibraryCollection, LibraryCollectionCreate, LibraryCollectionRead,
+    LibraryCollectionUpdate, LibraryItem, LibraryItemRead, LibraryItemUpdate,
+    ScanStatus, collection_to_read, collections_to_read_bulk,
 )
-from backend.models.library_set import LibrarySetItem
 from backend.models.media_restriction import MediaRestriction
 from backend.models.pagination import Page
 from backend.models.user import User
@@ -23,7 +28,7 @@ from backend.service.library import items as lib_svc
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
 
-router = APIRouter(prefix="/api/v1/library", tags=["library"])
+router = APIRouter(prefix="/api/v1", tags=["library"])
 logger = get_logger(__name__)
 
 _scan_lock = threading.Lock()
@@ -31,6 +36,8 @@ _scan_state: dict[str, Any] = {"running": False, "preview": [], "error": None, "
 
 _SCAN_RATE_LIMIT = 5
 _SCAN_RATE_WINDOW_SECONDS = 60.0
+_UPLOAD_RATE_LIMIT = 10
+_UPLOAD_RATE_WINDOW_SECONDS = 60.0
 
 
 def _enforce_rate_limit(bucket: str, request: Request, limit: int, window_seconds: float) -> None:
@@ -52,7 +59,12 @@ class ScanImportBody(BaseModel):
     selected: list[str]
 
 
-@router.get("", response_model=Page[LibraryItemRead])
+# ---------------------------------------------------------------------------
+# List + create
+# ---------------------------------------------------------------------------
+
+
+@router.get("/library", response_model=Page[LibraryCollectionRead])
 def list_library(
     era: str | None = None,
     category: str | None = None,
@@ -64,52 +76,155 @@ def list_library(
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
 ):
-    q = get_filtered_library(active_user, db)
+    q = get_filtered_collections(active_user, db)
     if era:
-        q = q.filter(LibraryItem.era == era)
+        q = q.filter(LibraryCollection.era == era)
     if category:
-        q = q.filter(LibraryItem.category == category)
+        q = q.filter(LibraryCollection.category == category)
     if platform_id is not None:
-        q = q.filter(LibraryItem.platform_id == platform_id)
+        q = q.filter(LibraryCollection.platform_id == platform_id)
     if profile_assigned is True:
-        q = q.filter(LibraryItem.profile_id.isnot(None))
+        q = q.filter(LibraryCollection.profile_id.isnot(None))
     elif profile_assigned is False:
-        q = q.filter(LibraryItem.profile_id.is_(None))
+        q = q.filter(LibraryCollection.profile_id.is_(None))
     if tag:
         from backend.models.tag import Tag, EntityTag
         subq = (
             db.query(EntityTag.entity_id)
             .join(Tag, EntityTag.tag_id == Tag.id)
-            .filter(EntityTag.entity_type == "library_item", Tag.name == tag)
+            .filter(EntityTag.entity_type == "library_collection", Tag.name == tag)
             .subquery()
         )
-        q = q.filter(LibraryItem.id.in_(subq))
+        q = q.filter(LibraryCollection.id.in_(subq))
     total = q.count()
-    rows = q.order_by(LibraryItem.id).offset(offset).limit(limit).all()
-    return Page(items=items_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
+    rows = q.order_by(LibraryCollection.id).offset(offset).limit(limit).all()
+    return Page(items=collections_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 
-@router.post("", response_model=LibraryItemRead, status_code=201)
-def add_library_item(
-    body: LibraryItemCreate,
+@router.post("/library", response_model=LibraryCollectionRead, status_code=201)
+def add_library_collection(
+    body: LibraryCollectionCreate,
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_library"),
 ):
+    """Create a collection-of-one from a single media path."""
     try:
-        item = lib_svc._ingest_media_entry(
+        collection = lib_svc._ingest_media_entry(
             body.media_path,
             body.title,
             db,
             override_profile_id=body.profile_id,
         )
-        return item_to_read(item, db)
+        return collection_to_read(collection, db)
     except lib_svc._ItemAlreadyExists:
         raise HTTPException(status_code=409, detail="This media path is already in the library.")
     except lib_svc._SlugCollision:
         raise HTTPException(status_code=409, detail="Import collided with a concurrent change, please retry.")
 
 
-@router.get("/scan/status", response_model=ScanStatus)
+@router.post("/library/multi", response_model=LibraryCollectionRead, status_code=201)
+async def create_multi_disc_collection(
+    request: Request,
+    title: str = Form(...),
+    era: str = Form("unknown"),
+    profile_id: Optional[int] = Form(None),
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    """Create a multi-disc collection from N uploaded files."""
+    _enforce_rate_limit("library-upload", request, _UPLOAD_RATE_LIMIT, _UPLOAD_RATE_WINDOW_SECONDS)
+
+    from backend.core.settings import get_settings
+    from backend.service.utils.upload_utils import (
+        DEFAULT_MAX_BYTES,
+        begin_upload,
+        stream_upload_to_disk,
+    )
+    from backend.service.utils.slug_generator import generate_collection_slug
+    from backend.service.utils.era_media import media_type_from_path
+    from backend.service.utils.smart_media_detector import detect as _smart_detect
+    from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
+
+    if not files:
+        raise HTTPException(status_code=422, detail="At least one file is required.")
+
+    svc = get_settings()
+    max_bytes = int(svc.get("UPLOAD_MAX_BYTES", DEFAULT_MAX_BYTES) or DEFAULT_MAX_BYTES)
+    media_root = Path(svc.get_env_var("MEDIA_PATH")).resolve()
+
+    uploaded_paths: list[tuple[Path, Path]] = []
+    try:
+        for f in files:
+            if not f.filename:
+                raise HTTPException(status_code=422, detail="Each file must have a filename.")
+            dest_dir, dest_path = begin_upload(media_root, f.filename)
+            try:
+                await stream_upload_to_disk(f, dest_path, max_bytes)
+            except HTTPException:
+                shutil.rmtree(dest_dir, ignore_errors=True)
+                raise
+            except Exception as exc:
+                shutil.rmtree(dest_dir, ignore_errors=True)
+                raise HTTPException(status_code=500, detail=f"Upload failed for {f.filename}: {exc}") from exc
+            uploaded_paths.append((dest_dir, dest_path))
+    except HTTPException:
+        for dest_dir, _ in uploaded_paths:
+            shutil.rmtree(dest_dir, ignore_errors=True)
+        raise
+
+    launch_disc_path = uploaded_paths[0][1]
+    _scan = _smart_detect(launch_disc_path)
+    detected_era: str = _scan.era if _scan.era is not None else era
+
+    detected_platform_id: int | None = None
+    detected_profile_id: int | None = None
+    if detected_era and detected_era != "unknown":
+        _emulator_slug, _profile_era = defaults_for_era(detected_era)
+        if _emulator_slug and _profile_era:
+            detected_platform_id, detected_profile_id = lookup_platform_and_profile(
+                _emulator_slug, _profile_era, db
+            )
+
+    resolved_profile_id = detected_profile_id if profile_id is None else profile_id
+
+    collection = LibraryCollection(
+        title=title,
+        era=detected_era,
+        slug=generate_collection_slug(title, db),
+        platform_id=detected_platform_id,
+        profile_id=resolved_profile_id,
+    )
+    db.add(collection)
+    db.flush()
+
+    leaves: list[LibraryItem] = []
+    for disc_number, (_, dest_path) in enumerate(uploaded_paths, start=1):
+        leaf = LibraryItem(
+            library_collection_id=collection.id,
+            disc_number=disc_number,
+            media_path=str(dest_path),
+            media_type=media_type_from_path(dest_path),
+            file_size_bytes=dest_path.stat().st_size if dest_path.exists() else None,
+        )
+        db.add(leaf)
+        leaves.append(leaf)
+    db.flush()
+
+    collection.launch_disk_id = leaves[0].id
+    collection.display_disk_id = leaves[0].id
+    db.add(collection)
+    db.commit()
+    db.refresh(collection)
+    return collection_to_read(collection, db)
+
+
+# ---------------------------------------------------------------------------
+# Scan / import (ingest — every import creates a collection-of-one + leaf)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/library/scan/status", response_model=ScanStatus)
 def scan_status():
     with _scan_lock:
         return dict(_scan_state)
@@ -154,7 +269,7 @@ def _scan_nav_threshold() -> int:
         return DEFAULT_SCAN_NAV_THRESHOLD_BYTES
 
 
-@router.post("/scan")
+@router.post("/library/scan")
 def trigger_scan(request: Request, background_tasks: BackgroundTasks = BackgroundTasks()):
     _enforce_rate_limit("library-scan", request, _SCAN_RATE_LIMIT, _SCAN_RATE_WINDOW_SECONDS)
     with _scan_lock:
@@ -202,13 +317,9 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
                 .filter(LibraryItem.folder_path.isnot(None))
                 .all()
             }
-
-            _set_resolved = [
-                str(Path(mp).resolve())
-                for (mp,) in db.query(LibrarySetItem.media_path).all()
-            ]
-            existing_set_media_dirs: set[str] = {
-                str(Path(p).parent) for p in _set_resolved
+            existing_media_dirs: set[str] = {
+                str(Path(mp).resolve().parent)
+                for (mp,) in db.query(LibraryItem.media_path).all()
             }
 
             for _idx, entry in enumerate(entries):
@@ -224,12 +335,12 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
                 if is_loose:
                     # Dedup by the destination folder the file would be copied into
                     dest_folder = str((base_path / entry.executable_path.stem).resolve())
-                    if dest_folder in existing_folder_paths or dest_folder in existing_set_media_dirs:
+                    if dest_folder in existing_folder_paths or dest_folder in existing_media_dirs:
                         continue
                     scan_path = entry.executable_path
                 else:
                     folder = str(entry.folder_path.resolve())
-                    if folder in existing_folder_paths or folder in existing_set_media_dirs:
+                    if folder in existing_folder_paths or folder in existing_media_dirs:
                         continue
                     scan_path = entry.folder_path
 
@@ -275,19 +386,19 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
                 )
 
 
-@router.post("/scan/import", response_model=ImportResult)
+@router.post("/library/scan/import", response_model=ImportResult)
 def import_scan_results(
     body: ScanImportBody,
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_library"),
 ):
     """
-    Phase 2: import the user-selected paths from the Phase 1 preview.
-    Bulk-inserts item records in chunks of 500. DOS/Win3.1 items are not given a
-    per-item drive here — the drive is created lazily on first launch
+    Phase 2: import the user-selected paths from the Phase 1 preview. Each import
+    creates a collection-of-one + leaf. DOS/Win3.1 collections are not given a
+    drive here — the drive is created lazily on first launch
     (drive_hydration.hydrate_drive_for_entity).
     """
-    from backend.service.library.items import _ItemAlreadyExists, _prepare_item
+    from backend.service.library.items import _ItemAlreadyExists, _persist_collection_of_one, _prepare_item
 
     with _scan_lock:
         preview_snapshot = list(_scan_state.get("preview", []))
@@ -295,10 +406,10 @@ def import_scan_results(
 
     used_slugs: set[str] = {
         s
-        for (s,) in db.query(LibraryItem.slug).filter(LibraryItem.slug.isnot(None)).all()
+        for (s,) in db.query(LibraryCollection.slug).filter(LibraryCollection.slug.isnot(None)).all()
     }
 
-    prepared: list[dict] = []
+    imported = 0
     skipped = 0
     errors: list[dict] = []
 
@@ -306,127 +417,135 @@ def import_scan_results(
         title = title_map.get(path) or Path(path).stem.replace("-", " ").title()
         try:
             row = _prepare_item(path, title, db, used_slugs=used_slugs)
-            prepared.append(row)
         except _ItemAlreadyExists:
             skipped += 1
+            continue
         except HTTPException as exc:
             errors.append({"path": path, "reason": exc.detail})
+            continue
         except Exception as exc:
             logger.exception("Import: error preparing '%s'", path)
             errors.append({"path": path, "reason": str(exc)})
-
-    if prepared:
-        def _chunks(lst: list, n: int):
-            for i in range(0, len(lst), n):
-                yield lst[i: i + n]
-
-        # Bulk-insert item records chunked at 500 to stay within SQLite variable limits.
-        # used_slugs is seeded once above, so a concurrent import landing between
-        # that seed and this commit can still collide on the unique slug index —
-        # surface that as a clear retry signal instead of a raw 500.
+            continue
         try:
-            for chunk in _chunks(prepared, 500):
-                db.bulk_insert_mappings(LibraryItem, chunk)
+            _persist_collection_of_one(row, db)
             db.commit()
+            imported += 1
         except IntegrityError:
             db.rollback()
-            raise HTTPException(
-                status_code=409,
-                detail="Import collided with a concurrent import, please retry.",
-            )
+            used_slugs.discard(row.get("slug"))
+            errors.append({"path": path, "reason": "Import collided with a concurrent import, please retry."})
 
-    return {"imported": len(prepared), "skipped": skipped, "errors": errors}
+    return {"imported": imported, "skipped": skipped, "errors": errors}
 
 
-@router.get("/by-slug/{slug}", response_model=LibraryItemRead)
-def get_library_item_by_slug(
+# ---------------------------------------------------------------------------
+# Single-collection read / update / delete
+# ---------------------------------------------------------------------------
+
+
+@router.get("/librarycollection/by-slug/{slug}", response_model=LibraryCollectionRead)
+def get_collection_by_slug(
     slug: str,
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
 ):
-    return item_to_read(get_filtered_item(slug, active_user, db), db)
+    return collection_to_read(get_filtered_collection(slug, active_user, db), db)
 
 
-@router.get("/{item_id}", response_model=LibraryItemRead)
-def get_library_item(
-    item_id: int,
+@router.get("/librarycollection/{collection_id}", response_model=LibraryCollectionRead)
+def get_collection(
+    collection_id: int,
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
 ):
-    return item_to_read(get_filtered_item(item_id, active_user, db), db)
+    return collection_to_read(get_filtered_collection(collection_id, active_user, db), db)
 
 
-@router.patch("/{item_id}", response_model=LibraryItemRead)
-def update_library_item(
-    item_id: int,
-    body: LibraryItemUpdate,
+@router.patch("/librarycollection/{collection_id}", response_model=LibraryCollectionRead)
+def update_collection(
+    collection_id: int,
+    body: LibraryCollectionUpdate,
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_library"),
 ):
-    return item_to_read(lib_svc.update_library_item(item_id, body, db), db)
+    return collection_to_read(lib_svc.update_library_collection(collection_id, body, db), db)
 
 
-@router.post("/{item_id}/flag-launch", response_model=LibraryItemRead)
+@router.post("/librarycollection/{collection_id}/flag-launch", response_model=LibraryCollectionRead)
 def flag_launch(
-    item_id: int,
+    collection_id: int,
     db: Session = Depends(get_db),
     _: User = require_permission("can_launch_media"),
 ):
-    item = db.get(LibraryItem, item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Library item not found.")
-    item.launch_review_flagged = True
+    collection = db.get(LibraryCollection, collection_id)
+    if not collection:
+        raise HTTPException(status_code=404, detail="Library collection not found.")
+    collection.launch_review_flagged = True
     db.commit()
-    db.refresh(item)
-    return item_to_read(item, db)
+    db.refresh(collection)
+    return collection_to_read(collection, db)
 
 
-@router.post("/{item_id}/confirm-delete")
+@router.post("/librarycollection/{collection_id}/confirm-delete")
 def issue_delete_token(
-    item_id: int,
+    collection_id: int,
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_library"),
 ):
-    item = db.get(LibraryItem, item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Library item not found.")
-    token = confirmation_tokens.issue("library", item_id)
+    collection = db.get(LibraryCollection, collection_id)
+    if not collection:
+        raise HTTPException(status_code=404, detail="Library collection not found.")
+    token = confirmation_tokens.issue("library", collection_id)
     return {"confirmation_token": token, "expires_in_seconds": TOKEN_TTL}
 
 
-@router.delete("/{item_id}", status_code=204)
-def delete_library_item(
-    item_id: int,
+@router.delete("/librarycollection/{collection_id}", status_code=204)
+def delete_collection(
+    collection_id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_library"),
 ):
-    lib_svc.delete_library_item(item_id, confirmation_token, db)
+    lib_svc.delete_library_collection(collection_id, confirmation_token, db)
 
 
-@router.get("/{item_id}/restrictions")
+@router.get("/librarycollection/{collection_id}/restrictions")
 def get_restrictions(
-    item_id: int,
+    collection_id: int,
     db: Session = Depends(get_db),
     _: User = require_permission("is_admin"),
 ):
-    if not db.get(LibraryItem, item_id):
-        raise HTTPException(status_code=404, detail="Library item not found.")
-    rows = db.query(MediaRestriction).filter(MediaRestriction.library_item_id == item_id).all()
+    if not db.get(LibraryCollection, collection_id):
+        raise HTTPException(status_code=404, detail="Library collection not found.")
+    rows = db.query(MediaRestriction).filter(MediaRestriction.library_collection_id == collection_id).all()
     return {"restricted_user_ids": [r.user_id for r in rows]}
 
 
-@router.put("/{item_id}/restrictions")
+@router.put("/librarycollection/{collection_id}/restrictions")
 def set_restrictions(
-    item_id: int,
+    collection_id: int,
     body: RestrictionsBody,
     db: Session = Depends(get_db),
     _: User = require_permission("is_admin"),
 ):
-    if not db.get(LibraryItem, item_id):
-        raise HTTPException(status_code=404, detail="Library item not found.")
-    db.query(MediaRestriction).filter(MediaRestriction.library_item_id == item_id).delete()
+    if not db.get(LibraryCollection, collection_id):
+        raise HTTPException(status_code=404, detail="Library collection not found.")
+    db.query(MediaRestriction).filter(MediaRestriction.library_collection_id == collection_id).delete()
     for user_id in body.user_ids:
-        db.add(MediaRestriction(user_id=user_id, library_item_id=item_id))
+        db.add(MediaRestriction(user_id=user_id, library_collection_id=collection_id))
     db.commit()
     return {"restricted_user_ids": body.user_ids}
+
+
+@router.patch("/librarycollection/{collection_id}/items/{leaf_id}", response_model=LibraryItemRead)
+def update_collection_leaf(
+    collection_id: int,
+    leaf_id: int,
+    body: LibraryItemUpdate,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    return LibraryItemRead.model_validate(
+        lib_svc.update_library_leaf(collection_id, leaf_id, body, db)
+    )

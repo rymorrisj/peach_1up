@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from backend.core import process_registry
 from backend.core.logger import get_logger
 from backend.core.process_registry import ProcessEntry
-from backend.models import LaunchHistory, LibraryItem, Platform, Profile
+from backend.models import LaunchHistory, Platform, Profile
 from backend.service.launch.drive_hydration import hydrate_drive_for_entity
 from backend.service.launch.history import write_session_ends
 from backend.service.launch.launch_spec import LaunchSpec
@@ -71,7 +71,7 @@ def _finalize_launch(
     db: Session,
     *,
     network_blocked: bool,
-    item_id: int | None = None,
+    collection_id: int | None = None,
     profile_id: int | None = None,
     emulator_slug: str | None = None,
     user_id: int | None = None,
@@ -96,7 +96,7 @@ def _finalize_launch(
         entry = ProcessEntry(
             process_handle=proc,
             job_handle=job,
-            library_item_id=item_id,
+            library_collection_id=collection_id,
             profile_id=profile_id,
             launch_history_id=history.id,
             emulator_slug=emulator_slug,
@@ -279,15 +279,9 @@ def _build_spec_for_entity(
         platform_name=platform_name,
         platform_slug=platform_slug_val,
         disc_paths=[Path(p) for p in entity.disc_paths],
-        item_id=entity.item_id,
-        set_id=entity.set_id,
+        collection_id=entity.collection_id,
         launch_review_flagged=bool(entity.launch_review_flagged),
     )
-
-
-# Keep the old name as an alias so existing callers (tests, etc.) that reference
-# _build_spec_for_item by name continue to work.
-_build_spec_for_item = _build_spec_for_entity
 
 
 def _build_spec_for_environment(
@@ -339,8 +333,8 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
     """Execute a fully resolved LaunchSpec under Job Object isolation.
 
     ORM resolution must be complete before constructing the spec.
-    Use launch_item(), launch_set(), or launch_environment() as convenience
-    entry points that handle resolution and pre-launch gates.
+    Use launch_collection() or launch_environment() as convenience entry points
+    that handle resolution and pre-launch gates.
 
     Args:
         spec: Fully resolved LaunchSpec with all plain-value fields set.
@@ -352,15 +346,8 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
     from backend.service.utils.backend_router import dispatch
 
     network_blocked = not spec.enable_networking
-    # is_environment: neither a library item nor a library set.
-    is_environment = spec.item_id is None and spec.set_id is None
-
-    if is_environment:
-        target_type = "environment"
-    elif spec.set_id is not None:
-        target_type = "library_set"
-    else:
-        target_type = "library_item"
+    # is_environment: a platform launch rather than a library collection.
+    is_environment = spec.collection_id is None
 
     # Reserve both guard keys before any spawn work starts. The check and the
     # reservation happen atomically under process_registry's lock, so a
@@ -375,9 +362,7 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
         )
     try:
         history = LaunchHistory(
-            target_type=target_type,
-            library_item_id=spec.item_id,
-            library_set_id=spec.set_id,
+            library_collection_id=spec.collection_id,
             platform_id=spec.platform_id,
             profile_id=spec.profile_id,
             emulator_slug=spec.emulator_slug,
@@ -414,7 +399,7 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
         _finalize_launch(
             history, result, db,
             network_blocked=network_blocked,
-            item_id=spec.item_id,
+            collection_id=spec.collection_id,
             profile_id=spec.profile_id,
             emulator_slug=spec.emulator_slug,
             user_id=spec.user_id,
@@ -425,8 +410,8 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
             exit_code = await _poll_for_immediate_exit(proc)
             if exit_code is not None and exit_code != 0:
                 logger.error(
-                    "Launch for item_id=%s set_id=%s exited immediately (exit_code=%s) within %.2fs of spawn",
-                    spec.item_id, spec.set_id, exit_code, _INLINE_CRASH_CHECK_TIMEOUT,
+                    "Launch for collection_id=%s exited immediately (exit_code=%s) within %.2fs of spawn",
+                    spec.collection_id, exit_code, _INLINE_CRASH_CHECK_TIMEOUT,
                 )
                 process_registry.terminate(proc.pid)
                 history.error_message = (
@@ -439,10 +424,10 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
                     status_code=500,
                     detail=f"Launch failed: the emulator process exited immediately (exit code {exit_code}).",
                 )
-            # Short-lived async detection only supports LibraryItem (flags launch_review_flagged).
-            # Set launches use the inline crash check above but skip the async 3s window check.
-            if spec.item_id is not None:
-                register_short_lived_check(spec.item_id, proc, launch_time)
+            # Every collection launch gets the async 3s short-lived crash-review
+            # window (keyed on collection_id) in addition to the inline check above.
+            if spec.collection_id is not None:
+                register_short_lived_check(spec.collection_id, proc, launch_time)
 
         return LaunchResult(
             history_id=history.id,
@@ -458,9 +443,9 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
 
 
 async def _launch_entity(entity: "LaunchableEntity", profile_id: int | None, db: Session) -> LaunchResult:
-    """Internal shared entry point for both item and set launches.
+    """Internal shared entry point for collection launches.
 
-    Expects the caller (launch_item or launch_set) to have already called
+    Expects the caller (launch_collection) to have already called
     process_registry.cleanup_exited() and write_session_ends.
     """
     profile = _resolve_profile_for_item(entity.profile_id, profile_id, db)
@@ -480,29 +465,17 @@ async def _launch_entity(entity: "LaunchableEntity", profile_id: int | None, db:
     return await launch(spec, db)
 
 
-async def launch_item(item: LibraryItem, profile_id: int | None, db: Session) -> LaunchResult:
-    """Entry point for library item launches. Public API — signature is stable."""
+async def launch_collection(collection_id: int, profile_id: int | None, db: Session) -> LaunchResult:
+    """Sole game entry point. Resolves the collection's launch disc and launches."""
     exited = process_registry.cleanup_exited()
     if exited:
         await asyncio.to_thread(write_session_ends, exited)
 
-    from backend.service.launch.launchable_resolver import resolve_launchable
-    entity = resolve_launchable(item_id=item.id, db=db)
-    return await _launch_entity(entity, profile_id, db)
-
-
-async def launch_set(set_id: int, profile_id: int | None, db: Session) -> LaunchResult:
-    """Entry point for library set launches. Resolves the set's launch disc."""
-    exited = process_registry.cleanup_exited()
-    if exited:
-        await asyncio.to_thread(write_session_ends, exited)
-
-    from fastapi import HTTPException as _HTTPException
     from backend.service.launch.launchable_resolver import resolve_launchable
     try:
-        entity = resolve_launchable(set_id=set_id, db=db)
+        entity = resolve_launchable(collection_id, db=db)
     except ValueError as exc:
-        raise _HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return await _launch_entity(entity, profile_id, db)
 
 
@@ -585,8 +558,11 @@ def stop_launch(history_id: int, active_user, db: Session) -> dict:
     stopped = False
     for pid, entry in process_registry.get_all().items():
         by_history = entry.launch_history_id == history_id
-        by_item = record.library_item_id is not None and entry.library_item_id == record.library_item_id
-        if by_history or by_item:
+        by_collection = (
+            record.library_collection_id is not None
+            and entry.library_collection_id == record.library_collection_id
+        )
+        if by_history or by_collection:
             process_registry.terminate(pid)
             stopped = True
             break

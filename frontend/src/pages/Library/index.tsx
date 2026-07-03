@@ -12,12 +12,8 @@ import { useConfirmToken } from '@/hooks/useConfirmToken'
 import { ERA_LABELS } from '@/generated/constants'
 import { AddMediaModal } from './components/AddMediaModal'
 import { ScanModal } from './components/ScanModal'
-import { ItemCard } from './components/ItemCard'
-import { SetCard } from './components/SetCard'
-import type { LibrarySetData } from './components/SetCard'
-import type { components } from '@shared/types'
-type LibraryItem = components['schemas']['LibraryItemRead']
-type LaunchProfile = components['schemas']['ProfileRead']
+import { CollectionCard } from './components/CollectionCard'
+import type { LibraryCollectionData } from './components/CollectionCard'
 
 // Server-side pagination envelope (backend models/pagination.py). Typed locally
 // so the app builds before @shared/types is regenerated from the OpenAPI spec.
@@ -60,8 +56,8 @@ export default function Library() {
   const { confirm, isOpen: confirmOpen, options: confirmOptions, handleConfirm, handleCancel } = useConfirm()
   const { issue: issueToken, consume: consumeToken } = useConfirmToken()
 
-  // Filtering is done server-side now: the frontend only forwards the filter
-  // params, and each list response is a paginated Page envelope.
+  // Filtering is done server-side: the frontend forwards the filter params and
+  // the single list response is a paginated Page envelope of collections.
   const listParams = (extra: Record<string, string>) => {
     const params = new URLSearchParams(extra)
     if (filters.era) params.set('era', filters.era)
@@ -70,40 +66,24 @@ export default function Library() {
     return params.toString()
   }
 
-  const { data: itemsPage, isLoading: itemsLoading } = useQuery<Page<LibraryItem>>({
+  const { data: collectionsPage, isLoading } = useQuery<Page<LibraryCollectionData>>({
     queryKey: ['library', filters.era, filters.profileFilter, offset],
     queryFn: () =>
-      apiFetch<Page<LibraryItem>>(
+      apiFetch<Page<LibraryCollectionData>>(
         `/api/v1/library?${listParams({ limit: String(PAGE_SIZE), offset: String(offset) })}`,
       ),
     placeholderData: keepPreviousData,
   })
-  const items = itemsPage?.items ?? []
-  const itemsTotal = itemsPage?.total ?? 0
+  const collections = collectionsPage?.items ?? []
+  const total = collectionsPage?.total ?? 0
 
-  // Multi-disc sets are far fewer than items; fetch up to the server's max page
-  // (200) in one shot and show them above the paginated item grid rather than
-  // running a second, separate paginator.
-  const { data: setsPage } = useQuery<Page<LibrarySetData>>({
-    queryKey: ['library-sets', filters.era, filters.profileFilter],
-    queryFn: () =>
-      apiFetch<Page<LibrarySetData>>(`/api/v1/library/sets?${listParams({ limit: '200' })}`),
-    placeholderData: keepPreviousData,
-  })
-  const sets = setsPage?.items ?? []
-
-  const handleSetDisplayDisk = async (setId: number, discId: number) => {
-    await apiFetch(`/api/v1/library/sets/${setId}`, {
+  const handleSetDisplayDisk = async (collectionId: number, discId: number) => {
+    await apiFetch(`/api/v1/librarycollection/${collectionId}`, {
       method: 'PATCH',
       body: JSON.stringify({ display_disk_id: discId }),
     })
-    queryClient.invalidateQueries({ queryKey: ['library-sets'] })
+    queryClient.invalidateQueries({ queryKey: ['library'] })
   }
-
-  const { data: profiles = [] } = useQuery<LaunchProfile[]>({
-    queryKey: ['profiles'],
-    queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
-  })
 
   const { data: settingsData } = useQuery<{ paths: ResolvedPaths }>({
     queryKey: ['first-run-status'],
@@ -113,7 +93,6 @@ export default function Library() {
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['library'] })
-    queryClient.invalidateQueries({ queryKey: ['library-sets'] })
   }, [queryClient])
 
   useEffect(() => {
@@ -121,16 +100,16 @@ export default function Library() {
     return () => window.removeEventListener('upload-complete', invalidate)
   }, [invalidate])
 
-  async function handleRemove(item: LibraryItem) {
+  async function handleRemove(collection: LibraryCollectionData) {
     const confirmed = await confirm({
-      title: `Remove "${item.title}"?`,
-      consequence: 'This removes the item from your library. The media file on disk is not deleted.',
+      title: `Remove "${collection.title}"?`,
+      consequence: 'This removes the game from your library. The media file on disk is not deleted.',
       destructive: true,
     })
     if (!confirmed) return
     try {
-      const token = await issueToken(`/api/v1/library/${item.id}/confirm-delete`)
-      await consumeToken(`/api/v1/library/${item.id}`, token)
+      const token = await issueToken(`/api/v1/librarycollection/${collection.id}/confirm-delete`)
+      await consumeToken(`/api/v1/librarycollection/${collection.id}`, token)
       queryClient.invalidateQueries({ queryKey: ['library'] })
     } catch (err) {
       const msg = err instanceof ApiError ? err.detail : 'Remove failed.'
@@ -151,12 +130,12 @@ export default function Library() {
       </TopBar>
 
       <div className="p-6">
-        {itemsLoading ? (
+        {isLoading ? (
           <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--fg-3)' }}>
             <LoadingSpinner label="Loading library…" />
             <span aria-hidden="true">Loading library…</span>
           </div>
-        ) : itemsTotal === 0 && sets.length === 0 && !hasActiveFilters ? (
+        ) : total === 0 && !hasActiveFilters ? (
           <EmptyState
             heading="Your library is empty"
             subtext="Add media files to get started, or scan a directory to import in bulk."
@@ -191,7 +170,7 @@ export default function Library() {
                 className={SELECT_CLASS}
                 style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--fg-1)' }}
               >
-                <option value="all">All items</option>
+                <option value="all">All games</option>
                 <option value="assigned">Profile assigned</option>
                 <option value="unassigned">No profile</option>
               </select>
@@ -209,32 +188,28 @@ export default function Library() {
                 </button>
               )}
               <span className="ml-auto" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)' }}>
-                {itemsTotal} item{itemsTotal === 1 ? '' : 's'}
-                {sets.length > 0 ? ` · ${sets.length} set${sets.length === 1 ? '' : 's'}` : ''}
+                {total} game{total === 1 ? '' : 's'}
               </span>
             </div>
 
-            {items.length === 0 && sets.length === 0 ? (
+            {collections.length === 0 ? (
               <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--fg-3)' }}>
-                No items match the current filters.
+                No games match the current filters.
               </p>
             ) : (
               <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
-                {sets.map((s) => (
-                  <SetCard key={`set-${s.id}`} set={s} onSetDisplayDisk={handleSetDisplayDisk} />
-                ))}
-                {items.map((item) => (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    profiles={profiles}
+                {collections.map((c) => (
+                  <CollectionCard
+                    key={c.id}
+                    collection={c}
                     onRemove={handleRemove}
+                    onSetDisplayDisk={handleSetDisplayDisk}
                   />
                 ))}
               </div>
             )}
 
-            {itemsTotal > PAGE_SIZE && (
+            {total > PAGE_SIZE && (
               <div className="mt-6 flex items-center justify-center gap-4">
                 <Button
                   variant="secondary"
@@ -244,11 +219,11 @@ export default function Library() {
                   Previous
                 </Button>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)' }}>
-                  {offset + 1}–{Math.min(offset + PAGE_SIZE, itemsTotal)} of {itemsTotal}
+                  {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
                 </span>
                 <Button
                   variant="secondary"
-                  disabled={offset + PAGE_SIZE >= itemsTotal}
+                  disabled={offset + PAGE_SIZE >= total}
                   onClick={() => setOffset((o) => o + PAGE_SIZE)}
                 >
                   Next

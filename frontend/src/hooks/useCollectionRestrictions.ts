@@ -2,19 +2,19 @@ import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 
-interface UseSetRestrictionsOptions {
-  setId: number | undefined
+interface UseCollectionRestrictionsOptions {
+  collectionId: number | undefined
   isAdminOrOwner: boolean
   restrictionsData: { restricted_user_ids: number[] } | undefined
   refetchRestrictions: () => void
 }
 
-export function useSetRestrictions({
-  setId,
+export function useCollectionRestrictions({
+  collectionId,
   isAdminOrOwner,
   restrictionsData,
   refetchRestrictions,
-}: UseSetRestrictionsOptions) {
+}: UseCollectionRestrictionsOptions) {
   const queryClient = useQueryClient()
 
   const [restrictedIds, setRestrictedIds] = useState<Set<number>>(new Set())
@@ -38,15 +38,15 @@ export function useSetRestrictions({
 
   const saveMutation = useMutation<void, Error, number[]>({
     mutationFn: (userIds) => {
-      if (!setId) return Promise.resolve()
-      return apiFetch(`/api/v1/library/sets/${setId}/restrictions`, {
+      if (!collectionId) return Promise.resolve()
+      return apiFetch(`/api/v1/librarycollection/${collectionId}/restrictions`, {
         method: 'PUT',
         body: JSON.stringify({ user_ids: userIds }),
       })
     },
     onSuccess: () => {
       setRestrictionsDirty(false)
-      queryClient.invalidateQueries({ queryKey: ['library', 'sets'] })
+      queryClient.invalidateQueries({ queryKey: ['library'] })
       refetchRestrictions()
     },
   })

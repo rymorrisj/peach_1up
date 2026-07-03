@@ -14,7 +14,7 @@ from backend.service.utils.fat import FAT16_SIZE_MIN_MB
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
-    from backend.models.library import LibraryItem
+    from backend.models.library import LibraryCollection, LibraryItem
     from backend.models.drive import Drive
 
 # iso/cue media is mounted directly and never passed to format_fat16 (it always
@@ -48,16 +48,21 @@ def compute_drive_size_mb(media_path: Path, media_type: str) -> int:
     return max(FAT16_SIZE_MIN_MB, min(int(source_size_mb * 1.5) + 3, 100))
 
 
-def create_drive_for_item(item: "LibraryItem", db: "Session") -> "Drive":
-    """Create and persist a Drive record for a library item.
+def create_drive_for_collection(
+    collection: "LibraryCollection", launch_leaf: "LibraryItem", db: "Session"
+) -> "Drive":
+    """Create and persist a Drive record for a library collection.
 
-    Uses item.executable_path for size detection when set (the actual launch
-    file), otherwise falls back to item.media_path. Detects and stores
-    media_type on the item if not already set.
+    Sizing uses the launch leaf's executable_path when set (the actual launch
+    file), otherwise its media_path. media_type/requires_install are cached on
+    the collection when not already set. The image lives at
+    ``{launch_leaf.folder_path}/{collection.slug}.img`` — the launch leaf is the
+    LibraryItem pointed to by collection.launch_disk_id.
 
     Args:
-        item: LibraryItem ORM instance that has already been flushed (has an id).
-        db:   Active SQLAlchemy session.
+        collection:  LibraryCollection ORM instance (already flushed, has an id).
+        launch_leaf: The collection's launch-disc LibraryItem.
+        db:          Active SQLAlchemy session.
 
     Returns:
         The newly created and refreshed Drive instance.
@@ -65,63 +70,65 @@ def create_drive_for_item(item: "LibraryItem", db: "Session") -> "Drive":
     from backend.models.drive import Drive
     from backend.service.utils.smart_media_detector import detect as _smart_detect
 
-    media_src = Path(item.executable_path if item.executable_path else item.media_path)
+    media_src = Path(launch_leaf.executable_path if launch_leaf.executable_path else launch_leaf.media_path)
 
-    if not item.media_type:
+    if not launch_leaf.media_type:
         _scan = _smart_detect(media_src)
         media_type = media_type_from_path(media_src)
-        item.media_type = media_type
-        item.requires_install = _scan.requires_install
+        launch_leaf.media_type = media_type
+        collection.requires_install = _scan.requires_install
+        db.add(launch_leaf)
     else:
-        media_type = item.media_type
+        media_type = launch_leaf.media_type
 
     computed = compute_drive_size_mb(media_src, media_type)
 
     image_path = (
-        str(Path(item.folder_path) / f"{item.slug}.img")
-        if item.folder_path
+        str(Path(launch_leaf.folder_path) / f"{collection.slug}.img")
+        if launch_leaf.folder_path and collection.slug
         else None
     )
     drive = Drive(
-        library_item_id=item.id,
-        name=item.title,
+        library_collection_id=collection.id,
+        name=collection.title,
         size_mb=computed,
         image_path=image_path,
     )
     db.add(drive)
     db.flush()
-    item.drive_id = drive.id
-    db.add(item)
+    collection.drive_id = drive.id
+    db.add(collection)
     db.commit()
     db.refresh(drive)
     return drive
 
 
-def delete_drive_for_item(item: "LibraryItem", db: "Session") -> None:
-    """Delete the Drive record and its on-disk image for a library item.
+def delete_drive_for_collection(collection: "LibraryCollection", db: "Session") -> None:
+    """Delete the Drive record and its on-disk image for a library collection.
 
-    No-op if the item has no drive_id. Unlinks the FAT16 image file (if any)
-    before deleting the row, then clears item.drive_id and commits. The unlink
-    runs here explicitly, ahead of any FK cascade from deleting the owning item,
-    so image cleanup never depends on cascade ordering. A missing image file is
-    logged and ignored (idempotent); only a real unlink error (e.g. permissions)
-    is logged as a warning — deletion of the DB record still proceeds.
+    No-op if the collection has no drive_id. Unlinks the FAT16 image file (if
+    any) before deleting the row, then clears collection.drive_id and commits.
+    The unlink runs here explicitly, ahead of any FK cascade from deleting the
+    owning collection, so image cleanup never depends on cascade ordering. A
+    missing image file is logged and ignored (idempotent); only a real unlink
+    error (e.g. permissions) is logged as a warning — deletion of the DB record
+    still proceeds.
 
     Args:
-        item: LibraryItem ORM instance.
-        db:   Active SQLAlchemy session.
+        collection: LibraryCollection ORM instance.
+        db:         Active SQLAlchemy session.
     """
-    if item.drive_id is None:
+    if collection.drive_id is None:
         return
 
     from backend.core.logger import get_logger
     from backend.models.drive import Drive
 
     logger = get_logger(__name__)
-    drive = db.get(Drive, item.drive_id)
+    drive = db.get(Drive, collection.drive_id)
     if drive is None:
-        item.drive_id = None
-        db.add(item)
+        collection.drive_id = None
+        db.add(collection)
         db.commit()
         return
 
@@ -135,6 +142,6 @@ def delete_drive_for_item(item: "LibraryItem", db: "Session") -> None:
             logger.warning("Could not delete drive image %s: %s", img_path, exc)
 
     db.delete(drive)
-    item.drive_id = None
-    db.add(item)
+    collection.drive_id = None
+    db.add(collection)
     db.commit()

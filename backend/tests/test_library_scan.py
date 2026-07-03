@@ -3,7 +3,7 @@
 - scan_media_folders (service/utils/profile_builder.py) — folder discovery,
   including .git exclusion (hidden directories are skipped via the
   ``not p.name.startswith(".")`` filter).
-- generate_item_slug (service/utils/slug_generator.py) — slug collision
+- generate_collection_slug (service/utils/slug_generator.py) — slug collision
   suffixing used during scan import (_prepare_item).
 """
 
@@ -55,35 +55,35 @@ class TestSlugCollision:
             yield session
 
     def test_slug_collision_appends_integer_suffix(self, mem_session):
-        from backend.models.library import LibraryItem
-        from backend.service.utils.slug_generator import generate_item_slug
+        from backend.models.library import LibraryCollection
+        from backend.service.utils.slug_generator import generate_collection_slug
 
-        existing = LibraryItem(title="Doom", era="dos", media_path="/tmp/doom", slug="doom")
+        existing = LibraryCollection(title="Doom", era="dos", slug="doom")
         mem_session.add(existing)
         mem_session.commit()
 
-        new_slug = generate_item_slug("Doom", mem_session)
+        new_slug = generate_collection_slug("Doom", mem_session)
 
         assert new_slug == "doom-2"
 
     def test_collision_does_not_overwrite_existing_item(self, mem_session):
-        from backend.models.library import LibraryItem
-        from backend.service.utils.slug_generator import generate_item_slug
+        from backend.models.library import LibraryCollection
+        from backend.service.utils.slug_generator import generate_collection_slug
 
-        existing = LibraryItem(title="Doom", era="dos", media_path="/tmp/doom", slug="doom")
+        existing = LibraryCollection(title="Doom", era="dos", slug="doom")
         mem_session.add(existing)
         mem_session.commit()
         mem_session.refresh(existing)
         existing_id = existing.id
 
-        new_slug = generate_item_slug("Doom", mem_session)
-        new_item = LibraryItem(title="Doom", era="dos", media_path="/tmp/doom-2", slug=new_slug)
+        new_slug = generate_collection_slug("Doom", mem_session)
+        new_item = LibraryCollection(title="Doom", era="dos", slug=new_slug)
         mem_session.add(new_item)
         mem_session.commit()
 
-        unchanged = mem_session.get(LibraryItem, existing_id)
+        unchanged = mem_session.get(LibraryCollection, existing_id)
         assert unchanged.slug == "doom"
-        assert unchanged.media_path == "/tmp/doom"
+        assert unchanged.title == "Doom"
 
-        next_slug = generate_item_slug("Doom", mem_session)
+        next_slug = generate_collection_slug("Doom", mem_session)
         assert next_slug == "doom-3"

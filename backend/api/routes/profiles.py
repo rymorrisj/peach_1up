@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.models.launch_history import LaunchHistory
-from backend.models.library import LibraryItem, LibraryItemRead, items_to_read_bulk
+from backend.models.library import LibraryCollection, LibraryCollectionRead, collections_to_read_bulk
 from backend.models.pagination import Page
 from backend.models.profile import Profile, ProfileCreate, ProfileRead, ProfileUpdate
 from backend.models.user import User
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/v1/profiles", tags=["profiles"])
 
 
 def _with_stats(profile: Profile, db: Session) -> ProfileRead:
-    (item_count,) = db.query(func.count(LibraryItem.id)).filter(LibraryItem.profile_id == profile.id).one()
+    (item_count,) = db.query(func.count(LibraryCollection.id)).filter(LibraryCollection.profile_id == profile.id).one()
     total_launches, last_launched_at = db.query(
         func.count(LaunchHistory.id),
         func.max(LaunchHistory.started_at),
@@ -34,9 +34,9 @@ def _with_stats_bulk(profiles: list[Profile], db: Session) -> list[ProfileRead]:
         return []
 
     item_counts = dict(
-        db.query(LibraryItem.profile_id, func.count(LibraryItem.id))
-        .filter(LibraryItem.profile_id.in_(ids))
-        .group_by(LibraryItem.profile_id)
+        db.query(LibraryCollection.profile_id, func.count(LibraryCollection.id))
+        .filter(LibraryCollection.profile_id.in_(ids))
+        .group_by(LibraryCollection.profile_id)
         .all()
     )
     launch_stats = {
@@ -104,7 +104,7 @@ def get_profile(slug: str, db: Session = Depends(get_db), _: User = Depends(get_
     return _with_stats(profile, db)
 
 
-@router.get("/{slug}/items", response_model=Page[LibraryItemRead])
+@router.get("/{slug}/items", response_model=Page[LibraryCollectionRead])
 def get_profile_items(
     slug: str,
     limit: int = Query(default=50, ge=1, le=200),
@@ -115,10 +115,10 @@ def get_profile_items(
     profile = db.query(Profile).filter(Profile.slug == slug).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
-    q = db.query(LibraryItem).filter(LibraryItem.profile_id == profile.id)
+    q = db.query(LibraryCollection).filter(LibraryCollection.profile_id == profile.id)
     total = q.count()
-    rows = q.order_by(LibraryItem.id).offset(offset).limit(limit).all()
-    return Page(items=items_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
+    rows = q.order_by(LibraryCollection.id).offset(offset).limit(limit).all()
+    return Page(items=collections_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 
 @router.patch("/{slug}", response_model=ProfileRead)

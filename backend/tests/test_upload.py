@@ -127,7 +127,7 @@ class TestLibraryUploadRoute:
     def client(self, tmp_path, mem_db_session, monkeypatch):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
-        from backend.api.routes import library_items, uploads
+        from backend.api.routes import library_collections, uploads
         from backend.core.database import get_db
         from backend.core.dependencies import get_active_user
         import backend.core.rate_limit as rl
@@ -147,7 +147,7 @@ class TestLibraryUploadRoute:
 
         app = FastAPI()
         app.include_router(uploads.router)
-        app.include_router(library_items.router)
+        app.include_router(library_collections.router)
         app.dependency_overrides[get_active_user] = _owner_user
         app.dependency_overrides[get_db] = lambda: mem_db_session
 
@@ -241,12 +241,12 @@ class TestLibraryUploadRoute:
         content = b"identical bytes for dedup test"
         first = self._upload(c, "doom.iso", content)
         assert first.status_code == 201, first.text
-        item_id = first.json()["id"]
+        collection_id = first.json()["id"]
 
-        token_resp = c.post(f"/api/v1/library/{item_id}/confirm-delete")
+        token_resp = c.post(f"/api/v1/librarycollection/{collection_id}/confirm-delete")
         assert token_resp.status_code == 200, token_resp.text
         token = token_resp.json()["confirmation_token"]
-        del_resp = c.delete(f"/api/v1/library/{item_id}", params={"confirmation_token": token})
+        del_resp = c.delete(f"/api/v1/librarycollection/{collection_id}", params={"confirmation_token": token})
         assert del_resp.status_code == 204, del_resp.text
 
         files_after_remove = self._media_files(media_path)

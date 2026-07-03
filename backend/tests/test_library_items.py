@@ -50,11 +50,12 @@ def _call_prepare(path: str, title: str, session) -> dict:
 
 
 def _commit_row(row: dict, session):
-    from backend.models.library import LibraryItem
-    item = LibraryItem(**row)
-    session.add(item)
+    # Persist a collection-of-one (parent + leaf) so dedup queries against the
+    # leaf's folder_path/media_path find it on re-import.
+    from backend.service.library.items import _persist_collection_of_one
+    collection = _persist_collection_of_one(row, session)
     session.commit()
-    return item
+    return collection
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch } from '@/api/client'
+import { apiFetch, ApiError } from '@/api/client'
 import TopBar from '@/components/layout/TopBar'
 import { ERA_COLOR, ERA_LABEL } from '@/types/era'
 import type { components } from '@shared/types'
@@ -106,29 +106,55 @@ const CAT_COLORS: Record<string, string> = {
   logs:           'var(--fg-4)',
 }
 
+// A 403 means the user lacks the platforms permission — stop retrying and
+// polling immediately instead of burning the normal retry count. Any other
+// error (network, 500, etc.) keeps the default retry behavior.
+function retryUnlessForbidden(failureCount: number, error: unknown) {
+  if (error instanceof ApiError && error.status === 403) return false
+  return failureCount < 1
+}
+
 export default function PlatformHealth() {
   const queryClient = useQueryClient()
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set())
   const [rescanning, setRescanning] = useState(false)
+  // Checked once per page load: as soon as any Platform Health query comes
+  // back 403, stop querying/polling for the rest of this page's lifetime
+  // and show a terminal no-permission state.
+  const [permissionDenied, setPermissionDenied] = useState(false)
 
-  const { data: platforms = [], isLoading } = useQuery<Platform[]>({
+  const { data: platforms = [], isLoading, error: platformsError } = useQuery<Platform[]>({
     queryKey: ['platforms'],
     queryFn: () => apiFetch<Platform[]>('/api/v1/platforms'),
+    enabled: !permissionDenied,
+    retry: retryUnlessForbidden,
   })
 
   const {
     data: storageFootprint,
     isLoading: storageLoading,
     refetch: refetchStorage,
+    error: storageError,
   } = useQuery<StorageFootprint>({
     queryKey: ['health-storage'],
     queryFn: () => apiFetch<StorageFootprint>('/api/v1/health/storage'),
+    enabled: !permissionDenied,
+    retry: retryUnlessForbidden,
   })
 
-  const { data: summary, isError: summaryError, isLoading: summaryLoading } = useQuery<HealthSummary>({
+  const { data: summary, isError: summaryError, isLoading: summaryLoading, error: summaryQueryError } = useQuery<HealthSummary>({
     queryKey: ['platforms-health-summary'],
     queryFn: () => apiFetch<HealthSummary>('/api/v1/platforms/health'),
+    enabled: !permissionDenied,
+    retry: retryUnlessForbidden,
   })
+
+  useEffect(() => {
+    const errors = [platformsError, storageError, summaryQueryError]
+    if (errors.some((e) => e instanceof ApiError && e.status === 403)) {
+      setPermissionDenied(true)
+    }
+  }, [platformsError, storageError, summaryQueryError])
 
   const userPlatforms = platforms
   const healthy = userPlatforms.filter(isHealthy)
@@ -161,6 +187,22 @@ export default function PlatformHealth() {
       else next.add(key)
       return next
     })
+  }
+
+  if (permissionDenied) {
+    return (
+      <div className="flex flex-col min-h-full">
+        <TopBar title="Platform Health" />
+        <div className="p-6">
+          <div
+            className="rounded-xl p-6 text-sm"
+            style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--fg-3)' }}
+          >
+            You don't have permission to view platform health.
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

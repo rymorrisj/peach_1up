@@ -6,7 +6,7 @@ collision: doom → doom-2 → doom-3.
 Public API:
     slugify       — normalise a name to a base slug string.
     unique_slug   — produce a collision-free slug using a caller-supplied check.
-    generate_item_slug — convenience wrapper for LibraryItem slugs.
+    generate_collection_slug — convenience wrapper for LibraryCollection slugs.
 """
 
 from __future__ import annotations
@@ -48,19 +48,19 @@ def unique_slug(name: str, query_fn: Callable[[str], bool], *, fallback: str = "
     return candidate
 
 
-def generate_item_slug(name: str, db: Session) -> str:
-    """Return a unique slug for a LibraryItem.
+def generate_collection_slug(name: str, db: Session) -> str:
+    """Return a unique slug for a LibraryCollection.
 
     Args:
-        name: Human-readable title of the item.
+        name: Human-readable title of the collection.
         db:   Active database session used for collision detection.
 
     Returns:
         A globally unique slug string suitable for use as a folder name.
     """
-    from backend.models.library import LibraryItem
+    from backend.models.library import LibraryCollection
 
     return unique_slug(
         name,
-        lambda s: db.query(LibraryItem).filter(LibraryItem.slug == s).first() is not None,
+        lambda s: db.query(LibraryCollection).filter(LibraryCollection.slug == s).first() is not None,
     )
