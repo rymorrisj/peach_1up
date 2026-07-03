@@ -370,7 +370,10 @@ export default function SetDetail() {
       entityId={setId}
       entityTitle={set.title}
       storageKey={setStorageKey}
-      onSuccess={() => queryClient.invalidateQueries({ queryKey: ['library', 'sets', setId] })}
+      onSuccess={() => {
+        queryClient.invalidateQueries({ queryKey: ['library', 'sets', setId] })
+        queryClient.invalidateQueries({ queryKey: ['library-sets'] })
+      }}
     />
 
     {fetchDiscId != null && activeDisc != null && (
@@ -383,6 +386,7 @@ export default function SetDetail() {
         storageKey={`${setStorageKey}#disc-${fetchDiscId}`}
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ['library', 'sets', setId] })
+          queryClient.invalidateQueries({ queryKey: ['library-sets'] })
           setFetchDiscId(null)
         }}
       />

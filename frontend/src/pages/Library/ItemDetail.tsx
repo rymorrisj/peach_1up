@@ -239,7 +239,11 @@ export default function ItemDetail() {
         entityId={item.id}
         entityTitle={item.title}
         storageKey={storageKey}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
+          queryClient.invalidateQueries({ queryKey: ['library'] })
+          queryClient.invalidateQueries({ queryKey: ['library-sets'] })
+        }}
       />
 
       <ConfirmModal
