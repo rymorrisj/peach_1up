@@ -53,13 +53,6 @@ class LaunchSpec:
     drive_image_path: Path | None = None
     drive_size_mb: int | None = None
 
-    # Run hint (dosbox only) for pattern-1 (ready-to-run, requires_install=False)
-    # media whose files were copied onto the per-item writable C: drive: the
-    # relative subdir to cd into and run from (e.g. "GAMES\\rally"). None means
-    # the source media is mounted read-only on D: instead (installer pattern-2/3).
-    # NOTE: currently unwired — no code reads this field (see audit queue).
-    env_run_dir: str | None = None
-
     # Platform plain fields. working_image_path is the shared, persistent
     # working image for 86Box-style eras (box86/xemu). DOS/Win3.1 do NOT use it
     # — dosbox mounts the per-item drive_image_path as C: instead — so it is
