@@ -31,11 +31,6 @@ def hash_file(path: Path) -> dict:
     }
 
 
-def load_index(index_path: Path) -> dict:
-    """Return the sha1-keyed index dict for index_path, loading and caching it on first use."""
-    return _load_cached(index_path)[0]
-
-
 def lookup(path: Path, index_path: Path) -> ScanResult | None:
     index, md5_index, crc32_index = _load_cached(index_path)
     if not index:

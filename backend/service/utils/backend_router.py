@@ -91,26 +91,6 @@ def dispatch(spec: "LaunchSpec") -> tuple:
     return module.launch(spec)
 
 
-def get_backend_name(era: Era) -> str:
-    """Return a human-readable display name for the backend handling ``era``.
-
-    Pure display function for the UI layer — does not validate that the
-    backend is installed or functional.
-
-    Args:
-        era: The gaming era to look up.
-
-    Returns:
-        Display name string, or ``"Unknown"`` if the era is not configured.
-    """
-    from backend.constants_generated import BACKEND_LABELS
-    try:
-        backend_name = resolve_backend_name(era)
-        return BACKEND_LABELS.get(backend_name, 'Unknown')
-    except Exception:
-        return 'Unknown'
-
-
 def get_executable_path(era: Era, backend_name: str | None = None) -> str:
     """Return the emulator executable path for the given era.
 

@@ -21,7 +21,7 @@ _RAWSHA1_LEN = 20
 # Used only to distinguish CD-sized (PS1) from DVD-sized (PS2) media when the
 # CHTR/CHT2 tag alone can't tell them apart.
 _LOGICAL_BYTES_OFFSET = 32
-_CD_SIZE_THRESHOLD = 800 * 1024 * 1024  # ~800 MB — matches iso_detect.py's CD/DVD cutoff
+_CD_SIZE_THRESHOLD = 800 * 1024 * 1024  # ~800 MB — independent heuristic; iso_detect.py uses a separate 4.7 GB PS1/PS2 boundary
 
 
 def extract_embedded_sha1(path: Path) -> str | None:
@@ -52,7 +52,8 @@ def detect(path: Path) -> ScanResult:
     Inspect CHD v5 metadata chain to determine platform.
 
     CHGD tag  → Dreamcast (GD-ROM)
-    CHTR/CHT2 → PS2 (standard CD/DVD track)
+    CHTR/CHT2 → standard CD/DVD track; PS1 vs PS2 is then split by the CHD
+                header's logicalbytes size (CD-sized → PS1, DVD-sized → PS2)
     Returns a zero-confidence result on any error or unrecognised metadata.
     Never raises.
     """
