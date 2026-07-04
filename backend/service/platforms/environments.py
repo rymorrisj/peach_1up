@@ -275,7 +275,7 @@ def get_health_summary(db: Session) -> dict:
             "total": len(user_platforms),
             "healthy": platform_healthy,
             "degraded": platform_degraded,
-            "unknown": platform_unknown,
+            "unconfigured": platform_unconfigured,
         },
         "library": {"total": library_count},
         "drives": {"total": drive_count},
