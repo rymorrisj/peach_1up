@@ -57,6 +57,7 @@ def _finalize(upload_id: str, media_root: Path, db: Session) -> dict:
             # picks the .cue/.gdi pointers in that order and drops companions,
             # rather than re-sorting alphabetically as folder_ingest does.
             disc_files = folder_ingest.select_disc_pointer_files(reasm.paths)
+            disc_files[0] = folder_ingest.dedup_disc_anchor(media_root, disc_files[0], db)
             collection = lib_svc._create_multi_disc_collection(disc_files, reasm.title, db)
             return {
                 "result_type": "library_collection",
@@ -65,12 +66,15 @@ def _finalize(upload_id: str, media_root: Path, db: Session) -> dict:
                 "disc_count": len(disc_files),
             }
 
-        result_type, collection = folder_ingest.ingest_folder(
-            reasm.dest_dir, reasm.paths, reasm.title, db
+        result_type, collection, disc_count = folder_ingest.ingest_folder(
+            reasm.dest_dir, reasm.paths, reasm.title, db, media_root
         )
-        summary = {"result_type": result_type, "id": collection.id, "title": collection.title}
-        summary["disc_count"] = len(reasm.paths)
-        return summary
+        return {
+            "result_type": result_type,
+            "id": collection.id,
+            "title": collection.title,
+            "disc_count": disc_count,
+        }
     except Exception:
         # Reassembled bytes live under MEDIA_PATH but were never persisted — drop
         # them (reused-duplicate already removed dest_dir above; ignore_errors
