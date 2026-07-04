@@ -72,9 +72,17 @@ class TestSecurityMiddlewareLocalhostGate:
         resp = client.get("/api/v1/ping")
         assert resp.status_code == 200
 
-    def test_remote_ip_is_blocked_when_network_access_disabled(self):
-        # get_settings() raises RuntimeError in test context (not initialised),
-        # which SecurityMiddleware catches and treats as allow_network=False.
+    def test_remote_ip_is_blocked_when_network_access_disabled(self, monkeypatch):
+        import backend.core.settings as settings_mod
+
+        class _FakeSettings:
+            def get(self, key, default=None):
+                if key == "ALLOW_NETWORK_ACCESS":
+                    return False
+                return default
+
+        monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings())
+
         app = _make_app()
         client = TestClient(_with_client_ip(app, "192.168.1.100"), raise_server_exceptions=False)
         resp = client.get("/api/v1/ping")

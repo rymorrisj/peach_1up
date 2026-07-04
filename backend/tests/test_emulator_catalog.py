@@ -152,3 +152,91 @@ class TestCliArgsPrefixInDescriptors:
         from backend.service.utils.emulator_catalog import get_emulator
         entry = get_emulator(slug)
         assert entry.get("cli_args_prefix") == expected
+
+
+# ---------------------------------------------------------------------------
+# resolve_container_enabled
+# ---------------------------------------------------------------------------
+
+class TestResolveContainerEnabled:
+    def test_override_true_wins_for_normal_slug(self, monkeypatch):
+        from backend.service.utils import emulator_catalog
+        monkeypatch.setattr(emulator_catalog, "get_emulator",
+                            lambda slug: {"container_enabled": False})
+        assert emulator_catalog.resolve_container_enabled("dosbox-x", True) is True
+
+    def test_override_false_wins_for_normal_slug(self, monkeypatch):
+        from backend.service.utils import emulator_catalog
+        monkeypatch.setattr(emulator_catalog, "get_emulator",
+                            lambda slug: {"container_enabled": True})
+        assert emulator_catalog.resolve_container_enabled("dosbox-x", False) is False
+
+    def test_none_override_falls_back_to_catalog_value(self, monkeypatch):
+        from backend.service.utils import emulator_catalog
+        monkeypatch.setattr(emulator_catalog, "get_emulator",
+                            lambda slug: {"container_enabled": True})
+        monkeypatch.setattr(emulator_catalog._settings, "get", lambda key, default=None: default)
+        assert emulator_catalog.resolve_container_enabled("dosbox-x", None) is True
+
+    def test_permanently_excluded_slug_rejects_true_override(self, monkeypatch):
+        from backend.service.utils import emulator_catalog
+        monkeypatch.setattr(emulator_catalog, "get_emulator",
+                            lambda slug: {"container_permanently_excluded": True})
+        assert emulator_catalog.resolve_container_enabled("xemu", True) is False
+
+    def test_permanently_excluded_slug_ignores_none_override_too(self, monkeypatch):
+        from backend.service.utils import emulator_catalog
+        monkeypatch.setattr(emulator_catalog, "get_emulator",
+                            lambda slug: {"container_permanently_excluded": True})
+        assert emulator_catalog.resolve_container_enabled("xemu", None) is False
+
+    def test_permanently_excluded_rejection_is_logged(self, monkeypatch, caplog):
+        from backend.service.utils import emulator_catalog
+        monkeypatch.setattr(emulator_catalog, "get_emulator",
+                            lambda slug: {"container_permanently_excluded": True})
+        with caplog.at_level("WARNING"):
+            emulator_catalog.resolve_container_enabled("xemu", True)
+        assert any("permanently excluded" in r.getMessage() for r in caplog.records)
+
+    def test_permanently_excluded_false_override_does_not_log(self, monkeypatch, caplog):
+        # override is falsy (False), so the warning branch (`if override:`) is not hit.
+        from backend.service.utils import emulator_catalog
+        monkeypatch.setattr(emulator_catalog, "get_emulator",
+                            lambda slug: {"container_permanently_excluded": True})
+        with caplog.at_level("WARNING"):
+            emulator_catalog.resolve_container_enabled("xemu", False)
+        assert not any("permanently excluded" in r.getMessage() for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# build_media_broker_config
+# ---------------------------------------------------------------------------
+
+class TestBuildMediaBrokerConfig:
+    def test_returns_none_when_container_disabled(self, tmp_path):
+        from backend.service.utils.emulator_catalog import build_media_broker_config
+        result = build_media_broker_config(
+            "flycast", "flycast.exe", tmp_path / "game.chd", user_id=1, container_enabled=False)
+        assert result is None
+
+    def test_builds_grant_and_inherit_broker_files_when_enabled(self, tmp_path, monkeypatch):
+        from backend.service.utils import emulator_catalog
+        from backend.service.utils.platform.windows.sandbox.sandbox_config import SandboxConfig
+
+        media_path = tmp_path / "media" / "game.chd"
+        base_config = SandboxConfig(moniker="flycast", exe_path="flycast.exe")
+        monkeypatch.setattr(emulator_catalog, "get_container_config",
+                            lambda slug, exe_path, user_id=None: base_config)
+
+        result = emulator_catalog.build_media_broker_config(
+            "flycast", "flycast.exe", media_path, user_id=1, container_enabled=True)
+
+        assert result is base_config
+        assert len(result.broker_files) == 2
+        grant, inherit = result.broker_files
+        assert grant.path == str(media_path.parent)
+        assert grant.access == "r"
+        assert grant.mode == "grant"
+        assert inherit.path == str(media_path)
+        assert inherit.access == "r"
+        assert inherit.mode == "inherit"
