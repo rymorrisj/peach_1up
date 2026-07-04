@@ -27,6 +27,9 @@ def supported_extensions_for_era(era: str) -> list[str]:
         return []
 
 
+_ROM_EXTENSIONS = {".nes", ".sfc", ".smc", ".zip", ".z64", ".n64", ".v64"}
+
+
 def media_type_from_path(path: Path) -> str:
     if path.is_dir():
         return "directory"
@@ -35,6 +38,14 @@ def media_type_from_path(path: Path) -> str:
         return "iso"
     if suffix == ".cue":
         return "cue"
+    if suffix == ".chd":
+        return "chd"
+    if suffix == ".bin":
+        return "bin"
+    if suffix == ".gdi":
+        return "gdi"
+    if suffix == ".cdi":
+        return "cdi"
     if suffix == ".img":
         try:
             return "floppy" if path.stat().st_size < 2 * 1024 * 1024 else "hdd"
@@ -42,6 +53,8 @@ def media_type_from_path(path: Path) -> str:
             return "hdd"
     if suffix in {".exe", ".bat", ".com"}:
         return "exe"
+    if suffix in _ROM_EXTENSIONS:
+        return "rom"
     return "unknown"
 
 

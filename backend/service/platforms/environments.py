@@ -75,7 +75,17 @@ def _probe_image_integrity(path: Path) -> bool:
     return True
 
 
-def _compute_status(working: str | None, base: str | None) -> str:
+def _compute_status(era: str, working: str | None, base: str | None) -> str:
+    if era not in _PROVISIONABLE_ERAS:
+        # DOS/win31 never get a working image (see _PROVISIONABLE_ERAS comment
+        # above — launches mount the per-item drive instead), so its absence
+        # is the expected, healthy state for these eras, not "degraded". Only
+        # base_image_path (optional, Advanced-only field for these eras) is
+        # evaluated.
+        if not base:
+            return "unconfigured"
+        return "healthy" if Path(base).is_file() else "error"
+
     if not working and not base:
         return "unconfigured"
     working_ok = bool(working and Path(working).is_file())
@@ -87,6 +97,17 @@ def _compute_status(working: str | None, base: str | None) -> str:
     if not _probe_image_integrity(Path(working)):
         return "degraded"
     return "healthy"
+
+
+def compute_live_status(platform: Platform) -> str:
+    """Uncached status for *platform*, safe to call on every read (list/summary
+    endpoints) as well as before persisting (health-check endpoints) — a single
+    implementation for both so the two paths can't drift apart again."""
+    if platform.is_system:
+        from backend.service.utils.emulator_catalog import get_install_path as _get_install_path
+        install_path = _get_install_path(platform.emulator_slug) if platform.emulator_slug else None
+        return "ok" if install_path is not None else "missing"
+    return _compute_status(platform.era, platform.working_image_path, platform.base_image_path)
 
 
 def create_platform(body: PlatformCreate, db: Session) -> Platform:
@@ -129,7 +150,7 @@ def create_platform(body: PlatformCreate, db: Session) -> Platform:
                 platform.id, platform.era, platform.slug, exc,
             )
 
-    platform.status = _compute_status(platform.working_image_path, platform.base_image_path)
+    platform.status = compute_live_status(platform)
     platform.last_health_check = datetime.now(timezone.utc)
     db.commit()
     db.refresh(platform)
@@ -165,23 +186,20 @@ def update_platform(platform_id: int, body: PlatformUpdate, db: Session) -> Plat
 
 
 def check_platform_health(platform: Platform, db: Session) -> dict:
-    if platform.is_system:
-        from backend.service.utils.emulator_catalog import get_install_path as _get_install_path
-        install_path = _get_install_path(platform.emulator_slug) if platform.emulator_slug else None
-        exists = install_path is not None
-        platform.status = "ok" if exists else "missing"
-        platform.last_health_check = datetime.now(timezone.utc)
-        db.commit()
-        return {
-            "status": platform.status,
-            "binary_exists": exists,
-            "binary_path": str(install_path) if install_path else None,
-        }
-
-    status = _compute_status(platform.working_image_path, platform.base_image_path)
+    status = compute_live_status(platform)
     platform.status = status
     platform.last_health_check = datetime.now(timezone.utc)
     db.commit()
+
+    if platform.is_system:
+        from backend.service.utils.emulator_catalog import get_install_path as _get_install_path
+        install_path = _get_install_path(platform.emulator_slug) if platform.emulator_slug else None
+        return {
+            "status": status,
+            "binary_exists": install_path is not None,
+            "binary_path": str(install_path) if install_path else None,
+        }
+
     return {
         "status": status,
         "working_image_exists": bool(platform.working_image_path and Path(platform.working_image_path).is_file()),
@@ -193,7 +211,7 @@ def batch_health_check(db: Session) -> dict:
     platforms = db.query(Platform).filter(Platform.is_system == False).all()
     results = []
     for platform in platforms:
-        status = _compute_status(platform.working_image_path, platform.base_image_path)
+        status = compute_live_status(platform)
         platform.status = status
         platform.last_health_check = datetime.now(timezone.utc)
         results.append({"id": platform.id, "status": status})
@@ -212,8 +230,12 @@ def get_health_summary(db: Session) -> dict:
     )
 
     user_platforms = db.query(Platform).filter(Platform.is_system == False).all()
-    platform_healthy = sum(1 for p in user_platforms if p.status in ("ok", "healthy"))
-    platform_unknown = sum(1 for p in user_platforms if p.status == "unknown")
+    # Computed live (not read from the persisted status column) so this always
+    # matches what list_platforms/GET /platforms shows on the same page load —
+    # see compute_live_status.
+    live_statuses = [compute_live_status(p) for p in user_platforms]
+    platform_healthy = sum(1 for s in live_statuses if s in ("ok", "healthy"))
+    platform_unknown = sum(1 for s in live_statuses if s == "unknown")
     platform_degraded = len(user_platforms) - platform_healthy - platform_unknown
 
     # "library total" = number of games (collections); a multi-disc set counts once.

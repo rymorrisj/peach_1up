@@ -23,6 +23,10 @@ def list_platforms(db: Session = Depends(get_db), _: User = Depends(get_active_u
     result = []
     for p in platforms:
         data = PlatformRead.model_validate(p)
+        # Recomputed live, not read from the persisted status column, so this
+        # always reflects current disk state — same freshness the Emulators
+        # page already gets from get_install_path() on every request.
+        data.status = plat_svc.compute_live_status(p)
         if p.working_image_path:
             try:
                 data.working_image_size_bytes = Path(p.working_image_path).stat().st_size

@@ -12,16 +12,6 @@
 # Magic bytes must match exactly at the given offset — no wildcards.
 # Community contributions welcome via pull request.
 
-# ── Xbox Original ────────────────────────────────────────────────────────────
-
-[[signatures]]
-era = "xbox"
-offset = 0x8001
-magic = "4D 53 58 42 4F 58 44 56 44"
-reason = "XDVDFS magic bytes at 0x8001 — Original Xbox disc image"
-applies_to = ["iso", "bin"]
-note = "XDVDFS = Microsoft Xbox DVD Filesystem. Unique to Xbox OG disc images."
-
 # ── PlayStation 1 ────────────────────────────────────────────────────────────
 
 [[signatures]]

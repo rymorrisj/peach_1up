@@ -16,24 +16,30 @@ from sqlalchemy.orm import Session
 
 from backend.service.library import items as lib_svc
 
+# Priority order matches _EXECUTABLE_PRIORITY in profile_builder.py: .gdi > .cue > .chd.
+# Shared by detect_disc_files and select_disc_pointer_files so folder uploads and
+# "set" uploads classify the same file list as disc-pointers identically.
+_DISC_POINTER_EXTS: tuple[str, ...] = (".gdi", ".cue", ".chd")
+
 
 def detect_disc_files(files: list[Path]) -> list[Path]:
-    """Return a sorted list of .cue/.gdi files when 2+ exist (multi-disc signal),
-    else []. Raises 422 when both .cue and .gdi are present (ambiguous format)."""
-    cue_files = sorted(f for f in files if f.suffix.lower() == ".cue")
-    gdi_files = sorted(f for f in files if f.suffix.lower() == ".gdi")
+    """Return a sorted list of disc-pointer files (.gdi/.cue/.chd) when 2+ of one
+    kind exist (multi-disc signal), else []. Raises 422 when more than one
+    disc-pointer format is present (ambiguous — implies different consoles)."""
+    groups = {ext: sorted(f for f in files if f.suffix.lower() == ext) for ext in _DISC_POINTER_EXTS}
+    present = [ext for ext, group in groups.items() if group]
 
-    if cue_files and gdi_files:
+    if len(present) > 1:
         raise HTTPException(
             status_code=422,
             detail=(
-                "Folder contains both .cue and .gdi files. "
+                f"Folder contains more than one disc-pointer format ({', '.join(present)}). "
                 "These formats imply different consoles and cannot be mixed in one multi-disc set. "
                 "Upload only one format at a time."
             ),
         )
 
-    disc_files = gdi_files or cue_files
+    disc_files = groups[".gdi"] or groups[".cue"] or groups[".chd"]
     if len(disc_files) <= 1:
         return []
     return disc_files
@@ -43,28 +49,28 @@ def select_disc_pointer_files(files: list[Path]) -> list[Path]:
     """Order-preserving, companion-aware disc selection for explicit multi-disc
     "set" uploads, where a disc can be more than one file (e.g. .cue + .bin).
 
-    Returns the .cue/.gdi pointer files in their original (client-declared)
+    Returns the .gdi/.cue/.chd pointer files in their original (client-declared)
     order when any are present — every other file rides along in the shared
     destination folder unregistered as a companion. Falls back to returning
-    *files* unchanged when no .cue/.gdi is present (each file is already its
-    own disc, e.g. .iso/.chd). Raises 422 for a mixed .cue/.gdi upload, same as
-    detect_disc_files — unlike that function, this one does not sort, since the
-    caller must preserve the client's declared disc order.
+    *files* unchanged when none of those are present (each file is already its
+    own disc, e.g. .iso). Raises 422 for a mixed disc-pointer-format upload,
+    same as detect_disc_files — unlike that function, this one does not sort,
+    since the caller must preserve the client's declared disc order.
     """
-    cue_files = [f for f in files if f.suffix.lower() == ".cue"]
-    gdi_files = [f for f in files if f.suffix.lower() == ".gdi"]
+    groups = {ext: [f for f in files if f.suffix.lower() == ext] for ext in _DISC_POINTER_EXTS}
+    present = [ext for ext, group in groups.items() if group]
 
-    if cue_files and gdi_files:
+    if len(present) > 1:
         raise HTTPException(
             status_code=422,
             detail=(
-                "Upload contains both .cue and .gdi files. "
+                f"Upload contains more than one disc-pointer format ({', '.join(present)}). "
                 "These formats imply different consoles and cannot be mixed in one multi-disc set. "
                 "Upload only one format at a time."
             ),
         )
 
-    pointer_files = cue_files or gdi_files
+    pointer_files = groups[".gdi"] or groups[".cue"] or groups[".chd"]
     return pointer_files if pointer_files else files
 
 
