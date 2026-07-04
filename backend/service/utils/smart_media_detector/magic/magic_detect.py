@@ -24,6 +24,24 @@ _SIGNATURES: list[dict] = [
 ]
 
 
+def _classify_system_cnf(content: str) -> str:
+    return "ps2" if "BOOT2" in content else "ps1"
+
+
+def resolve_ps_generation_from_file(cnf_path: Path) -> str:
+    """
+    Classify PS1 vs PS2 from an already-extracted SYSTEM.CNF file on disk
+    (directory-based items — no CD sector arithmetic needed since the file
+    is directly readable). Same BOOT/BOOT2 marker logic as _resolve_ps_generation.
+    """
+    try:
+        with cnf_path.open("rb") as fh:
+            content = fh.read(512).decode("ascii", errors="replace")
+        return _classify_system_cnf(content)
+    except Exception:
+        return "ps1"
+
+
 def _resolve_ps_generation(path: Path) -> str:
     # Mode 2 raw BIN: 2352-byte sectors, data payload starts at byte 24
     SECTOR = 2352
@@ -67,7 +85,7 @@ def _resolve_ps_generation(path: Path) -> str:
 
             fh.seek(system_cnf_lba * SECTOR + DATA_OFF)
             content = fh.read(min(system_cnf_size or 512, 512)).decode("ascii", errors="replace")
-            return "ps2" if "BOOT2" in content else "ps1"
+            return _classify_system_cnf(content)
     except Exception:
         return "ps1"
 

@@ -135,18 +135,22 @@ def _detect_from_directory(root: Path) -> ScanResult:
             reason="directory contains WIN.INI and SYSTEM.INI",
         )
     if "SYSTEM.CNF" in entries:
-        try:
-            size_bytes = sum(f.stat().st_size for f in root.rglob("*") if f.is_file())
-        except OSError:
-            size_bytes = 0
-        if size_bytes > 4_700_000_000:
+        cnf_path = next(
+            (e for e in root.iterdir() if e.is_file() and e.name.upper() == "SYSTEM.CNF"),
+            None,
+        )
+        if cnf_path is not None:
+            from .magic.magic_detect import resolve_ps_generation_from_file
+            era = resolve_ps_generation_from_file(cnf_path)
+            boot_key = "BOOT2" if era == "ps2" else "BOOT"
             return ScanResult(
-                title=None, platform=None, era="ps2", confidence=0.6,
-                reason="directory contains SYSTEM.CNF and total size suggests DVD (PS2)",
+                title=None, platform=None, era=era, confidence=0.8,
+                reason=f"directory SYSTEM.CNF {boot_key} key indicates {era.upper()}",
             )
         return ScanResult(
-            title=None, platform=None, era="ps1", confidence=0.6,
-            reason="directory contains SYSTEM.CNF (PlayStation boot descriptor)",
+            title=None, platform=None, era="ps1", confidence=0.4,
+            reason="directory contains SYSTEM.CNF but file could not be read to confirm generation",
+            warnings=["heuristic fallback: defaulted to PS1 without confirming BOOT/BOOT2 key"],
         )
     if "INSTALL.BAT" in entries or "INSTALL.COM" in entries:
         return ScanResult(

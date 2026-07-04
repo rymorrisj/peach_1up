@@ -68,7 +68,7 @@ def _detect(path: Path) -> ScanResult:
     # Tier 1: hash lookup — highest confidence, return immediately on match
     try:
         result = _hash_lookup.lookup(path, _INDEX_PATH)
-        if result is not None:
+        if result is not None and result.era is not None:
             result.requires_install = _compute_requires_install(path, result.era)
             return result
     except Exception:

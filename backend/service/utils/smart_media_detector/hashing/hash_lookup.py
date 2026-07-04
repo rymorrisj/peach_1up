@@ -4,6 +4,7 @@ import zlib
 from pathlib import Path
 
 from ..result import ScanResult
+from ..validators.chd_validator import extract_embedded_sha1
 
 _CHUNK = 65536
 
@@ -39,6 +40,25 @@ def lookup(path: Path, index_path: Path) -> ScanResult | None:
     index, md5_index, crc32_index = _load_cached(index_path)
     if not index:
         return None
+
+    # CHD containers never match on raw file bytes — chdman compresses and wraps
+    # the original track data, so hashing the .chd file itself cannot equal a
+    # Redump hash of the original dump. Use the header's embedded rawsha1 field
+    # (the hash of the raw, uncompressed data) instead.
+    if path.suffix.lower() == ".chd":
+        embedded_sha1 = extract_embedded_sha1(path)
+        if embedded_sha1 is None:
+            return None
+        entry = index.get(embedded_sha1)
+        if entry is None:
+            return None
+        return ScanResult(
+            title=entry.get("title"),
+            platform=entry.get("platform"),
+            era=entry.get("era"),
+            confidence=1.0,
+            reason=f"sha1 match (CHD embedded rawsha1): {embedded_sha1}",
+        )
 
     hashes = hash_file(path)
 

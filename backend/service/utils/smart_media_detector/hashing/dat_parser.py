@@ -4,6 +4,25 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Redump DAT <header><name> platform strings, checked in order (most-specific
+# first) so "PlayStation 2" is matched before the "PlayStation" substring.
+_ERA_MARKERS: list[tuple[str, str]] = [
+    ("playstation 2", "ps2"),
+    ("playstation", "ps1"),
+    ("xbox", "xbox"),
+    ("dreamcast", "dreamcast"),
+]
+
+
+def _resolve_era_from_platform(platform: str | None) -> str | None:
+    if not platform:
+        return None
+    lowered = platform.lower()
+    for marker, era in _ERA_MARKERS:
+        if marker in lowered:
+            return era
+    return None
+
 
 def parse_dat(path: Path) -> list[dict]:
     source = path.stem
@@ -49,7 +68,7 @@ def parse_dat(path: Path) -> list[dict]:
                 record: dict = {
                     "title": game_name,
                     "platform": platform,
-                    "era": None,
+                    "era": _resolve_era_from_platform(platform),
                     "source": source,
                 }
                 if sha1:
