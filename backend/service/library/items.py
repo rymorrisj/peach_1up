@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 
@@ -214,14 +215,16 @@ def _prepare_item(
         if games_root_str:
             dest_folder = Path(games_root_str) / media_src.stem
             dest = dest_folder / media_src.name
-            dest_norm = dest.resolve().as_posix()
 
-            # Duplicate check: source path or destination copy already tracked
-            for stored_path, leaf_id in db.query(
-                LibraryItem.media_path, LibraryItem.id
-            ).filter(LibraryItem.media_path.isnot(None)).all():
-                if Path(stored_path).resolve().as_posix() in (incoming_norm, dest_norm):
-                    raise _ItemAlreadyExists(_collection_for_leaf(db.get(LibraryItem, leaf_id), db))
+            # Duplicate check: source path or destination copy already tracked.
+            # media_path is always written as str(Path(...).resolve()) by this same
+            # function, so an exact match against the same two candidate strings
+            # finds any prior duplicate without re-resolving the whole table.
+            existing_leaf = db.query(LibraryItem).filter(
+                LibraryItem.media_path.in_([str(media_src), str(dest)])
+            ).first()
+            if existing_leaf:
+                raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
 
             # If the file already lives in a direct subfolder of games_root that
             # only needs renaming to match the canonical stem, rename in place
@@ -264,11 +267,11 @@ def _prepare_item(
             if cover:
                 row["cover_art_path"] = str(cover)
         else:
-            for stored_path, leaf_id in db.query(
-                LibraryItem.media_path, LibraryItem.id
-            ).filter(LibraryItem.media_path.isnot(None)).all():
-                if Path(stored_path).resolve().as_posix() == incoming_norm:
-                    raise _ItemAlreadyExists(_collection_for_leaf(db.get(LibraryItem, leaf_id), db))
+            existing_leaf = db.query(LibraryItem).filter(
+                LibraryItem.media_path == str(media_src)
+            ).first()
+            if existing_leaf:
+                raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
             row["folder_path"] = str(media_src.parent)
 
         _scan = _smart_detect(Path(row["media_path"]))
@@ -399,6 +402,55 @@ def _ingest_media_entry(
     return collection
 
 
+_CUE_FILE_RE = re.compile(r'FILE\s+"([^"]+)"', re.IGNORECASE)
+_GDI_QUOTED_NAME_RE = re.compile(r'"([^"]+)"')
+
+
+def _disc_data_size(disc_file: Path) -> int | None:
+    """Return the on-disk size represented by *disc_file*.
+
+    For .cue/.gdi pointer files this sums the referenced track/data files
+    (parsed from the pointer text itself) instead of the pointer file's own
+    size, which is a few hundred bytes regardless of the actual disc size.
+    Falls back to the pointer file's own size if no referenced file resolves
+    (e.g. non-standard pointer contents) — fail-soft, matching the rest of
+    this codebase's detection behavior. .chd is a single self-contained file
+    and is sized directly, no parsing needed.
+    """
+    if disc_file.suffix.lower() not in (".cue", ".gdi"):
+        return disc_file.stat().st_size if disc_file.exists() else None
+
+    try:
+        text = disc_file.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        text = ""
+
+    referenced: list[str] = []
+    if disc_file.suffix.lower() == ".cue":
+        referenced = _CUE_FILE_RE.findall(text)
+    else:  # .gdi — track lines after the leading track-count line
+        for line in text.splitlines()[1:]:
+            m = _GDI_QUOTED_NAME_RE.search(line)
+            if m:
+                referenced.append(m.group(1))
+            else:
+                parts = line.split()
+                if len(parts) >= 5:
+                    referenced.append(parts[4])
+
+    total = 0
+    found_any = False
+    for name in referenced:
+        candidate = disc_file.parent / name
+        if candidate.exists():
+            total += candidate.stat().st_size
+            found_any = True
+
+    if found_any:
+        return total
+    return disc_file.stat().st_size if disc_file.exists() else None
+
+
 def _create_multi_disc_collection(
     disc_files: list[Path],
     title: str,
@@ -411,6 +463,8 @@ def _create_multi_disc_collection(
     """
     from backend.service.utils.smart_media_detector import detect as _smart_detect
     from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
+    from backend.service.utils.profile_builder import _find_cover
+    from backend.service.utils.rating_detect import detect_rating
 
     _scan = _smart_detect(disc_files[0])
     detected_era: str = _scan.era if _scan.era is not None else "unknown"
@@ -430,9 +484,12 @@ def _create_multi_disc_collection(
         slug=generate_collection_slug(title, db),
         platform_id=detected_platform_id,
         profile_id=detected_profile_id,
+        content_rating=detect_rating(str(disc_files[0])) or None,
     )
     db.add(collection)
     db.flush()
+
+    cover = _find_cover(disc_files[0].parent)
 
     leaves: list[LibraryItem] = []
     for disc_number, disc_file in enumerate(disc_files, start=1):
@@ -442,7 +499,8 @@ def _create_multi_disc_collection(
             media_path=str(disc_file),
             executable_path=str(disc_file),
             media_type=media_type_from_path(disc_file),
-            file_size_bytes=disc_file.stat().st_size if disc_file.exists() else None,
+            file_size_bytes=_disc_data_size(disc_file),
+            cover_art_path=str(cover) if disc_number == 1 and cover else None,
         )
         db.add(leaf)
         leaves.append(leaf)

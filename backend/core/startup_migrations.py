@@ -72,3 +72,15 @@ def _apply_schema_migrations() -> None:
             ))
             conn.commit()
             logger.info("Schema migration: enforced single-owner partial unique index on users")
+
+        # Backfill the index on library_items.media_path for DBs provisioned before
+        # index=True was added to the model. Name matches SQLAlchemy's own naming
+        # convention for this column (ix_<table>_<column>) so this is a no-op on a
+        # freshly created DB — create_all() already made the same-named index —
+        # and a real backfill on an existing DB that predates it.
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_library_items_media_path "
+            "ON library_items (media_path)"
+        ))
+        conn.commit()
+        logger.info("Schema migration: confirmed ix_library_items_media_path exists")

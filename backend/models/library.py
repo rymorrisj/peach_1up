@@ -36,7 +36,7 @@ class LibraryItem(SQLModel, table=True):
         )
     )
     disc_number: int = 1
-    media_path: str = Field(sa_column=Column(String, nullable=False))
+    media_path: str = Field(sa_column=Column(String, nullable=False, index=True))
     executable_path: Optional[str] = None
     cover_art_path: Optional[str] = None
     media_type: Optional[MediaType] = Field(default=None, sa_column=Column(String))
