@@ -66,7 +66,11 @@ def get_platform(platform_id: int, db: Session = Depends(get_db), _: User = Depe
     platform = db.get(Platform, platform_id)
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found.")
-    return platform
+    data = PlatformRead.model_validate(platform)
+    # Recomputed live, matching list_platforms, so the detail page can't
+    # disagree with the list page for the same platform on the same load.
+    data.status = plat_svc.compute_live_status(platform)
+    return data
 
 
 @router.patch("/{platform_id}", response_model=PlatformRead)

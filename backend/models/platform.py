@@ -92,6 +92,7 @@ class PlatformHealthCounts(SQLModel):
     total: int
     healthy: int
     degraded: int
+    unconfigured: int
 
 
 class CountTotal(SQLModel):

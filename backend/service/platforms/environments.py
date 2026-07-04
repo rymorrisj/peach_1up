@@ -235,8 +235,8 @@ def get_health_summary(db: Session) -> dict:
     # see compute_live_status.
     live_statuses = [compute_live_status(p) for p in user_platforms]
     platform_healthy = sum(1 for s in live_statuses if s in ("ok", "healthy"))
-    platform_unknown = sum(1 for s in live_statuses if s == "unknown")
-    platform_degraded = len(user_platforms) - platform_healthy - platform_unknown
+    platform_unconfigured = sum(1 for s in live_statuses if s == "unconfigured")
+    platform_degraded = len(user_platforms) - platform_healthy - platform_unconfigured
 
     # "library total" = number of games (collections); a multi-disc set counts once.
     library_count = db.query(LibraryCollection).count()
