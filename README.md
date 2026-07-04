@@ -49,10 +49,9 @@ cd frontend && npm run dev
 
 ## Build
 
-There is a build script at the root you can run which bundles all the build commands and tasks. You can also rebuild parts individually
+There is a build script at the root you can run which bundles all the build commands and tasks. You can also rebuild parts individually. Packaging is currently Windows-only (`build.bat`) — Linux packaging (.deb/AppImage) is planned but not yet built (see SCOPE.md PX-3).
 
 ```bash
-./build.sh    # Linux
 build.bat     # Windows
 ```
 

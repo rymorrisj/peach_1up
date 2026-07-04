@@ -296,6 +296,19 @@ conversation and wait for an explicit decision before proceeding.
 - AppContainer (P9) is an additional isolation layer applied on top of Job Objects when
   `container_enabled = true` in the emulator descriptor. Currently only DOSBox-X has
   `container_enabled = true`. All other emulators run under Job Object isolation only.
+- The container-enable resolution and media-broker config that were previously duplicated
+  across all five backends (86Box, DOSBox-X, xemu, Flycast, console) are now single
+  implementations in `backend/service/utils/emulator_catalog.py`: `resolve_container_enabled()`
+  resolves the effective `container_enabled` flag for a launch (profile/spec override, falling
+  back to the catalog/settings value), and `build_media_broker_config()` builds the
+  `SandboxConfig` broker-file list from it. A slug marked `container_permanently_excluded`
+  in its TOML (currently only `xemu`, see DECISIONS.md 2026-06-04) rejects a profile-level
+  `container_enabled` override at this layer — `resolve_container_enabled()` ignores the
+  override and logs a warning rather than honouring it. `PATCH /{slug}/sandbox` already
+  blocked enabling a permanently-disabled container via settings (`container_enabled is True`
+  requested against a catalog `container_enabled: false` entry rejected with 400); this fix
+  closes the separate profile-override path into the same subsystem, so both routes into
+  container gating are now covered.
 - For AppContainer-enabled emulators, process creation is delegated to `sandbox_host.exe`,
   which handles `SECURITY_CAPABILITIES`, `CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT`,
   and `ResumeThread`. The Python launcher wraps the resulting PID in a Job Object via the
@@ -390,6 +403,21 @@ it.
 
 `NOTE:` Peach 1UP is a household application first and foremost. We will add some basic
 level protections but network safety is the users concern.
+
+### hash_index.json is committed but not independently reproducible
+
+The bundled `hash_index.json` used by the smart media detector (Tier-1 hash lookup) is
+committed to the repo, but the No-Intro/Redump DAT files it was built from are not — they
+are external, licensed datasets not included here. There is no way to regenerate or verify
+this index from files in the repo alone. Flag only, no fix planned.
+
+### No CI, pre-commit, or husky config exists anywhere
+
+There is no continuous integration, pre-commit hook, or husky config in this repo. Build
+and regeneration rules (e.g. keeping `export_and_build_types.py`'s `ROUTERS` in sync,
+regenerating `shared/types.ts`, running `gen_constants.py` before export) are enforced by
+convention and manual process only — nothing mechanically blocks a commit or PR that
+skips them. Flag only, no fix planned.
 
 ### Platform health check is a shallow integrity probe, not full validation
 
