@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 from backend.constants import ERA_MEDIA_TYPES
 from backend.constants_generated import Era
 from backend.service.utils.emulator_catalog import (
-    get_container_enabled,
+    resolve_container_enabled,
     get_install_path,
     validate_bios_from_descriptor,
 )
@@ -246,8 +246,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     job_name_prefix = f"Peach1UP_xemu_{spec.era}"
 
-    catalog_enabled = get_container_enabled("xemu")
-    container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
+    container_enabled = resolve_container_enabled("xemu", spec.container_enabled)
 
     if container_enabled:
         from backend.service.utils.platform.windows.app_container import (

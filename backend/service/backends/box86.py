@@ -20,7 +20,7 @@ from backend.service.utils.disk_utils import has_valid_mbr
 from backend.service.utils.emulator_catalog import (
     get_emulator,
     get_86box_profile,
-    get_container_enabled,
+    resolve_container_enabled,
     get_container_config as get_emulator_container_config,
     validate_bios_from_descriptor,
 )
@@ -358,8 +358,7 @@ def launch(spec: "LaunchSpec") -> tuple:
 
     job_name_prefix = f"Peach1UP_86box_{spec.era}_{spec.platform_slug}"
 
-    catalog_enabled = get_container_enabled("86box")
-    container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
+    container_enabled = resolve_container_enabled("86box", spec.container_enabled)
 
     if container_enabled:
         sandbox_config = get_emulator_container_config("86box", box86_path, user_id=spec.user_id)

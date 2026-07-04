@@ -11,6 +11,7 @@ portable_sentinel = "xemu.toml"
 sandbox_mode = "appcontainer"
 container_enabled = false
 container_hardcap_disabled = true
+container_permanently_excluded = true
 capabilities = []
 skip_memory_limit = true
 description = "Original Xbox emulation"

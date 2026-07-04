@@ -354,6 +354,78 @@ def get_container_config(slug: str, exe_path: str, user_id: int | None = None) -
     return _build_config(slug, exe_path, user_id=user_id)
 
 
+def is_container_permanently_excluded(slug: str) -> bool:
+    """Return True if *slug* can never run under AppContainer, for technical reasons.
+
+    Distinct from ``container_enabled = false`` (currently disabled, may be
+    enabled later once tested) and from ``container_hardcap_disabled`` (a
+    display-only flag read by the frontend). This field is read only by
+    ``resolve_container_enabled`` and must not be set for an emulator whose
+    AppContainer status is merely "not yet enabled" rather than technically
+    impossible — see DECISIONS.md 2026-06-04 for the xemu/QEMU TCG rationale,
+    the only slug this currently applies to.
+    """
+    try:
+        return bool(get_emulator(slug).get("container_permanently_excluded", False))
+    except ValueError:
+        return False
+
+
+def resolve_container_enabled(slug: str, override: bool | None) -> bool:
+    """Resolve the effective container_enabled flag for a launch.
+
+    *override* is the per-profile/per-spec value (``Profile.container_enabled``
+    / ``LaunchSpec.container_enabled``). ``None`` means no override was set, in
+    which case the catalog/settings value from ``get_container_enabled(slug)``
+    applies. A non-``None`` override normally wins, including over a TOML
+    ``container_enabled = false`` default — this mirrors existing backend
+    behavior and is not changed here.
+
+    The one exception is a slug marked ``container_permanently_excluded``
+    (see ``is_container_permanently_excluded``): the override is ignored
+    unconditionally and this always returns False, regardless of what the
+    profile or settings say. Job Object isolation is unaffected either way —
+    only the AppContainer layer is unavailable — so a mismatched override is
+    logged, not raised.
+    """
+    if is_container_permanently_excluded(slug):
+        if override:
+            _logger.warning(
+                "Profile requested container_enabled=True for '%s', but AppContainer "
+                "is permanently excluded for this emulator (see DECISIONS.md 2026-06-04). "
+                "Ignoring the override; launching under Job Object isolation only.",
+                slug,
+            )
+        return False
+    return override if override is not None else get_container_enabled(slug)
+
+
+def build_media_broker_config(
+    slug: str,
+    exe_path: str,
+    media_path: Path,
+    user_id: int | None,
+    container_enabled: bool,
+) -> "SandboxConfig | None":
+    """Build a SandboxConfig granting read-only broker access to *media_path*.
+
+    Shared by backends whose only per-launch broker requirement is exposing
+    the read-only media file and its parent directory to the AppContainer
+    (console.py, flycast.py). Backends with different broker-file needs
+    (86box.py, xemu.py, dosbox.py) build their own SandboxConfig and do not
+    use this helper. Returns None when container_enabled is false.
+    """
+    if not container_enabled:
+        return None
+    from backend.service.utils.platform.windows.sandbox import BrokerFile
+    sandbox_config = get_container_config(slug, exe_path, user_id=user_id)
+    sandbox_config.broker_files.append(
+        BrokerFile(path=str(media_path.parent), access="r", mode="grant"))
+    sandbox_config.broker_files.append(
+        BrokerFile(path=str(media_path), access="r", mode="inherit"))
+    return sandbox_config
+
+
 def load_bios_requirements() -> list[dict]:
     return _load_raw_catalog().get("bios_requirements", [])
 

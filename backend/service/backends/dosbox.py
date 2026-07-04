@@ -24,7 +24,7 @@ from backend.constants_generated import Era
 from backend.service.utils.era_defaults import DOS_WIN_ERAS
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
-from backend.service.utils.emulator_catalog import get_container_enabled
+from backend.service.utils.emulator_catalog import resolve_container_enabled
 from backend.service.utils.platform.windows.sandbox import BrokerFile
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
 from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
@@ -538,8 +538,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     job_name_prefix = f"Peach1UP_dosbox_{spec.era}_{spec.media_path.stem}"
 
     # Resolve container_enabled: profile field overrides the emulator catalog value.
-    catalog_enabled = get_container_enabled("dosbox-x")
-    container_enabled = spec.container_enabled if spec.container_enabled is not None else catalog_enabled
+    container_enabled = resolve_container_enabled("dosbox-x", spec.container_enabled)
 
     if container_enabled:
         from backend.service.utils.platform.windows.app_container import get_container_config as _build_cfg
