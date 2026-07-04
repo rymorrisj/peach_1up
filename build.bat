@@ -122,6 +122,18 @@ if errorlevel 1 (
 popd
 echo [OK] Docs dependencies installed
 
+REM ── Generate constants ───────────────────────────────────────
+REM Must run before export_and_build_types.py below — constants_generated.py
+REM feeds the SQLModel tables that backend.api.routes.ROUTERS pulls in.
+echo Generating constants...
+.venv\Scripts\python.exe scripts\gen_constants.py
+if errorlevel 1 (
+    echo ERROR: Constants generation failed. Aborting.
+    exit /b 1
+)
+
+echo [OK] Constants generated
+
 REM ── Generate API types ───────────────────────────────────────
 REM Must run before the docs build below — it produces shared/openapi.json,
 REM which docusaurus-plugin-openapi-docs reads to generate docs/docs/api/.
@@ -231,9 +243,22 @@ if errorlevel 1 (
     goto :error
 )
 
+echo === Building sandbox_checker capability probes ===
+where bash >nul 2>&1
+if not errorlevel 1 (
+    bash "backend/service/utils/platform/windows/sandbox_checker/src/build_tests.sh"
+    if errorlevel 1 (
+        echo ERROR: sandbox_checker build_tests.sh failed.
+        goto :error
+    )
+    echo [OK] sandbox_checker probes built
+) else (
+    echo WARNING: bash/MSYS2 not found - cannot rebuild sandbox_checker probes.
+)
+
 if not exist "backend\service\utils\platform\windows\sandbox_checker\src\test_sdl2_d3d11.exe" (
     echo ERROR: No executables found in backend\service\utils\platform\windows\sandbox_checker\src\
-    echo Run build.sh from an MSYS2 UCRT64 shell first to compile the sandbox executables.
+    echo Run build_tests.sh from an MSYS2 UCRT64 shell first to compile the sandbox executables.
     goto :error
 )
 if not exist "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\" mkdir "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\"

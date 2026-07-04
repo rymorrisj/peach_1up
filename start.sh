@@ -74,6 +74,17 @@ else
   echo "[OK] sandbox_host.exe found"
 fi
 
+# ── Generate constants ──────────────────────────────────────────
+# Must run before export_and_build_types.py below — constants_generated.py
+# feeds the SQLModel tables that backend.api.routes.ROUTERS pulls in.
+echo "Generating constants..."
+python3 scripts/gen_constants.py
+if [ $? -ne 0 ]; then
+  echo "ERROR: Constants generation failed. Aborting."
+  exit 1
+fi
+echo "[OK] Constants generated"
+
 # ── Generate API types ─────────────────────────────────────────
 echo "Generating OpenAPI spec and frontend types..."
 python3 scripts/export_and_build_types.py

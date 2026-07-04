@@ -416,3 +416,123 @@ Require judgment / dynamic (a naïve call-graph tool would miss or mis-resolve t
 
 No files were edited; no tests or installs were run. The call chains above reflect the current code (profile_id gate gone, per-user moniker, ROM path via
 emulator_catalog/resolve_rom_path, single xemu BIOS validator, F2-4 path reuse via resolved_install_path/resolved_rom_path).
+
+═══════════════════════════════════════════════════════════════════════════════
+CURRENT-STATE ADDENDUM (2026-07-04 audit pass)
+═══════════════════════════════════════════════════════════════════════════════
+
+The flow atlas above was written before the P-META / library-consolidation / detection /
+multi-disc / platform-health changes. Where it and this addendum disagree, this addendum is
+current. It (a) records the entity/route renames, (b) restates the three flows changed this
+session in their current shape, and (c) expands services/utils coverage that was thin above.
+
+--- Entity & route renames (global) ---
+
+- LibraryItem/LibrarySet → LibraryCollection (parent "game") + LibraryItem (leaf "disc").
+  A single-disc game is a collection-of-one. Models: backend/models/library.py.
+  Collection owns metadata (title/era/rating/cover/profile/platform/drive) and an ordered
+  leaf list; leaf owns per-disc media_path/executable_path/cover/media_type/folder_path.
+- launch_history.library_item_id → library_collection_id (FK CASCADE). LaunchHistoryRead
+  derives target_type in a model_validator (library_collection vs environment); it is NOT a
+  stored column, so the old "target_type rebuild migration" hazard is gone.
+- Routes: the old library.py is split — library_collections.py (list/scan/import/CRUD on the
+  parent) and libraryitems.py (leaf get/patch). Chunked upload lives in uploads.py. There is
+  NO /library/multi route and NO synchronous upload-folder route — both removed.
+
+--- F1 (revised) — Library Collection Launch ---
+
+Route: POST /api/v1/library/{collection_id}/launch (launches.py) → coordinator.launch_collection
+(coordinator.py:468).
+- cleanup_exited (+ write_session_ends if any reaped)
+- resolve_launchable(collection_id) (launchable_resolver.py:54) → builds a LaunchableEntity from
+  the collection's launch_disk_id leaf; disc_paths = every leaf's media_path in disc_number order.
+  422 if the collection has no launch disc configured.
+- _launch_entity (coordinator.py:445): _resolve_profile_for_item → platform lookup by profile →
+  hydrate_drive_for_entity (drive_hydration.py:41; auto-creates DOS/win31 drive, copies loose
+  files with MD5 verify on first launch, sets collection.installed=True) → resolve effective media
+  (dir + no drive → resolve_media_file_from_directory) → _build_spec_for_entity → launch() ⇒ F3.
+- launch() (coordinator.py:332) now guards concurrency up front: process_registry.try_reserve
+  (profile_id, emulator_slug, user_id) → 409 if a launch for that profile/emulator is already
+  active; reservation released in a finally on every path. After dispatch it runs an inline
+  ~0.75s _poll_for_immediate_exit (collections only, not environments) to catch near-instant
+  crashes synchronously; slower crashes still caught by the async 3s register_short_lived_check.
+
+--- F4/multi-disc (revised) — Ingest & the consolidated upload pipeline ---
+
+Every add path funnels through service/library/items.py:
+- _prepare_item (items.py:66): dir/file/dedup + era detection + defaults; sets content_rating via
+  detect_rating, cover via _find_cover, requires_install from the scan. Returns a plain row dict.
+- _ingest_media_entry → _persist_collection_of_one (items.py:346): one LibraryCollection + one
+  LibraryItem leaf (collection-of-one). Used by manual add and scan-import.
+- _create_multi_disc_collection (items.py:402): one leaf per disc file, era from disc_files[0].
+  ⚠ AUDIT H1: this builder does NOT call detect_rating / _find_cover — multi-disc sets get
+  content_rating=None (parental-controls gap) and no cover. Divergent from the single-disc path.
+
+Chunked upload (uploads.py → chunked_uploads.py → upload_finalize.py → folder_ingest.py):
+- init (declare manifest, stage dir) → PUT chunks → complete. ≤ threshold finalizes inline (201);
+  over threshold returns 202 + job_id and finalizes in a BackgroundTask (core.jobs / nav bell).
+- upload_finalize._finalize is the single funnel. kind dispatch:
+  - "file": reassemble → find_existing_duplicate (media_dup_index, hash/content dedup) →
+    _ingest_media_entry. (Content dedup is file-kind ONLY — AUDIT M3.)
+  - "set": select_disc_pointer_files (order-preserving, companion-aware: .gdi/.cue/.chd pointers
+    kept in client order, companions ride along in the shared dest dir) → _create_multi_disc_collection.
+  - "folder": folder_ingest.ingest_folder → detect_disc_files (sorted; 2+ of ONE pointer format,
+    422 if formats mixed) → multi-disc if found, else pick_folder_launch_file + _ingest_media_entry.
+  set/folder symmetry: both now share _DISC_POINTER_EXTS (.gdi/.cue/.chd) and the shared
+  _create_multi_disc_collection builder, and both reassemble every file into ONE slug dir (so a
+  .cue and its .bin are siblings — the "folder-write collision" fix, 409 on same-named files).
+  Residual asymmetry (AUDIT L7): disc_count is reported as len(disc_files) for "set" but
+  len(all reassembled paths) for "folder".
+- Cleanup ownership: chunked_uploads owns the tmp staging dir (success/abort/orphan sweep);
+  upload_finalize removes the reassembled dest dir if ingest fails.
+
+--- F9/health (revised) — Live platform status recompute ---
+
+Single computation: environments.compute_live_status(platform) (environments.py:102) → is_system →
+emulator install check (ok/missing); else _compute_status(era, working, base) →
+unconfigured/healthy/degraded/error (DOS/win31 never provisioned → absence of a working image is
+"healthy/unconfigured", not degraded). All five producers call it: list_platforms (recompute on
+read, platforms.py:29), create_platform, check_platform_health, batch_health_check,
+get_health_summary. The persisted Platform.status column is written by the health endpoints but is
+authoritative for display ONLY via those recompute paths.
+- ⚠ AUDIT M1: GET /platforms/{id} (get_platform) returns the ORM object directly, so it still
+  serializes the persisted (possibly stale) status column — the one read path not recomputing.
+- ⚠ AUDIT M2: get_health_summary buckets unconfigured→degraded and keeps an always-zero "unknown"
+  bucket (compute_live_status never yields "unknown" for non-system platforms).
+
+--- Detection tiers (expanded) — service/utils/smart_media_detector ---
+
+detect(path) (detector.py:47) wraps _detect and fail-softs to a null-era ScanResult on any
+exception (documented contract, not a swallow):
+1. Tier-1 hash lookup (hash_lookup.lookup, sha1→md5→crc32, confidences 1.0/0.85/0.75). For .chd,
+   raw file bytes never match Redump; it reads the CHD v5 header's embedded rawsha1
+   (chd_validator.extract_embedded_sha1) and matches that. Missing/empty index is caught and
+   falls through.
+2. File suffix dispatch (_detect_file) or detect_directory. Console ROM extensions → era by
+   extension; .iso → magic → PVD (volume label / DOS publisher / PlayStation prefix + DVD-size
+   split / .xbe scan) → xiso magic → size fallback; .bin/.cue → magic → PVD → bin_validator;
+   .chd → chd_validator.detect (CHGD→Dreamcast; CHTR/CHT2→ size-based PS1/PS2 tiebreaker via
+   header logicalbytes — see AUDIT L3 stale docstring / L4 threshold comment); .img → size heuristic.
+3. _compute_requires_install(path, era) (dos/win31 only: installer ISO/CUE, small floppy .img, or
+   a directory whose only executables are blocklisted DOS tools).
+PS1-vs-PS2 is resolved consistently by SYSTEM.CNF BOOT/BOOT2 across magic_detect
+(_resolve_ps_generation on raw 2352-byte sectors; resolve_ps_generation_from_file for extracted
+files) and directory_detect (SYSTEM.CNF at root).
+
+--- services/utils quick-reference (expansion) ---
+
+- backend_router.py: _BACKEND_MODULES slug→module dict; dispatch imports and calls module.launch.
+  resolve_backend_name (win95/98/xp → 86box; else eras.yaml backend). ⚠ get_backend_name is dead
+  (AUDIT L1).
+- media_dup_index.py: in-memory (size, sha256-lazy) index under the media root; backs content
+  dedup; re-validates each cached hash against a live stat() before trusting (never a false
+  positive, worst case a missed match).
+- eras_config.py / era_media.py: cached eras.yaml accessor; media_type_from_path;
+  resolve_media_file_from_directory (extension-priority pick, excludes .img).
+- rating_detect.py: NFO sidecar → ISO PVD (.iso only) → bracket-guarded filename stem.
+- confirmation_tokens.py: issue/consume pairs gating every destructive op (platform/snapshot/
+  drive/library/emulator/sandbox-state).
+- vm/provisioner.py + vhd.py + ini_writer.py: 86Box VM provisioning (pre-installed MBR copy vs
+  raw VHD build; ISO/cue → CD-ROM), atomic ini patching.
+- platform/windows/*: launcher.launch_under_job_object is the fan-in of all 5 backends; job_objects,
+  app_container, sandbox (sandbox_host.exe) provide isolation; sandbox_checker validates the tier.

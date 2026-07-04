@@ -105,6 +105,18 @@ if errorlevel 1 (
 popd
 echo [OK] Docs dependencies installed
 
+REM ── Generate constants ───────────────────────────────────────
+REM Must run before export_and_build_types.py below — constants_generated.py
+REM feeds the SQLModel tables that backend.api.routes.ROUTERS pulls in.
+echo Generating constants...
+.venv\Scripts\python.exe scripts\gen_constants.py
+if errorlevel 1 (
+    echo ERROR: Constants generation failed. Aborting.
+    exit /b 1
+)
+
+echo [OK] Constants generated
+
 REM ── Generate API types ───────────────────────────────────────
 echo Generating OpenAPI spec and frontend types...
 .venv\Scripts\python.exe scripts\export_and_build_types.py
