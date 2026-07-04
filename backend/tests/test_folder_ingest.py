@@ -225,3 +225,110 @@ class TestCreateMultiDiscSet:
 
         stored = mem_session.get(LibraryCollection, library_set.id)
         assert stored.era == "dreamcast"
+
+    def test_content_rating_detected_from_disc_one_filename(self, tmp_path, mem_session):
+        """detect_rating is called with disc_files[0] only — a bracketed rating
+        tag on disc 1's filename must land on the LibraryCollection, matching
+        rating_detect's strict (bracket-guarded) filename-stem fallback."""
+        from backend.service.library.items import _create_multi_disc_collection
+        from backend.models.library import LibraryCollection
+
+        disc_files = self._make_disc_files(tmp_path, ["disc1 [M].gdi", "disc2.gdi"])
+        library_set = _create_multi_disc_collection(disc_files, "Rated Game", mem_session)
+
+        stored = mem_session.get(LibraryCollection, library_set.id)
+        assert stored.content_rating == "M"
+
+
+# ---------------------------------------------------------------------------
+# dedup_disc_anchor — content-hash dedup for multi-disc disc-1 anchors
+# ---------------------------------------------------------------------------
+
+class TestDedupDiscAnchor:
+    @pytest.fixture(autouse=True)
+    def _patch_detect(self, monkeypatch):
+        import backend.service.utils.smart_media_detector as smd
+        monkeypatch.setattr(smd, "detect", lambda path: _FakeScanResult())
+
+    @pytest.fixture(autouse=True)
+    def _patch_era_defaults(self, monkeypatch):
+        import backend.service.utils.era_defaults as ead
+        monkeypatch.setattr(ead, "defaults_for_era", lambda era: (None, None))
+
+    def test_repoints_to_existing_orphaned_duplicate(self, tmp_path, mem_session):
+        """A byte-identical file already on disk but not referenced by any live
+        LibraryItem (an orphan, e.g. left behind after its item was removed) is
+        reused: the anchor is repointed at it and the newly-uploaded copy is
+        deleted rather than kept as a redundant second copy."""
+        from backend.service.library.folder_ingest import dedup_disc_anchor
+        from backend.service.library.items import _create_multi_disc_collection
+        from backend.models.library import LibraryItem
+
+        media_root = tmp_path
+        content = b"identical disc1 bytes for dedup anchor test"
+
+        orphan_dir = media_root / "orphan"
+        orphan_dir.mkdir()
+        orphan_disc1 = orphan_dir / "disc1.gdi"
+        orphan_disc1.write_bytes(content)
+
+        incoming_dir = media_root / "incoming"
+        incoming_dir.mkdir()
+        new_disc1 = incoming_dir / "disc1.gdi"
+        new_disc1.write_bytes(content)
+        new_disc2 = incoming_dir / "disc2.gdi"
+        new_disc2.write_bytes(b"disc2 bytes, unrelated content")
+
+        disc_files = [new_disc1, new_disc2]
+        disc_files[0] = dedup_disc_anchor(media_root, disc_files[0], mem_session)
+
+        assert disc_files[0] == orphan_disc1.resolve()
+        assert not new_disc1.exists()  # redundant upload copy removed
+
+        collection = _create_multi_disc_collection(disc_files, "Dedup Orphan Game", mem_session)
+        leaf1 = (
+            mem_session.query(LibraryItem)
+            .filter(LibraryItem.library_collection_id == collection.id, LibraryItem.disc_number == 1)
+            .first()
+        )
+        assert leaf1.media_path == str(orphan_disc1.resolve())
+
+    def test_raises_item_already_exists_when_duplicate_is_still_tracked(self, tmp_path, mem_session):
+        """A byte-identical file that is still a live LibraryItem.media_path must
+        not be silently repointed — that would create a second tracked row
+        sharing one media_path with an existing collection. dedup_disc_anchor
+        raises _ItemAlreadyExists instead, same as the file-kind upload path."""
+        from backend.service.library.folder_ingest import dedup_disc_anchor
+        from backend.service.library.items import _ItemAlreadyExists
+        from backend.models.library import LibraryCollection, LibraryItem
+
+        media_root = tmp_path
+        content = b"identical disc1 bytes still tracked by a live item"
+
+        tracked_dir = media_root / "tracked"
+        tracked_dir.mkdir()
+        tracked_disc1 = tracked_dir / "disc1.gdi"
+        tracked_disc1.write_bytes(content)
+
+        existing_collection = LibraryCollection(title="Existing Game", era="dreamcast", slug="existing-game")
+        mem_session.add(existing_collection)
+        mem_session.flush()
+        existing_leaf = LibraryItem(
+            library_collection_id=existing_collection.id,
+            disc_number=1,
+            media_path=str(tracked_disc1.resolve()),
+            executable_path=str(tracked_disc1.resolve()),
+        )
+        mem_session.add(existing_leaf)
+        mem_session.commit()
+
+        incoming_dir = media_root / "incoming2"
+        incoming_dir.mkdir()
+        new_disc1 = incoming_dir / "disc1.gdi"
+        new_disc1.write_bytes(content)
+
+        with pytest.raises(_ItemAlreadyExists) as exc_info:
+            dedup_disc_anchor(media_root, new_disc1, mem_session)
+
+        assert exc_info.value.collection.id == existing_collection.id
+        assert new_disc1.exists()  # rejection path must not delete the new upload
