@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 
 from backend.core.logger import get_logger
 from backend.service.utils.path_utils import resolve_under, sanitize_filename
@@ -172,6 +172,11 @@ def reassemble(upload_id: str, media_root: Path) -> ReassembledUpload:
     try:
         for file_index, slot in enumerate(files):
             dest_path = resolve_under(dest_dir, slot["name"])
+            if dest_path.exists():
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Two uploaded files are both named '{slot['name']}' — rename one and retry.",
+                )
             src_dir = resolve_under(session_dir, str(file_index))
             with dest_path.open("wb") as out:
                 for chunk_index in range(slot["chunks"]):

@@ -2,11 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { UploadCloud, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { chunkedUpload } from '@/lib/chunkedUpload'
-import { getCsrfToken } from '@/api/client'
 import { useAppContext } from '@/context/useAppContext'
 import { Button, Modal } from '@/ui'
-
-const _BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000'
 
 interface UploadEntry {
   id: string
@@ -43,8 +40,12 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
   const [multiDisc, setMultiDisc] = useState(false)
   const [stagedDiscs, setStagedDiscs] = useState<StagedDisc[]>([])
   const [setTitle, setSetTitle] = useState('')
+  const [folderName, setFolderName] = useState('')
+  const [folderNameTouched, setFolderNameTouched] = useState(false)
   const [setStatus, setSetStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const [setError, setSetError] = useState<string | null>(null)
+  const [setProgress, setSetProgress] = useState(0)
+  const [setBackground, setSetBackground] = useState(false)
 
   // Folder upload state
   const [folderMode, setFolderMode] = useState(false)
@@ -66,8 +67,12 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       setEntries([])
       setStagedDiscs([])
       setSetTitle('')
+      setFolderName('')
+      setFolderNameTouched(false)
       setSetStatus('idle')
       setSetError(null)
+      setSetProgress(0)
+      setSetBackground(false)
       setMultiDisc(false)
       setFolderFiles([])
       setFolderTitle('')
@@ -79,6 +84,17 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       setFolderMode(false)
     }
   }, [open, busy])
+
+  // Default the folder-name field from the first staged disc's filename (or
+  // the set title, if no disc is staged yet) until the user edits it directly.
+  useEffect(() => {
+    if (folderNameTouched) return
+    if (stagedDiscs.length > 0) {
+      setFolderName(stagedDiscs[0].file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim())
+    } else if (setTitle.trim()) {
+      setFolderName(setTitle.trim())
+    }
+  }, [stagedDiscs, setTitle, folderNameTouched])
 
   function startUpload(entry: UploadEntry) {
     const title = entry.file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim()
@@ -153,26 +169,26 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
   }
 
   async function submitSet() {
-    if (!setTitle.trim()) return
+    const title = folderName.trim() || setTitle.trim()
+    if (!title) return
     if (stagedDiscs.length === 0) return
 
     setSetStatus('uploading')
     setSetError(null)
+    setSetProgress(0)
+    setSetBackground(false)
 
-    const fd = new FormData()
-    fd.append('title', setTitle.trim())
-    for (const disc of stagedDiscs) fd.append('files', disc.file)
-
+    const { promise } = chunkedUpload('set', title, stagedDiscs.map((d) => d.file), setSetProgress)
     try {
-      const res = await fetch(`${_BASE_URL}/api/v1/library/multi`, {
-        method: 'POST',
-        headers: { 'X-CSRF-Token': getCsrfToken() },
-        credentials: 'include',
-        body: fd,
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { detail?: string }
-        throw new Error(body.detail ?? `Upload failed (HTTP ${res.status})`)
+      const res = await promise
+      if (res.status === 202 && res.body.job_id) {
+        dispatch({
+          type: 'UPSERT_JOB',
+          payload: { id: res.body.job_id, kind: 'upload', status: 'processing', progress: 0, message: `Finalizing "${title}"…` },
+        })
+        setSetBackground(true)
+        setSetStatus('success')
+        return
       }
       setSetStatus('success')
       onAdded()
@@ -254,7 +270,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
             </Button>
             <Button
               onClick={setStatus === 'success' ? onClose : submitSet}
-              disabled={busy || !setTitle.trim() || stagedDiscs.length === 0}
+              disabled={busy || !(folderName.trim() || setTitle.trim()) || stagedDiscs.length === 0}
             >
               {setStatus === 'uploading' ? 'Creating set…' : setStatus === 'success' ? 'Done' : 'Create Set'}
             </Button>
@@ -279,6 +295,8 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
               if (e.target.checked) setFolderMode(false)
               setStagedDiscs([])
               setSetTitle('')
+              setFolderName('')
+              setFolderNameTouched(false)
               setSetStatus('idle')
               setSetError(null)
             }}
@@ -312,6 +330,23 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
           placeholder="Set title (e.g. Final Fantasy VII)"
           value={setTitle}
           onChange={(e) => setSetTitle(e.target.value)}
+          disabled={busy}
+          className="mb-3 w-full rounded-lg border border-neutral-600 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-500 outline-none focus:border-[#ff8a5c]"
+        />
+      )}
+
+      {/* Folder name field (multi-disc mode only) — the shared destination
+          folder all discs are copied into. Defaults from the first staged
+          disc's filename or the set title above, editable independently. */}
+      {multiDisc && (
+        <input
+          type="text"
+          placeholder="Folder name (defaults from the first disc or title)"
+          value={folderName}
+          onChange={(e) => {
+            setFolderName(e.target.value)
+            setFolderNameTouched(true)
+          }}
           disabled={busy}
           className="mb-3 w-full rounded-lg border border-neutral-600 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-500 outline-none focus:border-[#ff8a5c]"
         />
@@ -511,17 +546,21 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
 
           {/* Set upload status */}
           {multiDisc && setStatus === 'uploading' && (
-            <div className="mt-3 flex items-center gap-2 text-sm text-neutral-400">
-              <svg className="animate-spin h-4 w-4 shrink-0 text-[#ff8a5c]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-              </svg>
-              Uploading discs…
+            <div className="mt-3">
+              <div className="mb-1 flex items-center justify-between text-xs text-neutral-400">
+                <span>Uploading discs…</span>
+                <span>{setProgress}%</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                <div className="h-full rounded-full bg-[#ff8a5c] transition-all duration-100" style={{ width: `${setProgress}%` }} />
+              </div>
             </div>
           )}
           {multiDisc && setStatus === 'success' && (
             <p className="mt-3 text-sm text-emerald-400">
-              Set created successfully.
+              {setBackground
+                ? 'Upload complete — the set is being finalized in the background. Track it in the Activity panel.'
+                : 'Set created successfully.'}
             </p>
           )}
           {multiDisc && setStatus === 'error' && setError && (

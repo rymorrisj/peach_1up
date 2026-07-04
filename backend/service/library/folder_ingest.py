@@ -39,6 +39,35 @@ def detect_disc_files(files: list[Path]) -> list[Path]:
     return disc_files
 
 
+def select_disc_pointer_files(files: list[Path]) -> list[Path]:
+    """Order-preserving, companion-aware disc selection for explicit multi-disc
+    "set" uploads, where a disc can be more than one file (e.g. .cue + .bin).
+
+    Returns the .cue/.gdi pointer files in their original (client-declared)
+    order when any are present — every other file rides along in the shared
+    destination folder unregistered as a companion. Falls back to returning
+    *files* unchanged when no .cue/.gdi is present (each file is already its
+    own disc, e.g. .iso/.chd). Raises 422 for a mixed .cue/.gdi upload, same as
+    detect_disc_files — unlike that function, this one does not sort, since the
+    caller must preserve the client's declared disc order.
+    """
+    cue_files = [f for f in files if f.suffix.lower() == ".cue"]
+    gdi_files = [f for f in files if f.suffix.lower() == ".gdi"]
+
+    if cue_files and gdi_files:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Upload contains both .cue and .gdi files. "
+                "These formats imply different consoles and cannot be mixed in one multi-disc set. "
+                "Upload only one format at a time."
+            ),
+        )
+
+    pointer_files = cue_files or gdi_files
+    return pointer_files if pointer_files else files
+
+
 def pick_folder_launch_file(files: list[Path]) -> Path:
     """Confirm at least one recognizable launch file exists; raise 422 otherwise."""
     for ext in (".gdi", ".cue", ".iso", ".chd", ".xiso", ".zip", ".exe"):

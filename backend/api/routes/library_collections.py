@@ -1,11 +1,8 @@
-import shutil
 import threading
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
-from fastapi import (
-    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile,
-)
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -36,8 +33,6 @@ _scan_state: dict[str, Any] = {"running": False, "preview": [], "error": None, "
 
 _SCAN_RATE_LIMIT = 5
 _SCAN_RATE_WINDOW_SECONDS = 60.0
-_UPLOAD_RATE_LIMIT = 10
-_UPLOAD_RATE_WINDOW_SECONDS = 60.0
 
 
 def _enforce_rate_limit(bucket: str, request: Request, limit: int, window_seconds: float) -> None:
@@ -120,103 +115,6 @@ def add_library_collection(
         raise HTTPException(status_code=409, detail="This media path is already in the library.")
     except lib_svc._SlugCollision:
         raise HTTPException(status_code=409, detail="Import collided with a concurrent change, please retry.")
-
-
-@router.post("/library/multi", response_model=LibraryCollectionRead, status_code=201)
-async def create_multi_disc_collection(
-    request: Request,
-    title: str = Form(...),
-    era: str = Form("unknown"),
-    profile_id: Optional[int] = Form(None),
-    files: List[UploadFile] = File(...),
-    db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
-):
-    """Create a multi-disc collection from N uploaded files."""
-    _enforce_rate_limit("library-upload", request, _UPLOAD_RATE_LIMIT, _UPLOAD_RATE_WINDOW_SECONDS)
-
-    from backend.core.settings import get_settings
-    from backend.service.utils.upload_utils import (
-        DEFAULT_MAX_BYTES,
-        begin_upload,
-        stream_upload_to_disk,
-    )
-    from backend.service.utils.slug_generator import generate_collection_slug
-    from backend.service.utils.era_media import media_type_from_path
-    from backend.service.utils.smart_media_detector import detect as _smart_detect
-    from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
-
-    if not files:
-        raise HTTPException(status_code=422, detail="At least one file is required.")
-
-    svc = get_settings()
-    max_bytes = int(svc.get("UPLOAD_MAX_BYTES", DEFAULT_MAX_BYTES) or DEFAULT_MAX_BYTES)
-    media_root = Path(svc.get_env_var("MEDIA_PATH")).resolve()
-
-    uploaded_paths: list[tuple[Path, Path]] = []
-    try:
-        for f in files:
-            if not f.filename:
-                raise HTTPException(status_code=422, detail="Each file must have a filename.")
-            dest_dir, dest_path = begin_upload(media_root, f.filename)
-            try:
-                await stream_upload_to_disk(f, dest_path, max_bytes)
-            except HTTPException:
-                shutil.rmtree(dest_dir, ignore_errors=True)
-                raise
-            except Exception as exc:
-                shutil.rmtree(dest_dir, ignore_errors=True)
-                raise HTTPException(status_code=500, detail=f"Upload failed for {f.filename}: {exc}") from exc
-            uploaded_paths.append((dest_dir, dest_path))
-    except HTTPException:
-        for dest_dir, _ in uploaded_paths:
-            shutil.rmtree(dest_dir, ignore_errors=True)
-        raise
-
-    launch_disc_path = uploaded_paths[0][1]
-    _scan = _smart_detect(launch_disc_path)
-    detected_era: str = _scan.era if _scan.era is not None else era
-
-    detected_platform_id: int | None = None
-    detected_profile_id: int | None = None
-    if detected_era and detected_era != "unknown":
-        _emulator_slug, _profile_era = defaults_for_era(detected_era)
-        if _emulator_slug and _profile_era:
-            detected_platform_id, detected_profile_id = lookup_platform_and_profile(
-                _emulator_slug, _profile_era, db
-            )
-
-    resolved_profile_id = detected_profile_id if profile_id is None else profile_id
-
-    collection = LibraryCollection(
-        title=title,
-        era=detected_era,
-        slug=generate_collection_slug(title, db),
-        platform_id=detected_platform_id,
-        profile_id=resolved_profile_id,
-    )
-    db.add(collection)
-    db.flush()
-
-    leaves: list[LibraryItem] = []
-    for disc_number, (_, dest_path) in enumerate(uploaded_paths, start=1):
-        leaf = LibraryItem(
-            library_collection_id=collection.id,
-            disc_number=disc_number,
-            media_path=str(dest_path),
-            media_type=media_type_from_path(dest_path),
-            file_size_bytes=dest_path.stat().st_size if dest_path.exists() else None,
-        )
-        db.add(leaf)
-        leaves.append(leaf)
-    db.flush()
-
-    collection.launch_disk_id = leaves[0].id
-    collection.display_disk_id = leaves[0].id
-    db.add(collection)
-    db.commit()
-    db.refresh(collection)
-    return collection_to_read(collection, db)
 
 
 # ---------------------------------------------------------------------------

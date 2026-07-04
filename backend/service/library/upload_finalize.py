@@ -52,15 +52,17 @@ def _finalize(upload_id: str, media_root: Path, db: Session) -> dict:
             }
 
         if reasm.kind == "set":
-            # Paths are in manifest (file_index) order — disc 1 first. Pass them
-            # directly so the client's declared disc order is preserved rather
-            # than re-sorting alphabetically as folder_ingest does.
-            collection = lib_svc._create_multi_disc_collection(reasm.paths, reasm.title, db)
+            # Paths are in manifest (file_index) order — disc 1 first. A disc can
+            # be more than one file (e.g. .cue + .bin); select_disc_pointer_files
+            # picks the .cue/.gdi pointers in that order and drops companions,
+            # rather than re-sorting alphabetically as folder_ingest does.
+            disc_files = folder_ingest.select_disc_pointer_files(reasm.paths)
+            collection = lib_svc._create_multi_disc_collection(disc_files, reasm.title, db)
             return {
                 "result_type": "library_collection",
                 "id": collection.id,
                 "title": collection.title,
-                "disc_count": len(reasm.paths),
+                "disc_count": len(disc_files),
             }
 
         result_type, collection = folder_ingest.ingest_folder(

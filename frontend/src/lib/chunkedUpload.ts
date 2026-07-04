@@ -39,15 +39,16 @@ async function asError(res: Response): Promise<Error> {
 }
 
 /**
- * Upload one file (kind "file") or a folder of files (kind "folder") to the
- * chunked upload endpoints, reporting 0–100 progress across all chunks. Small
- * uploads resolve with status 201 and the created item/set; uploads over the
+ * Upload one file (kind "file"), a folder of files (kind "folder"), or an
+ * explicitly ordered multi-disc set (kind "set") to the chunked upload
+ * endpoints, reporting 0–100 progress across all chunks. Small uploads
+ * resolve with status 201 and the created item/set; uploads over the
  * server's background threshold resolve with 202 and a `job_id` to track in the
  * nav bell. On abort or any error the server-side staging dir is cleaned up via
  * DELETE.
  */
 export function chunkedUpload(
-  kind: 'file' | 'folder',
+  kind: 'file' | 'folder' | 'set',
   title: string,
   files: File[],
   onProgress: (pct: number) => void,
