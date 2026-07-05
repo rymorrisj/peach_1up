@@ -77,12 +77,14 @@ def _probe_image_integrity(path: Path) -> bool:
 
 
 def _compute_status(era: str, working: str | None, base: str | None) -> str:
-    if era not in _PROVISIONABLE_ERAS:
-        # DOS/win31 never get a working image (see _PROVISIONABLE_ERAS comment
-        # above — launches mount the per-item drive instead), so its absence
-        # is the expected, healthy state for these eras, not "degraded". Only
-        # base_image_path (optional, Advanced-only field for these eras) is
-        # evaluated.
+    if era in DOS_WIN_ERAS:
+        # DOS/win31 launches mount the per-item drive instead of
+        # working_image_path (see _PROVISIONABLE_ERAS comment above), so a
+        # missing working image pre-first-launch is expected/healthy for
+        # these eras, not "degraded" — evaluated independently of
+        # _PROVISIONABLE_ERAS, which now also covers these eras for the
+        # launch-provisioning gate. Only base_image_path (optional,
+        # Advanced-only field for these eras) is evaluated here.
         if not base:
             return "unconfigured"
         return "healthy" if Path(base).is_file() else "error"

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from backend.service.utils.era_media import all_supported_extensions
+from backend.service.utils.era_media import all_supported_extensions, is_drive_image
 
 
 _COVER_STEMS: frozenset[str] = frozenset({"cover"})
@@ -86,14 +86,13 @@ def scan_media_folders(base: Path) -> list[FolderScanEntry]:
 
     for folder in subdirs:
         folder_name = folder.name
-        drive_img_lower = f"{folder_name}.img".lower()
 
         try:
             all_files = [f for f in folder.iterdir() if f.is_file()]
         except (OSError, PermissionError):
             all_files = []
 
-        candidates = [f for f in all_files if f.name.lower() != drive_img_lower]
+        candidates = [f for f in all_files if not is_drive_image(f, folder_name)]
 
         executable: Optional[Path] = None
         for ext in _EXECUTABLE_PRIORITY:

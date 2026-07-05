@@ -30,6 +30,15 @@ def supported_extensions_for_era(era: str) -> list[str]:
 _ROM_EXTENSIONS = {".nes", ".sfc", ".smc", ".zip", ".z64", ".n64", ".v64"}
 
 
+def is_drive_image(file: Path, folder_name: str) -> bool:
+    """Return True if *file* is the folder's own shared-drive image (e.g. 'rally.img'
+    for a folder named 'rally'), not a launchable media file. Only excludes the
+    file literally named '{folder_name}.img' — a folder's actual .iso/.img game
+    media (e.g. a DOS HDD/floppy dump) must not be excluded by extension alone.
+    """
+    return file.name.lower() == f"{folder_name}.img".lower()
+
+
 def media_type_from_path(path: Path) -> str:
     if path.is_dir():
         return "directory"
@@ -76,9 +85,10 @@ def resolve_media_file_from_directory(directory: Path, era: str | None) -> Path:
             f"Cannot resolve a launch file from directory '{directory}': "
             f"no supported_media extensions found for era '{era}' in eras.yaml."
         )
+    folder_name = directory.name
     candidates: list[Path] = []
     for f in directory.iterdir():
-        if f.is_file() and f.suffix.lower() in extensions and f.suffix.lower() != ".img":
+        if f.is_file() and f.suffix.lower() in extensions and not is_drive_image(f, folder_name):
             candidates.append(f)
     if not candidates:
         raise ValueError(

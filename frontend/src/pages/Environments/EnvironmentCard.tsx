@@ -115,7 +115,7 @@ export default function EnvironmentCard({
             Stop
           </Button>
         ) : (
-          <Button size="sm" onClick={launch}>
+          <Button size="sm" onClick={() => launch()}>
             Launch
           </Button>
         )}

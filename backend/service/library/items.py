@@ -13,7 +13,7 @@ from backend.models.library import (
     LibraryItem, LibraryItemUpdate,
 )
 from backend.service.utils.confirmation_tokens import consume as _consume
-from backend.service.utils.era_media import media_type_from_path, resolve_media_file_from_directory
+from backend.service.utils.era_media import is_drive_image, media_type_from_path, resolve_media_file_from_directory
 from backend.service.utils.path_utils import normalise_path, resolve_under
 from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DRIVE_ERAS
 from backend.service.utils.slug_generator import generate_collection_slug, unique_slug
@@ -174,11 +174,10 @@ def _prepare_item(
             row["cover_art_path"] = str(cover)
 
         folder_name = media_src.name
-        drive_img_lower = f"{folder_name}.img".lower()
         try:
             candidates = [
                 f for f in media_src.iterdir()
-                if f.is_file() and f.name.lower() != drive_img_lower
+                if f.is_file() and not is_drive_image(f, folder_name)
             ]
         except OSError:
             candidates = []
@@ -190,7 +189,8 @@ def _prepare_item(
             if row["executable_path"]:
                 break
 
-        _scan = _smart_detect(best_detect_path(media_src, row["executable_path"]))
+        _detect_path = best_detect_path(media_src, row["executable_path"])
+        _scan = _smart_detect(_detect_path)
         if _scan.era is not None:
             row["era"] = _scan.era
             row["detection_reason"] = _scan.reason
@@ -199,10 +199,15 @@ def _prepare_item(
             try:
                 resolved_media = resolve_media_file_from_directory(media_src, row["era"])
                 row["media_path"] = str(resolved_media)
-                _scan = _smart_detect(resolved_media)
-                if _scan.era is not None:
-                    row["era"] = _scan.era
-                    row["detection_reason"] = _scan.reason
+                # Only re-run detection if the era-specific resolver picked a
+                # different file than the one already scanned above — avoids
+                # hashing the same (possibly large) file twice, which widens
+                # the window for an AV/indexer lock right before the rename.
+                if resolved_media != _detect_path:
+                    _scan = _smart_detect(resolved_media)
+                    if _scan.era is not None:
+                        row["era"] = _scan.era
+                        row["detection_reason"] = _scan.reason
             except ValueError as exc:
                 log.warning("Could not resolve media file for '%s': %s", title, exc)
 

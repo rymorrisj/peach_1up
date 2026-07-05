@@ -90,7 +90,7 @@ def _prepare_config(
         ) from exc
 
     _ensure_section(parser, "General")
-    parser.set("General", "boot_order", "hdd_cdrom_fdd" if disk_has_mbr else "cdrom_fdd_hdd")
+    _set_if_absent(parser, "General", "boot_order", "hdd_cdrom_fdd" if disk_has_mbr else "cdrom_fdd_hdd")
 
     hw_profile = get_86box_profile(hardware_profile or "standard")
     _ensure_section(parser, "Machine")
@@ -127,7 +127,7 @@ def _prepare_config(
     _ensure_section(parser, "Hard disks")
     parser.set("Hard disks", "hdd_01_fn", working_image_path.name)
     parser.set("Hard disks", "hdd_01_ide_channel", "0:0")
-    parser.set("Hard disks", "hdd_01_parameters", f"63, 16, {cylinders}, 0, ide")
+    _set_if_absent(parser, "Hard disks", "hdd_01_parameters", f"63, 16, {cylinders}, 0, ide")
     parser.set("Hard disks", "hdd_01_speed", "ramdisk")
 
     cdrom_section = "Floppy and CD-ROM drives"
