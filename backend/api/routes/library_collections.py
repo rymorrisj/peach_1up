@@ -333,6 +333,14 @@ def import_scan_results(
             db.rollback()
             used_slugs.discard(row.get("slug"))
             errors.append({"path": path, "reason": "Import collided with a concurrent import, please retry."})
+        except Exception as exc:
+            # A single item's persist failure must never abort the rest of the
+            # batch or leave a poisoned session for the next iteration — same
+            # per-item containment as the _prepare_item exception handling above.
+            db.rollback()
+            used_slugs.discard(row.get("slug"))
+            logger.exception("Import: error persisting '%s'", path)
+            errors.append({"path": path, "reason": str(exc)})
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
 

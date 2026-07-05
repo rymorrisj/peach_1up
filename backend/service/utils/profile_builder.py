@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from backend.service.utils.era_media import all_supported_extensions, is_drive_image
+from backend.service.utils.upload_utils import TMP_CHUNKS_DIRNAME
 
 
 _COVER_STEMS: frozenset[str] = frozenset({"cover"})
@@ -53,12 +54,14 @@ def _find_cover(folder: Path) -> Optional[Path]:
 def scan_media_folders(base: Path) -> list[FolderScanEntry]:
     """Walk one level deep under ``base`` and return one entry per direct subfolder.
 
-    Each non-hidden subfolder of ``base`` is treated as one library item. The
-    best-guess launchable file is chosen from the folder's direct contents using
-    the priority order defined in ``_EXECUTABLE_PRIORITY``
-    (.cue > .iso > .chd > .xiso > .exe). The file matching ``{folder_name}.img``
-    is always excluded — it is a drive image, not launchable media. Subdirectories
-    that raise ``OSError`` or ``PermissionError`` are skipped silently.
+    Each non-hidden subfolder of ``base`` is treated as one library item, except
+    the chunked-upload staging directory (``TMP_CHUNKS_DIRNAME``), which is never
+    a library item and is always excluded. The best-guess launchable file is
+    chosen from the folder's direct contents using the priority order defined in
+    ``_EXECUTABLE_PRIORITY`` (.cue > .iso > .chd > .xiso > .exe). The file matching
+    ``{folder_name}.img`` is always excluded — it is a drive image, not launchable
+    media. Subdirectories that raise ``OSError`` or ``PermissionError`` are
+    skipped silently.
 
     Args:
         base: Root directory to scan one level deep (library/media/).
@@ -76,7 +79,10 @@ def scan_media_folders(base: Path) -> list[FolderScanEntry]:
         return []
 
     subdirs = sorted(
-        (p for p in children if p.is_dir() and not p.name.startswith(".")),
+        (
+            p for p in children
+            if p.is_dir() and not p.name.startswith(".") and p.name != TMP_CHUNKS_DIRNAME
+        ),
         key=lambda p: p.name.lower(),
     )
     loose_files = sorted(

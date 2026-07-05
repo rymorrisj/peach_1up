@@ -106,17 +106,28 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
   async function handleImport(selectedPaths: string[]) {
     setImporting(true)
     setError(null)
+    let result: ImportResult | null = null
     try {
-      const result = await apiFetch<ImportResult>('/api/v1/library/scan/import', {
+      result = await apiFetch<ImportResult>('/api/v1/library/scan/import', {
         method: 'POST',
         body: JSON.stringify({ selected: selectedPaths }),
       })
       setImportResult(result)
-      if (result.imported > 0) onImported()
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : 'Import failed.')
     } finally {
       setImporting(false)
+    }
+    // Runs outside the fetch's try/catch: onImported() is a cache-invalidation
+    // side effect unrelated to the import call itself, and must never be able
+    // to retroactively overwrite an already-successful importResult with an
+    // unrelated "Import failed" error.
+    if (result && result.imported > 0) {
+      try {
+        onImported()
+      } catch (err) {
+        console.error('onImported callback failed after a successful import:', err)
+      }
     }
   }
 
