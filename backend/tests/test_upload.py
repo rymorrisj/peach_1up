@@ -11,6 +11,19 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _reset_media_dup_index():
+    """Defense-in-depth: clears the module-level cache even though isolation
+    currently also holds via each test using a unique tmp_path root."""
+    from backend.service.utils import media_dup_index
+
+    media_dup_index._index.clear()
+    media_dup_index._built_for = None
+    yield
+    media_dup_index._index.clear()
+    media_dup_index._built_for = None
+
+
 # ---------------------------------------------------------------------------
 # sanitize_filename / resolve_under — unit level
 # ---------------------------------------------------------------------------

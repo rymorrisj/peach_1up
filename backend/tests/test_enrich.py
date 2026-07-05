@@ -107,20 +107,17 @@ def _make_mock_httpx(
 
 
 @pytest.fixture
-def tmp_lib(tmp_path):
+def tmp_lib(tmp_path, monkeypatch):
     """Patches LIBRARY_PATH to tmp_path and yields it."""
     import backend.service.utils.settings as settings_mod
-
-    real_get = settings_mod.get
 
     def _fake_get(key, default=None):
         if key == "LIBRARY_PATH":
             return str(tmp_path)
         return default
 
-    settings_mod.get = _fake_get
+    monkeypatch.setattr(settings_mod, "get", _fake_get)
     yield tmp_path
-    settings_mod.get = real_get
 
 
 # ---------------------------------------------------------------------------

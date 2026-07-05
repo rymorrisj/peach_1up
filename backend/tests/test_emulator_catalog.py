@@ -5,10 +5,12 @@ from pathlib import Path
 def test_load_catalog_returns_all_emulators():
     from backend.service.utils.emulator_catalog import load_catalog
     catalog = load_catalog()
-    assert len(catalog) == 9
     slugs = {e["slug"] for e in catalog}
-    assert "dosbox-x" in slugs
-    assert "flycast" in slugs
+    required = {
+        "86box-roms", "duckstation", "pcsx2", "mesen",
+        "86box", "flycast", "project64", "xemu", "dosbox-x",
+    }
+    assert required <= slugs
 
 
 def test_is_installed_returns_false_when_binary_absent(monkeypatch):
