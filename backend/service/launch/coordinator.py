@@ -19,6 +19,7 @@ from backend.service.launch.drive_hydration import hydrate_drive_for_entity
 from backend.service.launch.history import write_session_ends
 from backend.service.launch.launch_spec import LaunchSpec
 from backend.service.launch.monitor import register_short_lived_check
+from backend.service.utils.era_defaults import DOS_WIN_ERAS
 from backend.service.utils.era_media import resolve_media_file_from_directory
 from backend.service.utils.fat.directory import _to_83_str
 
@@ -489,7 +490,7 @@ async def launch_environment(platform: Platform, profile_id: int | None, db: Ses
 
     resolved_install_path: str | None = None
     resolved_rom_path: str | None = None
-    if platform.working_image_path is None and platform.era in {"win95", "win98", "winxp"}:
+    if platform.working_image_path is None and platform.era in ({"win95", "win98", "winxp"} | DOS_WIN_ERAS):
         try:
             from backend.service.utils.vm import provision_platform
             (

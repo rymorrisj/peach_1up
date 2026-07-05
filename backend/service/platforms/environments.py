@@ -11,15 +11,16 @@ from sqlalchemy.orm import Session
 from backend.models.platform import Platform, PlatformCreate, PlatformUpdate
 from backend.models.snapshot import Snapshot, SnapshotCreate
 from backend.service.utils.confirmation_tokens import consume as _consume
+from backend.service.utils.era_defaults import DOS_WIN_ERAS
 from backend.service.utils.slug_generator import unique_slug
 
 _PLATFORM_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
-# Only the 86Box eras get an auto-provisioned working image at create time.
-# DOS/Win3.1 launches mount the per-item drive (drive_hydration), never the
-# platform's working image — dosbox.py reads spec.drive_image_path only, never
-# working_image_path — so provisioning one for them writes a file nothing ever
-# mounts. Excluded here to avoid that orphaned-on-create image.
-_PROVISIONABLE_ERAS = frozenset({"win95", "win98", "winxp"})
+# Eras that get an auto-provisioned working image at create time. 86Box eras
+# get a VHD + config via provision_86box_vm; DOS/Win3.1 environments get a
+# FAT16 C: drive via provision_dosbox_drive (dosbox.py's write_environment_conf
+# mounts platform.working_image_path directly for these, distinct from the
+# per-item drive_image_path used by library-item launches via drive_hydration).
+_PROVISIONABLE_ERAS = frozenset({"win95", "win98", "winxp"}) | DOS_WIN_ERAS
 
 MAX_SNAPSHOTS_PER_PLATFORM = 10
 

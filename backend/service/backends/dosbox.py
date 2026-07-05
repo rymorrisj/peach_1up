@@ -451,6 +451,92 @@ def write_launch_conf(
     return conf_path
 
 
+def _validate_environment_drive(working_image_path: Path | None) -> Path:
+    """Confirm an environment's persistent C: drive image is ready to mount.
+
+    Existence-only check, matching box86.launch()'s treatment of the same
+    LaunchSpec field (backend/service/backends/box86.py) — Platform image
+    paths are intentionally allowed to reside anywhere on the host (see
+    DECISIONS.md 2026-05-17), so no library-tree containment check applies
+    here, unlike the per-item drive_image_path validated in
+    _build_drive_mount_lines.
+
+    Raises:
+        ValueError: If no working image is set on the environment.
+        FileNotFoundError: If the working image does not exist on disk.
+    """
+    if working_image_path is None:
+        raise ValueError(
+            "Environment has no working_image_path set. "
+            "Provisioning must complete before this environment can be launched."
+        )
+    if not working_image_path.exists():
+        raise FileNotFoundError(
+            f"Environment working image not found: {working_image_path}. "
+            "Re-provision the environment to recreate its C: drive."
+        )
+    return working_image_path
+
+
+def _build_environment_drive_mount_line(working_image_path: Path) -> str:
+    """Return the IMGMOUNT line for an environment's persistent C: drive.
+
+    Mirrors the bare-FAT16-superfloppy handling in _build_drive_mount_lines
+    (format_fat16 writes a BPB at sector 0 with no partition table, so
+    sectoff=0 is required or DOSBox-X misclassifies it as MBR and fails with
+    "Cannot create drive from file"). Unlike that function, the image is
+    guaranteed to already exist here — provision_dosbox_drive() formats it
+    before an environment launch ever reaches this code — so there is no
+    IMGMAKE creation branch to mirror.
+    """
+    drive_cmd_path = _dosbox_cmd_path(working_image_path)
+    if _is_bare_fat_superfloppy(working_image_path):
+        geo = _read_geometry(working_image_path)
+        spt = 63
+        hpc = 255
+        cyl = math.ceil(geo["total_sectors"] / (spt * hpc))
+        return f"IMGMOUNT C {drive_cmd_path} -t hdd -size 512,{spt},{hpc},{cyl} -o sectoff=0"
+    return f"IMGMOUNT C {drive_cmd_path} -t hdd"
+
+
+def write_environment_conf(spec: "LaunchSpec") -> Path:
+    """Write the DOSBox-X launch conf for an environment launch (no media).
+
+    Environment (Platform) launches for DOS/Win3.1 have no attached game
+    media — spec.media_path is always None for these by design (see
+    coordinator._build_spec_for_environment). Mounts the environment's
+    persistent C: drive (spec.working_image_path, provisioned by
+    provision_dosbox_drive) and lands at the C:\\ prompt with no auto-run,
+    mirroring box86.launch()'s tolerance of a medialess launch for the same
+    launch mode.
+
+    Args:
+        spec: LaunchSpec with working_image_path set and media_path None.
+
+    Returns:
+        Path to the written dosbox-x.conf file inside a private temp directory.
+
+    Raises:
+        FileNotFoundError: If base.conf or the working image does not exist.
+        ValueError: If working_image_path is unset.
+    """
+    working_image_path = _validate_environment_drive(spec.working_image_path)
+    mount_line = _build_environment_drive_mount_line(working_image_path)
+    autoexec = f"[autoexec]\n{mount_line}\nC:\n"
+
+    base_conf = get_base_path() / "library" / "system" / "templates" / "dosbox-x" / "base.conf"
+    if not base_conf.exists():
+        raise FileNotFoundError(f"DOSBox-X base.conf not found: {base_conf}")
+    base = _strip_autoexec(base_conf.read_text(encoding="utf-8", errors="replace"))
+
+    tmpdir = Path(tempfile.mkdtemp(prefix="peach1up_dosbox_env_"))
+    conf_path = tmpdir / "dosbox-x.conf"
+    content = base.rstrip("\n") + "\n\n" + autoexec
+    conf_path.write_text(content, encoding="utf-8")
+
+    return conf_path
+
+
 def _cleanup_temp_dir_on_exit(proc, tmpdir: Path) -> None:
     try:
         while proc.poll() is None:
@@ -463,7 +549,7 @@ def _cleanup_temp_dir_on_exit(proc, tmpdir: Path) -> None:
         logger.warning("Failed to remove DOSBox temp dir %s: %s", tmpdir, exc)
 
 
-def build_args(media_path: Path, era: str, enable_networking: bool = False) -> List[str]:
+def build_args(media_path: Path | None, era: str, enable_networking: bool = False) -> List[str]:
     """Build DOSBox-X command-line arguments for the given media and era.
 
     Mount commands, sound settings, and SDL/CPU overrides are handled by the
@@ -472,6 +558,8 @@ def build_args(media_path: Path, era: str, enable_networking: bool = False) -> L
 
     Args:
         media_path: Path to the media file (validated here for early failure).
+            ``None`` for an environment launch (no attached media) — the
+            suffix check is skipped in that case.
         era: Era name (``'dos'`` or ``'win31'``).
         enable_networking: When ``False`` (default), the NE2000 adapter is
             disabled via ``-set ne2000=false``. When ``True``, the adapter
@@ -491,12 +579,13 @@ def build_args(media_path: Path, era: str, enable_networking: bool = False) -> L
             f"Supported: {', '.join(sorted(SUPPORTED_ERAS))}"
         )
 
-    suffix = media_path.suffix.lower()
-    if suffix not in SUPPORTED_MEDIA:
-        raise ValueError(
-            f"Media suffix '{suffix}' not supported by DOSBox-X backend. "
-            f"Supported: {', '.join(sorted(SUPPORTED_MEDIA))}"
-        )
+    if media_path is not None:
+        suffix = media_path.suffix.lower()
+        if suffix not in SUPPORTED_MEDIA:
+            raise ValueError(
+                f"Media suffix '{suffix}' not supported by DOSBox-X backend. "
+                f"Supported: {', '.join(sorted(SUPPORTED_MEDIA))}"
+            )
 
     # Disable NE2000 adapter unless the profile explicitly enables networking.
     args = ["-noconfig"]
@@ -515,6 +604,9 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         spec: LaunchSpec with media_path, era, executable_path,
             enable_networking, launch_commands, profile_launch_commands,
             use_drive, container_enabled, drive_image_path, drive_size_mb set.
+            For an environment launch (no attached game), media_path is
+            None and working_image_path carries the environment's
+            persistent C: drive instead — see write_environment_conf().
 
     Returns:
         Tuple of ``(process, job_object)``. The caller is responsible for
@@ -528,14 +620,21 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     if not spec.executable_path or not os.path.exists(spec.executable_path):
         raise FileNotFoundError(f"DOSBox-X executable not found: {spec.executable_path}")
 
-    validate_media(spec.media_path)
+    is_environment_launch = spec.media_path is None
 
-    conf_path = write_launch_conf(spec)
+    if is_environment_launch:
+        conf_path = write_environment_conf(spec)
+    else:
+        validate_media(spec.media_path)
+        conf_path = write_launch_conf(spec)
     tmpdir = conf_path.parent
 
     args = build_args(spec.media_path, spec.era, enable_networking=spec.enable_networking)
     args += ["-conf", str(conf_path)]
-    job_name_prefix = f"Peach1UP_dosbox_{spec.era}_{spec.media_path.stem}"
+    if is_environment_launch:
+        job_name_prefix = f"Peach1UP_dosbox_{spec.era}_env_{spec.platform_slug or spec.platform_id}"
+    else:
+        job_name_prefix = f"Peach1UP_dosbox_{spec.era}_{spec.media_path.stem}"
 
     # Resolve container_enabled: profile field overrides the emulator catalog value.
     container_enabled = resolve_container_enabled("dosbox-x", spec.container_enabled)
@@ -547,7 +646,24 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             BrokerFile(path=str(get_base_path() / "library"), access="r", mode="grant"))
         sandbox_config.broker_files.append(
             BrokerFile(path=str(tmpdir), access="r", mode="grant"))
-        if spec.drive_image_path is not None and spec.use_drive:
+        if is_environment_launch and spec.working_image_path is not None:
+            # Environment launches have no per-item drive_image_path — the
+            # persistent C: drive is spec.working_image_path instead. Same
+            # rw grant + explicit file ACE as the per-item branch below: a
+            # pre-existing image does not inherit the parent-dir grant.
+            sandbox_config.broker_files.append(
+                BrokerFile(
+                    path=str(spec.working_image_path.parent),
+                    access="rw",
+                    mode="grant",
+                ))
+            sandbox_config.broker_files.append(
+                BrokerFile(
+                    path=str(spec.working_image_path),
+                    access="rw",
+                    mode="secure",
+                ))
+        elif spec.drive_image_path is not None and spec.use_drive:
             sandbox_config.broker_files.append(
                 BrokerFile(
                     path=str(spec.drive_image_path.parent),
