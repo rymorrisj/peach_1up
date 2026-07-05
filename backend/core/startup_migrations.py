@@ -16,6 +16,9 @@ def _apply_schema_migrations() -> None:
     # (library_collections / library_items leaf / launch_history / media_restrictions)
     # is created directly by create_tables() in its consolidated shape — there is no
     # legacy library DB to migrate, so no library data-reshape steps live here.
+    # Exception: library_items.original_name was added after that consolidated
+    # shape was set, so it still needs the same additive catch-up as any other
+    # post-creation column on an existing DB.
     pending: list[tuple[str, str, str]] = [
         ("platforms", "installed_at", "DATETIME"),
         ("platforms", "hardware_profile", "TEXT DEFAULT 'standard'"),
@@ -29,6 +32,7 @@ def _apply_schema_migrations() -> None:
         ("users", "session_token_ttl", "INTEGER"),
         ("tags", "is_system", "INTEGER NOT NULL DEFAULT 0"),
         ("users", "can_manage_users", "INTEGER NOT NULL DEFAULT 0"),
+        ("library_items", "original_name", "VARCHAR"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)

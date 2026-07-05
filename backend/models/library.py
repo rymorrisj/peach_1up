@@ -43,6 +43,10 @@ class LibraryItem(SQLModel, table=True):
     folder_path: Optional[str] = Field(default=None, index=True)
     detection_reason: Optional[str] = None
     file_size_bytes: Optional[int] = None
+    # One-time snapshot of the source folder/file name at import time, before
+    # any slug-based rename. Lets a later scan match a disk path back to this
+    # row even after the on-disk name has since diverged from the DB slug.
+    original_name: Optional[str] = None
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=False),

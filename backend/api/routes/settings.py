@@ -62,6 +62,7 @@ _USER_WRITABLE_KEYS = _ALL_PATH_KEYS | {
     "AI_API_KEY",
     "IGDB_API_KEY",
     "suppress_confirmations",
+    "delete_media_on_removal",
 }
 
 

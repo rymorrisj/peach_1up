@@ -40,6 +40,7 @@ _DEFAULTS: dict = {
     "PROFILES_PATH": "",
     "suppress_confirmations": [],
     "reset_db": False,
+    "delete_media_on_removal": False,
     # Opt-in Argon2id PIN pepper. Empty string means disabled — there is no
     # default pepper value, it must be explicitly set by the operator via
     # the Settings page.

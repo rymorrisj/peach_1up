@@ -206,6 +206,64 @@ function PinPepperSection() {
   )
 }
 
+function DeleteMediaOnRemovalSection() {
+  const queryClient = useQueryClient()
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const { data: settings } = useQuery<Record<string, unknown>>({
+    queryKey: ['settings'],
+    queryFn: () => apiFetch('/api/v1/settings'),
+  })
+
+  const enabled = Boolean(settings?.delete_media_on_removal)
+
+  async function handleToggle(next: boolean) {
+    setSaving(true)
+    setError(null)
+    try {
+      await apiFetch('/api/v1/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ updates: { delete_media_on_removal: next } }),
+      })
+      await queryClient.invalidateQueries({ queryKey: ['settings'] })
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : 'Failed to update setting.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+        Library Removal
+      </h2>
+      <label className="flex items-center gap-3">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={saving}
+          onChange={(e) => handleToggle(e.target.checked)}
+          className="h-4 w-4 shrink-0 accent-[#ff8a5c]"
+        />
+        <span className="text-sm text-neutral-900 dark:text-neutral-100">
+          Permanently delete media files when removing from library
+        </span>
+      </label>
+      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        When enabled, removing an item from the library also deletes its media files from disk.
+        This cannot be undone.
+      </p>
+      {error && (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          ❌ {error}
+        </p>
+      )}
+    </section>
+  )
+}
+
 export default function AdvancedTab() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [resetting, setResetting] = useState(false)
@@ -237,6 +295,7 @@ export default function AdvancedTab() {
     <div className="mt-6 space-y-6">
       <TheGamesDbSection />
       <PinPepperSection />
+      <DeleteMediaOnRemovalSection />
 
       <section className="space-y-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">

@@ -29,7 +29,7 @@ _COLLECTION_COLUMNS = {
 }
 _LEAF_COLUMNS = {
     "media_path", "executable_path", "cover_art_path", "media_type",
-    "folder_path", "detection_reason", "file_size_bytes",
+    "folder_path", "detection_reason", "file_size_bytes", "original_name",
 }
 
 
@@ -118,6 +118,7 @@ def _prepare_item(
         "title": title,
         "era": "unknown",
         "media_path": str(media_src),
+        "original_name": media_src.name,
         "slug": None,
         "sort_title": None,
         "category": None,
@@ -506,6 +507,7 @@ def _create_multi_disc_collection(
             media_type=media_type_from_path(disc_file),
             file_size_bytes=_disc_data_size(disc_file),
             cover_art_path=str(cover) if disc_number == 1 and cover else None,
+            original_name=disc_file.name,
         )
         db.add(leaf)
         leaves.append(leaf)
