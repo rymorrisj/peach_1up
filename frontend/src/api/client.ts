@@ -28,28 +28,34 @@ export function getCsrfToken(): string {
 
 const _CSRF_SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+export interface ApiFetchOptions extends RequestInit {
+  /** Overrides the default 10s client-side abort timeout for this call. */
+  timeoutMs?: number;
+}
+
 class ApiClient {
-  async fetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  async fetch<T>(path: string, init: ApiFetchOptions = {}): Promise<T> {
+    const { timeoutMs, ...requestInit } = init;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Request-ID": crypto.randomUUID(),
-      ...(init.headers as Record<string, string> | undefined),
+      ...(requestInit.headers as Record<string, string> | undefined),
     };
 
-    const method = (init.method ?? 'GET').toUpperCase();
+    const method = (requestInit.method ?? 'GET').toUpperCase();
     if (!_CSRF_SAFE.has(method)) {
       headers['X-CSRF-Token'] = getCsrfToken();
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs ?? 10_000);
 
     let res: Response;
     try {
       // credentials: "include" is required — it causes the browser to send the
       // HttpOnly peach_token cookie on every cross-origin request to the API.
       res = await fetch(`${baseURL}${path}`, {
-        ...init,
+        ...requestInit,
         headers,
         credentials: "include",
         signal: controller.signal,
@@ -101,5 +107,5 @@ export const api = new ApiClient();
 
 // Re-export as a free function so existing call sites and test mocks continue
 // to work without a 50-file rename. All calls delegate to api.fetch.
-export const apiFetch = <T>(path: string, init: RequestInit = {}): Promise<T> =>
+export const apiFetch = <T>(path: string, init: ApiFetchOptions = {}): Promise<T> =>
   api.fetch<T>(path, init);

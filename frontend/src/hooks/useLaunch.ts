@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { apiFetch, ApiError } from '@/api/client'
+import { apiFetch, ApiError, TimeoutError } from '@/api/client'
+
+// Server-side launch dispatch alone is capped at 30s (see coordinator.py
+// _LAUNCH_TIMEOUT); first-time environment provisioning (VM creation, drive
+// setup) runs before that and is unbounded, so give the browser real margin
+// before it gives up and mislabels an in-flight launch as failed.
+export const LAUNCH_TIMEOUT_MS = 45_000
 import type { components } from '@shared/types'
 
 type LaunchResponse = components['schemas']['LaunchResponse']
@@ -47,6 +53,7 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
       return apiFetch<LaunchResponse>(path, {
         method: 'POST',
         body: JSON.stringify({ profile_id: profileId }),
+        timeoutMs: LAUNCH_TIMEOUT_MS,
       })
     },
     onSuccess: (res) => {
@@ -76,7 +83,11 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
 
   const isLaunching = launchMutation.isPending || launchId !== null
   const error = launchMutation.isError
-    ? (launchMutation.error instanceof ApiError ? launchMutation.error.detail : 'Launch failed.')
+    ? (launchMutation.error instanceof ApiError
+        ? launchMutation.error.detail
+        : launchMutation.error instanceof TimeoutError
+          ? 'Launch is taking longer than expected — check if it opened.'
+          : 'Launch failed.')
     : null
 
   return { launch, stop, isLaunching, error, launchSuccess, launchWarnings }

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, ApiError } from '@/api/client'
+import { apiFetch, ApiError, TimeoutError } from '@/api/client'
+import { LAUNCH_TIMEOUT_MS } from '@/hooks/useLaunch'
 import TopBar from '@/components/layout/TopBar'
 import { ERA_LABELS } from '@/generated/constants'
 import { ERA_COLOR } from '@/types/era'
@@ -159,9 +160,18 @@ export default function EnvironmentDetail() {
     if (!platform) return
     setLaunching(true)
     try {
-      await apiFetch(`/api/v1/environments/${platform.id}/launch`, { method: 'POST' })
+      await apiFetch(`/api/v1/environments/${platform.id}/launch`, {
+        method: 'POST',
+        timeoutMs: LAUNCH_TIMEOUT_MS,
+      })
     } catch (err) {
-      alert(err instanceof ApiError ? err.detail : 'Launch failed.')
+      if (err instanceof ApiError) {
+        alert(err.detail)
+      } else if (err instanceof TimeoutError) {
+        alert('Launch is taking longer than expected — check if it opened.')
+      } else {
+        alert('Launch failed.')
+      }
     } finally {
       setLaunching(false)
     }
