@@ -247,7 +247,7 @@ class ScanPreviewItem(SQLModel):
 
 class ScanStatus(SQLModel):
     running: bool
-    preview: list[ScanPreviewItem]
+    job_id: Optional[str] = None
     error: Optional[str] = None
 
 

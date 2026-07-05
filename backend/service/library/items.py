@@ -71,6 +71,7 @@ def _prepare_item(
     *,
     used_slugs: set[str] | None = None,
     override_profile_id: int | None = None,
+    override_era: str | None = None,
     _undo_stack: list | None = None,
 ) -> dict:
     """
@@ -326,6 +327,10 @@ def _prepare_item(
 
     row["media_type"] = media_type_from_path(Path(row["media_path"]))
     row["requires_install"] = _scan.requires_install
+
+    if override_era is not None:
+        row["era"] = override_era
+        row["detection_reason"] = "Selected by user during import"
 
     if row["era"] and row["era"] != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(row["era"])

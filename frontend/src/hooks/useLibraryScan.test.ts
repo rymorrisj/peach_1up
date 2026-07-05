@@ -25,10 +25,11 @@ function createWrapper() {
 }
 
 // Route apiFetch by endpoint instead of call order. AppProvider fires
-// /auth/me -> /auth/refresh on mount and the hook fires /library/scan/status on
-// mount; positional mockResolvedValueOnce queues are consumed by those calls
-// before a test's target call ever runs, which silently desyncs every
-// subsequent response. Routing by URL is immune to that ordering.
+// /auth/me -> /auth/refresh on mount and the hook fires /api/v1/jobs on mount
+// (hydrating a finished scan's preview from the job list); positional
+// mockResolvedValueOnce queues are consumed by those calls before a test's
+// target call ever runs, which silently desyncs every subsequent response.
+// Routing by URL is immune to that ordering.
 type ApiHandler = (url: string, opts?: RequestInit) => unknown
 
 let apiRoutes: Record<string, ApiHandler>
@@ -38,21 +39,29 @@ function setApiRoutes(overrides: Record<string, ApiHandler> = {}) {
     // AppProvider mount noise
     '/api/v1/auth/me': () => ({ id: 1, username: 'tester' }),
     '/api/v1/auth/refresh': () => ({ user: { id: 1, username: 'tester' } }),
+    // Hook mount hydration reads the job list for a finished scan's preview
+    // (scan/status itself is now stateless) — idle by default so it is a no-op.
     '/api/v1/jobs': () => [],
-    // Hook mount hydration — idle by default so it is a no-op
-    '/api/v1/library/scan/status': () => ({ running: false, preview: [], error: null }),
+    '/api/v1/library/scan/status': () => ({ running: false, error: null }),
     ...overrides,
   }
 }
 
-const RUNNING_STATUS = { running: true, preview: [], error: null }
+const RUNNING_STATUS = { running: true, error: null }
 
-const DONE_STATUS = {
-  running: false,
-  preview: [
-    { title: 'Game', media_path: '/lib/game.nes', detected_era: 'nes', is_loose: true, is_zip: false },
-  ],
-  error: null,
+const DONE_STATUS = { running: false, error: null }
+
+const DONE_JOB = {
+  id: 'job-1',
+  kind: 'scan',
+  status: 'done',
+  progress: 1,
+  message: 'Scan complete — 1 item(s) ready to import.',
+  result: {
+    preview: [
+      { title: 'Game', media_path: '/lib/game.nes', detected_era: 'nes', is_loose: true, is_zip: false },
+    ],
+  },
 }
 
 describe('useLibraryScan', () => {
@@ -86,16 +95,15 @@ describe('useLibraryScan', () => {
   it('polling stops and preview is populated when scan finishes', async () => {
     vi.useFakeTimers()
 
-    // Sequenced /scan/status: the first entry is consumed by the mount
-    // hydration (idle, no-op); the two polls then see running -> done.
-    const statusSeq = [
-      { running: false, preview: [], error: null },
-      RUNNING_STATUS,
-      DONE_STATUS,
-    ]
+    // Sequenced /scan/status: running -> done. Mount hydration reads
+    // /api/v1/jobs instead (idle no-op via the default route below); once
+    // /scan/status reports done, the hook fetches the job result for the
+    // preview it now carries instead of the removed status-endpoint cache.
+    const statusSeq = [RUNNING_STATUS, DONE_STATUS]
     setApiRoutes({
-      '/api/v1/library/scan': () => ({ started: true, directory: '/lib' }),
+      '/api/v1/library/scan': () => ({ started: true, directory: '/lib', job_id: 'job-1' }),
       '/api/v1/library/scan/status': () => statusSeq.shift() ?? DONE_STATUS,
+      '/api/v1/jobs/job-1': () => DONE_JOB,
     })
 
     const onImported = vi.fn()

@@ -1,12 +1,12 @@
 import threading
 from pathlib import Path
-from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from backend.constants_generated import EraValue
 from backend.core import jobs, rate_limit
 from backend.core.database import get_db
 from backend.core.dependencies import (
@@ -28,8 +28,13 @@ from backend.service.utils.confirmation_tokens import TOKEN_TTL
 router = APIRouter(prefix="/api/v1", tags=["library"])
 logger = get_logger(__name__)
 
+# Guards re-entry ("one scan running at a time") only — no preview or other
+# scan output is cached here. A finished scan's results live solely in the
+# core.jobs result payload; this state is purely a running/error/job_id flag.
 _scan_lock = threading.Lock()
-_scan_state: dict[str, Any] = {"running": False, "preview": [], "error": None, "job_id": None}
+_scan_running = False
+_scan_error: str | None = None
+_scan_job_id: str | None = None
 
 _SCAN_RATE_LIMIT = 5
 _SCAN_RATE_WINDOW_SECONDS = 60.0
@@ -50,8 +55,14 @@ class RestrictionsBody(BaseModel):
     user_ids: list[int]
 
 
+class ScanImportItem(BaseModel):
+    path: str
+    title: str
+    era: EraValue | None = None
+
+
 class ScanImportBody(BaseModel):
-    selected: list[str]
+    selected: list[ScanImportItem]
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +136,7 @@ def add_library_collection(
 @router.get("/library/scan/status", response_model=ScanStatus)
 def scan_status():
     with _scan_lock:
-        return dict(_scan_state)
+        return {"running": _scan_running, "job_id": _scan_job_id, "error": _scan_error}
 
 
 def _resolve_scan_directory() -> Path:
@@ -167,22 +178,46 @@ def _scan_nav_threshold() -> int:
         return DEFAULT_SCAN_NAV_THRESHOLD_BYTES
 
 
+def _check_known_items_findable(db: Session) -> None:
+    """Fail loud if a DB-known item's file has vanished from disk (moved or
+    renamed outside Peach 1UP) instead of letting scan silently work around it.
+    Scan is stateless now — it re-walks disk every call and relies on
+    original_name/media_path to reconcile against existing rows, so a
+    known item that can no longer be found on disk is surfaced immediately
+    rather than dropped without explanation."""
+    rows = db.query(LibraryItem.media_path, LibraryItem.original_name).filter(
+        LibraryItem.media_path.isnot(None)
+    ).all()
+    for media_path, original_name in rows:
+        if not Path(media_path).exists():
+            name = original_name or Path(media_path).name
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot find {name} — did you move or rename it?",
+            )
+
+
 @router.post("/library/scan")
-def trigger_scan(request: Request, background_tasks: BackgroundTasks = BackgroundTasks()):
+def trigger_scan(
+    request: Request,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: Session = Depends(get_db),
+):
+    global _scan_running, _scan_error, _scan_job_id
     _enforce_rate_limit("library-scan", request, _SCAN_RATE_LIMIT, _SCAN_RATE_WINDOW_SECONDS)
     with _scan_lock:
-        if _scan_state["running"]:
+        if _scan_running:
             raise HTTPException(status_code=409, detail="A scan is already running.")
     resolved = _resolve_scan_directory()
+    _check_known_items_findable(db)
     # Fast stat-only pre-pass classifies the scan so the UI knows immediately
     # whether to keep the inline modal (small) or drop to the nav bell (large).
     background = _dir_size_fast(resolved) > _scan_nav_threshold()
     job_id = jobs.create("scan", message="Scanning media library…")
     with _scan_lock:
-        _scan_state["running"] = True
-        _scan_state["preview"] = []
-        _scan_state["error"] = None
-        _scan_state["job_id"] = job_id
+        _scan_running = True
+        _scan_error = None
+        _scan_job_id = job_id
     background_tasks.add_task(_run_scan, str(resolved), job_id)
     return {"started": True, "directory": str(resolved), "job_id": job_id, "background": background}
 
@@ -199,6 +234,8 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
     from backend.service.utils.smart_media_detector import detect as _smart_detect
     from backend.service.utils.profile_builder import scan_media_folders
     from sqlalchemy.orm import Session as _Session
+
+    global _scan_running, _scan_error
 
     base_path = Path(directory).resolve()
     preview: list[dict] = []
@@ -270,16 +307,15 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
         error_msg = str(exc)
     finally:
         with _scan_lock:
-            _scan_state["running"] = False
-            _scan_state["preview"] = preview
-            _scan_state["error"] = error_msg
+            _scan_running = False
+            _scan_error = error_msg
         if job_id is not None:
             if error_msg is not None:
                 jobs.fail(job_id, error_msg)
             else:
                 jobs.complete(
                     job_id,
-                    result={"preview_count": len(preview)},
+                    result={"preview": preview},
                     message=f"Scan complete — {len(preview)} item(s) ready to import.",
                 )
 
@@ -298,10 +334,6 @@ def import_scan_results(
     """
     from backend.service.library.items import _ItemAlreadyExists, _persist_collection_of_one, _prepare_item
 
-    with _scan_lock:
-        preview_snapshot = list(_scan_state.get("preview", []))
-    title_map: dict[str, str] = {p["media_path"]: p["title"] for p in preview_snapshot}
-
     used_slugs: set[str] = {
         s
         for (s,) in db.query(LibraryCollection.slug).filter(LibraryCollection.slug.isnot(None)).all()
@@ -311,10 +343,11 @@ def import_scan_results(
     skipped = 0
     errors: list[dict] = []
 
-    for path in body.selected:
-        title = title_map.get(path) or Path(path).stem.replace("-", " ").title()
+    for item in body.selected:
+        path = item.path
+        title = item.title or Path(path).stem.replace("-", " ").title()
         try:
-            row = _prepare_item(path, title, db, used_slugs=used_slugs)
+            row = _prepare_item(path, title, db, used_slugs=used_slugs, override_era=item.era)
         except _ItemAlreadyExists:
             skipped += 1
             continue
