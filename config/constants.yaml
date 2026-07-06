@@ -66,6 +66,7 @@ media_types:
   directory: "Directory"
   iso:       "ISO Image"
   cue:       "CUE/BIN"
+  chd:       "CHD Image"
   floppy:    "Floppy Image"
   hdd:       "Hard Disk Image"
   exe:       "Executable"
