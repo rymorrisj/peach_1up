@@ -33,6 +33,11 @@ relative to the config file's directory.
 
 **Portable mode confirmed:** Yes
 
+**Multi-disc capability:** Can mount more than one floppy image at once with
+a built-in swap command. Automating the swap from Peach 1UP vs. relying on
+DOSBox-X's own swap-floppy hotkey is undecided. Note: DOSBox-X's swap key
+differs from classic DOSBox (not Ctrl+F4).
+
 ---
 
 ## 86Box
@@ -79,6 +84,12 @@ gaps instead of relying on 86Box's own (currently unverified) in-app behavior.
 
 **Portable mode confirmed:** Yes
 
+**Multi-disc capability:** Only one secondary optical drive slot per machine.
+A multi-disc install requires swapping the disc image manually through
+86Box's own Media menu — no playlist/stack equivalent exists or is planned.
+
+---
+
 ## DuckStation
 
 **Supported eras:** PS1
@@ -108,6 +119,11 @@ the correct one is selected automatically per disc.
 **Bundleable:** Yes
 
 **Portable mode confirmed:** Yes
+
+**Multi-disc capability:** Natively supports .m3u playlists listing every
+disc in a set — Peach 1UP can point DuckStation at a generated playlist
+instead of a single disc. Mid-session disc switching can be bound to a
+hotkey inside DuckStation; no external trigger exists.
 
 ---
 
@@ -144,6 +160,10 @@ The `bios/` subdirectory path is configurable in PCSX2 settings.
 **Bundleable:** Yes
 
 **Portable mode confirmed:** Yes
+
+**Multi-disc capability:** Natively supports .m3u playlists, same as
+DuckStation. No hotkey or external command for switching discs mid-session —
+only via PCSX2's own in-game "Change Disc" menu.
 
 ---
 
@@ -230,6 +250,9 @@ compatibility with SNES titles.
 
 **Portable mode confirmed:** Yes
 
+**Multi-disc capability:** Not applicable — FDS multi-disk titles are single
+self-contained files; side/disk switching is handled inside Mesen itself.
+
 ---
 
 ## Project64
@@ -255,6 +278,10 @@ application path (`AppPath\Config\`).
 **Bundleable:** Yes
 
 **Portable mode confirmed:** Yes
+
+**Multi-disc capability:** Not applicable for cartridge games. 64DD disk
+titles (rare in this app's supported library) require manual swapping
+inside Project64's own menu.
 
 ---
 

@@ -6,102 +6,45 @@ title: Multi-Disk Media
 
 Some games shipped across more than one disc or floppy — a long RPG split across
 several CDs, a DOS game on a stack of floppies, a PS2 title spanning two DVDs.
-Peach 1UP is adding support for treating these as a single library entry instead
-of several unrelated ones. This page documents what's known to be a gap or a
-hard limitation, so expectations are set correctly while the feature is built out.
+Peach 1UP treats these as a single library entry instead of several unrelated
+ones.
 
 ---
 
-## Known Gaps
+## Adding a Multi-Disc Game
 
-**No automatic detection during library scan.** Peach 1UP does not currently
-look at filenames during a scan and infer that two files belong to the same
-multi-disc game. This is intentional, not an oversight — and it's the only
-behavior that's actually implemented today; everything else on this page
-describes work still in progress. The reasoning:
+Multi-disc games must be added through **Add Media**'s multi-file "set" upload —
+select every disc for the game together in one session. This is the only way
+to create a multi-disc library entry.
 
-- Filename numbering is genuinely ambiguous. A bare `(1)` in a filename is
-  the standard way Windows/browsers mark an accidental duplicate copy — not
-  a disc indicator. A scan that grouped on bare numerals risks silently
-  merging two unrelated files into a fake multi-disc set.
-- The only signal considered reliable enough to act on is an explicit
-  disc-word marker — "Disc 2", "Disc 1 of 3", "Disk B", "CD2" — the
-  convention used by Redump/No-Intro/TOSEC naming. Even this conservative
-  approach is not yet implemented; for now, every disc/floppy in a scanned
-  folder becomes its own independent library item, full stop.
-- Anything less explicit than a clear disc-word-plus-number is intentionally
-  left ungrouped. An under-grouped library (extra items the user can combine
-  manually) is preferred over an over-grouped one (unrelated files merged
-  incorrectly).
+Library scan will never auto-group discs into a set. This is a permanent
+design decision, not a gap being worked toward: filename numbering
+conventions (disc-word markers, bare parenthetical numbers, etc.) are too
+ambiguous to group reliably without risking unrelated files being merged
+into a fake set. There is no plan to add scan-time auto-detection.
 
-**Existing libraries will need a manual fix once grouping ships.** If a
-multi-disc game was already scanned or added before this feature existed,
-each disc is sitting in the library today as its own separate item — there's
-no automatic migration planned that will retroactively detect and merge them.
-The expected path once multi-disc support lands: remove every item for that
-game except the first disc (removing a library item does not delete the
-underlying file), then re-add all the discs together through whatever the
-new multi-item add flow turns out to be. Until that flow exists, this
-migration step isn't possible yet either.
+## Choosing the Launch Disc
 
----
+Once a multi-disc set exists as a library entry, the disc used to launch the
+game is chosen manually via the **Set as Launch Disc** control on the
+collection. There is no automatic selection.
 
-## Limitations by Emulator
+## Switching Discs Mid-Session
 
-Even once Peach 1UP can group discs into one library entry, what happens at
-launch — and whether switching discs mid-session can be automated at all —
-varies a lot by emulator. None of the automation described below exists yet;
-this section is about what's possible in principle for each emulator, based
-on each emulator's own capabilities, separate from what Peach 1UP has built.
+What happens when a game needs a disc swap mid-session — and whether that
+swap can be automated at all — depends entirely on the emulator. See the per-emulator "Multi-disc
+capability" field in `dev_docs/EMULATORS.md` for the full breakdown. In
+short:
 
-- **DuckStation (PS1):** Natively supports `.m3u` playlist files that list
-  every disc in a set. This is the cleanest case — if Peach 1UP generates a
-  playlist for a disc set, DuckStation can be pointed at the playlist instead
-  of a single disc, and the emulator handles disc switching internally.
-  Switching discs mid-session can be bound to a hotkey inside DuckStation,
-  but there's no way to trigger that from outside the emulator — it would
-  still be a manual keypress during play.
-
-- **PCSX2 (PS2):** Also natively supports `.m3u` playlists, same as
-  DuckStation. However, PCSX2 has no hotkey or external command for
-  switching discs — changing discs mid-session is only possible through
-  PCSX2's own in-game menu ("Change Disc"), with no way to automate or
-  script it from outside the emulator.
-
-- **DOSBox-X (DOS multi-floppy installs):** DOSBox-X can mount more than one
-  floppy image at once and has a built-in command to swap between them during
-  a session. Whether Peach 1UP can drive that swap automatically, versus the
-  user pressing DOSBox-X's own swap-floppy hotkey by hand, is undecided.
-  Either way, DOSBox-X's swap key is different from classic DOSBox's — if
-  you're used to Ctrl+F4 from other DOSBox builds, that won't work here.
-
-- **86Box (Windows 95/98/XP installs):** Has only one secondary optical drive
-  slot configured per machine today. A multi-disc 86Box install means
-  swapping the disc image yourself through 86Box's own Media menu — there's
-  currently no playlist or pre-loaded-stack equivalent like DuckStation/PCSX2
-  have, and no plan yet to add one.
-
-- **Mesen (NES / Famicom Disk System):** Multi-disk in the FDS sense is
-  already a single self-contained file per game — there's nothing to group
-  here. Side/disk switching during play is handled inside Mesen itself
-  (it can even auto-detect and switch automatically), so this isn't a gap
-  for Mesen specifically.
-
-- **Project64 (N64):** Cartridge games are single-file and don't apply here.
-  64DD disk titles are extremely rare in this app's supported library and
-  any disk swapping for them is manual, inside Project64's own menu.
-
-- **Flycast (Dreamcast):** Dreamcast games are single-disc, so multi-disc
-  grouping doesn't apply. Noted here only for completeness.
-
-- **xemu (Xbox OG):** Xbox games are effectively single-disc for this app's
-  purposes. Noted here only for completeness.
-
----
-
-Even in the best case (DuckStation, PCSX2), Peach 1UP can at most hand an
-emulator a ready-made list of discs at launch — it cannot make an emulator
-that has no external swap command suddenly gain one. For PCSX2, 86Box, and
-any DOS install relying on DOSBox-X's manual swap key, switching discs
-mid-game will likely always require a manual action inside that emulator's
-own interface.
+- **DuckStation and PCSX2** natively support `.m3u` playlists listing every
+  disc in a set, but mid-session switching still requires either an
+  in-emulator hotkey (DuckStation) or the emulator's own "Change Disc" menu
+  (PCSX2) — neither can be triggered from outside the emulator.
+- **DOSBox-X** can mount multiple floppy images and swap between them, but
+  whether Peach 1UP drives that swap or the user presses DOSBox-X's own
+  swap-floppy hotkey is undecided.
+- **86Box** has only one secondary optical drive slot per machine — disc
+  swaps are done manually through 86Box's own Media menu.
+- **Mesen** and **Project64** handle their respective multi-disk formats
+  (FDS, 64DD) internally; there's nothing for Peach 1UP to group.
+- **Flycast** and **xemu** are single-disc platforms and don't apply here.
