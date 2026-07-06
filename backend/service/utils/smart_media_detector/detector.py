@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from backend.core.logger import get_logger
+
 from .hashing import hash_lookup as _hash_lookup
 from .magic.magic_detect import detect_from_magic
 from .result import ScanResult
@@ -9,6 +11,8 @@ from .exe_detect import detect_exe
 from .directory_detect import detect_directory
 
 _INDEX_PATH = Path(__file__).parent / "hashing" / "hash_index.json"
+
+log = get_logger(__name__)
 
 
 # ── requires_install heuristic ───────────────────────────────────────────────
@@ -48,6 +52,7 @@ def detect(path: Path) -> ScanResult:
     try:
         return _detect(path)
     except Exception as exc:
+        log.warning("Unexpected error during media detection for '%s': %s", path, exc, exc_info=True)
         return ScanResult(
             title=None,
             platform=None,
@@ -71,8 +76,9 @@ def _detect(path: Path) -> ScanResult:
         if result is not None and result.era is not None:
             result.requires_install = _compute_requires_install(path, result.era)
             return result
-    except Exception:
-        pass  # empty or missing index — continue to signal detection
+    except Exception as exc:
+        log.warning("Hash lookup failed for '%s': %s", path, exc, exc_info=True)
+        # empty or missing index — continue to signal detection
 
     if path.is_file():
         result = _detect_file(path)

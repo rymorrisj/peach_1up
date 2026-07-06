@@ -48,9 +48,13 @@ def best_detect_path(folder: Path, executable_path: str | None) -> Path:
         return Path(executable_path)
     from backend.service.utils.era_media import all_supported_extensions
     all_exts = _MEDIA_SUFFIXES | all_supported_extensions()
+    folder_name = folder.name
     try:
         hit = next(
-            (f for f in folder.iterdir() if f.is_file() and f.suffix.lower() in all_exts),
+            (
+                f for f in folder.iterdir()
+                if f.is_file() and f.suffix.lower() in all_exts and not is_drive_image(f, folder_name)
+            ),
             None,
         )
     except OSError:
@@ -196,6 +200,12 @@ def _prepare_item(
         if _scan.era is not None:
             row["era"] = _scan.era
             row["detection_reason"] = _scan.reason
+        if _scan.era is None and _scan.warnings:
+            log.warning("Media detection warnings for '%s': %s", _detect_path, _scan.warnings)
+
+        if override_era is not None:
+            row["era"] = override_era
+            row["detection_reason"] = "Selected by user during import"
 
         if row["era"] and row["era"] != "unknown":
             try:
@@ -210,6 +220,8 @@ def _prepare_item(
                     if _scan.era is not None:
                         row["era"] = _scan.era
                         row["detection_reason"] = _scan.reason
+                    if _scan.era is None and _scan.warnings:
+                        log.warning("Media detection warnings for '%s': %s", resolved_media, _scan.warnings)
             except ValueError as exc:
                 log.warning("Could not resolve media file for '%s': %s", title, exc)
 
@@ -285,6 +297,8 @@ def _prepare_item(
         if _scan.era is not None:
             row["era"] = _scan.era
             row["detection_reason"] = _scan.reason
+        if _scan.era is None and _scan.warnings:
+            log.warning("Media detection warnings for '%s': %s", row["media_path"], _scan.warnings)
     else:
         raise HTTPException(
             status_code=400,
@@ -322,8 +336,12 @@ def _prepare_item(
                         field_path = Path(val)
                         if field_path == _dir_ingest_root or field_path.is_relative_to(_dir_ingest_root):
                             row[field] = str(slug_folder / field_path.relative_to(_dir_ingest_root))
-                    except (ValueError, TypeError):
-                        pass
+                    except (ValueError, TypeError) as exc:
+                        log.warning(
+                            "Could not rewrite '%s' after folder rename (%s -> %s): %s. "
+                            "Field will keep its stale pre-rename value: %s",
+                            field, _dir_ingest_root, slug_folder, exc, val,
+                        )
 
     row["media_type"] = media_type_from_path(Path(row["media_path"]))
     row["requires_install"] = _scan.requires_install
@@ -472,12 +490,16 @@ def _create_multi_disc_collection(
     disc_files must be pre-sorted (disc 1 first).
     Each disc file becomes both media_path and executable_path for its leaf.
     """
+    from backend.core.logger import get_logger
     from backend.service.utils.smart_media_detector import detect as _smart_detect
     from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
     from backend.service.utils.profile_builder import _find_cover
     from backend.service.utils.rating_detect import detect_rating
 
+    log = get_logger(__name__)
     _scan = _smart_detect(disc_files[0])
+    if _scan.era is None and _scan.warnings:
+        log.warning("Media detection warnings for '%s': %s", disc_files[0], _scan.warnings)
     detected_era: str = _scan.era if _scan.era is not None else "unknown"
 
     detected_platform_id: int | None = None
