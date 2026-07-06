@@ -124,8 +124,8 @@ def add_library_collection(
         return collection_to_read(collection, db)
     except lib_svc._ItemAlreadyExists:
         raise HTTPException(status_code=409, detail="This media path is already in the library.")
-    except lib_svc._SlugCollision:
-        raise HTTPException(status_code=409, detail="Import collided with a concurrent change, please retry.")
+    except lib_svc._SlugCollision as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------

@@ -132,8 +132,8 @@ def complete_upload(
         result = upload_finalize.finalize_inline(upload_id, media_root, db)
     except _ItemAlreadyExists:
         raise HTTPException(status_code=409, detail="This upload's content is already in the library.")
-    except _SlugCollision:
-        raise HTTPException(status_code=409, detail="Import collided with a concurrent change, please retry.")
+    except _SlugCollision as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return JSONResponse(status_code=201, content=result)
 
 

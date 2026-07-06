@@ -41,6 +41,8 @@ class _ItemAlreadyExists(Exception):
 
 class _SlugCollision(Exception):
     """Raised when a concurrent insert claimed the same slug between generation and commit."""
+    def __init__(self, message: str | None = None):
+        super().__init__(message or "Import collided with a concurrent change, please retry.")
 
 
 def best_detect_path(folder: Path, executable_path: str | None) -> Path:
@@ -511,40 +513,49 @@ def _create_multi_disc_collection(
                 _emulator_slug, _profile_era, db
             )
 
+    slug = generate_collection_slug(title, db)
     collection = LibraryCollection(
         title=title,
         era=detected_era,
-        slug=generate_collection_slug(title, db),
+        slug=slug,
         platform_id=detected_platform_id,
         profile_id=detected_profile_id,
         content_rating=detect_rating(str(disc_files[0])) or None,
     )
-    db.add(collection)
-    db.flush()
+    try:
+        db.add(collection)
+        db.flush()
 
-    cover = _find_cover(disc_files[0].parent)
+        cover = _find_cover(disc_files[0].parent)
 
-    leaves: list[LibraryItem] = []
-    for disc_number, disc_file in enumerate(disc_files, start=1):
-        leaf = LibraryItem(
-            library_collection_id=collection.id,
-            disc_number=disc_number,
-            media_path=str(disc_file),
-            executable_path=str(disc_file),
-            media_type=media_type_from_path(disc_file),
-            file_size_bytes=_disc_data_size(disc_file),
-            cover_art_path=str(cover) if disc_number == 1 and cover else None,
-            original_name=disc_file.name,
-            folder_path=str(disc_file.parent),
-        )
-        db.add(leaf)
-        leaves.append(leaf)
-    db.flush()
+        leaves: list[LibraryItem] = []
+        for disc_number, disc_file in enumerate(disc_files, start=1):
+            leaf = LibraryItem(
+                library_collection_id=collection.id,
+                disc_number=disc_number,
+                media_path=str(disc_file),
+                executable_path=str(disc_file),
+                media_type=media_type_from_path(disc_file),
+                file_size_bytes=_disc_data_size(disc_file),
+                cover_art_path=str(cover) if disc_number == 1 and cover else None,
+                original_name=disc_file.name,
+                folder_path=str(disc_file.parent),
+            )
+            db.add(leaf)
+            leaves.append(leaf)
+        db.flush()
 
-    collection.launch_disk_id = leaves[0].id
-    collection.display_disk_id = leaves[0].id
-    db.add(collection)
-    db.commit()
+        collection.launch_disk_id = leaves[0].id
+        collection.display_disk_id = leaves[0].id
+        db.add(collection)
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise _SlugCollision(
+            f"Import collided with a concurrent change while adding '{slug}' "
+            f"(disc file '{disc_files[0].name}') — please retry."
+        ) from exc
+
     db.refresh(collection)
     return collection
 
