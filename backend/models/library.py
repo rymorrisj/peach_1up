@@ -243,6 +243,7 @@ class ScanPreviewItem(SQLModel):
     detected_era: Optional[str] = None
     is_loose: bool
     is_zip: bool
+    disc_word_detected: bool
 
 
 class ScanStatus(SQLModel):

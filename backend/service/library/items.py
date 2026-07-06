@@ -513,6 +513,7 @@ def _create_multi_disc_collection(
             file_size_bytes=_disc_data_size(disc_file),
             cover_art_path=str(cover) if disc_number == 1 and cover else None,
             original_name=disc_file.name,
+            folder_path=str(disc_file.parent),
         )
         db.add(leaf)
         leaves.append(leaf)
@@ -545,12 +546,11 @@ def _delete_leaf_media_folders(collection: LibraryCollection) -> None:
 
     folder_path (not a path reconstructed from the slug) is the source of truth
     for what to remove, since ingest may have slug-renamed the directory. Leaves
-    with no folder_path (e.g. multi-disc collections, which point directly at
-    per-disc files rather than a shared folder) are skipped — there is nothing
-    to remove for them. Every resolved folder is required to fall under
-    MEDIA_PATH before rmtree; a folder that fails this check is refused and
-    logged loudly rather than silently skipped, since silently continuing past
-    a failed containment check on a delete path is worse than doing nothing.
+    with no folder_path are skipped — there is nothing to remove for them. Every
+    resolved folder is required to fall under MEDIA_PATH before rmtree; a folder
+    that fails this check is refused and logged loudly rather than silently
+    skipped, since silently continuing past a failed containment check on a
+    delete path is worse than doing nothing.
     """
     from backend.core.logger import get_logger
     from backend.core.settings import get_settings

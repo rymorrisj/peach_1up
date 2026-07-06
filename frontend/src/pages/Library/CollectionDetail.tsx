@@ -174,6 +174,19 @@ export default function CollectionDetail() {
     },
   })
 
+  const setLaunchDiscMutation = useMutation<void, Error, number>({
+    mutationFn: (discId) => {
+      if (collectionId == null) return Promise.resolve()
+      return apiFetch(`/api/v1/librarycollection/${collectionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ launch_disk_id: discId }),
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
+    },
+  })
+
   async function handleToggleInstalled() {
     if (collectionId == null) return
     const target = !localInstalled
@@ -401,6 +414,18 @@ export default function CollectionDetail() {
                         <span className="shrink-0 rounded-[4px] border border-[#ff8a5c]/40 bg-[#ff8a5c]/10 px-1.5 py-0.5 font-mono text-[10px] text-[#ff8a5c]">
                           Launch disc
                         </span>
+                      )}
+                      {isOwner && !isLaunch && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setLaunchDiscMutation.mutate(disc.id)}
+                          disabled={setLaunchDiscMutation.isPending}
+                          title="Set this disc as the one that boots"
+                          className="shrink-0"
+                        >
+                          Set as Launch Disc
+                        </Button>
                       )}
                       {isOwner && (
                         <Button
