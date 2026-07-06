@@ -1,4 +1,3 @@
-import re
 import threading
 from pathlib import Path
 
@@ -28,12 +27,6 @@ from backend.service.utils.confirmation_tokens import TOKEN_TTL
 
 router = APIRouter(prefix="/api/v1", tags=["library"])
 logger = get_logger(__name__)
-
-# Explicit disc-word naming convention (Redump/No-Intro/TOSEC style) — see
-# dev_docs/multi-disk-guide-draft.md. Flags a likely multi-disc item during
-# scan so the preview can warn the user to use the multi-file set upload
-# instead; scan itself never groups discs.
-_DISC_WORD_RE = re.compile(r"disc\s?\d|cd\s?\d|disk\s?[a-z]|\d+\s?of\s?\d+", re.IGNORECASE)
 
 # Guards re-entry ("one scan running at a time") only — no preview or other
 # scan output is cached here. A finished scan's results live solely in the
@@ -305,7 +298,6 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
                     "detected_era": era_slug,
                     "is_loose": is_loose,
                     "is_zip": is_zip,
-                    "disc_word_detected": bool(_DISC_WORD_RE.search(scan_path.name)),
                 })
         finally:
             db.close()
