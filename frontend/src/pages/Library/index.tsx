@@ -91,6 +91,13 @@ export default function Library() {
     staleTime: 60_000,
   })
 
+  const { data: appSettings } = useQuery<Record<string, unknown>>({
+    queryKey: ['settings'],
+    queryFn: () => apiFetch('/api/v1/settings'),
+    staleTime: 60_000,
+  })
+  const deleteMediaOnRemoval = Boolean(appSettings?.delete_media_on_removal)
+
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['library'] })
   }, [queryClient])
@@ -103,7 +110,9 @@ export default function Library() {
   async function handleRemove(collection: LibraryCollectionData) {
     const confirmed = await confirm({
       title: `Remove "${collection.title}"?`,
-      consequence: 'This removes the game from your library. The media file on disk is not deleted.',
+      consequence: deleteMediaOnRemoval
+        ? 'This removes the game from your library and deletes its media files from disk.'
+        : 'This removes the game from your library. The media file on disk is not deleted.',
       destructive: true,
     })
     if (!confirmed) return

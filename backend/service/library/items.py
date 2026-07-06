@@ -539,6 +539,57 @@ def create_library_collection(body: LibraryCollectionCreate, db: Session) -> tup
         return e.collection, True
 
 
+def _delete_leaf_media_folders(collection: LibraryCollection) -> None:
+    """Delete each leaf's on-disk media folder (folder_path), used only when
+    delete_media_on_removal is enabled.
+
+    folder_path (not a path reconstructed from the slug) is the source of truth
+    for what to remove, since ingest may have slug-renamed the directory. Leaves
+    with no folder_path (e.g. multi-disc collections, which point directly at
+    per-disc files rather than a shared folder) are skipped — there is nothing
+    to remove for them. Every resolved folder is required to fall under
+    MEDIA_PATH before rmtree; a folder that fails this check is refused and
+    logged loudly rather than silently skipped, since silently continuing past
+    a failed containment check on a delete path is worse than doing nothing.
+    """
+    from backend.core.logger import get_logger
+    from backend.core.settings import get_settings
+
+    log = get_logger(__name__)
+    svc = get_settings()
+    media_root_str = svc.get("MEDIA_PATH", "") or ""
+    if not media_root_str:
+        log.error(
+            "delete_media_on_removal is enabled but MEDIA_PATH is unset; "
+            "refusing to delete media folders for collection %s.",
+            collection.id,
+        )
+        return
+    media_root = Path(media_root_str).resolve()
+
+    seen: set[str] = set()
+    for leaf in collection.items:
+        if not leaf.folder_path or leaf.folder_path in seen:
+            continue
+        seen.add(leaf.folder_path)
+
+        folder = Path(leaf.folder_path).resolve()
+        if not (folder == media_root or folder.is_relative_to(media_root)):
+            log.error(
+                "Refusing to delete media folder '%s' for library item %s: "
+                "it does not resolve under MEDIA_PATH ('%s').",
+                folder, leaf.id, media_root,
+            )
+            continue
+
+        try:
+            if folder.exists():
+                shutil.rmtree(folder)
+                log.info("Deleted media folder: %s", folder)
+        except OSError as exc:
+            log.warning("Could not delete media folder %s: %s", folder, exc)
+
+
 def delete_library_collection(collection_id: int, token: str, db: Session) -> None:
     if not _consume(token, "library", collection_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
@@ -550,6 +601,11 @@ def delete_library_collection(collection_id: int, token: str, db: Session) -> No
     # only drops the DB row, not the file). No-op for collections without a drive.
     from backend.service.utils.drive_utils import delete_drive_for_collection
     delete_drive_for_collection(collection, db)
+
+    from backend.core.settings import get_settings
+    if get_settings().get("delete_media_on_removal", False):
+        _delete_leaf_media_folders(collection)
+
     db.delete(collection)  # ON DELETE CASCADE removes the leaf rows
     db.commit()
 
