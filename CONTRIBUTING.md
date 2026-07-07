@@ -56,7 +56,7 @@ safety(api): reject emulator path overrides from request input
 
 ## Code style
 
-- **Python** — PEP 8 enforced via Ruff; no hardcoded paths or secrets; use `config/settings.yaml` and `.env` for configuration
+- **Python** — PEP 8 enforced via Ruff; no hardcoded paths or secrets; runtime settings live in the `app_settings` DB table, secrets in `.env`
 - **TypeScript** — ESLint + Prettier; avoid `any`; use the generated API client in `shared/types.ts`
 - Never accept user input into emulator binary paths at launch time — no exceptions
 - All media passed to emulators must be mounted read-only

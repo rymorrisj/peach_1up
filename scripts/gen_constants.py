@@ -121,7 +121,9 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     # CONTENT_RATINGS
     lines.append("CONTENT_RATINGS: list[dict[str, str]] = [\n")
     for r in ratings:
-        lines.append(f'    {{"value": "{r["value"]}", "label": "{r["label"]}"}},\n')
+        lines.append(
+            f'    {{"value": "{r["value"]}", "label": "{r["label"]}", "scheme": "{r["scheme"]}"}},\n'
+        )
     lines.append("]\n\n")
 
     # DGVOODOO2_SUPPORTED_ERAS
@@ -208,12 +210,14 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
 
     # RATING_OPTIONS — includes a leading empty option for form use
     lines.append(
-        "export const RATING_OPTIONS: { value: string; label: string }[] = [\n"
+        "export const RATING_OPTIONS: { value: string; label: string; scheme?: string }[] = [\n"
     )
     lines.append('  { value: \'\', label: \'— No rating —\' },\n')
     for r in ratings:
         label = r["label"].replace("'", "\\'")
-        lines.append(f"  {{ value: '{r['value']}', label: '{label}' }},\n")
+        lines.append(
+            f"  {{ value: '{r['value']}', label: '{label}', scheme: '{r['scheme']}' }},\n"
+        )
     lines.append("]\n\n")
 
     # DGVOODOO2_SUPPORTED_ERAS

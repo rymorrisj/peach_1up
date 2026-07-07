@@ -17,13 +17,13 @@ detector contract).
 | API/domain constants (era, media_type, hardware_profile, install_type, tag color, ratings, backend/system labels) | `constants.yaml` | `config/constants.yaml` → `scripts/gen_constants.py` → `backend/constants_generated.py` + `frontend/src/generated/constants.ts` | ✅ matches (Pipeline A). |
 | DB schema structure | DB | SQLModel models, `create_all()` on startup, no Alembic | ⚠️ **Columns are bare `String`, not enum-constrained** — the Literal types are Pydantic-only and are *not* enforced at the DB layer (see §6). |
 | FE types | OpenAPI/Pydantic generated | FastAPI → `shared/openapi.json` (startup) → `openapi-typescript` → `shared/types.ts` | ✅ matches (Pipeline B), but B is **downstream of A** — every Pydantic field typed with a generated Literal re-inlines that enum into OpenAPI. |
-| Secrets | `.env` | **`settings.yaml`** holds live secrets today (`THEGAMESDB_API_KEY`, `PIN_PEPPER`); `.env` is a legacy override only | ⚠️ Divergence: `.env` is documented as the secrets home but the actual secret values sit in `settings.yaml`. Both are gitignored. |
-| Operational flags | "Settings DB table" | **`config/settings.yaml`** via `backend/service/utils/settings.py` — there is **no settings DB table** | ⚠️ Divergence: operational flags are YAML-backed, not DB-backed. Only `first_run_complete` was moved to the DB (`settings.py:102` drops it from YAML state). Path keys additionally persist to `%APPDATA%\Peach1UP\paths.yaml`. |
+| Secrets | `.env` | `.env`, via `backend/service/utils/env_secrets.py` (`PIN_PEPPER`, `THEGAMESDB_API_KEY`, `AI_API_KEY`, `IGDB_API_KEY`) | ✅ matches. `settings.yaml` has been removed; secrets live in `.env` exclusively. Gitignored. |
+| Operational flags | "Settings DB table" | `app_settings` DB table (SQLite), via the `Settings` ORM model (`backend/models/settings.py:8`) and `backend/service/utils/settings.py` (shared engine from `backend/core/database.py`) | ✅ matches. `settings.yaml`/`paths.yaml` have been removed; all operational flags, per-emulator sandbox overrides, and the 5 path keys are DB-backed. |
 
-**Bottom line:** the constants pipeline (A), the OpenAPI pipeline (B), and the
-TOML→catalog-slug pipeline match the intended model. The two real divergences
-are (a) secrets/flags live in `settings.yaml`, not `.env`/a DB table, and
-(b) the DB does not enforce the generated Literals — columns are `String`.
+**Bottom line:** the constants pipeline (A), the OpenAPI pipeline (B), the
+TOML→catalog-slug pipeline, and the settings store all match the intended
+model now. The one remaining divergence is that the DB does not enforce the
+generated Literals — columns are `String` (see §6).
 
 ---
 
@@ -112,22 +112,24 @@ is a producer (`media_type_from_path`) writing `bin/gdi/cdi/rom` into a
 
 ---
 
-## 5. settings.yaml key inventory + call sites
+## 5. app_settings key inventory + call sites
 
-Backed by `backend/service/utils/settings.py` (`_DEFAULTS` at `:35`, `_PATH_KEYS`
-at `:51`). There is **no settings DB table**; path keys additionally mirror to
-`%APPDATA%\Peach1UP\paths.yaml`.
+Backed by `backend/service/utils/settings.py` (`_DEFAULTS` at `:46`, `_PATH_KEYS`
+at `:59`) and persisted to the `app_settings` DB table via the `Settings` ORM
+model (`backend/models/settings.py:8`). `settings.yaml` and
+`%APPDATA%\Peach1UP\paths.yaml` have been removed — every key below, including
+the 5 path keys, is DB-only now.
 
 | Key | Class | Read/write sites |
 | --- | --- | --- |
-| `LIBRARY_PATH`, `MEDIA_PATH`, `OS_PATH`, `ROMS_PATH`, `PROFILES_PATH` | Path (static reference) | `main.py:50`, `uploads.py:52`, `library_collections.py:145`, scan allowlist; written via `set_path()` (`settings.py:267`) + `POST /settings/library-path` |
+| `LIBRARY_PATH`, `MEDIA_PATH`, `OS_PATH`, `ROMS_PATH`, `PROFILES_PATH` | Path (static reference) | `main.py:50`, `uploads.py:52`, `library_collections.py:145`, scan allowlist; written via `set_path()` (`settings.py:246`) + `POST /settings/library-path` |
 | `suppress_confirmations` | Operational flag | user-writable (`settings.py:64`); consumed by confirmation-token flow |
 | `reset_db` | Operational flag (destructive) | **not** user-writable; startup only |
 | `delete_media_on_removal` | Operational flag | user-writable; FE reads `Library/index.tsx:99`, `Settings/AdvancedTab.tsx:219/227` |
 | `PIN_PEPPER` | **Secret** | dedicated route `PATCH /settings/pin-pepper`; scrubbed from GET; refused on generic PATCH (`settings.py:81`) |
 | `THEGAMESDB_API_KEY` | **Secret** | user-writable via `AdvancedTab.tsx:32`; status-only GET `/settings/thegamesdb-api-key/status`; scrubbed from GET-all |
-| `ALLOW_NETWORK_ACCESS` | Operational flag (security boundary) | read `main.py:57`, `security.py:47`, `auth.py:52`; **not** user-writable |
-| `rating_ordinals` | Static reference data | `dependencies.py:40` `_load_rating_ordinals()` (falls back to `_DEFAULT_RATING_ORDINALS`); **not** user-writable |
+| `ALLOW_NETWORK_ACCESS` | Operational flag (security boundary) | read `main.py:57`, `security.py:47`, `auth.py:52`; **not** user-writable — no write site anywhere; now settable only by writing directly to the `app_settings` row (no hand-editable file exists any more) |
+| `rating_ordinals` | Static reference data | `dependencies.py:40` `_load_rating_ordinals()` (falls back to `_DEFAULT_RATING_ORDINALS`); **not** user-writable — same DB-only caveat as above |
 | `sandbox_{slug}_container_enabled` | Operational flag (per-emulator) | read `emulators.py:162`; written `emulators.py:457` via `set_flag`; default from TOML |
 | `sandbox_{slug}_skip_memory_limit`, `sandbox_dosbox-x_skip_cpu_limit` | Operational flag (per-emulator) | same path as above; default from TOML |
 | `SCAN_NAV_THRESHOLD_BYTES` | Operational flag | read `library_collections.py:175` (defaulted) |
@@ -176,185 +178,119 @@ Literal, not a bug at any single line. Enforcing it would require a DB-level
   drives).
 - **DB does not enforce generated Literals** (§6) — the one place a bad enum
   value can silently persist.
-- **Secrets live in `settings.yaml`, not `.env`** — divergence from the stated
-  ownership model; both files are gitignored, so not an exposure, but worth
-  noting for the SSOT map.
+- **`settings.yaml`/`paths.yaml` removed — resolved.** Secrets now live in
+  `.env` exclusively and operational flags/paths now live in `app_settings`
+  exclusively, matching the intended ownership model in §1.
+- **New resource note:** `ALLOW_NETWORK_ACCESS`, `rating_ordinals`, and
+  `SCAN_NAV_THRESHOLD_BYTES` were "hand-edit `settings.yaml`" only — that
+  escape hatch is now gone with no replacement UI/API route, so changing
+  them requires a direct write to the `app_settings` table (see §7).
 - ~13 dead generated exports and 3 parallel era→emulator maps remain
   maintenance-drift surface (per TYPES_AUDIT.md §2/§6), not runtime bugs.
 
 ---
 
-## 7. Settings Consumer Inventory (discovery for settings.yaml → DB collapse)
+## 7. Settings Store — Resolved State (settings.yaml/paths.yaml → app_settings collapse, complete)
 
-Full re-walk of every `settings.yaml` and `app_settings` (DB) consumer, done to
-scope a future collapse of the two mechanisms into one. Discovery only — no
-code changed.
+This section originally scoped a discovery-only audit for collapsing
+`settings.yaml`/`paths.yaml` into `app_settings`. That collapse is now done —
+`config/settings.yaml` and `%APPDATA%\Peach1UP\paths.yaml` have been deleted
+from disk, and their load/write functions removed from
+`backend/service/utils/settings.py`. This section reflects the resulting
+architecture rather than the original discovery notes.
 
 ### 7.1 `backend/service/utils/settings.py` — module surface (file:line)
 
-- `_DEFAULTS` (`:35`): `LIBRARY_PATH`, `MEDIA_PATH`, `OS_PATH`, `ROMS_PATH`,
+- `_DEFAULTS` (`:46`): `LIBRARY_PATH`, `MEDIA_PATH`, `OS_PATH`, `ROMS_PATH`,
   `PROFILES_PATH`, `suppress_confirmations`, `reset_db`,
-  `delete_media_on_removal`, `PIN_PEPPER`.
-- `_PATH_KEYS` (`:51`): the 5 path keys above — normalised to forward slashes,
-  resolved absolute, and diverted to `paths.yaml` (see §7.4) instead of
-  `settings.yaml`.
-- No `_USER_WRITABLE_KEYS` or `_SENSITIVE_KEYS` in this module — those two
-  allowlists live one layer up, in `backend/api/routes/settings.py:51,60`
-  (`_SENSITIVE_KEYS`, `_USER_WRITABLE_KEYS`), not in `settings.py` itself.
-  TYPES.md §5 previously implied all four allowlists are co-located; they are
-  not — worth correcting if this doc is cited elsewhere.
-- Read/write primitives: `get()` (`:214`), `set_flag()` (`:223`),
-  `add_suppression()`/`is_suppressed()` (`:238`,`:258`), `set_path()` (`:267`),
-  `get_env_var()` (`:173`).
-- Persistence: `_save()` (`:359`) writes everything except `_`-prefixed keys
-  and `_PATH_KEYS` to `config/settings.yaml`, atomically (tmp file + rename).
-  `_save_paths()` (`:387`) writes `_PATH_KEYS` to
-  `%APPDATA%\Peach1UP\paths.yaml` (or `~/.config/Peach1UP` off Windows),
-  atomically, separately.
+  `delete_media_on_removal`, `UPLOAD_TMP_TTL_SECONDS`.
+- `_PATH_KEYS` (`:59`): the 5 path keys above — normalised, resolved absolute
+  at `init()` time, and stored in `app_settings` like every other key. No
+  separate paths file exists any more.
+- No `_USER_WRITABLE_KEYS`/`_SENSITIVE_KEYS` in this module — those two
+  allowlists still live one layer up, in `backend/api/routes/settings.py`
+  (`_SENSITIVE_KEYS:55`, `_USER_WRITABLE_KEYS:70`).
+- Read/write primitives: `get()` (`:193`), `set_flag()` (`:202`),
+  `add_suppression()`/`is_suppressed()` (`:217`/`:237`), `set_path()`
+  (`:246`), `get_env_var()` (`:153`).
+- Persistence: `_persist()` (`:93`) upserts a single key into the
+  `app_settings` table through the shared SQLAlchemy engine
+  (`backend.core.database.get_engine()`) and the `Settings` ORM model
+  (`backend/models/settings.py:8`) — no raw SQL, no YAML I/O of any kind.
+  `_load_all_rows()` (`:79`) reads the whole table the same way.
 
-### 7.2 Every settings.yaml-backed key, with all call sites
+### 7.2 Key classification — now uniform
 
-| Key | Class | Default | Read sites | Write sites |
-| --- | --- | --- | --- | --- |
-| `LIBRARY_PATH`, `MEDIA_PATH`, `OS_PATH`, `ROMS_PATH`, `PROFILES_PATH` | Path | computed under project root (`_PATH_DEFAULTS:61`) | `main.py:50`, `media.py:55` (`get_env_var`), `uploads.py:52` (`get_env_var`), `library_collections.py:145`, `filesystem.py:19,88-92`, `models/library.py:85`, `service/library/enrich.py:42`, `service/library/items.py:104,593`, `startup_tasks.py:154`, `api/routes/settings.py:205-209` | `set_path()` via `PATCH /api/v1/settings` (routed keys) and `POST /settings/library-path` (`settings.py:236`) |
-| `suppress_confirmations` | Operational flag | `[]` | `is_suppressed()` (`settings.py:258`) — grep found **no call site** for `is_suppressed()` outside its own definition; only `add_suppression()`/`set_flag` write paths are exercised. Confirmation-token flow (`test_confirmation_tokens`) appears to gate elsewhere. | `add_suppression()` (`settings.py:238`); user-writable via generic PATCH (`api/routes/settings.py:64`) |
-| `reset_db` | Operational flag (destructive) | `False` | `lifespan.py:48` | `lifespan.py:53` (cleared immediately after use); **not** user-writable (absent from `_USER_WRITABLE_KEYS`) |
-| `delete_media_on_removal` | Operational flag | `False` | `service/library/items.py:639` (gates media deletion on library-item removal) | user-writable (`api/routes/settings.py:65`) |
-| `PIN_PEPPER` | **Secret** | `""` | `pin_hashing.py` (via `patch_pin_pepper`), `api/routes/settings.py:151` | dedicated route only: `PATCH /settings/pin-pepper` (`:124`); refused on generic PATCH (`:81`) |
-| `THEGAMESDB_API_KEY` | **Secret** | not in `_DEFAULTS` (falls through to `get()`'s `default=None`) | `service/thegamesdb_client.py:22` | user-writable via generic PATCH (`AdvancedTab.tsx:32` → `_USER_WRITABLE_KEYS`) |
-| `AI_API_KEY`, `IGDB_API_KEY` | **Secret** (declared) | not in `_DEFAULTS` | **none found** — no backend consumer reads either key anywhere in `backend/` or `frontend/src` beyond the allowlists themselves (`api/routes/settings.py:51,62-63`). These are write-and-scrub-only: a user can PATCH them in and they'll never be read. Flagged below. | user-writable (`api/routes/settings.py:62-63`) |
-| `ALLOW_NETWORK_ACCESS` | Operational flag (security boundary) | not in `_DEFAULTS`, defaults `False` at call site | `security.py:47`, `main.py:57`, `auth.py:52` | **not** user-writable — no write site found anywhere (must be hand-edited into `settings.yaml`) |
-| `rating_ordinals` | Static reference data | not in `_DEFAULTS`; falls back to `_DEFAULT_RATING_ORDINALS` (`dependencies.py:16`) | `dependencies.py:40,60,80,186` | **not** user-writable; no write site found — hand-edit only |
-| `sandbox_{slug}_container_enabled`, `sandbox_{slug}_skip_memory_limit`, `sandbox_{slug}_skip_cpu_limit` | Operational flag (per-emulator) | from TOML (`emulator_catalog.py:306,316,332`) | `emulator_catalog.py:306,316,332` | `emulators.py:457` via `set_flag()`, looped over `("container_enabled","skip_cpu_limit","skip_memory_limit")` (`emulators.py:160`) |
-| `SCAN_NAV_THRESHOLD_BYTES` | Operational flag | `DEFAULT_SCAN_NAV_THRESHOLD_BYTES = 1 GiB` (`upload_utils.py:25`) | `library_collections.py:175-178` | **no write site found** — hand-edit only |
-| `UPLOAD_TMP_TTL_SECONDS` | Operational flag | `DEFAULT_UPLOAD_TMP_TTL_SECONDS = 24h` (`upload_utils.py:26`) | `startup_tasks.py:157` | **no write site found** — hand-edit only; **not previously listed in TYPES.md §5** |
-| `first_run_complete` | migrated to DB | — | dropped from YAML state at load (`settings.py:102`) | never written to YAML (DB-only, see §7.3) |
+Every key listed in §5 is DB-only, in the single `app_settings` table. There
+is no YAML-backed key any more, no `paths.yaml` overlay, and no key that must
+be reconciled between two stores — the YAML-vs-DB divergence TYPES.md §1
+used to flag is gone. The one remaining split is deliberate, not a
+divergence: the 4 secret-class keys (`PIN_PEPPER`, `THEGAMESDB_API_KEY`,
+`AI_API_KEY`, `IGDB_API_KEY`) are kept out of `app_settings` and live in
+`.env` instead (§7.3) — a secret must not round-trip through the same SQLite
+file the `reset_db` dev flag can delete.
 
-**New keys found beyond the TYPES.md §5 inventory:** `AI_API_KEY`,
-`IGDB_API_KEY` (declared/writable but dead), `UPLOAD_TMP_TTL_SECONDS`
-(consumed, undeclared, no default in `_DEFAULTS`), and confirmation that
-`ALLOW_NETWORK_ACCESS`, `rating_ordinals`, `SCAN_NAV_THRESHOLD_BYTES` have
-**no write path at all** — they are read-only from the app's perspective and
-can currently only be set by hand-editing `config/settings.yaml` directly.
+One operational consequence of the removal: `ALLOW_NETWORK_ACCESS`,
+`rating_ordinals`, and `SCAN_NAV_THRESHOLD_BYTES` previously had no
+programmatic write path and were "hand-edit `config/settings.yaml`" only.
+That escape hatch is now gone with no replacement UI/API route — changing
+any of these three today requires a direct write to the `app_settings`
+table (e.g. via a script), not a config-file edit.
 
-### 7.3 `app_settings` table (DB) — full consumer list
+### 7.3 Secrets — `.env`, mechanism unchanged by the collapse
+
+- `PIN_PEPPER` — single dedicated route (`PATCH /settings/pin-pepper`),
+  refused on the generic PATCH, scrubbed from `GET /settings`
+  (`_SENSITIVE_KEYS`).
+- `THEGAMESDB_API_KEY` — user-writable via generic PATCH (`AdvancedTab.tsx:32`
+  → `_USER_WRITABLE_KEYS`); scrubbed from GET; status-only endpoint
+  (`/thegamesdb-api-key/status`).
+- `AI_API_KEY` / `IGDB_API_KEY` — still dead secret surface: both are in
+  `_SENSITIVE_KEYS` and `_USER_WRITABLE_KEYS` (writable + scrubbed) but **no
+  code anywhere reads either key**, in `backend/` or `frontend/src`. Not a
+  leak, but a user can be led to believe setting these does something when
+  nothing consumes them. Unresolved carryover from the pre-collapse audit,
+  independent of the YAML removal — worth resolving (wire up a consumer or
+  remove the allowlist entries) on its own.
+- `get_env_secret()`/`set_env_secret()` (`backend/service/utils/env_secrets.py`)
+  are the only read/write path for all four keys. No secret ever touches
+  `app_settings`.
+
+### 7.4 `app_settings` table (DB) — full consumer list
 
 Definition: `backend/models/settings.py:8` (`Settings`, table `app_settings`,
 columns `key`/`value`/`updated_at`) and `:19` (`SettingsPatch`, a generic
-`{updates: dict}` Pydantic body — currently used only by the YAML-backed
-generic PATCH endpoint, **not** by the `Settings` DB model at all; the name
-overlap between `SettingsPatch` and the DB `Settings` table is coincidental,
-not a coupling).
+`{updates: dict}` Pydantic body used by the generic PATCH endpoint — the name
+overlap with the `Settings` DB model is coincidental, not a coupling).
 
-Every reference to the `Settings` DB model, repo-wide:
+Every key now round-trips through this table via `_load_all_rows()`/
+`_persist()` (`settings.py:79`/`:93`) — not just `first_run_complete` as
+before the collapse. `first_run_complete` itself is still handled the same
+way it always was: `backend/api/routes/settings.py` (`GET /first-run-status`,
+`POST /complete-first-run`) and `backend/core/startup_tasks.py`
+(`_sync_first_run_from_db`).
 
-- `backend/models/__init__.py:15` — re-export.
-- `backend/api/routes/settings.py:194,196` — `GET /first-run-status` reads
-  the row.
-- `backend/api/routes/settings.py:245-251` — `POST /complete-first-run`
-  upserts the row (`value="true"`).
-- `backend/core/startup_tasks.py:13-16` (`_sync_first_run_from_db`) — reads
-  the row at startup and calls `set_first_run_complete()` (an in-memory flag
-  in `security.py`, not a settings.yaml write) if true.
+### 7.5 Table-creation / seed flow (updated for the T1/T6 engine-sharing fix)
 
-**Confirmed: `first_run_complete` is the only key ever written to or read
-from `app_settings`.** No other route, service, or startup task touches the
-`Settings` model. Grepped for `SettingsModel`, `db.get(SettingsModel`,
-`db.query(SettingsModel` — zero hits outside the four sites above.
-
-### 7.4 Key classification — YAML-only / DB-only / both
-
-- **DB-only:** `first_run_complete`. Sole occupant of `app_settings`.
-- **YAML-only:** every other key in §7.2 (all path keys, flags, secrets,
-  per-emulator sandbox flags, thresholds). None of them have any DB-table
-  presence — there is no overlap/collision case today. "Which one wins" is
-  moot because no key is routed through both; the divergence TYPES.md §1
-  already flagged (operational flags in YAML, not DB) is total, not partial.
-- **Neither (hand-edit only):** `ALLOW_NETWORK_ACCESS`, `rating_ordinals`,
-  `SCAN_NAV_THRESHOLD_BYTES`, `UPLOAD_TMP_TTL_SECONDS` — these are read from
-  YAML state but have no programmatic write path; they only take a
-  non-default value if someone edits `config/settings.yaml` by hand.
-
-### 7.5 `%APPDATA%\Peach1UP\paths.yaml` — separate mechanism, confirmed
-
-- **Write sites:** `settings.py:139-157` (first-run generation, from
-  `_PATH_DEFAULTS`, only if the file doesn't exist yet) and `_save_paths()`
-  (`settings.py:387`, invoked by every `set_path()` call).
-  `settings.py:267` (`set_path`) is the only public entry point that reaches
-  `_save_paths()`.
-- **Read site:** `settings.py:123-137`, during `init()`, layered **on top of**
-  whatever `settings.yaml`/`_PATH_DEFAULTS` already resolved for each of the 5
-  `_PATH_KEYS` — `paths.yaml` values win if present and non-empty.
-- **Relationship to settings.yaml:** it is a genuinely separate file (separate
-  directory, separate atomic-write routine, separate schema — only the 5 path
-  keys), but it **shares the same key vocabulary and the same in-memory
-  `_state` dict** as `settings.yaml` once `init()` completes — from every
-  caller's perspective (`get()`, `get_env_var()`) there is one merged state,
-  and only `_save()` vs `_save_paths()` (both private) know which file a given
-  key round-trips through. A collapse to a single settings store would need
-  to either fold `paths.yaml` in or explicitly preserve it as the
-  machine-local override layer it currently is (its stated purpose — per-
-  install paths that shouldn't live in a shared/committed `settings.yaml`).
-
-### 7.6 Table-creation / seed flow
-
-- `backend/core/database.py:38` — `SQLModel.metadata.create_all(bind=_ENGINE)`,
-  called from `create_tables()`, invoked once at `lifespan.py:55`. Plain
+- `ensure_settings_table()` (`backend/core/database.py`) creates just the
+  `app_settings` table at T1 (import time, inside `settings.init()`, called
+  from `main.py` before the FastAPI app is built) — scoped narrowly enough to
+  run before the rest of `backend.models.*` has registered with
+  `SQLModel.metadata`.
+- `create_tables()` (`backend/core/database.py`, invoked from `lifespan.py`)
+  still runs the full `SQLModel.metadata.create_all()` at T6 (ASGI startup) —
+  a no-op for `app_settings` since it already exists by then. Plain
   `create_all`, no Alembic (matches CLAUDE.md stack notes).
-- **No seed step populates `app_settings`.** Grepped `startup_migrations.py`
-  and `startup_seed.py` for `Settings`/`app_settings` — zero hits. The table
-  is created empty on every fresh DB and only gains a row the first time
-  `POST /complete-first-run` is called (or, on an existing DB, whatever was
-  already committed there previously).
-
-### 7.7 Where secrets touch either mechanism (security-relevant — read first)
-
-- **`PIN_PEPPER`** — YAML-only, single dedicated route
-  (`PATCH /settings/pin-pepper`), refused on the generic PATCH, scrubbed from
-  `GET /settings` (`_SENSITIVE_KEYS`). No DB involvement. Consistent with
-  TYPES.md §1/§5.
-- **`THEGAMESDB_API_KEY`** — YAML-only, live value currently present in
-  `config/settings.yaml` on this checkout (gitignored, confirmed via repo
-  read — not reproduced here). Read by `thegamesdb_client.py:22`. Scrubbed
-  from `GET /settings`; status-only endpoint exists
-  (`/thegamesdb-api-key/status`). Matches TYPES.md §5.
-- **`AI_API_KEY` / `IGDB_API_KEY` — flag: dead secret surface.** Both are in
-  `_SENSITIVE_KEYS` (scrubbed from GET, so the intent to treat them as
-  secrets is real) and in `_USER_WRITABLE_KEYS` (a `can_edit_settings` user
-  can PATCH a value in), but **no code anywhere reads either key** — not in
-  `backend/`, not in `frontend/src`. This is not a leak (they're write-only
-  and still scrubbed on read), but it means: (a) a user can be led to believe
-  setting these keys does something, when nothing consumes them, and (b) if
-  a future feature adds a reader for one of these without re-auditing the
-  write/scrub path, that's the point a latent secret-handling assumption
-  gets exercised for the first time untested. Worth resolving one way
-  (wire up a consumer) or the other (remove the dead allowlist entries)
-  before any settings.yaml→DB collapse, so the collapse doesn't have to
-  carry forward dead secret plumbing.
-- **`.env` vs `settings.yaml` for secrets** — reconfirms TYPES.md §1: `.env`
-  is documented as the secrets home (`.env.template`) but holds no secrets
-  in practice; `PEACH_ENV`/`CORS_ORIGIN`/`DOCS_BASE_URL` are its only
-  documented keys, none sensitive. All four secret-class keys
-  (`PIN_PEPPER`, `THEGAMESDB_API_KEY`, `AI_API_KEY`, `IGDB_API_KEY`) route
-  through `settings.yaml`/`_SENSITIVE_KEYS` exclusively, not `.env`.
-- **No secret ever touches `app_settings` (DB).** The only DB-resident
-  settings value is `first_run_complete: "true"`, a non-sensitive boolean
-  string.
+- The legacy-migration seed step (`_migrate_legacy_config_into_db()`) has
+  been deleted along with `settings.yaml`/`paths.yaml`. `init()` no longer
+  does an empty-table check to trigger a one-time migration — there is
+  nothing left to migrate from.
 
 ---
 
-**Summary for the settings.yaml → DB collapse:** the collapse has one clean
-side and one non-trivial side. Clean: `app_settings` today holds exactly one
-key (`first_run_complete`) with 4 call sites total, so absorbing it into a
-unified store costs nothing to reason about. Non-trivial: `settings.yaml`
-carries ~20 keys across 5 classes (paths, flags, secrets, per-emulator
-sandbox flags, thresholds), a parallel `paths.yaml` machine-local override
-file that shares the same in-memory state but writes to a different
-location, and 4 keys (`AI_API_KEY`, `IGDB_API_KEY`, `ALLOW_NETWORK_ACCESS`,
-`rating_ordinals`, `SCAN_NAV_THRESHOLD_BYTES`, `UPLOAD_TMP_TTL_SECONDS`) with
-no programmatic write path today (hand-edit only) that a DB-backed model
-would need an explicit decision on (expose a write route, or keep them
-config-file/env-only by design). The two dead secret keys (`AI_API_KEY`,
-`IGDB_API_KEY`) are the one item worth resolving *before* the collapse
-rather than carrying forward. No fixes applied; no files edited outside this
-document.
+**Summary:** the settings.yaml → DB collapse is complete. `app_settings` now
+holds every operational flag, per-emulator sandbox override, and path key;
+secrets remain in `.env` by design (§7.3). The two items worth resolving
+independently of the collapse, carried forward unchanged from the original
+discovery: the dead `AI_API_KEY`/`IGDB_API_KEY` secret surface (§7.3), and
+the DB's lack of Literal enforcement (§6).

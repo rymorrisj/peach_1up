@@ -12,7 +12,7 @@ F0 — Startup / Lifespan (process boot + teardown)
 
 Entry: ASGI startup → lifespan (core/lifespan.py:32).
 
-- lifespan:33 -> core.settings.init_settings [load .env + settings.yaml]
+- lifespan:33 -> core.settings.init_settings [load .env + app_settings (DB); settings.yaml/paths.yaml removed]
 - lifespan:35 -> logger.setup_logging
 - lifespan:36 -> startup_tasks.\_ensure_default_paths (startup_tasks.py:72) [mkdir library tree]
 - lifespan:38 -> service.utils.settings.validate_configured_paths; :39 stores app.state.path_warnings
@@ -276,14 +276,14 @@ F10 — Settings & First-Run
 
 Routes in settings.py.
 
-- GET "" (:60) returns settings minus \_-prefixed and sensitive keys. PATCH "" (:70) [can_edit_settings]: path keys → svc.set_path; others → mutate state + \_save.
+- GET "" (:60) returns settings minus \_-prefixed and sensitive keys. PATCH "" (:70) [can_edit_settings]: path keys → svc.set_path; others → mutate state + \_persist (app_settings DB row).
 - POST /validate (:83) — thin stub, returns empty results (no further trace).
 - GET /first-run-status (:88): DB first_run row + owner count + compute_setup_status + path snapshot + app.state.path_warnings. GET /owner-status (:111) unauthenticated
   owner-health check.
 - POST /emulator-path (:119) / POST /library-path (:146): normalise + existence/type check → svc.set_path.
 - POST /complete-first-run (:165) [can_edit_settings]: write DB first_run_complete=true → security.set_first_run_complete() (flips middleware cache, see F0/middleware).
 
-Terminal effects: settings.yaml mutated; first-run DB flag + middleware cache flipped.
+Terminal effects: app_settings DB row(s) mutated; first-run DB flag + middleware cache flipped.
 Mechanizability: deterministic. The \_ALL_PATH_KEYS membership branch in PATCH is a static set lookup.
 
 ---

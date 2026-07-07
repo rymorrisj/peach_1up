@@ -90,7 +90,8 @@ makensis installer\peach1up.nsi
 
 Output: `Peach1UP-Setup.exe`. Installs to `%PROGRAMFILES%\Peach1UP\`, registers a
 Windows service via WinSW, and creates a Start Menu shortcut. The uninstaller stops
-the service and removes all files; `config\settings.yaml` is preserved.
+the service and removes all files except `database\data\` (settings and library data)
+and `.env`, which are preserved.
 
 ---
 
@@ -106,8 +107,11 @@ the service and removes all files; `config\settings.yaml` is preserved.
 
 ## Configuration
 
-Binary paths and runtime settings live in `config/settings.yaml`. A `.env`
-file is supported as a legacy override — values in `.env` take precedence over
-`settings.yaml`. See `settings.yaml` for documented defaults.
+Runtime settings (binary paths, operational flags, per-emulator overrides) are
+stored in the `app_settings` table inside the SQLite database at
+`database/data/peach1up.db` — there is no settings file to edit. Most are
+configurable from the Settings page in the app. Secrets (PIN pepper,
+TheGamesDB API key, etc.) live separately in a root `.env` file — see
+`.env.template` for the supported keys.
 
 

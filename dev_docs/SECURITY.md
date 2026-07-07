@@ -71,7 +71,7 @@ Permission flags on sub-accounts:
 **PIN security:**
 
 - PINs are 4–6 digits, stored as Argon2id hashes with a per-user random salt.
-- An optional app-level pepper may be configured in `settings.yaml`, stored outside SQLite.
+- An optional app-level pepper (`PIN_PEPPER`) may be configured via `PATCH /api/v1/settings/pin-pepper`, stored in `.env` — outside SQLite.
 - Plaintext PINs are never stored, logged, or returned by any API endpoint.
 - 4 consecutive failures locks the account. Owner resets via Settings.
 - Owner lockout: run `scripts/setup_admin_user.py` locally — overwrites the owner record.
@@ -86,7 +86,9 @@ Permission flags on sub-accounts:
   filtered at the query level — hidden entirely, not surfaced and denied at launch.
 - Enforcement is server-side. Deny wins over any permission flag with no override path.
 - Rating scale is freetext on `LibraryItem`. Recommended: ESRB (E, E10+, T, M, AO) or
-  PEGI (3, 7, 12, 16, 18). Ordinal comparison map configured in `settings.yaml`.
+  PEGI (3, 7, 12, 16, 18). Ordinal comparison map configured via the
+  `rating_ordinals` key in `app_settings` (falls back to defaults in
+  `dependencies.py` — ⚠ no write path exists today; see Known Gaps).
 
 ---
 
@@ -110,9 +112,10 @@ Permission flags on sub-accounts:
   least one validation layer between input and execution.
 - Emulator binary paths are **never taken from request input**, query parameters, or
   profile fields. Paths resolve through three tiers: (1) user override stored in
-  `settings.yaml` via the UI, (2) bundled project `emulators/{slug}/` directory,
-  (3) catalog-detected known installation paths from `emulators.yaml`. No registry
-  scanning. This rule has no exceptions.
+  `app_settings` (per-slug `<SLUG>_PATH` key — ⚠ no UI or API write path exists,
+  settable only via direct DB write; see Known Gaps), (2) bundled project
+  `emulators/{slug}/` directory, (3) catalog-detected known installation paths
+  from `emulators.yaml`. No registry scanning. This rule has no exceptions.
 - CLI arguments passed to emulator processes come from validated `Profile` config fields
   only. There is no freeform command construction anywhere in the codebase.
 - All validated inputs must be checked again at the point of use — do not rely on prior
@@ -125,9 +128,9 @@ Permission flags on sub-accounts:
 **Mandatory.**
 
 - Emulator binary paths are never derived from request input. Paths resolve through
-  three tiers: `settings.yaml` user override, bundled `emulators/{slug}/` project
-  directory, or catalog-detected system installation paths from `emulators.yaml`.
-  No registry scanning.
+  three tiers: `app_settings` per-slug user override, bundled `emulators/{slug}/`
+  project directory, or catalog-detected system installation paths from
+  `emulators.yaml`. No registry scanning.
 - Arguments are constructed from validated `Profile` fields only. No string interpolation
   of raw user input into argument lists.
 - A launch cooldown is enforced between successive requests to prevent rapid-fire
@@ -235,7 +238,7 @@ affected, and the timestamp.
   stored or logged.
 - HTTP middleware strips `Authorization` headers before any log output. Credentials must
   not appear in application logs under any circumstances.
-- IGDB API keys and any other third-party API credentials are stored in `settings.yaml`
+- IGDB API keys and any other third-party API credentials are stored in `.env`
   only. They are never committed to version control, never returned by the API, and never
   logged.
 - The recovery key is shown once at first run and then discarded. It is stored as an
@@ -457,19 +460,20 @@ This gap is tracked and will be addressed in a future hardening pass, either by 
 a configurable allowlist with an opt-out flag or by surfacing an explicit warning at
 environment registration time.
 
-### Library path configuration requires direct settings.yaml edit
+### Library path configuration has no user-facing mechanism
 
-The Library Paths settings panel was removed from the UI in session \[B4\]. LIBRARY_PATH, PROFILES_PATH, and ROMS_PATH can no longer be set through the frontend. Users with non-standard installs (library on a secondary drive, NAS share, or external volume) must edit config/settings.yaml directly to reconfigure these paths.
+The Library Paths settings panel was removed from the UI in session \[B4\]. LIBRARY_PATH, PROFILES_PATH, and ROMS_PATH can no longer be set through the frontend. The `config/settings.yaml` hand-edit fallback documented here previously has also been removed — settings are now DB-backed via `app_settings`, and no equivalent file exists to hand-edit. **There is currently no file-based or UI-based way for a user to reconfigure these three paths.**
 
-The backend endpoint POST /api/v1/settings/library-path remains live and functional. A future admin settings UI or power user can call it directly.
+The backend endpoint POST /api/v1/settings/library-path remains live and functional — it writes directly to `app_settings` via `set_path()`. It requires a `can_edit_settings`-permitted session, which in practice means calling the API directly (e.g. via curl with an authenticated cookie) rather than anything a typical user can do through the app.
 
-Highest-risk case: ROMS_PATH defaults to {project_root}/library/system/roms/86box. Users who supply 86Box ROMs from a zip extracted to a non-default location (the common case) will silently use the wrong ROM path after a clean install until they manually edit settings.yaml. The 86Box backend will raise a ROM path error at launch time rather than silently proceeding, so the failure is visible — but the fix path is not obvious without documentation.
+⚠ **Flag — needs a decision, not fixed here:** the previous mitigation for this gap (hand-edit a config file) no longer has any equivalent at all, which is a regression from before the settings.yaml removal, not just a doc-accuracy fix. Replacement options (restore a UI panel, or document a supported API/CLI workflow for advanced users) need to be decided before this doc can point users anywhere concrete.
+
+Highest-risk case: ROMS_PATH defaults to {project_root}/library/system/roms/86box. Users who supply 86Box ROMs from a zip extracted to a non-default location (the common case) will silently use the wrong ROM path after a clean install, with no documented way to correct it short of calling the API directly. The 86Box backend will raise a ROM path error at launch time rather than silently proceeding, so the failure is visible — but the fix path is now undocumented anywhere.
 
 #### Mitigations
 
-- The README and first-run wizard should surface settings.yaml path configuration explicitly for non-standard installs.
-- The 86Box ROM path guidance card on the emulator detail page should include a note that the path can be overridden in settings.yaml if the
-  default is wrong.
+- ~~The README and first-run wizard should surface settings.yaml path configuration explicitly for non-standard installs.~~ No longer applicable — settings.yaml does not exist. Needs replacement guidance once the flag above is resolved.
+- ~~The 86Box ROM path guidance card on the emulator detail page should include a note that the path can be overridden in settings.yaml.~~ Same — needs updated wording once a replacement mechanism exists.
 - GeneralTab.tsx is orphaned and can be deleted when convenient.
 
 #### TheGamesDB Metadata fetching

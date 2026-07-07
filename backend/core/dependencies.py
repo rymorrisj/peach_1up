@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from backend.constants_generated import CONTENT_RATINGS
 from backend.core.database import get_db
 from backend.core.identity import parse_session_cookie, validate_session
 from backend.core.logger import get_logger
@@ -13,25 +14,32 @@ from backend.models.user import User
 
 _log = get_logger(__name__)
 
-_DEFAULT_RATING_ORDINALS: dict[str, int] = {
-    "EC": 0,
-    "E": 1,
-    "E10+": 2,
-    "T": 3,
-    "M": 4,
-    "AO": 5,
-    "PEGI 3": 0,
-    "PEGI 7": 1,
-    "PEGI 12": 2,
-    "PEGI 16": 3,
-    "PEGI 18": 4,
-}
+
+def _derive_rating_ordinals() -> dict[str, int]:
+    """Derive rating ordinals from CONTENT_RATINGS (config/constants.yaml).
+
+    Ordinal = index within its scheme group (ESRB, PEGI, ...), in declared
+    list order — each scheme's own severity ladder starts back at 0. This
+    replaces a hand-maintained duplicate of the rating list that had to be
+    kept in sync by hand; CONTENT_RATINGS is now the single source.
+    """
+    ordinals: dict[str, int] = {}
+    counters: dict[str, int] = {}
+    for entry in CONTENT_RATINGS:
+        scheme = entry["scheme"]
+        ordinal = counters.get(scheme, 0)
+        ordinals[entry["value"]] = ordinal
+        counters[scheme] = ordinal + 1
+    return ordinals
+
+
+_BASE_RATING_ORDINALS: dict[str, int] = _derive_rating_ordinals()
 
 
 def _load_rating_ordinals() -> dict[str, int]:
     """Return the rating ordinal map from app_settings (key: rating_ordinals) or defaults.
 
-    Falls back to _DEFAULT_RATING_ORDINALS when settings are unavailable
+    Falls back to _BASE_RATING_ORDINALS when settings are unavailable
     (RuntimeError before init) or malformed (TypeError/ValueError) — the
     default vocabulary is the safe, restrictive baseline, never a widening.
     """
@@ -42,7 +50,7 @@ def _load_rating_ordinals() -> dict[str, int]:
             return {str(k): int(v) for k, v in custom.items()}
     except (RuntimeError, TypeError, ValueError):
         pass
-    return dict(_DEFAULT_RATING_ORDINALS)
+    return dict(_BASE_RATING_ORDINALS)
 
 
 def normalize_content_rating(raw: str | None) -> str | None:
@@ -57,7 +65,7 @@ def normalize_content_rating(raw: str | None) -> str | None:
     if not raw or not raw.strip():
         return None
     text = raw.strip()
-    canonical = {k.casefold(): k for k in _DEFAULT_RATING_ORDINALS}
+    canonical = {k.casefold(): k for k in _BASE_RATING_ORDINALS}
     if text.casefold() in canonical:
         return canonical[text.casefold()]
     # Fall back to the leading token, e.g. "M - Mature 17+" -> "M",

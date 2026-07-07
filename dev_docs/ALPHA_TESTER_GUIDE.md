@@ -103,7 +103,7 @@ Peach 1UP supports multiple household accounts.
 
 ### Settings
 
-- **Library paths** — configure where Peach 1UP looks for media (edit `config/settings.yaml` directly for non-standard locations — see Known Limitations)
+- **Library paths** — configure where Peach 1UP looks for media (no in-app way to change these for non-standard locations in this build — see Known Limitations)
 - **Users** — manage accounts, reset PINs, unlock accounts
 - **Attribution** — GPL source links and emulator credits
 
@@ -138,8 +138,8 @@ xemu runs on QEMU TCG which requires a kernel call that AppContainer blocks. xem
 **LaunchProfiles — launch commands wiped on save**
 If a profile has custom launch commands configured, editing and saving the profile will wipe those commands. Avoid editing profiles that have launch commands set until this is fixed.
 
-**Library path configuration — no UI**
-The library path settings panel is not available in the UI for this build. If your media lives outside the default install directory, edit `config/settings.yaml` directly. The 86Box ROM path is the most common case — if 86Box fails to launch, check that `ROMS_PATH` in `settings.yaml` points to the correct directory.
+**Library path configuration — no UI, no workaround**
+The library path settings panel is not available in the UI for this build. Settings are DB-backed now (`app_settings` table) — the previous workaround of hand-editing `config/settings.yaml` no longer applies, and there is currently no other user-facing way to change LIBRARY_PATH, PROFILES_PATH, or ROMS_PATH. The 86Box ROM path is the most common case affected — if 86Box fails to launch with a ROM path error, there is no documented fix for a non-default ROM location in this build. ⚠ Flagging for a decision — see SECURITY.md Known Gaps ("Library path configuration has no user-facing mechanism").
 
 **86Box AppContainer — untested**
 86Box runs under Job Object isolation only for this alpha. AppContainer has not been validated for 86Box yet.
@@ -176,7 +176,7 @@ python scripts/setup_admin_user.py
 This overwrites the owner account interactively. You will need to set a new PIN.
 
 **86Box launches but immediately closes**
-The ROM pack may not be detected. Check Settings → Emulators → 86Box for a ROM path warning. If the path is wrong, edit `config/settings.yaml` and set `ROMS_PATH` to the correct directory, then restart the backend from the system tray.
+The ROM pack may not be detected. Check Settings → Emulators → 86Box for a ROM path warning. There is currently no in-app or config-file way to correct `ROMS_PATH` if it's wrong in this build (see Known Limitations — Library path configuration) — for now, place the ROM pack at the default location, `{install directory}/library/system/roms/86box`.
 
 **Environment (Win95/98/XP) shows driver prompts on every boot**
 This is the PnP hardware detection loop. It should not occur in this build — if you see repeated driver prompts on consecutive boots of the same environment, report it with the era and any steps to reproduce.

@@ -15,17 +15,15 @@ call before the rest of backend.models.* has registered with SQLModel's
 metadata. The later, full create_tables() call in the lifespan handler
 no-ops on a table that already exists.
 
-settings.yaml and %APPDATA%\\Peach1UP\\paths.yaml are read exactly once, as a
-migration source, the first time app_settings is found empty — see
-_migrate_legacy_config_into_db(). After that first boot neither file is read
-or written again by this module.
+The legacy settings.yaml / %APPDATA%\\Peach1UP\\paths.yaml files (and their
+one-time migration into app_settings/.env) have been fully retired — this
+module is now DB-only, with secrets in .env (see env_secrets.py).
 """
 
 from __future__ import annotations
 
 import json
 import os
-import sys
 from pathlib import Path
 from typing import Optional
 
@@ -34,8 +32,6 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import ensure_settings_table, get_engine
 from backend.models.settings import Settings
-from backend.service.utils.env_secrets import _ENV_KEYS as _SECRET_KEYS
-from backend.service.utils.env_secrets import get_env_secret, set_env_secret
 
 
 def _get_project_root() -> Path:
@@ -43,18 +39,7 @@ def _get_project_root() -> Path:
     return get_base_path()
 
 
-def _legacy_paths_dir() -> Path:
-    if sys.platform == "win32":
-        appdata = os.environ.get("APPDATA", "")
-        if appdata:
-            return Path(appdata) / "Peach1UP"
-    return Path.home() / ".config" / "Peach1UP"
-
-
 _PROJECT_ROOT: Path = _get_project_root()
-
-# Read once by _migrate_legacy_config_into_db() and never again.
-_LEGACY_SETTINGS_PATH = _PROJECT_ROOT / "config" / "settings.yaml"
 
 from backend.service.utils.upload_utils import DEFAULT_UPLOAD_TMP_TTL_SECONDS  # noqa: E402
 
@@ -91,11 +76,6 @@ _PATH_DEFAULTS: dict[str, str] = {
 _state: Optional[dict] = None
 
 
-def _count_rows() -> int:
-    with Session(get_engine()) as session:
-        return session.query(Settings).count()
-
-
 def _load_all_rows() -> dict:
     with Session(get_engine()) as session:
         rows = session.query(Settings.key, Settings.value).all()
@@ -121,69 +101,6 @@ def _persist(key: str, value) -> None:
         session.commit()
 
 
-def _migrate_legacy_config_into_db() -> None:
-    """One-time migration off settings.yaml/paths.yaml into app_settings/.env.
-
-    Only called from init() when app_settings is empty. Reads the legacy
-    files as a plain, one-shot data source: whatever is found there is
-    layered over _DEFAULTS, path keys are taken from paths.yaml when present
-    (it previously took precedence over settings.yaml for those 5 keys), the
-    four secret keys are diverted to .env instead of app_settings, and
-    everything else (operational flags, per-emulator sandbox_* overrides,
-    hand-edited-only keys like ALLOW_NETWORK_ACCESS) is written through
-    verbatim. Neither YAML file is touched again after this runs.
-    """
-    import logging
-    import yaml
-
-    log = logging.getLogger(__name__)
-
-    raw_settings: dict = {}
-    if _LEGACY_SETTINGS_PATH.exists():
-        with _LEGACY_SETTINGS_PATH.open("r", encoding="utf-8") as fh:
-            loaded = yaml.safe_load(fh) or {}
-        if isinstance(loaded, dict):
-            raw_settings = loaded
-
-    raw_paths: dict = {}
-    legacy_paths_file = _legacy_paths_dir() / "paths.yaml"
-    if legacy_paths_file.exists():
-        try:
-            with legacy_paths_file.open("r", encoding="utf-8") as fh:
-                loaded = yaml.safe_load(fh) or {}
-            if isinstance(loaded, dict):
-                raw_paths = loaded
-        except yaml.YAMLError as exc:
-            log.warning(
-                "Legacy paths.yaml at %s is not valid YAML and will be skipped: %s",
-                legacy_paths_file, exc,
-            )
-
-    to_seed: dict = dict(_DEFAULTS)
-    to_seed.update(raw_settings)
-    # first_run_complete has been DB-only (its own row, managed by
-    # api/routes/settings.py + startup_tasks.py) since before this collapse.
-    to_seed.pop("first_run_complete", None)
-    for pkey in _PATH_KEYS:
-        pval = raw_paths.get(pkey)
-        if pval and isinstance(pval, str):
-            to_seed[pkey] = pval
-
-    for skey in _SECRET_KEYS:
-        val = to_seed.pop(skey, "")
-        if val and not get_env_secret(skey):
-            set_env_secret(skey, str(val))
-
-    for key, value in to_seed.items():
-        _persist(key, value)
-
-    log.info(
-        "Migrated legacy settings.yaml/paths.yaml into app_settings (%d key(s)); "
-        "those files are no longer read — do not hand-edit them.",
-        len(to_seed),
-    )
-
-
 def init() -> None:
     """Load .env and app_settings into module-level state.
 
@@ -203,9 +120,6 @@ def init() -> None:
     load_dotenv(_PROJECT_ROOT / ".env")
 
     ensure_settings_table()
-
-    if _count_rows() == 0:
-        _migrate_legacy_config_into_db()
 
     state: dict = dict(_DEFAULTS)
     state.update(_load_all_rows())
@@ -363,12 +277,10 @@ def reset_db_completed() -> None:
     """Clear the reset_db flag and rewrite every in-memory setting to disk.
 
     Called by the lifespan handler immediately after deleting peach1up.db
-    for a reset_db cycle. Settings now live in the same SQLite file as
-    library data, so deleting it also empties app_settings — without this,
-    a reset_db wipe would silently drop every configured setting, a
-    regression versus the old settings.yaml/paths.yaml behaviour where a
-    reset_db wipe never touched those separate files. Re-persisting the
-    state that was already loaded before the delete restores parity.
+    for a reset_db cycle. Settings live in the same SQLite file as library
+    data, so deleting it also empties app_settings — without this, a
+    reset_db wipe would silently drop every configured setting. Re-persisting
+    the state that was already loaded before the delete restores it.
 
     Raises:
         RuntimeError: If init() has not been called.

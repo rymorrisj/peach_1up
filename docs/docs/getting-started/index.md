@@ -124,10 +124,10 @@ with `./start.sh` as shown above.
 
 ## Configuration
 
-Runtime settings and binary paths live in `config/settings.yaml`. Machine-specific paths (library
-location, emulator overrides) are written to `%APPDATA%\Peach1UP\paths.yaml` on Windows (or
-`~/.config/Peach1UP/` on Linux) and are never committed. A root `.env` file (see `.env.template`)
-supplies secrets and machine-specific overrides, which take precedence over `settings.yaml`.
+Runtime settings and binary paths are stored in the `app_settings` table inside the SQLite
+database (`database/data/peach1up.db`), not in a config file — most are configurable from the
+Settings page in the app. A root `.env` file (see `.env.template`) holds secrets (PIN pepper,
+TheGamesDB API key, etc.) and is never committed.
 
 ## Where to next
 

@@ -422,7 +422,7 @@ Users page: owner clicks trash icon → browser confirm() dialog (button hidden
 ```
 Owner locked out (4+ failed PINs) or PIN forgotten
   → Run: python scripts/setup_admin_user.py
-    → reads DB path from config/settings.yaml (falls back to database/data/peach1up.db)
+    → reads DB path via backend.core.settings.get_db_path() (fixed at database/data/peach1up.db, not configurable)
     → prompt: Owner name, PIN, confirm PIN
     → if owner exists: overwrite name, pin_hash, reset failed_pin_attempts=0, is_locked=false
     → if no owner: create User(id=1, is_owner=true, all permissions=true)
@@ -465,7 +465,7 @@ GET /api/v1/library (or any library endpoint using get_filtered_library)
     → user.is_owner → return all items (no filter)
     → exclude items in MediaRestriction WHERE user_id=user.id
     → block_unrated_media=true → exclude items WHERE content_rating IS NULL OR ""
-    → max_content_rating set → load rating_ordinals from settings.yaml (or defaults)
+    → max_content_rating set → load rating_ordinals from app_settings (or defaults; ⚠ no write path exists today, see SECURITY.md Known Gaps)
       → compute allowed set: all ratings with ordinal ≤ max
       → filter: item passes if rating is NULL/empty, in allowed set, or unknown (foreign ratings pass through)
 ```
@@ -541,7 +541,7 @@ five carry an owner-target guard regardless of which path let the caller in.
 - `pin_hash` — excluded from `UserRead`; never returned by any endpoint
 - `token` value — set as cookie only; never in response body, never logged
 - `Authorization` headers — stripped by middleware before any log output
-- IGDB / third-party API keys — `settings.yaml` only; never returned by API
+- IGDB / third-party API keys — `.env` only; never returned by API
 - Recovery key — shown once at first run (see SECURITY.md); stored as Argon2id hash only
 
 ---
