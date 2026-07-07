@@ -169,6 +169,7 @@ function PinPepperSection() {
         open={modalOpen}
         title="Change PIN pepper"
         onClose={() => setModalOpen(false)}
+        busy={submitting}
         footer={
           <>
             <Button variant="secondary" size="sm" onClick={() => setModalOpen(false)} disabled={submitting}>
@@ -324,6 +325,7 @@ export default function AdvancedTab() {
         open={confirmOpen}
         title="Reset sandbox state"
         onClose={() => setConfirmOpen(false)}
+        busy={resetting}
         footer={
           <>
             <Button

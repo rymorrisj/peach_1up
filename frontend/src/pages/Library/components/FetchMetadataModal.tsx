@@ -176,12 +176,14 @@ export function FetchMetadataModal({
 
   const showCoverArt = entityType === 'library_item'
   const showMetadata = entityType === 'library_collection'
+  const busy = phase === 'search' ? searching || fetching : applying
 
   return (
     <Modal
       open={open}
       title="Fetch Metadata"
       onClose={onClose}
+      busy={busy}
       footer={
         phase === 'search' ? (
           <div className="flex items-center gap-3">

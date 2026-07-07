@@ -50,6 +50,7 @@ export function ScanModal({ open, onClose, onImported, mediaPath }: ScanModalPro
       open={open}
       title="Scan Library"
       onClose={onClose}
+      busy={busy}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>

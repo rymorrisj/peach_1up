@@ -7,9 +7,10 @@ interface ModalProps {
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
+  busy?: boolean
 }
 
-export function Modal({ open, title, onClose, children, footer }: ModalProps) {
+export function Modal({ open, title, onClose, children, footer, busy = false }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -29,6 +30,20 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
     dialog.addEventListener('close', handleClose)
     return () => dialog.removeEventListener('close', handleClose)
   }, [onClose])
+
+  // The native 'cancel' event fires on Escape before 'close'. Without this,
+  // Escape closes the dialog unconditionally, bypassing any Cancel button's
+  // disabled={busy} guard elsewhere in the tree. Blocking it here at the
+  // source covers every caller, not just the ones that remember to check.
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const handleCancel = (e: Event) => {
+      if (busy) e.preventDefault()
+    }
+    dialog.addEventListener('cancel', handleCancel)
+    return () => dialog.removeEventListener('cancel', handleCancel)
+  }, [busy])
 
   return (
     <dialog

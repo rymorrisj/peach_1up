@@ -242,6 +242,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       open={open}
       title="Add Media"
       onClose={onClose}
+      busy={busy}
       footer={
         folderMode ? (
           <div className="flex items-center gap-3">

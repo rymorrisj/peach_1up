@@ -120,6 +120,7 @@ export default function EnvironmentModal({
       open={open}
       title={mode === 'create' ? 'Add Environment' : 'Edit Environment'}
       onClose={onClose}
+      busy={submitting}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={submitting}>

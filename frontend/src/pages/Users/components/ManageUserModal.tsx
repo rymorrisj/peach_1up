@@ -104,6 +104,7 @@ export function ManageUserModal({
       open={open}
       title={isCreate ? "Add Account" : `Edit ${targetName ?? "Account"}`}
       onClose={onClose}
+      busy={submitting}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={submitting}>

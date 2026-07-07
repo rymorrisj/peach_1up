@@ -241,6 +241,7 @@ export default function Profiles() {
         open={createOpen}
         title="New Profile"
         onClose={() => setCreateOpen(false)}
+        busy={submitting}
         footer={
           <>
             <button

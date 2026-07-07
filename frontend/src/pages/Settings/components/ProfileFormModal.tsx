@@ -28,6 +28,7 @@ export function ProfileFormModal({
       open={modal !== null}
       title={modalTitle}
       onClose={onClose}
+      busy={submitting}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={submitting}>
