@@ -11,13 +11,6 @@ backend/service/utils/platform/windows/sandbox_checker/src/test_qt_qpa.exe
 *.env
 !.env.template
 
-# Local settings (non-path runtime flags; template is tracked)
-config/settings.yaml
-
-# Machine-specific path config (generated at runtime in %APPDATA%\Peach1UP\; template is tracked)
-paths.yaml
-config/paths.yaml
-
 # Python
 __pycache__/
 *.py[cod]

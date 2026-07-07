@@ -140,15 +140,6 @@ if errorlevel 1 (
 popd
 echo [OK] API reference docs generated
 
-REM ── Settings check ───────────────────────────────────────────
-if not exist "config\settings.yaml" (
-    echo.
-    echo WARNING: config\settings.yaml not found.
-    echo settings.yaml will be created automatically on first launch.
-) else (
-    echo [OK] config\settings.yaml found
-)
-
 REM ── Sandbox build check ──────────────────────────────────────
 if exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
     echo [OK] sandbox_host.exe found

@@ -54,15 +54,6 @@ echo "Installing frontend dependencies..."
 ( cd frontend && npm install )
 echo "[OK] Frontend dependencies installed"
 
-# ── Settings check ─────────────────────────────────────────────
-if [ ! -f "config/settings.yaml" ]; then
-  echo
-  echo "WARNING: config/settings.yaml not found."
-  echo "settings.yaml will be created automatically on first launch."
-else
-  echo "[OK] config/settings.yaml found"
-fi
-
 # ── Sandbox build check ────────────────────────────────────────
 # sandbox_host.exe is a Windows-only artifact; no build step is run on Unix.
 if [ ! -f "backend/service/utils/platform/windows/sandbox/sandbox_host.exe" ]; then

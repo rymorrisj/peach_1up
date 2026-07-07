@@ -165,15 +165,6 @@ if errorlevel 1 (
 popd
 echo [OK] Docs built
 
-REM ── Settings check ───────────────────────────────────────────
-if not exist "config\settings.yaml" (
-    echo.
-    echo WARNING: config\settings.yaml not found.
-    echo settings.yaml will be created automatically on first launch.
-) else (
-    echo [OK] config\settings.yaml found
-)
-
 REM ── Add MSYS2 UCRT64 to PATH for g++ ─────────────────────────────────────────
 set "MSYS2_UCRT64=%SystemDrive%\msys64\ucrt64\bin"
 if exist "%MSYS2_UCRT64%\g++.exe" (
@@ -268,15 +259,6 @@ if errorlevel 1 (
     goto :error
 )
 echo [OK] sandbox exes copied
-
-echo === Stripping machine-specific keys from dist settings.yaml ===
-".venv\Scripts\python.exe" -c "import yaml,pathlib; p=pathlib.Path('dist/peach1up/config/settings.yaml'); d=yaml.safe_load(p.read_text()) or {}; [d.pop(k,None) for k in ['first_run_complete','LIBRARY_PATH','MEDIA_PATH','OS_PATH','ROMS_PATH','PROFILES_PATH']]; p.write_text(yaml.dump(d))"
-
-echo === Writing peach_env=production to dist settings.yaml ===
-".venv\Scripts\python.exe" -c "import yaml,pathlib; p=pathlib.Path('dist/peach1up/config/settings.yaml'); d=yaml.safe_load(p.read_text()) or {}; d['peach_env']='production'; p.write_text(yaml.dump(d))"
-
-REM Ensure paths.yaml is never shipped in the bundle — it is generated at runtime in %APPDATA%\Peach1UP\
-if exist "dist\peach1up\config\paths.yaml" del /f /q "dist\peach1up\config\paths.yaml"
 
 echo === Build complete ===
 
