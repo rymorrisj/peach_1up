@@ -168,6 +168,67 @@ describe('useLibraryScan', () => {
     expect(result.current.importResult?.skipped).toBe(2)
   })
 
+  it('a stale in-flight import does not clobber a later successful import after Escape-closing and reopening the modal', async () => {
+    // Regression test for a race where the modal's native <dialog> Escape-key
+    // close bypasses the disabled Cancel button and does not cancel the
+    // in-flight import request. If the user then reopens the modal and runs
+    // a second, successful import, the first (now-stale) request's eventual
+    // failure must not resurrect the error banner over the fresh success.
+    let resolveFirst!: (v: unknown) => void
+    const firstImportPromise = new Promise((resolve) => { resolveFirst = resolve })
+    let callCount = 0
+    setApiRoutes({
+      '/api/v1/library/scan/import': () => {
+        callCount += 1
+        // First call: stays pending until we manually settle it later.
+        // Second call: resolves immediately with a successful result.
+        return callCount === 1 ? firstImportPromise : { imported: 1, skipped: 0, errors: [] }
+      },
+    })
+
+    const onImported = vi.fn()
+    const { result, rerender } = renderHook(
+      ({ open }: { open: boolean }) => useLibraryScan({ open, onImported }),
+      { wrapper: createWrapper(), initialProps: { open: true } },
+    )
+
+    // Start the first (slow) import — mirrors clicking Import.
+    let firstImportDone!: Promise<void>
+    act(() => {
+      firstImportDone = result.current.handleImport(['/lib/game1.nes'])
+    })
+    expect(result.current.importing).toBe(true)
+
+    // User presses Escape mid-request: the dialog closes natively (open ->
+    // false) without cancelling the request above, then the modal is
+    // reopened.
+    await act(async () => { rerender({ open: false }) })
+    await act(async () => { rerender({ open: true }) })
+
+    expect(result.current.importing).toBe(false)
+    expect(result.current.error).toBeNull()
+    expect(result.current.importResult).toBeNull()
+
+    // A second, fresh import now runs and succeeds.
+    await act(async () => {
+      await result.current.handleImport(['/lib/game2.nes'])
+    })
+    expect(result.current.importResult).toEqual({ imported: 1, skipped: 0, errors: [] })
+    expect(result.current.error).toBeNull()
+
+    // The original (first) request finally settles — as a failure — well
+    // after the second one already succeeded.
+    await act(async () => {
+      resolveFirst(Promise.reject(new ApiError(500, 'boom')))
+      await firstImportDone
+    })
+
+    // The stale failure must not resurrect the error banner over the
+    // already-successful, current import result.
+    expect(result.current.error).toBeNull()
+    expect(result.current.importResult).toEqual({ imported: 1, skipped: 0, errors: [] })
+  })
+
   it('error state is set when the scan POST fails', async () => {
     setApiRoutes({
       '/api/v1/library/scan': () => { throw new ApiError(503, 'Scan failed') },
