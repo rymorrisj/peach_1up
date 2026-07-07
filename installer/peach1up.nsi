@@ -54,16 +54,6 @@ Section "Peach 1UP" SecMain
     SetOutPath "$INSTDIR\emulators"
     File /r "..\emulators\*.*"
 
-    ; --- Config (template only; user config is preserved on update) ---
-    SetOutPath "$INSTDIR\config"
-    File /nonfatal "..\config\settings.yaml.template"
-
-    ; Preserve existing settings.yaml on update
-    ${IfNot} ${FileExists} "$INSTDIR\config\settings.yaml"
-        File /nonfatal "..\config\settings.yaml.template"
-        Rename "$INSTDIR\config\settings.yaml.template" "$INSTDIR\config\settings.yaml"
-    ${EndIf}
-
     ; --- WinSW ---
     SetOutPath "$INSTDIR\tools"
     File "tools\Peach1UP.exe"
