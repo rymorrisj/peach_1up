@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     from backend.service.utils.settings import validate_configured_paths, get_path_warnings
     validate_configured_paths()
     app.state.path_warnings = get_path_warnings()
-    # reset_db is a dev-only destructive flag in settings.yaml. Never true in production.
+    # reset_db is a dev-only destructive flag in app_settings. Never true in production.
     # Cleared immediately after use so it cannot accidentally persist across restarts.
     from backend.service.utils import settings as _settings
     if _settings.get("reset_db", False):
@@ -50,7 +50,11 @@ async def lifespan(app: FastAPI):
         if db_path.exists():
             db_path.unlink()
             logger.info("reset_db: deleted %s", db_path)
-        _settings.set_flag("reset_db", False)
+        # Deleting the DB file also empties app_settings (settings now live in
+        # the same file as library data) — reset_db_completed() replays the
+        # in-memory state (loaded before the delete) back into the fresh file
+        # so settings survive the wipe, matching the old YAML-file behaviour.
+        _settings.reset_db_completed()
     init_db()
     create_tables()
     _apply_schema_migrations()

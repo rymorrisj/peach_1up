@@ -25,6 +25,8 @@ _Note:_ The Alpha build will be tested and run specifically on Windows 10/11 fir
 Read-heavy usage pattern makes SQLite sufficient. SQLAlchemy abstraction means
 Postgres is a future config change not a rewrite.
 
+*NOTE* Currently, the DB is open/closed per call. There is no long lived hot connection
+
 ## Backend
 
 **Python 3.11, FastAPI, Pydantic, python-dotenv, PyYAML.**

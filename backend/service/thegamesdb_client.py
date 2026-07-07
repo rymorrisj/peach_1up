@@ -1,6 +1,6 @@
 """Thin HTTP client for TheGamesDB REST API v1/v1.1.
 
-Each function reads the API key fresh from settings at call time.
+Each function reads the API key fresh from .env at call time.
 Raises ValueError if the key is not configured.
 Raises httpx.HTTPStatusError on non-2xx responses.
 Raises httpx.TimeoutException on timeout.
@@ -17,9 +17,8 @@ _TIMEOUT = 15.0
 
 
 def _api_key() -> str:
-    from backend.core.settings import get_settings
-    svc = get_settings()
-    key = svc.get("THEGAMESDB_API_KEY", "") or ""
+    from backend.service.utils.env_secrets import get_env_secret
+    key = get_env_secret("THEGAMESDB_API_KEY")
     if not key:
         raise ValueError(
             "THEGAMESDB_API_KEY is not configured. "

@@ -29,7 +29,7 @@ _DEFAULT_RATING_ORDINALS: dict[str, int] = {
 
 
 def _load_rating_ordinals() -> dict[str, int]:
-    """Return the rating ordinal map from settings.yaml (key: rating_ordinals) or defaults.
+    """Return the rating ordinal map from app_settings (key: rating_ordinals) or defaults.
 
     Falls back to _DEFAULT_RATING_ORDINALS when settings are unavailable
     (RuntimeError before init) or malformed (TypeError/ValueError) — the

@@ -21,6 +21,12 @@ def get_base_path() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def get_db_path() -> Path:
+    """Single source of truth for the SQLite file location, used by
+    backend.core.database to build its engine."""
+    return get_base_path() / "database" / "data" / "peach1up.db"
+
+
 def init_settings() -> None:
     global _initialised
     if not _initialised:

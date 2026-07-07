@@ -10,20 +10,13 @@ import re
 import sys
 from pathlib import Path
 
-import yaml
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def _get_db_path() -> Path:
-    settings_path = PROJECT_ROOT / "config" / "settings.yaml"
-    if settings_path.exists():
-        with settings_path.open("r", encoding="utf-8") as fh:
-            data = yaml.safe_load(fh) or {}
-        if db_path := data.get("DB_PATH"):
-            return Path(db_path)
-    return PROJECT_ROOT / "database" / "data" / "peach1up.db"
+    from backend.core.settings import get_db_path
+    return get_db_path()
 
 
 def _prompt_name() -> str:

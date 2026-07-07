@@ -5,8 +5,8 @@ logic (routes/auth.py's PasswordHasher() usage, routes/users.py::_hash_pin,
 scripts/setup_admin_user.py::_hash_pin) — all used the same Argon2id
 parameters, just expressed three different ways.
 
-Pepper application point: the configured pepper (PIN_PEPPER in
-settings.yaml, opt-in — empty/unset means disabled) is appended directly
+Pepper application point: the configured pepper (PIN_PEPPER in .env,
+opt-in — empty/unset means disabled) is appended directly
 to the PIN before hashing: secret = pin + pepper. This is deliberate —
 because the pepper changes the hashed secret itself rather than being
 tracked as separate metadata, toggling it on, off, or to a new value
@@ -32,8 +32,8 @@ _HASH_LEN = 32
 
 def get_pin_pepper() -> str:
     """Return the configured PIN pepper, or "" if unset (opt-in, disabled by default)."""
-    from backend.core.settings import get_settings
-    return get_settings().get("PIN_PEPPER", "") or ""
+    from backend.service.utils.env_secrets import get_env_secret
+    return get_env_secret("PIN_PEPPER")
 
 
 def hash_pin(pin: str, *, pepper: str | None = None) -> str:

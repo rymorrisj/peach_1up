@@ -48,19 +48,26 @@ def _check_traversal(path_str: str) -> Path:
     return normalise_path(path_str)
 
 
+# Still "sensitive" in the sense of being scrubbed from GET-all, even though
+# none of the four live in app_settings any more — they're .env-backed (see
+# env_secrets.py). Kept as a real filter (not dead code) as defense in depth
+# in case a future source ever merges into `state`.
 _SENSITIVE_KEYS = {"AI_API_KEY", "IGDB_API_KEY", "PIN_PEPPER", "THEGAMESDB_API_KEY"}
+
+# Of the sensitive keys, these three route through .env via the generic PATCH
+# endpoint below. PIN_PEPPER is excluded — it has its own dedicated route
+# because changing it requires re-hashing the owner PIN (see patch_pin_pepper).
+_ENV_SECRET_KEYS = {"THEGAMESDB_API_KEY", "AI_API_KEY", "IGDB_API_KEY"}
 
 # The only keys a can_edit_settings user may write through the generic PATCH
 # endpoint. Anything not listed here is refused — notably ALLOW_NETWORK_ACCESS
 # (relaxes the network security boundary), reset_db (destructive), and any
 # rating_ordinals key (would silently reshape every user's content-rating cap).
 # PIN_PEPPER is handled by its own dedicated route and is intentionally absent.
-# Path keys are included because they are routed through the validated
-# set_path() call below rather than written to state raw.
-_USER_WRITABLE_KEYS = _ALL_PATH_KEYS | {
-    "THEGAMESDB_API_KEY",
-    "AI_API_KEY",
-    "IGDB_API_KEY",
+# Path keys and _ENV_SECRET_KEYS are each routed through their own dedicated
+# write path below (set_path() / set_env_secret()) rather than written to
+# app_settings state raw.
+_USER_WRITABLE_KEYS = _ALL_PATH_KEYS | _ENV_SECRET_KEYS | {
     "suppress_confirmations",
     "delete_media_on_removal",
 }
@@ -95,10 +102,11 @@ def patch_settings(body: SettingsPatch, _: User = require_permission("can_edit_s
     for key, value in body.updates.items():
         if key in _ALL_PATH_KEYS:
             svc.set_path(key, value or "")
+        elif key in _ENV_SECRET_KEYS:
+            from backend.service.utils.env_secrets import set_env_secret
+            set_env_secret(key, value or "")
         else:
-            state = svc._require_init()
-            state[key] = value
-            svc._save()
+            svc.set_flag(key, value)
     return {"updated": list(body.updates.keys())}
 
 
@@ -110,15 +118,15 @@ class PinPepperBody(BaseModel):
 @router.get("/pin-pepper/status")
 def get_pin_pepper_status(_: User = require_permission("is_owner")):
     """Whether a pepper is currently configured. Never returns the pepper value itself."""
-    svc = get_settings()
-    return {"enabled": bool(svc.get("PIN_PEPPER", ""))}
+    from backend.service.utils.env_secrets import get_env_secret
+    return {"enabled": bool(get_env_secret("PIN_PEPPER"))}
 
 
 @router.get("/thegamesdb-api-key/status")
 def get_thegamesdb_api_key_status(_: User = require_permission("is_owner")):
     """Whether a TheGamesDB API key is currently configured. Never returns the key value itself."""
-    svc = get_settings()
-    return {"enabled": bool(svc.get("THEGAMESDB_API_KEY", ""))}
+    from backend.service.utils.env_secrets import get_env_secret
+    return {"enabled": bool(get_env_secret("THEGAMESDB_API_KEY"))}
 
 
 @router.patch("/pin-pepper")
@@ -145,10 +153,10 @@ def patch_pin_pepper(
       instead of silently accumulating failed attempts against a hash
       that can never match again.
     """
+    from backend.service.utils.env_secrets import get_env_secret, set_env_secret
     from backend.service.utils.pin_hashing import hash_pin, verify_pin
 
-    svc = get_settings()
-    current_pepper = svc.get("PIN_PEPPER", "") or ""
+    current_pepper = get_env_secret("PIN_PEPPER")
     new_pepper = body.pepper or ""
 
     if new_pepper == current_pepper:
@@ -175,7 +183,7 @@ def patch_pin_pepper(
         affected.append(user.name)
 
     db.commit()
-    svc.set_flag("PIN_PEPPER", new_pepper)
+    set_env_secret("PIN_PEPPER", new_pepper)
 
     return {
         "pepper_enabled": bool(new_pepper),
