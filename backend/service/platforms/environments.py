@@ -119,12 +119,14 @@ def create_platform(body: PlatformCreate, db: Session) -> Platform:
 
     if body.era not in _PLATFORM_ERAS:
         raise HTTPException(status_code=422, detail=f"Only PC eras are supported: {', '.join(sorted(_PLATFORM_ERAS))}.")
-    if body.base_image_path:
-        _validate_image_path(body.base_image_path)
-    if body.working_image_path:
-        _validate_image_path(body.working_image_path)
 
-    platform = Platform(**body.model_dump())
+    platform_data = body.model_dump()
+    if body.base_image_path:
+        platform_data["base_image_path"] = str(_validate_image_path(body.base_image_path))
+    if body.working_image_path:
+        platform_data["working_image_path"] = str(_validate_image_path(body.working_image_path))
+
+    platform = Platform(**platform_data)
     if not platform.slug:
         platform.slug = unique_slug(
             platform.name,
@@ -178,9 +180,9 @@ def update_platform(platform_id: int, body: PlatformUpdate, db: Session) -> Plat
     if "era" in updates and updates["era"] not in _PLATFORM_ERAS:
         raise HTTPException(status_code=422, detail=f"Only PC eras are supported: {', '.join(sorted(_PLATFORM_ERAS))}.")
     if "base_image_path" in updates:
-        _validate_image_path(updates["base_image_path"])
+        updates["base_image_path"] = str(_validate_image_path(updates["base_image_path"]))
     if "working_image_path" in updates:
-        _validate_image_path(updates["working_image_path"])
+        updates["working_image_path"] = str(_validate_image_path(updates["working_image_path"]))
     for key, value in updates.items():
         setattr(platform, key, value)
     db.commit()
