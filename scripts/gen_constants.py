@@ -182,7 +182,8 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     # ERA_LABELS
     lines.append("export const ERA_LABELS: Record<string, string> = {\n")
     for slug, label in eras.items():
-        lines.append(f'  {slug}: "{label}",\n')
+        key = f'"{slug}"' if not slug.isidentifier() else slug
+        lines.append(f'  {key}: "{label}",\n')
     lines.append("}\n\n")
 
     # BACKEND_LABELS
