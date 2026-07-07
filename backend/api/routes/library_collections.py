@@ -347,7 +347,11 @@ def import_scan_results(
         path = item.path
         title = item.title or Path(path).stem.replace("-", " ").title()
         try:
-            row = _prepare_item(path, title, db, used_slugs=used_slugs, override_era=item.era)
+            # item.era is the era the scan preview auto-detected (echoed back by
+            # the client), not a user selection — pass it as detected_era so the
+            # per-item detection_reason is preserved instead of being overwritten
+            # with a fixed "Selected by user during import" string.
+            row = _prepare_item(path, title, db, used_slugs=used_slugs, detected_era=item.era)
         except _ItemAlreadyExists:
             skipped += 1
             continue

@@ -5,6 +5,7 @@ forms) must pass through normalise_path before any allowlist check or filesystem
 operation. This module is the single choke-point for that normalisation.
 """
 
+import os
 import re
 from pathlib import Path
 
@@ -58,24 +59,38 @@ def resolve_under(base: Path, *parts: str) -> Path:
 def normalise_path(path: str) -> Path:
     """Normalise a user-supplied path to an absolute resolved Path.
 
+    The result is a canonical absolute path native to the host the backend runs
+    on, independent of the terminal it was launched from. ``os.name`` (the
+    Python runtime OS, unaffected by whether the process was started from Git
+    Bash, cmd, PowerShell, or a Linux shell) selects the path flavor:
+
+    * On Windows, ``pathlib.Path`` is ``WindowsPath``, which already parses both
+      ``C:/foo`` and ``C:\\foo`` as absolute — no separator munging is needed.
+      Git Bash / MSYS2 virtual paths (``/c/Users`` -> ``C:/Users``) are the one
+      form it does not understand, so those are translated first.
+    * On POSIX, ``Path`` is ``PosixPath``. A backslash is a legal filename
+      character and ``/c/...`` is a legitimate absolute path, so the string is
+      left untouched — the Windows-only translation must never run here.
+
     Steps applied in order:
-    1. Null-byte rejection (common injection vector).
-    2. Separator unification to os.sep.
-    3. Absolute resolution via Path.resolve() — eliminates ``..`` segments
-       and relative references, producing a canonical absolute path.
-
-    Args:
-        path: Raw path string from user input.
-
-    Returns:
-        Resolved absolute Path with OS-native separators.
+        1. Empty / whitespace-only rejection.
+        2. Null-byte rejection (common injection vector).
+        3. Git Bash / MSYS2 virtual path translation — Windows host only.
+        4. Absolute resolution via ``Path.resolve()`` — eliminates ``..``
+           segments and relative references.
 
     Raises:
         ValueError: If path is empty or contains a null byte.
     """
     if not path or not path.strip():
         raise ValueError("Path must not be empty.")
+
     if "\x00" in path:
         raise ValueError("Path contains a null byte.")
-    unified = path.replace("\\", "/")
-    return Path(unified).resolve()
+
+    # Git Bash / MSYS2 style virtual paths (/c/Users -> C:/Users). Windows host
+    # only: on POSIX, /c/... is a real absolute path and must be left alone.
+    if os.name == "nt" and re.match(r"^/[a-zA-Z]/", path):
+        path = f"{path[1].upper()}:{path[2:]}"
+
+    return Path(path).resolve()

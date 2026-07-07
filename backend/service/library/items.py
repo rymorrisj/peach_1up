@@ -77,7 +77,8 @@ def _prepare_item(
     *,
     used_slugs: set[str] | None = None,
     override_profile_id: int | None = None,
-    override_era: str | None = None,
+    detected_era: str | None = None,
+    user_override_era: str | None = None,
     _undo_stack: list | None = None,
 ) -> dict:
     """
@@ -86,6 +87,18 @@ def _prepare_item(
     Performs filesystem operations (folder creation, file copy) and era
     detection, then returns a mapping of all column values (collection- and
     leaf-level) for a collection-of-one.
+
+    Era resolution has three sources, in precedence order:
+        1. ``user_override_era`` — a genuine user selection. Sets
+           ``detection_reason`` to "Selected by user during import".
+        2. ``detected_era`` — an era determined by an upstream detection pass
+           (e.g. the scan preview). Pins the era but ``detection_reason`` keeps
+           the actual per-item detection method, never the "user selected"
+           string. This is what the scan importer passes.
+        3. This function's own detection — the default (manual add path).
+
+    Keeping (2) and (1) distinct is the fix for scan imports stamping a fixed
+    "Selected by user during import" reason on every auto-detected item.
 
     Raises:
         _ItemAlreadyExists: if this path is already tracked as a library leaf.
@@ -152,6 +165,11 @@ def _prepare_item(
     }
 
     _dir_ingest_root: Path | None = None
+    # Detection accumulates into these locals; row["era"] and
+    # row["detection_reason"] are written exactly once, at the single resolution
+    # site below the branches (Stage 6 — one write site, one era-resolution path).
+    _det_era: str | None = None
+    _det_reason: str | None = None
 
     if media_src.is_dir():
         if games_root_str:
@@ -200,18 +218,17 @@ def _prepare_item(
         _detect_path = best_detect_path(media_src, row["executable_path"])
         _scan = _smart_detect(_detect_path)
         if _scan.era is not None:
-            row["era"] = _scan.era
-            row["detection_reason"] = _scan.reason
-        if _scan.era is None and _scan.warnings:
+            _det_era = _scan.era
+            _det_reason = _scan.reason
+        elif _scan.warnings:
             log.warning("Media detection warnings for '%s': %s", _detect_path, _scan.warnings)
 
-        if override_era is not None:
-            row["era"] = override_era
-            row["detection_reason"] = "Selected by user during import"
-
-        if row["era"] and row["era"] != "unknown":
+        # Era used only to pick the era-specific launch file inside the folder:
+        # a user override wins, then a scan-preview hint, then this detection.
+        _resolve_era = user_override_era or detected_era or _det_era
+        if _resolve_era and _resolve_era != "unknown":
             try:
-                resolved_media = resolve_media_file_from_directory(media_src, row["era"])
+                resolved_media = resolve_media_file_from_directory(media_src, _resolve_era)
                 row["media_path"] = str(resolved_media)
                 # Only re-run detection if the era-specific resolver picked a
                 # different file than the one already scanned above — avoids
@@ -220,9 +237,9 @@ def _prepare_item(
                 if resolved_media != _detect_path:
                     _scan = _smart_detect(resolved_media)
                     if _scan.era is not None:
-                        row["era"] = _scan.era
-                        row["detection_reason"] = _scan.reason
-                    if _scan.era is None and _scan.warnings:
+                        _det_era = _scan.era
+                        _det_reason = _scan.reason
+                    elif _scan.warnings:
                         log.warning("Media detection warnings for '%s': %s", resolved_media, _scan.warnings)
             except ValueError as exc:
                 log.warning("Could not resolve media file for '%s': %s", title, exc)
@@ -297,9 +314,9 @@ def _prepare_item(
 
         _scan = _smart_detect(Path(row["media_path"]))
         if _scan.era is not None:
-            row["era"] = _scan.era
-            row["detection_reason"] = _scan.reason
-        if _scan.era is None and _scan.warnings:
+            _det_era = _scan.era
+            _det_reason = _scan.reason
+        elif _scan.warnings:
             log.warning("Media detection warnings for '%s': %s", row["media_path"], _scan.warnings)
     else:
         raise HTTPException(
@@ -348,9 +365,24 @@ def _prepare_item(
     row["media_type"] = media_type_from_path(Path(row["media_path"]))
     row["requires_install"] = _scan.requires_install
 
-    if override_era is not None:
-        row["era"] = override_era
+    # Single resolution + write site for era and detection_reason (Stage 6).
+    # Precedence: explicit user override, then a scan-preview detected-era hint,
+    # then this function's own detection. detection_reason therefore reflects the
+    # actual detection method per item, and is only the fixed "user" string when
+    # the era was genuinely user-selected — not for every scan import.
+    if user_override_era is not None:
+        row["era"] = user_override_era
         row["detection_reason"] = "Selected by user during import"
+    elif detected_era is not None:
+        row["era"] = detected_era
+        row["detection_reason"] = (
+            _det_reason if _det_era == detected_era and _det_reason
+            else "Detected during library scan"
+        )
+    elif _det_era is not None:
+        row["era"] = _det_era
+        row["detection_reason"] = _det_reason
+    # else: era stays the initial "unknown" and detection_reason stays None.
 
     if row["era"] and row["era"] != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(row["era"])

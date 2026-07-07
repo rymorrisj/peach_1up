@@ -77,10 +77,14 @@ media_types:
   directory: "Directory"
   iso:       "ISO Image"
   cue:       "CUE/BIN"
+  bin:       "BIN Track"
   chd:       "CHD Image"
+  gdi:       "GDI Image"
+  cdi:       "CDI Image"
   floppy:    "Floppy Image"
   hdd:       "Hard Disk Image"
   exe:       "Executable"
+  rom:       "ROM"
   unknown:   "Unknown"
 
 hardware_profiles:

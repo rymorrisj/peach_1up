@@ -267,6 +267,49 @@ class ImportResult(SQLModel):
 # ---------------------------------------------------------------------------
 
 
+def _leaf_to_read(leaf: LibraryItem) -> Optional[LibraryItemRead]:
+    """Validate one leaf into a LibraryItemRead, isolating a single bad row.
+
+    A leaf whose DB-persisted ``media_type`` predates the current MediaType
+    vocabulary (the column is a bare String and enforces no Literal) would raise
+    ValidationError and, unguarded, 500 the entire GET /library list. Here that
+    failure is contained to the offending row: the media_type is coerced to None
+    and the row still renders (degrade). If it still cannot validate, the row is
+    dropped from the response (skip) with a logged warning rather than taking the
+    whole list down with it.
+    """
+    from pydantic import ValidationError
+
+    from backend.core.logger import get_logger
+
+    try:
+        return LibraryItemRead.model_validate(leaf)
+    except ValidationError as exc:
+        log = get_logger(__name__)
+        leaf_id = getattr(leaf, "id", None)
+        log.warning(
+            "Library item %s failed read validation (%s); serving with media_type "
+            "nulled. This usually means a media_type value not in the current "
+            "MediaType set was persisted before validation existed.",
+            leaf_id, exc,
+        )
+        try:
+            payload = {
+                name: getattr(leaf, name, None)
+                for name in LibraryItemRead.model_fields
+                if name != "cover_art_url"
+            }
+            payload["media_type"] = None
+            return LibraryItemRead.model_validate(payload)
+        except ValidationError as exc2:
+            log.warning(
+                "Library item %s is unreadable even after degrading media_type; "
+                "dropping it from the response: %s",
+                leaf_id, exc2,
+            )
+            return None
+
+
 def _leaves_for_collection(collection_id: int, db: "Session") -> list[LibraryItem]:
     from sqlalchemy import select as _select
 
@@ -282,7 +325,7 @@ def _leaves_for_collection(collection_id: int, db: "Session") -> list[LibraryIte
 def collection_to_read(c: "LibraryCollection", db: "Session") -> LibraryCollectionRead:
     """Build a LibraryCollectionRead, nesting ordered leaves and tags."""
     read = LibraryCollectionRead.model_validate(c)
-    read.items = [LibraryItemRead.model_validate(i) for i in c.items]
+    read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
     read.tags = get_tags_for_entity("library_collection", c.id, db)
     return read
 
@@ -306,9 +349,10 @@ def collections_to_read_bulk(
 
     leaves_by_collection: dict[int, list[LibraryItemRead]] = {}
     for leaf in leaves:
-        leaves_by_collection.setdefault(leaf.library_collection_id, []).append(
-            LibraryItemRead.model_validate(leaf)
-        )
+        leaf_read = _leaf_to_read(leaf)
+        if leaf_read is None:
+            continue
+        leaves_by_collection.setdefault(leaf.library_collection_id, []).append(leaf_read)
 
     tag_map = get_tags_for_entities("library_collection", collection_ids, db)
 
