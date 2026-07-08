@@ -1,11 +1,16 @@
 export class ApiError extends Error {
   readonly status: number;
   readonly detail: string;
+  /** The parsed `detail` field from the response body, before stringification —
+   *  a plain string in the common case, or a structured object for errors that
+   *  need to carry more than a message (e.g. an `error_type` a caller can branch on). */
+  readonly rawDetail: unknown;
 
-  constructor(status: number, detail: string) {
+  constructor(status: number, detail: string, rawDetail?: unknown) {
     super(detail);
     this.status = status;
     this.detail = detail;
+    this.rawDetail = rawDetail;
     this.name = "ApiError";
   }
 }
@@ -77,15 +82,20 @@ class ApiClient {
       }
 
       let detail = res.statusText;
+      let rawDetail: unknown;
       try {
         const body = (await res.json()) as { detail?: unknown };
         const raw = body.detail;
-        detail =
-          typeof raw === "string"
-            ? raw
-            : raw != null
-              ? JSON.stringify(raw)
-              : detail;
+        rawDetail = raw;
+        if (typeof raw === "string") {
+          detail = raw;
+        } else if (raw != null && typeof raw === "object" && typeof (raw as { message?: unknown }).message === "string") {
+          // Structured error bodies (e.g. { error_type, message, ... }) still
+          // render as plain text here — only rawDetail carries the extra fields.
+          detail = (raw as { message: string }).message;
+        } else if (raw != null) {
+          detail = JSON.stringify(raw);
+        }
       } catch {
         // keep statusText as detail
       }
@@ -94,7 +104,7 @@ class ApiClient {
         window.dispatchEvent(new CustomEvent("api-error", { detail }));
       }
 
-      throw new ApiError(res.status, detail);
+      throw new ApiError(res.status, detail, rawDetail);
     }
 
     if (res.status === 204) return undefined as T;

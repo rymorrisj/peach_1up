@@ -196,6 +196,26 @@ if not errorlevel 1 (
     echo [OK] sandbox_host.exe found ^(pre-built; MSYS2 not available to rebuild^)
 )
 
+REM ── Build extract-xiso via MSYS2 (or validate pre-built) ─────
+echo Building extract-xiso...
+where bash >nul 2>&1
+if not errorlevel 1 (
+    bash "services/vendor/extract-xiso/build.sh"
+    if errorlevel 1 (
+        echo ERROR: extract-xiso build failed.
+        goto :error
+    )
+    echo [OK] extract-xiso built
+) else (
+    if not exist "services\vendor\extract-xiso\build\extract-xiso.exe" (
+        echo ERROR: bash/MSYS2 not found and extract-xiso.exe is missing.
+        echo Install MSYS2 UCRT64 with gcc/cmake and run:
+        echo   bash services/vendor/extract-xiso/build.sh
+        goto :error
+    )
+    echo [OK] extract-xiso found ^(pre-built; MSYS2 not available to rebuild^)
+)
+
 if not exist "installer\tools\Peach1UP.exe" (
     echo ERROR: installer\tools\Peach1UP.exe not found.
     echo Download WinSW-x64.exe from https://github.com/winsw/winsw/releases, rename it to Peach1UP.exe, and place it at installer\tools\Peach1UP.exe
@@ -259,6 +279,20 @@ if errorlevel 1 (
     goto :error
 )
 echo [OK] sandbox exes copied
+
+echo === Copying extract-xiso ===
+if not exist "services\vendor\extract-xiso\build\extract-xiso.exe" (
+    echo ERROR: services\vendor\extract-xiso\build\extract-xiso.exe not found.
+    echo Run build.sh from an MSYS2 UCRT64 shell first to compile extract-xiso.
+    goto :error
+)
+if not exist "dist\peach1up\services\vendor\extract-xiso\build\" mkdir "dist\peach1up\services\vendor\extract-xiso\build\"
+copy /Y "services\vendor\extract-xiso\build\extract-xiso.exe" "dist\peach1up\services\vendor\extract-xiso\build\"
+if errorlevel 1 (
+    echo ERROR: Failed to copy extract-xiso.exe to dist.
+    goto :error
+)
+echo [OK] extract-xiso copied
 
 echo === Build complete ===
 

@@ -23,7 +23,7 @@ from backend.service.utils.emulator_catalog import (
     get_install_path,
     validate_bios_from_descriptor,
 )
-from backend.service.utils.xbox_image import detect_xbox_image_type
+from backend.service.utils.xbox_image import XboxDvdRipDetected, detect_xbox_image_type
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
 from backend.service.utils.platform.windows.sandbox import BrokerFile
 from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
@@ -211,7 +211,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         image_type = detect_xbox_image_type(spec.media_path)
         if image_type != "xiso":
             if image_type == "dvd_rip":
-                raise ValueError(
+                raise XboxDvdRipDetected(
                     "This disc image appears to be a raw Xbox DVD rip (7–8 GB with a video partition). "
                     "xemu requires xiso format. Use extract-xiso to convert it: "
                     "https://github.com/xboxdev/extract-xiso"

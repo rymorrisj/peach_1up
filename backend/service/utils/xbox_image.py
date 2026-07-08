@@ -7,6 +7,14 @@ _ISO9660_OFFSET = 0x8001
 _DVD_RIP_SIZE_THRESHOLD = 4_000_000_000
 
 
+class XboxDvdRipDetected(ValueError):
+    """Raised when a launch target is identified as a raw Xbox DVD rip.
+
+    Distinct from plain ValueError so the launch coordinator can offer an
+    extract-xiso conversion action instead of surfacing a generic failure.
+    """
+
+
 def detect_xbox_image_type(path: str | Path) -> str:
     """
     Returns one of: "xiso", "dvd_rip", "iso9660", "unknown"

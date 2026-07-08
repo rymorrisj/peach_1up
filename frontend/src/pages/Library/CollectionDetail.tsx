@@ -7,6 +7,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner'
 import ConfirmModal from '@/components/common/ConfirmModal'
 import { useAppContext } from '@/context/useAppContext'
 import { useLaunch } from '@/hooks/useLaunch'
+import { useXisoConvert } from '@/hooks/useXisoConvert'
 import { useConfirm } from '@/hooks/useConfirm'
 import { useConfirmToken } from '@/hooks/useConfirmToken'
 import { useCollectionRestrictions } from '@/hooks/useCollectionRestrictions'
@@ -354,7 +355,9 @@ export default function CollectionDetail() {
     refetchRestrictions,
   })
 
-  const { launch, isLaunching, error: launchError, launchSuccess, launchWarnings } = useLaunch({
+  const {
+    launch, isLaunching, error: launchError, errorType: launchErrorType, launchSuccess, launchWarnings,
+  } = useLaunch({
     targetId: collectionId ?? 0,
     targetType: 'collection',
     onSettled: () => {
@@ -362,6 +365,7 @@ export default function CollectionDetail() {
       queryClient.invalidateQueries({ queryKey: ['launches', 'collection', collectionId] })
     },
   })
+  const xisoConvert = useXisoConvert(collectionId ?? 0)
 
   if (isLoading) {
     return (
@@ -605,6 +609,31 @@ export default function CollectionDetail() {
       launchSuccess={launchSuccess}
       launchWarnings={launchWarnings}
       launchError={launchError}
+      launchErrorAction={
+        launchErrorType === 'xbox_dvd_rip' ? (
+          <div className="mt-2 space-y-1 text-center">
+            {xisoConvert.status === 'complete' ? (
+              <p className="text-xs text-green-600 dark:text-green-400">
+                Conversion complete. Click Launch to try again.
+              </p>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={xisoConvert.convert}
+                loading={xisoConvert.isConverting}
+              >
+                {xisoConvert.isConverting
+                  ? 'Converting… this can take a while for large images'
+                  : 'Convert with extract-xiso'}
+              </Button>
+            )}
+            {xisoConvert.error && (
+              <p className="text-xs text-red-600 dark:text-red-400">{xisoConvert.error}</p>
+            )}
+          </div>
+        ) : undefined
+      }
       restrictions={
         isAdminOrOwner
           ? {

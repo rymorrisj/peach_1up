@@ -54,6 +54,8 @@ interface LibraryEntityDetailProps {
   launchSuccess: boolean
   launchWarnings: string[]
   launchError: string | null
+  /** Rendered directly below the launch error (e.g. a "Convert with extract-xiso" action) */
+  launchErrorAction?: ReactNode
   /** When provided, renders the Restrictions section after launch */
   restrictions?: RestrictionsProps
   /** Launch session history — renders when non-empty */
@@ -82,6 +84,7 @@ export function LibraryEntityDetail({
   launchSuccess,
   launchWarnings,
   launchError,
+  launchErrorAction,
   restrictions,
   launchHistory,
 }: LibraryEntityDetailProps) {
@@ -166,6 +169,8 @@ export function LibraryEntityDetail({
                 ❌ {launchError}
               </p>
             )}
+
+            {launchError && launchErrorAction}
           </section>
 
           {restrictions && (

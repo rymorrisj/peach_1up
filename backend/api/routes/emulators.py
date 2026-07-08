@@ -62,6 +62,13 @@ class CatalogEntryResponse(BaseModel):
     rom_pack_slug: Optional[str] = None
 
 
+class AttributionEntry(BaseModel):
+    name: str
+    license: str
+    copyright: str
+    source_url: str
+
+
 class SandboxPatchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     container_enabled: Optional[bool] = None
@@ -174,6 +181,28 @@ def list_emulators():
         item["known_limitations"] = entry.get("known_limitations", [])
         result.append(item)
     return result
+
+
+@router.get("/attribution", response_model=list[AttributionEntry])
+def list_attribution():
+    """Attribution list for Settings > Attribution — emulator catalog entries
+    merged with non-emulator third-party tools (e.g. extract-xiso). Distinct
+    from GET /api/v1/emulators: that endpoint drives the Emulators page and
+    must never include non-launchable tools.
+    """
+    from backend.service.utils.third_party_tools import get_third_party_tools
+
+    entries = [
+        {
+            "name": e.get("name", e["slug"]),
+            "license": e.get("license", ""),
+            "copyright": e.get("copyright", ""),
+            "source_url": e.get("source_url", ""),
+        }
+        for e in load_catalog()
+    ]
+    entries.extend(get_third_party_tools())
+    return entries
 
 
 def _active_emulator_scopes(db: Session) -> set[tuple[str, Optional[int]]]:

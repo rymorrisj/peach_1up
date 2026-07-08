@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.constants_generated import EraValue
-from backend.core import jobs, rate_limit
+from backend.core import install_registry, jobs, rate_limit
 from backend.core.database import get_db
 from backend.core.dependencies import (
     get_active_user, get_filtered_collection, get_filtered_collections, require_permission,
@@ -526,6 +526,70 @@ def flag_launch(
     db.commit()
     db.refresh(collection)
     return collection_to_read(collection, db)
+
+
+def _xiso_convert_key(collection_id: int) -> str:
+    return f"xiso-convert-{collection_id}"
+
+
+def _run_xiso_conversion(key: str, media_path: str) -> None:
+    from backend.service.utils.extract_xiso import convert_dvd_rip_to_xiso
+
+    try:
+        output = convert_dvd_rip_to_xiso(Path(media_path))
+        install_registry.set_status(key, "complete", install_path=str(output))
+    except Exception as exc:
+        install_registry.set_status(key, "error", error=str(exc))
+        logger.error("extract-xiso conversion failed for %s: %s", media_path, exc)
+
+
+@router.post("/librarycollection/{collection_id}/convert-xiso")
+def start_xiso_conversion(
+    collection_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    active_user: User = require_permission("can_launch_media"),
+):
+    """Convert the collection's current launch disc from a raw Xbox DVD rip to xiso.
+
+    User-triggered only — never runs automatically. extract-xiso rewrites the
+    file in place under its original filename; its own automatic '<name>.old'
+    backup of the pre-rewrite file is left on disk as the safety net (never
+    deleted here). No launch-target update is needed since the filename
+    doesn't change. Runs in the background because multi-GB rips take a
+    while; poll the status endpoint below for completion.
+    """
+    from backend.service.launch.launchable_resolver import resolve_launchable
+
+    collection = get_filtered_collection(collection_id, active_user, db)
+    if collection.era != "xbox":
+        raise HTTPException(status_code=400, detail="extract-xiso conversion only applies to Xbox media.")
+
+    key = _xiso_convert_key(collection_id)
+    if install_registry.get_status(key).get("status") == "converting":
+        raise HTTPException(status_code=409, detail="Conversion already in progress for this item.")
+
+    try:
+        entity = resolve_launchable(collection_id, db=db)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    install_registry.set_status(key, "converting")
+    background_tasks.add_task(_run_xiso_conversion, key, entity.media_path)
+    return {"status": "converting"}
+
+
+@router.get("/librarycollection/{collection_id}/convert-xiso/status")
+def get_xiso_conversion_status(
+    collection_id: int,
+    _: User = require_permission("can_launch_media"),
+):
+    status = install_registry.get_status(_xiso_convert_key(collection_id))
+    return {
+        "status": status["status"],
+        "error": status.get("error"),
+        "output_path": status.get("install_path"),
+    }
 
 
 @router.post("/librarycollection/{collection_id}/confirm-delete")

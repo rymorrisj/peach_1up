@@ -22,6 +22,7 @@ from backend.service.launch.monitor import register_short_lived_check
 from backend.service.utils.era_defaults import DOS_WIN_ERAS
 from backend.service.utils.era_media import resolve_media_file_from_directory
 from backend.service.utils.fat.directory import _to_83_str
+from backend.service.utils.xbox_image import XboxDvdRipDetected
 
 if TYPE_CHECKING:
     from backend.models.drive import Drive
@@ -388,6 +389,23 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
             history.exit_code = -1
             db.commit()
             raise HTTPException(status_code=500, detail="Launch timed out. The emulator did not start within 30 seconds.")
+        except XboxDvdRipDetected as exc:
+            logger.info(
+                "Launch blocked: raw Xbox DVD rip detected for collection_id=%s", spec.collection_id
+            )
+            history.error_message = str(exc)
+            history.ended_at = datetime.now(timezone.utc)
+            history.exit_code = -1
+            db.commit()
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error_type": "xbox_dvd_rip",
+                    "message": str(exc),
+                    "collection_id": spec.collection_id,
+                    "media_path": str(spec.media_path) if spec.media_path else None,
+                },
+            )
         except Exception as exc:
             logger.exception("Launch failed")
             history.error_message = str(exc)

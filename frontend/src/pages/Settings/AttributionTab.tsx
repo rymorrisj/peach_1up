@@ -1,12 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/api/client";
-import type { components } from "@shared/types";
-type CatalogEntry = components['schemas']['CatalogEntryResponse']
+
+// Distinct from the Emulators page's CatalogEntryResponse — this list merges
+// emulator catalog entries with non-emulator third-party tools (extract-xiso)
+// via a dedicated backend endpoint, so it must never drive the Emulators page.
+interface AttributionEntry {
+  name: string;
+  license: string;
+  copyright: string;
+  source_url: string;
+}
 
 export default function AttributionTab() {
-  const { data: emulatorCatalog } = useQuery<CatalogEntry[]>({
-    queryKey: ["emulators-catalog"],
-    queryFn: () => apiFetch<CatalogEntry[]>("/api/v1/emulators"),
+  const { data: attribution } = useQuery<AttributionEntry[]>({
+    queryKey: ["attribution"],
+    queryFn: () => apiFetch<AttributionEntry[]>("/api/v1/emulators/attribution"),
     staleTime: 60_000,
   });
 
@@ -21,8 +29,8 @@ export default function AttributionTab() {
           via the links below.
         </p>
         <ul className="mt-4 divide-y divide-neutral-100 dark:divide-neutral-800">
-          {(emulatorCatalog ?? []).map((entry) => (
-            <li key={entry.slug} className="py-3">
+          {(attribution ?? []).map((entry) => (
+            <li key={entry.name} className="py-3">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
