@@ -32,6 +32,8 @@ export interface LibraryCollectionData {
   category: string | null
   description: string | null
   publisher: string | null
+  developer: string | null
+  genres: string[]
   year: number | null
   external_game_id: number | null
   metadata_source: string | null

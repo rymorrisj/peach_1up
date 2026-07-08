@@ -36,6 +36,8 @@ class EnrichBody(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     publisher: Optional[str] = None
+    developer: Optional[str] = None
+    genre: Optional[list[str]] = None
     year: Optional[int] = None
     content_rating: Optional[str] = None
     metadata_source: Optional[str] = None
@@ -51,33 +53,27 @@ def search_metadata(
     _enforce_rate_limit("library-metadata", request, _METADATA_RATE_LIMIT, _METADATA_RATE_WINDOW_SECONDS)
 
     import httpx
-    from backend.service.thegamesdb_client import search_games
+    from backend.service.metadata_providers import get_active_provider
 
     try:
-        raw = search_games(name)
+        provider = get_active_provider()
+        results = provider.search_games(name)
+    except NotImplementedError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except httpx.HTTPStatusError as exc:
         raise HTTPException(
             status_code=502,
-            detail=f"TheGamesDB API error: {exc.response.status_code}",
+            detail=f"Metadata provider API error: {exc.response.status_code}",
         )
     except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="TheGamesDB API request timed out.")
-
-    games = raw.get("data", {}).get("games", [])
-    if not isinstance(games, list):
-        games = list(games.values()) if isinstance(games, dict) else []
+        raise HTTPException(status_code=504, detail="Metadata provider API request timed out.")
 
     return {
         "results": [
-            {
-                "game_id": g.get("id"),
-                "title": g.get("game_title"),
-                "release_date": g.get("release_date"),
-            }
-            for g in games
-            if g.get("id") is not None
+            {"game_id": r.game_id, "title": r.title, "release_date": r.release_date}
+            for r in results
         ]
     }
 
@@ -86,84 +82,41 @@ def search_metadata(
 def get_metadata_details(
     request: Request,
     game_id: int = Query(...),
+    db: Session = Depends(get_db),
     _: User = require_permission("is_owner"),
 ):
     _enforce_rate_limit("library-metadata", request, _METADATA_RATE_LIMIT, _METADATA_RATE_WINDOW_SECONDS)
 
     import httpx
-    from backend.service.thegamesdb_client import get_game_details, get_game_images
+    from backend.service.metadata_providers import get_active_provider
 
     try:
-        details_raw = get_game_details(game_id)
-        images_raw = get_game_images(game_id)
+        provider = get_active_provider()
+        details = provider.get_game_details(game_id, db)
+    except NotImplementedError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except httpx.HTTPStatusError as exc:
         raise HTTPException(
             status_code=502,
-            detail=f"TheGamesDB API error: {exc.response.status_code}",
+            detail=f"Metadata provider API error: {exc.response.status_code}",
         )
     except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="TheGamesDB API request timed out.")
-
-    games_raw = details_raw.get("data", {}).get("games", {})
-    if isinstance(games_raw, list):
-        games_map = {str(g["id"]): g for g in games_raw if g.get("id") is not None}
-    else:
-        games_map = games_raw if isinstance(games_raw, dict) else {}
-    game = games_map.get(str(game_id))
-    if game is None and games_map:
-        game = next(iter(games_map.values()), None)
-
-    title: str | None = None
-    release_date: str | None = None
-    overview: str | None = None
-    rating: str | None = None
-    platform_id: int | None = None
-
-    if game:
-        title = game.get("game_title") or None
-        release_date = game.get("release_date") or None
-        overview = game.get("overview") or None
-        rating = game.get("rating") or None
-        raw_platform = game.get("platform")
-        if raw_platform is not None:
-            try:
-                platform_id = int(raw_platform)
-            except (ValueError, TypeError):
-                pass
-
-    images_data = images_raw.get("data", {})
-    base_url_obj = images_data.get("base_url", {})
-    all_images = images_data.get("images", {}).get(str(game_id), [])
-
-    front_boxart = next(
-        (img for img in all_images if img.get("type") == "boxart" and img.get("side") == "front"),
-        None,
-    )
-
-    cover_art_url: str | None = None
-    cover_art_thumb_url: str | None = None
-
-    if front_boxart:
-        filename = front_boxart.get("filename", "")
-        original = (base_url_obj.get("original") or "").rstrip("/")
-        thumb = (base_url_obj.get("thumb") or "").rstrip("/")
-        clean_filename = filename.lstrip("/")
-        if original and clean_filename:
-            cover_art_url = f"{original}/{clean_filename}"
-        if thumb and clean_filename:
-            cover_art_thumb_url = f"{thumb}/{clean_filename}"
+        raise HTTPException(status_code=504, detail="Metadata provider API request timed out.")
 
     return {
-        "game_id": game_id,
-        "title": title,
-        "release_date": release_date,
-        "overview": overview,
-        "rating": rating,
-        "platform_id": platform_id,
-        "cover_art_url": cover_art_url,
-        "cover_art_thumb_url": cover_art_thumb_url,
+        "game_id": details.game_id,
+        "title": details.title,
+        "release_date": details.release_date,
+        "overview": details.overview,
+        "rating": details.rating,
+        "platform_id": details.platform_id,
+        "cover_art_url": details.cover_art_url,
+        "cover_art_thumb_url": details.cover_art_thumb_url,
+        "genres": details.genres,
+        "developer": details.developer,
+        "publisher": details.publisher,
     }
 
 
@@ -182,6 +135,8 @@ def enrich_library_entity(
         title=body.title,
         description=body.description,
         publisher=body.publisher,
+        developer=body.developer,
+        genre=body.genre,
         year=body.year,
         content_rating=body.content_rating,
         metadata_source=body.metadata_source,

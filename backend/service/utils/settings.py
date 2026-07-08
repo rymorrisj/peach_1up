@@ -54,6 +54,7 @@ _DEFAULTS: dict = {
     "delete_media_on_removal": False,
     "delete_original_on_upload": False,
     "UPLOAD_TMP_TTL_SECONDS": DEFAULT_UPLOAD_TMP_TTL_SECONDS,
+    "metadata_provider": "thegamesdb",
 }
 
 # Path keys whose values are resolved to absolute paths at load time.

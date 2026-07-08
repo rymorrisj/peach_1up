@@ -458,6 +458,16 @@ export default function CollectionDetail() {
               <span className="font-medium">Discs:</span> {collection.items.length}
             </div>
           )}
+          {collection.genres.length > 0 && (
+            <div>
+              <span className="font-medium">Genre:</span> {collection.genres.join(', ')}
+            </div>
+          )}
+          {collection.developer && (
+            <div>
+              <span className="font-medium">Developer:</span> {collection.developer}
+            </div>
+          )}
           {collection.era === 'dos' && (
             <div className="flex items-center gap-2">
               <span className="font-medium shrink-0">Installed:</span>

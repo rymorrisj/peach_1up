@@ -18,6 +18,9 @@ interface GameDetails {
   platform_id: number | null
   cover_art_url: string | null
   cover_art_thumb_url: string | null
+  genres: string[] | null
+  developer: string | null
+  publisher: string | null
 }
 
 interface FetchMetadataModalProps {
@@ -140,6 +143,9 @@ export function FetchMetadataModal({
         const year = parseInt(details.release_date.split('-')[0], 10)
         if (!isNaN(year)) payload.year = year
       }
+      if (details.developer) payload.developer = details.developer
+      if (details.publisher) payload.publisher = details.publisher
+      if (details.genres && details.genres.length > 0) payload.genre = details.genres
     } else if (entityType === 'library_item') {
       // Leaf: only per-disc cover_art_url is supported.
       if (details.cover_art_url) payload.cover_art_url = details.cover_art_url
@@ -311,6 +317,24 @@ export function FetchMetadataModal({
                   <div className="flex gap-2">
                     <dt className="w-28 shrink-0 font-medium text-neutral-400">Rating</dt>
                     <dd className="text-neutral-100">{details.rating}</dd>
+                  </div>
+                )}
+                {showMetadata && details.genres && details.genres.length > 0 && (
+                  <div className="flex gap-2">
+                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Genre</dt>
+                    <dd className="text-neutral-100">{details.genres.join(', ')}</dd>
+                  </div>
+                )}
+                {showMetadata && details.developer && (
+                  <div className="flex gap-2">
+                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Developer</dt>
+                    <dd className="text-neutral-100">{details.developer}</dd>
+                  </div>
+                )}
+                {showMetadata && details.publisher && (
+                  <div className="flex gap-2">
+                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Publisher</dt>
+                    <dd className="text-neutral-100">{details.publisher}</dd>
                   </div>
                 )}
               </dl>

@@ -71,6 +71,7 @@ _USER_WRITABLE_KEYS = _ALL_PATH_KEYS | _ENV_SECRET_KEYS | {
     "suppress_confirmations",
     "delete_media_on_removal",
     "delete_original_on_upload",
+    "metadata_provider",
 }
 
 

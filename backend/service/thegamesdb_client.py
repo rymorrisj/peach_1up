@@ -73,6 +73,68 @@ def get_game_images(game_id: int) -> dict:
     return response.json()
 
 
+def get_genres() -> dict:
+    """Fetch the full genre id->name list.
+
+    Calls GET /v1/Genres and returns the parsed JSON response body. TheGamesDB
+    has no by-ID lookup for this — the endpoint always returns its entire
+    list, which is what makes caching it locally worthwhile.
+
+    Raises:
+        ValueError: If THEGAMESDB_API_KEY is not configured.
+        httpx.HTTPStatusError: On non-2xx response.
+        httpx.TimeoutException: On request timeout.
+    """
+    key = _api_key()
+    response = httpx.get(
+        f"{_BASE_V1}/Genres",
+        params={"apikey": key},
+        timeout=_TIMEOUT,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def get_developers() -> dict:
+    """Fetch the full developer id->name list.
+
+    Calls GET /v1/Developers and returns the parsed JSON response body.
+
+    Raises:
+        ValueError: If THEGAMESDB_API_KEY is not configured.
+        httpx.HTTPStatusError: On non-2xx response.
+        httpx.TimeoutException: On request timeout.
+    """
+    key = _api_key()
+    response = httpx.get(
+        f"{_BASE_V1}/Developers",
+        params={"apikey": key},
+        timeout=_TIMEOUT,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def get_publishers() -> dict:
+    """Fetch the full publisher id->name list.
+
+    Calls GET /v1/Publishers and returns the parsed JSON response body.
+
+    Raises:
+        ValueError: If THEGAMESDB_API_KEY is not configured.
+        httpx.HTTPStatusError: On non-2xx response.
+        httpx.TimeoutException: On request timeout.
+    """
+    key = _api_key()
+    response = httpx.get(
+        f"{_BASE_V1}/Publishers",
+        params={"apikey": key},
+        timeout=_TIMEOUT,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 def get_game_details(game_id: int) -> dict:
     """Fetch detailed metadata for a game by its TheGamesDB ID.
 

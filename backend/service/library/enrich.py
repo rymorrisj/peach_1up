@@ -92,6 +92,8 @@ def enrich_entity(
     title: Optional[str] = None,
     description: Optional[str] = None,
     publisher: Optional[str] = None,
+    developer: Optional[str] = None,
+    genre: Optional[list[str]] = None,
     year: Optional[int] = None,
     content_rating: Optional[str] = None,
     metadata_source: Optional[str] = None,
@@ -102,6 +104,7 @@ def enrich_entity(
         "title": title,
         "description": description,
         "publisher": publisher,
+        "developer": developer,
         "year": year,
         "metadata_source": metadata_source,
     }.items() if v is not None}
@@ -129,13 +132,23 @@ def enrich_entity(
             )
         for key, value in metadata_fields.items():
             setattr(entity, key, value)
+        if genre is not None:
+            from backend.models.metadata_lookup import set_genres_for_collection
+            # No provider hint here — metadata_source is a display string (e.g.
+            # "TheGamesDB"), not the internal provider key genres are cached
+            # under. Genre rows already exist by this point (created moments
+            # earlier when get_metadata_details() resolved them), so this
+            # matches purely by name; only a genre name that was never
+            # resolved through a provider would fall through to a fresh
+            # "manual"-provider row here.
+            set_genres_for_collection(db, entity_id, genre)
 
     elif entity_type == "library_item":
         # Leaf: per-disc cover art only — no metadata fields (those go on the collection).
         entity = db.get(LibraryItem, entity_id)
         if not entity:
             raise HTTPException(status_code=404, detail="Library item not found.")
-        if metadata_fields:
+        if metadata_fields or genre is not None:
             raise HTTPException(
                 status_code=422,
                 detail=(

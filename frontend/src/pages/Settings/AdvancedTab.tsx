@@ -4,6 +4,77 @@ import { apiFetch, ApiError } from '@/api/client'
 import { useAppContext } from '@/context/useAppContext'
 import { Button, Modal, Input, FormField } from '@/ui'
 
+function MetadataProviderSection() {
+  const queryClient = useQueryClient()
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const { data: settings } = useQuery<Record<string, unknown>>({
+    queryKey: ['settings'],
+    queryFn: () => apiFetch('/api/v1/settings'),
+  })
+
+  const activeProvider = (settings?.metadata_provider as string | undefined) ?? 'thegamesdb'
+
+  async function handleSelect(provider: 'thegamesdb') {
+    if (provider === activeProvider) return
+    setSaving(true)
+    setError(null)
+    try {
+      await apiFetch('/api/v1/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ updates: { metadata_provider: provider } }),
+      })
+      await queryClient.invalidateQueries({ queryKey: ['settings'] })
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : 'Failed to update metadata provider.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+        Metadata Provider
+      </h2>
+      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        Which service "Fetch Metadata" searches. Only one provider is active at a time.
+      </p>
+      <div className="space-y-2">
+        <label className="flex items-center gap-3 text-sm text-neutral-900 dark:text-neutral-100">
+          <input
+            type="radio"
+            name="metadata-provider"
+            checked={activeProvider === 'thegamesdb'}
+            disabled={saving}
+            onChange={() => void handleSelect('thegamesdb')}
+            className="h-4 w-4 accent-[#ff8a5c]"
+          />
+          TheGamesDB
+        </label>
+        <label
+          className="flex items-center gap-3 text-sm text-neutral-400 dark:text-neutral-500"
+          title="IGDB support is not available yet."
+        >
+          <input type="radio" name="metadata-provider" checked={false} disabled className="h-4 w-4" />
+          IGDB <span className="text-xs italic">(coming soon)</span>
+        </label>
+      </div>
+      {activeProvider === 'thegamesdb' && (
+        <p className="text-xs text-neutral-400 dark:text-neutral-500">
+          Metadata fetched via this tool is powered by TheGamesDB.net.
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          ❌ {error}
+        </p>
+      )}
+    </section>
+  )
+}
+
 function TheGamesDbSection() {
   const { state: appState } = useAppContext()
   const queryClient = useQueryClient()
@@ -354,6 +425,7 @@ export default function AdvancedTab() {
 
   return (
     <div className="mt-6 space-y-6">
+      <MetadataProviderSection />
       <TheGamesDbSection />
       <PinPepperSection />
       <DeleteMediaOnRemovalSection />

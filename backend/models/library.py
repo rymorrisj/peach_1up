@@ -116,6 +116,7 @@ class LibraryCollection(SQLModel, table=True):
     category: Optional[str] = None
     description: Optional[str] = None
     publisher: Optional[str] = None
+    developer: Optional[str] = None
     year: Optional[int] = None
     external_game_id: Optional[int] = None
     metadata_source: Optional[str] = None
@@ -221,6 +222,8 @@ class LibraryCollectionRead(SQLModel):
     category: Optional[str] = None
     description: Optional[str] = None
     publisher: Optional[str] = None
+    developer: Optional[str] = None
+    genres: list[str] = []
     year: Optional[int] = None
     external_game_id: Optional[int] = None
     metadata_source: Optional[str] = None
@@ -335,19 +338,24 @@ def _leaves_for_collection(collection_id: int, db: "Session") -> list[LibraryIte
 
 
 def collection_to_read(c: "LibraryCollection", db: "Session") -> LibraryCollectionRead:
-    """Build a LibraryCollectionRead, nesting ordered leaves and tags."""
+    """Build a LibraryCollectionRead, nesting ordered leaves, tags, and genres."""
+    from backend.models.metadata_lookup import get_genres_for_collection
+
     read = LibraryCollectionRead.model_validate(c)
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
     read.tags = get_tags_for_entity("library_collection", c.id, db)
+    read.genres = get_genres_for_collection(c.id, db)
     return read
 
 
 def collections_to_read_bulk(
     collections: list["LibraryCollection"], db: "Session"
 ) -> list[LibraryCollectionRead]:
-    """collection_to_read over a list in two bulk queries total (all leaves,
-    then all tags) instead of the two-queries-per-collection N+1."""
+    """collection_to_read over a list in three bulk queries total (all leaves,
+    all tags, all genres) instead of the per-collection N+1."""
     from sqlalchemy import select as _select
+
+    from backend.models.metadata_lookup import get_genres_for_collections
 
     if not collections:
         return []
@@ -367,11 +375,13 @@ def collections_to_read_bulk(
         leaves_by_collection.setdefault(leaf.library_collection_id, []).append(leaf_read)
 
     tag_map = get_tags_for_entities("library_collection", collection_ids, db)
+    genre_map = get_genres_for_collections(collection_ids, db)
 
     reads: list[LibraryCollectionRead] = []
     for c in collections:
         read = LibraryCollectionRead.model_validate(c)
         read.items = leaves_by_collection.get(c.id, [])
         read.tags = tag_map.get(c.id, [])
+        read.genres = genre_map.get(c.id, [])
         reads.append(read)
     return reads

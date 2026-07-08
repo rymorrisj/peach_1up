@@ -120,7 +120,11 @@ export function EditForm({
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="Category" htmlFor="detail-category">
+        <FormField
+          label="Category (custom)"
+          htmlFor="detail-category"
+          hint="Your own free-text label — separate from the fetched Genre field above, which comes from metadata enrichment."
+        >
           <Input
             id="detail-category"
             value={form.category}
