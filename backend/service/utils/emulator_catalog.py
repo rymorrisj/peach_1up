@@ -3,8 +3,9 @@ import logging
 import os
 import tomllib
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, get_args
 
+from backend.constants_generated import InstallType
 from backend.core.settings import get_base_path
 from backend.service.utils import settings as _settings
 from backend.service.utils.eras_config import get_eras as _get_eras
@@ -18,6 +19,12 @@ _PROFILES_DIR = get_base_path() / "library" / "system" / "templates" / "86box"
 
 _catalog_cache: dict | None = None
 
+# The generated InstallType Literal is the single source of truth for the
+# allowed install_type vocabulary. TOMLs are hand-authored and unschema'd, so
+# a typo'd install_type is validated at parse time — the producer choke-point —
+# rather than surfacing later as an inconsistently-hit dispatch failure.
+_VALID_INSTALL_TYPES: frozenset[str] = frozenset(get_args(InstallType))
+
 
 def _load_raw_catalog() -> dict:
     global _catalog_cache
@@ -26,6 +33,14 @@ def _load_raw_catalog() -> dict:
         bios_requirements = []
         for path in sorted(_EMULATORS_DIR.glob("*.toml")):
             entry = tomllib.loads(path.read_text(encoding="utf-8"))
+            install_type = entry.get("install_type", "zip")
+            if install_type not in _VALID_INSTALL_TYPES:
+                raise ValueError(
+                    f"{path.name} has install_type '{install_type}', which is not "
+                    f"a valid InstallType {sorted(_VALID_INSTALL_TYPES)}. Fix the "
+                    "TOML or add the value to config/constants.yaml install_types "
+                    "and regenerate constants."
+                )
             emulators.append(entry)
             for dep in entry.get("dependencies", []):
                 bios_path = dep.get("bios_path", "")
