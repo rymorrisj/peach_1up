@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import TopBar from '@/components/layout/TopBar'
@@ -116,6 +117,7 @@ function retryUnlessForbidden(failureCount: number, error: unknown) {
 
 export default function PlatformHealth() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set())
   const [rescanning, setRescanning] = useState(false)
   // Checked once per page load: as soon as any Platform Health query comes
@@ -305,6 +307,26 @@ export default function PlatformHealth() {
                     <StatusDot healthy={ok} />
                     {ok ? 'Ready' : 'Degraded'}
                   </div>
+                  {p.is_system && p.status === 'missing' && p.emulator_slug && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/emulators/${p.emulator_slug}`)}
+                      style={{
+                        fontFamily: 'var(--font-display)',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: '4px 10px',
+                        borderRadius: 'var(--r-1)',
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--peach-400)',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Fix →
+                    </button>
+                  )}
                 </div>
               )
             })}

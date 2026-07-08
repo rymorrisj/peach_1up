@@ -148,6 +148,44 @@ export function OverviewTab({
               <GuidanceNote text={entry.guidance_text} url={entry.guidance_url} />
             </div>
           )}
+          {/* Install actions for github_release-type emulators */}
+          {entry.install_type === 'github_release' && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
+                  <StatusDot ok={!!isReady} />
+                  {isReady ? 'Installed' : isInstalling ? 'Downloading…' : 'Not installed'}
+                </div>
+                {!isReady && (
+                  <button
+                    type="button"
+                    onClick={onRunInstaller}
+                    disabled={isInstalling}
+                    style={{
+                      border: 'none', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600,
+                      padding: '9px 14px', borderRadius: 'var(--r-2)', cursor: 'pointer',
+                      background: 'var(--peach-500)', color: '#fff', opacity: isInstalling ? 0.5 : 1,
+                    }}
+                  >
+                    {isInstalling ? 'Downloading…' : 'Download'}
+                  </button>
+                )}
+              </div>
+              {!isReady && !isInstalling && (
+                <GuidanceNote text={entry.guidance_text} url={entry.guidance_url} />
+              )}
+              {isInstalling && (
+                <div style={{ fontSize: 12, color: 'var(--fg-3)', fontFamily: 'var(--font-display)' }}>
+                  Downloading the latest release from GitHub — this may take a minute.
+                </div>
+              )}
+              {installError && (
+                <div style={{ marginTop: 6, fontSize: 12, color: 'var(--error)', fontFamily: 'var(--font-display)' }}>
+                  {installError}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 12 }}>
