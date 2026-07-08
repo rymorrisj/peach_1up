@@ -316,6 +316,17 @@ def _prepare_item(
             _det_reason = _scan.reason
         elif _scan.warnings:
             log.warning("Media detection warnings for '%s': %s", row["media_path"], _scan.warnings)
+
+        # Single-file ingest (e.g. a loose console ROM/ISO with no companion
+        # .exe to discover) has no folder to scan for a launch file the way
+        # the directory branch above does. The item's own media file *is*
+        # the launch target, so populate executable_path with it directly —
+        # this is a "launch target" field, not strictly a "discovered .exe"
+        # field, and must not be left null for a launchable item. Mirrors
+        # _create_multi_disc_collection, which already does the same for
+        # multi-disc sets (executable_path = disc_file).
+        if row["executable_path"] is None:
+            row["executable_path"] = row["media_path"]
     else:
         raise HTTPException(
             status_code=400,

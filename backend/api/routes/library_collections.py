@@ -289,7 +289,8 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
                         )
                     _scan = _smart_detect(era_path)
                     era_slug = _scan.era
-                except Exception:
+                except Exception as exc:
+                    logger.warning("Scan: era detection failed for '%s': %s", scan_path, exc, exc_info=True)
                     era_slug = None
 
                 preview.append({

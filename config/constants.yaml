@@ -64,7 +64,7 @@ backend_system_labels:
   duckstation: "PlayStation 1"
   pcsx2:       "PlayStation 2"
   xemu:        "Xbox OG"
-  mesen:       "NES"
+  mesen:       "NES, SNES"
   project64:   "Nintendo 64"
   flycast:     "Dreamcast"
 
