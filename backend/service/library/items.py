@@ -616,7 +616,8 @@ def create_library_collection(body: LibraryCollectionCreate, db: Session) -> tup
 
 def _delete_leaf_media_folders(collection: LibraryCollection) -> None:
     """Delete each leaf's on-disk media folder (folder_path), used only when
-    delete_media_on_removal is enabled.
+    _should_delete_media() resolves true (per-collection override, else the
+    global delete_media_on_removal setting).
 
     folder_path (not a path reconstructed from the slug) is the source of truth
     for what to remove, since ingest may have slug-renamed the directory. Leaves
@@ -634,8 +635,8 @@ def _delete_leaf_media_folders(collection: LibraryCollection) -> None:
     media_root_str = svc.get("MEDIA_PATH", "") or ""
     if not media_root_str:
         log.error(
-            "delete_media_on_removal is enabled but MEDIA_PATH is unset; "
-            "refusing to delete media folders for collection %s.",
+            "Media deletion is enabled for collection %s but MEDIA_PATH is unset; "
+            "refusing to delete media folders.",
             collection.id,
         )
         return
@@ -664,6 +665,15 @@ def _delete_leaf_media_folders(collection: LibraryCollection) -> None:
             log.warning("Could not delete media folder %s: %s", folder, exc)
 
 
+def _should_delete_media(collection: LibraryCollection) -> bool:
+    """Resolve the effective delete-media decision for a collection: its own
+    override if set, else the global delete_media_on_removal setting."""
+    if collection.delete_media_override is not None:
+        return collection.delete_media_override
+    from backend.core.settings import get_settings
+    return bool(get_settings().get("delete_media_on_removal", False))
+
+
 def delete_library_collection(collection_id: int, token: str, db: Session) -> None:
     if not _consume(token, "library", collection_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
@@ -676,8 +686,7 @@ def delete_library_collection(collection_id: int, token: str, db: Session) -> No
     from backend.service.utils.drive_utils import delete_drive_for_collection
     delete_drive_for_collection(collection, db)
 
-    from backend.core.settings import get_settings
-    if get_settings().get("delete_media_on_removal", False):
+    if _should_delete_media(collection):
         _delete_leaf_media_folders(collection)
 
     db.delete(collection)  # ON DELETE CASCADE removes the leaf rows

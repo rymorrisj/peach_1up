@@ -1,12 +1,13 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface ConfirmModalProps {
   open: boolean
   title: string
   consequence: string
-  onConfirm: () => void
+  onConfirm: (checked?: boolean) => void
   onCancel: () => void
   destructive?: boolean
+  checkbox?: { label: string; defaultChecked: boolean }
 }
 
 export default function ConfirmModal({
@@ -16,8 +17,10 @@ export default function ConfirmModal({
   onConfirm,
   onCancel,
   destructive = false,
+  checkbox,
 }: ConfirmModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const [checked, setChecked] = useState(checkbox?.defaultChecked ?? false)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -29,6 +32,13 @@ export default function ConfirmModal({
     }
   }, [open])
 
+  // Re-seed the checkbox from defaultChecked every time a new confirmation
+  // opens, since callers may pass a different seed value on each invocation.
+  useEffect(() => {
+    if (open) setChecked(checkbox?.defaultChecked ?? false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
   return (
     <dialog
       ref={dialogRef}
@@ -38,6 +48,17 @@ export default function ConfirmModal({
         {title}
       </h2>
       <p className="mb-[1.25em] text-sm text-neutral-600 dark:text-neutral-400">{consequence}</p>
+      {checkbox && (
+        <label className="mb-[1.25em] flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(e) => setChecked(e.target.checked)}
+            className="h-4 w-4"
+          />
+          {checkbox.label}
+        </label>
+      )}
       <div className="flex justify-end gap-[0.75em]">
         <button
           type="button"
@@ -49,7 +70,7 @@ export default function ConfirmModal({
         </button>
         <button
           type="button"
-          onClick={onConfirm}
+          onClick={() => onConfirm(checkbox ? checked : undefined)}
           className={`rounded-md px-[1em] py-[0.5em] text-sm font-medium text-white transition-opacity hover:opacity-90 ${
             destructive ? 'bg-error' : 'bg-peach'
           }`}

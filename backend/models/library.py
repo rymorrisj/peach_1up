@@ -124,6 +124,9 @@ class LibraryCollection(SQLModel, table=True):
     installed: bool = False
     requires_install: bool = False
     launch_review_flagged: bool = Field(default=False)
+    # None = inherit the global delete_media_on_removal setting. True/False
+    # explicitly overrides it for this collection only.
+    delete_media_override: Optional[bool] = None
 
     platform_id: Optional[int] = Field(
         default=None,
@@ -193,6 +196,7 @@ class LibraryCollectionUpdate(SQLModel):
     launch_review_flagged: Optional[bool] = None
     installed: Optional[bool] = None
     requires_install: Optional[bool] = None
+    delete_media_override: Optional[bool] = None
     platform_id: Optional[int] = None
     profile_id: Optional[int] = None
     display_disk_id: Optional[int] = None
@@ -225,6 +229,7 @@ class LibraryCollectionRead(SQLModel):
     installed: bool = False
     requires_install: bool = False
     launch_review_flagged: bool = False
+    delete_media_override: Optional[bool] = None
     platform_id: Optional[int] = None
     profile_id: Optional[int] = None
     drive_id: Optional[int] = None

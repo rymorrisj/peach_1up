@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { Button } from '@/ui'
@@ -8,6 +8,7 @@ import ConfirmModal from '@/components/common/ConfirmModal'
 import { useAppContext } from '@/context/useAppContext'
 import { useLaunch } from '@/hooks/useLaunch'
 import { useConfirm } from '@/hooks/useConfirm'
+import { useConfirmToken } from '@/hooks/useConfirmToken'
 import { useCollectionRestrictions } from '@/hooks/useCollectionRestrictions'
 import { LibraryEntityDetail } from './components/LibraryEntityDetail'
 import { FetchMetadataModal } from './components/FetchMetadataModal'
@@ -42,6 +43,7 @@ function formFromCollection(c: LibraryCollectionData): EditFormFields {
 
 export default function CollectionDetail() {
   const { slug } = useParams<{ slug: string }>()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { state: appState } = useAppContext()
 
@@ -66,6 +68,13 @@ export default function CollectionDetail() {
     enabled: !!slug,
   })
   const collectionId = collection?.id
+
+  const { data: appSettings } = useQuery<Record<string, unknown>>({
+    queryKey: ['settings'],
+    queryFn: () => apiFetch('/api/v1/settings'),
+    staleTime: 60_000,
+  })
+  const deleteMediaOnRemoval = Boolean(appSettings?.delete_media_on_removal)
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users'],
@@ -237,6 +246,66 @@ export default function CollectionDetail() {
     if (confirmed) installedMutation.mutate(target)
   }
 
+  // Persistent per-collection override for delete_media_on_removal — checking
+  // or unchecking PATCHes immediately, no staging behind Save Changes.
+  const deleteMediaOverrideMutation = useMutation<void, Error, boolean>({
+    mutationFn: (value) => {
+      if (collectionId == null) return Promise.resolve()
+      return apiFetch(`/api/v1/librarycollection/${collectionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ delete_media_override: value }),
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
+    },
+  })
+
+  const {
+    confirm: confirmDelete,
+    isOpen: deleteConfirmOpen,
+    options: deleteConfirmOptions,
+    handleConfirm: handleDeleteConfirm,
+    handleCancel: handleDeleteCancel,
+    getCheckboxValue: getDeleteCheckboxValue,
+  } = useConfirm()
+  const { issue: issueDeleteToken, consume: consumeDeleteToken } = useConfirmToken()
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  async function handleDelete() {
+    if (collectionId == null || !collection) return
+    const resolvedDeleteMedia = collection.delete_media_override ?? deleteMediaOnRemoval
+    const confirmed = await confirmDelete({
+      title: `Delete "${collection.title}"?`,
+      consequence: 'This removes the game from your library.',
+      destructive: true,
+      checkbox: { label: 'Also delete media files from disk', defaultChecked: resolvedDeleteMedia },
+    })
+    if (!confirmed) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      const checkedDeleteMedia = getDeleteCheckboxValue()
+      // The confirm-dialog checkbox is seeded from the persistent one but can
+      // still be overridden here as a last-chance choice — persist it back to
+      // the same field before the actual delete so there is one source of truth.
+      if (checkedDeleteMedia !== resolvedDeleteMedia) {
+        await apiFetch(`/api/v1/librarycollection/${collectionId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ delete_media_override: checkedDeleteMedia }),
+        })
+      }
+      const token = await issueDeleteToken(`/api/v1/librarycollection/${collectionId}/confirm-delete`)
+      await consumeDeleteToken(`/api/v1/librarycollection/${collectionId}`, token)
+      queryClient.invalidateQueries({ queryKey: ['library'] })
+      navigate('/library')
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.detail : 'Delete failed.')
+      setDeleting(false)
+    }
+  }
+
   const [flagging, setFlagging] = useState(false)
   const [flagError, setFlagError] = useState<string | null>(null)
 
@@ -334,6 +403,8 @@ export default function CollectionDetail() {
     : (collection.profile_id ?? null)
   const hasProfile = effectiveProfileId != null
 
+  const resolvedDeleteMedia = collection.delete_media_override ?? deleteMediaOnRemoval
+
   function setFormField<K extends keyof EditFormFields>(key: K, value: EditFormFields[K]) {
     setFormState((prev) => prev && { ...prev, [key]: value })
   }
@@ -348,6 +419,34 @@ export default function CollectionDetail() {
       eraLabel={eraLabel}
       launchCount={collection.launch_count}
       lastLaunchedAt={collection.last_launched_at}
+      topControl={
+        <section className="space-y-3 rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 dark:border-surface-700 dark:bg-surface-900">
+          <label
+            htmlFor="delete-media-override"
+            className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
+          >
+            <input
+              type="checkbox"
+              id="delete-media-override"
+              checked={resolvedDeleteMedia}
+              onChange={(e) => deleteMediaOverrideMutation.mutate(e.target.checked)}
+              className="h-4 w-4"
+            />
+            Delete all files/folders when you delete this in Peach 1UP?
+          </label>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDelete}
+            loading={deleting}
+          >
+            Delete this collection
+          </Button>
+          {deleteError && (
+            <p role="alert" className="text-xs text-red-600 dark:text-red-400">{deleteError}</p>
+          )}
+        </section>
+      }
       metaAfter={
         <>
           {isMultiDisc && (
@@ -558,6 +657,16 @@ export default function CollectionDetail() {
       destructive={installedConfirmOptions?.destructive}
       onConfirm={handleInstalledConfirm}
       onCancel={handleInstalledCancel}
+    />
+
+    <ConfirmModal
+      open={deleteConfirmOpen}
+      title={deleteConfirmOptions?.title ?? ''}
+      consequence={deleteConfirmOptions?.consequence ?? ''}
+      destructive={deleteConfirmOptions?.destructive}
+      checkbox={deleteConfirmOptions?.checkbox}
+      onConfirm={handleDeleteConfirm}
+      onCancel={handleDeleteCancel}
     />
 
     {installedMutation.isError && (

@@ -53,7 +53,9 @@ export default function Library() {
     setFilters((f) => ({ ...f, era: searchParams.get('era') ?? '' }))
     setOffset(0)
   }, [searchParams])
-  const { confirm, isOpen: confirmOpen, options: confirmOptions, handleConfirm, handleCancel } = useConfirm()
+  const {
+    confirm, isOpen: confirmOpen, options: confirmOptions, handleConfirm, handleCancel, getCheckboxValue,
+  } = useConfirm()
   const { issue: issueToken, consume: consumeToken } = useConfirmToken()
 
   // Filtering is done server-side: the frontend forwards the filter params and
@@ -108,15 +110,22 @@ export default function Library() {
   }, [invalidate])
 
   async function handleRemove(collection: LibraryCollectionData) {
+    const resolvedDeleteMedia = collection.delete_media_override ?? deleteMediaOnRemoval
     const confirmed = await confirm({
       title: `Remove "${collection.title}"?`,
-      consequence: deleteMediaOnRemoval
-        ? 'This removes the game from your library and deletes its media files from disk.'
-        : 'This removes the game from your library. The media file on disk is not deleted.',
+      consequence: 'This removes the game from your library.',
       destructive: true,
+      checkbox: { label: 'Also delete media files from disk', defaultChecked: resolvedDeleteMedia },
     })
     if (!confirmed) return
     try {
+      const checkedDeleteMedia = getCheckboxValue()
+      if (checkedDeleteMedia !== resolvedDeleteMedia) {
+        await apiFetch(`/api/v1/librarycollection/${collection.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ delete_media_override: checkedDeleteMedia }),
+        })
+      }
       const token = await issueToken(`/api/v1/librarycollection/${collection.id}/confirm-delete`)
       await consumeToken(`/api/v1/librarycollection/${collection.id}`, token)
       queryClient.invalidateQueries({ queryKey: ['library'] })
@@ -260,6 +269,7 @@ export default function Library() {
         title={confirmOptions?.title ?? ''}
         consequence={confirmOptions?.consequence ?? ''}
         destructive={confirmOptions?.destructive}
+        checkbox={confirmOptions?.checkbox}
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />

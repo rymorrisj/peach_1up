@@ -28,6 +28,9 @@ interface LibraryEntityDetailProps {
   eraDetectionReason?: string
   launchCount?: number
   lastLaunchedAt?: string | null
+  /** Rendered at the top of the page content, above the Meta section (e.g. the
+   * persistent "delete media on removal" checkbox) */
+  topControl?: ReactNode
   /** Extra rows inserted before the era row in the meta section (e.g. slug, path) */
   metaBefore?: ReactNode
   /** Extra rows inserted after the launches row in the meta section (e.g. DOS info, disc count) */
@@ -63,6 +66,7 @@ export function LibraryEntityDetail({
   eraDetectionReason,
   launchCount,
   lastLaunchedAt,
+  topControl,
   metaBefore,
   metaAfter,
   tags,
@@ -93,6 +97,8 @@ export function LibraryEntityDetail({
         </div>
 
         <div className="max-w-xl space-y-10">
+
+          {topControl}
 
           {/* ── Meta (read-only) ── */}
           <section className="space-y-1 text-sm text-neutral-600 dark:text-neutral-300">
