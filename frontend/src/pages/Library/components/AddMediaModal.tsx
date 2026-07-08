@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { UploadCloud, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { chunkedUpload } from '@/lib/chunkedUpload'
+import { apiFetch, ApiError } from '@/api/client'
 import { useAppContext } from '@/context/useAppContext'
+import { useConfirm } from '@/hooks/useConfirm'
+import ConfirmModal from '@/components/common/ConfirmModal'
+import FileBrowser from '@/components/common/FileBrowser'
 import { Button, Modal } from '@/ui'
 
 interface UploadEntry {
@@ -16,6 +21,21 @@ interface UploadEntry {
 interface StagedDisc {
   id: string
   file: File
+}
+
+// A file or folder picked via the server-side file browser (real, absolute,
+// server-resolved path — never a browser File object), staged for import
+// via POST /api/v1/library/import-from-path. Unlike the drag-and-drop/file-
+// input entries above, these can offer "delete original after import"
+// because the backend already knows the source's real path.
+interface BrowseImportEntry {
+  id: string
+  path: string
+  name: string
+  isDir: boolean
+  deleteOriginal: boolean
+  status: 'staged' | 'importing' | 'success' | 'error'
+  error?: string
 }
 
 function newEntryId() {
@@ -104,10 +124,34 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
   const [folderBackground, setFolderBackground] = useState(false)
   const [folderResult, setFolderResult] = useState<{ type: 'item' | 'set'; title: string; discCount?: number } | null>(null)
 
+  // Server-side-path import state — a second, independent source mechanism
+  // alongside drag-and-drop/file-input above. Sourced via FileBrowser (real,
+  // absolute, server-resolved paths), not a browser File object, so unlike
+  // every other entry list in this modal it can offer "delete original".
+  const [browserOpen, setBrowserOpen] = useState(false)
+  const [browseImports, setBrowseImports] = useState<BrowseImportEntry[]>([])
+  const [browseImporting, setBrowseImporting] = useState(false)
+  const {
+    confirm: confirmDeleteOriginal,
+    isOpen: deleteConfirmOpen,
+    options: deleteConfirmOptions,
+    handleConfirm: handleDeleteConfirmed,
+    handleCancel: handleDeleteCancelled,
+  } = useConfirm()
+
+  const { data: libraryDefaults } = useQuery<{ delete_media_on_removal: boolean; delete_original_on_upload: boolean }>({
+    queryKey: ['settings', 'library-defaults'],
+    queryFn: () => apiFetch('/api/v1/settings/library-defaults'),
+    staleTime: 60_000,
+    enabled: open,
+  })
+  const deleteOriginalDefault = Boolean(libraryDefaults?.delete_original_on_upload)
+
   const busy =
     entries.some((e) => e.status === 'uploading') ||
     setStatus === 'uploading' ||
-    folderStatus === 'uploading'
+    folderStatus === 'uploading' ||
+    browseImporting
 
   useEffect(() => {
     if (!open && !busy) {
@@ -129,6 +173,8 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       setFolderBackground(false)
       setFolderResult(null)
       setFolderMode(false)
+      setBrowseImports([])
+      setBrowserOpen(false)
     }
   }, [open, busy])
 
@@ -289,11 +335,89 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
     }
   }
 
+  // Each Browse click appends one entry — FileBrowser is single-select, so
+  // staging multiple sources means clicking "Browse Server Files…" once per
+  // item, mirroring how "Select Disc Folder…" above is clicked once per disc.
+  function handleBrowseSelect(path: string, isDir: boolean) {
+    const name = path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? path
+    setBrowseImports((prev) => [
+      ...prev,
+      { id: newEntryId(), path, name, isDir, deleteOriginal: deleteOriginalDefault, status: 'staged' },
+    ])
+  }
+
+  function toggleEntryDelete(id: string) {
+    setBrowseImports((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, deleteOriginal: !e.deleteOriginal } : e)),
+    )
+  }
+
+  function removeBrowseEntry(id: string) {
+    setBrowseImports((prev) => prev.filter((e) => e.id !== id))
+  }
+
+  const stagedBrowseEntries = browseImports.filter((e) => e.status === 'staged')
+  const allDeleteChecked =
+    stagedBrowseEntries.length > 0 && stagedBrowseEntries.every((e) => e.deleteOriginal)
+
+  // Mirrors ScanModal's toggleAll/allSelected pattern exactly, applied to
+  // deleteOriginal instead of an import-selection set — every staged entry is
+  // always imported here, so there's no separate "select which to import"
+  // step the way Scan's preview has.
+  function toggleDeleteAllOriginal() {
+    const next = !allDeleteChecked
+    setBrowseImports((prev) =>
+      prev.map((e) => (e.status === 'staged' ? { ...e, deleteOriginal: next } : e)),
+    )
+  }
+
+  async function submitBrowseImports() {
+    const pending = browseImports.filter((e) => e.status === 'staged')
+    if (pending.length === 0) return
+
+    const toDelete = pending.filter((e) => e.deleteOriginal)
+    if (toDelete.length > 0) {
+      const confirmed = await confirmDeleteOriginal({
+        title: `Delete ${toDelete.length} original ${toDelete.length === 1 ? 'item' : 'items'} after import?`,
+        consequence:
+          `Once each item below is successfully copied into your library, its source will be ` +
+          `permanently deleted from this server: ${toDelete.map((e) => e.path).join(', ')}`,
+        destructive: true,
+      })
+      if (!confirmed) return
+    }
+
+    setBrowseImporting(true)
+    for (const entry of pending) {
+      setBrowseImports((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'importing' } : e)))
+      try {
+        const title = entry.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim()
+        const res = await apiFetch<{ job_id?: string }>('/api/v1/library/import-from-path', {
+          method: 'POST',
+          body: JSON.stringify({ source_path: entry.path, title, delete_original: entry.deleteOriginal }),
+        })
+        if (res.job_id) {
+          dispatch({
+            type: 'UPSERT_JOB',
+            payload: { id: res.job_id, kind: 'upload', status: 'processing', progress: 0, message: `Importing "${title}"…` },
+          })
+        }
+        setBrowseImports((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'success' } : e)))
+        onAdded()
+      } catch (err) {
+        const message = err instanceof ApiError ? err.detail : 'Import failed.'
+        setBrowseImports((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'error', error: message } : e)))
+      }
+    }
+    setBrowseImporting(false)
+  }
+
   const succeeded = entries.filter((e) => e.status === 'success' || e.status === 'reused').length
   const failed = entries.filter((e) => e.status === 'error').length
   const showSummary = entries.length > 0 && !busy
 
   return (
+    <>
     <Modal
       open={open}
       title="Add Media"
@@ -700,10 +824,104 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
         </>
       )}
 
+      {/* Server-side-path import — independent of the drag-and-drop/file-input
+          modes above, so it's shown alongside the default view only (not
+          combined with multi-disc/folder-upload mode, which stage sources a
+          different way). Unlike every method above, this one knows the
+          source's real server path, so it alone can offer to delete the
+          original after a confirmed successful import. */}
+      {!multiDisc && !folderMode && (
+        <div className="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              Import from a path on this server
+            </p>
+            <Button variant="secondary" size="sm" disabled={busy} onClick={() => setBrowserOpen(true)}>
+              Browse Server Files…
+            </Button>
+          </div>
+          <p className="mb-2 text-xs text-neutral-400 dark:text-neutral-500">
+            Pick a file or folder already on this server — no upload needed. Click again to add more.
+          </p>
+
+          {browseImports.length > 0 && (
+            <>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-xs text-neutral-400 dark:text-neutral-500">
+                  {browseImports.length} staged
+                </span>
+                {stagedBrowseEntries.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={toggleDeleteAllOriginal}
+                    className="text-xs text-[#ff8a5c] hover:underline"
+                  >
+                    {allDeleteChecked ? 'Uncheck All "Delete Original"' : 'Check All "Delete Original"'}
+                  </button>
+                )}
+              </div>
+              <ul className="max-h-48 space-y-1.5 overflow-y-auto">
+                {browseImports.map((entry) => (
+                  <li
+                    key={entry.id}
+                    className="flex items-center gap-2 rounded-md border border-neutral-200 dark:border-neutral-700 px-3 py-2"
+                  >
+                    <span
+                      className="min-w-0 flex-1 truncate text-sm text-neutral-800 dark:text-neutral-200"
+                      title={entry.path}
+                    >
+                      {entry.isDir ? '📁' : '📄'} {entry.name}
+                    </span>
+                    <label className="flex shrink-0 items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+                      <input
+                        type="checkbox"
+                        checked={entry.deleteOriginal}
+                        disabled={entry.status !== 'staged'}
+                        onChange={() => toggleEntryDelete(entry.id)}
+                        className="h-3.5 w-3.5"
+                      />
+                      Delete original
+                    </label>
+                    <span className="shrink-0 text-xs font-medium">
+                      {entry.status === 'importing' && <span className="text-neutral-400">Importing…</span>}
+                      {entry.status === 'success' && <span className="text-emerald-500">✓ Added</span>}
+                      {entry.status === 'error' && <span className="text-red-500" title={entry.error}>Failed</span>}
+                    </span>
+                    {entry.status === 'staged' && (
+                      <button
+                        type="button"
+                        onClick={() => removeBrowseEntry(entry.id)}
+                        aria-label={`Remove ${entry.name}`}
+                        className="shrink-0 rounded p-0.5 text-neutral-400 hover:text-red-400"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {stagedBrowseEntries.length > 0 && (
+                <Button
+                  className="mt-2"
+                  onClick={submitBrowseImports}
+                  loading={browseImporting}
+                  disabled={busy}
+                >
+                  Import {stagedBrowseEntries.length} item{stagedBrowseEntries.length !== 1 ? 's' : ''}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
         {mediaPath
           ? `Tip: uploads are copied through the browser, which can be slow for very large files. For faster imports of large files, place them directly in ${mediaPath} and use Scan instead.`
           : 'Tip: uploads are copied through the browser, which can be slow for very large files. Set a media library path in Settings to enable faster imports of large files via Scan.'}
+        {' '}Dragged/dropped or picked files can't offer to delete their source afterward — the
+        browser never exposes a real file path for that input method. Use "Import from a path on
+        this server" above if you want the option to delete the original after import.
       </p>
 
       {!multiDisc && !folderMode && showSummary && (
@@ -713,5 +931,23 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
         </p>
       )}
     </Modal>
+
+    <FileBrowser
+      open={browserOpen}
+      onClose={() => setBrowserOpen(false)}
+      onSelect={handleBrowseSelect}
+      mode="both"
+      title="Select File or Folder to Import"
+    />
+
+    <ConfirmModal
+      open={deleteConfirmOpen}
+      title={deleteConfirmOptions?.title ?? ''}
+      consequence={deleteConfirmOptions?.consequence ?? ''}
+      destructive={deleteConfirmOptions?.destructive}
+      onConfirm={handleDeleteConfirmed}
+      onCancel={handleDeleteCancelled}
+    />
+    </>
   )
 }

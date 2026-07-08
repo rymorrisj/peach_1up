@@ -94,3 +94,43 @@ def normalise_path(path: str) -> Path:
         path = f"{path[1].upper()}:{path[2:]}"
 
     return Path(path).resolve()
+
+
+def allowed_browse_roots() -> list[Path]:
+    """Return every filesystem root the server-side file browser (and anything
+    that consumes a path it returned) is permitted to touch: the configured
+    library base directories, plus — on Windows — every drive letter, since
+    the browser is also used to locate arbitrary source media (ROM packs,
+    manual launch-target overrides) that legitimately live outside the library.
+
+    Shared by the /filesystem/browse endpoint and any endpoint that accepts a
+    path the browser produced, so the allowlist can never drift between the
+    two call sites.
+    """
+    import string
+    import sys
+
+    from backend.core.settings import get_settings
+
+    svc = get_settings()
+    roots: list[Path] = []
+    for key in ("LIBRARY_PATH", "MEDIA_PATH", "OS_PATH", "ROMS_PATH", "PROFILES_PATH"):
+        val = svc.get(key, "") or ""
+        if val:
+            try:
+                roots.append(Path(val).resolve())
+            except OSError:
+                pass
+    if sys.platform == "win32":
+        for letter in string.ascii_uppercase:
+            try:
+                drive = Path(f"{letter}:\\")
+                if drive.exists():
+                    roots.append(drive.resolve())
+            except OSError:
+                pass
+    return roots
+
+
+def is_within_roots(resolved: Path, roots: list[Path]) -> bool:
+    return any(resolved == r or resolved.is_relative_to(r) for r in roots)

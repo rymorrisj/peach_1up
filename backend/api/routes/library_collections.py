@@ -2,6 +2,7 @@ import threading
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -22,8 +23,11 @@ from backend.models.media_restriction import MediaRestriction
 from backend.models.pagination import Page
 from backend.models.user import User
 from backend.service.library import items as lib_svc
+from backend.service.library import path_import
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
+from backend.service.utils.path_utils import allowed_browse_roots, is_within_roots, normalise_path
+from backend.service.utils.upload_utils import DEFAULT_BACKGROUND_THRESHOLD_BYTES, DEFAULT_MAX_BYTES
 
 router = APIRouter(prefix="/api/v1", tags=["library"])
 logger = get_logger(__name__)
@@ -38,6 +42,9 @@ _scan_job_id: str | None = None
 
 _SCAN_RATE_LIMIT = 5
 _SCAN_RATE_WINDOW_SECONDS = 60.0
+
+_PATH_IMPORT_RATE_LIMIT = 10
+_PATH_IMPORT_RATE_WINDOW_SECONDS = 60.0
 
 
 def _enforce_rate_limit(bucket: str, request: Request, limit: int, window_seconds: float) -> None:
@@ -126,6 +133,96 @@ def add_library_collection(
         raise HTTPException(status_code=409, detail="This media path is already in the library.")
     except lib_svc._SlugCollision as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+class ImportFromPathBody(BaseModel):
+    source_path: str
+    title: str
+    delete_original: bool = False
+
+
+@router.post("/library/import-from-path")
+def import_from_path(
+    body: ImportFromPathBody,
+    request: Request,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    """Import a file or folder already on the server's filesystem — the same
+    kind of real, absolute path GET /api/v1/filesystem/browse resolves — into
+    the library. This is a second transport alongside chunked browser upload,
+    for when the source is already local to the server: no chunked transfer,
+    and (opt-in, per delete_original) the source can be deleted afterward,
+    which a browser upload can never do since the browser never exposes the
+    source's real path. See service.library.path_import for the copy-then-
+    optionally-delete implementation.
+    """
+    _enforce_rate_limit("library-path-import", request, _PATH_IMPORT_RATE_LIMIT, _PATH_IMPORT_RATE_WINDOW_SECONDS)
+
+    try:
+        resolved = normalise_path(body.source_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    # Re-validated here even though the frontend only ever offers paths the
+    # file browser itself returned — the backend must not trust that a path
+    # in a request body actually came from that browser call.
+    if not is_within_roots(resolved, allowed_browse_roots()):
+        raise HTTPException(status_code=400, detail="Path is outside the permitted directories.")
+    if resolved.is_symlink():
+        raise HTTPException(status_code=400, detail="Symlinked paths cannot be imported directly.")
+    if not resolved.exists():
+        raise HTTPException(status_code=400, detail="Path does not exist.")
+
+    # _prepare_item carries this same guard, but it only ever sees the
+    # already-copied path under MEDIA_PATH — by then the (potentially huge)
+    # copy has already happened and would silently duplicate an OS image into
+    # the library. Check the original source here, before staging starts.
+    from backend.models.platform import Platform
+    incoming_norm = resolved.as_posix()
+    for base_path, working_path in db.query(Platform.base_image_path, Platform.working_image_path).all():
+        if (base_path and Path(base_path).resolve().as_posix() == incoming_norm) or (
+            working_path and Path(working_path).resolve().as_posix() == incoming_norm
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Path is an OS environment image and cannot be added as a library item.",
+            )
+
+    title = body.title.strip() or resolved.stem.replace("-", " ").title()
+
+    size = path_import.source_size(resolved)
+    if size > DEFAULT_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Import exceeds the maximum allowed size ({DEFAULT_MAX_BYTES // 1024 ** 3} GB).",
+        )
+
+    from backend.core.settings import get_settings
+    svc = get_settings()
+    media_root = Path(svc.get_env_var("MEDIA_PATH")).resolve()
+    try:
+        threshold = int(svc.get("UPLOAD_BACKGROUND_THRESHOLD_BYTES", DEFAULT_BACKGROUND_THRESHOLD_BYTES)
+                         or DEFAULT_BACKGROUND_THRESHOLD_BYTES)
+    except (TypeError, ValueError):
+        threshold = DEFAULT_BACKGROUND_THRESHOLD_BYTES
+
+    if size > threshold:
+        job_id = jobs.create("upload", message=f"Importing \"{title}\"…")
+        background_tasks.add_task(
+            path_import.import_background,
+            str(resolved), title, str(media_root), job_id, body.delete_original,
+        )
+        return JSONResponse(status_code=202, content={"job_id": job_id, "status": "processing"})
+
+    try:
+        result = path_import.import_inline(resolved, title, media_root, db, body.delete_original)
+    except lib_svc._ItemAlreadyExists:
+        raise HTTPException(status_code=409, detail="This item is already in the library.")
+    except lib_svc._SlugCollision as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return JSONResponse(status_code=201, content=result)
 
 
 # ---------------------------------------------------------------------------

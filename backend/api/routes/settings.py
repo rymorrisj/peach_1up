@@ -70,6 +70,7 @@ _ENV_SECRET_KEYS = {"THEGAMESDB_API_KEY", "AI_API_KEY", "IGDB_API_KEY"}
 _USER_WRITABLE_KEYS = _ALL_PATH_KEYS | _ENV_SECRET_KEYS | {
     "suppress_confirmations",
     "delete_media_on_removal",
+    "delete_original_on_upload",
 }
 
 
@@ -80,6 +81,28 @@ def get_all_settings(_: User = require_permission("can_edit_settings")):
     return {
         k: v for k, v in state.items()
         if not k.startswith("_") and k.upper() not in _SENSITIVE_KEYS
+    }
+
+
+class LibraryDefaultsResult(BaseModel):
+    delete_media_on_removal: bool
+    delete_original_on_upload: bool
+
+
+@router.get("/library-defaults", response_model=LibraryDefaultsResult)
+def get_library_defaults(_: User = require_permission("can_edit_library")):
+    """Narrow, can_edit_library-gated read of the two boolean defaults that
+    library-editing surfaces (Library list, collection detail, Add Media) need
+    to seed their own per-action checkboxes. GET /api/v1/settings (the full
+    payload) is can_edit_settings-gated — a sub-account can legitimately have
+    can_edit_library without can_edit_settings, and calling the full endpoint
+    from those surfaces 403s for that account shape. This endpoint exists so
+    those surfaces never need the broader permission just to read two flags.
+    """
+    svc = get_settings()
+    return {
+        "delete_media_on_removal": bool(svc.get("delete_media_on_removal", False)),
+        "delete_original_on_upload": bool(svc.get("delete_original_on_upload", False)),
     }
 
 

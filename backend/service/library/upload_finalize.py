@@ -4,10 +4,13 @@ library ingester.
 `finalize_inline` runs in the request (small uploads, ≤ threshold) and returns a
 normalized result the route sends as 201. `finalize_background` runs as a
 BackgroundTask (large uploads) with its own DB session, reporting progress into
-core.jobs and reaping the destination on failure. Both call `_finalize`, so the
-reassemble → ingest → cleanup sequence lives in exactly one place. Anchor dedup
-(content-hash reuse of an existing on-disk file) only applies to the "file" and
-auto-detected "folder" kinds, not explicit "set" uploads — see the "set" branch.
+core.jobs and reaping the destination on failure. Both reassemble from staged
+upload chunks, then call `finalize_reassembled`, so the ingest → cleanup
+sequence lives in exactly one place — `service.library.path_import` reuses
+`finalize_reassembled` directly for server-side-path imports, whose "reassembly"
+is a filesystem copy instead of a chunk reassembly. Anchor dedup (content-hash
+reuse of an existing on-disk file) only applies to the "file" and auto-detected
+"folder" kinds, not explicit "set" uploads — see the "set" branch.
 """
 from __future__ import annotations
 
@@ -25,15 +28,17 @@ from backend.service.library import items as lib_svc
 logger = get_logger(__name__)
 
 
-def _finalize(upload_id: str, media_root: Path, db: Session) -> dict:
-    """Reassemble the staged upload, ingest it, and return a normalized summary:
-    ``{result_type, id, title, reused_existing_media?, disc_count?}``.
+def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Session) -> dict:
+    """Ingest an already-staged ``ReassembledUpload`` and return a normalized
+    summary: ``{result_type, id, title, reused_existing_media?, disc_count?}``.
 
-    tmp staging is dropped by reassemble(); the reassembled destination is
-    removed here if ingest fails so a failed upload never leaves an orphan under
-    MEDIA_PATH.
+    Shared by chunked-upload finalization (reasm comes from ``cu.reassemble``,
+    staged from browser-uploaded chunks) and server-side-path import (reasm
+    comes from copying a path the file browser resolved) — both just need
+    "some files already sitting under MEDIA_PATH" ingested the same way. The
+    destination is removed here if ingest fails so a failed finalize never
+    leaves an orphan under MEDIA_PATH.
     """
-    reasm = cu.reassemble(upload_id, media_root)
     try:
         if reasm.kind == "file":
             from backend.service.utils.upload_utils import find_existing_duplicate
@@ -91,7 +96,8 @@ def _finalize(upload_id: str, media_root: Path, db: Session) -> dict:
 
 
 def finalize_inline(upload_id: str, media_root: Path, db: Session) -> dict:
-    return _finalize(upload_id, media_root, db)
+    reasm = cu.reassemble(upload_id, media_root)
+    return finalize_reassembled(reasm, media_root, db)
 
 
 def finalize_background(upload_id: str, media_root: str, job_id: str) -> None:
@@ -101,7 +107,8 @@ def finalize_background(upload_id: str, media_root: str, job_id: str) -> None:
     db = Session(get_engine())
     try:
         jobs.update(job_id, progress=0.1, message="Reassembling upload…")
-        result = _finalize(upload_id, Path(media_root), db)
+        reasm = cu.reassemble(upload_id, Path(media_root))
+        result = finalize_reassembled(reasm, Path(media_root), db)
         jobs.complete(job_id, result=result, message=f"Added \"{result.get('title', 'upload')}\".")
     except Exception as exc:  # noqa: BLE001 — background tasks must not propagate
         logger.exception("Background upload finalize failed: upload_id=%s", upload_id)

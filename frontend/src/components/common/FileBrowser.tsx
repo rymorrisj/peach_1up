@@ -31,7 +31,10 @@ interface BrowseResult {
 interface FileBrowserProps {
   open: boolean
   onClose: () => void
-  onSelect: (path: string) => void
+  // isDir reflects which listing produced the selection (the folder-select
+  // button vs. a row from `files`) — callers that only care about the path
+  // can ignore the second argument.
+  onSelect: (path: string, isDir: boolean) => void
   extensions?: string
   title?: string
   mode?: 'file' | 'folder' | 'both'
@@ -107,7 +110,7 @@ export default function FileBrowser({
 
   function handleSelectFolder() {
     if (currentPath) {
-      onSelect(currentPath)
+      onSelect(currentPath, true)
       onClose()
     }
   }
@@ -221,7 +224,7 @@ export default function FileBrowser({
                 <li key={f.path} className="border-b border-neutral-100 last:border-0 dark:border-neutral-800">
                   <button
                     type="button"
-                    onClick={() => { onSelect(f.path); onClose() }}
+                    onClick={() => { onSelect(f.path, false); onClose() }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-neutral-50 dark:hover:bg-surface-800"
                   >
                     <span aria-hidden="true" className="shrink-0 text-neutral-400">📄</span>

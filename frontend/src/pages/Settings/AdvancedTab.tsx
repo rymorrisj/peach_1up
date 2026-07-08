@@ -207,6 +207,66 @@ function PinPepperSection() {
   )
 }
 
+function DeleteOriginalOnUploadSection() {
+  const queryClient = useQueryClient()
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const { data: settings } = useQuery<Record<string, unknown>>({
+    queryKey: ['settings'],
+    queryFn: () => apiFetch('/api/v1/settings'),
+  })
+
+  const enabled = Boolean(settings?.delete_original_on_upload)
+
+  async function handleToggle(next: boolean) {
+    setSaving(true)
+    setError(null)
+    try {
+      await apiFetch('/api/v1/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ updates: { delete_original_on_upload: next } }),
+      })
+      await queryClient.invalidateQueries({ queryKey: ['settings'] })
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : 'Failed to update setting.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+        Server Path Import
+      </h2>
+      <label className="flex items-center gap-3">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={saving}
+          onChange={(e) => handleToggle(e.target.checked)}
+          className="h-4 w-4 shrink-0 accent-[#ff8a5c]"
+        />
+        <span className="text-sm text-neutral-900 dark:text-neutral-100">
+          Delete the original file/folder after importing via "Browse Server Files…"
+        </span>
+      </label>
+      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        Default for the "delete once uploaded" checkbox when adding media by browsing a path
+        already on this server. Only applies to that input method — items dragged or dropped
+        through the browser can never delete their source, since the browser never exposes its
+        real file path. This cannot be undone.
+      </p>
+      {error && (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          ❌ {error}
+        </p>
+      )}
+    </section>
+  )
+}
+
 function DeleteMediaOnRemovalSection() {
   const queryClient = useQueryClient()
   const [saving, setSaving] = useState(false)
@@ -297,6 +357,7 @@ export default function AdvancedTab() {
       <TheGamesDbSection />
       <PinPepperSection />
       <DeleteMediaOnRemovalSection />
+      <DeleteOriginalOnUploadSection />
 
       <section className="space-y-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">

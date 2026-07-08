@@ -93,12 +93,12 @@ export default function Library() {
     staleTime: 60_000,
   })
 
-  const { data: appSettings } = useQuery<Record<string, unknown>>({
-    queryKey: ['settings'],
-    queryFn: () => apiFetch('/api/v1/settings'),
+  const { data: libraryDefaults } = useQuery<{ delete_media_on_removal: boolean; delete_original_on_upload: boolean }>({
+    queryKey: ['settings', 'library-defaults'],
+    queryFn: () => apiFetch('/api/v1/settings/library-defaults'),
     staleTime: 60_000,
   })
-  const deleteMediaOnRemoval = Boolean(appSettings?.delete_media_on_removal)
+  const deleteMediaOnRemoval = Boolean(libraryDefaults?.delete_media_on_removal)
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['library'] })

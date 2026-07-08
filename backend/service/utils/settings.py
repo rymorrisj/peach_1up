@@ -52,6 +52,7 @@ _DEFAULTS: dict = {
     "suppress_confirmations": [],
     "reset_db": False,
     "delete_media_on_removal": False,
+    "delete_original_on_upload": False,
     "UPLOAD_TMP_TTL_SECONDS": DEFAULT_UPLOAD_TMP_TTL_SECONDS,
 }
 

@@ -7,35 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from backend.core.dependencies import require_library_or_platform_editor
 from backend.models.filesystem import BrowseResult, DrivesResult
 from backend.models.user import User
+from backend.service.utils.path_utils import allowed_browse_roots, is_within_roots
 
 router = APIRouter(prefix="/api/v1/filesystem", tags=["filesystem"])
-
-
-def _allowed_roots() -> list[Path]:
-    """Return all filesystem roots the browser is permitted to access."""
-    from backend.core.settings import get_settings
-    svc = get_settings()
-    roots: list[Path] = []
-    for key in ("LIBRARY_PATH", "MEDIA_PATH", "OS_PATH", "ROMS_PATH", "PROFILES_PATH"):
-        val = svc.get(key, "") or ""
-        if val:
-            try:
-                roots.append(Path(val).resolve())
-            except Exception:
-                pass
-    if sys.platform == "win32":
-        for letter in string.ascii_uppercase:
-            try:
-                drive = Path(f"{letter}:\\")
-                if drive.exists():
-                    roots.append(drive.resolve())
-            except Exception:
-                pass
-    return roots
-
-
-def _within_allowed(resolved: Path, roots: list[Path]) -> bool:
-    return any(resolved == r or resolved.is_relative_to(r) for r in roots)
 
 
 def _get_drive_label(letter: str) -> str:
@@ -79,7 +53,7 @@ def browse(
     When path is omitted, returns the configured base directories as the home
     listing. On Windows, callers should also fetch /drives to show a drive picker.
     """
-    roots = _allowed_roots()
+    roots = allowed_browse_roots()
 
     if path is None:
         from backend.core.settings import get_settings
@@ -106,7 +80,7 @@ def browse(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    if not _within_allowed(resolved, roots):
+    if not is_within_roots(resolved, roots):
         raise HTTPException(status_code=400, detail="Path is outside the permitted directories.")
 
     if not resolved.exists():
@@ -141,7 +115,7 @@ def browse(
     parent_obj = resolved.parent
     parent_path: str | None = None
     if parent_obj != resolved:
-        if _within_allowed(parent_obj, roots):
+        if is_within_roots(parent_obj, roots):
             parent_path = str(parent_obj)
 
     return {
