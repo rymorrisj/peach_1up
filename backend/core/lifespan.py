@@ -36,8 +36,12 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_settings()
-    from backend.core.logger import setup_logging
+    from backend.core.logger import setup_logging, configure_uvicorn_logging
     setup_logging()
+    # Must run here, not before Server.serve() — uvicorn's own config.load()
+    # (dictConfig on the "uvicorn"/"uvicorn.error"/"uvicorn.access" loggers)
+    # runs before lifespan startup and would otherwise overwrite this.
+    configure_uvicorn_logging()
     _ensure_default_paths()
     from backend.service.utils.settings import validate_configured_paths, get_path_warnings
     validate_configured_paths()

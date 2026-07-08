@@ -121,8 +121,8 @@ def setup_logging() -> None:
 
     app_h = RotatingFileHandler(
         logs_dir / "app.log",
-        maxBytes=5 * 1024 * 1024,
-        backupCount=3,
+        maxBytes=15 * 1024 * 1024,
+        backupCount=5,
         encoding="utf-8",
     )
     app_h.setLevel(logging.INFO)
@@ -130,8 +130,8 @@ def setup_logging() -> None:
 
     err_h = RotatingFileHandler(
         logs_dir / "error.log",
-        maxBytes=5 * 1024 * 1024,
-        backupCount=3,
+        maxBytes=15 * 1024 * 1024,
+        backupCount=5,
         encoding="utf-8",
     )
     err_h.setLevel(logging.ERROR)
