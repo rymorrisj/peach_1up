@@ -17,6 +17,7 @@ from backend.service.utils.emulator_catalog import (
     get_emulator,
     get_install_path,
     installer_present as _installer_present,
+    is_container_permanently_excluded,
     load_catalog,
 )
 from backend.service.utils.emulator_installer import (
@@ -446,7 +447,7 @@ def patch_sandbox(slug: str, body: SandboxPatchRequest, _: User = require_permis
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
 
-    if body.container_enabled is True and entry.get("container_enabled") is False:
+    if body.container_enabled is True and is_container_permanently_excluded(slug):
         raise HTTPException(
             status_code=400,
             detail="AppContainer is permanently disabled for this emulator. See known limitations for details.",
