@@ -35,6 +35,11 @@ def _derive_rating_ordinals() -> dict[str, int]:
 
 _BASE_RATING_ORDINALS: dict[str, int] = _derive_rating_ordinals()
 
+# Scheme grouping (ESRB, PEGI, ...) is not part of the ordinal override key —
+# rating_ordinals only remaps severity within a scheme — so this always comes
+# from the base CONTENT_RATINGS list, never the app_settings override.
+_BASE_RATING_SCHEMES: dict[str, str] = {entry["value"]: entry["scheme"] for entry in CONTENT_RATINGS}
+
 
 def _load_rating_ordinals() -> dict[str, int]:
     """Return the rating ordinal map from app_settings (key: rating_ordinals) or defaults.
@@ -72,6 +77,34 @@ def normalize_content_rating(raw: str | None) -> str | None:
     # "E10+ - Everyone 10+" -> "E10+", "ESRB: T" -> "ESRB" (unrecognised -> None).
     lead = re.split(r"\s*[-:–]\s*", text, maxsplit=1)[0].strip()
     return canonical.get(lead.casefold())
+
+
+def rating_change_requires_confirmation(old: str | None, new: str | None) -> bool:
+    """Return True if moving content_rating from *old* to *new* lowers or clears
+    an already-set rating, and therefore must not be written without explicit
+    confirmation (an item moving below a sub-account's max_content_rating, or
+    an unrated-visible gap, is a parental-control filter opening silently).
+
+    ``old is None`` means there was nothing to protect yet, so any value is
+    allowed through. Ratings from different schemes (ESRB vs PEGI) or any
+    value missing from the known scheme/ordinal maps are not provably
+    non-lowering, so they are conservatively treated as requiring
+    confirmation too.
+    """
+    if old is None or new == old:
+        return False
+    if new is None:
+        return True
+    old_scheme = _BASE_RATING_SCHEMES.get(old)
+    new_scheme = _BASE_RATING_SCHEMES.get(new)
+    if old_scheme is None or new_scheme is None or old_scheme != new_scheme:
+        return True
+    ordinals = _load_rating_ordinals()
+    old_ord = ordinals.get(old)
+    new_ord = ordinals.get(new)
+    if old_ord is None or new_ord is None:
+        return True
+    return new_ord < old_ord
 
 
 def validate_max_content_rating(value: str | None) -> str | None:

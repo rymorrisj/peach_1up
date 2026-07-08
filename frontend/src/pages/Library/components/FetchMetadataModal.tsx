@@ -31,6 +31,10 @@ interface FetchMetadataModalProps {
   entityTitle: string
   storageKey: string
   onSuccess: () => void
+  /** Current content_rating on the collection, if any — used to warn when the
+   *  fetched rating would lower or clear it. Only meaningful for entityType
+   *  'library_collection'; library_item has no content_rating field. */
+  currentContentRating?: string | null
 }
 
 export function FetchMetadataModal({
@@ -41,6 +45,7 @@ export function FetchMetadataModal({
   entityTitle,
   storageKey,
   onSuccess,
+  currentContentRating = null,
 }: FetchMetadataModalProps) {
   const { dispatch } = useAppContext()
 
@@ -56,6 +61,7 @@ export function FetchMetadataModal({
 
   const [applying, setApplying] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
+  const [confirmRatingChange, setConfirmRatingChange] = useState(false)
 
   // Restore cached results from sessionStorage on modal open
   useEffect(() => {
@@ -84,6 +90,7 @@ export function FetchMetadataModal({
       setDetails(null)
       setApplying(false)
       setApplyError(null)
+      setConfirmRatingChange(false)
     }
   }, [open])
 
@@ -125,6 +132,7 @@ export function FetchMetadataModal({
 
   async function handleKeep() {
     if (!details) return
+    if (ratingChanged && !confirmRatingChange) return
     setApplying(true)
     setApplyError(null)
 
@@ -139,6 +147,7 @@ export function FetchMetadataModal({
       if (details.title) payload.title = details.title
       if (details.overview) payload.description = details.overview
       if (details.rating) payload.content_rating = details.rating
+      if (ratingChanged) payload.confirm_rating_change = confirmRatingChange
       if (details.release_date) {
         const year = parseInt(details.release_date.split('-')[0], 10)
         if (!isNaN(year)) payload.year = year
@@ -183,6 +192,14 @@ export function FetchMetadataModal({
   const showCoverArt = entityType === 'library_item'
   const showMetadata = entityType === 'library_collection'
   const busy = phase === 'search' ? searching || fetching : applying
+  // Coarse string comparison against the raw provider rating (not the normalized
+  // form the backend will store) — this can flag changes the backend later decides
+  // don't need confirmation (e.g. a same-rating restated differently, or a raise),
+  // but it can never miss a real lower/clear. The backend's normalized comparison
+  // in enrich.py is the actual safety gate; this is just visibility for the user.
+  const ratingChanged = Boolean(
+    showMetadata && details?.rating && currentContentRating && details.rating !== currentContentRating,
+  )
 
   return (
     <Modal
@@ -209,7 +226,11 @@ export function FetchMetadataModal({
             <Button variant="secondary" onClick={handleRedo} disabled={applying}>
               Redo
             </Button>
-            <Button onClick={handleKeep} disabled={applying} loading={applying}>
+            <Button
+              onClick={handleKeep}
+              disabled={applying || (ratingChanged && !confirmRatingChange)}
+              loading={applying}
+            >
               Keep
             </Button>
           </div>
@@ -316,7 +337,17 @@ export function FetchMetadataModal({
                 {showMetadata && details.rating && (
                   <div className="flex gap-2">
                     <dt className="w-28 shrink-0 font-medium text-neutral-400">Rating</dt>
-                    <dd className="text-neutral-100">{details.rating}</dd>
+                    <dd className="text-neutral-100">
+                      {ratingChanged ? (
+                        <span>
+                          <span className="text-neutral-400 line-through">{currentContentRating}</span>
+                          {' → '}
+                          <span className="font-medium text-amber-400">{details.rating}</span>
+                        </span>
+                      ) : (
+                        details.rating
+                      )}
+                    </dd>
                   </div>
                 )}
                 {showMetadata && details.genres && details.genres.length > 0 && (
@@ -338,6 +369,25 @@ export function FetchMetadataModal({
                   </div>
                 )}
               </dl>
+
+              {ratingChanged && (
+                <div className="rounded-md border border-amber-600/50 bg-amber-950/30 p-3">
+                  <p className="text-sm text-amber-300">
+                    The content rating is changing from <strong>{currentContentRating}</strong> to{' '}
+                    <strong>{details.rating}</strong>. If this lowers or clears an existing rating,
+                    it can affect what sub-accounts are allowed to see.
+                  </p>
+                  <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-amber-200">
+                    <input
+                      type="checkbox"
+                      checked={confirmRatingChange}
+                      onChange={(e) => setConfirmRatingChange(e.target.checked)}
+                      className="accent-[#ff8a5c]"
+                    />
+                    I understand and want to apply this rating change
+                  </label>
+                </div>
+              )}
             </>
           )}
 

@@ -129,6 +129,21 @@ def _finalize_launch(
         history.sandbox_cpu_limit_percent = job.cpu_limit_percent
         history.network_blocked = network_blocked
         db.commit()
+    else:
+        # A backend returned None/(None, ...) instead of raising. Without this,
+        # the caller would treat a launch that never produced a process as a
+        # success, leaving history.ended_at unset forever. Same false-success
+        # class as the extract-xiso bug: never trust a result without
+        # confirming the thing it claims to have produced actually exists.
+        logger.error("Launch backend returned no process (proc is None) for history_id=%s", history.id)
+        history.error_message = "Launch failed: backend returned no process."
+        history.ended_at = datetime.now(timezone.utc)
+        history.exit_code = -1
+        db.commit()
+        raise HTTPException(
+            status_code=500,
+            detail="Launch failed: the backend did not return a running process.",
+        )
 
 
 def _resolve_profile_for_item(entity_profile_id: int | None, profile_id: int | None, db: Session) -> Profile:

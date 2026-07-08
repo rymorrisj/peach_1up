@@ -465,8 +465,15 @@ def _ingest_media_entry(
     if a concurrent insert claimed the generated slug first (rare TOCTOU race).
     """
     _undo_ops: list = []
-    row = _prepare_item(media_path, title, db, override_profile_id=override_profile_id, _undo_stack=_undo_ops)
+    # _prepare_item performs filesystem moves/renames (appended to _undo_ops as
+    # it goes) before this function ever touches the DB. Wrapping it in this
+    # same try — not just the persist call — means ANY exception during
+    # prepare-or-persist replays those moves, not only an IntegrityError from
+    # the flush. Otherwise an HTTPException/DB error raised inside _prepare_item
+    # itself (after it already moved a file) would leave the move applied with
+    # no DB row and no rollback: an orphaned move.
     try:
+        row = _prepare_item(media_path, title, db, override_profile_id=override_profile_id, _undo_stack=_undo_ops)
         collection = _persist_collection_of_one(row, db)
     except IntegrityError as exc:
         db.rollback()
@@ -476,6 +483,14 @@ def _ingest_media_entry(
             except OSError:
                 pass
         raise _SlugCollision() from exc
+    except Exception:
+        db.rollback()
+        for _undo in reversed(_undo_ops):
+            try:
+                _undo()
+            except OSError:
+                pass
+        raise
 
     db.commit()
     db.refresh(collection)

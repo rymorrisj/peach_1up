@@ -13,10 +13,13 @@ import ctypes
 import ctypes.wintypes
 from typing import TYPE_CHECKING
 
+from backend.core.logger import get_logger
 from backend.service.utils.platform.windows.win32_types import _STILL_ACTIVE
 
 if TYPE_CHECKING:
     from backend.service.utils.platform.windows.sandbox.sandbox import SandboxHandle
+
+_log = get_logger(__name__)
 
 
 class SandboxProcess:
@@ -57,9 +60,23 @@ class SandboxProcess:
         if self._process_handle is None:
             return self.returncode
         exit_code = ctypes.wintypes.DWORD(_STILL_ACTIVE)
-        ctypes.windll.kernel32.GetExitCodeProcess(
+        ok = ctypes.windll.kernel32.GetExitCodeProcess(
             self._process_handle, ctypes.byref(exit_code)
         )
+        if not ok:
+            # GetExitCodeProcess's own BOOL return signals whether the DWORD
+            # out-param is meaningful at all. Ignoring it left exit_code at its
+            # pre-set _STILL_ACTIVE value on failure, so poll() reported "still
+            # running" even though the call told us nothing -- a dead process
+            # could be reported alive indefinitely. Log and treat as unknown
+            # (None) rather than implicitly alive; do not set returncode or
+            # close handles, since we don't actually know the process exited.
+            _log.error(
+                "GetExitCodeProcess failed for pid=%s (GetLastError=%s); "
+                "process exit state unknown.",
+                self.pid, ctypes.windll.kernel32.GetLastError(),
+            )
+            return None
         if exit_code.value == _STILL_ACTIVE:
             return None
         self.returncode = exit_code.value

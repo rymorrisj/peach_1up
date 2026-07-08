@@ -7,10 +7,13 @@ from typing import TYPE_CHECKING, Literal, Optional
 import httpx
 from fastapi import HTTPException
 
+from backend.core.logger import get_logger
 from backend.models.library import LibraryCollection, LibraryItem
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
+_log = get_logger(__name__)
 
 _COVER_DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024  # 20 MB
 
@@ -98,6 +101,7 @@ def enrich_entity(
     content_rating: Optional[str] = None,
     metadata_source: Optional[str] = None,
     cover_art_url: Optional[str] = None,
+    confirm_rating_change: bool = False,
     db: "Session",
 ) -> tuple:
     metadata_fields = {k: v for k, v in {
@@ -130,6 +134,25 @@ def enrich_entity(
                     "apply cover art to individual library_item discs instead."
                 ),
             )
+        if "content_rating" in metadata_fields:
+            from backend.core.dependencies import rating_change_requires_confirmation
+            new_rating = metadata_fields["content_rating"]
+            old_rating = entity.content_rating
+            if rating_change_requires_confirmation(old_rating, new_rating):
+                if not confirm_rating_change:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"content_rating change from {old_rating!r} to {new_rating!r} would "
+                            "lower or clear an already-set rating. Re-submit with "
+                            "confirm_rating_change=true to proceed."
+                        ),
+                    )
+                _log.warning(
+                    "content_rating lowered/cleared on library_collection id=%s: %r -> %r "
+                    "(confirmed by caller)",
+                    entity_id, old_rating, new_rating,
+                )
         for key, value in metadata_fields.items():
             setattr(entity, key, value)
         if genre is not None:

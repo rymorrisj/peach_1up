@@ -22,5 +22,12 @@ def write_session_ends(exited: list, exit_code_override: int | None = None) -> N
                     history.exit_code = exit_code_override
                 else:
                     rc = getattr(entry.process_handle, "returncode", None) if entry.process_handle else None
-                    history.exit_code = rc if rc is not None else -1
+                    # Leave exit_code as None (the column's default/unset state) rather
+                    # than coercing an unpolled handle to -1 -- coordinator.py already
+                    # writes real -1s for genuine aborts (timeout, crash, stop_launch),
+                    # so collapsing "never confirmed" into the same value would make a
+                    # clean-but-unpolled exit indistinguishable from a real abort in
+                    # history. The frontend already treats a null exit_code as non-error
+                    # (LaunchHistory.tsx: `exit_code != null && exit_code !== 0`).
+                    history.exit_code = rc
         db.commit()

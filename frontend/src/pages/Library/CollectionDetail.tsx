@@ -682,6 +682,7 @@ export default function CollectionDetail() {
       entityType="library_collection"
       entityId={collection.id}
       entityTitle={collection.title}
+      currentContentRating={collection.content_rating}
       storageKey={storageKey}
       onSuccess={() => {
         queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })

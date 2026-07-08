@@ -148,13 +148,37 @@ async def _watch_event(
         event_name,
     )
     if not h_event:
+        error_reason = f"OpenEventW failed for {event_name}: {ctypes.GetLastError()}"
         _fire(handle, SandboxEvent.ERROR, SandboxPayload(
             event=SandboxEvent.ERROR,
             moniker=handle.moniker,
             pid=handle.pid,
             exit_code=None,
-            error=f"OpenEventW failed for {event_name}: {ctypes.GetLastError()}",
+            error=error_reason,
             stage=SandboxStage.WATCHDOG,
+        ))
+        # Without the named event we can't wait for the host's own signal, but
+        # we can still fall back to a direct wait on the process itself so
+        # EXITED/CLEANED_UP fire regardless. SandboxHandle.terminate() awaits a
+        # cleanup_future that only ever resolves via CLEANED_UP -- returning
+        # here without firing it would let terminate() hang forever.
+        loop = asyncio.get_event_loop()
+        rc = await loop.run_in_executor(None, proc.wait)
+        _fire(handle, SandboxEvent.EXITED, SandboxPayload(
+            event=SandboxEvent.EXITED,
+            moniker=handle.moniker,
+            pid=handle.pid,
+            exit_code=rc,
+            error=error_reason,
+            stage=None,
+        ))
+        _fire(handle, SandboxEvent.CLEANED_UP, SandboxPayload(
+            event=SandboxEvent.CLEANED_UP,
+            moniker=handle.moniker,
+            pid=handle.pid,
+            exit_code=rc,
+            error=error_reason,
+            stage=SandboxStage.CLEANUP,
         ))
         return
 
@@ -320,6 +344,17 @@ def launch(config: SandboxConfig) -> SandboxHandle:
         _callbacks=defaultdict(list),
         _proc=proc,
     )
+
+    # Without a listener, an ERROR payload (e.g. OpenEventW failing in the
+    # watcher thread) is dispatched to zero callbacks and effectively
+    # swallowed. Registered before the watcher thread starts so it's always
+    # present by the time _watch_event could fire ERROR.
+    def _log_sandbox_error(payload: SandboxPayload) -> None:
+        logger.error(
+            "Sandbox ERROR event: moniker=%s pid=%s stage=%s error=%s",
+            payload.moniker, payload.pid, payload.stage, payload.error,
+        )
+    handle.on(SandboxEvent.ERROR, _log_sandbox_error)
 
     started_payload = SandboxPayload(
         event=SandboxEvent.STARTED,

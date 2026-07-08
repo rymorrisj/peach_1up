@@ -42,6 +42,7 @@ class EnrichBody(BaseModel):
     content_rating: Optional[str] = None
     metadata_source: Optional[str] = None
     cover_art_url: Optional[str] = None
+    confirm_rating_change: bool = False
 
 
 @router.get("/metadata-search")
@@ -141,6 +142,7 @@ def enrich_library_entity(
         content_rating=body.content_rating,
         metadata_source=body.metadata_source,
         cover_art_url=body.cover_art_url,
+        confirm_rating_change=body.confirm_rating_change,
         db=db,
     )
     if entity_type == "library_collection":
