@@ -614,7 +614,8 @@ export default function CollectionDetail() {
           <div className="mt-2 space-y-1 text-center">
             {xisoConvert.status === 'complete' ? (
               <p className="text-xs text-green-600 dark:text-green-400">
-                Conversion complete. Click Launch to try again.
+                Conversion complete. Click Launch to try again. The original rip was kept as{' '}
+                {'<filename>.old'} in the same folder — delete it manually to free up disk space.
               </p>
             ) : (
               <Button
