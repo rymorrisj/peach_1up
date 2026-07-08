@@ -249,7 +249,22 @@ def _prepare_item(
 
     elif media_src.is_file():
         if games_root_str:
-            dest_folder = Path(games_root_str) / media_src.stem
+            _games_root = Path(games_root_str).resolve()
+            _src_parent = media_src.parent
+
+            # Slugify the destination folder name (matches the shared
+            # unique_slug()-based naming every other ingest path uses —
+            # chunked_uploads.reassemble(), path_import.stage_from_source(),
+            # and the is_dir() branch below). The source's own current
+            # parent is excluded from the collision check: when it's a
+            # direct child of games_root about to be renamed in place
+            # (see below), it isn't a collision with itself.
+            folder_slug = unique_slug(
+                media_src.stem,
+                lambda s: (Path(games_root_str) / s).exists()
+                and (Path(games_root_str) / s).resolve() != _src_parent.resolve(),
+            )
+            dest_folder = Path(games_root_str) / folder_slug
             dest = dest_folder / media_src.name
 
             # Duplicate check: source path or destination copy already tracked.
@@ -263,10 +278,8 @@ def _prepare_item(
                 raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
 
             # If the file already lives in a direct subfolder of games_root that
-            # only needs renaming to match the canonical stem, rename in place
+            # only needs renaming to match the canonical slug, rename in place
             # instead of creating a new folder and moving the file out.
-            _games_root = Path(games_root_str).resolve()
-            _src_parent = media_src.parent
             if (
                 _src_parent.resolve() != _games_root
                 and _src_parent.parent.resolve() == _games_root
