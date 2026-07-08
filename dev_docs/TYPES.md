@@ -129,7 +129,7 @@ the 5 path keys, is DB-only now.
 | `PIN_PEPPER` | **Secret** | dedicated route `PATCH /settings/pin-pepper`; scrubbed from GET; refused on generic PATCH (`settings.py:81`) |
 | `THEGAMESDB_API_KEY` | **Secret** | user-writable via `AdvancedTab.tsx:32`; status-only GET `/settings/thegamesdb-api-key/status`; scrubbed from GET-all |
 | `ALLOW_NETWORK_ACCESS` | Operational flag (security boundary) | read `main.py:57`, `security.py:47`, `auth.py:52`; **not** user-writable — no write site anywhere; now settable only by writing directly to the `app_settings` row (no hand-editable file exists any more) |
-| `rating_ordinals` | Static reference data | `dependencies.py:40` `_load_rating_ordinals()` (falls back to `_DEFAULT_RATING_ORDINALS`); **not** user-writable — same DB-only caveat as above |
+| `rating_ordinals` | Static reference data | `dependencies.py:39` `_load_rating_ordinals()` (falls back to `_BASE_RATING_ORDINALS`, derived by `_derive_rating_ordinals()` from `CONTENT_RATINGS`/`config/constants.yaml`'s `content_ratings` list — ordinal is index within each entry's `scheme` group, e.g. ESRB and PEGI each start their own ladder at 0); **not** user-writable — same DB-only caveat as above |
 | `sandbox_{slug}_container_enabled` | Operational flag (per-emulator) | read `emulators.py:162`; written `emulators.py:457` via `set_flag`; default from TOML |
 | `sandbox_{slug}_skip_memory_limit`, `sandbox_dosbox-x_skip_cpu_limit` | Operational flag (per-emulator) | same path as above; default from TOML |
 | `SCAN_NAV_THRESHOLD_BYTES` | Operational flag | read `library_collections.py:175` (defaulted) |
@@ -285,6 +285,47 @@ way it always was: `backend/api/routes/settings.py` (`GET /first-run-status`,
   been deleted along with `settings.yaml`/`paths.yaml`. `init()` no longer
   does an empty-table check to trigger a one-time migration — there is
   nothing left to migrate from.
+
+---
+
+## 8. Era → emulator coverage (8 wired emulators, current state)
+
+Cross-referenced `config/constants.yaml` (`eras`, `backend_slugs`,
+`backend_system_labels`) against `era_defaults.defaults_for_era()`
+(`era_defaults.py:7`), `startup_seed.py`, and the smart detector's era
+branches. All 12 non-`unknown` eras in `constants.yaml`'s `eras` map route
+to one of the 8 wired emulators — there is currently **no** era or
+ROM-shaped format that is detectable but has no backend:
+
+| Era | Emulator | ROM/BIOS required |
+| --- | --- | --- |
+| dos, win31 | dosbox-x | No |
+| win95, win98, winxp | 86box | Yes (86Box ROM pack) |
+| ps1 | duckstation | Yes (PS1 BIOS) |
+| ps2 | pcsx2 | Yes (PS2 BIOS) |
+| xbox | xemu | Yes (Xbox BIOS) |
+| nes | mesen | No |
+| snes | mesen | No |
+| n64 | project64 | No |
+| dreamcast | flycast | Yes (DC BIOS) |
+
+**SNES is not unresolved** — `era_defaults.py:19` (`case "snes": return
+("mesen", "snes")`), `startup_seed.py:54` (`supported_eras:
+["nes", "snes"]`), and the smart detector (`detector.py:123`, era=`"snes"`
+on `.sfc`/`.smc`/etc.) all route it to Mesen identically to NES. The one
+label inconsistency: `constants.yaml`'s `backend_system_labels.mesen` reads
+`"NES"` only, not `"NES, SNES"` — cosmetic, not a routing gap.
+
+**No GBA, GB/GBC, or Genesis/32X detection exists anywhere in the
+codebase today** — not in `constants.yaml`'s `eras` map, not in
+`ERA_MEDIA_TYPES` (`backend/constants.py:24`), not as an era branch in
+`smart_media_detector` (`detector.py`, `iso_detect.py`, `exe_detect.py`,
+`directory_detect.py`). These formats are neither detected nor backed;
+they are simply absent from scope, not a detected-without-a-backend gap.
+(This section was originally scoped to document such a gap for GBA/GB-GBC/
+Genesis-32X as detectable-but-backend-less and SNES as unresolved — neither
+premise held up against the current code, so this documents actual state
+instead.)
 
 ---
 

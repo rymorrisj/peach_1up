@@ -43,6 +43,12 @@ def app_client(mem_session, monkeypatch):
     import backend.core.settings as settings_mod
     monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings())
 
+    # Tests hash PINs with a bare argon2 PasswordHasher (no pepper), so the
+    # verify side must not apply whatever PIN_PEPPER happens to be set in the
+    # developer's local .env — otherwise every "correct PIN" check 401s.
+    import backend.service.utils.pin_hashing as pin_hashing_mod
+    monkeypatch.setattr(pin_hashing_mod, "get_pin_pepper", lambda: "")
+
     app = FastAPI()
     app.include_router(auth.router)
     app.include_router(users.router)
