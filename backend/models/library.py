@@ -93,6 +93,13 @@ class LibraryItemUpdate(SQLModel):
     executable_path: Optional[str] = None
     cover_art_path: Optional[str] = None
 
+
+class LibraryItemReorder(SQLModel):
+    # Every leaf id belonging to the collection, top-to-bottom. The first id
+    # becomes the new launch disc. disc_number columns are existing data, not
+    # a schema change — this only adds a write path for them.
+    disc_order: list[int]
+
 # ---------------------------------------------------------------------------
 # Parent entity: LibraryCollection (the game / collection). Renamed from LibrarySet;
 # owns metadata, the writable drive (DOS/win31), and the ordered leaf list.

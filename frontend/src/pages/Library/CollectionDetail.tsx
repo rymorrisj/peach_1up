@@ -11,6 +11,7 @@ import { useConfirm } from '@/hooks/useConfirm'
 import { useCollectionRestrictions } from '@/hooks/useCollectionRestrictions'
 import { LibraryEntityDetail } from './components/LibraryEntityDetail'
 import { FetchMetadataModal } from './components/FetchMetadataModal'
+import { DiscOrderList } from './components/DiscOrderList'
 import { ERA_LABELS } from '@/generated/constants'
 import type { LibraryCollectionData } from './components/CollectionCard'
 import type { EditForm as EditFormFields } from '@/hooks/useEditForm'
@@ -99,6 +100,10 @@ export default function CollectionDetail() {
 
   const [form, setFormState] = useState<EditFormFields | null>(null)
   const [execBrowserOpen, setExecBrowserOpen] = useState(false)
+  // Staged disc order (leaf ids, top-to-bottom) from <DiscOrderList>. null =
+  // no local edit yet — derive display order from the collection's current
+  // disc_number. Persisted only on Save, never written live on drag/move.
+  const [discOrder, setDiscOrder] = useState<number[] | null>(null)
   // undefined = not yet loaded; null = never configured (preserve, media may
   // auto-run); [] = explicitly cleared (persist as empty → no auto-run).
   // Using undefined as the load sentinel keeps null distinguishable from [].
@@ -113,6 +118,21 @@ export default function CollectionDetail() {
     }
   }, [collection, form])
 
+  // Reordering discs changes which leaf is the (staged) launch target — resync
+  // the Launch File field to that disc's own executable_path so it never shows
+  // a stale value from whichever disc used to be on top. Each disc's
+  // executable_path is already its own file by construction (see items.py's
+  // _create_multi_disc_collection), so this always reflects a correct default;
+  // the user can still override via Browse after reordering.
+  useEffect(() => {
+    if (!collection || discOrder == null) return
+    const newLaunchDisc = collection.items.find((i) => i.id === discOrder[0])
+    setFormState((prev) => prev && { ...prev, executable_path: newLaunchDisc?.executable_path ?? '' })
+    // Only re-run when the staged top disc actually changes, not on every
+    // keystroke elsewhere in the form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [discOrder?.[0]])
+
   // Send state verbatim so [] (cleared) and null (unset) are preserved. null is
   // dropped server-side (exclude_none), leaving the stored value untouched — so
   // an incidental save without touching commands can't flip null → [].
@@ -122,7 +142,7 @@ export default function CollectionDetail() {
 
   const saveMutation = useMutation<LibraryCollectionData, Error, EditFormFields>({
     mutationFn: async (f) => {
-      const result = await apiFetch<LibraryCollectionData>(`/api/v1/librarycollection/${collectionId}`, {
+      await apiFetch<LibraryCollectionData>(`/api/v1/librarycollection/${collectionId}`, {
         method: 'PATCH',
         body: JSON.stringify({
           title: f.title.trim() || undefined,
@@ -138,16 +158,44 @@ export default function CollectionDetail() {
           launch_commands: resolveLaunchCommands(),
         }),
       })
-      const disc = collection?.items.find(i => i.id === collection.launch_disk_id) ?? collection?.items[0]
-      if (disc && collectionId != null) {
-        await apiFetch(`/api/v1/librarycollection/${collectionId}/items/${disc.id}`, {
+
+      // Persist a staged reorder (if any) before deciding which disc gets the
+      // executable_path edit below — otherwise an edit made after reordering
+      // would land on the disc that *was* the launch disc before this save,
+      // not the one the user just dragged to the top.
+      const currentOrderIds = (collection?.items ?? [])
+        .slice()
+        .sort((a, b) => a.disc_number - b.disc_number)
+        .map((i) => i.id)
+      const reorderStaged =
+        discOrder != null &&
+        (discOrder.length !== currentOrderIds.length || discOrder.some((id, i) => id !== currentOrderIds[i]))
+      if (reorderStaged && collectionId != null) {
+        await apiFetch(`/api/v1/librarycollection/${collectionId}/items/reorder`, {
+          method: 'PATCH',
+          body: JSON.stringify({ disc_order: discOrder }),
+        })
+      }
+
+      const launchDiscId = reorderStaged
+        ? discOrder![0]
+        : (collection?.launch_disk_id ?? collection?.items[0]?.id)
+      if (launchDiscId != null && collectionId != null) {
+        await apiFetch(`/api/v1/librarycollection/${collectionId}/items/${launchDiscId}`, {
           method: 'PATCH',
           body: JSON.stringify({ executable_path: f.executable_path.trim() || null }),
         })
       }
-      return result
+
+      // Fetch fresh, fully up-to-date collection data (reflecting the collection
+      // fields, disc order, and launch-disc executable_path changes above) so
+      // the form can resync deterministically in onSuccess rather than relying
+      // on invalidateQueries' background refetch timing.
+      return apiFetch<LibraryCollectionData>(`/api/v1/librarycollection/by-slug/${slug}`)
     },
-    onSuccess: () => {
+    onSuccess: (fresh) => {
+      setDiscOrder(null)
+      setFormState(formFromCollection(fresh))
       queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
     },
   })
@@ -174,18 +222,6 @@ export default function CollectionDetail() {
     },
   })
 
-  const setLaunchDiscMutation = useMutation<void, Error, number>({
-    mutationFn: (discId) => {
-      if (collectionId == null) return Promise.resolve()
-      return apiFetch(`/api/v1/librarycollection/${collectionId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ launch_disk_id: discId }),
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
-    },
-  })
 
   async function handleToggleInstalled() {
     if (collectionId == null) return
@@ -285,6 +321,14 @@ export default function CollectionDetail() {
   const showDiscSwapWarning = (collection.era === 'ps1' || collection.era === 'ps2') && isMultiDisc
   const nonOwnerUsers = users.filter((u) => !u.is_owner)
 
+  // Staged order takes precedence over the server's disc_number order once
+  // the user has dragged/moved a disc, so the "Launch File" field below and
+  // the "Launch target" badge in the disc list both reflect the not-yet-saved
+  // choice consistently.
+  const displayedOrder = discOrder ?? sortedItems.map((i) => i.id)
+  const currentLaunchDisc =
+    sortedItems.find((i) => i.id === displayedOrder[0]) ?? sortedItems[0]
+
   const effectiveProfileId = form.profile_id
     ? parseInt(form.profile_id, 10)
     : (collection.profile_id ?? null)
@@ -343,7 +387,8 @@ export default function CollectionDetail() {
       editForm={{
         item: {
           era: form.era || collection.era,
-          media_path: (collection.items.find(i => i.id === collection.launch_disk_id) ?? collection.items[0])?.media_path,
+          media_path: currentLaunchDisc?.media_path,
+          folder_path: currentLaunchDisc?.folder_path,
         },
         form,
         setField: setFormField,
@@ -393,56 +438,39 @@ export default function CollectionDetail() {
       }
       beforeLaunch={
         <>
-          {/* Disc list is shown only for multi-disc collections. */}
+          {/* Disc list is shown only for multi-disc collections. Drag (or use
+              the up/down buttons) to reorder — staged locally, persisted only
+              when "Save Changes" above is pressed. */}
           {isMultiDisc && (
             <section className="space-y-2">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
                 Discs
               </h2>
-              <ul className="space-y-1.5">
-                {sortedItems.map((disc) => {
-                  const isLaunch = disc.id === collection.launch_disk_id
-                  const filename = disc.media_path.split(/[\\/]/).pop() ?? disc.media_path
-                  return (
-                    <li
-                      key={disc.id}
-                      className="flex items-center gap-3 rounded-md border border-neutral-700 bg-neutral-800/40 px-3 py-2 text-sm"
+              <DiscOrderList
+                discs={sortedItems}
+                order={displayedOrder}
+                onReorder={setDiscOrder}
+                disabled={saveMutation.isPending}
+                renderActions={(disc) =>
+                  isOwner ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFetchDiscId(disc.id)}
+                      disabled={!theGamesDbEnabled}
+                      title={!theGamesDbEnabled ? 'TheGamesDB API key not configured' : 'Fetch cover art for this disc'}
+                      className="shrink-0"
                     >
-                      <span className="w-5 shrink-0 font-mono text-xs text-neutral-500">{disc.disc_number}</span>
-                      <span className="min-w-0 flex-1 truncate font-mono text-xs text-neutral-400">{filename}</span>
-                      {isLaunch && (
-                        <span className="shrink-0 rounded-[4px] border border-[#ff8a5c]/40 bg-[#ff8a5c]/10 px-1.5 py-0.5 font-mono text-[10px] text-[#ff8a5c]">
-                          Launch disc
-                        </span>
-                      )}
-                      {isOwner && !isLaunch && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setLaunchDiscMutation.mutate(disc.id)}
-                          disabled={setLaunchDiscMutation.isPending}
-                          title="Set this disc as the one that boots"
-                          className="shrink-0"
-                        >
-                          Set as Launch Disc
-                        </Button>
-                      )}
-                      {isOwner && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setFetchDiscId(disc.id)}
-                          disabled={!theGamesDbEnabled}
-                          title={!theGamesDbEnabled ? 'TheGamesDB API key not configured' : 'Fetch cover art for this disc'}
-                          className="shrink-0"
-                        >
-                          Cover Art
-                        </Button>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
+                      Cover Art
+                    </Button>
+                  ) : null
+                }
+              />
+              {discOrder != null && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Disc order changed — press "Save Changes" above to persist it.
+                </p>
+              )}
             </section>
           )}
 

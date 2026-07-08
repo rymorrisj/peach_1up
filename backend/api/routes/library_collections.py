@@ -15,7 +15,7 @@ from backend.core.dependencies import (
 from backend.core.logger import get_logger
 from backend.models.library import (
     ImportResult, LibraryCollection, LibraryCollectionCreate, LibraryCollectionRead,
-    LibraryCollectionUpdate, LibraryItem, LibraryItemRead, LibraryItemUpdate,
+    LibraryCollectionUpdate, LibraryItem, LibraryItemRead, LibraryItemReorder, LibraryItemUpdate,
     ScanStatus, collection_to_read, collections_to_read_bulk,
 )
 from backend.models.media_restriction import MediaRestriction
@@ -480,6 +480,20 @@ def set_restrictions(
         db.add(MediaRestriction(user_id=user_id, library_collection_id=collection_id))
     db.commit()
     return {"restricted_user_ids": body.user_ids}
+
+
+@router.patch("/librarycollection/{collection_id}/items/reorder", response_model=LibraryCollectionRead)
+def reorder_collection_items(
+    collection_id: int,
+    body: LibraryItemReorder,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_library"),
+):
+    # Registered before the "/items/{leaf_id}" route below: {leaf_id} has no
+    # type constraint in the path itself, so a literal "reorder" segment
+    # would otherwise match that route first and 422 on int conversion.
+    collection = lib_svc.reorder_library_items(collection_id, body, db)
+    return collection_to_read(collection, db)
 
 
 @router.patch("/librarycollection/{collection_id}/items/{leaf_id}", response_model=LibraryItemRead)

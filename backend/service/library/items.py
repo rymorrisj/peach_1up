@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from backend.models.library import (
     LibraryCollection, LibraryCollectionCreate, LibraryCollectionUpdate,
-    LibraryItem, LibraryItemUpdate,
+    LibraryItem, LibraryItemReorder, LibraryItemUpdate,
 )
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.era_media import is_drive_image, media_type_from_path, resolve_media_file_from_directory
@@ -732,3 +732,37 @@ def update_library_leaf(collection_id: int, leaf_id: int, body: LibraryItemUpdat
     db.commit()
     db.refresh(leaf)
     return leaf
+
+
+def reorder_library_items(
+    collection_id: int, body: LibraryItemReorder, db: Session
+) -> LibraryCollection:
+    """Persist a staged disc reorder in one transaction.
+
+    ``body.disc_order`` must be exactly the collection's current leaf ids,
+    top-to-bottom — validated the same way ``update_library_collection``
+    validates ``launch_disk_id``/``display_disk_id`` against the collection's
+    own leaves, so a client can't name a leaf belonging to a different
+    collection. Looping individual per-leaf PATCH calls instead of this single
+    endpoint would risk a mid-loop failure leaving ``disc_number`` duplicated
+    or gapped across leaves; this commits all of them together or none.
+    """
+    collection = db.get(LibraryCollection, collection_id)
+    if not collection:
+        raise HTTPException(status_code=404, detail="Library collection not found.")
+
+    leaves = db.query(LibraryItem).filter(LibraryItem.library_collection_id == collection_id).all()
+    leaf_ids = {leaf.id for leaf in leaves}
+    if not body.disc_order or set(body.disc_order) != leaf_ids or len(body.disc_order) != len(leaf_ids):
+        raise HTTPException(
+            status_code=422,
+            detail="disc_order must contain exactly this collection's discs, with no duplicates.",
+        )
+
+    leaves_by_id = {leaf.id: leaf for leaf in leaves}
+    for position, leaf_id in enumerate(body.disc_order, start=1):
+        leaves_by_id[leaf_id].disc_number = position
+    collection.launch_disk_id = body.disc_order[0]
+    db.commit()
+    db.refresh(collection)
+    return collection

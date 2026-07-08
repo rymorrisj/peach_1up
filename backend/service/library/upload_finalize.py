@@ -5,7 +5,9 @@ library ingester.
 normalized result the route sends as 201. `finalize_background` runs as a
 BackgroundTask (large uploads) with its own DB session, reporting progress into
 core.jobs and reaping the destination on failure. Both call `_finalize`, so the
-reassemble → dedup → ingest → cleanup sequence lives in exactly one place.
+reassemble → ingest → cleanup sequence lives in exactly one place. Anchor dedup
+(content-hash reuse of an existing on-disk file) only applies to the "file" and
+auto-detected "folder" kinds, not explicit "set" uploads — see the "set" branch.
 """
 from __future__ import annotations
 
@@ -56,8 +58,13 @@ def _finalize(upload_id: str, media_root: Path, db: Session) -> dict:
             # be more than one file (e.g. .cue + .bin); select_disc_pointer_files
             # picks the .cue/.gdi pointers in that order and drops companions,
             # rather than re-sorting alphabetically as folder_ingest does.
+            #
+            # No anchor dedup here (unlike ingest_folder's auto-detected multi-disc
+            # path): every file in a "set" upload was just written into one
+            # unique-slugged reasm.dest_dir together, and must stay together —
+            # repointing disc 1 at a byte-identical file elsewhere on disk would
+            # split the set across two folders.
             disc_files = folder_ingest.select_disc_pointer_files(reasm.paths)
-            disc_files[0] = folder_ingest.dedup_disc_anchor(media_root, disc_files[0], db)
             collection = lib_svc._create_multi_disc_collection(disc_files, reasm.title, db)
             return {
                 "result_type": "library_collection",
