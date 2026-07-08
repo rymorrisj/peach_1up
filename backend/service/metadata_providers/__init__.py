@@ -51,7 +51,6 @@ def get_active_provider() -> MetadataProvider:
     """Return the MetadataProvider selected by the metadata_provider app_settings key.
 
     Raises:
-        NotImplementedError: If the active provider is "igdb" (not built yet).
         ValueError: If the stored value is not a recognised provider name.
     """
     from backend.service.utils import settings as _s
@@ -61,8 +60,6 @@ def get_active_provider() -> MetadataProvider:
         from backend.service.metadata_providers.thegamesdb_provider import TheGamesDBProvider
         return TheGamesDBProvider()
     if provider == "igdb":
-        raise NotImplementedError(
-            "IGDB support is not implemented yet. Switch the active metadata "
-            "provider back to TheGamesDB in Settings."
-        )
+        from backend.service.metadata_providers.igdb_provider import IGDBProvider
+        return IGDBProvider()
     raise ValueError(f"Unknown metadata_provider {provider!r}; expected 'thegamesdb' or 'igdb'.")

@@ -52,12 +52,15 @@ def _check_traversal(path_str: str) -> Path:
 # none of the four live in app_settings any more — they're .env-backed (see
 # env_secrets.py). Kept as a real filter (not dead code) as defense in depth
 # in case a future source ever merges into `state`.
-_SENSITIVE_KEYS = {"AI_API_KEY", "IGDB_API_KEY", "PIN_PEPPER", "THEGAMESDB_API_KEY"}
+_SENSITIVE_KEYS = {
+    "AI_API_KEY", "IGDB_ACCESS_TOKEN", "IGDB_CLIENT_ID", "IGDB_CLIENT_SECRET",
+    "PIN_PEPPER", "THEGAMESDB_API_KEY",
+}
 
-# Of the sensitive keys, these three route through .env via the generic PATCH
+# Of the sensitive keys, these four route through .env via the generic PATCH
 # endpoint below. PIN_PEPPER is excluded — it has its own dedicated route
 # because changing it requires re-hashing the owner PIN (see patch_pin_pepper).
-_ENV_SECRET_KEYS = {"THEGAMESDB_API_KEY", "AI_API_KEY", "IGDB_API_KEY"}
+_ENV_SECRET_KEYS = {"THEGAMESDB_API_KEY", "AI_API_KEY", "IGDB_CLIENT_ID", "IGDB_CLIENT_SECRET"}
 
 # The only keys a can_edit_settings user may write through the generic PATCH
 # endpoint. Anything not listed here is refused — notably ALLOW_NETWORK_ACCESS
@@ -151,6 +154,13 @@ def get_thegamesdb_api_key_status(_: User = require_permission("is_owner")):
     """Whether a TheGamesDB API key is currently configured. Never returns the key value itself."""
     from backend.service.utils.env_secrets import get_env_secret
     return {"enabled": bool(get_env_secret("THEGAMESDB_API_KEY"))}
+
+
+@router.get("/igdb-status")
+def get_igdb_status(_: User = require_permission("is_owner")):
+    """Whether both IGDB credentials are configured. Never returns their values."""
+    from backend.service.utils.env_secrets import get_env_secret
+    return {"enabled": bool(get_env_secret("IGDB_CLIENT_ID")) and bool(get_env_secret("IGDB_CLIENT_SECRET"))}
 
 
 @router.patch("/pin-pepper")

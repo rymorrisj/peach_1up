@@ -16,7 +16,7 @@ function MetadataProviderSection() {
 
   const activeProvider = (settings?.metadata_provider as string | undefined) ?? 'thegamesdb'
 
-  async function handleSelect(provider: 'thegamesdb') {
+  async function handleSelect(provider: 'thegamesdb' | 'igdb') {
     if (provider === activeProvider) return
     setSaving(true)
     setError(null)
@@ -39,7 +39,9 @@ function MetadataProviderSection() {
         Metadata Provider
       </h2>
       <p className="text-sm text-neutral-600 dark:text-neutral-400">
-        Which service "Fetch Metadata" searches. Only one provider is active at a time.
+        Which service "Fetch Metadata" searches. Only one provider is active at a time —
+        switching providers below doesn't clear either one's saved credentials, it only
+        changes which one is used.
       </p>
       <div className="space-y-2">
         <label className="flex items-center gap-3 text-sm text-neutral-900 dark:text-neutral-100">
@@ -53,17 +55,26 @@ function MetadataProviderSection() {
           />
           TheGamesDB
         </label>
-        <label
-          className="flex items-center gap-3 text-sm text-neutral-400 dark:text-neutral-500"
-          title="IGDB support is not available yet."
-        >
-          <input type="radio" name="metadata-provider" checked={false} disabled className="h-4 w-4" />
-          IGDB <span className="text-xs italic">(coming soon)</span>
+        <label className="flex items-center gap-3 text-sm text-neutral-900 dark:text-neutral-100">
+          <input
+            type="radio"
+            name="metadata-provider"
+            checked={activeProvider === 'igdb'}
+            disabled={saving}
+            onChange={() => void handleSelect('igdb')}
+            className="h-4 w-4 accent-[#ff8a5c]"
+          />
+          IGDB
         </label>
       </div>
       {activeProvider === 'thegamesdb' && (
         <p className="text-xs text-neutral-400 dark:text-neutral-500">
           Metadata fetched via this tool is powered by TheGamesDB.net.
+        </p>
+      )}
+      {activeProvider === 'igdb' && (
+        <p className="text-xs text-neutral-400 dark:text-neutral-500">
+          Metadata fetched via this tool is powered by IGDB.com.
         </p>
       )}
       {error && (
@@ -151,6 +162,111 @@ function TheGamesDbSection() {
       </FormField>
       <div>
         <Button size="sm" loading={saving} onClick={handleSave} disabled={!apiKey}>
+          Save
+        </Button>
+      </div>
+      {savedMsg && <p className="text-sm text-green-600 dark:text-green-400">{savedMsg}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          ❌ {error}
+        </p>
+      )}
+    </section>
+  )
+}
+
+function IGDBSection() {
+  const { state: appState } = useAppContext()
+  const queryClient = useQueryClient()
+  const [clientId, setClientId] = useState('')
+  const [clientSecret, setClientSecret] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [savedMsg, setSavedMsg] = useState<string | null>(null)
+
+  const { data: status } = useQuery<{ enabled: boolean }>({
+    queryKey: ['igdb-status'],
+    queryFn: () => apiFetch('/api/v1/settings/igdb-status'),
+    enabled: !!appState.activeUser?.is_owner,
+  })
+
+  if (!appState.activeUser?.is_owner) return null
+
+  const enabled = status?.enabled ?? false
+
+  async function handleSave() {
+    setSaving(true)
+    setError(null)
+    setSavedMsg(null)
+    try {
+      // Each field is write-only and independent — only include a key here if
+      // the user actually typed into it, so leaving one blank rotates only
+      // the other rather than clearing both.
+      const updates: Record<string, string> = {}
+      if (clientId) updates.IGDB_CLIENT_ID = clientId
+      if (clientSecret) updates.IGDB_CLIENT_SECRET = clientSecret
+      await apiFetch('/api/v1/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ updates }),
+      })
+      await queryClient.invalidateQueries({ queryKey: ['igdb-status'] })
+      setClientId('')
+      setClientSecret('')
+      setSavedMsg('IGDB credentials saved.')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : 'Failed to save IGDB credentials.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+        IGDB
+      </h2>
+      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        Twitch Developer app credentials for IGDB metadata enrichment. Currently{' '}
+        <strong>{enabled ? 'configured' : 'not configured'}</strong>. Neither value is
+        displayed after saving.{' '}
+        <a
+          href="https://dev.twitch.tv/console/apps"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-neutral-900 dark:hover:text-neutral-100"
+        >
+          Register a Twitch app
+        </a>{' '}
+        ·{' '}
+        <a
+          href="https://api-docs.igdb.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-neutral-900 dark:hover:text-neutral-100"
+        >
+          IGDB API docs
+        </a>
+      </p>
+      <FormField label="Client ID" hint="Write-only — leave blank to keep the existing value.">
+        <Input
+          type="password"
+          value={clientId}
+          onChange={(e) => setClientId(e.target.value)}
+          autoComplete="off"
+          placeholder={enabled ? '••••••••' : 'Paste client ID here'}
+        />
+      </FormField>
+      <FormField label="Client secret" hint="Write-only — leave blank to keep the existing value.">
+        <Input
+          type="password"
+          value={clientSecret}
+          onChange={(e) => setClientSecret(e.target.value)}
+          autoComplete="off"
+          placeholder={enabled ? '••••••••' : 'Paste client secret here'}
+        />
+      </FormField>
+      <div>
+        <Button size="sm" loading={saving} onClick={handleSave} disabled={!clientId && !clientSecret}>
           Save
         </Button>
       </div>
@@ -427,6 +543,7 @@ export default function AdvancedTab() {
     <div className="mt-6 space-y-6">
       <MetadataProviderSection />
       <TheGamesDbSection />
+      <IGDBSection />
       <PinPepperSection />
       <DeleteMediaOnRemovalSection />
       <DeleteOriginalOnUploadSection />

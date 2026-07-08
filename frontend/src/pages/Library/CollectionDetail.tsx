@@ -52,13 +52,28 @@ export default function CollectionDetail() {
     (appState.activeUser?.is_admin ?? false) || (appState.activeUser?.is_owner ?? false)
   const isOwner = appState.activeUser?.is_owner ?? false
 
-  const { data: apiKeyStatus } = useQuery({
+  const { data: settings } = useQuery<Record<string, unknown>>({
+    queryKey: ['settings'],
+    queryFn: () => apiFetch('/api/v1/settings'),
+    enabled: isOwner,
+  })
+  const activeProvider = (settings?.metadata_provider as string | undefined) ?? 'thegamesdb'
+  const activeProviderLabel = activeProvider === 'igdb' ? 'IGDB' : 'TheGamesDB'
+
+  const { data: theGamesDbStatus } = useQuery({
     queryKey: ['thegamesdb-api-key-status'],
     queryFn: () => apiFetch<{ enabled: boolean }>('/api/v1/settings/thegamesdb-api-key/status'),
-    enabled: isOwner,
+    enabled: isOwner && activeProvider === 'thegamesdb',
     staleTime: 30_000,
   })
-  const theGamesDbEnabled = isOwner && (apiKeyStatus?.enabled !== false)
+  const { data: igdbStatus } = useQuery({
+    queryKey: ['igdb-status'],
+    queryFn: () => apiFetch<{ enabled: boolean }>('/api/v1/settings/igdb-status'),
+    enabled: isOwner && activeProvider === 'igdb',
+    staleTime: 30_000,
+  })
+  const activeProviderStatus = activeProvider === 'igdb' ? igdbStatus : theGamesDbStatus
+  const metadataProviderEnabled = isOwner && (activeProviderStatus?.enabled !== false)
 
   const [fetchMetadataOpen, setFetchMetadataOpen] = useState(false)
   const [fetchDiscId, setFetchDiscId] = useState<number | null>(null)
@@ -535,14 +550,14 @@ export default function CollectionDetail() {
                 variant="secondary"
                 size="sm"
                 onClick={() => setFetchMetadataOpen(true)}
-                disabled={!theGamesDbEnabled}
-                title={!theGamesDbEnabled ? 'TheGamesDB API key not configured — set it in Settings > Metadata' : undefined}
+                disabled={!metadataProviderEnabled}
+                title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured — set them in Settings > Advanced` : undefined}
               >
                 Fetch Metadata
               </Button>
-              {!theGamesDbEnabled && (
+              {!metadataProviderEnabled && (
                 <span className="text-xs text-neutral-400">
-                  Requires a TheGamesDB API key (Settings &gt; Metadata)
+                  Requires {activeProviderLabel} credentials (Settings &gt; Advanced)
                 </span>
               )}
             </div>
@@ -570,8 +585,8 @@ export default function CollectionDetail() {
                       variant="ghost"
                       size="sm"
                       onClick={() => setFetchDiscId(disc.id)}
-                      disabled={!theGamesDbEnabled}
-                      title={!theGamesDbEnabled ? 'TheGamesDB API key not configured' : 'Fetch cover art for this disc'}
+                      disabled={!metadataProviderEnabled}
+                      title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured` : 'Fetch cover art for this disc'}
                       className="shrink-0"
                     >
                       Cover Art
