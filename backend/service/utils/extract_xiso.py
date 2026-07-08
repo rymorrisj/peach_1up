@@ -90,8 +90,16 @@ def convert_dvd_rip_to_xiso(source_path: Path) -> Path:
     # Argument list, never a shell string — resolved_source is a resolved
     # Path built from the DB-sourced media_path (see the convert-xiso route),
     # not raw request input.
+    #
+    # cwd is pinned to the source's own directory because extract-xiso has no
+    # -d/output-directory flag in this invocation, so its rewrite path falls
+    # back to the process's cwd (see create_xiso() in extract-xiso.c) rather
+    # than resolving relative to the argument path. Without this, the backend
+    # process's own cwd (the project root) leaks in and the rewritten file
+    # lands there instead of next to the original.
     result = subprocess.run(
         [str(binary), "-r", str(resolved_source)],
+        cwd=resolved_source.parent,
         capture_output=True,
         text=True,
         timeout=_CONVERT_TIMEOUT_SECONDS,
