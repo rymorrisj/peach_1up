@@ -16,7 +16,7 @@ from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.era_media import is_drive_image, media_type_from_path, resolve_media_file_from_directory
 from backend.service.utils.path_utils import normalise_path, resolve_under
 from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DRIVE_ERAS
-from backend.service.utils.slug_generator import generate_collection_slug, unique_slug
+from backend.service.utils.slug_generator import generate_collection_slug, slugify, unique_slug
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
 
@@ -252,19 +252,14 @@ def _prepare_item(
             _games_root = Path(games_root_str).resolve()
             _src_parent = media_src.parent
 
-            # Slugify the destination folder name (matches the shared
-            # unique_slug()-based naming every other ingest path uses —
-            # chunked_uploads.reassemble(), path_import.stage_from_source(),
-            # and the is_dir() branch below). The source's own current
-            # parent is excluded from the collision check: when it's a
-            # direct child of games_root about to be renamed in place
-            # (see below), it isn't a collision with itself.
-            folder_slug = unique_slug(
-                media_src.stem,
-                lambda s: (Path(games_root_str) / s).exists()
-                and (Path(games_root_str) / s).resolve() != _src_parent.resolve(),
-            )
-            dest_folder = Path(games_root_str) / folder_slug
+            # Slugify the destination folder name (matches the shared slugify()
+            # every other ingest path uses — chunked_uploads.reassemble(),
+            # path_import.stage_from_source(), and the is_dir() branch below).
+            # This is deliberately the plain slug, not unique_slug(): the
+            # canonical folder name is deterministic from the stem, and an
+            # existing folder at that path is a real target to rename into or
+            # move into (handled below), not a collision to suffix away from.
+            dest_folder = Path(games_root_str) / slugify(media_src.stem)
             dest = dest_folder / media_src.name
 
             # Duplicate check: source path or destination copy already tracked.
