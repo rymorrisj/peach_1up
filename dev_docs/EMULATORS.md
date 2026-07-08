@@ -217,6 +217,12 @@ Use [extract-xiso](https://github.com/xboxdev/extract-xiso) to convert:
 
 Detection logic lives in `backend/service/utils/xbox_image.py`.
 
+### Current State as of 7/7/2026
+xemu crashes on relaunch with configured BIOS/EEPROM/disk files (0xc0000409, msvcrt.dll)
+Confirmed upstream xemu bug, not Peach 1UP or driver-specific as it can be reproduced with a completely fresh xemu 0.8.136 download run standalone outside Peach 1UP entirely, using only Peach 1UP's existing BIOS/EEPROM/qcow2 files. First-boot (unconfigured) launches work fine; any launch that actually attempts to boot a machine with system files configured crashes with STATUS_STACK_BUFFER_OVERRUN in msvcrt.dll. Cross-vendor: reported on both AMD (this project, RX 9070 XT) and NVIDIA (upstream issue #1486, RTX 3080 Ti) GPUs, ruling out a driver-specific cause. See xemu-project/xemu#1486 (https://github.com/xemu-project/xemu/issues/1486) for a near-identical upstream report.
+
+Workaround: disable Control Flow Guard for xemu.exe, specifically, for Windows: Security → App & browser control → Exploit protection settings → Program settings → Add program to customize → By name → xemu.exe → override system settings, disable CFG. No code fix possible on our end.
+
 ---
 
 ## Mesen

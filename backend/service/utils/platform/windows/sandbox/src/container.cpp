@@ -163,12 +163,24 @@ HRESULT AppContainer::grant_directory(const std::wstring& path, DWORD access_mas
     if (sd) LocalFree(sd);
     if (err != ERROR_SUCCESS) return HRESULT_FROM_WIN32(err);
 
-    err = SetNamedSecurityInfoW(
+    // A plain SetNamedSecurityInfoW only writes the DACL on this directory node.
+    // Windows applies OBJECT_INHERIT_ACE/CONTAINER_INHERIT_ACE to files created
+    // AFTER this call, but never retroactively to files/subfolders that already
+    // exist under path (e.g. saves or config dropped in before the AppContainer
+    // grant first ran). TreeSetNamedSecurityInfoW walks the existing tree and
+    // propagates the new inheritable ACE to what's already there, while
+    // TREE_SEC_INFO_SET preserves any other explicit ACEs already present on
+    // child objects instead of clobbering them.
+    err = TreeSetNamedSecurityInfoW(
         const_cast<LPWSTR>(path.c_str()),
         SE_FILE_OBJECT,
         DACL_SECURITY_INFORMATION,
         nullptr, nullptr,
-        new_acl, nullptr
+        new_acl, nullptr,
+        TREE_SEC_INFO_SET,
+        nullptr,
+        ProgressInvokeNever,
+        nullptr
     );
     if (new_acl) LocalFree(new_acl);
 
