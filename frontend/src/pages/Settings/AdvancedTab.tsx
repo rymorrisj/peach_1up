@@ -77,6 +77,10 @@ function MetadataProviderSection() {
           Metadata fetched via this tool is powered by IGDB.com.
         </p>
       )}
+      <p className="text-xs text-neutral-400 dark:text-neutral-500">
+        Fetched metadata, including ratings, may be incomplete or inaccurate. If you rely on
+        content filtering, verify ratings manually.
+      </p>
       {error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           ❌ {error}
