@@ -8,6 +8,7 @@ import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useConfirm } from '@/hooks/useConfirm'
+import { slugify } from '@/lib/slugify'
 import { ERA_LABELS } from '@/generated/constants'
 import { ProfileList } from './components/ProfileList'
 import { ProfileFormModal } from './components/ProfileFormModal'
@@ -26,10 +27,6 @@ const EMPTY_FORM: ProfileForm = {
   notes: '',
   launch_commands: [],
   container_enabled: null,
-}
-
-function slugify(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
 }
 
 function formatDate(iso: string) {

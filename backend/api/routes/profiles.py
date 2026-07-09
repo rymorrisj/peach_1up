@@ -1,5 +1,3 @@
-import re
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -11,6 +9,7 @@ from backend.models.library import LibraryCollection, LibraryCollectionRead, col
 from backend.models.pagination import Page
 from backend.models.profile import Profile, ProfileCreate, ProfileRead, ProfileUpdate
 from backend.models.user import User
+from backend.service.utils.slug_generator import unique_slug
 
 router = APIRouter(prefix="/api/v1/profiles", tags=["profiles"])
 
@@ -60,20 +59,6 @@ def _with_stats_bulk(profiles: list[Profile], db: Session) -> list[ProfileRead]:
         read.last_launched_at = last_launched_at
         results.append(read)
     return results
-
-
-def _slugify(name: str) -> str:
-    s = re.sub(r'\s+', '-', name.lower())
-    return re.sub(r'[^a-z0-9-]', '', s)
-
-
-def _unique_slug(base: str, exclude_id: int, db: Session) -> str:
-    candidate = base
-    n = 2
-    while db.query(Profile).filter(Profile.slug == candidate, Profile.id != exclude_id).first():
-        candidate = f"{base}-{n}"
-        n += 1
-    return candidate
 
 
 @router.get("", response_model=list[ProfileRead])
@@ -130,7 +115,11 @@ def update_profile(slug: str, body: ProfileUpdate, db: Session = Depends(get_db)
     for key, value in updates.items():
         setattr(profile, key, value)
     if 'name' in updates:
-        profile.slug = _unique_slug(_slugify(profile.name), profile.id, db)
+        profile.slug = unique_slug(
+            profile.name,
+            lambda s: db.query(Profile).filter(Profile.slug == s, Profile.id != profile.id).first() is not None,
+            fallback="profile",
+        )
     db.commit()
     db.refresh(profile)
     return _with_stats(profile, db)

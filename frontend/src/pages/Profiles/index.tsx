@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/api/client'
 import TopBar from '@/components/layout/TopBar'
 import { Modal, FormField, Input, Textarea } from '@/ui'
+import { slugify } from '@/lib/slugify'
 import { ERA_LABELS, EMULATOR_CATALOG_SLUGS } from '@/generated/constants'
 import type { EmulatorCatalogSlug } from '@/generated/constants'
 import { ERA_COLOR } from '@/types/era'
@@ -23,10 +24,6 @@ interface NewProfileForm {
 }
 
 const EMPTY: NewProfileForm = { name: '', slug: '', emulator_slug: '', era: '', notes: '' }
-
-function slugify(s: string) {
-  return s.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })

@@ -70,7 +70,9 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Sess
             # repointing disc 1 at a byte-identical file elsewhere on disk would
             # split the set across two folders.
             disc_files = folder_ingest.select_disc_pointer_files(reasm.paths)
-            collection = lib_svc._create_multi_disc_collection(disc_files, reasm.title, db)
+            collection = lib_svc._create_multi_disc_collection(
+                disc_files, reasm.title, db, staging_dir=reasm.dest_dir
+            )
             return {
                 "result_type": "library_collection",
                 "id": collection.id,

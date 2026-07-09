@@ -46,6 +46,71 @@ class _SlugCollision(Exception):
         super().__init__(message or "Import collided with a concurrent change, please retry.")
 
 
+def _reconcile_folder_to_slug(folder: Path, slug: str, *, undo_stack: list | None = None) -> Path:
+    """Rename *folder* so its basename is literally *slug*, in the same parent.
+
+    Every ingest path that owns a dedicated on-disk directory must call this
+    once its DB slug is final, so the on-disk folder name and the URL-facing
+    slug can never diverge — regardless of which uniqueness domain (filesystem
+    existence vs. DB row) produced the directory's original name. No-ops if
+    *folder* is already named *slug*.
+
+    Raises:
+        HTTPException(400): slug produces an invalid/escaping target path
+            (defense-in-depth — slugify() already guarantees [a-z0-9-] only).
+        HTTPException(409): a different directory already occupies the target
+            path — a real collision, not a self-rename.
+        HTTPException(500): the OS-level rename itself failed (permissions,
+            file lock, AV scan). Fails loud rather than leaving the DB slug
+            and on-disk folder name silently mismatched.
+    """
+    try:
+        target = resolve_under(folder.parent, slug)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Slug-based folder name is invalid: {exc}")
+    if target == folder.resolve():
+        return folder
+    if target.exists():
+        raise HTTPException(
+            status_code=409,
+            detail=f"A folder named '{slug}' already exists in the media library.",
+        )
+    try:
+        folder.rename(target)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not rename media folder to match its slug '{slug}': {exc}",
+        )
+    if undo_stack is not None:
+        undo_stack.append(lambda _o=folder, _n=target: _n.rename(_o) if _n.exists() else None)
+    return target
+
+
+def _rewrite_paths_after_folder_rename(
+    row: dict, fields: tuple[str, ...], old_root: Path, new_root: Path, log,
+) -> None:
+    """Rewrite every path in *row* that lived under *old_root* to the same
+    relative location under *new_root*, after a folder rename. Never raises —
+    a field that can't be rewritten keeps its stale pre-rename value and is
+    logged loudly, since the file itself moved regardless of whether the DB
+    row is updated to reflect it."""
+    for field in fields:
+        val = row.get(field)
+        if not val:
+            continue
+        try:
+            field_path = Path(val)
+            if field_path == old_root or field_path.is_relative_to(old_root):
+                row[field] = str(new_root / field_path.relative_to(old_root))
+        except (ValueError, TypeError) as exc:
+            log.warning(
+                "Could not rewrite '%s' after folder rename (%s -> %s): %s. "
+                "Field will keep its stale pre-rename value: %s",
+                field, old_root, new_root, exc, val,
+            )
+
+
 def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     if executable_path and Path(executable_path).suffix.lower() != ".img":
         return Path(executable_path)
@@ -169,7 +234,12 @@ def _prepare_item(
         "file_size_bytes": None,
     }
 
-    _dir_ingest_root: Path | None = None
+    # The directory this ingest owns and created/renamed exclusively for this
+    # item — set by the dir-ingest and file-ingest (MEDIA_PATH configured)
+    # branches only. Reconciled to match the DB slug once it's final (Stage
+    # 6.5, below), so folder_owned rows never carry a folder name that
+    # differs from their slug regardless of which branch created them.
+    _owned_folder_root: Path | None = None
     # Detection accumulates into these locals; row["era"] and
     # row["detection_reason"] are written exactly once, at the single resolution
     # site below the branches (Stage 6 — one write site, one era-resolution path).
@@ -196,7 +266,7 @@ def _prepare_item(
         if sub:
             raise _ItemAlreadyExists(_collection_for_leaf(sub, db))
 
-        _dir_ingest_root = media_src
+        _owned_folder_root = media_src
         row["folder_path"] = str(media_src)
         row["folder_owned"] = True
         row["media_path"] = str(media_src)
@@ -315,6 +385,8 @@ def _prepare_item(
             cover = _find_cover(dest_folder)
             if cover:
                 row["cover_art_path"] = str(cover)
+
+            _owned_folder_root = dest_folder
         else:
             existing_leaf = db.query(LibraryItem).filter(
                 LibraryItem.media_path == str(media_src)
@@ -360,36 +432,18 @@ def _prepare_item(
     else:
         row["slug"] = generate_collection_slug(title, db)
 
-    # For folder ingests: rename the existing folder to its slug-based name.
-    # resolve_under confirms the target stays within the same parent directory
-    # (defense-in-depth — slugify already guarantees [a-z0-9-] only).
-    if _dir_ingest_root is not None:
-        try:
-            slug_folder = resolve_under(_dir_ingest_root.parent, row["slug"])
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"Slug-based folder name is invalid: {exc}")
-        if slug_folder != _dir_ingest_root.resolve():
-            if slug_folder.exists():
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"A folder named '{row['slug']}' already exists in the media library.",
-                )
-            _dir_ingest_root.rename(slug_folder)
-            if _undo_stack is not None:
-                _undo_stack.append(lambda _o=_dir_ingest_root, _n=slug_folder: _n.rename(_o) if _n.exists() else None)
-            for field in ("folder_path", "media_path", "executable_path", "cover_art_path"):
-                val = row.get(field)
-                if val:
-                    try:
-                        field_path = Path(val)
-                        if field_path == _dir_ingest_root or field_path.is_relative_to(_dir_ingest_root):
-                            row[field] = str(slug_folder / field_path.relative_to(_dir_ingest_root))
-                    except (ValueError, TypeError) as exc:
-                        log.warning(
-                            "Could not rewrite '%s' after folder rename (%s -> %s): %s. "
-                            "Field will keep its stale pre-rename value: %s",
-                            field, _dir_ingest_root, slug_folder, exc, val,
-                        )
+    # Reconcile the owned folder's on-disk name to the DB slug — covers both
+    # dir-ingest (folder named from the source directory) and file-ingest
+    # with MEDIA_PATH configured (folder named from the file's stem); the two
+    # start from different source strings and different uniqueness checks, so
+    # without this step the folder name and row["slug"] can diverge.
+    if _owned_folder_root is not None:
+        slug_folder = _reconcile_folder_to_slug(_owned_folder_root, row["slug"], undo_stack=_undo_stack)
+        if slug_folder != _owned_folder_root:
+            _rewrite_paths_after_folder_rename(
+                row, ("folder_path", "media_path", "executable_path", "cover_art_path"),
+                _owned_folder_root, slug_folder, log,
+            )
 
     row["media_type"] = media_type_from_path(Path(row["media_path"]))
     row["requires_install"] = _scan.requires_install
@@ -562,11 +616,27 @@ def _create_multi_disc_collection(
     disc_files: list[Path],
     title: str,
     db: Session,
+    *,
+    staging_dir: Path | None = None,
 ) -> LibraryCollection:
     """
     Create a LibraryCollection with one LibraryItem leaf per disc file.
     disc_files must be pre-sorted (disc 1 first).
     Each disc file becomes both media_path and executable_path for its leaf.
+
+    staging_dir, when given, is the shared directory the caller staged every
+    disc_files entry into (chunked_uploads.reassemble() / path_import's
+    stage_from_source(), named via unique_slug() against filesystem
+    existence) — it is renamed to match this collection's DB slug (generated
+    below against DB uniqueness, a different domain) so the two never
+    diverge. Deliberately NOT inferred from disc_files[0].parent: dedup_disc_anchor
+    may have already repointed disc_files[0] at an unrelated, pre-existing
+    orphan file elsewhere under media_root, and renaming *that* file's parent
+    would corrupt a directory this ingest doesn't own. Only disc_files entries
+    that actually resolve under staging_dir are remapped after the rename;
+    a repointed anchor is left untouched. Omitted (None) by direct/test
+    callers that never staged a dedicated directory — reconciliation is
+    skipped entirely in that case, not guessed at.
     """
     from backend.core.logger import get_logger
     from backend.service.utils.smart_media_detector import detect as _smart_detect
@@ -590,6 +660,23 @@ def _create_multi_disc_collection(
             )
 
     slug = generate_collection_slug(title, db)
+
+    # Reconcile the shared staging folder to this collection's DB slug — see
+    # the staging_dir docstring param above for why this is keyed off the
+    # caller-supplied directory rather than disc_files[0].parent. original_dir
+    # is kept so a failure below can rename back to it: the caller
+    # (upload_finalize.finalize_reassembled) still references the pre-rename
+    # path in its own cleanup-on-failure rmtree.
+    original_dir = staging_dir
+    staged_dir = staging_dir
+    if staging_dir is not None:
+        staged_dir = _reconcile_folder_to_slug(staging_dir, slug)
+        if staged_dir != staging_dir:
+            disc_files = [
+                staged_dir / f.relative_to(staging_dir) if f.is_relative_to(staging_dir) else f
+                for f in disc_files
+            ]
+
     collection = LibraryCollection(
         title=title,
         era=detected_era,
@@ -602,7 +689,7 @@ def _create_multi_disc_collection(
         db.add(collection)
         db.flush()
 
-        cover = _find_cover(disc_files[0].parent)
+        cover = _find_cover(staged_dir if staged_dir is not None else disc_files[0].parent)
 
         leaves: list[LibraryItem] = []
         for disc_number, disc_file in enumerate(disc_files, start=1):
@@ -631,10 +718,22 @@ def _create_multi_disc_collection(
         db.commit()
     except IntegrityError as exc:
         db.rollback()
+        if staged_dir != original_dir and staged_dir.exists():
+            staged_dir.rename(original_dir)
         raise _SlugCollision(
             f"Import collided with a concurrent change while adding '{slug}' "
             f"(disc file '{disc_files[0].name}') — please retry."
         ) from exc
+    except Exception:
+        # Any other failure (e.g. an OSError reading a disc file mid-write):
+        # revert the folder rename so the caller's own cleanup-on-failure
+        # rmtree(reasm.dest_dir) — which still references the pre-rename
+        # path — actually finds and removes the staged directory, instead of
+        # silently no-op'ing (ignore_errors=True) and orphaning it on disk.
+        db.rollback()
+        if staged_dir != original_dir and staged_dir.exists():
+            staged_dir.rename(original_dir)
+        raise
 
     db.refresh(collection)
     return collection

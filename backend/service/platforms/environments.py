@@ -12,7 +12,7 @@ from backend.models.platform import Platform, PlatformCreate, PlatformUpdate
 from backend.models.snapshot import Snapshot, SnapshotCreate
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.era_defaults import DOS_WIN_ERAS
-from backend.service.utils.slug_generator import unique_slug
+from backend.service.utils.slug_generator import slugify, unique_slug
 
 _PLATFORM_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
 # Eras that get an auto-provisioned working image at create time. 86Box eras
@@ -413,8 +413,17 @@ def create_snapshot(platform_id: int, body: SnapshotCreate, db: Session) -> Snap
     src = _validate_image_path(platform.working_image_path)
     if not src.exists():
         raise HTTPException(status_code=422, detail="Working image file does not exist.")
-    safe_name = body.name.replace("/", "_").replace("\\", "_").replace("..", "_")
-    if not safe_name or safe_name.strip(".") == "":
+    # Canonical slugify() (not the ad-hoc replace() this used to do): the
+    # prior sanitizer only blocked "/", "\\", and ".." — it let Windows-illegal
+    # characters (: " < > | ? *) and trailing dots/spaces straight through
+    # into the filename, which could fail the copy below on Windows. The
+    # display name (Snapshot.name, set from body.name) is unaffected and
+    # keeps whatever the user typed — only the on-disk filename component is
+    # slugified. fallback="" (rather than slugify's usual "item") so a name
+    # that slugifies to nothing (e.g. all punctuation) is rejected below
+    # instead of every such snapshot silently colliding on the same filename.
+    safe_name = slugify(body.name, fallback="")
+    if not safe_name:
         raise HTTPException(status_code=422, detail="Snapshot name is invalid.")
     dest = src.parent / f"{src.stem}_snapshot_{safe_name}{src.suffix}"
     _check_free_space(dest.parent, src.stat().st_size)

@@ -135,7 +135,9 @@ def ingest_folder(
     disc_files = detect_disc_files(written_paths)
     if disc_files:
         disc_files[0] = dedup_disc_anchor(media_root, disc_files[0], db)
-        collection = lib_svc._create_multi_disc_collection(disc_files, title.strip(), db)
+        collection = lib_svc._create_multi_disc_collection(
+            disc_files, title.strip(), db, staging_dir=dest_dir
+        )
         return "library_collection", collection, len(disc_files)
 
     pick_folder_launch_file(written_paths)
