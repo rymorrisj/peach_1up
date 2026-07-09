@@ -309,15 +309,17 @@ export default function CollectionDetail() {
     setDeleteError(null)
     try {
       const checkedDeleteMedia = getDeleteCheckboxValue()
-      // The confirm-dialog checkbox is seeded from the persistent one but can
-      // still be overridden here as a last-chance choice — persist it back to
-      // the same field before the actual delete so there is one source of truth.
-      if (checkedDeleteMedia !== resolvedDeleteMedia) {
-        await apiFetch(`/api/v1/librarycollection/${collectionId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ delete_media_override: checkedDeleteMedia }),
-        })
-      }
+      // Always persist the confirm-dialog's checkbox value explicitly before
+      // deleting — never skip this based on a comparison against
+      // resolvedDeleteMedia (React Query cache), which can still be stale if
+      // the standalone override checkbox above (deleteMediaOverrideMutation,
+      // fire-and-forget) was toggled moments earlier and hasn't round-tripped
+      // yet. Writing unconditionally makes this the single source of truth
+      // delete_library_collection reads, regardless of cache freshness.
+      await apiFetch(`/api/v1/librarycollection/${collectionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ delete_media_override: checkedDeleteMedia }),
+      })
       const token = await issueDeleteToken(`/api/v1/librarycollection/${collectionId}/confirm-delete`)
       await consumeDeleteToken(`/api/v1/librarycollection/${collectionId}`, token)
       queryClient.invalidateQueries({ queryKey: ['library'] })
@@ -562,6 +564,18 @@ export default function CollectionDetail() {
               >
                 Fetch Metadata
               </Button>
+              {!isMultiDisc && sortedItems[0] && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setFetchDiscId(sortedItems[0].id)}
+                  disabled={!metadataProviderEnabled || fetchMetadataBusy}
+                  loading={fetchMetadataBusy && fetchDiscId === sortedItems[0].id}
+                  title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured` : 'Fetch cover art for this disc'}
+                >
+                  Cover Art
+                </Button>
+              )}
               {!metadataProviderEnabled && (
                 <span className="text-xs text-neutral-400">
                   Requires {activeProviderLabel} credentials (Settings &gt; Advanced)
@@ -692,6 +706,7 @@ export default function CollectionDetail() {
       entityTitle={collection.title}
       currentContentRating={collection.content_rating}
       storageKey={storageKey}
+      activeProviderLabel={activeProviderLabel}
       onSuccess={async () => {
         queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
         queryClient.invalidateQueries({ queryKey: ['library'] })
@@ -714,6 +729,7 @@ export default function CollectionDetail() {
         entityId={fetchDiscId}
         entityTitle={activeDisc.media_path.split(/[\\/]/).pop() ?? collection.title}
         storageKey={`${storageKey}#disc-${fetchDiscId}`}
+        activeProviderLabel={activeProviderLabel}
         onSuccess={async () => {
           queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
           queryClient.invalidateQueries({ queryKey: ['library'] })

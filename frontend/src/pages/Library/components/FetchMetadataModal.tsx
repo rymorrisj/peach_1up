@@ -38,6 +38,12 @@ interface FetchMetadataModalProps {
   /** Notified whenever a search/fetch/apply request is in flight, so the
    *  trigger button that opens this modal can show its own loading state. */
   onBusyChange?: (busy: boolean) => void
+  /** Display label for the currently active metadata provider ('TheGamesDB'
+   *  or 'IGDB'), sourced from the DB-backed metadata_provider setting by the
+   *  caller. Recorded as metadata_source on apply — only meaningful for
+   *  entityType 'library_collection'; library_item enrichment has no
+   *  metadata_source field and rejects it. */
+  activeProviderLabel: string
 }
 
 export function FetchMetadataModal({
@@ -50,6 +56,7 @@ export function FetchMetadataModal({
   onSuccess,
   currentContentRating = null,
   onBusyChange,
+  activeProviderLabel,
 }: FetchMetadataModalProps) {
   const { dispatch } = useAppContext()
 
@@ -150,11 +157,13 @@ export function FetchMetadataModal({
     const payload: Record<string, unknown> = {
       entity_type: entityType,
       entity_id: entityId,
-      metadata_source: 'TheGamesDB',
     }
 
     if (entityType === 'library_collection') {
       // Metadata lives on the collection — cover_art_url is not supported here.
+      // metadata_source only belongs here: enrich.py rejects any metadata_fields
+      // (including metadata_source) for entityType 'library_item'.
+      payload.metadata_source = activeProviderLabel
       if (details.title) payload.title = details.title
       if (details.overview) payload.description = details.overview
       if (details.rating) payload.content_rating = details.rating

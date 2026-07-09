@@ -68,6 +68,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Emit 'upload-complete' whenever an upload job transitions processing → done
   // so the library grid can invalidate without polling or a manual refresh.
+  // Also surfaces delete_original_error from the job result — the background
+  // path-import counterpart to AddMediaModal's inline-response handling.
+  // Uses a toast rather than component-local state because a background job
+  // can finish after the modal that started it has already closed.
   const prevJobsRef = useRef<BackgroundJob[]>([])
   useEffect(() => {
     const prev = prevJobsRef.current
@@ -77,6 +81,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     )
     if (justFinished.length > 0) {
       window.dispatchEvent(new CustomEvent('upload-complete'))
+      for (const job of justFinished) {
+        const result = job.result as { title?: string; delete_original_error?: string } | undefined
+        if (result?.delete_original_error) {
+          dispatch({
+            type: 'ADD_TOAST',
+            payload: {
+              id: crypto.randomUUID(),
+              message: `"${result.title ?? job.message}" was added, but the original file could not be deleted: ${result.delete_original_error}`,
+            },
+          })
+        }
+      }
     }
     prevJobsRef.current = state.backgroundJobs
   }, [state.backgroundJobs])

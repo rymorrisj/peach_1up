@@ -17,4 +17,4 @@ class Settings(SQLModel, table=True):
 
 
 class SettingsPatch(SQLModel):
-    updates: dict[str, Optional[str]]
+    updates: dict[str, Optional[str | bool]]

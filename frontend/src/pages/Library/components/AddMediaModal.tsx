@@ -34,8 +34,24 @@ interface BrowseImportEntry {
   name: string
   isDir: boolean
   deleteOriginal: boolean
-  status: 'staged' | 'importing' | 'success' | 'error'
+  status: 'staged' | 'importing' | 'success' | 'partial' | 'error'
   error?: string
+}
+
+// Shape of the inline (non-background) response body from
+// POST /api/v1/library/import-from-path — see path_import.import_inline /
+// finalize_reassembled. delete_original_error is only ever present when
+// delete_original was true and the post-import cleanup failed; its presence
+// never means the import itself failed (the collection/item was already
+// committed by that point).
+interface ImportFromPathResult {
+  job_id?: string
+  result_type?: string
+  id?: number
+  title?: string
+  reused_existing_media?: boolean
+  disc_count?: number
+  delete_original_error?: string
 }
 
 function newEntryId() {
@@ -139,7 +155,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
     handleCancel: handleDeleteCancelled,
   } = useConfirm()
 
-  const { data: libraryDefaults } = useQuery<{ delete_media_on_removal: boolean; delete_original_on_upload: boolean }>({
+  const { data: libraryDefaults, isLoading: libraryDefaultsLoading } = useQuery<{ delete_media_on_removal: boolean; delete_original_on_upload: boolean }>({
     queryKey: ['settings', 'library-defaults'],
     queryFn: () => apiFetch('/api/v1/settings/library-defaults'),
     staleTime: 60_000,
@@ -392,7 +408,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       setBrowseImports((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'importing' } : e)))
       try {
         const title = entry.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim()
-        const res = await apiFetch<{ job_id?: string }>('/api/v1/library/import-from-path', {
+        const res = await apiFetch<ImportFromPathResult>('/api/v1/library/import-from-path', {
           method: 'POST',
           body: JSON.stringify({ source_path: entry.path, title, delete_original: entry.deleteOriginal }),
         })
@@ -402,7 +418,18 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
             payload: { id: res.job_id, kind: 'upload', status: 'processing', progress: 0, message: `Importing "${title}"…` },
           })
         }
-        setBrowseImports((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'success' } : e)))
+        // The import itself always succeeded by this point — delete_original_error
+        // (inline path only; res.job_id means this went to the background path
+        // instead, surfaced separately via the job consumer in AppContext) means
+        // only the post-import source cleanup failed. Distinct from 'error' —
+        // this is a partial success, not an import failure.
+        if (res.delete_original_error) {
+          setBrowseImports((prev) => prev.map((e) =>
+            e.id === entry.id ? { ...e, status: 'partial', error: res.delete_original_error } : e,
+          ))
+        } else {
+          setBrowseImports((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'success' } : e)))
+        }
         onAdded()
       } catch (err) {
         const message = err instanceof ApiError ? err.detail : 'Import failed.'
@@ -836,7 +863,13 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
             <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Import from a path on this server
             </p>
-            <Button variant="secondary" size="sm" disabled={busy} onClick={() => setBrowserOpen(true)}>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={busy || libraryDefaultsLoading}
+              loading={libraryDefaultsLoading}
+              onClick={() => setBrowserOpen(true)}
+            >
               Browse Server Files…
             </Button>
           </div>
@@ -885,6 +918,11 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
                     <span className="shrink-0 text-xs font-medium">
                       {entry.status === 'importing' && <span className="text-neutral-400">Importing…</span>}
                       {entry.status === 'success' && <span className="text-emerald-500">✓ Added</span>}
+                      {entry.status === 'partial' && (
+                        <span className="text-amber-500" title={entry.error}>
+                          ✓ Added, original not deleted
+                        </span>
+                      )}
                       {entry.status === 'error' && <span className="text-red-500" title={entry.error}>Failed</span>}
                     </span>
                     {entry.status === 'staged' && (
