@@ -46,7 +46,7 @@ echo "Installing backend dependencies..."
 # shellcheck source=/dev/null
 source .venv/bin/activate
 python3 -m pip install --upgrade pip -q
-python3 -m pip install -r backend/requirements.txt
+python3 -m pip install -r backend/requirements-dev.txt
 echo "[OK] Backend dependencies installed"
 
 # ── Frontend deps ─────────────────────────────────────────────

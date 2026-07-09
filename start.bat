@@ -71,7 +71,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-".venv\Scripts\python.exe" -m pip install -r "backend\requirements.txt"
+".venv\Scripts\python.exe" -m pip install -r "backend\requirements-dev.txt"
 if errorlevel 1 (
     echo ERROR: Failed to install backend dependencies.
     exit /b 1

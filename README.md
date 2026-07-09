@@ -39,7 +39,7 @@ Emulators marked "requires BIOS" need a BIOS image sourced from your own hardwar
 
 ```bash
 # Backend
-pip install -r backend/requirements.txt
+pip install -r backend/requirements-dev.txt
 ./start.sh    # Linux
 start.bat     # Windows
 
