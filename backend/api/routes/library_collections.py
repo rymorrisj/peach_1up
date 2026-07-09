@@ -236,6 +236,24 @@ def scan_status():
         return {"running": _scan_running, "job_id": _scan_job_id, "error": _scan_error}
 
 
+@router.post("/library/scan/{job_id}/cancel")
+def cancel_scan(job_id: str):
+    """Cooperative cancellation for an in-flight scan job. Flags the job so
+    _run_scan's loop exits at its next check, then returns the updated job
+    status immediately — the job itself only reaches the terminal 'cancelled'
+    status once the background task actually notices and stops (poll
+    /api/v1/jobs/{job_id} to observe that transition)."""
+    job = jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    if job["kind"] != "scan":
+        raise HTTPException(status_code=400, detail="Job is not a library scan.")
+    updated = jobs.request_cancel(job_id)
+    if updated is None:
+        raise HTTPException(status_code=409, detail="Scan is not currently running.")
+    return updated
+
+
 def _resolve_scan_directory() -> Path:
     try:
         from backend.core.settings import get_settings
@@ -337,6 +355,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
     base_path = Path(directory).resolve()
     preview: list[dict] = []
     error_msg: str | None = None
+    cancelled = False
 
     try:
         entries = scan_media_folders(base_path)
@@ -355,6 +374,14 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
             }
 
             for _idx, entry in enumerate(entries):
+                # Checked every iteration (an Event.is_set() check is
+                # effectively free) so cancellation is noticed between any two
+                # folders, not just every 10th — the progress update itself
+                # stays throttled below since that one does real work (a job
+                # dict mutation under a lock).
+                if job_id is not None and jobs.cancel_requested(job_id):
+                    cancelled = True
+                    break
                 if job_id is not None and _idx % 10 == 0:
                     jobs.update(job_id, progress=_idx / total_entries,
                                 message=f"Scanned {_idx} of {total_entries} folders…")
@@ -408,7 +435,9 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
             _scan_running = False
             _scan_error = error_msg
         if job_id is not None:
-            if error_msg is not None:
+            if cancelled:
+                jobs.cancel(job_id, message="Scan cancelled.")
+            elif error_msg is not None:
                 jobs.fail(job_id, error_msg)
             else:
                 jobs.complete(

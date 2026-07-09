@@ -36,11 +36,22 @@ const _CSRF_SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
 export interface ApiFetchOptions extends RequestInit {
   /** Overrides the default 10s client-side abort timeout for this call. */
   timeoutMs?: number;
+  /**
+   * Tracks this request's AbortController under `key` so a later call to
+   * `api.abort(key)` (or the `abortRequest` free function) can cancel it
+   * without the caller holding a raw controller reference — e.g. a hook that
+   * fires a request from one callback and needs to cancel it from another.
+   * If a request with the same key is still in flight when a new one starts,
+   * the previous one is aborted first (last request for a key wins).
+   */
+  abortKey?: string;
 }
 
 class ApiClient {
+  private readonly controllers = new Map<string, AbortController>();
+
   async fetch<T>(path: string, init: ApiFetchOptions = {}): Promise<T> {
-    const { timeoutMs, ...requestInit } = init;
+    const { timeoutMs, abortKey, ...requestInit } = init;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Request-ID": crypto.randomUUID(),
@@ -53,7 +64,16 @@ class ApiClient {
     }
 
     const controller = new AbortController();
+    if (abortKey) {
+      this.controllers.get(abortKey)?.abort();
+      this.controllers.set(abortKey, controller);
+    }
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs ?? 10_000);
+    const releaseAbortKey = () => {
+      if (abortKey && this.controllers.get(abortKey) === controller) {
+        this.controllers.delete(abortKey);
+      }
+    };
 
     let res: Response;
     try {
@@ -67,12 +87,14 @@ class ApiClient {
       });
     } catch (err) {
       clearTimeout(timeoutId);
+      releaseAbortKey();
       if (err instanceof DOMException && err.name === "AbortError") {
         throw new TimeoutError();
       }
       throw err;
     }
     clearTimeout(timeoutId);
+    releaseAbortKey();
 
     if (!res.ok) {
       const isSessionError = res.status === 401;
@@ -111,6 +133,13 @@ class ApiClient {
     const data = await res.json();
     return data as T;
   }
+
+  /** Abort the in-flight request tracked under `key`, if any. No-op if none
+   *  is in flight (already finished, or never started under this key). */
+  abort(key: string): void {
+    this.controllers.get(key)?.abort();
+    this.controllers.delete(key);
+  }
 }
 
 export const api = new ApiClient();
@@ -119,3 +148,5 @@ export const api = new ApiClient();
 // to work without a 50-file rename. All calls delegate to api.fetch.
 export const apiFetch = <T>(path: string, init: ApiFetchOptions = {}): Promise<T> =>
   api.fetch<T>(path, init);
+
+export const abortRequest = (key: string): void => api.abort(key);

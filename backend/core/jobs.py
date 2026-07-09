@@ -15,13 +15,18 @@ import uuid
 from typing import Any, Literal
 
 JobKind = Literal["upload", "scan"]
-JobStatus = Literal["processing", "done", "error"]
+JobStatus = Literal["processing", "cancelling", "done", "error", "cancelled"]
 
 _lock = threading.Lock()
 _jobs: dict[str, dict[str, Any]] = {}
 
-# Finished (done/error) jobs linger this long so the UI can show the final state
-# and the user can open/dismiss it, then they're swept to bound memory.
+# Cancellation flags, keyed by job_id. Kept out of the _jobs dict itself since
+# threading.Event isn't JSON-serializable and job dicts are returned as-is by
+# the /api/v1/jobs routes.
+_cancel_events: dict[str, threading.Event] = {}
+
+# Finished (done/error/cancelled) jobs linger this long so the UI can show the
+# final state and the user can open/dismiss it, then they're swept to bound memory.
 _RETAIN_SECONDS = 3600.0
 
 
@@ -42,7 +47,41 @@ def create(kind: JobKind, message: str = "") -> str:
             "created_at": now,
             "updated_at": now,
         }
+        _cancel_events[job_id] = threading.Event()
     return job_id
+
+
+def request_cancel(job_id: str) -> dict[str, Any] | None:
+    """Flag *job_id* for cooperative cancellation and mark it 'cancelling'.
+
+    Returns the updated job dict, or None if the job doesn't exist or is no
+    longer in flight (cancellation only applies to a 'processing' job — it is
+    not retroactive against one that already finished).
+    """
+    with _lock:
+        job = _jobs.get(job_id)
+        if job is None or job["status"] != "processing":
+            return None
+        job["status"] = "cancelling"
+        job["message"] = f"{job['message']} — cancelling…" if job["message"] else "Cancelling…"
+        job["updated_at"] = time.time()
+        result = dict(job)
+    event = _cancel_events.get(job_id)
+    if event is not None:
+        event.set()
+    return result
+
+
+def cancel_requested(job_id: str) -> bool:
+    """Cheap, non-blocking check a running job loop calls periodically."""
+    event = _cancel_events.get(job_id)
+    return event.is_set() if event is not None else False
+
+
+def cancel(job_id: str, message: str | None = None) -> None:
+    """Mark *job_id* as cancelled (terminal state). Called by the job's own
+    loop once it has actually stopped work — mirrors complete()/fail()."""
+    _finish(job_id, "cancelled", message=message)
 
 
 def update(job_id: str, *, progress: float | None = None, message: str | None = None) -> None:
@@ -105,3 +144,4 @@ def _sweep_locked(now: float) -> None:
     ]
     for jid in stale:
         _jobs.pop(jid, None)
+        _cancel_events.pop(jid, None)

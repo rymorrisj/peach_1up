@@ -4,6 +4,11 @@ import { Button, Modal } from '@/ui'
 import { useAppContext } from '@/context/useAppContext'
 import type { BackgroundJob } from '@/context/_AppContext'
 
+// 'cancelling' is still in-flight work from the user's point of view — the
+// job hasn't reached a terminal state yet, it's just winding down — so it's
+// grouped with 'processing' everywhere "still running" is checked below.
+const isActiveStatus = (status: BackgroundJob['status']) => status === 'processing' || status === 'cancelling'
+
 function JobRow({ job, onDismiss }: { job: BackgroundJob; onDismiss: (id: string) => void }) {
   const pct = Math.round((job.progress ?? 0) * 100)
   const kindLabel = job.kind === 'scan' ? 'Library scan' : 'Upload'
@@ -15,7 +20,7 @@ function JobRow({ job, onDismiss }: { job: BackgroundJob; onDismiss: (id: string
         <span className="min-w-0 flex-1 truncate text-sm" style={{ color: 'var(--fg-1)' }}>
           {kindLabel}
         </span>
-        {job.status !== 'processing' && (
+        {!isActiveStatus(job.status) && (
           <button
             type="button"
             onClick={() => onDismiss(job.id)}
@@ -30,7 +35,7 @@ function JobRow({ job, onDismiss }: { job: BackgroundJob; onDismiss: (id: string
       <p className="mt-0.5 truncate text-xs" style={{ color: 'var(--fg-3)' }}>
         {job.message || (job.status === 'processing' ? 'Working…' : job.status)}
       </p>
-      {job.status === 'processing' && (
+      {isActiveStatus(job.status) && (
         <div
           className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full"
           style={{ background: 'var(--surface-3)' }}
@@ -52,7 +57,7 @@ export default function JobsBell() {
   const jobs = state.backgroundJobs
   if (jobs.length === 0) return null
 
-  const active = jobs.filter((j) => j.status === 'processing').length
+  const active = jobs.filter((j) => isActiveStatus(j.status)).length
 
   return (
     <>

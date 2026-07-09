@@ -11,8 +11,10 @@ interface ScanModalProps {
 }
 
 export function ScanModal({ open, onClose, onImported, mediaPath }: ScanModalProps) {
-  const { scanning, status, error, handleScan, importing, importResult, handleImport } =
-    useLibraryScan({ open, onImported })
+  const {
+    scanning, status, error, handleScan, handleCancelScan, cancelling,
+    importing, importResult, handleImport,
+  } = useLibraryScan({ open, onImported })
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const preview = status?.preview ?? []
@@ -53,6 +55,11 @@ export function ScanModal({ open, onClose, onImported, mediaPath }: ScanModalPro
       busy={busy}
       footer={
         <>
+          {scanning && (
+            <Button variant="ghost" onClick={handleCancelScan} loading={cancelling} disabled={cancelling}>
+              {cancelling ? 'Cancelling…' : 'Cancel Scan'}
+            </Button>
+          )}
           <Button variant="ghost" onClick={onClose} disabled={importing}>
             {importResult ? 'Close' : scanning ? 'Hide' : 'Cancel'}
           </Button>
@@ -139,9 +146,11 @@ export function ScanModal({ open, onClose, onImported, mediaPath }: ScanModalPro
 
       {!scanning && status && preview.length === 0 && !importResult && (
         <p className="text-sm text-neutral-500">
-          {status.error
-            ? `Scan error: ${status.error}`
-            : 'No new items found in the media library.'}
+          {status.cancelled
+            ? 'Scan cancelled.'
+            : status.error
+              ? `Scan error: ${status.error}`
+              : 'No new items found in the media library.'}
         </p>
       )}
 

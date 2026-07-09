@@ -48,10 +48,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('api-error', handleApiError)
   }, [])
 
-  // Poll background jobs (upload finalize, large scans) while any is processing.
-  // Keyed on the active-job count so the interval stays stable across progress
-  // ticks and tears down once everything has finished.
-  const activeJobCount = state.backgroundJobs.filter((j) => j.status === 'processing').length
+  // Poll background jobs (upload finalize, large scans) while any is processing
+  // or cancelling — 'cancelling' still needs polling to observe the eventual
+  // 'cancelled' transition once the job loop actually stops. Keyed on the
+  // active-job count so the interval stays stable across progress ticks and
+  // tears down once everything has finished.
+  const activeJobCount = state.backgroundJobs.filter(
+    (j) => j.status === 'processing' || j.status === 'cancelling',
+  ).length
   useEffect(() => {
     if (activeJobCount === 0) return
     const iv = setInterval(() => {

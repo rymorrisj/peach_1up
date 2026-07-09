@@ -13,7 +13,7 @@ export interface Toast {
 export interface BackgroundJob {
   id: string
   kind: 'upload' | 'scan'
-  status: 'processing' | 'done' | 'error'
+  status: 'processing' | 'cancelling' | 'done' | 'error' | 'cancelled'
   progress: number
   message: string
   result?: unknown
