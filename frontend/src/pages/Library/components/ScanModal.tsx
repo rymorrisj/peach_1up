@@ -53,8 +53,8 @@ export function ScanModal({ open, onClose, onImported, mediaPath }: ScanModalPro
       busy={busy}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
-            {importResult ? 'Close' : 'Cancel'}
+          <Button variant="ghost" onClick={onClose} disabled={importing}>
+            {importResult ? 'Close' : scanning ? 'Hide' : 'Cancel'}
           </Button>
           {!status && !scanning && (
             <Button onClick={handleScan} loading={scanning} disabled={scanning}>

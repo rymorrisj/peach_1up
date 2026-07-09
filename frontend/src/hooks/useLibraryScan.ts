@@ -76,15 +76,13 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
   // before writing state; if the value has moved on, that callback has been
   // superseded and becomes a no-op instead of clobbering newer state.
   //
-  // This matters because the modal's Cancel/Close button is disabled while
-  // busy (`disabled={busy}` in ScanModal), but Modal.tsx wraps a native
-  // <dialog> with no 'cancel' handler — pressing Escape closes the dialog
-  // (and fires onClose -> open=false) regardless of that disabled state,
-  // WITHOUT cancelling whatever request is still in flight. Since Library's
-  // index.tsx always keeps <ScanModal> mounted (only toggles `open`), this
-  // hook instance — and the in-flight promise's closures — stay alive. A
-  // user can Escape-close mid-import, reopen, run a second import that
-  // succeeds, and then have the first (now-stale) import's catch/then fire
+  // This matters because Library's index.tsx always keeps <ScanModal> mounted
+  // (only toggles `open`), so this hook instance — and any in-flight promise's
+  // closures — stay alive across opens/closes. Modal.tsx blocks Escape while
+  // busy, and the Cancel button is disabled during import, but scanning can
+  // now be dismissed early (the scan continues as a tracked background job).
+  // A user can dismiss mid-scan, reopen, run a second scan/import that
+  // succeeds, and then have the first (now-stale) operation's catch/then fire
   // afterward and overwrite the freshly-successful UI state. The generation
   // guard makes that stale completion inert.
   const generationRef = useRef(0)

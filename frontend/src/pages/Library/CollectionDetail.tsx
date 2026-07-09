@@ -77,6 +77,7 @@ export default function CollectionDetail() {
 
   const [fetchMetadataOpen, setFetchMetadataOpen] = useState(false)
   const [fetchDiscId, setFetchDiscId] = useState<number | null>(null)
+  const [fetchMetadataBusy, setFetchMetadataBusy] = useState(false)
 
   const { data: collection, isLoading } = useQuery({
     queryKey: ['library', 'by-slug', slug],
@@ -274,6 +275,11 @@ export default function CollectionDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
+      // Also invalidate the grid/list query — its own delete-confirm modal seeds
+      // its checkbox from this same collection's delete_media_override, and
+      // without this it can read stale data if the user navigates back there
+      // shortly after toggling the item-level checkbox here.
+      queryClient.invalidateQueries({ queryKey: ['library'] })
     },
   })
 
@@ -550,7 +556,8 @@ export default function CollectionDetail() {
                 variant="secondary"
                 size="sm"
                 onClick={() => setFetchMetadataOpen(true)}
-                disabled={!metadataProviderEnabled}
+                disabled={!metadataProviderEnabled || fetchMetadataBusy}
+                loading={fetchMetadataBusy}
                 title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured — set them in Settings > Advanced` : undefined}
               >
                 Fetch Metadata
@@ -585,7 +592,8 @@ export default function CollectionDetail() {
                       variant="ghost"
                       size="sm"
                       onClick={() => setFetchDiscId(disc.id)}
-                      disabled={!metadataProviderEnabled}
+                      disabled={!metadataProviderEnabled || fetchMetadataBusy}
+                      loading={fetchMetadataBusy && fetchDiscId === disc.id}
                       title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured` : 'Fetch cover art for this disc'}
                       className="shrink-0"
                     >
@@ -684,10 +692,18 @@ export default function CollectionDetail() {
       entityTitle={collection.title}
       currentContentRating={collection.content_rating}
       storageKey={storageKey}
-      onSuccess={() => {
+      onSuccess={async () => {
         queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
         queryClient.invalidateQueries({ queryKey: ['library'] })
+        // Fetch fresh data directly and resync the edit form — the form is only
+        // built from `collection` once (see the `!form` guard above), so it
+        // would otherwise show stale publisher/description/category/rating/
+        // cover art fields until a full page reload even after the invalidated
+        // query refetches in the background.
+        const fresh = await apiFetch<LibraryCollectionData>(`/api/v1/librarycollection/by-slug/${slug}`)
+        setFormState(formFromCollection(fresh))
       }}
+      onBusyChange={setFetchMetadataBusy}
     />
 
     {fetchDiscId != null && activeDisc != null && (
@@ -698,11 +714,14 @@ export default function CollectionDetail() {
         entityId={fetchDiscId}
         entityTitle={activeDisc.media_path.split(/[\\/]/).pop() ?? collection.title}
         storageKey={`${storageKey}#disc-${fetchDiscId}`}
-        onSuccess={() => {
+        onSuccess={async () => {
           queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
           queryClient.invalidateQueries({ queryKey: ['library'] })
+          const fresh = await apiFetch<LibraryCollectionData>(`/api/v1/librarycollection/by-slug/${slug}`)
+          setFormState(formFromCollection(fresh))
           setFetchDiscId(null)
         }}
+        onBusyChange={setFetchMetadataBusy}
       />
     )}
 

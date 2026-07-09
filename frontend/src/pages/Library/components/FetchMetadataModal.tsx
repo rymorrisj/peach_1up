@@ -35,6 +35,9 @@ interface FetchMetadataModalProps {
    *  fetched rating would lower or clear it. Only meaningful for entityType
    *  'library_collection'; library_item has no content_rating field. */
   currentContentRating?: string | null
+  /** Notified whenever a search/fetch/apply request is in flight, so the
+   *  trigger button that opens this modal can show its own loading state. */
+  onBusyChange?: (busy: boolean) => void
 }
 
 export function FetchMetadataModal({
@@ -46,10 +49,11 @@ export function FetchMetadataModal({
   storageKey,
   onSuccess,
   currentContentRating = null,
+  onBusyChange,
 }: FetchMetadataModalProps) {
   const { dispatch } = useAppContext()
 
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(entityTitle)
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [results, setResults] = useState<SearchResult[] | null>(null)
@@ -62,6 +66,13 @@ export function FetchMetadataModal({
   const [applying, setApplying] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [confirmRatingChange, setConfirmRatingChange] = useState(false)
+
+  // Pre-fill the search field with the item's title on open — editable, not
+  // re-applied on every render (only when the modal transitions to open).
+  useEffect(() => {
+    if (open) setQuery(entityTitle)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   // Restore cached results from sessionStorage on modal open
   useEffect(() => {
@@ -192,6 +203,14 @@ export function FetchMetadataModal({
   const showCoverArt = entityType === 'library_item'
   const showMetadata = entityType === 'library_collection'
   const busy = phase === 'search' ? searching || fetching : applying
+
+  useEffect(() => {
+    onBusyChange?.(busy)
+  }, [busy, onBusyChange])
+
+  useEffect(() => {
+    if (!open) onBusyChange?.(false)
+  }, [open, onBusyChange])
   // Coarse string comparison against the raw provider rating (not the normalized
   // form the backend will store) — this can flag changes the backend later decides
   // don't need confirmation (e.g. a same-rating restated differently, or a raise),
