@@ -33,6 +33,7 @@ def _apply_schema_migrations() -> None:
         ("tags", "is_system", "INTEGER NOT NULL DEFAULT 0"),
         ("users", "can_manage_users", "INTEGER NOT NULL DEFAULT 0"),
         ("library_items", "original_name", "VARCHAR"),
+        ("library_items", "folder_owned", "INTEGER"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)

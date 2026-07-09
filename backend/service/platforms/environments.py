@@ -163,11 +163,53 @@ def create_platform(body: PlatformCreate, db: Session) -> Platform:
 
 
 def delete_platform(platform_id: int, token: str, db: Session) -> None:
+    from backend.core.logger import get_logger
+    logger = get_logger(__name__)
+
     if not _consume(token, "platform", platform_id, "delete"):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
     platform = db.get(Platform, platform_id)
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found.")
+
+    # working_image_path is the app-managed working copy created at
+    # registration/provisioning time (P2-4) — safe to remove. base_image_path
+    # is the user's original source image and is never modified or deleted by
+    # the app (P2-4 "base is never modified"; 2026-07-05 DECISIONS.md notes
+    # base/media images are "never mutated by the app, so they're never at
+    # risk") — it is deliberately left untouched here.
+    #
+    # Path ownership is not just this row's problem: working_image_path has no
+    # uniqueness constraint, so another Platform row could reference the same
+    # file (e.g. a manually-set override via PATCH). Deleting the file out
+    # from under a still-live Platform would be worse than leaving an orphan,
+    # so the file is only removed if no other row still points at it.
+    working_path = platform.working_image_path
+    if working_path:
+        still_referenced = (
+            db.query(Platform)
+            .filter(Platform.id != platform_id, Platform.working_image_path == working_path)
+            .first()
+            is not None
+        )
+        if still_referenced:
+            logger.info(
+                "Platform %d deleted; working_image_path '%s' left on disk — "
+                "still referenced by another platform.",
+                platform_id, working_path,
+            )
+        else:
+            try:
+                img = Path(working_path)
+                if img.exists():
+                    img.unlink()
+                    logger.info("Deleted working image for platform %d: %s", platform_id, img)
+            except OSError as exc:
+                logger.warning(
+                    "Could not delete working image %s for platform %d: %s",
+                    working_path, platform_id, exc,
+                )
+
     db.delete(platform)
     db.commit()
 

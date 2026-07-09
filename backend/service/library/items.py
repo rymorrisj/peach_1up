@@ -30,6 +30,7 @@ _COLLECTION_COLUMNS = {
 _LEAF_COLUMNS = {
     "media_path", "executable_path", "cover_art_path", "media_type",
     "folder_path", "detection_reason", "file_size_bytes", "original_name",
+    "folder_owned",
 }
 
 
@@ -147,6 +148,7 @@ def _prepare_item(
         "category": None,
         "media_type": None,
         "folder_path": None,
+        "folder_owned": None,
         "cover_art_path": None,
         "description": None,
         "publisher": None,
@@ -196,6 +198,7 @@ def _prepare_item(
 
         _dir_ingest_root = media_src
         row["folder_path"] = str(media_src)
+        row["folder_owned"] = True
         row["media_path"] = str(media_src)
 
         cover = _find_cover(media_src)
@@ -284,10 +287,12 @@ def _prepare_item(
                 if _undo_stack is not None:
                     _undo_stack.append(lambda _o=_src_parent, _n=dest_folder: _n.rename(_o) if _n.exists() else None)
                 row["folder_path"] = str(dest_folder)
+                row["folder_owned"] = True
                 row["media_path"] = str(dest)
             else:
                 dest_folder.mkdir(parents=True, exist_ok=True)
                 row["folder_path"] = str(dest_folder)
+                row["folder_owned"] = True
 
                 if dest.exists():
                     if dest.stat().st_size == media_src.stat().st_size:
@@ -316,7 +321,14 @@ def _prepare_item(
             ).first()
             if existing_leaf:
                 raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
+            # No MEDIA_PATH configured: there is no dedicated per-item directory
+            # to create, so folder_path here is just the source file's parent —
+            # a directory this ingest did not create and may share with
+            # unrelated files or other library items. folder_owned=False is
+            # load-bearing: it tells _delete_leaf_media_folders to never rmtree
+            # this path, only ever unlink the tracked file itself.
             row["folder_path"] = str(media_src.parent)
+            row["folder_owned"] = False
 
         _scan = _smart_detect(Path(row["media_path"]))
         if _scan.era is not None:
@@ -604,6 +616,10 @@ def _create_multi_disc_collection(
                 cover_art_path=str(cover) if disc_number == 1 and cover else None,
                 original_name=disc_file.name,
                 folder_path=str(disc_file.parent),
+                # All disc files of a "set" upload are written together into one
+                # unique-slugged staging directory dedicated to this collection
+                # (see upload_finalize.finalize_reassembled) — safe to rmtree.
+                folder_owned=True,
             )
             db.add(leaf)
             leaves.append(leaf)
@@ -638,17 +654,27 @@ def create_library_collection(body: LibraryCollectionCreate, db: Session) -> tup
 
 
 def _delete_leaf_media_folders(collection: LibraryCollection) -> None:
-    """Delete each leaf's on-disk media folder (folder_path), used only when
-    _should_delete_media() resolves true (per-collection override, else the
-    global delete_media_on_removal setting).
+    """Delete each leaf's on-disk media, used only when _should_delete_media()
+    resolves true (per-collection override, else the global
+    delete_media_on_removal setting).
 
-    folder_path (not a path reconstructed from the slug) is the source of truth
-    for what to remove, since ingest may have slug-renamed the directory. Leaves
-    with no folder_path are skipped — there is nothing to remove for them. Every
-    resolved folder is required to fall under MEDIA_PATH before rmtree; a folder
-    that fails this check is refused and logged loudly rather than silently
-    skipped, since silently continuing past a failed containment check on a
-    delete path is worse than doing nothing.
+    Only rmtree's folder_path when leaf.folder_owned is True — meaning the
+    ingest pipeline created or renamed that directory exclusively for this
+    item (or, for a multi-disc set, this collection). folder_owned False or
+    None (rows written before this column existed) means folder_path is a
+    pre-existing directory the ingest pipeline does not own — most notably the
+    parent directory of a loose file ingested with no MEDIA_PATH configured,
+    which may be shared with unrelated files or other library items entirely
+    outside this app's control. For those leaves only the tracked media_path
+    file itself is unlinked; the directory is left alone. This is deliberately
+    asymmetric with the owned case (which may leave cover art / companion
+    files behind for legacy folder_owned=None rows) — over-deleting a shared
+    directory is worse than under-deleting an unowned one.
+
+    Every resolved path is required to fall under MEDIA_PATH before removal;
+    a path that fails this check is refused and logged loudly rather than
+    silently skipped, since silently continuing past a failed containment
+    check on a delete path is worse than doing nothing.
     """
     from backend.core.logger import get_logger
     from backend.core.settings import get_settings
@@ -665,27 +691,52 @@ def _delete_leaf_media_folders(collection: LibraryCollection) -> None:
         return
     media_root = Path(media_root_str).resolve()
 
-    seen: set[str] = set()
+    def _under_root(path: Path) -> bool:
+        return path == media_root or path.is_relative_to(media_root)
+
+    seen_folders: set[str] = set()
+    seen_files: set[str] = set()
     for leaf in collection.items:
-        if not leaf.folder_path or leaf.folder_path in seen:
-            continue
-        seen.add(leaf.folder_path)
+        if leaf.folder_owned and leaf.folder_path:
+            if leaf.folder_path in seen_folders:
+                continue
+            seen_folders.add(leaf.folder_path)
 
-        folder = Path(leaf.folder_path).resolve()
-        if not (folder == media_root or folder.is_relative_to(media_root)):
-            log.error(
-                "Refusing to delete media folder '%s' for library item %s: "
-                "it does not resolve under MEDIA_PATH ('%s').",
-                folder, leaf.id, media_root,
-            )
-            continue
+            folder = Path(leaf.folder_path).resolve()
+            if not _under_root(folder):
+                log.error(
+                    "Refusing to delete media folder '%s' for library item %s: "
+                    "it does not resolve under MEDIA_PATH ('%s').",
+                    folder, leaf.id, media_root,
+                )
+                continue
+            try:
+                if folder.exists():
+                    shutil.rmtree(folder)
+                    log.info("Deleted media folder: %s", folder)
+            except OSError as exc:
+                log.warning("Could not delete media folder %s: %s", folder, exc)
+        elif leaf.media_path:
+            # folder_path is not exclusively owned (or ownership is unknown) —
+            # never rmtree it. Only remove the one tracked file.
+            if leaf.media_path in seen_files:
+                continue
+            seen_files.add(leaf.media_path)
 
-        try:
-            if folder.exists():
-                shutil.rmtree(folder)
-                log.info("Deleted media folder: %s", folder)
-        except OSError as exc:
-            log.warning("Could not delete media folder %s: %s", folder, exc)
+            file_path = Path(leaf.media_path).resolve()
+            if not _under_root(file_path):
+                log.error(
+                    "Refusing to delete media file '%s' for library item %s: "
+                    "it does not resolve under MEDIA_PATH ('%s').",
+                    file_path, leaf.id, media_root,
+                )
+                continue
+            try:
+                if file_path.is_file():
+                    file_path.unlink()
+                    log.info("Deleted media file: %s", file_path)
+            except OSError as exc:
+                log.warning("Could not delete media file %s: %s", file_path, exc)
 
 
 def _should_delete_media(collection: LibraryCollection) -> bool:

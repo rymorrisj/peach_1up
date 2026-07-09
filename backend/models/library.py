@@ -47,6 +47,14 @@ class LibraryItem(SQLModel, table=True):
     # any slug-based rename. Lets a later scan match a disk path back to this
     # row even after the on-disk name has since diverged from the DB slug.
     original_name: Optional[str] = None
+    # True only when folder_path was created/renamed exclusively for this item
+    # (or, for a multi-disc set, this collection) by the ingest pipeline itself
+    # — safe to rmtree on delete. False/None means folder_path is a pre-existing
+    # directory the ingest pipeline does not own (e.g. the parent of a loose
+    # file ingested with no MEDIA_PATH configured) and must never be rmtree'd;
+    # None covers rows written before this column existed, treated the same as
+    # False. See _delete_leaf_media_folders.
+    folder_owned: Optional[bool] = None
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=False),
