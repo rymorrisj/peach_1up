@@ -9,9 +9,8 @@ import { ERA_COLOR } from '@/types/era'
 import type { components } from '@shared/types'
 
 type Platform = components['schemas']['PlatformRead']
-type Snapshot = components['schemas']['SnapshotRead']
 
-type Tab = 'overview' | 'snapshots' | 'notes'
+type Tab = 'overview' | 'notes'
 
 function TabBtn({ label, active, onClick, count }: {
   label: string; active: boolean; onClick: () => void; count?: number
@@ -84,12 +83,6 @@ export default function EnvironmentDetail() {
   const { data: platform } = useQuery<Platform>({
     queryKey: ['platform', id],
     queryFn: () => apiFetch<Platform>(`/api/v1/platforms/${id}`),
-    enabled: !!id,
-  })
-
-  const { data: snapshots = [] } = useQuery<Snapshot[]>({
-    queryKey: ['platform-snapshots', id],
-    queryFn: () => apiFetch<Snapshot[]>(`/api/v1/platforms/${id}/snapshots`),
     enabled: !!id,
   })
 
@@ -232,7 +225,6 @@ export default function EnvironmentDetail() {
 
         <div className="flex gap-0" style={{ borderBottom: '1px solid var(--border)', marginBottom: 22 }}>
           <TabBtn label="Overview" active={tab === 'overview'} onClick={() => setTab('overview')} />
-          <TabBtn label="Snapshots" active={tab === 'snapshots'} onClick={() => setTab('snapshots')} count={snapshots.length} />
           <TabBtn label="Notes" active={tab === 'notes'} onClick={() => setTab('notes')} />
         </div>
 
@@ -286,34 +278,6 @@ export default function EnvironmentDetail() {
               </div>
             )}
 
-            {tab === 'snapshots' && (
-              <div className="rounded-xl overflow-hidden" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-                <div className="grid px-[18px] py-2.5" style={{
-                  gridTemplateColumns: '1fr 140px 90px', fontFamily: 'var(--font-mono)', fontWeight: 500,
-                  fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)',
-                  borderBottom: '1px solid var(--border)',
-                }}>
-                  <span>Name</span><span>Date</span><span style={{ textAlign: 'right' }}>Size</span>
-                </div>
-                {snapshots.length === 0 ? (
-                  <div style={{ padding: '16px 18px', fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
-                    No snapshots yet.
-                  </div>
-                ) : snapshots.map((s, i) => (
-                  <div key={s.id} className="grid px-[18px] py-3.5" style={{
-                    gridTemplateColumns: '1fr 140px 90px', alignItems: 'center',
-                    borderBottom: i < snapshots.length - 1 ? '1px solid var(--border)' : 'none',
-                  }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--fg-1)' }}>{s.name}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-2)' }}>{new Date(s.created_at + 'Z').toLocaleDateString()}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)', textAlign: 'right' }}>
-                      {s.size_bytes != null ? `${(s.size_bytes / 1_048_576).toFixed(1)} MB` : '—'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {tab === 'notes' && (
               <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={8}
@@ -344,7 +308,6 @@ export default function EnvironmentDetail() {
               {[
                 { label: 'emulator', value: platform.emulator_slug },
                 { label: 'last check', value: platform.last_health_check ? new Date(platform.last_health_check + 'Z').toLocaleDateString() : '—' },
-                { label: 'snapshots', value: String(snapshots.length) },
               ].map(({ label, value }) => (
                 <div key={label} className="mb-3 last:mb-0">
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15, lineHeight: 1, color: 'var(--fg-1)' }}>{value}</div>

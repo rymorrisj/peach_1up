@@ -1,6 +1,5 @@
 eras:
   dos:   "DOS"
-  win31: "Windows 3.1"
   win95: "Windows 95"
   win98: "Windows 98"
   winxp: "Windows XP"
@@ -59,7 +58,7 @@ backend_slugs:
   flycast:     "Flycast"
 
 backend_system_labels:
-  dosbox:      "DOS, Windows 3.1"
+  dosbox:      "DOS"
   86box:       "Windows 95, 98, XP"
   duckstation: "PlayStation 1"
   pcsx2:       "PlayStation 2"

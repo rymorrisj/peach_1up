@@ -110,7 +110,7 @@ class LibraryItemReorder(SQLModel):
 
 # ---------------------------------------------------------------------------
 # Parent entity: LibraryCollection (the game / collection). Renamed from LibrarySet;
-# owns metadata, the writable drive (DOS/win31), and the ordered leaf list.
+# owns metadata, the writable drive (DOS), and the ordered leaf list.
 # ---------------------------------------------------------------------------
 
 class LibraryCollection(SQLModel, table=True):

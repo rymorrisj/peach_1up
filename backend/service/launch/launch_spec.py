@@ -55,9 +55,9 @@ class LaunchSpec:
 
     # Platform plain fields. working_image_path is the shared, persistent
     # working image for 86Box-style eras (box86/xemu) and, separately, the
-    # environment-launch persistent C: drive for DOS/Win3.1 (dosbox reads it
+    # environment-launch persistent C: drive for DOS (dosbox reads it
     # only when media_path is None — see dosbox.write_environment_conf()).
-    # For a library-item DOS/Win3.1 launch, dosbox instead mounts the
+    # For a library-item DOS launch, dosbox instead mounts the
     # per-item drive_image_path as C:, and working_image_path is unset/inert.
     vm_dir: Path | None = None          # resolved from platform.config_path parent
     config_path: Path | None = None     # resolved from platform.config_path

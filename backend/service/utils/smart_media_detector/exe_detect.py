@@ -49,11 +49,6 @@ def detect_exe(exe_path: Path) -> ScanResult:
                 title=None, platform=None, era="win98", confidence=0.75,
                 reason=f"PE MajorOSVersion={major_os} — Windows 9x era executable",
             )
-        if major_os <= 3:
-            return ScanResult(
-                title=None, platform=None, era="win31", confidence=0.75,
-                reason=f"PE MajorOSVersion={major_os} — Windows 3.x era executable",
-            )
         return ScanResult(
             title=None, platform=None, era=None, confidence=0.0,
             reason=f"PE MajorOSVersion={major_os} not mapped to a known era",

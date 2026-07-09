@@ -1,12 +1,11 @@
 export const ERA_LABEL: Record<string, string> = {
-  dos: 'DOS', win31: 'WIN31', win95: 'WIN95', win98: 'WIN98', winxp: 'WINXP',
+  dos: 'DOS', win95: 'WIN95', win98: 'WIN98', winxp: 'WINXP',
   ps1: 'PS1', ps2: 'PS2', xbox: 'XBOX', dreamcast: 'DC',
   nes: 'NES', n64: 'N64', snes: 'SNES',
 }
 
 export const ERA_COLOR: Record<string, string> = {
   DOS: 'var(--era-dos)',
-  WIN31: 'var(--era-win31)',
   WIN95: 'var(--era-win95)',
   WIN98: 'var(--era-win98)',
   WINXP: 'var(--era-winxp)',
@@ -21,7 +20,6 @@ export const ERA_COLOR: Record<string, string> = {
 
 export const ERA_PLACEHOLDER: Record<string, { bg: string; color: string }> = {
   dos:        { bg: 'linear-gradient(155deg, #2b2316 0%, #16110a 100%)', color: 'var(--era-dos)' },
-  win31:      { bg: 'linear-gradient(155deg, #16292b 0%, #0a1517 100%)', color: 'var(--era-win31)' },
   win95:      { bg: 'linear-gradient(155deg, #20281a 0%, #11160c 100%)', color: 'var(--era-win95)' },
   win98:      { bg: 'linear-gradient(155deg, #17202b 0%, #0c1118 100%)', color: 'var(--era-win98)' },
   winxp:      { bg: 'linear-gradient(155deg, #182617 0%, #0e150d 100%)', color: 'var(--era-winxp)' },
@@ -37,7 +35,7 @@ export const ERA_PLACEHOLDER: Record<string, { bg: string; color: string }> = {
 export const ERA_PLACEHOLDER_DEFAULT = { bg: 'linear-gradient(155deg, #1c2230 0%, #11141c 100%)', color: '#6aa9d6' }
 
 export const EMULATOR_ERA_MAP: Record<string, string[]> = {
-  'dosbox-x':   ['DOS', 'WIN31'],
+  'dosbox-x':   ['DOS'],
   '86box':      ['WIN95', 'WIN98', 'WINXP'],
   duckstation:  ['PS1'],
   pcsx2:        ['PS2'],

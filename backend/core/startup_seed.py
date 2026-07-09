@@ -11,7 +11,7 @@ _SYSTEM_PLATFORMS = [
         "era": "dos",
         "emulator_slug": "dosbox-x",
         "is_system": True,
-        "supported_eras": json.dumps(["dos", "win31"]),
+        "supported_eras": json.dumps(["dos"]),
         "download_url": "https://dosbox-x.com",
         "status": "unknown",
     },
@@ -89,7 +89,6 @@ _SYSTEM_PLATFORMS = [
 
 _DEFAULT_PROFILES = [
     {"name": "DOS Default",     "slug": "dos-default",   "era": "dos",   "emulator_slug": "dosbox-x",   "is_bundled": True},
-    {"name": "Win 3.1 Default", "slug": "win31-default", "era": "win31", "emulator_slug": "dosbox-x",   "is_bundled": True},
     {"name": "Win 95 Default",  "slug": "win95-compat",  "era": "win95", "emulator_slug": "86box",       "is_bundled": True},
     {"name": "Win 98 Default",  "slug": "win98-compat",  "era": "win98", "emulator_slug": "86box",       "is_bundled": True},
     {"name": "Win XP Default",  "slug": "winxp-default", "era": "winxp", "emulator_slug": "86box",       "is_bundled": True},
@@ -139,21 +138,20 @@ def _seed_default_profiles(db) -> bool:
         return False
 
 
-# DOS / Windows 3.1 environments. Seeded to provide a Platform record with a
+# DOS environment. Seeded to provide a Platform record with a
 # linked bundled profile so item launches resolve the right emulator/settings
 # via Platform.profile_id. Per-item drives are created lazily by drive_hydration
 # at launch time; no shared working image is mounted by DOSBox-X item launches.
 _DOSBOX_ENVIRONMENTS = [
     {"slug": "dos",   "name": "DOS",          "era": "dos",   "profile_slug": "dos-default",   "image_rel": "os/dos/dos.img"},
-    {"slug": "win31", "name": "Windows 3.1",  "era": "win31", "profile_slug": "win31-default", "image_rel": "os/win31/win31.img"},
 ]
 
 
 def _seed_dosbox_environments(db) -> bool:
-    """Seed the DOS and Windows 3.1 environment platforms.
+    """Seed the DOS environment platform.
 
-    Must run after _seed_default_profiles so the bundled dos-default /
-    win31-default profiles exist to link via profile_id. working_image_path is
+    Must run after _seed_default_profiles so the bundled dos-default
+    profile exists to link via profile_id. working_image_path is
     preset to a canonical path under library/system/os/ but is not mounted by
     DOSBox-X item launches; per-item drives are created lazily by drive_hydration.
     """
@@ -187,9 +185,9 @@ def _seed_dosbox_environments(db) -> bool:
             added += 1
         if added:
             db.flush()
-            logger.info("Seeded %d DOS/Win3.1 environment(s)", added)
+            logger.info("Seeded %d DOS environment(s)", added)
         return True
     except Exception as exc:
         db.rollback()
-        logger.error("DOS/Win3.1 environment seeding failed: %s", exc)
+        logger.error("DOS environment seeding failed: %s", exc)
         return False

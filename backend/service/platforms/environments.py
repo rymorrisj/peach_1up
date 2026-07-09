@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -9,33 +8,17 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from backend.models.platform import Platform, PlatformCreate, PlatformUpdate
-from backend.models.snapshot import Snapshot, SnapshotCreate
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.era_defaults import DOS_WIN_ERAS
-from backend.service.utils.slug_generator import slugify, unique_slug
+from backend.service.utils.slug_generator import unique_slug
 
-_PLATFORM_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
+_PLATFORM_ERAS = frozenset({"dos", "win95", "win98", "winxp"})
 # Eras that get an auto-provisioned working image at create time. 86Box eras
-# get a VHD + config via provision_86box_vm; DOS/Win3.1 environments get a
+# get a VHD + config via provision_86box_vm; the DOS environment gets a
 # FAT16 C: drive via provision_dosbox_drive (dosbox.py's write_environment_conf
 # mounts platform.working_image_path directly for these, distinct from the
 # per-item drive_image_path used by library-item launches via drive_hydration).
 _PROVISIONABLE_ERAS = frozenset({"win95", "win98", "winxp"}) | DOS_WIN_ERAS
-
-MAX_SNAPSHOTS_PER_PLATFORM = 10
-
-
-def _check_free_space(dest_dir: Path, required_bytes: int) -> None:
-    """Raise HTTPException(507) if *dest_dir* has less free space than *required_bytes*."""
-    usage = shutil.disk_usage(dest_dir)
-    if usage.free < required_bytes:
-        raise HTTPException(
-            status_code=507,
-            detail=(
-                f"Insufficient disk space: need {required_bytes // (1024 * 1024)} MiB, "
-                f"only {usage.free // (1024 * 1024)} MiB free."
-            ),
-        )
 
 
 def _validate_image_path(path_str: str) -> Path:
@@ -78,7 +61,7 @@ def _probe_image_integrity(path: Path) -> bool:
 
 def _compute_status(era: str, working: str | None, base: str | None) -> str:
     if era in DOS_WIN_ERAS:
-        # DOS/win31 launches mount the per-item drive instead of
+        # DOS launches mount the per-item drive instead of
         # working_image_path (see _PROVISIONABLE_ERAS comment above), so a
         # missing working image pre-first-launch is expected/healthy for
         # these eras, not "degraded" — evaluated independently of
@@ -375,103 +358,3 @@ def get_storage_stats(db: Session) -> dict:
     }
 
 
-def _atomic_copy(src: Path, dest: Path) -> None:
-    """Copy src onto dest via a same-directory tmp file + atomic replace.
-
-    Mirrors the .tmp + os.replace pattern in routes/emulators.py's
-    _write_xemu_toml. A failure partway through shutil.copy2 (disk full,
-    process killed) leaves only the orphaned tmp file — dest, if it already
-    existed (e.g. a live working image being restored onto), is never seen
-    in a partially-written state.
-    """
-    tmp = dest.parent / (dest.name + ".tmp")
-    try:
-        shutil.copy2(src, tmp)
-        os.replace(tmp, dest)
-    except Exception:
-        tmp.unlink(missing_ok=True)
-        raise
-
-
-def create_snapshot(platform_id: int, body: SnapshotCreate, db: Session) -> Snapshot:
-    platform = db.get(Platform, platform_id)
-    if not platform:
-        raise HTTPException(status_code=404, detail="Platform not found.")
-    if not platform.working_image_path:
-        raise HTTPException(status_code=422, detail="Platform has no working image to snapshot.")
-    existing_count = (
-        db.query(Snapshot).filter(Snapshot.platform_id == platform_id).count()
-    )
-    if existing_count >= MAX_SNAPSHOTS_PER_PLATFORM:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f"Snapshot limit reached ({MAX_SNAPSHOTS_PER_PLATFORM} per platform). "
-                "Delete an existing snapshot before creating a new one."
-            ),
-        )
-    src = _validate_image_path(platform.working_image_path)
-    if not src.exists():
-        raise HTTPException(status_code=422, detail="Working image file does not exist.")
-    # Canonical slugify() (not the ad-hoc replace() this used to do): the
-    # prior sanitizer only blocked "/", "\\", and ".." — it let Windows-illegal
-    # characters (: " < > | ? *) and trailing dots/spaces straight through
-    # into the filename, which could fail the copy below on Windows. The
-    # display name (Snapshot.name, set from body.name) is unaffected and
-    # keeps whatever the user typed — only the on-disk filename component is
-    # slugified. fallback="" (rather than slugify's usual "item") so a name
-    # that slugifies to nothing (e.g. all punctuation) is rejected below
-    # instead of every such snapshot silently colliding on the same filename.
-    safe_name = slugify(body.name, fallback="")
-    if not safe_name:
-        raise HTTPException(status_code=422, detail="Snapshot name is invalid.")
-    dest = src.parent / f"{src.stem}_snapshot_{safe_name}{src.suffix}"
-    _check_free_space(dest.parent, src.stat().st_size)
-    _atomic_copy(src, dest)
-    size = dest.stat().st_size
-    snap = Snapshot(
-        platform_id=platform_id,
-        name=body.name,
-        image_path=str(dest),
-        size_bytes=size,
-        notes=body.notes,
-    )
-    db.add(snap)
-    db.commit()
-    db.refresh(snap)
-    return snap
-
-
-def restore_snapshot(platform_id: int, snapshot_id: int, token: str, db: Session) -> dict:
-    if not _consume(token, "snapshot", snapshot_id, "restore"):
-        raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
-    snap = db.get(Snapshot, snapshot_id)
-    if not snap or snap.platform_id != platform_id:
-        raise HTTPException(status_code=404, detail="Snapshot not found.")
-    platform = db.get(Platform, platform_id)
-    if not platform or not platform.working_image_path:
-        raise HTTPException(status_code=422, detail="Platform working image not set.")
-    src = _validate_image_path(snap.image_path)
-    dest = _validate_image_path(platform.working_image_path)
-    _check_free_space(dest.parent, src.stat().st_size)
-    _atomic_copy(src, dest)
-    return {"restored": True, "snapshot": snap.name}
-
-
-def delete_snapshot(platform_id: int, snapshot_id: int, token: str, db: Session) -> None:
-    from backend.core.logger import get_logger
-    logger = get_logger(__name__)
-
-    if not _consume(token, "snapshot", snapshot_id, "snap-delete"):
-        raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
-    snap = db.get(Snapshot, snapshot_id)
-    if not snap or snap.platform_id != platform_id:
-        raise HTTPException(status_code=404, detail="Snapshot not found.")
-    try:
-        p = Path(snap.image_path)
-        if p.exists():
-            p.unlink()
-    except OSError as exc:
-        logger.warning("Failed to delete snapshot file %s: %s", snap.image_path, exc)
-    db.delete(snap)
-    db.commit()

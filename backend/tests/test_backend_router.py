@@ -14,7 +14,6 @@ from backend.constants_generated import BackendSlug, Era
 
 _ROUTE_CASES = [
     (Era.DOS,   BackendSlug.DOSBOX.value),
-    (Era.WIN31, BackendSlug.DOSBOX.value),
     (Era.WIN95, BackendSlug.BOX86.value),
     (Era.WIN98, BackendSlug.BOX86.value),
     (Era.WINXP, BackendSlug.BOX86.value),
@@ -26,12 +25,11 @@ _ROUTE_CASES = [
     (Era.DREAMCAST, BackendSlug.FLYCAST.value),
 ]
 
-_ROUTE_IDS = ["dos", "win31", "win95", "win98", "winxp",
+_ROUTE_IDS = ["dos", "win95", "win98", "winxp",
               "ps1", "ps2", "xbox", "nes", "n64", "dreamcast"]
 
 _EXEC_CASES = [
     (Era.DOS,       "dosbox-x"),
-    (Era.WIN31,     "dosbox-x"),
     (Era.WIN95,     "86box"),
     (Era.WIN98,     "86box"),
     (Era.WINXP,     "86box"),
@@ -43,13 +41,12 @@ _EXEC_CASES = [
     (Era.DREAMCAST, "flycast"),
 ]
 
-_EXEC_IDS = ["dos", "win31", "win95", "win98", "winxp",
+_EXEC_IDS = ["dos", "win95", "win98", "winxp",
              "ps1", "ps2", "xbox", "nes", "n64", "dreamcast"]
 
 # Slug → module path for dispatch tests.
 _DISPATCH_CASES = [
     (Era.DOS,   BackendSlug.DOSBOX.value,      "backend.service.backends.dosbox"),
-    (Era.WIN31, BackendSlug.DOSBOX.value,      "backend.service.backends.dosbox"),
     (Era.WIN95, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
     (Era.WIN98, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
     (Era.WINXP, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
@@ -61,7 +58,7 @@ _DISPATCH_CASES = [
     (Era.DREAMCAST, BackendSlug.FLYCAST.value, "backend.service.backends.flycast"),
 ]
 
-_DISPATCH_IDS = ["dos", "win31", "win95", "win98", "winxp",
+_DISPATCH_IDS = ["dos", "win95", "win98", "winxp",
                  "ps1", "ps2", "xbox", "nes", "n64", "dreamcast"]
 
 

@@ -35,7 +35,7 @@ _BACKEND_MODULES: dict[str, str] = {
 def resolve_backend_name(era: Era) -> str:
     """Resolve the backend name string for an era.
 
-    86Box eras (win95, win98, winxp) always route to 86Box. DOS, Win31,
+    86Box eras (win95, win98, winxp) always route to 86Box. DOS
     and console eras use the flat 'backend' key from eras.yaml.
 
     Args:

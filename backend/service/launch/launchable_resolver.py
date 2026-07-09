@@ -30,7 +30,7 @@ class LaunchableEntity:
     launch_commands: list[str] | None = None
     launch_review_flagged: bool = False
 
-    # Environment hydration fields (DOS/Win3.1 pattern-1 copy gate).
+    # Environment hydration fields (DOS pattern-1 copy gate).
     installed: bool = False
     requires_install: bool = False
     media_type: str | None = None
@@ -40,7 +40,7 @@ class LaunchableEntity:
     folder_path: str | None = None
 
     # Pre-resolved Drive ORM object (None if no drive associated). Populated from
-    # the collection's LibraryCollection.drive relationship (None for non-DOS/win31).
+    # the collection's LibraryCollection.drive relationship (None for non-DOS).
     drive: "Drive | None" = None
 
     # All disc media_paths in disc_number order (a collection-of-one yields a

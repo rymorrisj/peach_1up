@@ -138,7 +138,7 @@ describe('LaunchProfiles submit payload', () => {
     const dialog = heading.closest('dialog') as HTMLElement
     await user.type(within(dialog).getByLabelText(/^Name/), 'New Profile')
     await user.selectOptions(within(dialog).getByLabelText(/^Emulator/), 'dosbox-x')
-    // win95 (not dos/win31) keeps drive_mode at its 'none' default, avoiding
+    // win95 (not dos) keeps drive_mode at its 'none' default, avoiding
     // a second apiFetch('/api/v1/drives', { method: 'POST' }) call.
     await user.selectOptions(within(dialog).getByLabelText(/^Era/), 'win95')
 

@@ -18,7 +18,6 @@ router = APIRouter(prefix="/api/v1", tags=["health"])
 
 _ERA_LABELS: dict[str, str] = {
     "dos": "DOS",
-    "win31": "Windows 3.1",
     "win95": "Windows 95",
     "win98": "Windows 98",
     "winxp": "Windows XP",

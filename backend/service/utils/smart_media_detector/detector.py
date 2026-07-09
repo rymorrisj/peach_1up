@@ -20,7 +20,7 @@ log = get_logger(__name__)
 # detect_media_type-based logic handled plus installer-only DOS directories.
 
 def _compute_requires_install(path: Path, era: str | None) -> bool:
-    if era not in {"dos", "win31"}:
+    if era != "dos":
         return False
     if path.is_file():
         suffix = path.suffix.lower()

@@ -8,7 +8,6 @@ from backend.service.utils.era_defaults import defaults_for_era, lookup_platform
 class TestDefaultsForEra:
     @pytest.mark.parametrize("era_slug,expected_emulator,expected_profile_era", [
         ("dos",       "dosbox-x",    "dos"),
-        ("win31",     "dosbox-x",    "win31"),
         ("win95",     "86box",       "win95"),
         ("win98",     "86box",       "win98"),
         ("winxp",     "86box",       "winxp"),

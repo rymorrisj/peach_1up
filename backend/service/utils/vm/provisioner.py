@@ -189,7 +189,7 @@ def provision_86box_vm(
 def provision_dosbox_drive(
     platform: Platform,
 ) -> tuple[str | None, str | None, str | None, str | None, str | None]:
-    """Provision the shared FAT16 C: image for a DOS / Windows 3.1 environment.
+    """Provision the shared FAT16 C: image for a DOS environment.
 
     Unlike the 86Box path, DOSBox-X environments do not need a machine config
     file (a per-launch temp conf is generated at launch time), so config_path
@@ -211,7 +211,7 @@ def provision_dosbox_drive(
 
     if not platform.working_image_path:
         raise RuntimeError(
-            f"DOS/Win3.1 environment '{platform.slug or platform.id}' has no "
+            f"DOS environment '{platform.slug or platform.id}' has no "
             "working_image_path preset — cannot provision its C: drive."
         )
 
@@ -235,7 +235,7 @@ def provision_dosbox_drive(
     # size against the FAT16 range, raising RuntimeError on either — surfaced
     # to the caller as a normal Python exception, never a silent fallback.
     format_fat16(target, size_mb)
-    logger.info("Provisioned DOS/Win3.1 drive image %s (%d MB)", target, size_mb)
+    logger.info("Provisioned DOS drive image %s (%d MB)", target, size_mb)
     return None, str(target), None, None, None
 
 

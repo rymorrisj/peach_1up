@@ -22,7 +22,6 @@ const config: Config = {
         error: '#ff6a55',
         era: {
           dos:   '#d6a64a',
-          win31: '#4ec3c0',
           win95: '#b6d36b',
           win98: '#6ea8d6',
           winxp: '#66b27a',

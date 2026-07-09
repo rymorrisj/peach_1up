@@ -1,6 +1,5 @@
 export type EraValue =
   | 'dos'
-  | 'win31'
   | 'win95'
   | 'win98'
   | 'winxp'
@@ -27,7 +26,6 @@ const ERA_GROUPS: EraGroup[] = [
     label: 'PC',
     eras: [
       { value: 'dos', label: 'DOS' },
-      { value: 'win31', label: 'Windows 3.1' },
       { value: 'win95', label: 'Windows 95' },
       { value: 'win98', label: 'Windows 98' },
       { value: 'winxp', label: 'Windows XP' },

@@ -42,7 +42,7 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
     """Resolve or create drive; copy loose files on first launch.
 
     Uses the pre-resolved drive on the entity (collection-owned). Auto-creates a
-    drive for DOS/win31 collections when none exists, keyed to the launch leaf's
+    drive for DOS collections when none exists, keyed to the launch leaf's
     folder_path and the collection slug. Disc-image collections never trigger the
     loose-file copy path (media_path is a file, not a directory).
 
@@ -55,7 +55,7 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
 
     drive = entity.drive
 
-    # Auto-create a drive for DOS/win31 collections that don't have one yet.
+    # Auto-create a drive for DOS collections that don't have one yet.
     collection = entity._db_collection
     if drive is None and entity.era in _DRIVE_ERAS and collection is not None:
         launch_leaf = db.get(LibraryItem, collection.launch_disk_id) if collection.launch_disk_id else None

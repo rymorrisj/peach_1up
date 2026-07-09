@@ -19,7 +19,7 @@ class ProfileBase(SQLModel):
     notes: Optional[str] = None
     user_id: Optional[int] = None
     launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
-    # When True, DOS/Win3.1 launches mount the item's per-item drive as a
+    # When True, DOS launches mount the item's per-item drive as a
     # persistent writable C: (see dosbox has_persistent_drive / coordinator
     # run_from_c gates). False runs without a persistent drive.
     use_drive: bool = True

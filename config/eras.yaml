@@ -13,16 +13,6 @@ dos:
   # Must fall within the FAT16 range enforced by format_fat16 (10–1024 MB).
   default_disk_size_mb: 512
 
-win31:
-  backend: dosbox
-  memory_limit_mb: 512
-  cpu_limit_percent: 50
-  supported_media: [".iso", ".img", ".cue", ".exe", ".bat", ".com"]
-  mount_type: hdd
-  # Size of the shared Windows 3.1 environment C: drive
-  # (library/system/os/win31/win31.img). FAT16 range: 10–1024 MB.
-  default_disk_size_mb: 512
-
 win95:
   memory_limit_mb: 2048
   cpu_limit_percent: 75

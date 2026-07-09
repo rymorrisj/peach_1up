@@ -92,11 +92,6 @@ def _detect_from_pe(exe_path: Path) -> ScanResult:
                 title=None, platform=None, era="win98", confidence=0.75,
                 reason=f"PE MajorOperatingSystemVersion={major_os} (Windows 9x era)",
             )
-        if major_os == 3:
-            return ScanResult(
-                title=None, platform=None, era="win31", confidence=0.75,
-                reason=f"PE MajorOperatingSystemVersion={major_os} (Windows 3.x era)",
-            )
         return _null
     except Exception as exc:
         return ScanResult(
@@ -128,11 +123,6 @@ def _detect_from_directory(root: Path) -> ScanResult:
         return ScanResult(
             title=None, platform=None, era="win95", confidence=0.6,
             reason="directory contains Win95 marker files",
-        )
-    if "WIN.INI" in entries and "SYSTEM.INI" in entries:
-        return ScanResult(
-            title=None, platform=None, era="win31", confidence=0.6,
-            reason="directory contains WIN.INI and SYSTEM.INI",
         )
     if "SYSTEM.CNF" in entries:
         cnf_path = next(

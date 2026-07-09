@@ -59,7 +59,7 @@ export interface LibraryCollectionData {
 
 // Literal hex tints per era key (lowercase) for chip borders/backgrounds
 const ERA_HEX: Record<string, string> = {
-  dos: '#d6a64a', win31: '#4ec3c0', win95: '#b6d36b', win98: '#6ea8d6', winxp: '#66b27a',
+  dos: '#d6a64a', win95: '#b6d36b', win98: '#6ea8d6', winxp: '#66b27a',
   ps1: '#a9a0d6', ps2: '#6090d0', xbox: '#6db36d', dreamcast: '#d0a060',
   nes: '#d06060', n64: '#60a0d0', snes: '#d4a0c0',
 }

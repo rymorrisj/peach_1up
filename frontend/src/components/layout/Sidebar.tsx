@@ -7,7 +7,6 @@ const DOCS_BASE_URL =
 
 const ERA_ITEMS = [
   { label: "DOS", slug: "dos", color: "var(--era-dos)" },
-  { label: "WIN31", slug: "win31", color: "var(--era-win31)" },
   { label: "WIN95", slug: "win95", color: "var(--era-win95)" },
   { label: "WIN98", slug: "win98", color: "var(--era-win98)" },
   { label: "WINXP", slug: "winxp", color: "var(--era-winxp)" },
@@ -210,7 +209,6 @@ export default function Sidebar() {
                 </span>
                 <span style={{ fontSize: 12, color: "var(--fg-3)" }}>
                   {label === "DOS" && "DOS 6.22"}
-                  {label === "WIN31" && "Windows 3.1"}
                   {label === "WIN95" && "Windows 95"}
                   {label === "WIN98" && "Windows 98"}
                   {label === "WINXP" && "Windows XP"}

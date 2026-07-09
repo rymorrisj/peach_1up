@@ -8,7 +8,7 @@ from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1/media", tags=["media"])
 
-_PC_ERAS = frozenset({"dos", "win31", "win95", "win98", "winxp"})
+_PC_ERAS = frozenset({"dos", "win95", "win98", "winxp"})
 
 
 @router.post("/upload")

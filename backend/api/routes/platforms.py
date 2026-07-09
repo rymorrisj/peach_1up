@@ -7,7 +7,6 @@ from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
 from backend.models.platform import HealthSummary, Platform, PlatformCreate, PlatformRead, PlatformUpdate, StorageStats
-from backend.models.snapshot import Snapshot, SnapshotCreate, SnapshotRead
 from backend.models.user import User
 from backend.service.platforms import environments as plat_svc
 from backend.service.utils import confirmation_tokens
@@ -101,55 +100,3 @@ def platform_health(platform_id: int, db: Session = Depends(get_db), _: User = r
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found.")
     return plat_svc.check_platform_health(platform, db)
-
-
-# --- Snapshots ---
-
-@router.get("/{platform_id}/snapshots", response_model=list[SnapshotRead])
-def list_snapshots(platform_id: int, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
-    if not db.get(Platform, platform_id):
-        raise HTTPException(status_code=404, detail="Platform not found.")
-    return db.query(Snapshot).filter(Snapshot.platform_id == platform_id).all()
-
-
-@router.post("/{platform_id}/snapshots", response_model=SnapshotRead, status_code=201)
-def create_snapshot(platform_id: int, body: SnapshotCreate, db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
-    return plat_svc.create_snapshot(platform_id, body, db)
-
-
-@router.post("/{platform_id}/snapshots/{snapshot_id}/confirm-restore")
-def issue_restore_token(platform_id: int, snapshot_id: int, db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
-    snap = db.get(Snapshot, snapshot_id)
-    if not snap or snap.platform_id != platform_id:
-        raise HTTPException(status_code=404, detail="Snapshot not found.")
-    return {"confirmation_token": confirmation_tokens.issue("snapshot", snapshot_id, "restore"), "expires_in_seconds": TOKEN_TTL}
-
-
-@router.post("/{platform_id}/snapshots/{snapshot_id}/restore", status_code=200)
-def restore_snapshot(
-    platform_id: int,
-    snapshot_id: int,
-    confirmation_token: str = Query(...),
-    db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_platforms"),
-):
-    return plat_svc.restore_snapshot(platform_id, snapshot_id, confirmation_token, db)
-
-
-@router.post("/{platform_id}/snapshots/{snapshot_id}/confirm-delete")
-def issue_snap_delete_token(platform_id: int, snapshot_id: int, db: Session = Depends(get_db), _: User = require_permission("can_edit_platforms")):
-    snap = db.get(Snapshot, snapshot_id)
-    if not snap or snap.platform_id != platform_id:
-        raise HTTPException(status_code=404, detail="Snapshot not found.")
-    return {"confirmation_token": confirmation_tokens.issue("snapshot", snapshot_id, "snap-delete"), "expires_in_seconds": TOKEN_TTL}
-
-
-@router.delete("/{platform_id}/snapshots/{snapshot_id}", status_code=204)
-def delete_snapshot(
-    platform_id: int,
-    snapshot_id: int,
-    confirmation_token: str = Query(...),
-    db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_platforms"),
-):
-    plat_svc.delete_snapshot(platform_id, snapshot_id, confirmation_token, db)

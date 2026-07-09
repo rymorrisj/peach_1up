@@ -21,7 +21,6 @@ def era_to_enum(value: EraValue) -> Era:
 
 ERA_MEDIA_TYPES: Dict[Era, Set[str]] = {
     Era.DOS:       {'.iso', '.img', '.cue', '.exe', '.bat'},
-    Era.WIN31:     {'.iso', '.img', '.cue', '.exe', '.bat'},
     Era.WIN95:     {'.iso', '.cue'},
     Era.WIN98:     {'.iso', '.cue'},
     Era.WINXP:     {'.iso', '.cue'},

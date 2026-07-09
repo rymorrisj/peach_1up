@@ -15,7 +15,6 @@ from backend.models.library import (
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.era_media import is_drive_image, media_type_from_path, resolve_media_file_from_directory
 from backend.service.utils.path_utils import normalise_path, resolve_under
-from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DRIVE_ERAS
 from backend.service.utils.slug_generator import generate_collection_slug, slugify, unique_slug
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
@@ -360,6 +359,18 @@ def _prepare_item(
                 row["folder_owned"] = True
                 row["media_path"] = str(dest)
             else:
+                # dest_folder may already exist here (the rename-in-place branch
+                # above only fires when it doesn't). Reusing it blind via
+                # exist_ok=True would silently write into a stale, tampered, or
+                # leftover directory. Only the exact target file is a known-safe
+                # thing to find already present (crash-after-move retry, handled
+                # by the dest.exists() size check below) — anything else present
+                # is unexpected and must fail loud rather than be picked around.
+                if dest_folder.exists() and any(f != dest for f in dest_folder.iterdir()):
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Directory '{dest_folder}' already exists and contains unexpected files; refusing to reuse it.",
+                    )
                 dest_folder.mkdir(parents=True, exist_ok=True)
                 row["folder_path"] = str(dest_folder)
                 row["folder_owned"] = True

@@ -1,7 +1,7 @@
 """
 DOSBox-X backend for Peach 1UP.
 
-Handles DOS and Windows 3.1 era games using DOSBox-X natively on the Windows
+Handles DOS era games using DOSBox-X natively on the Windows
 host. A per-launch conf file is written to a private temp directory, incorporating
 the emulator's bundled dosbox-x.conf with Peach's [autoexec] and SDL overrides
 appended. The temp directory is cleaned up after the process exits.
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 SUPPORTED_ERAS = DOS_WIN_ERAS
-SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.DOS] | ERA_MEDIA_TYPES[Era.WIN31]
+SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.DOS]
 
 
 def validate_media(media_path: Path) -> None:
@@ -502,7 +502,7 @@ def _build_environment_drive_mount_line(working_image_path: Path) -> str:
 def write_environment_conf(spec: "LaunchSpec") -> Path:
     """Write the DOSBox-X launch conf for an environment launch (no media).
 
-    Environment (Platform) launches for DOS/Win3.1 have no attached game
+    Environment (Platform) launches for DOS have no attached game
     media — spec.media_path is always None for these by design (see
     coordinator._build_spec_for_environment). Mounts the environment's
     persistent C: drive (spec.working_image_path, provisioned by
@@ -560,7 +560,7 @@ def build_args(media_path: Path | None, era: str, enable_networking: bool = Fals
         media_path: Path to the media file (validated here for early failure).
             ``None`` for an environment launch (no attached media) — the
             suffix check is skipped in that case.
-        era: Era name (``'dos'`` or ``'win31'``).
+        era: Era name (``'dos'``).
         enable_networking: When ``False`` (default), the NE2000 adapter is
             disabled via ``-set ne2000=false``. When ``True``, the adapter
             config is left at the emulator default.

@@ -6,11 +6,10 @@ import FileBrowser from '@/components/common/FileBrowser'
 import LaunchCommandList from '@/components/LaunchCommandList'
 import type { HardwareProfile } from '@/generated/constants'
 
-type PCEra = 'dos' | 'win31' | 'win95' | 'win98' | 'winxp'
+type PCEra = 'dos' | 'win95' | 'win98' | 'winxp'
 
 const PC_ERAS: { value: PCEra; label: string }[] = [
   { value: 'dos', label: 'DOS' },
-  { value: 'win31', label: 'Windows 3.1' },
   { value: 'win95', label: 'Windows 95' },
   { value: 'win98', label: 'Windows 98' },
   { value: 'winxp', label: 'Windows XP' },
@@ -18,7 +17,6 @@ const PC_ERAS: { value: PCEra; label: string }[] = [
 
 const ERA_TO_EMULATOR: Record<PCEra, string> = {
   dos: 'dosbox-x',
-  win31: 'dosbox-x',
   win95: '86box',
   win98: '86box',
   winxp: '86box',

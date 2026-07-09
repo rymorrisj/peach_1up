@@ -455,7 +455,7 @@ def import_scan_results(
 ):
     """
     Phase 2: import the user-selected paths from the Phase 1 preview. Each import
-    creates a collection-of-one + leaf. DOS/Win3.1 collections are not given a
+    creates a collection-of-one + leaf. DOS collections are not given a
     drive here — the drive is created lazily on first launch
     (drive_hydration.hydrate_drive_for_entity).
     """

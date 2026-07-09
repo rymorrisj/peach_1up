@@ -80,7 +80,6 @@ def detect_from_pvd(iso_path: Path) -> ScanResult:
             (("WINDOWS XP", "WINXP", "WXPEVOL", "XP_"), "winxp"),
             (("WIN98", "WINDOWS 98", "W98", "MEMPHIS"), "win98"),
             (("WIN95", "WINDOWS 95", "CHICAGO"), "win95"),
-            (("WIN31", "WINDOWS 3", "WFW"), "win31"),
             (("MSDOS", "MS-DOS", "PCDOS", "FREEDOS", "CDROM", "DOS"), "dos"),
         ):
             if any(k in vol_id for k in kw):

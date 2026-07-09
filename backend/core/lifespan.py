@@ -71,7 +71,7 @@ async def lifespan(app: FastAPI):
         _sync_first_run_from_db(db)
         _platforms_seeded = _seed_system_platforms(db)
         _profiles_seeded = _seed_default_profiles(db)
-        # Must follow profile seeding — links to the bundled dos/win31 profiles.
+        # Must follow profile seeding — links to the bundled dos profile.
         _dosbox_envs_seeded = _seed_dosbox_environments(db)
         _cleanup_stale_sessions(db)
         _flag_corrupt_platform_working_paths(db)
