@@ -19,12 +19,15 @@ def test_is_installed_returns_false_when_binary_absent(monkeypatch):
     assert emulator_catalog.is_installed("dosbox-x") is False
 
 
-def test_get_install_path_returns_correct_path():
-    from backend.service.utils.emulator_catalog import get_install_path
-    path = get_install_path("dosbox-x")
-    assert isinstance(path, Path)
-    assert path.parts[-2] == "dosbox-x"
-    assert path.stem == "dosbox-x"
+def test_get_install_path_returns_correct_path(tmp_path, monkeypatch):
+    from backend.service.utils import emulator_catalog
+    monkeypatch.setattr(emulator_catalog, "_BASE_DIR", tmp_path)
+    binary_path = tmp_path / "dosbox-x" / "dosbox-x.exe"
+    binary_path.parent.mkdir(parents=True)
+    binary_path.touch()
+
+    path = emulator_catalog.get_install_path("dosbox-x")
+    assert path == binary_path
 
 
 def test_get_emulator_raises_for_unknown_slug():
