@@ -14,8 +14,6 @@ import EmulatorDetail from '@/pages/Emulators/EmulatorDetail'
 import Environments from '@/pages/Environments'
 import EnvironmentDetail from '@/pages/Environments/EnvironmentDetail'
 import Tags from '@/pages/Tags'
-import Profiles from '@/pages/Settings/LaunchProfiles'
-import ProfileDetail from '@/pages/Profiles/ProfileDetail'
 import PlatformHealth from '@/pages/PlatformHealth'
 import FirstRun from '@/pages/FirstRun'
 import NotFound from '@/pages/NotFound'
@@ -109,8 +107,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                   <Route path="/environments/:id" element={<EnvironmentDetail />} />
                   <Route path="/emulators" element={<Emulators />} />
                   <Route path="/emulators/:slug" element={<EmulatorDetail />} />
-                  <Route path="/profiles" element={<Profiles />} />
-                  <Route path="/profiles/:slug" element={<ProfileDetail />} />
                   <Route path="/platform-health" element={<PlatformHealth />} />
                   <Route path="/tags" element={<Tags />} />
                 </Route>

@@ -353,7 +353,10 @@ export default function CollectionDetail() {
     if (collectionId == null) return
     setTagError(null)
     try {
-      await apiFetch(`/api/v1/tags/${tagId}/collections/${collectionId}`, { method: 'DELETE' })
+      await apiFetch(`/api/v1/tags/${tagId}/assignments`, {
+        method: 'DELETE',
+        body: JSON.stringify({ entity_type: 'software_collection', entity_id: collectionId }),
+      })
       queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
     } catch (err) {
       setTagError(err instanceof ApiError ? err.detail : 'Failed to remove tag.')
@@ -364,7 +367,10 @@ export default function CollectionDetail() {
     if (collectionId == null) return
     setTagError(null)
     try {
-      await apiFetch(`/api/v1/tags/${tagId}/collections/${collectionId}`, { method: 'POST' })
+      await apiFetch(`/api/v1/tags/${tagId}/assignments`, {
+        method: 'POST',
+        body: JSON.stringify({ entity_type: 'software_collection', entity_id: collectionId }),
+      })
       queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
     } catch (err) {
       setTagError(err instanceof ApiError ? err.detail : 'Failed to add tag.')

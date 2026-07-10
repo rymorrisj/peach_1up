@@ -1,14 +1,48 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlmodel import SQLModel
 
+from backend.api.routes.controllers import check_controller_edit_permission
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
-from backend.models.software import SoftwareCollection
+from backend.models.controller_mapping import ControllerMapping
+from backend.models.environment import Environment
+from backend.models.media import MediaCollection, MediaItem
+from backend.models.rom_pack import RomPackItem
+from backend.models.software import SoftwareCollection, SoftwareItem
 from backend.models.tag import EntityTag, Tag, TagCreate, TagRead
 from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1/tags", tags=["tags"])
+
+# entity_type -> model to existence-check entity_id against.
+_ASSIGNMENT_TARGETS: dict[str, type] = {
+    "software_collection": SoftwareCollection,
+    "software_item": SoftwareItem,
+    "media_item": MediaItem,
+    "media_collection": MediaCollection,
+    "environment": Environment,
+    "rom_pack_item": RomPackItem,
+    "controller_mapping": ControllerMapping,
+}
+
+# entity_type -> permission flag required to write the assignment.
+# controller_mapping is intentionally absent: it uses the bespoke
+# check_controller_edit_permission rule instead of a plain flag.
+_ASSIGNMENT_PERMISSIONS: dict[str, str] = {
+    "software_collection": "can_edit_software",
+    "software_item": "can_edit_software",
+    "media_item": "can_edit_media",
+    "media_collection": "can_edit_media",
+    "environment": "can_edit_environments",
+    "rom_pack_item": "can_edit_environments",
+}
+
+
+class TagAssignmentBody(SQLModel):
+    entity_type: str
+    entity_id: int
 
 
 def _tag_read(tag: Tag, db: Session) -> TagRead:
@@ -60,48 +94,87 @@ def delete_tag(
     db.commit()
 
 
-@router.post("/{tag_id}/collections/{collection_id}", status_code=204)
-def add_tag_to_collection(
-    tag_id: int,
-    collection_id: int,
-    db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_software"),
-):
+def _require_flag_permission(entity_type: str, active_user: User) -> None:
+    """Plain-flag permission check for entity_types with a simple can_edit_* rule.
+
+    controller_mapping is handled separately by the caller once the entity is
+    resolved, since its rule needs the row itself (created_by), not just a flag.
+    """
+    if active_user.is_owner:
+        return
+    flag = _ASSIGNMENT_PERMISSIONS[entity_type]
+    if not getattr(active_user, flag, False):
+        raise HTTPException(status_code=403, detail=f"Permission denied: requires {flag}.")
+
+
+def _resolve_assignment_entity(tag_id: int, body: TagAssignmentBody, active_user: User, db: Session):
+    """Shared validation for both assignment routes.
+
+    Order: unknown entity_type -> 422, plain-flag permission -> 403 (before any
+    existence checks, so an unauthorized caller doesn't learn whether a tag/entity
+    exists), tag/entity existence -> 404, then the bespoke controller_mapping
+    permission (needs the fetched row) -> 403. Returns the resolved entity.
+    """
+    model = _ASSIGNMENT_TARGETS.get(body.entity_type)
+    if model is None:
+        raise HTTPException(status_code=422, detail=f"Unknown entity_type: {body.entity_type!r}")
+
+    if body.entity_type != "controller_mapping":
+        _require_flag_permission(body.entity_type, active_user)
+
     if not db.get(Tag, tag_id):
         raise HTTPException(status_code=404, detail="Tag not found.")
-    if not db.get(SoftwareCollection, collection_id):
-        raise HTTPException(status_code=404, detail="Software collection not found.")
+
+    entity = db.get(model, body.entity_id)
+    if not entity:
+        raise HTTPException(status_code=404, detail=f"{body.entity_type} not found.")
+
+    if body.entity_type == "controller_mapping":
+        check_controller_edit_permission(entity, active_user)
+
+    return entity
+
+
+@router.post("/{tag_id}/assignments", status_code=204)
+def create_tag_assignment(
+    tag_id: int,
+    body: TagAssignmentBody,
+    db: Session = Depends(get_db),
+    active_user: User = Depends(get_active_user),
+):
+    _resolve_assignment_entity(tag_id, body, active_user, db)
     exists = (
         db.query(EntityTag)
         .filter(
             EntityTag.tag_id == tag_id,
-            EntityTag.entity_type == "software_collection",
-            EntityTag.entity_id == collection_id,
+            EntityTag.entity_type == body.entity_type,
+            EntityTag.entity_id == body.entity_id,
         )
         .first()
     )
     if not exists:
-        db.add(EntityTag(tag_id=tag_id, entity_type="software_collection", entity_id=collection_id))
+        db.add(EntityTag(tag_id=tag_id, entity_type=body.entity_type, entity_id=body.entity_id))
         db.commit()
 
 
-@router.delete("/{tag_id}/collections/{collection_id}", status_code=204)
-def remove_tag_from_collection(
+@router.delete("/{tag_id}/assignments", status_code=204)
+def delete_tag_assignment(
     tag_id: int,
-    collection_id: int,
+    body: TagAssignmentBody,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_software"),
+    active_user: User = Depends(get_active_user),
 ):
+    _resolve_assignment_entity(tag_id, body, active_user, db)
     link = (
         db.query(EntityTag)
         .filter(
             EntityTag.tag_id == tag_id,
-            EntityTag.entity_type == "software_collection",
-            EntityTag.entity_id == collection_id,
+            EntityTag.entity_type == body.entity_type,
+            EntityTag.entity_id == body.entity_id,
         )
         .first()
     )
     if not link:
-        raise HTTPException(status_code=404, detail="Tag not assigned to this collection.")
+        raise HTTPException(status_code=404, detail="Tag not assigned to this entity.")
     db.delete(link)
     db.commit()

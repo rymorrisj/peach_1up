@@ -16,17 +16,37 @@ from backend.service.utils.slug_generator import unique_slug
 router = APIRouter(prefix="/api/v1/controllers", tags=["controllers"])
 
 
-def require_controller_edit(
-    request: Request,
-    db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
-) -> User:
-    """Bespoke compound-permission dependency for editing an existing mapping.
+def check_controller_edit_permission(mapping: ControllerMapping, active_user: User) -> None:
+    """Bespoke compound-permission rule for editing an existing mapping.
 
     require_permission(flag) (dependencies.py:176) only supports "owner-bypass
     OR single flag"; this rule is "creator OR (admin AND can_manage_controllers)"
     — an AND nested inside an OR, which the generic factory can't express.
     Owner still bypasses everything, matching every other guard in the app.
+
+    Extracted from require_controller_edit so the generic tag-assignment
+    dispatch (backend/api/routes/tags.py) can reuse the same rule instead of
+    duplicating it.
+    """
+    if active_user.is_owner:
+        return
+    if mapping.created_by == active_user.id:
+        return
+    if active_user.is_admin and active_user.can_manage_controllers:
+        return
+    raise HTTPException(
+        status_code=403,
+        detail="Permission denied: requires ownership of this mapping, or is_admin with can_manage_controllers.",
+    )
+
+
+def require_controller_edit(
+    request: Request,
+    db: Session = Depends(get_db),
+    active_user: User = Depends(get_active_user),
+) -> User:
+    """FastAPI dependency for PATCH/DELETE /controllers/{id}.
+
     Mirrors the request.path_params pattern used by require_self_or_admin.
     """
     if active_user.is_owner:
@@ -35,14 +55,8 @@ def require_controller_edit(
     mapping = db.get(ControllerMapping, mapping_id)
     if not mapping:
         raise HTTPException(status_code=404, detail="Controller mapping not found.")
-    if mapping.created_by == active_user.id:
-        return active_user
-    if active_user.is_admin and active_user.can_manage_controllers:
-        return active_user
-    raise HTTPException(
-        status_code=403,
-        detail="Permission denied: requires ownership of this mapping, or is_admin with can_manage_controllers.",
-    )
+    check_controller_edit_permission(mapping, active_user)
+    return active_user
 
 
 @router.get("", response_model=list[ControllerMappingRead])
