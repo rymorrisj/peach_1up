@@ -1,5 +1,5 @@
 /**
- * Acceptance test: Library page
+ * Acceptance test: Software page
  *
  * Renders the full page with all real child components.
  * Only the network boundary (apiFetch) is mocked.
@@ -13,7 +13,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
-import Library from '@/pages/Library'
+import Library from '@/pages/Software'
 import { apiFetch } from '@/api/client'
 import { createMockLibraryItem } from '@/test/helpers'
 
@@ -44,7 +44,7 @@ function renderPage() {
   )
 }
 
-describe('Library acceptance', () => {
+describe('Software acceptance', () => {
   afterEach(() => {
     vi.resetAllMocks()
   })
@@ -56,10 +56,7 @@ describe('Library acceptance', () => {
       createMockLibraryItem({ id: 2, title: 'Ultima VII', era: 'dos', slug: 'ultima-vii' }),
     ]
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (typeof url === 'string' && url.includes('/api/v1/library/sets')) {
-        return Promise.resolve({ items: [], total: 0, limit: 50, offset: 0 })
-      }
-      if (typeof url === 'string' && url.includes('/api/v1/library')) {
+      if (typeof url === 'string' && url.includes('/api/v1/software')) {
         return Promise.resolve({ items, total: items.length, limit: 50, offset: 0 })
       }
       return Promise.resolve([])
@@ -88,7 +85,7 @@ describe('Library acceptance', () => {
     vi.mocked(apiFetch).mockResolvedValue([])
     renderPage()
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /your library is empty/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /your software library is empty/i })).toBeInTheDocument()
     })
     // Add Media CTA inside the empty state is also present
     expect(screen.getAllByRole('button', { name: /add media/i }).length).toBeGreaterThanOrEqual(1)

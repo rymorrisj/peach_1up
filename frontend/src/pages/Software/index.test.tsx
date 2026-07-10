@@ -3,12 +3,9 @@ import { MemoryRouter } from 'react-router-dom'
 import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
-import Library from '@/pages/Library'
+import Library from '@/pages/Software'
 import { apiFetch } from '@/api/client'
 import { createMockLibraryItem } from '@/test/helpers'
-import type { components } from '@shared/types'
-
-type ProfileRead = components['schemas']['ProfileRead']
 
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
@@ -37,23 +34,7 @@ function renderPage() {
   )
 }
 
-const PROFILE: ProfileRead = {
-  id: 1,
-  name: 'DOSBox Default',
-  slug: 'dosbox-default',
-  emulator_slug: 'dosbox',
-  era: 'dos',
-  is_bundled: true,
-  enable_networking: false,
-  enable_dgvoodoo2: false,
-  use_drive: false,
-  item_count: 2,
-  total_launches: 10,
-  created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2024-01-01T00:00:00Z',
-}
-
-describe('Library page', () => {
+describe('Software page', () => {
   afterEach(() => {
     vi.resetAllMocks()
   })
@@ -70,14 +51,8 @@ describe('Library page', () => {
       createMockLibraryItem({ id: 2, title: 'Quake', era: 'dos', slug: 'quake' }),
     ]
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (typeof url === 'string' && url.includes('/api/v1/library/sets')) {
-        return Promise.resolve({ items: [], total: 0, limit: 50, offset: 0 })
-      }
-      if (typeof url === 'string' && url.includes('/api/v1/library')) {
+      if (typeof url === 'string' && url.includes('/api/v1/software')) {
         return Promise.resolve({ items, total: items.length, limit: 50, offset: 0 })
-      }
-      if (typeof url === 'string' && url.includes('/api/v1/profiles')) {
-        return Promise.resolve([PROFILE])
       }
       return Promise.resolve([])
     })
@@ -91,19 +66,19 @@ describe('Library page', () => {
 
   it('renders the empty state when the library is empty', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (typeof url === 'string' && url.includes('/api/v1/library')) {
-        return Promise.resolve([])
+      if (typeof url === 'string' && url.includes('/api/v1/software')) {
+        return Promise.resolve({ items: [], total: 0, limit: 50, offset: 0 })
       }
       return Promise.resolve([])
     })
     renderPage()
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /your library is empty/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /your software library is empty/i })).toBeInTheDocument()
     })
   })
 
   it('renders the "+ Add Media" button', async () => {
-    vi.mocked(apiFetch).mockResolvedValue([])
+    vi.mocked(apiFetch).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
     renderPage()
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /add media/i })).toBeInTheDocument()

@@ -114,7 +114,7 @@ export default function Library() {
     const resolvedDeleteMedia = collection.delete_media_override ?? deleteMediaOnRemoval
     const confirmed = await confirm({
       title: `Remove "${collection.title}"?`,
-      consequence: 'This removes the game from your library.',
+      consequence: 'This removes the game from your software library.',
       destructive: true,
       checkbox: { label: 'Also delete media files from disk', defaultChecked: resolvedDeleteMedia },
     })
@@ -140,7 +140,7 @@ export default function Library() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopBar title="Library">
+      <TopBar title="Software">
         <span style={{ flex: 1 }} />
         <Button variant="secondary" onClick={() => setScanOpen(true)}>
           Scan Directory
@@ -151,12 +151,12 @@ export default function Library() {
       <div className="p-6">
         {isLoading ? (
           <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--fg-3)' }}>
-            <LoadingSpinner label="Loading library…" />
-            <span aria-hidden="true">Loading library…</span>
+            <LoadingSpinner label="Loading software…" />
+            <span aria-hidden="true">Loading software…</span>
           </div>
         ) : total === 0 && !hasActiveFilters ? (
           <EmptyState
-            heading="Your library is empty"
+            heading="Your software library is empty"
             subtext="Add media files to get started, or scan a directory to import in bulk."
             cta={{ label: 'Add Media', onClick: () => setAddOpen(true) }}
           />
