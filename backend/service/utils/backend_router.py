@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 # emulators) all point to the same module; dispatch uses spec.slug to
 # select the right ConsoleBackend inside that module.
 _BACKEND_MODULES: dict[str, str] = {
-    BackendSlug.DOSBOX.value:      "backend.service.backends.dosbox",
+    BackendSlug.DOSBOX_X.value:    "backend.service.backends.dosbox",
     BackendSlug.BOX86.value:       "backend.service.backends.box86",
     BackendSlug.XEMU.value:        "backend.service.backends.xemu",
     BackendSlug.FLYCAST.value:     "backend.service.backends.flycast",
@@ -108,7 +108,7 @@ def get_executable_path(era: Era, backend_name: str | None = None) -> str:
     from backend.service.utils.emulator_catalog import get_install_path
     if backend_name is None:
         backend_name = resolve_backend_name(era)
-    catalog_slug = "dosbox-x" if backend_name == BackendSlug.DOSBOX.value else backend_name
+    catalog_slug = backend_name
     try:
         path = get_install_path(catalog_slug)
     except ValueError:

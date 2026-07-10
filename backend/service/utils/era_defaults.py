@@ -1,24 +1,17 @@
 from sqlalchemy.orm import Session
 
+from backend.constants_generated import ERA_BACKENDS
+
 # Eras served by DOSBox-X (per-item FAT16 C: drive, not a shared working image).
 DOS_WIN_ERAS: frozenset[str] = frozenset({"dos"})
 
 
 def defaults_for_era(era_slug: str) -> tuple[str | None, str | None]:
     """Return (emulator_slug, profile_era) for a known era, or (None, None)."""
-    match era_slug:
-        case "dos":       return ("dosbox-x", "dos")
-        case "win95":     return ("86box", "win95")
-        case "win98":     return ("86box", "win98")
-        case "winxp":     return ("86box", "winxp")
-        case "ps1":       return ("duckstation", "ps1")
-        case "ps2":       return ("pcsx2", "ps2")
-        case "xbox":      return ("xemu", "xbox")
-        case "nes":       return ("mesen", "nes")
-        case "snes":      return ("mesen", "snes")
-        case "n64":       return ("project64", "n64")
-        case "dreamcast": return ("flycast", "dreamcast")
-        case _:           return (None, None)
+    emulator_slug = ERA_BACKENDS.get(era_slug)
+    if emulator_slug is None:
+        return (None, None)
+    return (emulator_slug, era_slug)
 
 
 def lookup_environment_and_profile(

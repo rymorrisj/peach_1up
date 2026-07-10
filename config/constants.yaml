@@ -48,7 +48,7 @@ content_ratings:
     scheme: "PEGI"
 
 backend_slugs:
-  dosbox:      "DOSBox-X"
+  dosbox-x:    "DOSBox-X"
   86box:       "86Box"
   duckstation: "DuckStation"
   pcsx2:       "PCSX2"
@@ -58,7 +58,7 @@ backend_slugs:
   flycast:     "Flycast"
 
 backend_system_labels:
-  dosbox:      "DOS"
+  dosbox-x:    "DOS"
   86box:       "Windows 95, 98, XP"
   duckstation: "PlayStation 1"
   pcsx2:       "PlayStation 2"
@@ -98,6 +98,43 @@ install_types:
   - "rom_pack"
   - "installer"
   - "github_release"
+
+item_types:
+  - "console"
+  - "pc"
+
+media_kinds:
+  - "audio"
+  - "text"
+  - "image"
+  - "video"
+
+# Full vocabulary actually assignable to Environment.status: compute_live_status()
+# returns healthy/degraded/unconfigured/error for non-system platforms and ok/missing
+# for system platforms; the model field defaults to "unknown". See
+# backend/service/environments/environments.py compute_live_status/_compute_status
+# and EnvironmentHealthCounts (which only buckets 3 of these for aggregate counts).
+environment_statuses:
+  - "healthy"
+  - "degraded"
+  - "unconfigured"
+  - "error"
+  - "ok"
+  - "missing"
+  - "unknown"
+
+era_backends:
+  dos:       dosbox-x
+  win95:     86box
+  win98:     86box
+  winxp:     86box
+  ps1:       duckstation
+  ps2:       pcsx2
+  xbox:      xemu
+  nes:       mesen
+  snes:      mesen
+  n64:       project64
+  dreamcast: flycast
 
 tag_colors:
   - id: "slate"

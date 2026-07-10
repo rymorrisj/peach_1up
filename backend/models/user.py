@@ -13,6 +13,8 @@ class UserBase(SQLModel):
     can_launch_media: bool = True
     can_edit_environments: bool = False
     can_edit_software: bool = False
+    can_edit_media: bool = False
+    can_manage_controllers: bool = False
     can_manage_profiles: bool = False
     can_edit_settings: bool = False
     can_manage_users: bool = False

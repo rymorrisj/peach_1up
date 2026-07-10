@@ -1,3 +1,5 @@
+import { ERA_BACKENDS } from '../generated/constants'
+
 export const ERA_LABEL: Record<string, string> = {
   dos: 'DOS', win95: 'WIN95', win98: 'WIN98', winxp: 'WINXP',
   ps1: 'PS1', ps2: 'PS2', xbox: 'XBOX', dreamcast: 'DC',
@@ -34,13 +36,13 @@ export const ERA_PLACEHOLDER: Record<string, { bg: string; color: string }> = {
 
 export const ERA_PLACEHOLDER_DEFAULT = { bg: 'linear-gradient(155deg, #1c2230 0%, #11141c 100%)', color: '#6aa9d6' }
 
-export const EMULATOR_ERA_MAP: Record<string, string[]> = {
-  'dosbox-x':   ['DOS'],
-  '86box':      ['WIN95', 'WIN98', 'WINXP'],
-  duckstation:  ['PS1'],
-  pcsx2:        ['PS2'],
-  xemu:         ['XBOX'],
-  flycast:      ['DC'],
-  mesen:        ['NES', 'SNES'],
-  project64:    ['N64'],
-}
+// Derived from the generated era->emulator map (config/constants.yaml era_backends)
+// by inverting to emulator->eras, the shape existing consumers (Emulators pages) expect.
+export const EMULATOR_ERA_MAP: Record<string, string[]> = Object.entries(ERA_BACKENDS).reduce(
+  (acc, [era, emulator]) => {
+    const label = ERA_LABEL[era] ?? era.toUpperCase()
+    ;(acc[emulator] ??= []).push(label)
+    return acc
+  },
+  {} as Record<string, string[]>,
+)

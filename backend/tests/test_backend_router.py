@@ -13,7 +13,7 @@ from backend.constants_generated import BackendSlug, Era
 # ---------------------------------------------------------------------------
 
 _ROUTE_CASES = [
-    (Era.DOS,   BackendSlug.DOSBOX.value),
+    (Era.DOS,   BackendSlug.DOSBOX_X.value),
     (Era.WIN95, BackendSlug.BOX86.value),
     (Era.WIN98, BackendSlug.BOX86.value),
     (Era.WINXP, BackendSlug.BOX86.value),
@@ -46,7 +46,7 @@ _EXEC_IDS = ["dos", "win95", "win98", "winxp",
 
 # Slug → module path for dispatch tests.
 _DISPATCH_CASES = [
-    (Era.DOS,   BackendSlug.DOSBOX.value,      "backend.service.backends.dosbox"),
+    (Era.DOS,   BackendSlug.DOSBOX_X.value,    "backend.service.backends.dosbox"),
     (Era.WIN95, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
     (Era.WIN98, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
     (Era.WINXP, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
@@ -75,7 +75,7 @@ class TestResolveBackendName:
     @pytest.mark.parametrize("era", [Era.WIN95, Era.WIN98, Era.WINXP])
     def test_win9x_does_not_route_to_dosbox(self, era):
         from backend.service.utils.backend_router import resolve_backend_name
-        assert resolve_backend_name(era) != BackendSlug.DOSBOX.value
+        assert resolve_backend_name(era) != BackendSlug.DOSBOX_X.value
 
     def test_resolve_raises_value_error_for_missing_era_in_config(self, monkeypatch):
         import backend.service.utils.eras_config as eras_config_mod
@@ -179,7 +179,7 @@ class TestDispatch:
         # Also remove from cache so the patched import is actually called.
         monkeypatch.delitem(sys.modules, "backend.service.backends.dosbox", raising=False)
 
-        spec = LaunchSpec(slug="dosbox", era="dos")
+        spec = LaunchSpec(slug="dosbox-x", era="dos")
         with pytest.raises(ImportError, match="could not be imported"):
             router_mod.dispatch(spec)
 
