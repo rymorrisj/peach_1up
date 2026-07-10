@@ -187,11 +187,20 @@ class MediaCollectionRead(SQLModel):
 
 # ---------------------------------------------------------------------------
 # MediaLink — Media <-> Software join. Exactly one of media_item_id /
-# media_collection_id must be set per row. Validated with a model_validator
-# directly on the table model, matching the established pattern in
-# backend/models/software.py (SoftwareCollection._derive_item_type_from_era),
-# rather than a service-layer check — that is the precedent this codebase
-# already follows for a single-row cross-field invariant on a table model.
+# media_collection_id must be set per row. A model_validator(mode="after")
+# does not fire on direct construction (MediaLink(...) + db.add()) on a
+# SQLModel table=True class — same bug class as SoftwareCollection.item_type
+# (see backend/models/software.py). @validates on each FK field individually
+# does not work either: sqlmodel_table_construct() setattr()s every field in
+# class-declaration order (media_item_id before media_collection_id), so
+# constructing with only the *second*-declared field passed causes the
+# first-declared field's validator to fire first, while the second field is
+# still unset — it sees both as None and incorrectly raises "neither set"
+# before the real value is ever assigned. Whichever field is declared first
+# always breaks single-field construction of the *other* field. Fixed the
+# same way as SoftwareCollection.item_type: a model_post_init override runs
+# the check once, after the full object is built and both fields hold their
+# final values.
 # ---------------------------------------------------------------------------
 
 
@@ -214,8 +223,7 @@ class MediaLink(SQLModel, table=True):
     )
     link_note: Optional[str] = None
 
-    @model_validator(mode="after")
-    def _exactly_one_target(self) -> "MediaLink":
+    def model_post_init(self, __context: object) -> None:
         has_item = self.media_item_id is not None
         has_collection = self.media_collection_id is not None
         if has_item == has_collection:
@@ -224,7 +232,6 @@ class MediaLink(SQLModel, table=True):
                 f"MediaLink (got media_item_id={self.media_item_id!r}, "
                 f"media_collection_id={self.media_collection_id!r})."
             )
-        return self
 
 
 class MediaLinkCreate(SQLModel):
