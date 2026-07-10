@@ -14,12 +14,13 @@ from backend.models.user import User
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
 _ALL_PATH_KEYS = {
-    "LIBRARY_PATH", "MEDIA_PATH", "OS_PATH",
+    "LIBRARY_PATH", "SOFTWARE_PATH", "MEDIA_PATH", "OS_PATH",
     "ROMS_PATH", "PROFILES_PATH",
 }
 
 _LIBRARY_KEY_MAP: dict[str, str] = {
     "library_path":  "LIBRARY_PATH",
+    "software_path": "SOFTWARE_PATH",
     "media_path":    "MEDIA_PATH",
     "os_path":       "OS_PATH",
     "roms_path":     "ROMS_PATH",
@@ -245,6 +246,7 @@ def get_first_run_status(request: Request, db: Session = Depends(get_db)):
         "emulators": svc.compute_setup_status(),
         "paths": {
             "library_path":  svc.get("LIBRARY_PATH") or None,
+            "software_path": svc.get("SOFTWARE_PATH") or None,
             "media_path":    svc.get("MEDIA_PATH") or None,
             "os_path":       svc.get("OS_PATH") or None,
             "roms_path":     svc.get("ROMS_PATH") or None,

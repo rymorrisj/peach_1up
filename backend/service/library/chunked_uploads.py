@@ -1,8 +1,8 @@
 """Chunked-upload transport & storage.
 
 Single responsibility: accept a file (or folder of files) as an ordered series
-of chunks staged under ``MEDIA_PATH/tmp_chunks/<upload_id>/``, then reassemble
-them into their permanent location under ``MEDIA_PATH``. Ingest (dedup, era
+of chunks staged under ``SOFTWARE_PATH/tmp_chunks/<upload_id>/``, then reassemble
+them into their permanent location under ``SOFTWARE_PATH``. Ingest (dedup, era
 detection, DB persistence) is NOT done here — that is upload_finalize's job,
 which funnels into the shared ingester. Cleanup of the staging area is owned
 entirely by this module (success, abort, and orphan sweep).
@@ -149,7 +149,7 @@ def total_size(upload_id: str) -> int:
 
 def reassemble(upload_id: str, media_root: Path) -> ReassembledUpload:
     """Concatenate every file's chunks in order into a permanent slug dir under
-    MEDIA_PATH, then drop the staging dir and session. On any failure the
+    SOFTWARE_PATH, then drop the staging dir and session. On any failure the
     partial destination and the staging dir are both removed before re-raising.
     """
     with _lock:

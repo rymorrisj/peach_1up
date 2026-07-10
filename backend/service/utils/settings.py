@@ -45,6 +45,7 @@ from backend.service.utils.upload_utils import DEFAULT_UPLOAD_TMP_TTL_SECONDS  #
 
 _DEFAULTS: dict = {
     "LIBRARY_PATH": "",
+    "SOFTWARE_PATH": "",
     "MEDIA_PATH": "",
     "OS_PATH": "",
     "ROMS_PATH": "",
@@ -60,6 +61,7 @@ _DEFAULTS: dict = {
 # Path keys whose values are resolved to absolute paths at load time.
 _PATH_KEYS: frozenset[str] = frozenset({
     "LIBRARY_PATH",
+    "SOFTWARE_PATH",
     "MEDIA_PATH",
     "OS_PATH",
     "ROMS_PATH",
@@ -68,6 +70,10 @@ _PATH_KEYS: frozenset[str] = frozenset({
 
 _PATH_DEFAULTS: dict[str, str] = {
     "LIBRARY_PATH":       str((_PROJECT_ROOT / "library").resolve()),
+    # v2: library/software is the launchable-Software root (pre-v2 this was
+    # library/media). library/media is now the archival Media/Archive domain's
+    # root — see backend/models/media.py and api/routes/media.py.
+    "SOFTWARE_PATH":      str((_PROJECT_ROOT / "library" / "software").resolve()),
     "MEDIA_PATH":         str((_PROJECT_ROOT / "library" / "media").resolve()),
     "OS_PATH":            str((_PROJECT_ROOT / "library" / "system" / "os").resolve()),
     "ROMS_PATH":          str((_PROJECT_ROOT / "library" / "system" / "roms" / "86box").resolve()),
@@ -248,8 +254,8 @@ def is_suppressed(suppression_id: str) -> bool:
 def set_path(key: str, value: str) -> None:
     """Write a path value to app_settings and update state.
 
-    Covers all keys in ``_PATH_KEYS``: ``LIBRARY_PATH``, ``MEDIA_PATH``,
-    ``OS_PATH``, ``ROMS_PATH``, ``PROFILES_PATH``.
+    Covers all keys in ``_PATH_KEYS``: ``LIBRARY_PATH``, ``SOFTWARE_PATH``,
+    ``MEDIA_PATH``, ``OS_PATH``, ``ROMS_PATH``, ``PROFILES_PATH``.
 
     Args:
         key: The settings key to update. Must be one of the path keys.

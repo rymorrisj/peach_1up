@@ -60,6 +60,7 @@ def browse(
         svc = get_settings()
         _LABELS = {
             "LIBRARY_PATH": "Library",
+            "SOFTWARE_PATH": "Software",
             "MEDIA_PATH": "Media",
             "OS_PATH": "OS Images",
             "ROMS_PATH": "ROMs",

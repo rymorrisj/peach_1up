@@ -152,7 +152,7 @@ class TestLibraryUploadRoute:
         monkeypatch.setattr(
             settings_mod,
             "get_settings",
-            lambda: _FakeSettings({"MEDIA_PATH": str(media_path)}),
+            lambda: _FakeSettings({"SOFTWARE_PATH": str(media_path)}),
         )
         # The in-memory rate limiter is module-level and persists across test
         # methods; bypass it so the 10-inits-per-60s bucket never trips.

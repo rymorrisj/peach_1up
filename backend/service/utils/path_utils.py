@@ -114,7 +114,7 @@ def allowed_browse_roots() -> list[Path]:
 
     svc = get_settings()
     roots: list[Path] = []
-    for key in ("LIBRARY_PATH", "MEDIA_PATH", "OS_PATH", "ROMS_PATH", "PROFILES_PATH"):
+    for key in ("LIBRARY_PATH", "SOFTWARE_PATH", "MEDIA_PATH", "OS_PATH", "ROMS_PATH", "PROFILES_PATH"):
         val = svc.get(key, "") or ""
         if val:
             try:

@@ -47,9 +47,9 @@ class InitBody(BaseModel):
     files: list[InitFile]
 
 
-def _media_root() -> Path:
+def _software_root() -> Path:
     from backend.core.settings import get_settings
-    return Path(get_settings().get_env_var("MEDIA_PATH")).resolve()
+    return Path(get_settings().get_env_var("SOFTWARE_PATH")).resolve()
 
 
 def _setting_int(key: str, default: int) -> int:
@@ -74,7 +74,7 @@ def init_upload(
         raise HTTPException(status_code=422, detail="A title is required for folder and set uploads.")
     try:
         upload_id = cu.init_session(
-            _media_root(),
+            _software_root(),
             body.kind,
             title,
             [{"name": f.name, "size": f.size, "chunks": f.chunks} for f in body.files],
@@ -118,7 +118,7 @@ def complete_upload(
     if not cu.all_received(upload_id):
         raise HTTPException(status_code=409, detail="Upload incomplete — some chunks are missing.")
 
-    media_root = _media_root()
+    media_root = _software_root()
     threshold = _setting_int("UPLOAD_BACKGROUND_THRESHOLD_BYTES", DEFAULT_BACKGROUND_THRESHOLD_BYTES)
 
     if cu.total_size(upload_id) > threshold:

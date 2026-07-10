@@ -52,7 +52,7 @@ class SoftwareItem(SQLModel, table=True):
     # (or, for a multi-disc set, this collection) by the ingest pipeline itself
     # — safe to rmtree on delete. False/None means folder_path is a pre-existing
     # directory the ingest pipeline does not own (e.g. the parent of a loose
-    # file ingested with no MEDIA_PATH configured) and must never be rmtree'd;
+    # file ingested with no SOFTWARE_PATH configured) and must never be rmtree'd;
     # None covers rows written before this column existed, treated the same as
     # False. See _delete_leaf_media_folders.
     folder_owned: Optional[bool] = None

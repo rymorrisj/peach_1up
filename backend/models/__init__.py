@@ -9,6 +9,16 @@ from backend.models.software import (
     collection_to_read, collections_to_read_bulk,
 )
 from backend.models.environment import BiosCounts, CountTotal, HealthSummary, InstalledCounts, Environment, EnvironmentBase, EnvironmentCreate, EnvironmentHealthCounts, EnvironmentUpdate, EnvironmentRead, StorageStats
+from backend.models.media import (
+    LinkedSoftwareRef,
+    MediaCollection, MediaCollectionCreate, MediaCollectionRead, MediaCollectionUpdate,
+    MediaItem, MediaItemCreate, MediaItemRead, MediaItemUpdate,
+    MediaLink, MediaLinkCreate, MediaLinkRead,
+    collection_to_read as media_collection_to_read,
+    collections_to_read_bulk as media_collections_to_read_bulk,
+    item_to_read as media_item_to_read,
+    items_to_read_bulk as media_items_to_read_bulk,
+)
 from backend.models.profile import Profile, ProfileBase, ProfileCreate, ProfileUpdate, ProfileRead
 from backend.models.launch_history import LaunchHistory, LaunchHistoryBase, LaunchHistoryRead
 from backend.models.settings import Settings, SettingsPatch

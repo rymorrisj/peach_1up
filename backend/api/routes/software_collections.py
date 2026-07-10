@@ -176,7 +176,7 @@ def import_from_path(
         raise HTTPException(status_code=400, detail="Path does not exist.")
 
     # _prepare_item carries this same guard, but it only ever sees the
-    # already-copied path under MEDIA_PATH — by then the (potentially huge)
+    # already-copied path under SOFTWARE_PATH — by then the (potentially huge)
     # copy has already happened and would silently duplicate an OS image into
     # the library. Check the original source here, before staging starts.
     from backend.models.environment import Environment
@@ -201,7 +201,7 @@ def import_from_path(
 
     from backend.core.settings import get_settings
     svc = get_settings()
-    media_root = Path(svc.get_env_var("MEDIA_PATH")).resolve()
+    media_root = Path(svc.get_env_var("SOFTWARE_PATH")).resolve()
     try:
         threshold = int(svc.get("UPLOAD_BACKGROUND_THRESHOLD_BYTES", DEFAULT_BACKGROUND_THRESHOLD_BYTES)
                          or DEFAULT_BACKGROUND_THRESHOLD_BYTES)
@@ -257,17 +257,17 @@ def cancel_scan(job_id: str):
 def _resolve_scan_directory() -> Path:
     try:
         from backend.core.settings import get_settings
-        media_path = get_settings().get("MEDIA_PATH", "") or ""
+        software_path = get_settings().get("SOFTWARE_PATH", "") or ""
     except RuntimeError:
-        media_path = ""
-    if not media_path:
+        software_path = ""
+    if not software_path:
         raise HTTPException(
             status_code=400,
-            detail="No media library path is configured. Set MEDIA_PATH in Settings before scanning.",
+            detail="No software library path is configured. Set SOFTWARE_PATH in Settings before scanning.",
         )
-    resolved = Path(media_path).resolve()
+    resolved = Path(software_path).resolve()
     if not resolved.is_dir():
-        raise HTTPException(status_code=400, detail="Media library path does not exist or is not a directory.")
+        raise HTTPException(status_code=400, detail="Software library path does not exist or is not a directory.")
     return resolved
 
 

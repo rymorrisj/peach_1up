@@ -74,6 +74,7 @@ def _ensure_default_paths() -> None:
     base = get_base_path()
     lib = base / "library"
     for d in [
+        lib / "software",
         lib / "media",
         lib / "system",
         lib / "system" / "bios",
@@ -151,12 +152,12 @@ def _sweep_upload_tmp() -> None:
         from backend.service.library.chunked_uploads import sweep_orphans
         from backend.service.utils.upload_utils import DEFAULT_UPLOAD_TMP_TTL_SECONDS
 
-        media_path = get_settings().get("MEDIA_PATH", "") or ""
-        if not media_path:
+        software_path = get_settings().get("SOFTWARE_PATH", "") or ""
+        if not software_path:
             return
         ttl = int(get_settings().get("UPLOAD_TMP_TTL_SECONDS", DEFAULT_UPLOAD_TMP_TTL_SECONDS)
                   or DEFAULT_UPLOAD_TMP_TTL_SECONDS)
-        removed = sweep_orphans(Path(media_path), ttl)
+        removed = sweep_orphans(Path(software_path), ttl)
         if removed:
             logger.info("Startup: swept %d orphaned upload tmp dir(s)", removed)
     except Exception as exc:

@@ -35,9 +35,9 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Sess
     Shared by chunked-upload finalization (reasm comes from ``cu.reassemble``,
     staged from browser-uploaded chunks) and server-side-path import (reasm
     comes from copying a path the file browser resolved) — both just need
-    "some files already sitting under MEDIA_PATH" ingested the same way. The
+    "some files already sitting under SOFTWARE_PATH" ingested the same way. The
     destination is removed here if ingest fails so a failed finalize never
-    leaves an orphan under MEDIA_PATH.
+    leaves an orphan under SOFTWARE_PATH.
     """
     try:
         if reasm.kind == "file":
@@ -90,7 +90,7 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Sess
             "disc_count": disc_count,
         }
     except Exception:
-        # Reassembled bytes live under MEDIA_PATH but were never persisted — drop
+        # Reassembled bytes live under SOFTWARE_PATH but were never persisted — drop
         # them (reused-duplicate already removed dest_dir above; ignore_errors
         # makes the double-remove safe).
         shutil.rmtree(reasm.dest_dir, ignore_errors=True)

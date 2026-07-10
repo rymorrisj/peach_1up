@@ -17,10 +17,10 @@ class _FakeSettings:
         self._media_path = media_path
 
     def get(self, key, default=None):
-        return self._media_path if key == "MEDIA_PATH" else default
+        return self._media_path if key == "SOFTWARE_PATH" else default
 
     def get_env_var(self, key):
-        return self._media_path if key == "MEDIA_PATH" else ""
+        return self._media_path if key == "SOFTWARE_PATH" else ""
 
 
 @pytest.fixture

@@ -180,7 +180,7 @@ def _prepare_item(
 
     log = get_logger(__name__)
     svc = get_settings()
-    games_root_str = svc.get("MEDIA_PATH", "") or ""
+    games_root_str = svc.get("SOFTWARE_PATH", "") or ""
 
     try:
         media_src = normalise_path(media_path)
@@ -235,7 +235,7 @@ def _prepare_item(
     }
 
     # The directory this ingest owns and created/renamed exclusively for this
-    # item — set by the dir-ingest and file-ingest (MEDIA_PATH configured)
+    # item — set by the dir-ingest and file-ingest (SOFTWARE_PATH configured)
     # branches only. Reconciled to match the DB slug once it's final (Stage
     # 6.5, below), so folder_owned rows never carry a folder name that
     # differs from their slug regardless of which branch created them.
@@ -405,7 +405,7 @@ def _prepare_item(
             ).first()
             if existing_leaf:
                 raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
-            # No MEDIA_PATH configured: there is no dedicated per-item directory
+            # No SOFTWARE_PATH configured: there is no dedicated per-item directory
             # to create, so folder_path here is just the source file's parent —
             # a directory this ingest did not create and may share with
             # unrelated files or other library items. folder_owned=False is
@@ -446,7 +446,7 @@ def _prepare_item(
 
     # Reconcile the owned folder's on-disk name to the DB slug — covers both
     # dir-ingest (folder named from the source directory) and file-ingest
-    # with MEDIA_PATH configured (folder named from the file's stem); the two
+    # with SOFTWARE_PATH configured (folder named from the file's stem); the two
     # start from different source strings and different uniqueness checks, so
     # without this step the folder name and row["slug"] can diverge.
     if _owned_folder_root is not None:
@@ -798,7 +798,7 @@ def _delete_leaf_media_folders(collection: SoftwareCollection) -> None:
     item (or, for a multi-disc set, this collection). folder_owned False or
     None (rows written before this column existed) means folder_path is a
     pre-existing directory the ingest pipeline does not own — most notably the
-    parent directory of a loose file ingested with no MEDIA_PATH configured,
+    parent directory of a loose file ingested with no SOFTWARE_PATH configured,
     which may be shared with unrelated files or other library items entirely
     outside this app's control. For those leaves only the tracked file_path
     file itself is unlinked; the directory is left alone. This is deliberately
@@ -806,7 +806,7 @@ def _delete_leaf_media_folders(collection: SoftwareCollection) -> None:
     files behind for legacy folder_owned=None rows) — over-deleting a shared
     directory is worse than under-deleting an unowned one.
 
-    Every resolved path is required to fall under MEDIA_PATH before removal;
+    Every resolved path is required to fall under SOFTWARE_PATH before removal;
     a path that fails this check is refused and logged loudly rather than
     silently skipped, since silently continuing past a failed containment
     check on a delete path is worse than doing nothing.
@@ -816,10 +816,10 @@ def _delete_leaf_media_folders(collection: SoftwareCollection) -> None:
 
     log = get_logger(__name__)
     svc = get_settings()
-    media_root_str = svc.get("MEDIA_PATH", "") or ""
+    media_root_str = svc.get("SOFTWARE_PATH", "") or ""
     if not media_root_str:
         log.error(
-            "Media deletion is enabled for collection %s but MEDIA_PATH is unset; "
+            "Media deletion is enabled for collection %s but SOFTWARE_PATH is unset; "
             "refusing to delete media folders.",
             collection.id,
         )
@@ -841,7 +841,7 @@ def _delete_leaf_media_folders(collection: SoftwareCollection) -> None:
             if not _under_root(folder):
                 log.error(
                     "Refusing to delete media folder '%s' for library item %s: "
-                    "it does not resolve under MEDIA_PATH ('%s').",
+                    "it does not resolve under SOFTWARE_PATH ('%s').",
                     folder, leaf.id, media_root,
                 )
                 continue
@@ -862,7 +862,7 @@ def _delete_leaf_media_folders(collection: SoftwareCollection) -> None:
             if not _under_root(file_path):
                 log.error(
                     "Refusing to delete media file '%s' for library item %s: "
-                    "it does not resolve under MEDIA_PATH ('%s').",
+                    "it does not resolve under SOFTWARE_PATH ('%s').",
                     file_path, leaf.id, media_root,
                 )
                 continue

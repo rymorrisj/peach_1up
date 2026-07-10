@@ -9,7 +9,7 @@ source lives on the user's machine; this one is used when it already lives on
 the server's filesystem, so no chunked transfer is needed.
 
 stage_from_source always copies (never moves) the source into a fresh
-directory under MEDIA_PATH, so the source is untouched until ingest has fully
+directory under SOFTWARE_PATH, so the source is untouched until ingest has fully
 succeeded. Only then, if the caller opted in, is the original deleted — never
 before a confirmed successful write into the library. stage_from_source builds
 the same ReassembledUpload shape service.library.chunked_uploads produces from

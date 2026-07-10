@@ -74,7 +74,7 @@ class TestFilesystemAllowlist:
         monkeypatch.setattr(
             settings_mod,
             "get_settings",
-            lambda: {"LIBRARY_PATH": str(library_path), "MEDIA_PATH": "", "OS_PATH": "", "ROMS_PATH": "", "PROFILES_PATH": ""},
+            lambda: {"LIBRARY_PATH": str(library_path), "SOFTWARE_PATH": "", "MEDIA_PATH": "", "OS_PATH": "", "ROMS_PATH": "", "PROFILES_PATH": ""},
         )
 
         # _allowed_roots() additionally allowlists every existing drive root on
