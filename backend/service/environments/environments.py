@@ -296,9 +296,17 @@ def get_health_summary(db: Session) -> dict:
         )
     )
 
+    from backend.models.rom_pack import RomPackItem
+
     rom_entries = [e for e in catalog if e.get("install_type") == "rom_pack"]
     rom_total = len(rom_entries)
-    rom_installed = sum(1 for e in rom_entries if get_install_path(e["slug"]) is not None)
+    rom_pack_slugs = {e["slug"] for e in rom_entries}
+    rom_installed = (
+        db.query(RomPackItem)
+        .filter(RomPackItem.slug.in_(rom_pack_slugs), RomPackItem.is_present == True)
+        .count()
+        if rom_pack_slugs else 0
+    )
 
     return {
         "environments": {

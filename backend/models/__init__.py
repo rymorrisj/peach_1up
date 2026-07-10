@@ -16,6 +16,7 @@ from backend.models.user import User, UserBase, UserRead
 from backend.models.media_restriction import MediaRestriction
 from backend.models.tag import EntityTag, Tag, TagCreate, TagRead, get_tags_for_entity
 from backend.models.emulator_install import EmulatorInstall
+from backend.models.rom_pack import RomPackItem, RomPackItemRead
 from backend.models.metadata_lookup import (
     Developer, Genre, LibraryCollectionGenre, Publisher,
     get_genres_for_collection, get_genres_for_collections,

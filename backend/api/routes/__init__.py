@@ -1,6 +1,6 @@
 from backend.api.routes import (
     auth, bios, drives, emulators, environments, filesystem, health, jobs, launches,
-    media, profiles, settings, software_collections, software_items, software_metadata,
+    media, profiles, rom_packs, settings, software_collections, software_items, software_metadata,
     tags, uploads, users,
 )
 
@@ -10,6 +10,7 @@ ROUTERS = [
     health.router,
     settings.router,
     emulators.router,
+    rom_packs.router,
     bios.router,
     profiles.router,
     drives.router,

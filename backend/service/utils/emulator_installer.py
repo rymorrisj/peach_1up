@@ -91,6 +91,42 @@ def check_git() -> bool:
     return shutil.which("git") is not None
 
 
+def record_rom_pack_item(pack_slug: str, emulator_slug: str, install_path: Path | None, is_present: bool) -> None:
+    """Insert or update the ``rom_pack_items`` row for *pack_slug*.
+
+    Called after a clone (clone_rom_pack) and from the rom-packs verify
+    route — both cases record the owned result without altering the
+    underlying install_type == "rom_pack" catalog/clone mechanism.
+    """
+    from datetime import datetime, timezone
+    from sqlalchemy.orm import sessionmaker
+
+    from backend.core.database import get_engine
+    from backend.models import RomPackItem
+
+    try:
+        entry = get_emulator(pack_slug)
+    except ValueError:
+        entry = {}
+
+    now = datetime.now(timezone.utc)
+    session_factory = sessionmaker(bind=get_engine())
+    with session_factory() as db:
+        row = db.query(RomPackItem).filter(RomPackItem.slug == pack_slug).one_or_none()
+        if row is None:
+            row = RomPackItem(slug=pack_slug, name=entry.get("name", pack_slug), emulator_slug=emulator_slug)
+            db.add(row)
+        row.name = entry.get("name", row.name)
+        row.emulator_slug = emulator_slug
+        row.source_url = entry.get("source_url", row.source_url)
+        row.is_present = is_present
+        if install_path is not None:
+            row.install_path = str(install_path)
+        if is_present:
+            row.installed_at = now
+        db.commit()
+
+
 def clone_rom_pack() -> Path:
     if not check_git():
         raise RuntimeError("git is not available on PATH. Install git and try again.")
@@ -135,6 +171,8 @@ def clone_rom_pack() -> Path:
     result = subprocess.run(cmd)
     if result.returncode != 0:
         raise RuntimeError(f"git clone failed with exit code {result.returncode}.")
+
+    record_rom_pack_item("86box-roms", "86box", target_path, is_present=True)
 
     return target_path
 

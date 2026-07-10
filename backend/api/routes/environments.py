@@ -1,8 +1,10 @@
+import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
+from backend.constants import PC_ERAS
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
@@ -100,3 +102,52 @@ def platform_health(platform_id: int, db: Session = Depends(get_db), _: User = r
     if not platform:
         raise HTTPException(status_code=404, detail="Environment not found.")
     return plat_svc.check_platform_health(platform, db)
+
+
+@router.post("/{slug}/install-media")
+async def upload_install_media(
+    slug: str,
+    file: UploadFile,
+    db: Session = Depends(get_db),
+    _: User = require_permission("can_edit_environments"),
+):
+    """Stream-write an uploaded OS install/disk image for the named Environment.
+
+    Environment infrastructure, not a SoftwareItem — never scanned, never
+    deduped against the library (relocated from the former
+    POST /api/v1/media/upload, which trusted a form-supplied era; this route
+    derives era from the Environment record itself).
+
+    Returns:
+        { path, slug, size_bytes }
+    """
+    environment = db.query(Environment).filter(Environment.slug == slug).first()
+    if not environment:
+        raise HTTPException(status_code=404, detail="Environment not found.")
+    if environment.era not in PC_ERAS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"OS install media requires a PC-era environment: {', '.join(sorted(PC_ERAS))}.",
+        )
+    if not file.filename:
+        raise HTTPException(status_code=422, detail="A filename is required.")
+
+    from backend.core.settings import get_settings
+    from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES, begin_upload, stream_upload_to_disk
+
+    svc = get_settings()
+    max_bytes = int(svc.get("UPLOAD_MAX_BYTES", DEFAULT_MAX_BYTES) or DEFAULT_MAX_BYTES)
+    os_root = Path(svc.get_env_var("OS_PATH")).resolve() / environment.era
+
+    dest_dir, dest_path = begin_upload(os_root, file.filename)
+
+    try:
+        written = await stream_upload_to_disk(file, dest_path, max_bytes)
+    except HTTPException:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        raise
+    except Exception as exc:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}") from exc
+
+    return {"path": str(dest_path), "slug": dest_dir.name, "size_bytes": written}
