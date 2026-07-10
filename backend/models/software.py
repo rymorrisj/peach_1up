@@ -210,6 +210,7 @@ class SoftwareCollectionCreate(SQLModel):
     file_path: str
     era: EraValue = "unknown"
     profile_id: Optional[int] = None
+    environment_id: Optional[int] = None
 
 
 class SoftwareCollectionUpdate(SQLModel):
@@ -249,6 +250,7 @@ class SoftwareCollectionRead(SQLModel):
     title: str
     sort_title: Optional[str] = None
     era: str
+    item_type: ItemType
     category: Optional[str] = None
     description: Optional[str] = None
     publisher: Optional[str] = None

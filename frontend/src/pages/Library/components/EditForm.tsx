@@ -226,8 +226,8 @@ export function EditForm({
         <FormField label="Platform" htmlFor="detail-platform">
           <select
             id="detail-platform"
-            value={form.platform_id}
-            onChange={(e) => setField('platform_id', e.target.value)}
+            value={form.environment_id}
+            onChange={(e) => setField('environment_id', e.target.value)}
             className={SELECT_CLASS}
           >
             <option value="">— No platform —</option>

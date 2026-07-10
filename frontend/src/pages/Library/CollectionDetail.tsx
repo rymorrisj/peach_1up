@@ -36,7 +36,7 @@ function formFromCollection(c: LibraryCollectionData): EditFormFields {
     cover_art_path: '',
     content_rating: c.content_rating ?? '',
     era: c.era && c.era !== 'unknown' ? c.era : '',
-    platform_id: c.platform_id?.toString() ?? '',
+    environment_id: c.environment_id?.toString() ?? '',
     profile_id: c.profile_id?.toString() ?? '',
     executable_path: launchDisc?.executable_path ?? '',
   }
@@ -179,7 +179,7 @@ export default function CollectionDetail() {
           category: f.category.trim() || null,
           content_rating: f.content_rating || null,
           era: f.era || null,
-          platform_id: f.platform_id ? parseInt(f.platform_id, 10) : null,
+          environment_id: f.environment_id ? parseInt(f.environment_id, 10) : null,
           profile_id: f.profile_id ? parseInt(f.profile_id, 10) : null,
           launch_commands: resolveLaunchCommands(),
         }),

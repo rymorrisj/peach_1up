@@ -44,7 +44,7 @@ export interface LibraryCollectionData {
   launch_review_flagged: boolean
   // None = inherit the global delete_media_on_removal setting; true/false overrides it.
   delete_media_override: boolean | null
-  platform_id: number | null
+  environment_id: number | null
   profile_id: number | null
   drive_id: number | null
   launch_disk_id: number | null

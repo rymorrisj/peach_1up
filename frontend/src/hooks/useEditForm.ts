@@ -13,7 +13,7 @@ export interface EditForm {
   cover_art_path: string
   content_rating: string
   era: string
-  platform_id: string
+  environment_id: string
   profile_id: string
   executable_path: string
 }
