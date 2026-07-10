@@ -163,7 +163,7 @@ def require_admin_or_self_manage(request: Request, active_user: User = Depends(g
     raise HTTPException(status_code=403, detail="Permission denied.")
 
 
-def require_library_or_platform_editor(active_user: User = Depends(get_active_user)) -> User:
+def require_software_or_environment_editor(active_user: User = Depends(get_active_user)) -> User:
     """Allow owners and anyone who can edit the software library or environments (e.g. filesystem browsing)."""
     if active_user.is_owner or active_user.can_edit_software or active_user.can_edit_environments:
         return active_user
