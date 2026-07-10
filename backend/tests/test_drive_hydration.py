@@ -44,13 +44,17 @@ def _make_entity(
     media_type: str | None = "dir",
     drive=None,
     db_collection=None,
+    environment_id: int | None = None,
 ):
+    from backend.models.software import derive_item_type
     from backend.service.launch.launchable_resolver import LaunchableEntity
 
     return LaunchableEntity(
         collection_id=1,
         profile_id=None,
         era=era,
+        item_type=derive_item_type(era),
+        environment_id=environment_id,
         slug=None,
         media_path="/tmp/game.exe",
         executable_path=None,

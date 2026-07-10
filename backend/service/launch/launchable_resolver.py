@@ -22,6 +22,8 @@ class LaunchableEntity:
 
     profile_id: int | None
     era: str
+    item_type: str
+    environment_id: int | None
     slug: str | None
     media_path: str
     executable_path: str | None
@@ -83,16 +85,18 @@ def resolve_launchable(
         collection_id=c.id,
         profile_id=c.profile_id,
         era=c.era,
+        item_type=c.item_type,
+        environment_id=c.environment_id,
         slug=c.slug,
-        media_path=launch_leaf.media_path,
+        media_path=launch_leaf.file_path,
         folder_path=launch_leaf.folder_path,
         executable_path=launch_leaf.executable_path,
         launch_commands=c.launch_commands,
         launch_review_flagged=bool(c.launch_review_flagged),
         installed=c.installed,
         requires_install=c.requires_install,
-        media_type=str(launch_leaf.media_type) if launch_leaf.media_type is not None else None,
+        media_type=str(launch_leaf.file_type) if launch_leaf.file_type is not None else None,
         drive=c.drive,
-        disc_paths=[leaf.media_path for leaf in all_leaves],
+        disc_paths=[leaf.file_path for leaf in all_leaves],
         _db_collection=c,
     )

@@ -228,7 +228,7 @@ class SoftwareCollectionUpdate(SQLModel):
     installed: Optional[bool] = None
     requires_install: Optional[bool] = None
     delete_media_override: Optional[bool] = None
-    platform_id: Optional[int] = None
+    environment_id: Optional[int] = None
     profile_id: Optional[int] = None
     display_disk_id: Optional[int] = None
     launch_disk_id: Optional[int] = None
@@ -263,7 +263,7 @@ class SoftwareCollectionRead(SQLModel):
     requires_install: bool = False
     launch_review_flagged: bool = False
     delete_media_override: Optional[bool] = None
-    platform_id: Optional[int] = None
+    environment_id: Optional[int] = None
     profile_id: Optional[int] = None
     drive_id: Optional[int] = None
     launch_disk_id: Optional[int] = None
@@ -275,6 +275,12 @@ class SoftwareCollectionRead(SQLModel):
     items: list[SoftwareItemRead] = []
     drive: Optional[DriveRead] = None
     tags: list[TagRead] = []
+    # Pre-launch UX gate (doc 02 A5 part B): set to "no_environment" when this
+    # is a PC collection with no resolvable Environment (neither environment_id
+    # nor an era-matched system Environment fallback). Always None for console
+    # items. Computed at read time in collection_to_read / collections_to_read_bulk,
+    # not stored.
+    launch_blocked_reason: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -367,14 +373,32 @@ def _leaves_for_collection(collection_id: int, db: "Session") -> list[SoftwareIt
     )
 
 
+def _launch_blocked_reason(c: "SoftwareCollection", system_eras: set[str]) -> Optional[str]:
+    """Returns "no_environment" iff *c* is a PC collection with no resolvable
+    Environment (neither its own environment_id nor an era-matched is_system
+    Environment fallback -- see coordinator._resolve_environment_for_pc_entity,
+    the launch-time counterpart of this same resolution). None for console
+    items and any PC item with a resolvable Environment."""
+    if c.item_type != "pc":
+        return None
+    if c.environment_id is not None:
+        return None
+    if c.era in system_eras:
+        return None
+    return "no_environment"
+
+
 def collection_to_read(c: "SoftwareCollection", db: "Session") -> SoftwareCollectionRead:
     """Build a SoftwareCollectionRead, nesting ordered leaves, tags, and genres."""
     from backend.models.metadata_lookup import get_genres_for_collection
+    from backend.service.utils.era_defaults import system_environment_eras
 
     read = SoftwareCollectionRead.model_validate(c)
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
     read.tags = get_tags_for_entity("software_collection", c.id, db)
     read.genres = get_genres_for_collection(c.id, db)
+    needed_eras = {c.era} if c.item_type == "pc" and c.environment_id is None else set()
+    read.launch_blocked_reason = _launch_blocked_reason(c, system_environment_eras(needed_eras, db))
     return read
 
 
@@ -386,6 +410,7 @@ def collections_to_read_bulk(
     from sqlalchemy import select as _select
 
     from backend.models.metadata_lookup import get_genres_for_collections
+    from backend.service.utils.era_defaults import system_environment_eras
 
     if not collections:
         return []
@@ -407,11 +432,19 @@ def collections_to_read_bulk(
     tag_map = get_tags_for_entities("software_collection", collection_ids, db)
     genre_map = get_genres_for_collections(collection_ids, db)
 
+    # One batched query for every era that might need the system-Environment
+    # fallback, instead of a per-collection lookup (N+1).
+    needed_eras = {
+        c.era for c in collections if c.item_type == "pc" and c.environment_id is None
+    }
+    system_eras = system_environment_eras(needed_eras, db)
+
     reads: list[SoftwareCollectionRead] = []
     for c in collections:
         read = SoftwareCollectionRead.model_validate(c)
         read.items = leaves_by_collection.get(c.id, [])
         read.tags = tag_map.get(c.id, [])
         read.genres = genre_map.get(c.id, [])
+        read.launch_blocked_reason = _launch_blocked_reason(c, system_eras)
         reads.append(read)
     return reads

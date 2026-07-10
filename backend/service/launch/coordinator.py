@@ -476,6 +476,20 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
         process_registry.release(reservation)
 
 
+def _resolve_environment_for_pc_entity(entity: "LaunchableEntity", db: Session) -> Environment | None:
+    """Resolve the Environment for a PC SoftwareCollection launch (doc 02 A5).
+
+    Resolves directly via the collection's own environment_id FK instead of
+    the old Environment.profile_id reverse-lookup. Falls back to the
+    era-matched system Environment only when environment_id is still null —
+    a runtime fallback for the backfill transition window, not a migration.
+    """
+    if entity.environment_id is not None:
+        return db.get(Environment, entity.environment_id)
+    from backend.service.utils.era_defaults import lookup_system_environment_by_era
+    return lookup_system_environment_by_era(entity.era, db)
+
+
 async def _launch_entity(entity: "LaunchableEntity", profile_id: int | None, db: Session) -> LaunchResult:
     """Internal shared entry point for collection launches.
 
@@ -483,7 +497,24 @@ async def _launch_entity(entity: "LaunchableEntity", profile_id: int | None, db:
     process_registry.cleanup_exited() and write_session_ends.
     """
     profile = _resolve_profile_for_item(entity.profile_id, profile_id, db)
-    platform_record = db.query(Environment).filter(Environment.profile_id == profile.id).first()
+
+    # Environment is strictly PC (doc 02 A5): console entities never touch
+    # Environment at all, not even to check for one.
+    platform_record: Environment | None = None
+    if entity.item_type == "pc":
+        platform_record = _resolve_environment_for_pc_entity(entity, db)
+        if platform_record is None:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error_type": "no_environment",
+                    "message": (
+                        "This PC item has no Environment configured. "
+                        "Create an Environment for this era first."
+                    ),
+                    "collection_id": entity.collection_id,
+                },
+            )
 
     drive = hydrate_drive_for_entity(entity, db)
 
