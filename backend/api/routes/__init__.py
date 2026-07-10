@@ -1,7 +1,7 @@
 from backend.api.routes import (
-    auth, bios, drives, emulators, filesystem, health, jobs, launches,
-    library_collections, library_metadata, libraryitems,
-    media, platforms, profiles, settings, tags, uploads, users,
+    auth, bios, drives, emulators, environments, filesystem, health, jobs, launches,
+    media, profiles, settings, software_collections, software_items, software_metadata,
+    tags, uploads, users,
 )
 
 ROUTERS = [
@@ -13,16 +13,16 @@ ROUTERS = [
     bios.router,
     profiles.router,
     drives.router,
-    # library_metadata precedes the collection/item routers. The collection,
-    # item, and /library list routers use distinct top-level path segments
-    # (/librarycollection, /libraryitem, /library) so no wildcard shadows another.
-    library_metadata.router,
-    library_collections.router,
-    libraryitems.router,
+    # software_metadata precedes the collection/item routers. The collection,
+    # item, and /software list routers use distinct top-level path segments
+    # (/softwarecollection, /softwareitem, /software) so no wildcard shadows another.
+    software_metadata.router,
+    software_collections.router,
+    software_items.router,
     uploads.router,
     jobs.router,
     launches.router,
-    platforms.router,
+    environments.router,
     filesystem.router,
     media.router,
     tags.router,

@@ -7,7 +7,7 @@ from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
 from backend.models.drive import Drive, DriveRead
-from backend.models.library import LibraryCollection
+from backend.models.software import SoftwareCollection
 from backend.models.user import User
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
@@ -33,7 +33,7 @@ def get_drive(drive_id: int, db: Session = Depends(get_db), _: User = Depends(ge
 def issue_delete_token(
     drive_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
     if not db.get(Drive, drive_id):
         raise HTTPException(status_code=404, detail="Drive not found.")
@@ -45,7 +45,7 @@ def delete_drive(
     drive_id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
     if not confirmation_tokens.consume(confirmation_token, "drive", drive_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
@@ -57,7 +57,7 @@ def delete_drive(
         if img_path.exists():
             img_path.unlink()
             logger.info("Deleted drive image: %s", img_path)
-    db.query(LibraryCollection).filter(LibraryCollection.drive_id == drive_id).update({"drive_id": None})
+    db.query(SoftwareCollection).filter(SoftwareCollection.drive_id == drive_id).update({"drive_id": None})
     db.flush()
     db.delete(drive)
     db.commit()

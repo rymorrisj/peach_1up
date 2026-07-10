@@ -22,11 +22,11 @@ class LaunchHistory(LaunchHistoryBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     library_collection_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("library_collections.id", ondelete="CASCADE"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("software_collections.id", ondelete="CASCADE"), nullable=True),
     )
     platform_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("platforms.id", ondelete="CASCADE"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("environments.id", ondelete="CASCADE"), nullable=True),
     )
     profile_id: Optional[int] = Field(
         default=None,

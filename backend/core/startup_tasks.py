@@ -33,15 +33,15 @@ def _cleanup_stale_sessions(db) -> None:
 
 def _flag_corrupt_platform_working_paths(db) -> None:
     try:
-        from backend.models import Platform
+        from backend.models import Environment
         corrupt = (
-            db.query(Platform)
-            .filter(Platform.working_image_path.like("%.cfg"))
+            db.query(Environment)
+            .filter(Environment.working_image_path.like("%.cfg"))
             .all()
         )
         for p in corrupt:
             logger.warning(
-                "Platform %s (%s) has a .cfg file as working_image_path — "
+                "Environment %s (%s) has a .cfg file as working_image_path — "
                 "this record was created by the broken provisioner and must be re-registered",
                 p.id,
                 p.name,

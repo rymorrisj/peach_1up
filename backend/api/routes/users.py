@@ -28,8 +28,8 @@ _TTL_MAX = 525_600  # 365 days × 24 h × 60 min
 _OWNER_ONLY_FIELDS = {
     "is_admin",
     "can_launch_media",
-    "can_edit_platforms",
-    "can_edit_library",
+    "can_edit_environments",
+    "can_edit_software",
     "can_manage_profiles",
     "can_edit_settings",
     "can_manage_users",
@@ -40,8 +40,8 @@ class UserCreate(BaseModel):
     name: str
     pin: str | None = None
     can_launch_media: bool = True
-    can_edit_platforms: bool = False
-    can_edit_library: bool = False
+    can_edit_environments: bool = False
+    can_edit_software: bool = False
     can_manage_profiles: bool = False
     can_edit_settings: bool = False
     can_manage_users: bool = False
@@ -59,8 +59,8 @@ class UserCreate(BaseModel):
 class UserPatch(BaseModel):
     name: str | None = None
     can_launch_media: bool | None = None
-    can_edit_platforms: bool | None = None
-    can_edit_library: bool | None = None
+    can_edit_environments: bool | None = None
+    can_edit_software: bool | None = None
     can_manage_profiles: bool | None = None
     can_edit_settings: bool | None = None
     can_manage_users: bool | None = None
@@ -126,8 +126,8 @@ def create_user(
         pin_hash=pin_hash,
         identity_token_secret=generate_identity_secret(),
         can_launch_media=body.can_launch_media,
-        can_edit_platforms=body.can_edit_platforms,
-        can_edit_library=body.can_edit_library,
+        can_edit_environments=body.can_edit_environments,
+        can_edit_software=body.can_edit_software,
         can_manage_profiles=body.can_manage_profiles,
         can_edit_settings=body.can_edit_settings,
         can_manage_users=body.can_manage_users,

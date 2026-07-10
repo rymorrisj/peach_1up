@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from backend.core import process_registry
 from backend.core.logger import get_logger
 from backend.core.process_registry import ProcessEntry
-from backend.models import LaunchHistory, Platform, Profile
+from backend.models import Environment, LaunchHistory, Profile
 from backend.service.launch.drive_hydration import hydrate_drive_for_entity
 from backend.service.launch.history import write_session_ends
 from backend.service.launch.launch_spec import LaunchSpec
@@ -159,7 +159,7 @@ def _resolve_profile_for_item(entity_profile_id: int | None, profile_id: int | N
     return profile
 
 
-def _resolve_profile_for_environment(platform: Platform, profile_id: int | None, db: Session) -> Profile:
+def _resolve_profile_for_environment(platform: Environment, profile_id: int | None, db: Session) -> Profile:
     profile: Profile | None = None
     if profile_id:
         profile = db.get(Profile, profile_id)
@@ -180,7 +180,7 @@ def _resolve_profile_for_environment(platform: Platform, profile_id: int | None,
 def _build_spec_for_entity(
     entity: "LaunchableEntity",
     profile: Profile,
-    platform: Platform | None,
+    platform: Environment | None,
     drive: "Drive | None",
     effective_media_path: str,
 ) -> LaunchSpec:
@@ -302,7 +302,7 @@ def _build_spec_for_entity(
 
 
 def _build_spec_for_environment(
-    platform: Platform,
+    platform: Environment,
     profile: Profile,
     resolved_install_path: str | None = None,
     resolved_rom_path: str | None = None,
@@ -483,7 +483,7 @@ async def _launch_entity(entity: "LaunchableEntity", profile_id: int | None, db:
     process_registry.cleanup_exited() and write_session_ends.
     """
     profile = _resolve_profile_for_item(entity.profile_id, profile_id, db)
-    platform_record = db.query(Platform).filter(Platform.profile_id == profile.id).first()
+    platform_record = db.query(Environment).filter(Environment.profile_id == profile.id).first()
 
     drive = hydrate_drive_for_entity(entity, db)
 
@@ -513,7 +513,7 @@ async def launch_collection(collection_id: int, profile_id: int | None, db: Sess
     return await _launch_entity(entity, profile_id, db)
 
 
-async def launch_environment(platform: Platform, profile_id: int | None, db: Session) -> LaunchResult:
+async def launch_environment(platform: Environment, profile_id: int | None, db: Session) -> LaunchResult:
     logger.info("launch_environment entry: platform_id=%d era=%s profile_id=%s", platform.id, platform.era, profile_id)
     exited = process_registry.cleanup_exited()
     if exited:
@@ -535,8 +535,8 @@ async def launch_environment(platform: Platform, profile_id: int | None, db: Ses
             ) = await asyncio.to_thread(provision_platform, platform)
             if _iso_path and not platform.base_image_path:
                 db.execute(
-                    update(Platform)
-                    .where(Platform.id == platform.id)
+                    update(Environment)
+                    .where(Environment.id == platform.id)
                     .values(base_image_path=str(_iso_path))
                 )
                 db.flush()

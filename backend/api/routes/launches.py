@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, get_filtered_collection, require_permission
 from backend.core.logger import get_logger
-from backend.models import LaunchHistory, Platform
+from backend.models import Environment, LaunchHistory
 from backend.models.launch_history import LaunchHistoryRead
 from backend.models.user import User
 from backend.service.launch import coordinator as svc
@@ -49,7 +49,7 @@ async def launch_environment(
     db: Session = Depends(get_db),
     _: User = require_permission("can_launch_media"),
 ):
-    platform = db.get(Platform, platform_id)
+    platform = db.get(Environment, platform_id)
     if not platform:
         raise HTTPException(status_code=404, detail="Environment not found.")
     logger.info("launch_environment route: platform_id=%d era=%s", platform_id, platform.era)

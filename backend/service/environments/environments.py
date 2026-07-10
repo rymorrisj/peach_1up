@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from backend.models.platform import Platform, PlatformCreate, PlatformUpdate
+from backend.models.environment import Environment, EnvironmentCreate, EnvironmentUpdate
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.era_defaults import DOS_WIN_ERAS
 from backend.service.utils.slug_generator import unique_slug
@@ -85,7 +85,7 @@ def _compute_status(era: str, working: str | None, base: str | None) -> str:
     return "healthy"
 
 
-def compute_live_status(platform: Platform) -> str:
+def compute_live_status(platform: Environment) -> str:
     """Uncached status for *platform*, safe to call on every read (list/summary
     endpoints) as well as before persisting (health-check endpoints) — a single
     implementation for both so the two paths can't drift apart again."""
@@ -96,7 +96,7 @@ def compute_live_status(platform: Platform) -> str:
     return _compute_status(platform.era, platform.working_image_path, platform.base_image_path)
 
 
-def create_platform(body: PlatformCreate, db: Session) -> Platform:
+def create_platform(body: EnvironmentCreate, db: Session) -> Environment:
     from backend.core.logger import get_logger
     logger = get_logger(__name__)
 
@@ -109,11 +109,11 @@ def create_platform(body: PlatformCreate, db: Session) -> Platform:
     if body.working_image_path:
         platform_data["working_image_path"] = str(_validate_image_path(body.working_image_path))
 
-    platform = Platform(**platform_data)
+    platform = Environment(**platform_data)
     if not platform.slug:
         platform.slug = unique_slug(
             platform.name,
-            lambda s: db.query(Platform).filter(Platform.slug == s).first() is not None,
+            lambda s: db.query(Environment).filter(Environment.slug == s).first() is not None,
             fallback="platform",
         )
     db.add(platform)
@@ -149,11 +149,11 @@ def delete_platform(platform_id: int, token: str, db: Session) -> None:
     from backend.core.logger import get_logger
     logger = get_logger(__name__)
 
-    if not _consume(token, "platform", platform_id, "delete"):
+    if not _consume(token, "environment", platform_id, "delete"):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
-    platform = db.get(Platform, platform_id)
+    platform = db.get(Environment, platform_id)
     if not platform:
-        raise HTTPException(status_code=404, detail="Platform not found.")
+        raise HTTPException(status_code=404, detail="Environment not found.")
 
     # working_image_path is the app-managed working copy created at
     # registration/provisioning time (P2-4) — safe to remove. base_image_path
@@ -163,21 +163,21 @@ def delete_platform(platform_id: int, token: str, db: Session) -> None:
     # risk") — it is deliberately left untouched here.
     #
     # Path ownership is not just this row's problem: working_image_path has no
-    # uniqueness constraint, so another Platform row could reference the same
+    # uniqueness constraint, so another Environment row could reference the same
     # file (e.g. a manually-set override via PATCH). Deleting the file out
-    # from under a still-live Platform would be worse than leaving an orphan,
+    # from under a still-live Environment would be worse than leaving an orphan,
     # so the file is only removed if no other row still points at it.
     working_path = platform.working_image_path
     if working_path:
         still_referenced = (
-            db.query(Platform)
-            .filter(Platform.id != platform_id, Platform.working_image_path == working_path)
+            db.query(Environment)
+            .filter(Environment.id != platform_id, Environment.working_image_path == working_path)
             .first()
             is not None
         )
         if still_referenced:
             logger.info(
-                "Platform %d deleted; working_image_path '%s' left on disk — "
+                "Environment %d deleted; working_image_path '%s' left on disk — "
                 "still referenced by another platform.",
                 platform_id, working_path,
             )
@@ -197,10 +197,10 @@ def delete_platform(platform_id: int, token: str, db: Session) -> None:
     db.commit()
 
 
-def update_platform(platform_id: int, body: PlatformUpdate, db: Session) -> Platform:
-    platform = db.get(Platform, platform_id)
+def update_platform(platform_id: int, body: EnvironmentUpdate, db: Session) -> Environment:
+    platform = db.get(Environment, platform_id)
     if not platform:
-        raise HTTPException(status_code=404, detail="Platform not found.")
+        raise HTTPException(status_code=404, detail="Environment not found.")
     updates = body.model_dump(exclude_none=True)
     if "era" in updates and updates["era"] not in _PLATFORM_ERAS:
         raise HTTPException(status_code=422, detail=f"Only PC eras are supported: {', '.join(sorted(_PLATFORM_ERAS))}.")
@@ -215,7 +215,7 @@ def update_platform(platform_id: int, body: PlatformUpdate, db: Session) -> Plat
     return platform
 
 
-def check_platform_health(platform: Platform, db: Session) -> dict:
+def check_platform_health(platform: Environment, db: Session) -> dict:
     status = compute_live_status(platform)
     platform.status = status
     platform.last_health_check = datetime.now(timezone.utc)
@@ -238,7 +238,7 @@ def check_platform_health(platform: Platform, db: Session) -> dict:
 
 
 def batch_health_check(db: Session) -> dict:
-    platforms = db.query(Platform).filter(Platform.is_system == False).all()
+    platforms = db.query(Environment).filter(Environment.is_system == False).all()
     results = []
     for platform in platforms:
         status = compute_live_status(platform)
@@ -251,7 +251,7 @@ def batch_health_check(db: Session) -> dict:
 
 def get_health_summary(db: Session) -> dict:
     from sqlalchemy import func, distinct as sa_distinct
-    from backend.models.library import LibraryCollection, LibraryItem
+    from backend.models.software import SoftwareCollection, SoftwareItem
     from backend.service.utils.emulator_catalog import (
         check_bios_presence,
         get_install_path,
@@ -259,7 +259,7 @@ def get_health_summary(db: Session) -> dict:
         load_catalog,
     )
 
-    user_platforms = db.query(Platform).filter(Platform.is_system == False).all()
+    user_platforms = db.query(Environment).filter(Environment.is_system == False).all()
     # Computed live (not read from the persisted status column) so this always
     # matches what list_platforms/GET /platforms shows on the same page load —
     # see compute_live_status.
@@ -269,14 +269,14 @@ def get_health_summary(db: Session) -> dict:
     platform_degraded = len(user_platforms) - platform_healthy - platform_unconfigured
 
     # "library total" = number of games (collections); a multi-disc set counts once.
-    library_count = db.query(LibraryCollection).count()
+    library_count = db.query(SoftwareCollection).count()
     # Count actual per-collection Drive rows (mirrors get_drive_images_bytes, which
     # sums those same rows' image files).
     from backend.models.drive import Drive
     drive_count = db.query(Drive).count()
     extension_count = (
-        db.query(func.count(sa_distinct(LibraryItem.media_type)))
-        .filter(LibraryItem.media_type.isnot(None))
+        db.query(func.count(sa_distinct(SoftwareItem.media_type)))
+        .filter(SoftwareItem.media_type.isnot(None))
         .scalar() or 0
     )
 
@@ -301,7 +301,7 @@ def get_health_summary(db: Session) -> dict:
     rom_installed = sum(1 for e in rom_entries if get_install_path(e["slug"]) is not None)
 
     return {
-        "platforms": {
+        "environments": {
             "total": len(user_platforms),
             "healthy": platform_healthy,
             "degraded": platform_degraded,
@@ -331,7 +331,7 @@ def get_drive_images_bytes(db: Session) -> int:
 
 
 def get_storage_stats(db: Session) -> dict:
-    from backend.models.library import LibraryItem
+    from backend.models.software import SoftwareItem
     from backend.service.utils import settings as _settings
     from backend.service.utils.emulator_catalog import (
         get_settings_key as _get_settings_key,
@@ -339,10 +339,10 @@ def get_storage_stats(db: Session) -> dict:
     )
 
     drive_images_bytes = get_drive_images_bytes(db)
-    source_media_bytes = sum(_safe_file_size(item.media_path) for item in db.query(LibraryItem).all())
+    source_media_bytes = sum(_safe_file_size(item.media_path) for item in db.query(SoftwareItem).all())
     os_images_bytes = sum(
         _safe_file_size(p.base_image_path) + _safe_file_size(p.working_image_path)
-        for p in db.query(Platform).all()
+        for p in db.query(Environment).all()
     )
     emulator_binaries_bytes = sum(
         _safe_file_size(_settings.get(_get_settings_key(e["slug"])) or "")

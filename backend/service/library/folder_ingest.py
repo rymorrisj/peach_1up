@@ -4,7 +4,7 @@ Extracted from the upload-folder route so both the (removed) synchronous route
 path and the chunked/background finalizer share one implementation. This is a
 helper imported by upload_finalize (the orchestration entry point); it funnels
 into the shared collection ingester in service.library.items. Every upload —
-single disc or multi-disc — becomes a LibraryCollection (single-disc is a
+single disc or multi-disc — becomes a SoftwareCollection (single-disc is a
 collection-of-one).
 """
 from __future__ import annotations
@@ -98,7 +98,7 @@ def dedup_disc_anchor(media_root: Path, anchor: Path, db: Session) -> Path:
 
     ``_create_multi_disc_collection`` has no existing-media_path guard the way
     ``_prepare_item`` does for single items, so a duplicate that is still a
-    live ``LibraryItem.media_path`` is rejected here with ``_ItemAlreadyExists``
+    live ``SoftwareItem.media_path`` is rejected here with ``_ItemAlreadyExists``
     (same exception the file-kind path raises, caught by the upload route as a
     409) rather than being silently repointed — that would create a second
     tracked row sharing one media_path with an existing collection. Only a
@@ -106,16 +106,16 @@ def dedup_disc_anchor(media_root: Path, anchor: Path, db: Session) -> Path:
     live item — e.g. left behind after its item was deleted, per
     ``find_existing_duplicate``'s own docstring) is reused.
     """
-    from backend.models.library import LibraryCollection, LibraryItem
+    from backend.models.software import SoftwareCollection, SoftwareItem
     from backend.service.utils.upload_utils import find_existing_duplicate
 
     duplicate = find_existing_duplicate(media_root, anchor, anchor.stat().st_size)
     if duplicate is None:
         return anchor
 
-    live_leaf = db.query(LibraryItem).filter(LibraryItem.media_path == str(duplicate)).first()
+    live_leaf = db.query(SoftwareItem).filter(SoftwareItem.media_path == str(duplicate)).first()
     if live_leaf is not None:
-        raise _ItemAlreadyExists(db.get(LibraryCollection, live_leaf.library_collection_id))
+        raise _ItemAlreadyExists(db.get(SoftwareCollection, live_leaf.library_collection_id))
 
     anchor.unlink(missing_ok=True)
     return duplicate

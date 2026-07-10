@@ -49,7 +49,7 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
     The installed=True write-back goes through entity._db_collection.
     """
     from backend.models.drive import Drive
-    from backend.models.library import LibraryItem
+    from backend.models.software import SoftwareItem
     from backend.service.utils.drive_utils import compute_drive_size_mb, create_drive_for_collection
     from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DRIVE_ERAS
 
@@ -58,7 +58,7 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
     # Auto-create a drive for DOS collections that don't have one yet.
     collection = entity._db_collection
     if drive is None and entity.era in _DRIVE_ERAS and collection is not None:
-        launch_leaf = db.get(LibraryItem, collection.launch_disk_id) if collection.launch_disk_id else None
+        launch_leaf = db.get(SoftwareItem, collection.launch_disk_id) if collection.launch_disk_id else None
         if launch_leaf is not None:
             drive = create_drive_for_collection(collection, launch_leaf, db)
 

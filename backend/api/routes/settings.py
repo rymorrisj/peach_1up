@@ -94,12 +94,12 @@ class LibraryDefaultsResult(BaseModel):
 
 
 @router.get("/library-defaults", response_model=LibraryDefaultsResult)
-def get_library_defaults(_: User = require_permission("can_edit_library")):
-    """Narrow, can_edit_library-gated read of the two boolean defaults that
+def get_library_defaults(_: User = require_permission("can_edit_software")):
+    """Narrow, can_edit_software-gated read of the two boolean defaults that
     library-editing surfaces (Library list, collection detail, Add Media) need
     to seed their own per-action checkboxes. GET /api/v1/settings (the full
     payload) is can_edit_settings-gated — a sub-account can legitimately have
-    can_edit_library without can_edit_settings, and calling the full endpoint
+    can_edit_software without can_edit_settings, and calling the full endpoint
     from those surfaces 403s for that account shape. This endpoint exists so
     those surfaces never need the broader permission just to read two flags.
     """

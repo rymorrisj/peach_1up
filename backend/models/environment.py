@@ -6,7 +6,7 @@ from sqlmodel import Field, SQLModel
 from backend.constants_generated import EmulatorCatalogSlug, EraValue, HardwareProfile
 
 
-class PlatformBase(SQLModel):
+class EnvironmentBase(SQLModel):
     name: str
     era: EraValue = Field(sa_column=Column(String, nullable=False))
     emulator_slug: EmulatorCatalogSlug = Field(sa_column=Column(String, nullable=False))
@@ -25,8 +25,8 @@ class PlatformBase(SQLModel):
     launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
 
 
-class Platform(PlatformBase, table=True):
-    __tablename__ = "platforms"
+class Environment(EnvironmentBase, table=True):
+    __tablename__ = "environments"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     slug: Optional[str] = Field(default=None, unique=True)
@@ -45,12 +45,12 @@ class Platform(PlatformBase, table=True):
     )
 
 
-class PlatformCreate(PlatformBase):
+class EnvironmentCreate(EnvironmentBase):
     slug: Optional[str] = None
     profile_id: Optional[int] = None
 
 
-class PlatformUpdate(SQLModel):
+class EnvironmentUpdate(SQLModel):
     name: Optional[str] = None
     era: Optional[EraValue] = None
     emulator_slug: Optional[EmulatorCatalogSlug] = None
@@ -70,7 +70,7 @@ class PlatformUpdate(SQLModel):
     launch_commands: Optional[list[str]] = None
 
 
-class PlatformRead(PlatformBase):
+class EnvironmentRead(EnvironmentBase):
     id: int
     slug: Optional[str] = None
     profile_id: Optional[int] = None
@@ -88,7 +88,7 @@ class StorageStats(SQLModel):
     emulator_binaries_bytes: int
 
 
-class PlatformHealthCounts(SQLModel):
+class EnvironmentHealthCounts(SQLModel):
     total: int
     healthy: int
     degraded: int
@@ -110,7 +110,7 @@ class BiosCounts(SQLModel):
 
 
 class HealthSummary(SQLModel):
-    platforms: PlatformHealthCounts
+    environments: EnvironmentHealthCounts
     library: CountTotal
     drives: CountTotal
     extensions: CountTotal

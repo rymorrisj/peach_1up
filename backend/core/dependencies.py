@@ -8,7 +8,7 @@ from backend.constants_generated import CONTENT_RATINGS
 from backend.core.database import get_db
 from backend.core.identity import parse_session_cookie, validate_session
 from backend.core.logger import get_logger
-from backend.models.library import LibraryCollection
+from backend.models.software import SoftwareCollection
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
 
@@ -164,12 +164,12 @@ def require_admin_or_self_manage(request: Request, active_user: User = Depends(g
 
 
 def require_library_or_platform_editor(active_user: User = Depends(get_active_user)) -> User:
-    """Allow owners and anyone who can edit the library or platforms (e.g. filesystem browsing)."""
-    if active_user.is_owner or active_user.can_edit_library or active_user.can_edit_platforms:
+    """Allow owners and anyone who can edit the software library or environments (e.g. filesystem browsing)."""
+    if active_user.is_owner or active_user.can_edit_software or active_user.can_edit_environments:
         return active_user
     raise HTTPException(
         status_code=403,
-        detail="Permission denied: requires can_edit_library or can_edit_platforms.",
+        detail="Permission denied: requires can_edit_software or can_edit_environments.",
     )
 
 
@@ -179,7 +179,7 @@ def require_permission(flag: str):
     Owner accounts bypass all permission checks. Usage::
 
         @router.post("/items")
-        def create_item(_: User = require_permission("can_edit_library"), ...):
+        def create_item(_: User = require_permission("can_edit_software"), ...):
             ...
     """
     def _check(active_user: User = Depends(get_active_user)) -> User:
@@ -196,7 +196,7 @@ def require_permission(flag: str):
 
 
 def get_filtered_collections(active_user: User, db: Session):
-    """Return a LibraryCollection query filtered to what *active_user* may see.
+    """Return a SoftwareCollection query filtered to what *active_user* may see.
 
     Owner sees all collections. For non-owners:
     - ``block_unrated_media=True`` excludes collections with null/empty content_rating.
@@ -207,20 +207,20 @@ def get_filtered_collections(active_user: User, db: Session):
 
     Returns a SQLAlchemy Query that callers can chain additional filters onto.
     """
-    q = db.query(LibraryCollection)
+    q = db.query(SoftwareCollection)
 
     if active_user.is_owner:
         return q
 
-    restricted_ids = db.query(MediaRestriction.library_collection_id).filter(
+    restricted_ids = db.query(MediaRestriction.software_collection_id).filter(
         MediaRestriction.user_id == active_user.id
     ).scalar_subquery()
-    q = q.filter(LibraryCollection.id.not_in(restricted_ids))
+    q = q.filter(SoftwareCollection.id.not_in(restricted_ids))
 
     if active_user.block_unrated_media:
         q = q.filter(
-            LibraryCollection.content_rating.isnot(None),
-            LibraryCollection.content_rating != "",
+            SoftwareCollection.content_rating.isnot(None),
+            SoftwareCollection.content_rating != "",
         )
 
     if active_user.max_content_rating:
@@ -230,17 +230,17 @@ def get_filtered_collections(active_user: User, db: Session):
             allowed = {r for r, o in ordinal_map.items() if o <= max_ord}
             q = q.filter(
                 or_(
-                    LibraryCollection.content_rating.is_(None),
-                    LibraryCollection.content_rating == "",
-                    LibraryCollection.content_rating.in_(list(allowed)),
+                    SoftwareCollection.content_rating.is_(None),
+                    SoftwareCollection.content_rating == "",
+                    SoftwareCollection.content_rating.in_(list(allowed)),
                 )
             )
 
     return q
 
 
-def get_filtered_collection(id_or_slug: int | str, active_user: User, db: Session) -> LibraryCollection:
-    """Return a single LibraryCollection if *active_user* is allowed to see it.
+def get_filtered_collection(id_or_slug: int | str, active_user: User, db: Session) -> SoftwareCollection:
+    """Return a single SoftwareCollection if *active_user* is allowed to see it.
 
     Reuses get_filtered_collections' owner-bypass and restriction/rating filters,
     narrowed to one collection. Raises 404 (not a different status) whether the
@@ -249,10 +249,10 @@ def get_filtered_collection(id_or_slug: int | str, active_user: User, db: Sessio
     """
     q = get_filtered_collections(active_user, db)
     if isinstance(id_or_slug, int):
-        q = q.filter(LibraryCollection.id == id_or_slug)
+        q = q.filter(SoftwareCollection.id == id_or_slug)
     else:
-        q = q.filter(LibraryCollection.slug == id_or_slug)
+        q = q.filter(SoftwareCollection.slug == id_or_slug)
     collection = q.first()
     if collection is None:
-        raise HTTPException(status_code=404, detail="Library collection not found.")
+        raise HTTPException(status_code=404, detail="Software collection not found.")
     return collection

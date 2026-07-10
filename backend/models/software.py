@@ -19,18 +19,18 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 # ---------------------------------------------------------------------------
-# Leaf entity: LibraryItem (one disc / media record within a collection).
+# Leaf entity: SoftwareItem (one disc / media record within a collection).
 # Renamed from the former LibrarySetItem; single-disc games are collections-of-one.
 # ---------------------------------------------------------------------------
 
-class LibraryItem(SQLModel, table=True):
-    __tablename__ = "library_items"
+class SoftwareItem(SQLModel, table=True):
+    __tablename__ = "software_items"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     library_collection_id: int = Field(
         sa_column=Column(
             Integer,
-            ForeignKey("library_collections.id", ondelete="CASCADE"),
+            ForeignKey("software_collections.id", ondelete="CASCADE"),
             nullable=False,
             index=True,
         )
@@ -64,11 +64,11 @@ class LibraryItem(SQLModel, table=True):
         sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False),
     )
 
-    library_collection: Optional["LibraryCollection"] = Relationship(
+    library_collection: Optional["SoftwareCollection"] = Relationship(
         back_populates="items"
     )
 
-class LibraryItemRead(SQLModel):
+class SoftwareItemRead(SQLModel):
     id: int
     library_collection_id: int
     disc_number: int
@@ -84,7 +84,7 @@ class LibraryItemRead(SQLModel):
     updated_at: Optional[datetime] = None
 
     @model_validator(mode="after")
-    def _compute_cover_art_url(self) -> "LibraryItemRead":
+    def _compute_cover_art_url(self) -> "SoftwareItemRead":
         if not self.cover_art_path:
             return self
         try:
@@ -97,24 +97,24 @@ class LibraryItemRead(SQLModel):
             pass
         return self
 
-class LibraryItemUpdate(SQLModel):
+class SoftwareItemUpdate(SQLModel):
     executable_path: Optional[str] = None
     cover_art_path: Optional[str] = None
 
 
-class LibraryItemReorder(SQLModel):
+class SoftwareItemReorder(SQLModel):
     # Every leaf id belonging to the collection, top-to-bottom. The first id
     # becomes the new launch disc. disc_number columns are existing data, not
     # a schema change — this only adds a write path for them.
     disc_order: list[int]
 
 # ---------------------------------------------------------------------------
-# Parent entity: LibraryCollection (the game / collection). Renamed from LibrarySet;
+# Parent entity: SoftwareCollection (the game / collection). Renamed from LibrarySet;
 # owns metadata, the writable drive (DOS), and the ordered leaf list.
 # ---------------------------------------------------------------------------
 
-class LibraryCollection(SQLModel, table=True):
-    __tablename__ = "library_collections"
+class SoftwareCollection(SQLModel, table=True):
+    __tablename__ = "software_collections"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     slug: Optional[str] = Field(default=None, index=True, unique=True)
@@ -139,7 +139,7 @@ class LibraryCollection(SQLModel, table=True):
 
     platform_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("platforms.id", ondelete="SET NULL"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("environments.id", ondelete="SET NULL"), nullable=True),
     )
     profile_id: Optional[int] = Field(
         default=None,
@@ -149,8 +149,8 @@ class LibraryCollection(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("drives.id"), nullable=True),
     )
-    # Logical FKs to library_items.id. Not DB-level constraints to avoid a circular
-    # reference between library_collections and library_items during table creation.
+    # Logical FKs to software_items.id. Not DB-level constraints to avoid a circular
+    # reference between software_collections and software_items during table creation.
     launch_disk_id: Optional[int] = Field(default=None)
     # Which leaf's art is shown as the stack front-face. Falls back to launch_disk_id when null.
     display_disk_id: Optional[int] = Field(default=None)
@@ -166,31 +166,31 @@ class LibraryCollection(SQLModel, table=True):
         sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False),
     )
 
-    items: list["LibraryItem"] = Relationship(
+    items: list["SoftwareItem"] = Relationship(
         back_populates="library_collection",
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
-            "order_by": "LibraryItem.disc_number",
+            "order_by": "SoftwareItem.disc_number",
         },
     )
 
     drive: Optional["Drive"] = Relationship(
-        back_populates="library_collection",
+        back_populates="software_collection",
         sa_relationship_kwargs={
-            "foreign_keys": "Drive.library_collection_id",
+            "foreign_keys": "Drive.software_collection_id",
             "uselist": False,
         },
     )
 
 
-class LibraryCollectionCreate(SQLModel):
+class SoftwareCollectionCreate(SQLModel):
     title: str
     media_path: str
     era: EraValue = "unknown"
     profile_id: Optional[int] = None
 
 
-class LibraryCollectionUpdate(SQLModel):
+class SoftwareCollectionUpdate(SQLModel):
     title: Optional[str] = None
     sort_title: Optional[str] = None
     era: Optional[EraValue] = None
@@ -221,7 +221,7 @@ class LibraryCollectionUpdate(SQLModel):
         return data
 
 
-class LibraryCollectionRead(SQLModel):
+class SoftwareCollectionRead(SQLModel):
     id: int
     slug: Optional[str] = None
     title: str
@@ -250,7 +250,7 @@ class LibraryCollectionRead(SQLModel):
     launch_count: int = 0
     created_at: datetime
     updated_at: datetime
-    items: list[LibraryItemRead] = []
+    items: list[SoftwareItemRead] = []
     drive: Optional[DriveRead] = None
     tags: list[TagRead] = []
 
@@ -290,8 +290,8 @@ class ImportResult(SQLModel):
 # ---------------------------------------------------------------------------
 
 
-def _leaf_to_read(leaf: LibraryItem) -> Optional[LibraryItemRead]:
-    """Validate one leaf into a LibraryItemRead, isolating a single bad row.
+def _leaf_to_read(leaf: SoftwareItem) -> Optional[SoftwareItemRead]:
+    """Validate one leaf into a SoftwareItemRead, isolating a single bad row.
 
     A leaf whose DB-persisted ``media_type`` predates the current MediaType
     vocabulary (the column is a bare String and enforces no Literal) would raise
@@ -306,7 +306,7 @@ def _leaf_to_read(leaf: LibraryItem) -> Optional[LibraryItemRead]:
     from backend.core.logger import get_logger
 
     try:
-        return LibraryItemRead.model_validate(leaf)
+        return SoftwareItemRead.model_validate(leaf)
     except ValidationError as exc:
         log = get_logger(__name__)
         leaf_id = getattr(leaf, "id", None)
@@ -319,11 +319,11 @@ def _leaf_to_read(leaf: LibraryItem) -> Optional[LibraryItemRead]:
         try:
             payload = {
                 name: getattr(leaf, name, None)
-                for name in LibraryItemRead.model_fields
+                for name in SoftwareItemRead.model_fields
                 if name != "cover_art_url"
             }
             payload["media_type"] = None
-            return LibraryItemRead.model_validate(payload)
+            return SoftwareItemRead.model_validate(payload)
         except ValidationError as exc2:
             log.warning(
                 "Library item %s is unreadable even after degrading media_type; "
@@ -333,32 +333,32 @@ def _leaf_to_read(leaf: LibraryItem) -> Optional[LibraryItemRead]:
             return None
 
 
-def _leaves_for_collection(collection_id: int, db: "Session") -> list[LibraryItem]:
+def _leaves_for_collection(collection_id: int, db: "Session") -> list[SoftwareItem]:
     from sqlalchemy import select as _select
 
     return list(
         db.execute(
-            _select(LibraryItem)
-            .where(LibraryItem.library_collection_id == collection_id)
-            .order_by(LibraryItem.disc_number)
+            _select(SoftwareItem)
+            .where(SoftwareItem.library_collection_id == collection_id)
+            .order_by(SoftwareItem.disc_number)
         ).scalars().all()
     )
 
 
-def collection_to_read(c: "LibraryCollection", db: "Session") -> LibraryCollectionRead:
-    """Build a LibraryCollectionRead, nesting ordered leaves, tags, and genres."""
+def collection_to_read(c: "SoftwareCollection", db: "Session") -> SoftwareCollectionRead:
+    """Build a SoftwareCollectionRead, nesting ordered leaves, tags, and genres."""
     from backend.models.metadata_lookup import get_genres_for_collection
 
-    read = LibraryCollectionRead.model_validate(c)
+    read = SoftwareCollectionRead.model_validate(c)
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
-    read.tags = get_tags_for_entity("library_collection", c.id, db)
+    read.tags = get_tags_for_entity("software_collection", c.id, db)
     read.genres = get_genres_for_collection(c.id, db)
     return read
 
 
 def collections_to_read_bulk(
-    collections: list["LibraryCollection"], db: "Session"
-) -> list[LibraryCollectionRead]:
+    collections: list["SoftwareCollection"], db: "Session"
+) -> list[SoftwareCollectionRead]:
     """collection_to_read over a list in three bulk queries total (all leaves,
     all tags, all genres) instead of the per-collection N+1."""
     from sqlalchemy import select as _select
@@ -370,24 +370,24 @@ def collections_to_read_bulk(
 
     collection_ids = [c.id for c in collections]
     leaves = db.execute(
-        _select(LibraryItem)
-        .where(LibraryItem.library_collection_id.in_(collection_ids))
-        .order_by(LibraryItem.library_collection_id, LibraryItem.disc_number)
+        _select(SoftwareItem)
+        .where(SoftwareItem.library_collection_id.in_(collection_ids))
+        .order_by(SoftwareItem.library_collection_id, SoftwareItem.disc_number)
     ).scalars().all()
 
-    leaves_by_collection: dict[int, list[LibraryItemRead]] = {}
+    leaves_by_collection: dict[int, list[SoftwareItemRead]] = {}
     for leaf in leaves:
         leaf_read = _leaf_to_read(leaf)
         if leaf_read is None:
             continue
         leaves_by_collection.setdefault(leaf.library_collection_id, []).append(leaf_read)
 
-    tag_map = get_tags_for_entities("library_collection", collection_ids, db)
+    tag_map = get_tags_for_entities("software_collection", collection_ids, db)
     genre_map = get_genres_for_collections(collection_ids, db)
 
-    reads: list[LibraryCollectionRead] = []
+    reads: list[SoftwareCollectionRead] = []
     for c in collections:
-        read = LibraryCollectionRead.model_validate(c)
+        read = SoftwareCollectionRead.model_validate(c)
         read.items = leaves_by_collection.get(c.id, [])
         read.tags = tag_map.get(c.id, [])
         read.genres = genre_map.get(c.id, [])

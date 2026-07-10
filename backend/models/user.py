@@ -11,8 +11,8 @@ class UserBase(SQLModel):
     is_owner: bool = False
     pin_required: bool = False
     can_launch_media: bool = True
-    can_edit_platforms: bool = False
-    can_edit_library: bool = False
+    can_edit_environments: bool = False
+    can_edit_software: bool = False
     can_manage_profiles: bool = False
     can_edit_settings: bool = False
     can_manage_users: bool = False

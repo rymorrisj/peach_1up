@@ -14,9 +14,9 @@ from backend.core.dependencies import (
     get_active_user, get_filtered_collection, get_filtered_collections, require_permission,
 )
 from backend.core.logger import get_logger
-from backend.models.library import (
-    ImportResult, LibraryCollection, LibraryCollectionCreate, LibraryCollectionRead,
-    LibraryCollectionUpdate, LibraryItem, LibraryItemRead, LibraryItemReorder, LibraryItemUpdate,
+from backend.models.software import (
+    ImportResult, SoftwareCollection, SoftwareCollectionCreate, SoftwareCollectionRead,
+    SoftwareCollectionUpdate, SoftwareItem, SoftwareItemRead, SoftwareItemReorder, SoftwareItemUpdate,
     ScanStatus, collection_to_read, collections_to_read_bulk,
 )
 from backend.models.media_restriction import MediaRestriction
@@ -77,7 +77,7 @@ class ScanImportBody(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/library", response_model=Page[LibraryCollectionRead])
+@router.get("/software", response_model=Page[SoftwareCollectionRead])
 def list_library(
     era: str | None = None,
     category: str | None = None,
@@ -91,34 +91,34 @@ def list_library(
 ):
     q = get_filtered_collections(active_user, db)
     if era:
-        q = q.filter(LibraryCollection.era == era)
+        q = q.filter(SoftwareCollection.era == era)
     if category:
-        q = q.filter(LibraryCollection.category == category)
+        q = q.filter(SoftwareCollection.category == category)
     if platform_id is not None:
-        q = q.filter(LibraryCollection.platform_id == platform_id)
+        q = q.filter(SoftwareCollection.platform_id == platform_id)
     if profile_assigned is True:
-        q = q.filter(LibraryCollection.profile_id.isnot(None))
+        q = q.filter(SoftwareCollection.profile_id.isnot(None))
     elif profile_assigned is False:
-        q = q.filter(LibraryCollection.profile_id.is_(None))
+        q = q.filter(SoftwareCollection.profile_id.is_(None))
     if tag:
         from backend.models.tag import Tag, EntityTag
         subq = (
             db.query(EntityTag.entity_id)
             .join(Tag, EntityTag.tag_id == Tag.id)
-            .filter(EntityTag.entity_type == "library_collection", Tag.name == tag)
+            .filter(EntityTag.entity_type == "software_collection", Tag.name == tag)
             .subquery()
         )
-        q = q.filter(LibraryCollection.id.in_(subq))
+        q = q.filter(SoftwareCollection.id.in_(subq))
     total = q.count()
-    rows = q.order_by(LibraryCollection.id).offset(offset).limit(limit).all()
+    rows = q.order_by(SoftwareCollection.id).offset(offset).limit(limit).all()
     return Page(items=collections_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 
-@router.post("/library", response_model=LibraryCollectionRead, status_code=201)
+@router.post("/software", response_model=SoftwareCollectionRead, status_code=201)
 def add_library_collection(
-    body: LibraryCollectionCreate,
+    body: SoftwareCollectionCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
     """Create a collection-of-one from a single media path."""
     try:
@@ -141,13 +141,13 @@ class ImportFromPathBody(BaseModel):
     delete_original: bool = False
 
 
-@router.post("/library/import-from-path")
+@router.post("/software/import-from-path")
 def import_from_path(
     body: ImportFromPathBody,
     request: Request,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
     """Import a file or folder already on the server's filesystem — the same
     kind of real, absolute path GET /api/v1/filesystem/browse resolves — into
@@ -179,9 +179,9 @@ def import_from_path(
     # already-copied path under MEDIA_PATH — by then the (potentially huge)
     # copy has already happened and would silently duplicate an OS image into
     # the library. Check the original source here, before staging starts.
-    from backend.models.platform import Platform
+    from backend.models.environment import Environment
     incoming_norm = resolved.as_posix()
-    for base_path, working_path in db.query(Platform.base_image_path, Platform.working_image_path).all():
+    for base_path, working_path in db.query(Environment.base_image_path, Environment.working_image_path).all():
         if (base_path and Path(base_path).resolve().as_posix() == incoming_norm) or (
             working_path and Path(working_path).resolve().as_posix() == incoming_norm
         ):
@@ -230,13 +230,13 @@ def import_from_path(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/library/scan/status", response_model=ScanStatus)
+@router.get("/software/scan/status", response_model=ScanStatus)
 def scan_status():
     with _scan_lock:
         return {"running": _scan_running, "job_id": _scan_job_id, "error": _scan_error}
 
 
-@router.post("/library/scan/{job_id}/cancel")
+@router.post("/software/scan/{job_id}/cancel")
 def cancel_scan(job_id: str):
     """Cooperative cancellation for an in-flight scan job. Flags the job so
     _run_scan's loop exits at its next check, then returns the updated job
@@ -300,8 +300,8 @@ def _check_known_items_findable(db: Session) -> None:
     original_name/media_path to reconcile against existing rows, so a
     known item that can no longer be found on disk is surfaced immediately
     rather than dropped without explanation."""
-    rows = db.query(LibraryItem.media_path, LibraryItem.original_name).filter(
-        LibraryItem.media_path.isnot(None)
+    rows = db.query(SoftwareItem.media_path, SoftwareItem.original_name).filter(
+        SoftwareItem.media_path.isnot(None)
     ).all()
     for media_path, original_name in rows:
         if not Path(media_path).exists():
@@ -312,7 +312,7 @@ def _check_known_items_findable(db: Session) -> None:
             )
 
 
-@router.post("/library/scan")
+@router.post("/software/scan")
 def trigger_scan(
     request: Request,
     background_tasks: BackgroundTasks = BackgroundTasks(),
@@ -364,13 +364,13 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
         try:
             existing_folder_paths: set[str] = {
                 str(Path(fp).resolve())
-                for (fp,) in db.query(LibraryItem.folder_path)
-                .filter(LibraryItem.folder_path.isnot(None))
+                for (fp,) in db.query(SoftwareItem.folder_path)
+                .filter(SoftwareItem.folder_path.isnot(None))
                 .all()
             }
             existing_media_dirs: set[str] = {
                 str(Path(mp).resolve().parent)
-                for (mp,) in db.query(LibraryItem.media_path).all()
+                for (mp,) in db.query(SoftwareItem.media_path).all()
             }
 
             for _idx, entry in enumerate(entries):
@@ -447,11 +447,11 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
                 )
 
 
-@router.post("/library/scan/import", response_model=ImportResult)
+@router.post("/software/scan/import", response_model=ImportResult)
 def import_scan_results(
     body: ScanImportBody,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
     """
     Phase 2: import the user-selected paths from the Phase 1 preview. Each import
@@ -463,7 +463,7 @@ def import_scan_results(
 
     used_slugs: set[str] = {
         s
-        for (s,) in db.query(LibraryCollection.slug).filter(LibraryCollection.slug.isnot(None)).all()
+        for (s,) in db.query(SoftwareCollection.slug).filter(SoftwareCollection.slug.isnot(None)).all()
     }
 
     imported = 0
@@ -514,7 +514,7 @@ def import_scan_results(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/librarycollection/by-slug/{slug}", response_model=LibraryCollectionRead)
+@router.get("/softwarecollection/by-slug/{slug}", response_model=SoftwareCollectionRead)
 def get_collection_by_slug(
     slug: str,
     db: Session = Depends(get_db),
@@ -523,7 +523,7 @@ def get_collection_by_slug(
     return collection_to_read(get_filtered_collection(slug, active_user, db), db)
 
 
-@router.get("/librarycollection/{collection_id}", response_model=LibraryCollectionRead)
+@router.get("/softwarecollection/{collection_id}", response_model=SoftwareCollectionRead)
 def get_collection(
     collection_id: int,
     db: Session = Depends(get_db),
@@ -532,25 +532,25 @@ def get_collection(
     return collection_to_read(get_filtered_collection(collection_id, active_user, db), db)
 
 
-@router.patch("/librarycollection/{collection_id}", response_model=LibraryCollectionRead)
+@router.patch("/softwarecollection/{collection_id}", response_model=SoftwareCollectionRead)
 def update_collection(
     collection_id: int,
-    body: LibraryCollectionUpdate,
+    body: SoftwareCollectionUpdate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
     return collection_to_read(lib_svc.update_library_collection(collection_id, body, db), db)
 
 
-@router.post("/librarycollection/{collection_id}/flag-launch", response_model=LibraryCollectionRead)
+@router.post("/softwarecollection/{collection_id}/flag-launch", response_model=SoftwareCollectionRead)
 def flag_launch(
     collection_id: int,
     db: Session = Depends(get_db),
     _: User = require_permission("can_launch_media"),
 ):
-    collection = db.get(LibraryCollection, collection_id)
+    collection = db.get(SoftwareCollection, collection_id)
     if not collection:
-        raise HTTPException(status_code=404, detail="Library collection not found.")
+        raise HTTPException(status_code=404, detail="Software collection not found.")
     collection.launch_review_flagged = True
     db.commit()
     db.refresh(collection)
@@ -572,7 +572,7 @@ def _run_xiso_conversion(key: str, media_path: str) -> None:
         logger.error("extract-xiso conversion failed for %s: %s", media_path, exc)
 
 
-@router.post("/librarycollection/{collection_id}/convert-xiso")
+@router.post("/softwarecollection/{collection_id}/convert-xiso")
 def start_xiso_conversion(
     collection_id: int,
     background_tasks: BackgroundTasks,
@@ -608,7 +608,7 @@ def start_xiso_conversion(
     return {"status": "converting"}
 
 
-@router.get("/librarycollection/{collection_id}/convert-xiso/status")
+@router.get("/softwarecollection/{collection_id}/convert-xiso/status")
 def get_xiso_conversion_status(
     collection_id: int,
     _: User = require_permission("can_launch_media"),
@@ -621,63 +621,63 @@ def get_xiso_conversion_status(
     }
 
 
-@router.post("/librarycollection/{collection_id}/confirm-delete")
+@router.post("/softwarecollection/{collection_id}/confirm-delete")
 def issue_delete_token(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
-    collection = db.get(LibraryCollection, collection_id)
+    collection = db.get(SoftwareCollection, collection_id)
     if not collection:
-        raise HTTPException(status_code=404, detail="Library collection not found.")
-    token = confirmation_tokens.issue("library", collection_id)
+        raise HTTPException(status_code=404, detail="Software collection not found.")
+    token = confirmation_tokens.issue("software", collection_id)
     return {"confirmation_token": token, "expires_in_seconds": TOKEN_TTL}
 
 
-@router.delete("/librarycollection/{collection_id}", status_code=204)
+@router.delete("/softwarecollection/{collection_id}", status_code=204)
 def delete_collection(
     collection_id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
     lib_svc.delete_library_collection(collection_id, confirmation_token, db)
 
 
-@router.get("/librarycollection/{collection_id}/restrictions")
+@router.get("/softwarecollection/{collection_id}/restrictions")
 def get_restrictions(
     collection_id: int,
     db: Session = Depends(get_db),
     _: User = require_permission("is_admin"),
 ):
-    if not db.get(LibraryCollection, collection_id):
-        raise HTTPException(status_code=404, detail="Library collection not found.")
-    rows = db.query(MediaRestriction).filter(MediaRestriction.library_collection_id == collection_id).all()
+    if not db.get(SoftwareCollection, collection_id):
+        raise HTTPException(status_code=404, detail="Software collection not found.")
+    rows = db.query(MediaRestriction).filter(MediaRestriction.software_collection_id == collection_id).all()
     return {"restricted_user_ids": [r.user_id for r in rows]}
 
 
-@router.put("/librarycollection/{collection_id}/restrictions")
+@router.put("/softwarecollection/{collection_id}/restrictions")
 def set_restrictions(
     collection_id: int,
     body: RestrictionsBody,
     db: Session = Depends(get_db),
     _: User = require_permission("is_admin"),
 ):
-    if not db.get(LibraryCollection, collection_id):
-        raise HTTPException(status_code=404, detail="Library collection not found.")
-    db.query(MediaRestriction).filter(MediaRestriction.library_collection_id == collection_id).delete()
+    if not db.get(SoftwareCollection, collection_id):
+        raise HTTPException(status_code=404, detail="Software collection not found.")
+    db.query(MediaRestriction).filter(MediaRestriction.software_collection_id == collection_id).delete()
     for user_id in body.user_ids:
-        db.add(MediaRestriction(user_id=user_id, library_collection_id=collection_id))
+        db.add(MediaRestriction(user_id=user_id, software_collection_id=collection_id))
     db.commit()
     return {"restricted_user_ids": body.user_ids}
 
 
-@router.patch("/librarycollection/{collection_id}/items/reorder", response_model=LibraryCollectionRead)
+@router.patch("/softwarecollection/{collection_id}/items/reorder", response_model=SoftwareCollectionRead)
 def reorder_collection_items(
     collection_id: int,
-    body: LibraryItemReorder,
+    body: SoftwareItemReorder,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
     # Registered before the "/items/{leaf_id}" route below: {leaf_id} has no
     # type constraint in the path itself, so a literal "reorder" segment
@@ -686,14 +686,14 @@ def reorder_collection_items(
     return collection_to_read(collection, db)
 
 
-@router.patch("/librarycollection/{collection_id}/items/{leaf_id}", response_model=LibraryItemRead)
+@router.patch("/softwarecollection/{collection_id}/items/{leaf_id}", response_model=SoftwareItemRead)
 def update_collection_leaf(
     collection_id: int,
     leaf_id: int,
-    body: LibraryItemUpdate,
+    body: SoftwareItemUpdate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
-    return LibraryItemRead.model_validate(
+    return SoftwareItemRead.model_validate(
         lib_svc.update_library_leaf(collection_id, leaf_id, body, db)
     )

@@ -5,7 +5,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, func
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
-    from backend.models.library import LibraryCollection
+    from backend.models.software import SoftwareCollection
 
 class DriveBase(SQLModel):
     name: str
@@ -16,10 +16,10 @@ class Drive(DriveBase, table=True):
     __tablename__ = "drives"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    library_collection_id: int = Field(
+    software_collection_id: int = Field(
         sa_column=Column(
             Integer,
-            ForeignKey("library_collections.id", ondelete="CASCADE"),
+            ForeignKey("software_collections.id", ondelete="CASCADE"),
             nullable=False,
             unique=True,
             index=True,
@@ -30,15 +30,15 @@ class Drive(DriveBase, table=True):
         sa_column=Column(DateTime, server_default=func.now(), nullable=False),
     )
 
-    library_collection: Optional["LibraryCollection"] = Relationship(
+    software_collection: Optional["SoftwareCollection"] = Relationship(
         back_populates="drive",
         sa_relationship_kwargs={
-            "foreign_keys": "Drive.library_collection_id",
+            "foreign_keys": "Drive.software_collection_id",
             "uselist": False,
         },
     )
 
 class DriveRead(DriveBase):
     id: int
-    library_collection_id: int
+    software_collection_id: int
     created_at: datetime

@@ -1,6 +1,6 @@
 """Provider-agnostic metadata search/fetch abstraction.
 
-library_metadata.py talks to this package only, never to a concrete provider
+software_metadata.py talks to this package only, never to a concrete provider
 client — get_active_provider() reads the metadata_provider app_settings key
 and returns the matching implementation. Adding a provider means adding a
 module here plus one branch in get_active_provider(); no route or enrich.py

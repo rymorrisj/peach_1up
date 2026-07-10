@@ -8,7 +8,7 @@ import httpx
 from fastapi import HTTPException
 
 from backend.core.logger import get_logger
-from backend.models.library import LibraryCollection, LibraryItem
+from backend.models.software import SoftwareCollection, SoftwareItem
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -123,9 +123,9 @@ def enrich_entity(
 
     if entity_type == "library_collection":
         # Metadata lives on the collection; cover art belongs on the individual leaves.
-        entity = db.get(LibraryCollection, entity_id)
+        entity = db.get(SoftwareCollection, entity_id)
         if not entity:
-            raise HTTPException(status_code=404, detail="Library collection not found.")
+            raise HTTPException(status_code=404, detail="Software collection not found.")
         if cover_art_url:
             raise HTTPException(
                 status_code=422,
@@ -168,9 +168,9 @@ def enrich_entity(
 
     elif entity_type == "library_item":
         # Leaf: per-disc cover art only — no metadata fields (those go on the collection).
-        entity = db.get(LibraryItem, entity_id)
+        entity = db.get(SoftwareItem, entity_id)
         if not entity:
-            raise HTTPException(status_code=404, detail="Library item not found.")
+            raise HTTPException(status_code=404, detail="Software item not found.")
         if metadata_fields or genre is not None:
             raise HTTPException(
                 status_code=422,

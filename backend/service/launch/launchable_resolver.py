@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
     from backend.models.drive import Drive
-    from backend.models.library import LibraryCollection
+    from backend.models.software import SoftwareCollection
 
 
 @dataclass
@@ -40,7 +40,7 @@ class LaunchableEntity:
     folder_path: str | None = None
 
     # Pre-resolved Drive ORM object (None if no drive associated). Populated from
-    # the collection's LibraryCollection.drive relationship (None for non-DOS).
+    # the collection's SoftwareCollection.drive relationship (None for non-DOS).
     drive: "Drive | None" = None
 
     # All disc media_paths in disc_number order (a collection-of-one yields a
@@ -48,34 +48,34 @@ class LaunchableEntity:
     disc_paths: list[str] = field(default_factory=list)
 
     # ORM back-reference for collection.installed write-back after loose-file copy.
-    _db_collection: "LibraryCollection | None" = None
+    _db_collection: "SoftwareCollection | None" = None
 
 
 def resolve_launchable(
     collection_id: int,
     db: "Session",
 ) -> LaunchableEntity:
-    """Resolve a LibraryCollection into a LaunchableEntity via its launch leaf.
+    """Resolve a SoftwareCollection into a LaunchableEntity via its launch leaf.
 
     Raises ValueError if the collection or its launch leaf is not found, or if
     no launch disc is configured.
     """
-    from backend.models.library import LibraryCollection, LibraryItem
+    from backend.models.software import SoftwareCollection, SoftwareItem
 
-    c = db.get(LibraryCollection, collection_id)
+    c = db.get(SoftwareCollection, collection_id)
     if c is None:
-        raise ValueError(f"LibraryCollection {collection_id} not found")
+        raise ValueError(f"SoftwareCollection {collection_id} not found")
     if not c.launch_disk_id:
-        raise ValueError(f"LibraryCollection {collection_id} has no launch disc configured")
-    launch_leaf = db.get(LibraryItem, c.launch_disk_id)
+        raise ValueError(f"SoftwareCollection {collection_id} has no launch disc configured")
+    launch_leaf = db.get(SoftwareItem, c.launch_disk_id)
     if launch_leaf is None:
         raise ValueError(
-            f"LibraryCollection {collection_id}: launch disc leaf {c.launch_disk_id} not found"
+            f"SoftwareCollection {collection_id}: launch disc leaf {c.launch_disk_id} not found"
         )
     all_leaves = (
-        db.query(LibraryItem)
-        .filter(LibraryItem.library_collection_id == c.id)
-        .order_by(LibraryItem.disc_number)
+        db.query(SoftwareItem)
+        .filter(SoftwareItem.library_collection_id == c.id)
+        .order_by(SoftwareItem.disc_number)
         .all()
     )
 

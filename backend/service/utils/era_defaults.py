@@ -21,18 +21,18 @@ def defaults_for_era(era_slug: str) -> tuple[str | None, str | None]:
         case _:           return (None, None)
 
 
-def lookup_platform_and_profile(
+def lookup_environment_and_profile(
     emulator_slug: str,
     profile_era: str,
     db: Session,
 ) -> tuple[int | None, int | None]:
-    """Return (platform_id, profile_id) for the given emulator and era, querying system records only."""
-    from backend.models.platform import Platform
+    """Return (environment_id, profile_id) for the given emulator and era, querying system records only."""
+    from backend.models.environment import Environment
     from backend.models.profile import Profile
 
     platform = (
-        db.query(Platform)
-        .filter(Platform.emulator_slug == emulator_slug, Platform.is_system == True)
+        db.query(Environment)
+        .filter(Environment.emulator_slug == emulator_slug, Environment.is_system == True)
         .first()
     )
     profile = (

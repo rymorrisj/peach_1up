@@ -12,7 +12,7 @@ from backend.core import process_registry
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
 from backend.models.user import User
-from backend.service.platforms.environments import get_drive_images_bytes
+from backend.service.environments.environments import get_drive_images_bytes
 
 router = APIRouter(prefix="/api/v1", tags=["health"])
 
@@ -118,13 +118,13 @@ def _compute_storage_footprint(db: Session) -> dict:
     # era lives on the collection; file sizes on the leaf — join to break down by era.
     sized_rows = db.execute(
         text(
-            "SELECT c.era, i.file_size_bytes FROM library_items i "
-            "JOIN library_collections c ON c.id = i.library_collection_id "
+            "SELECT c.era, i.file_size_bytes FROM software_items i "
+            "JOIN software_collections c ON c.id = i.library_collection_id "
             "WHERE i.file_size_bytes IS NOT NULL"
         )
     ).fetchall()
     unsized_count = db.execute(
-        text("SELECT COUNT(*) FROM library_items WHERE file_size_bytes IS NULL")
+        text("SELECT COUNT(*) FROM software_items WHERE file_size_bytes IS NULL")
     ).scalar() or 0
 
     era_map: dict[str, dict] = {}
@@ -173,7 +173,7 @@ def _get_storage_footprint(db: Session, force_refresh: bool = False) -> dict:
 @router.get("/health/storage")
 def storage_footprint(
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_platforms"),
+    _: User = require_permission("can_edit_environments"),
 ):
     return _get_storage_footprint(db)
 
@@ -181,11 +181,11 @@ def storage_footprint(
 @router.post("/health/storage/rescan")
 def rescan_file_sizes(
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_platforms"),
+    _: User = require_permission("can_edit_environments"),
 ):
     rows = db.execute(
         text(
-            "SELECT id, media_path FROM library_items "
+            "SELECT id, media_path FROM software_items "
             "WHERE file_size_bytes IS NULL AND media_path IS NOT NULL"
         )
     ).fetchall()
@@ -194,7 +194,7 @@ def rescan_file_sizes(
         try:
             size = os.path.getsize(media_path)
             db.execute(
-                text("UPDATE library_items SET file_size_bytes = :size WHERE id = :id"),
+                text("UPDATE software_items SET file_size_bytes = :size WHERE id = :id"),
                 {"size": size, "id": item_id},
             )
             updated += 1

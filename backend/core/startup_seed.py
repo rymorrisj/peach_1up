@@ -102,13 +102,13 @@ _DEFAULT_PROFILES = [
 ]
 
 
-def _seed_system_platforms(db) -> bool:
+def _seed_system_environments(db) -> bool:
     try:
-        from backend.models import Platform
+        from backend.models import Environment
         added = 0
         for data in _SYSTEM_PLATFORMS:
-            if not db.query(Platform).filter(Platform.slug == data["slug"]).first():
-                db.add(Platform(**data))
+            if not db.query(Environment).filter(Environment.slug == data["slug"]).first():
+                db.add(Environment(**data))
                 added += 1
         if added:
             db.flush()
@@ -156,13 +156,13 @@ def _seed_dosbox_environments(db) -> bool:
     DOSBox-X item launches; per-item drives are created lazily by drive_hydration.
     """
     try:
-        from backend.models import Platform, Profile
+        from backend.models import Environment, Profile
         from backend.core.settings import get_base_path
 
         os_root = get_base_path() / "library" / "system"
         added = 0
         for env in _DOSBOX_ENVIRONMENTS:
-            if db.query(Platform).filter(Platform.slug == env["slug"]).first():
+            if db.query(Environment).filter(Environment.slug == env["slug"]).first():
                 continue
             profile = db.query(Profile).filter(Profile.slug == env["profile_slug"]).first()
             if profile is None:
@@ -172,7 +172,7 @@ def _seed_dosbox_environments(db) -> bool:
                 )
                 return False
             image_path = str((os_root / env["image_rel"]).resolve())
-            db.add(Platform(
+            db.add(Environment(
                 slug=env["slug"],
                 name=env["name"],
                 era=env["era"],

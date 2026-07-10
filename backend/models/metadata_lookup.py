@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 
 class Genre(SQLModel, table=True):
-    """Provider-resolved genre, joinable onto LibraryCollection (many-to-many).
+    """Provider-resolved genre, joinable onto SoftwareCollection (many-to-many).
 
     Unique on (provider, external_id) for the fast cache-hit path used by a
     provider's own ID resolution loop. name also carries its own unique
@@ -27,13 +27,13 @@ class Genre(SQLModel, table=True):
 
 class LibraryCollectionGenre(SQLModel, table=True):
     """Join row: one per (collection, genre) pair. Real FK, not polymorphic —
-    genre only ever applies to LibraryCollection, unlike EntityTag's tags."""
+    genre only ever applies to SoftwareCollection, unlike EntityTag's tags."""
     __tablename__ = "library_collection_genres"
     __table_args__ = (UniqueConstraint("library_collection_id", "genre_id"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     library_collection_id: int = Field(
-        sa_column=Column(Integer, ForeignKey("library_collections.id", ondelete="CASCADE"), nullable=False, index=True)
+        sa_column=Column(Integer, ForeignKey("software_collections.id", ondelete="CASCADE"), nullable=False, index=True)
     )
     genre_id: int = Field(
         sa_column=Column(Integer, ForeignKey("genres.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -42,8 +42,8 @@ class LibraryCollectionGenre(SQLModel, table=True):
 
 class Developer(SQLModel, table=True):
     """Provider ID -> name cache, used internally by a provider's resolver
-    only. Never joined onto LibraryCollection — the resolved name is written
-    into LibraryCollection.developer as a plain string, same as publisher."""
+    only. Never joined onto SoftwareCollection — the resolved name is written
+    into SoftwareCollection.developer as a plain string, same as publisher."""
     __tablename__ = "developers"
     __table_args__ = (UniqueConstraint("provider", "external_id"),)
 

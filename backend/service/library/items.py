@@ -8,9 +8,9 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.models.library import (
-    LibraryCollection, LibraryCollectionCreate, LibraryCollectionUpdate,
-    LibraryItem, LibraryItemReorder, LibraryItemUpdate,
+from backend.models.software import (
+    SoftwareCollection, SoftwareCollectionCreate, SoftwareCollectionUpdate,
+    SoftwareItem, SoftwareItemReorder, SoftwareItemUpdate,
 )
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.era_media import is_drive_image, media_type_from_path, resolve_media_file_from_directory
@@ -35,7 +35,7 @@ _LEAF_COLUMNS = {
 
 class _ItemAlreadyExists(Exception):
     """Raised by _prepare_item when the media path is already tracked."""
-    def __init__(self, collection: LibraryCollection | None):
+    def __init__(self, collection: SoftwareCollection | None):
         self.collection = collection
 
 
@@ -129,10 +129,10 @@ def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     return hit if hit is not None else folder
 
 
-def _collection_for_leaf(leaf: LibraryItem | None, db: Session) -> LibraryCollection | None:
+def _collection_for_leaf(leaf: SoftwareItem | None, db: Session) -> SoftwareCollection | None:
     if leaf is None:
         return None
-    return db.get(LibraryCollection, leaf.library_collection_id)
+    return db.get(SoftwareCollection, leaf.library_collection_id)
 
 
 def _prepare_item(
@@ -171,8 +171,8 @@ def _prepare_item(
     """
     from backend.core.logger import get_logger
     from backend.core.settings import get_settings
-    from backend.models.platform import Platform
-    from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
+    from backend.models.environment import Environment
+    from backend.service.utils.era_defaults import defaults_for_era, lookup_environment_and_profile
     from backend.service.utils.profile_builder import _EXECUTABLE_PRIORITY, _find_cover
     from backend.service.utils.smart_media_detector import detect as _smart_detect
     from backend.service.utils.rating_detect import detect_rating
@@ -192,7 +192,7 @@ def _prepare_item(
     incoming_norm = media_src.as_posix()
 
     for base_path, working_path in db.query(
-        Platform.base_image_path, Platform.working_image_path
+        Environment.base_image_path, Environment.working_image_path
     ).all():
         if (base_path and Path(base_path).resolve().as_posix() == incoming_norm) or (
             working_path and Path(working_path).resolve().as_posix() == incoming_norm
@@ -254,13 +254,13 @@ def _prepare_item(
                     detail="Folder is outside the media library (library/media/).",
                 )
 
-        existing = db.query(LibraryItem).filter(
-            LibraryItem.folder_path == str(media_src)
+        existing = db.query(SoftwareItem).filter(
+            SoftwareItem.folder_path == str(media_src)
         ).first()
         if existing:
             raise _ItemAlreadyExists(_collection_for_leaf(existing, db))
-        sub = db.query(LibraryItem).filter(
-            LibraryItem.media_path.like(str(media_src) + "/%")
+        sub = db.query(SoftwareItem).filter(
+            SoftwareItem.media_path.like(str(media_src) + "/%")
         ).first()
         if sub:
             raise _ItemAlreadyExists(_collection_for_leaf(sub, db))
@@ -338,8 +338,8 @@ def _prepare_item(
             # media_path is always written as str(Path(...).resolve()) by this same
             # function, so an exact match against the same two candidate strings
             # finds any prior duplicate without re-resolving the whole table.
-            existing_leaf = db.query(LibraryItem).filter(
-                LibraryItem.media_path.in_([str(media_src), str(dest)])
+            existing_leaf = db.query(SoftwareItem).filter(
+                SoftwareItem.media_path.in_([str(media_src), str(dest)])
             ).first()
             if existing_leaf:
                 raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
@@ -399,8 +399,8 @@ def _prepare_item(
 
             _owned_folder_root = dest_folder
         else:
-            existing_leaf = db.query(LibraryItem).filter(
-                LibraryItem.media_path == str(media_src)
+            existing_leaf = db.query(SoftwareItem).filter(
+                SoftwareItem.media_path == str(media_src)
             ).first()
             if existing_leaf:
                 raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
@@ -481,7 +481,7 @@ def _prepare_item(
     if row["era"] and row["era"] != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(row["era"])
         if _emulator_slug and _profile_era:
-            _def_platform_id, _def_profile_id = lookup_platform_and_profile(
+            _def_platform_id, _def_profile_id = lookup_environment_and_profile(
                 _emulator_slug, _profile_era, db
             )
             if _def_profile_id is not None:
@@ -503,18 +503,18 @@ def _prepare_item(
     return row
 
 
-def _persist_collection_of_one(row: dict, db: Session) -> LibraryCollection:
-    """Create a LibraryCollection + its single LibraryItem leaf from a prepared row.
+def _persist_collection_of_one(row: dict, db: Session) -> SoftwareCollection:
+    """Create a SoftwareCollection + its single SoftwareItem leaf from a prepared row.
 
     Flushes both so ids exist and launch/display disk pointers are set to the
     leaf. Does NOT commit — the caller owns the transaction (and any undo of
     filesystem side effects on IntegrityError).
     """
-    collection = LibraryCollection(**{k: row[k] for k in _COLLECTION_COLUMNS if k in row})
+    collection = SoftwareCollection(**{k: row[k] for k in _COLLECTION_COLUMNS if k in row})
     db.add(collection)
     db.flush()
 
-    leaf = LibraryItem(
+    leaf = SoftwareItem(
         library_collection_id=collection.id,
         disc_number=1,
         **{k: row[k] for k in _LEAF_COLUMNS if k in row},
@@ -534,7 +534,7 @@ def _ingest_media_entry(
     db: Session,
     *,
     override_profile_id: int | None = None,
-) -> LibraryCollection:
+) -> SoftwareCollection:
     """
     Single shared ingest pipeline: prepare → persist a collection-of-one.
     Called by both the manual add route and the scanner import endpoint.
@@ -629,9 +629,9 @@ def _create_multi_disc_collection(
     db: Session,
     *,
     staging_dir: Path | None = None,
-) -> LibraryCollection:
+) -> SoftwareCollection:
     """
-    Create a LibraryCollection with one LibraryItem leaf per disc file.
+    Create a SoftwareCollection with one SoftwareItem leaf per disc file.
     disc_files must be pre-sorted (disc 1 first).
     Each disc file becomes both media_path and executable_path for its leaf.
 
@@ -651,7 +651,7 @@ def _create_multi_disc_collection(
     """
     from backend.core.logger import get_logger
     from backend.service.utils.smart_media_detector import detect as _smart_detect
-    from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
+    from backend.service.utils.era_defaults import defaults_for_era, lookup_environment_and_profile
     from backend.service.utils.profile_builder import _find_cover
     from backend.service.utils.rating_detect import detect_rating
 
@@ -666,7 +666,7 @@ def _create_multi_disc_collection(
     if detected_era and detected_era != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(detected_era)
         if _emulator_slug and _profile_era:
-            detected_platform_id, detected_profile_id = lookup_platform_and_profile(
+            detected_platform_id, detected_profile_id = lookup_environment_and_profile(
                 _emulator_slug, _profile_era, db
             )
 
@@ -688,7 +688,7 @@ def _create_multi_disc_collection(
                 for f in disc_files
             ]
 
-    collection = LibraryCollection(
+    collection = SoftwareCollection(
         title=title,
         era=detected_era,
         slug=slug,
@@ -702,9 +702,9 @@ def _create_multi_disc_collection(
 
         cover = _find_cover(staged_dir if staged_dir is not None else disc_files[0].parent)
 
-        leaves: list[LibraryItem] = []
+        leaves: list[SoftwareItem] = []
         for disc_number, disc_file in enumerate(disc_files, start=1):
-            leaf = LibraryItem(
+            leaf = SoftwareItem(
                 library_collection_id=collection.id,
                 disc_number=disc_number,
                 media_path=str(disc_file),
@@ -750,7 +750,7 @@ def _create_multi_disc_collection(
     return collection
 
 
-def create_library_collection(body: LibraryCollectionCreate, db: Session) -> tuple[LibraryCollection, bool]:
+def create_library_collection(body: SoftwareCollectionCreate, db: Session) -> tuple[SoftwareCollection, bool]:
     """Backward-compat wrapper. Returns (collection, already_existed)."""
     try:
         return (
@@ -763,7 +763,7 @@ def create_library_collection(body: LibraryCollectionCreate, db: Session) -> tup
         return e.collection, True
 
 
-def _delete_leaf_media_folders(collection: LibraryCollection) -> None:
+def _delete_leaf_media_folders(collection: SoftwareCollection) -> None:
     """Delete each leaf's on-disk media, used only when _should_delete_media()
     resolves true (per-collection override, else the global
     delete_media_on_removal setting).
@@ -849,7 +849,7 @@ def _delete_leaf_media_folders(collection: LibraryCollection) -> None:
                 log.warning("Could not delete media file %s: %s", file_path, exc)
 
 
-def _should_delete_media(collection: LibraryCollection) -> bool:
+def _should_delete_media(collection: SoftwareCollection) -> bool:
     """Resolve the effective delete-media decision for a collection: its own
     override if set, else the global delete_media_on_removal setting."""
     if collection.delete_media_override is not None:
@@ -859,11 +859,11 @@ def _should_delete_media(collection: LibraryCollection) -> bool:
 
 
 def delete_library_collection(collection_id: int, token: str, db: Session) -> None:
-    if not _consume(token, "library", collection_id):
+    if not _consume(token, "software", collection_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
-    collection = db.get(LibraryCollection, collection_id)
+    collection = db.get(SoftwareCollection, collection_id)
     if not collection:
-        raise HTTPException(status_code=404, detail="Library collection not found.")
+        raise HTTPException(status_code=404, detail="Software collection not found.")
     # Remove the collection-owned drive row and its on-disk FAT16 image before
     # deleting the collection, so the image file is never orphaned (the FK cascade
     # only drops the DB row, not the file). No-op for collections without a drive.
@@ -878,20 +878,20 @@ def delete_library_collection(collection_id: int, token: str, db: Session) -> No
 
 
 def update_library_collection(
-    collection_id: int, body: LibraryCollectionUpdate, db: Session
-) -> LibraryCollection:
+    collection_id: int, body: SoftwareCollectionUpdate, db: Session
+) -> SoftwareCollection:
     from sqlalchemy import select as _select
 
-    collection = db.get(LibraryCollection, collection_id)
+    collection = db.get(SoftwareCollection, collection_id)
     if not collection:
-        raise HTTPException(status_code=404, detail="Library collection not found.")
+        raise HTTPException(status_code=404, detail="Software collection not found.")
 
     fields = body.model_dump(exclude_unset=True)
     for disk_field in ("display_disk_id", "launch_disk_id"):
         if fields.get(disk_field) is not None:
             leaf_ids = set(
                 db.execute(
-                    _select(LibraryItem.id).where(LibraryItem.library_collection_id == collection_id)
+                    _select(SoftwareItem.id).where(SoftwareItem.library_collection_id == collection_id)
                 ).scalars().all()
             )
             if fields[disk_field] not in leaf_ids:
@@ -907,10 +907,10 @@ _PATH_FIELDS = {"executable_path", "cover_art_path"}
 _EXISTENCE_FIELDS = {"executable_path"}
 
 
-def update_library_leaf(collection_id: int, leaf_id: int, body: LibraryItemUpdate, db: Session) -> LibraryItem:
-    leaf = db.get(LibraryItem, leaf_id)
+def update_library_leaf(collection_id: int, leaf_id: int, body: SoftwareItemUpdate, db: Session) -> SoftwareItem:
+    leaf = db.get(SoftwareItem, leaf_id)
     if not leaf or leaf.library_collection_id != collection_id:
-        raise HTTPException(status_code=404, detail="Library item not found.")
+        raise HTTPException(status_code=404, detail="Software item not found.")
     fields = body.model_dump(exclude_none=True)
     for key in _PATH_FIELDS & fields.keys():
         try:
@@ -928,8 +928,8 @@ def update_library_leaf(collection_id: int, leaf_id: int, body: LibraryItemUpdat
 
 
 def reorder_library_items(
-    collection_id: int, body: LibraryItemReorder, db: Session
-) -> LibraryCollection:
+    collection_id: int, body: SoftwareItemReorder, db: Session
+) -> SoftwareCollection:
     """Persist a staged disc reorder in one transaction.
 
     ``body.disc_order`` must be exactly the collection's current leaf ids,
@@ -940,11 +940,11 @@ def reorder_library_items(
     endpoint would risk a mid-loop failure leaving ``disc_number`` duplicated
     or gapped across leaves; this commits all of them together or none.
     """
-    collection = db.get(LibraryCollection, collection_id)
+    collection = db.get(SoftwareCollection, collection_id)
     if not collection:
-        raise HTTPException(status_code=404, detail="Library collection not found.")
+        raise HTTPException(status_code=404, detail="Software collection not found.")
 
-    leaves = db.query(LibraryItem).filter(LibraryItem.library_collection_id == collection_id).all()
+    leaves = db.query(SoftwareItem).filter(SoftwareItem.library_collection_id == collection_id).all()
     leaf_ids = {leaf.id for leaf in leaves}
     if not body.disc_order or set(body.disc_order) != leaf_ids or len(body.disc_order) != len(leaf_ids):
         raise HTTPException(

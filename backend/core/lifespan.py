@@ -12,7 +12,7 @@ from backend.core.startup_migrations import _apply_schema_migrations
 from backend.core.startup_seed import (
     _seed_default_profiles,
     _seed_dosbox_environments,
-    _seed_system_platforms,
+    _seed_system_environments,
 )
 from backend.core.startup_tasks import (
     _cleanup_stale_sessions,
@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
     session_factory = sessionmaker(bind=get_engine())
     with session_factory() as db:
         _sync_first_run_from_db(db)
-        _platforms_seeded = _seed_system_platforms(db)
+        _platforms_seeded = _seed_system_environments(db)
         _profiles_seeded = _seed_default_profiles(db)
         # Must follow profile seeding — links to the bundled dos profile.
         _dosbox_envs_seeded = _seed_dosbox_environments(db)

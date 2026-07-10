@@ -16,14 +16,14 @@ async def upload_media(
     file: UploadFile,
     era: str = Form(...),
     media_type: str = Form(...),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
     """Stream-write an uploaded OS install/disk image for environment registration.
 
     Game media uploads use the chunked endpoints under
-    /api/v1/library/uploads (init → chunks → complete), which chain into the
+    /api/v1/software/uploads (init → chunks → complete), which chain into the
     full library ingest pipeline (era detection, profile assignment, dedup).
-    OS images are Platform fields, not LibraryItems — never scanned, never
+    OS images are Environment fields, not SoftwareItems — never scanned, never
     deduped against the library — so they keep this minimal upload-only path.
 
     Args:
@@ -37,7 +37,7 @@ async def upload_media(
     if media_type != "os":
         raise HTTPException(
             status_code=400,
-            detail="media_type must be 'os'. Game media uploads use the /api/v1/library/uploads chunked flow.",
+            detail="media_type must be 'os'. Game media uploads use the /api/v1/software/uploads chunked flow.",
         )
     if era not in _PC_ERAS:
         raise HTTPException(

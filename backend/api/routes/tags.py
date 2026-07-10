@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
-from backend.models.library import LibraryCollection
+from backend.models.software import SoftwareCollection
 from backend.models.tag import EntityTag, Tag, TagCreate, TagRead
 from backend.models.user import User
 
@@ -31,7 +31,7 @@ def list_tags(db: Session = Depends(get_db), _: User = Depends(get_active_user))
 def create_tag(
     body: TagCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
     name = body.name.strip()
     if not name:
@@ -49,7 +49,7 @@ def create_tag(
 def delete_tag(
     tag_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
     tag = db.get(Tag, tag_id)
     if not tag:
@@ -65,23 +65,23 @@ def add_tag_to_collection(
     tag_id: int,
     collection_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
     if not db.get(Tag, tag_id):
         raise HTTPException(status_code=404, detail="Tag not found.")
-    if not db.get(LibraryCollection, collection_id):
-        raise HTTPException(status_code=404, detail="Library collection not found.")
+    if not db.get(SoftwareCollection, collection_id):
+        raise HTTPException(status_code=404, detail="Software collection not found.")
     exists = (
         db.query(EntityTag)
         .filter(
             EntityTag.tag_id == tag_id,
-            EntityTag.entity_type == "library_collection",
+            EntityTag.entity_type == "software_collection",
             EntityTag.entity_id == collection_id,
         )
         .first()
     )
     if not exists:
-        db.add(EntityTag(tag_id=tag_id, entity_type="library_collection", entity_id=collection_id))
+        db.add(EntityTag(tag_id=tag_id, entity_type="software_collection", entity_id=collection_id))
         db.commit()
 
 
@@ -90,13 +90,13 @@ def remove_tag_from_collection(
     tag_id: int,
     collection_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_library"),
+    _: User = require_permission("can_edit_software"),
 ):
     link = (
         db.query(EntityTag)
         .filter(
             EntityTag.tag_id == tag_id,
-            EntityTag.entity_type == "library_collection",
+            EntityTag.entity_type == "software_collection",
             EntityTag.entity_id == collection_id,
         )
         .first()

@@ -14,7 +14,7 @@ from backend.service.utils.fat import FAT16_SIZE_MIN_MB
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
-    from backend.models.library import LibraryCollection, LibraryItem
+    from backend.models.software import SoftwareCollection, SoftwareItem
     from backend.models.drive import Drive
 
 # iso/cue media is mounted directly and never passed to format_fat16 (it always
@@ -49,7 +49,7 @@ def compute_drive_size_mb(media_path: Path, media_type: str) -> int:
 
 
 def create_drive_for_collection(
-    collection: "LibraryCollection", launch_leaf: "LibraryItem", db: "Session"
+    collection: "SoftwareCollection", launch_leaf: "SoftwareItem", db: "Session"
 ) -> "Drive":
     """Create and persist a Drive record for a library collection.
 
@@ -57,11 +57,11 @@ def create_drive_for_collection(
     file), otherwise its media_path. media_type/requires_install are cached on
     the collection when not already set. The image lives at
     ``{launch_leaf.folder_path}/{collection.slug}.img`` — the launch leaf is the
-    LibraryItem pointed to by collection.launch_disk_id.
+    SoftwareItem pointed to by collection.launch_disk_id.
 
     Args:
-        collection:  LibraryCollection ORM instance (already flushed, has an id).
-        launch_leaf: The collection's launch-disc LibraryItem.
+        collection:  SoftwareCollection ORM instance (already flushed, has an id).
+        launch_leaf: The collection's launch-disc SoftwareItem.
         db:          Active SQLAlchemy session.
 
     Returns:
@@ -89,7 +89,7 @@ def create_drive_for_collection(
         else None
     )
     drive = Drive(
-        library_collection_id=collection.id,
+        software_collection_id=collection.id,
         name=collection.title,
         size_mb=computed,
         image_path=image_path,
@@ -103,7 +103,7 @@ def create_drive_for_collection(
     return drive
 
 
-def delete_drive_for_collection(collection: "LibraryCollection", db: "Session") -> None:
+def delete_drive_for_collection(collection: "SoftwareCollection", db: "Session") -> None:
     """Delete the Drive record and its on-disk image for a library collection.
 
     No-op if the collection has no drive_id. Unlinks the FAT16 image file (if
@@ -115,7 +115,7 @@ def delete_drive_for_collection(collection: "LibraryCollection", db: "Session") 
     still proceeds.
 
     Args:
-        collection: LibraryCollection ORM instance.
+        collection: SoftwareCollection ORM instance.
         db:         Active SQLAlchemy session.
     """
     if collection.drive_id is None:
