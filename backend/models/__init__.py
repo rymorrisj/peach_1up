@@ -27,6 +27,10 @@ from backend.models.media_restriction import MediaRestriction
 from backend.models.tag import EntityTag, Tag, TagCreate, TagRead, get_tags_for_entity
 from backend.models.emulator_install import EmulatorInstall
 from backend.models.rom_pack import RomPackItem, RomPackItemRead
+from backend.models.controller_mapping import (
+    ControllerMapping, ControllerMappingBase, ControllerMappingCreate,
+    ControllerMappingRead, ControllerMappingUpdate, mapping_to_read as controller_mapping_to_read,
+)
 from backend.models.metadata_lookup import (
     Developer, Genre, LibraryCollectionGenre, Publisher,
     get_genres_for_collection, get_genres_for_collections,

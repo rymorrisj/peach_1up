@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session
 from backend.core import process_registry
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
+from backend.models.environment import HealthSummary, StorageStats
 from backend.models.user import User
+from backend.service.environments import environments as env_svc
 from backend.service.environments.environments import get_drive_images_bytes
 
 router = APIRouter(prefix="/api/v1", tags=["health"])
@@ -79,6 +81,27 @@ def health_check():
         database_reachable=db_ok,
         active_processes=process_registry.count(),
     )
+
+
+# Aggregate Environment/library health — moved here from the environments
+# router (formerly GET/POST /api/v1/environments/health, /health-all,
+# /storage-stats) so System/Health has one data source instead of being
+# split across two routers. Reuses get_health_summary/batch_health_check/
+# get_storage_stats/compute_live_status unchanged (backend/service/
+# environments/environments.py) — only the route location moved.
+@router.get("/health/summary", response_model=HealthSummary)
+def health_summary(db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
+    return env_svc.get_health_summary(db)
+
+
+@router.post("/health/recompute-all")
+def health_recompute_all(db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
+    return env_svc.batch_health_check(db)
+
+
+@router.get("/health/storage-stats", response_model=StorageStats)
+def health_storage_stats(db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
+    return env_svc.get_storage_stats(db)
 
 
 # storage_footprint() walks several directory trees unboundedly (see

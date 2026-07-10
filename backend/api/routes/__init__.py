@@ -1,5 +1,5 @@
 from backend.api.routes import (
-    auth, bios, drives, emulators, environments, filesystem, health, jobs, launches,
+    auth, bios, controllers, drives, emulators, environments, filesystem, health, jobs, launches,
     media, profiles, rom_packs, settings, software_collections, software_items, software_metadata,
     tags, uploads, users,
 )
@@ -14,6 +14,7 @@ ROUTERS = [
     bios.router,
     profiles.router,
     drives.router,
+    controllers.router,
     # software_metadata precedes the collection/item routers. The collection,
     # item, and /software list routers use distinct top-level path segments
     # (/softwarecollection, /softwareitem, /software) so no wildcard shadows another.

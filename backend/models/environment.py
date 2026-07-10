@@ -3,7 +3,7 @@ from typing import Optional
 
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, SQLModel
-from backend.constants_generated import EmulatorCatalogSlug, EraValue, HardwareProfile
+from backend.constants_generated import EmulatorCatalogSlug, EnvironmentStatus, EraValue, HardwareProfile
 
 
 class EnvironmentBase(SQLModel):
@@ -13,7 +13,7 @@ class EnvironmentBase(SQLModel):
     base_image_path: Optional[str] = None
     working_image_path: Optional[str] = None
     config_path: Optional[str] = None
-    status: str = "unknown"
+    status: EnvironmentStatus = Field(default="unknown", sa_column=Column(String, nullable=False))
     notes: Optional[str] = None
     is_system: bool = False
     download_url: Optional[str] = None
@@ -58,7 +58,7 @@ class EnvironmentUpdate(SQLModel):
     base_image_path: Optional[str] = None
     working_image_path: Optional[str] = None
     config_path: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[EnvironmentStatus] = None
     notes: Optional[str] = None
     slug: Optional[str] = None
     download_url: Optional[str] = None

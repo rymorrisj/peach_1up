@@ -8,7 +8,7 @@ from backend.constants import PC_ERAS
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
-from backend.models.environment import HealthSummary, Environment, EnvironmentCreate, EnvironmentRead, EnvironmentUpdate, StorageStats
+from backend.models.environment import Environment, EnvironmentCreate, EnvironmentRead, EnvironmentUpdate
 from backend.models.user import User
 from backend.service.environments import environments as plat_svc
 from backend.service.utils import confirmation_tokens
@@ -45,21 +45,6 @@ def list_platforms(db: Session = Depends(get_db), _: User = Depends(get_active_u
 @router.post("", response_model=EnvironmentRead, status_code=201)
 def create_platform(body: EnvironmentCreate, db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
     return plat_svc.create_platform(body, db)
-
-
-@router.get("/health", response_model=HealthSummary)
-def health_summary(db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
-    return plat_svc.get_health_summary(db)
-
-
-@router.post("/health-all")
-def health_check_all(db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
-    return plat_svc.batch_health_check(db)
-
-
-@router.get("/storage-stats", response_model=StorageStats)
-def storage_stats(db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
-    return plat_svc.get_storage_stats(db)
 
 
 @router.get("/{platform_id}", response_model=EnvironmentRead)
