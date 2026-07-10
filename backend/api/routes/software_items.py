@@ -16,7 +16,7 @@ def _visible_leaf(leaf_id: int, active_user: User, db: Session) -> SoftwareItem:
     if leaf is None:
         raise HTTPException(status_code=404, detail="Software item not found.")
     # Enforces the caller's restriction/rating filters on the owning collection.
-    get_filtered_collection(leaf.library_collection_id, active_user, db)
+    get_filtered_collection(leaf.software_collection_id, active_user, db)
     return leaf
 
 
@@ -40,5 +40,5 @@ def update_library_item(
     if leaf is None:
         raise HTTPException(status_code=404, detail="Software item not found.")
     return SoftwareItemRead.model_validate(
-        lib_svc.update_library_leaf(leaf.library_collection_id, leaf_id, body, db)
+        lib_svc.update_library_leaf(leaf.software_collection_id, leaf_id, body, db)
     )

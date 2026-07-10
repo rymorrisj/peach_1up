@@ -133,7 +133,7 @@ def best_detect_path(folder: Path, executable_path: str | None) -> Path:
 def _collection_for_leaf(leaf: SoftwareItem | None, db: Session) -> SoftwareCollection | None:
     if leaf is None:
         return None
-    return db.get(SoftwareCollection, leaf.library_collection_id)
+    return db.get(SoftwareCollection, leaf.software_collection_id)
 
 
 def _prepare_item(
@@ -534,7 +534,7 @@ def _persist_collection_of_one(row: dict, db: Session) -> SoftwareCollection:
     db.flush()
 
     leaf = SoftwareItem(
-        library_collection_id=collection.id,
+        software_collection_id=collection.id,
         disc_number=1,
         **{k: row[k] for k in _LEAF_COLUMNS if k in row},
     )
@@ -730,7 +730,7 @@ def _create_multi_disc_collection(
         leaves: list[SoftwareItem] = []
         for disc_number, disc_file in enumerate(disc_files, start=1):
             leaf = SoftwareItem(
-                library_collection_id=collection.id,
+                software_collection_id=collection.id,
                 disc_number=disc_number,
                 file_path=str(disc_file),
                 executable_path=str(disc_file),
@@ -916,7 +916,7 @@ def update_library_collection(
         if fields.get(disk_field) is not None:
             leaf_ids = set(
                 db.execute(
-                    _select(SoftwareItem.id).where(SoftwareItem.library_collection_id == collection_id)
+                    _select(SoftwareItem.id).where(SoftwareItem.software_collection_id == collection_id)
                 ).scalars().all()
             )
             if fields[disk_field] not in leaf_ids:
@@ -939,7 +939,7 @@ _EXISTENCE_FIELDS = {"executable_path"}
 
 def update_library_leaf(collection_id: int, leaf_id: int, body: SoftwareItemUpdate, db: Session) -> SoftwareItem:
     leaf = db.get(SoftwareItem, leaf_id)
-    if not leaf or leaf.library_collection_id != collection_id:
+    if not leaf or leaf.software_collection_id != collection_id:
         raise HTTPException(status_code=404, detail="Software item not found.")
     fields = body.model_dump(exclude_none=True)
     for key in _PATH_FIELDS & fields.keys():
@@ -974,7 +974,7 @@ def reorder_library_items(
     if not collection:
         raise HTTPException(status_code=404, detail="Software collection not found.")
 
-    leaves = db.query(SoftwareItem).filter(SoftwareItem.library_collection_id == collection_id).all()
+    leaves = db.query(SoftwareItem).filter(SoftwareItem.software_collection_id == collection_id).all()
     leaf_ids = {leaf.id for leaf in leaves}
     if not body.disc_order or set(body.disc_order) != leaf_ids or len(body.disc_order) != len(leaf_ids):
         raise HTTPException(

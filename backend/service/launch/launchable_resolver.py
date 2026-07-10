@@ -76,7 +76,7 @@ def resolve_launchable(
         )
     all_leaves = (
         db.query(SoftwareItem)
-        .filter(SoftwareItem.library_collection_id == c.id)
+        .filter(SoftwareItem.software_collection_id == c.id)
         .order_by(SoftwareItem.disc_number)
         .all()
     )

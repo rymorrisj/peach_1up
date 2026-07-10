@@ -115,7 +115,7 @@ def dedup_disc_anchor(media_root: Path, anchor: Path, db: Session) -> Path:
 
     live_leaf = db.query(SoftwareItem).filter(SoftwareItem.file_path == str(duplicate)).first()
     if live_leaf is not None:
-        raise _ItemAlreadyExists(db.get(SoftwareCollection, live_leaf.library_collection_id))
+        raise _ItemAlreadyExists(db.get(SoftwareCollection, live_leaf.software_collection_id))
 
     anchor.unlink(missing_ok=True)
     return duplicate

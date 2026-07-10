@@ -49,7 +49,7 @@ export default function EnvironmentCard({
     setMarkingInstalled(true)
     setMarkInstalledError(null)
     try {
-      await apiFetch(`/api/v1/platforms/${platform.id}`, {
+      await apiFetch(`/api/v1/environments/${platform.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ installed_at: new Date().toISOString() }),
       })

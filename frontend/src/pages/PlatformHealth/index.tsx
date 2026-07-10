@@ -6,7 +6,7 @@ import TopBar from '@/components/layout/TopBar'
 import { ERA_COLOR, ERA_LABEL } from '@/types/era'
 import type { components } from '@shared/types'
 
-type Platform = components['schemas']['PlatformRead']
+type Platform = components['schemas']['EnvironmentRead']
 
 interface EraBreakdown {
   era: string
@@ -30,7 +30,7 @@ interface StorageFootprint {
 }
 
 interface HealthSummary {
-  platforms:  { total: number; healthy: number; degraded: number; unconfigured: number }
+  environments: { total: number; healthy: number; degraded: number; unconfigured: number }
   library:    { total: number }
   drives:     { total: number }
   extensions: { total: number }
@@ -127,7 +127,7 @@ export default function PlatformHealth() {
 
   const { data: platforms = [], isLoading, error: platformsError } = useQuery<Platform[]>({
     queryKey: ['platforms'],
-    queryFn: () => apiFetch<Platform[]>('/api/v1/platforms'),
+    queryFn: () => apiFetch<Platform[]>('/api/v1/environments'),
     enabled: !permissionDenied,
     retry: retryUnlessForbidden,
   })
@@ -146,7 +146,7 @@ export default function PlatformHealth() {
 
   const { data: summary, isError: summaryError, isLoading: summaryLoading, error: summaryQueryError } = useQuery<HealthSummary>({
     queryKey: ['platforms-health-summary'],
-    queryFn: () => apiFetch<HealthSummary>('/api/v1/platforms/health'),
+    queryFn: () => apiFetch<HealthSummary>('/api/v1/health/summary'),
     enabled: !permissionDenied,
     retry: retryUnlessForbidden,
   })
@@ -164,7 +164,7 @@ export default function PlatformHealth() {
 
   async function handleHealthCheckAll() {
     try {
-      await apiFetch('/api/v1/platforms/health-all', { method: 'POST' })
+      await apiFetch('/api/v1/health/recompute-all', { method: 'POST' })
       await queryClient.invalidateQueries({ queryKey: ['platforms'] })
     } catch {
       // individual statuses updated via query invalidation

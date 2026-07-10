@@ -142,7 +142,7 @@ def _compute_storage_footprint(db: Session) -> dict:
     sized_rows = db.execute(
         text(
             "SELECT c.era, i.file_size_bytes FROM software_items i "
-            "JOIN software_collections c ON c.id = i.library_collection_id "
+            "JOIN software_collections c ON c.id = i.software_collection_id "
             "WHERE i.file_size_bytes IS NOT NULL"
         )
     ).fetchall()

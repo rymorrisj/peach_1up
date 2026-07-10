@@ -39,7 +39,7 @@ export default function Environments() {
 
   const { data: platforms, isLoading } = useQuery<Platform[]>({
     queryKey: ['platforms'],
-    queryFn: () => apiFetch<Platform[]>('/api/v1/platforms'),
+    queryFn: () => apiFetch<Platform[]>('/api/v1/environments'),
   })
 
   const userPlatforms = (platforms ?? []).filter((p) => !p.is_system)
@@ -111,9 +111,9 @@ export default function Environments() {
         launch_commands: form.launch_commands,
       }
       if (modal?.mode === 'create') {
-        await apiFetch('/api/v1/platforms', { method: 'POST', body: JSON.stringify(body) })
+        await apiFetch('/api/v1/environments', { method: 'POST', body: JSON.stringify(body) })
       } else if (modal?.mode === 'edit') {
-        await apiFetch(`/api/v1/platforms/${modal.platform.id}`, {
+        await apiFetch(`/api/v1/environments/${modal.platform.id}`, {
           method: 'PATCH',
           body: JSON.stringify(body),
         })
@@ -136,11 +136,11 @@ export default function Environments() {
     if (!confirmed) return
     try {
       const { confirmation_token } = await apiFetch<{ confirmation_token: string }>(
-        `/api/v1/platforms/${platform.id}/confirm-delete`,
+        `/api/v1/environments/${platform.id}/confirm-delete`,
         { method: 'POST' },
       )
       await apiFetch(
-        `/api/v1/platforms/${platform.id}?confirmation_token=${encodeURIComponent(confirmation_token)}`,
+        `/api/v1/environments/${platform.id}?confirmation_token=${encodeURIComponent(confirmation_token)}`,
         { method: 'DELETE' },
       )
       await queryClient.invalidateQueries({ queryKey: ['platforms'] })
@@ -152,7 +152,7 @@ export default function Environments() {
   async function handleHealthCheck(platform: Platform) {
     setHealthLoading(platform.id)
     try {
-      await apiFetch(`/api/v1/platforms/${platform.id}/health`, { method: 'POST' })
+      await apiFetch(`/api/v1/environments/${platform.id}/health`, { method: 'POST' })
       await queryClient.invalidateQueries({ queryKey: ['platforms'] })
     } catch {
       // Status update reflected via query invalidation
@@ -164,7 +164,7 @@ export default function Environments() {
   async function handleHealthCheckAll() {
     setHealthCheckAllRunning(true)
     try {
-      await apiFetch('/api/v1/platforms/health-all', { method: 'POST' })
+      await apiFetch('/api/v1/health/recompute-all', { method: 'POST' })
       await queryClient.invalidateQueries({ queryKey: ['platforms'] })
     } catch {
       // Partial failures handled server-side; statuses updated via invalidation

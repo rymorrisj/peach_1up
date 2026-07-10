@@ -15,7 +15,6 @@ interface GameDetails {
   release_date: string | null
   overview: string | null
   rating: string | null
-  platform_id: number | null
   cover_art_url: string | null
   cover_art_thumb_url: string | null
   genres: string[] | null
@@ -26,14 +25,14 @@ interface GameDetails {
 interface FetchMetadataModalProps {
   open: boolean
   onClose: () => void
-  entityType: 'library_collection' | 'library_item'
+  entityType: 'software_collection' | 'software_item'
   entityId: number
   entityTitle: string
   storageKey: string
   onSuccess: () => void
   /** Current content_rating on the collection, if any — used to warn when the
    *  fetched rating would lower or clear it. Only meaningful for entityType
-   *  'library_collection'; library_item has no content_rating field. */
+   *  'software_collection'; software_item has no content_rating field. */
   currentContentRating?: string | null
   /** Notified whenever a search/fetch/apply request is in flight, so the
    *  trigger button that opens this modal can show its own loading state. */
@@ -41,7 +40,7 @@ interface FetchMetadataModalProps {
   /** Display label for the currently active metadata provider ('TheGamesDB'
    *  or 'IGDB'), sourced from the DB-backed metadata_provider setting by the
    *  caller. Recorded as metadata_source on apply — only meaningful for
-   *  entityType 'library_collection'; library_item enrichment has no
+   *  entityType 'software_collection'; software_item enrichment has no
    *  metadata_source field and rejects it. */
   activeProviderLabel: string
 }
@@ -159,10 +158,10 @@ export function FetchMetadataModal({
       entity_id: entityId,
     }
 
-    if (entityType === 'library_collection') {
+    if (entityType === 'software_collection') {
       // Metadata lives on the collection — cover_art_url is not supported here.
       // metadata_source only belongs here: enrich.py rejects any metadata_fields
-      // (including metadata_source) for entityType 'library_item'.
+      // (including metadata_source) for entityType 'software_item'.
       payload.metadata_source = activeProviderLabel
       if (details.title) payload.title = details.title
       if (details.overview) payload.description = details.overview
@@ -175,7 +174,7 @@ export function FetchMetadataModal({
       if (details.developer) payload.developer = details.developer
       if (details.publisher) payload.publisher = details.publisher
       if (details.genres && details.genres.length > 0) payload.genre = details.genres
-    } else if (entityType === 'library_item') {
+    } else if (entityType === 'software_item') {
       // Leaf: only per-disc cover_art_url is supported.
       if (details.cover_art_url) payload.cover_art_url = details.cover_art_url
     }
@@ -209,8 +208,8 @@ export function FetchMetadataModal({
     // results stay in state (and sessionStorage) — no re-search needed
   }
 
-  const showCoverArt = entityType === 'library_item'
-  const showMetadata = entityType === 'library_collection'
+  const showCoverArt = entityType === 'software_item'
+  const showMetadata = entityType === 'software_collection'
   const busy = phase === 'search' ? searching || fetching : applying
 
   useEffect(() => {

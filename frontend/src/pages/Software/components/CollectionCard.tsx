@@ -9,7 +9,7 @@ type TagRead = components['schemas']['TagRead']
 // LibrarySetItemData; single-disc games are collections-of-one.
 export interface SoftwareItemData {
   id: number
-  library_collection_id: number
+  software_collection_id: number
   disc_number: number
   media_path: string
   executable_path: string | null

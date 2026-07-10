@@ -82,7 +82,7 @@ export default function EnvironmentDetail() {
 
   const { data: platform } = useQuery<Platform>({
     queryKey: ['platform', id],
-    queryFn: () => apiFetch<Platform>(`/api/v1/platforms/${id}`),
+    queryFn: () => apiFetch<Platform>(`/api/v1/environments/${id}`),
     enabled: !!id,
   })
 
@@ -92,7 +92,7 @@ export default function EnvironmentDetail() {
     if (!platform) return
     setSaving(true); setSaveError(null); setSaved(false)
     try {
-      await apiFetch(`/api/v1/platforms/${platform.id}`, {
+      await apiFetch(`/api/v1/environments/${platform.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ notes: notes.trim() || null }),
       })
@@ -124,7 +124,7 @@ export default function EnvironmentDetail() {
     if (!platform) return
     setEditSaving(true); setEditSaveError(null)
     try {
-      await apiFetch(`/api/v1/platforms/${platform.id}`, {
+      await apiFetch(`/api/v1/environments/${platform.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           name: editForm.name.trim(),

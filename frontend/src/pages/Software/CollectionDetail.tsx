@@ -106,7 +106,7 @@ export default function CollectionDetail() {
 
   const { data: platforms = [] } = useQuery<Platform[]>({
     queryKey: ['platforms'],
-    queryFn: () => apiFetch<Platform[]>('/api/v1/platforms'),
+    queryFn: () => apiFetch<Platform[]>('/api/v1/environments'),
   })
 
   const { data: restrictionsData, refetch: refetchRestrictions } = useQuery<{
@@ -707,7 +707,7 @@ export default function CollectionDetail() {
     <FetchMetadataModal
       open={fetchMetadataOpen}
       onClose={() => setFetchMetadataOpen(false)}
-      entityType="library_collection"
+      entityType="software_collection"
       entityId={collection.id}
       entityTitle={collection.title}
       currentContentRating={collection.content_rating}
@@ -731,7 +731,7 @@ export default function CollectionDetail() {
       <FetchMetadataModal
         open={fetchDiscId != null}
         onClose={() => setFetchDiscId(null)}
-        entityType="library_item"
+        entityType="software_item"
         entityId={fetchDiscId}
         entityTitle={activeDisc.media_path.split(/[\\/]/).pop() ?? collection.title}
         storageKey={`${storageKey}#disc-${fetchDiscId}`}

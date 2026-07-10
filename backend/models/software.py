@@ -28,7 +28,7 @@ class SoftwareItem(SQLModel, table=True):
     __tablename__ = "software_items"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    library_collection_id: int = Field(
+    software_collection_id: int = Field(
         sa_column=Column(
             Integer,
             ForeignKey("software_collections.id", ondelete="CASCADE"),
@@ -65,13 +65,13 @@ class SoftwareItem(SQLModel, table=True):
         sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False),
     )
 
-    library_collection: Optional["SoftwareCollection"] = Relationship(
+    software_collection: Optional["SoftwareCollection"] = Relationship(
         back_populates="items"
     )
 
 class SoftwareItemRead(SQLModel):
     id: int
-    library_collection_id: int
+    software_collection_id: int
     disc_number: int
     file_path: str
     executable_path: Optional[str] = None
@@ -178,7 +178,7 @@ class SoftwareCollection(SQLModel, table=True):
     )
 
     items: list["SoftwareItem"] = Relationship(
-        back_populates="library_collection",
+        back_populates="software_collection",
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
             "order_by": "SoftwareItem.disc_number",
@@ -369,7 +369,7 @@ def _leaves_for_collection(collection_id: int, db: "Session") -> list[SoftwareIt
     return list(
         db.execute(
             _select(SoftwareItem)
-            .where(SoftwareItem.library_collection_id == collection_id)
+            .where(SoftwareItem.software_collection_id == collection_id)
             .order_by(SoftwareItem.disc_number)
         ).scalars().all()
     )
@@ -420,8 +420,8 @@ def collections_to_read_bulk(
     collection_ids = [c.id for c in collections]
     leaves = db.execute(
         _select(SoftwareItem)
-        .where(SoftwareItem.library_collection_id.in_(collection_ids))
-        .order_by(SoftwareItem.library_collection_id, SoftwareItem.disc_number)
+        .where(SoftwareItem.software_collection_id.in_(collection_ids))
+        .order_by(SoftwareItem.software_collection_id, SoftwareItem.disc_number)
     ).scalars().all()
 
     leaves_by_collection: dict[int, list[SoftwareItemRead]] = {}
@@ -429,7 +429,7 @@ def collections_to_read_bulk(
         leaf_read = _leaf_to_read(leaf)
         if leaf_read is None:
             continue
-        leaves_by_collection.setdefault(leaf.library_collection_id, []).append(leaf_read)
+        leaves_by_collection.setdefault(leaf.software_collection_id, []).append(leaf_read)
 
     tag_map = get_tags_for_entities("software_collection", collection_ids, db)
     genre_map = get_genres_for_collections(collection_ids, db)
