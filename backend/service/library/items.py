@@ -8,9 +8,10 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from backend.constants import PC_ERAS
 from backend.models.software import (
     SoftwareCollection, SoftwareCollectionCreate, SoftwareCollectionUpdate,
-    SoftwareItem, SoftwareItemReorder, SoftwareItemUpdate,
+    SoftwareItem, SoftwareItemReorder, SoftwareItemUpdate, derive_item_type,
 )
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.file_types import is_drive_image, file_type_from_path, resolve_media_file_from_directory
@@ -24,7 +25,7 @@ _COLLECTION_COLUMNS = {
     "title", "era", "slug", "sort_title", "category", "description", "publisher",
     "year", "external_game_id", "metadata_source", "content_rating",
     "launch_commands", "launch_review_flagged", "installed", "requires_install",
-    "platform_id", "profile_id", "last_launched_at", "launch_count",
+    "environment_id", "profile_id", "last_launched_at", "launch_count",
 }
 _LEAF_COLUMNS = {
     "file_path", "executable_path", "cover_art_path", "file_type",
@@ -226,7 +227,7 @@ def _prepare_item(
         "installed": False,
         "requires_install": False,
         "detection_reason": None,
-        "platform_id": None,
+        "environment_id": None,
         "profile_id": None,
         "last_launched_at": None,
         "launch_count": 0,
@@ -481,13 +482,16 @@ def _prepare_item(
     if row["era"] and row["era"] != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(row["era"])
         if _emulator_slug and _profile_era:
-            _def_platform_id, _def_profile_id = lookup_environment_and_profile(
+            _def_environment_id, _def_profile_id = lookup_environment_and_profile(
                 _emulator_slug, _profile_era, db
             )
             if _def_profile_id is not None:
                 row["profile_id"] = _def_profile_id
-            if _def_platform_id is not None:
-                row["platform_id"] = _def_platform_id
+            # Environment is strictly PC (doc 02 A5) — a console era must never
+            # get environment_id populated, even if a system Environment happens
+            # to exist for its emulator_slug (e.g. a seeded DuckStation/PS1 row).
+            if _def_environment_id is not None and row["era"] in PC_ERAS:
+                row["environment_id"] = _def_environment_id
 
     if override_profile_id is not None:
         row["profile_id"] = override_profile_id
@@ -503,6 +507,20 @@ def _prepare_item(
     return row
 
 
+def _enforce_environment_binding(collection: SoftwareCollection) -> None:
+    """Environment is strictly PC (doc 02 A5): console items may never carry an environment_id.
+
+    PC items may have a null environment_id at this point (backfilled later /
+    pre-launch-gated — doc 02 part B); only the console+non-null combination is
+    rejected here.
+    """
+    if collection.item_type == "console" and collection.environment_id is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="Console software cannot have an environment_id; Environment is strictly PC.",
+        )
+
+
 def _persist_collection_of_one(row: dict, db: Session) -> SoftwareCollection:
     """Create a SoftwareCollection + its single SoftwareItem leaf from a prepared row.
 
@@ -511,6 +529,7 @@ def _persist_collection_of_one(row: dict, db: Session) -> SoftwareCollection:
     filesystem side effects on IntegrityError).
     """
     collection = SoftwareCollection(**{k: row[k] for k in _COLLECTION_COLUMNS if k in row})
+    _enforce_environment_binding(collection)
     db.add(collection)
     db.flush()
 
@@ -661,14 +680,19 @@ def _create_multi_disc_collection(
         log.warning("Media detection warnings for '%s': %s", disc_files[0], _scan.warnings)
     detected_era: str = _scan.era if _scan.era is not None else "unknown"
 
-    detected_platform_id: int | None = None
+    detected_environment_id: int | None = None
     detected_profile_id: int | None = None
     if detected_era and detected_era != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(detected_era)
         if _emulator_slug and _profile_era:
-            detected_platform_id, detected_profile_id = lookup_environment_and_profile(
+            _looked_up_environment_id, detected_profile_id = lookup_environment_and_profile(
                 _emulator_slug, _profile_era, db
             )
+            # Environment is strictly PC (doc 02 A5) — never populate environment_id
+            # for a console era, even if a system Environment exists for its
+            # emulator_slug (e.g. a seeded DuckStation/PS1 row).
+            if detected_era in PC_ERAS:
+                detected_environment_id = _looked_up_environment_id
 
     slug = generate_collection_slug(title, db)
 
@@ -692,10 +716,11 @@ def _create_multi_disc_collection(
         title=title,
         era=detected_era,
         slug=slug,
-        platform_id=detected_platform_id,
+        environment_id=detected_environment_id,
         profile_id=detected_profile_id,
         content_rating=detect_rating(str(disc_files[0])) or None,
     )
+    _enforce_environment_binding(collection)
     try:
         db.add(collection)
         db.flush()
@@ -898,6 +923,11 @@ def update_library_collection(
                 raise HTTPException(status_code=422, detail="disc does not belong to this collection.")
     for key, value in fields.items():
         setattr(collection, key, value)
+    if "era" in fields:
+        # setattr bypasses SoftwareCollection._derive_item_type_from_era (no
+        # validate_assignment) — re-derive explicitly whenever era changes.
+        collection.item_type = derive_item_type(collection.era)
+    _enforce_environment_binding(collection)
     db.commit()
     db.refresh(collection)
     return collection

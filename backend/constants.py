@@ -8,6 +8,11 @@ from typing import Dict, Set
 
 from backend.constants_generated import Era, EraValue
 
+# Eras that are PC platforms (item_type == "pc") rather than console platforms.
+# Shared by the SoftwareCollection.item_type validator (models/software.py) and
+# the environments install-media route (api/routes/media.py).
+PC_ERAS: frozenset[str] = frozenset({"dos", "win95", "win98", "winxp"})
+
 
 def era_to_enum(value: EraValue) -> Era:
     """Construct the Era enum from a boundary value (DB column / API I/O).

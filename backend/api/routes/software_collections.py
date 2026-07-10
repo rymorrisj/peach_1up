@@ -81,7 +81,7 @@ class ScanImportBody(BaseModel):
 def list_library(
     era: str | None = None,
     category: str | None = None,
-    platform_id: int | None = None,
+    environment_id: int | None = None,
     tag: str | None = None,
     profile_assigned: bool | None = None,
     limit: int = Query(default=50, ge=1, le=200),
@@ -94,8 +94,8 @@ def list_library(
         q = q.filter(SoftwareCollection.era == era)
     if category:
         q = q.filter(SoftwareCollection.category == category)
-    if platform_id is not None:
-        q = q.filter(SoftwareCollection.platform_id == platform_id)
+    if environment_id is not None:
+        q = q.filter(SoftwareCollection.environment_id == environment_id)
     if profile_assigned is True:
         q = q.filter(SoftwareCollection.profile_id.isnot(None))
     elif profile_assigned is False:

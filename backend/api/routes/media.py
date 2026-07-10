@@ -3,12 +3,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 
+from backend.constants import PC_ERAS
 from backend.core.dependencies import require_permission
 from backend.models.user import User
 
 router = APIRouter(prefix="/api/v1/media", tags=["media"])
-
-_PC_ERAS = frozenset({"dos", "win95", "win98", "winxp"})
 
 
 @router.post("/upload")
@@ -39,10 +38,10 @@ async def upload_media(
             status_code=400,
             detail="media_type must be 'os'. Game media uploads use the /api/v1/software/uploads chunked flow.",
         )
-    if era not in _PC_ERAS:
+    if era not in PC_ERAS:
         raise HTTPException(
             status_code=422,
-            detail=f"OS media requires a PC era: {', '.join(sorted(_PC_ERAS))}.",
+            detail=f"OS media requires a PC era: {', '.join(sorted(PC_ERAS))}.",
         )
     if not file.filename:
         raise HTTPException(status_code=422, detail="A filename is required.")

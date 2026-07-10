@@ -6,7 +6,8 @@ from pydantic import model_validator
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, Relationship, SQLModel
 
-from backend.constants_generated import EraValue, FileType
+from backend.constants import PC_ERAS
+from backend.constants_generated import EraValue, FileType, ItemType
 from backend.models.drive import Drive, DriveRead
 from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_entity
 
@@ -113,6 +114,12 @@ class SoftwareItemReorder(SQLModel):
 # owns metadata, the writable drive (DOS), and the ordered leaf list.
 # ---------------------------------------------------------------------------
 
+
+def derive_item_type(era: EraValue) -> ItemType:
+    """era is the source of truth for item_type: PC eras -> "pc", everything else -> "console"."""
+    return "pc" if era in PC_ERAS else "console"
+
+
 class SoftwareCollection(SQLModel, table=True):
     __tablename__ = "software_collections"
 
@@ -121,6 +128,10 @@ class SoftwareCollection(SQLModel, table=True):
     title: str
     sort_title: Optional[str] = None
     era: EraValue = Field(sa_column=Column(String, nullable=False))
+    # Derived-and-validated from era on write (see _derive_item_type_from_era below);
+    # default=None only so construction can omit it before the validator fills it in —
+    # the stored column is NOT NULL.
+    item_type: ItemType = Field(default=None, sa_column=Column(String, nullable=False))
     category: Optional[str] = None
     description: Optional[str] = None
     publisher: Optional[str] = None
@@ -137,7 +148,7 @@ class SoftwareCollection(SQLModel, table=True):
     # explicitly overrides it for this collection only.
     delete_media_override: Optional[bool] = None
 
-    platform_id: Optional[int] = Field(
+    environment_id: Optional[int] = Field(
         default=None,
         sa_column=Column(Integer, ForeignKey("environments.id", ondelete="SET NULL"), nullable=True),
     )
@@ -181,6 +192,17 @@ class SoftwareCollection(SQLModel, table=True):
             "uselist": False,
         },
     )
+
+    @model_validator(mode="after")
+    def _derive_item_type_from_era(self) -> "SoftwareCollection":
+        derived = derive_item_type(self.era)
+        if self.item_type is not None and self.item_type != derived:
+            raise ValueError(
+                f"item_type {self.item_type!r} conflicts with era {self.era!r} "
+                f"(era implies {derived!r}). item_type is derived from era, not independently settable."
+            )
+        self.item_type = derived
+        return self
 
 
 class SoftwareCollectionCreate(SQLModel):
