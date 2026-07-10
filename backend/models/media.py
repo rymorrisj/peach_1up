@@ -33,7 +33,7 @@ class MediaItem(SQLModel, table=True):
         default=None,
         sa_column=Column(
             Integer,
-            ForeignKey("media_collections.id", ondelete="SET NULL"),
+            ForeignKey("media_collections.id", ondelete="CASCADE"),
             nullable=True,
         ),
     )

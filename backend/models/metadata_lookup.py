@@ -25,14 +25,14 @@ class Genre(SQLModel, table=True):
     name: str = Field(sa_column=Column(String, nullable=False, unique=True, index=True))
 
 
-class LibraryCollectionGenre(SQLModel, table=True):
+class SoftwareCollectionGenre(SQLModel, table=True):
     """Join row: one per (collection, genre) pair. Real FK, not polymorphic —
     genre only ever applies to SoftwareCollection, unlike EntityTag's tags."""
-    __tablename__ = "library_collection_genres"
-    __table_args__ = (UniqueConstraint("library_collection_id", "genre_id"),)
+    __tablename__ = "software_collection_genres"
+    __table_args__ = (UniqueConstraint("software_collection_id", "genre_id"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    library_collection_id: int = Field(
+    software_collection_id: int = Field(
         sa_column=Column(Integer, ForeignKey("software_collections.id", ondelete="CASCADE"), nullable=False, index=True)
     )
     genre_id: int = Field(
@@ -121,8 +121,8 @@ def get_genres_for_collection(collection_id: int, db: "Session") -> list[str]:
 
     rows = db.execute(
         _select(Genre.name)
-        .join(LibraryCollectionGenre, LibraryCollectionGenre.genre_id == Genre.id)
-        .where(LibraryCollectionGenre.library_collection_id == collection_id)
+        .join(SoftwareCollectionGenre, SoftwareCollectionGenre.genre_id == Genre.id)
+        .where(SoftwareCollectionGenre.software_collection_id == collection_id)
         .order_by(Genre.name)
     ).scalars().all()
     return list(rows)
@@ -135,10 +135,10 @@ def get_genres_for_collections(collection_ids: list[int], db: "Session") -> dict
     from sqlalchemy import select as _select
 
     rows = db.execute(
-        _select(LibraryCollectionGenre.library_collection_id, Genre.name)
-        .join(Genre, LibraryCollectionGenre.genre_id == Genre.id)
-        .where(LibraryCollectionGenre.library_collection_id.in_(collection_ids))
-        .order_by(LibraryCollectionGenre.library_collection_id, Genre.name)
+        _select(SoftwareCollectionGenre.software_collection_id, Genre.name)
+        .join(Genre, SoftwareCollectionGenre.genre_id == Genre.id)
+        .where(SoftwareCollectionGenre.software_collection_id.in_(collection_ids))
+        .order_by(SoftwareCollectionGenre.software_collection_id, Genre.name)
     ).all()
     result: dict[int, list[str]] = {}
     for collection_id, name in rows:
@@ -150,9 +150,9 @@ def set_genres_for_collection(db: "Session", collection_id: int, names: list[str
     """Replace-all write: delete this collection's existing genre links, then
     re-link to (get-or-create) a Genre row for each name. Matches how every
     other enrich_entity() field is a full overwrite, not a merge."""
-    db.query(LibraryCollectionGenre).filter(
-        LibraryCollectionGenre.library_collection_id == collection_id
+    db.query(SoftwareCollectionGenre).filter(
+        SoftwareCollectionGenre.software_collection_id == collection_id
     ).delete()
     for name in names:
         genre = get_or_create_genre(db, name, provider=provider)
-        db.add(LibraryCollectionGenre(library_collection_id=collection_id, genre_id=genre.id))
+        db.add(SoftwareCollectionGenre(software_collection_id=collection_id, genre_id=genre.id))

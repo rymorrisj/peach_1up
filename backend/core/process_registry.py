@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 class ProcessEntry:
     process_handle: Any
     job_handle: Any | None
-    library_collection_id: int | None
+    software_collection_id: int | None
     profile_id: int | None
     launch_history_id: int | None = None
     emulator_slug: str | None = None
@@ -39,8 +39,8 @@ def register(pid: int, entry: ProcessEntry) -> None:
             _registry[pid] = entry
         except Exception as exc:
             logger.error(
-                "Failed to register process pid=%d library_collection_id=%s profile_id=%s: %s",
-                pid, entry.library_collection_id, entry.profile_id, exc,
+                "Failed to register process pid=%d software_collection_id=%s profile_id=%s: %s",
+                pid, entry.software_collection_id, entry.profile_id, exc,
             )
             raise
 

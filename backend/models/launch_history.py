@@ -20,11 +20,11 @@ class LaunchHistory(LaunchHistoryBase, table=True):
     __tablename__ = "launch_history"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    library_collection_id: Optional[int] = Field(
+    software_collection_id: Optional[int] = Field(
         default=None,
         sa_column=Column(Integer, ForeignKey("software_collections.id", ondelete="CASCADE"), nullable=True),
     )
-    platform_id: Optional[int] = Field(
+    environment_id: Optional[int] = Field(
         default=None,
         sa_column=Column(Integer, ForeignKey("environments.id", ondelete="CASCADE"), nullable=True),
     )
@@ -43,8 +43,8 @@ class LaunchHistory(LaunchHistoryBase, table=True):
 
 class LaunchHistoryRead(LaunchHistoryBase):
     id: int
-    library_collection_id: Optional[int] = None
-    platform_id: Optional[int] = None
+    software_collection_id: Optional[int] = None
+    environment_id: Optional[int] = None
     profile_id: Optional[int] = None
     started_at: datetime
     ended_at: Optional[datetime] = None
@@ -55,8 +55,8 @@ class LaunchHistoryRead(LaunchHistoryBase):
 
     @model_validator(mode="after")
     def _derive_target_type(self) -> "LaunchHistoryRead":
-        if self.library_collection_id is not None:
-            self.target_type = "library_collection"
-        elif self.platform_id is not None:
+        if self.software_collection_id is not None:
+            self.target_type = "software_collection"
+        elif self.environment_id is not None:
             self.target_type = "environment"
         return self

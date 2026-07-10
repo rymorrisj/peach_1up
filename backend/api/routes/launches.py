@@ -75,7 +75,7 @@ def list_collection_launches(
 ):
     return (
         db.query(LaunchHistory)
-        .filter(LaunchHistory.library_collection_id == collection_id)
+        .filter(LaunchHistory.software_collection_id == collection_id)
         .order_by(LaunchHistory.started_at.desc())
         .limit(20)
         .all()
@@ -92,9 +92,11 @@ def list_launches(
     q = db.query(LaunchHistory)
     if target_id is not None and target_type is not None:
         if target_type == "environment":
-            q = q.filter(LaunchHistory.platform_id == target_id)
-        elif target_type == "library_collection":
-            q = q.filter(LaunchHistory.library_collection_id == target_id)
+            q = q.filter(LaunchHistory.environment_id == target_id)
+        elif target_type == "software_collection":
+            q = q.filter(LaunchHistory.software_collection_id == target_id)
+        else:
+            raise HTTPException(status_code=422, detail=f"Unknown target_type: {target_type!r}")
     return q.order_by(LaunchHistory.started_at.desc()).limit(50).all()
 
 @router.get("/launches/{history_id}")

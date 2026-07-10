@@ -30,7 +30,7 @@ def check_controller_edit_permission(mapping: ControllerMapping, active_user: Us
     """
     if active_user.is_owner:
         return
-    if mapping.created_by == active_user.id:
+    if mapping.created_by is not None and mapping.created_by == active_user.id:
         return
     if active_user.is_admin and active_user.can_manage_controllers:
         return

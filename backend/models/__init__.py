@@ -32,7 +32,7 @@ from backend.models.controller_mapping import (
     ControllerMappingRead, ControllerMappingUpdate, mapping_to_read as controller_mapping_to_read,
 )
 from backend.models.metadata_lookup import (
-    Developer, Genre, LibraryCollectionGenre, Publisher,
+    Developer, Genre, SoftwareCollectionGenre, Publisher,
     get_genres_for_collection, get_genres_for_collections,
     get_or_create_developer, get_or_create_genre, get_or_create_publisher,
     set_genres_for_collection,

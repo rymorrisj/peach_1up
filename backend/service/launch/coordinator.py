@@ -98,7 +98,7 @@ def _finalize_launch(
         entry = ProcessEntry(
             process_handle=proc,
             job_handle=job,
-            library_collection_id=collection_id,
+            software_collection_id=collection_id,
             profile_id=profile_id,
             launch_history_id=history.id,
             emulator_slug=emulator_slug,
@@ -379,8 +379,8 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
         )
     try:
         history = LaunchHistory(
-            library_collection_id=spec.collection_id,
-            platform_id=spec.platform_id,
+            software_collection_id=spec.collection_id,
+            environment_id=spec.platform_id,
             profile_id=spec.profile_id,
             emulator_slug=spec.emulator_slug,
             started_at=datetime.now(timezone.utc),
@@ -624,8 +624,8 @@ def stop_launch(history_id: int, active_user, db: Session) -> dict:
     for pid, entry in process_registry.get_all().items():
         by_history = entry.launch_history_id == history_id
         by_collection = (
-            record.library_collection_id is not None
-            and entry.library_collection_id == record.library_collection_id
+            record.software_collection_id is not None
+            and entry.software_collection_id == record.software_collection_id
         )
         if by_history or by_collection:
             process_registry.terminate(pid)

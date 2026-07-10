@@ -39,7 +39,10 @@ class ControllerMapping(ControllerMappingBase, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     slug: Optional[str] = Field(default=None, sa_column=Column(String, unique=True, index=True))
-    created_by: int = Field(sa_column=Column(Integer, ForeignKey("users.id"), nullable=False))
+    created_by: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=False),
@@ -70,7 +73,7 @@ class ControllerMappingRead(SQLModel):
     name: str
     device_signature: str
     mapping_json: Optional[dict] = None
-    created_by: int
+    created_by: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     tags: list[TagRead] = []
