@@ -107,7 +107,7 @@ def find_existing_duplicate(media_root: Path, uploaded_path: Path, uploaded_size
     """
     from backend.service.library.items import _MEDIA_SUFFIXES
     from backend.service.utils import media_dup_index
-    from backend.service.utils.era_media import all_supported_extensions
+    from backend.service.utils.file_types import all_supported_extensions
 
     # .img is deliberately excluded even though some eras list it under
     # supported_media: drive images are app-generated containers, never

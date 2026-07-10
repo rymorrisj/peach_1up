@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Tuple
 
-from backend.constants import ERA_MEDIA_TYPES
+from backend.constants import ERA_FILE_TYPES
 from backend.constants_generated import Era
 from backend.service.utils.emulator_catalog import (
     resolve_container_enabled,
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
 
 SUPPORTED_ERAS = {Era.DREAMCAST.value}
-SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.DREAMCAST]
+SUPPORTED_MEDIA = ERA_FILE_TYPES[Era.DREAMCAST]
 
 
 def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:

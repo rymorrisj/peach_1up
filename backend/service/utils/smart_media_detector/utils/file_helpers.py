@@ -3,9 +3,9 @@ import os
 from pathlib import Path
 from typing import List
 
-from backend.constants import ERA_MEDIA_TYPES
+from backend.constants import ERA_FILE_TYPES
 from backend.constants_generated import Era
-from backend.service.utils.era_media import is_drive_image
+from backend.service.utils.file_types import is_drive_image
 
 
 def _list_files(path: str) -> List[Path]:
@@ -36,7 +36,7 @@ _BLOCKED_FILENAMES = frozenset({"setup.exe", "setup.bat", "install.exe", "instal
 
 def get_compatible_media(era: Era, path: str) -> List[Path]:
     all_files = _list_files(path)
-    allowed_extensions = ERA_MEDIA_TYPES[era]
+    allowed_extensions = ERA_FILE_TYPES[era]
     folder_name = Path(path).name
 
     compatible_files = []

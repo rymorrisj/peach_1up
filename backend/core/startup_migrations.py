@@ -20,9 +20,9 @@ def _apply_schema_migrations() -> None:
     # shape was set, so it still needs the same additive catch-up as any other
     # post-creation column on an existing DB.
     pending: list[tuple[str, str, str]] = [
-        ("platforms", "installed_at", "DATETIME"),
-        ("platforms", "hardware_profile", "TEXT DEFAULT 'standard'"),
-        ("platforms", "machine_override", "TEXT"),
+        ("environments", "installed_at", "DATETIME"),
+        ("environments", "hardware_profile", "TEXT DEFAULT 'standard'"),
+        ("environments", "machine_override", "TEXT"),
         ("profiles", "use_drive", "INTEGER NOT NULL DEFAULT 1"),
         ("profiles", "container_enabled", "INTEGER"),
         ("profiles", "enable_dgvoodoo2", "INTEGER NOT NULL DEFAULT 0"),
@@ -32,8 +32,8 @@ def _apply_schema_migrations() -> None:
         ("users", "session_token_ttl", "INTEGER"),
         ("tags", "is_system", "INTEGER NOT NULL DEFAULT 0"),
         ("users", "can_manage_users", "INTEGER NOT NULL DEFAULT 0"),
-        ("library_items", "original_name", "VARCHAR"),
-        ("library_items", "folder_owned", "INTEGER"),
+        ("software_items", "original_name", "VARCHAR"),
+        ("software_items", "folder_owned", "INTEGER"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)
@@ -78,14 +78,14 @@ def _apply_schema_migrations() -> None:
             conn.commit()
             logger.info("Schema migration: enforced single-owner partial unique index on users")
 
-        # Backfill the index on library_items.media_path for DBs provisioned before
+        # Backfill the index on software_items.file_path for DBs provisioned before
         # index=True was added to the model. Name matches SQLAlchemy's own naming
         # convention for this column (ix_<table>_<column>) so this is a no-op on a
         # freshly created DB — create_all() already made the same-named index —
         # and a real backfill on an existing DB that predates it.
         conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS ix_library_items_media_path "
-            "ON library_items (media_path)"
+            "CREATE INDEX IF NOT EXISTS ix_software_items_file_path "
+            "ON software_items (file_path)"
         ))
         conn.commit()
-        logger.info("Schema migration: confirmed ix_library_items_media_path exists")
+        logger.info("Schema migration: confirmed ix_software_items_file_path exists")

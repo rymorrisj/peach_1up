@@ -88,7 +88,7 @@ def convert_dvd_rip_to_xiso(source_path: Path) -> Path:
         raise ValueError(f"Source path '{resolved_source}' is outside the configured library.")
 
     # Argument list, never a shell string — resolved_source is a resolved
-    # Path built from the DB-sourced media_path (see the convert-xiso route),
+    # Path built from the DB-sourced file_path (see the convert-xiso route),
     # not raw request input.
     #
     # cwd is pinned to the source's own directory because extract-xiso has no

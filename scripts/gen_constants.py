@@ -76,7 +76,7 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     system_labels: dict[str, str] = data["backend_system_labels"]
     ratings: list[dict[str, str]] = data["content_ratings"]
     dgvoodoo2_eras: list[str] = data.get("dgvoodoo2_supported_eras", [])
-    media_types: dict[str, str] = data["media_types"]
+    file_types: dict[str, str] = data["file_types"]
     hardware_profiles: dict[str, str] = data["hardware_profiles"]
     tag_colors: list[dict[str, str]] = data["tag_colors"]
     install_types: list[str] = data["install_types"]
@@ -132,8 +132,8 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
         lines.append(f'    "{era}",\n')
     lines.append("]\n\n")
 
-    # MediaType literal
-    lines.append(_py_literal_type("MediaType", list(media_types)))
+    # FileType literal
+    lines.append(_py_literal_type("FileType", list(file_types)))
     lines.append("\n")
 
     # EmulatorCatalogSlug literal (sourced from config/emulators/*.toml, not constants.yaml)
@@ -168,7 +168,7 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     system_labels: dict[str, str] = data["backend_system_labels"]
     ratings: list[dict[str, str]] = data["content_ratings"]
     dgvoodoo2_eras: list[str] = data.get("dgvoodoo2_supported_eras", [])
-    media_types: dict[str, str] = data["media_types"]
+    file_types: dict[str, str] = data["file_types"]
     hardware_profiles: dict[str, str] = data["hardware_profiles"]
     tag_colors: list[dict[str, str]] = data["tag_colors"]
     install_types: list[str] = data["install_types"]
@@ -225,8 +225,8 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     eras_ts = ", ".join(f'"{e}"' for e in dgvoodoo2_eras)
     lines.append(f"export const DGVOODOO2_SUPPORTED_ERAS: string[] = [{eras_ts}]\n\n")
 
-    # MediaType union
-    lines.append(_ts_union_type("MediaType", list(media_types)))
+    # FileType union
+    lines.append(_ts_union_type("FileType", list(file_types)))
     lines.append("\n")
 
     # EmulatorCatalogSlug union (sourced from config/emulators/*.toml, not constants.yaml)

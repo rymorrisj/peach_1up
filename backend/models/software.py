@@ -6,7 +6,7 @@ from pydantic import model_validator
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, Relationship, SQLModel
 
-from backend.constants_generated import EraValue, MediaType
+from backend.constants_generated import EraValue, FileType
 from backend.models.drive import Drive, DriveRead
 from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_entity
 
@@ -36,10 +36,10 @@ class SoftwareItem(SQLModel, table=True):
         )
     )
     disc_number: int = 1
-    media_path: str = Field(sa_column=Column(String, nullable=False, index=True))
+    file_path: str = Field(sa_column=Column(String, nullable=False, index=True))
     executable_path: Optional[str] = None
     cover_art_path: Optional[str] = None
-    media_type: Optional[MediaType] = Field(default=None, sa_column=Column(String))
+    file_type: Optional[FileType] = Field(default=None, sa_column=Column(String))
     folder_path: Optional[str] = Field(default=None, index=True)
     detection_reason: Optional[str] = None
     file_size_bytes: Optional[int] = None
@@ -72,11 +72,11 @@ class SoftwareItemRead(SQLModel):
     id: int
     library_collection_id: int
     disc_number: int
-    media_path: str
+    file_path: str
     executable_path: Optional[str] = None
     cover_art_path: Optional[str] = None
     cover_art_url: Optional[str] = None
-    media_type: Optional[MediaType] = None
+    file_type: Optional[FileType] = None
     folder_path: Optional[str] = None
     detection_reason: Optional[str] = None
     file_size_bytes: Optional[int] = None
@@ -185,7 +185,7 @@ class SoftwareCollection(SQLModel, table=True):
 
 class SoftwareCollectionCreate(SQLModel):
     title: str
-    media_path: str
+    file_path: str
     era: EraValue = "unknown"
     profile_id: Optional[int] = None
 
@@ -262,7 +262,7 @@ class SoftwareCollectionRead(SQLModel):
 
 class ScanPreviewItem(SQLModel):
     title: str
-    media_path: str
+    file_path: str
     detected_era: Optional[str] = None
     is_loose: bool
     is_zip: bool
@@ -293,10 +293,10 @@ class ImportResult(SQLModel):
 def _leaf_to_read(leaf: SoftwareItem) -> Optional[SoftwareItemRead]:
     """Validate one leaf into a SoftwareItemRead, isolating a single bad row.
 
-    A leaf whose DB-persisted ``media_type`` predates the current MediaType
+    A leaf whose DB-persisted ``file_type`` predates the current FileType
     vocabulary (the column is a bare String and enforces no Literal) would raise
     ValidationError and, unguarded, 500 the entire GET /library list. Here that
-    failure is contained to the offending row: the media_type is coerced to None
+    failure is contained to the offending row: the file_type is coerced to None
     and the row still renders (degrade). If it still cannot validate, the row is
     dropped from the response (skip) with a logged warning rather than taking the
     whole list down with it.
@@ -311,9 +311,9 @@ def _leaf_to_read(leaf: SoftwareItem) -> Optional[SoftwareItemRead]:
         log = get_logger(__name__)
         leaf_id = getattr(leaf, "id", None)
         log.warning(
-            "Library item %s failed read validation (%s); serving with media_type "
-            "nulled. This usually means a media_type value not in the current "
-            "MediaType set was persisted before validation existed.",
+            "Library item %s failed read validation (%s); serving with file_type "
+            "nulled. This usually means a file_type value not in the current "
+            "FileType set was persisted before validation existed.",
             leaf_id, exc,
         )
         try:
@@ -322,11 +322,11 @@ def _leaf_to_read(leaf: SoftwareItem) -> Optional[SoftwareItemRead]:
                 for name in SoftwareItemRead.model_fields
                 if name != "cover_art_url"
             }
-            payload["media_type"] = None
+            payload["file_type"] = None
             return SoftwareItemRead.model_validate(payload)
         except ValidationError as exc2:
             log.warning(
-                "Library item %s is unreadable even after degrading media_type; "
+                "Library item %s is unreadable even after degrading file_type; "
                 "dropping it from the response: %s",
                 leaf_id, exc2,
             )

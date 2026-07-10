@@ -96,12 +96,12 @@ def dedup_disc_anchor(media_root: Path, anchor: Path, db: Session) -> Path:
     one exists on disk, avoiding a redundant copy — the same treatment a
     ``kind == "file"`` upload already gets via ``find_existing_duplicate``.
 
-    ``_create_multi_disc_collection`` has no existing-media_path guard the way
+    ``_create_multi_disc_collection`` has no existing-file_path guard the way
     ``_prepare_item`` does for single items, so a duplicate that is still a
-    live ``SoftwareItem.media_path`` is rejected here with ``_ItemAlreadyExists``
+    live ``SoftwareItem.file_path`` is rejected here with ``_ItemAlreadyExists``
     (same exception the file-kind path raises, caught by the upload route as a
     409) rather than being silently repointed — that would create a second
-    tracked row sharing one media_path with an existing collection. Only a
+    tracked row sharing one file_path with an existing collection. Only a
     duplicate that is an *orphan* (physically on disk, not referenced by any
     live item — e.g. left behind after its item was deleted, per
     ``find_existing_duplicate``'s own docstring) is reused.
@@ -113,7 +113,7 @@ def dedup_disc_anchor(media_root: Path, anchor: Path, db: Session) -> Path:
     if duplicate is None:
         return anchor
 
-    live_leaf = db.query(SoftwareItem).filter(SoftwareItem.media_path == str(duplicate)).first()
+    live_leaf = db.query(SoftwareItem).filter(SoftwareItem.file_path == str(duplicate)).first()
     if live_leaf is not None:
         raise _ItemAlreadyExists(db.get(SoftwareCollection, live_leaf.library_collection_id))
 

@@ -24,7 +24,7 @@ export function ScanModal({ open, onClose, onImported, mediaPath }: ScanModalPro
   // Auto-select all items when the preview first loads
   useEffect(() => {
     if (status && !status.running && !importResult && status.preview.length > 0) {
-      setSelected(new Set(status.preview.map((p) => p.media_path)))
+      setSelected(new Set(status.preview.map((p) => p.file_path)))
     }
   }, [status, importResult])
 
@@ -33,7 +33,7 @@ export function ScanModal({ open, onClose, onImported, mediaPath }: ScanModalPro
   }, [open])
 
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(preview.map((p) => p.media_path)))
+    setSelected(allSelected ? new Set() : new Set(preview.map((p) => p.file_path)))
   }
 
   function toggleItem(path: string) {
@@ -119,11 +119,11 @@ export function ScanModal({ open, onClose, onImported, mediaPath }: ScanModalPro
           </div>
           <ul className="max-h-64 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700">
             {preview.map((item) => (
-              <li key={item.media_path} className="flex items-center gap-3 px-3 py-2">
+              <li key={item.file_path} className="flex items-center gap-3 px-3 py-2">
                 <input
                   type="checkbox"
-                  checked={selected.has(item.media_path)}
-                  onChange={() => toggleItem(item.media_path)}
+                  checked={selected.has(item.file_path)}
+                  onChange={() => toggleItem(item.file_path)}
                   className="h-4 w-4 shrink-0 accent-[#ff8a5c]"
                 />
                 <div className="min-w-0 flex-1">
@@ -135,7 +135,7 @@ export function ScanModal({ open, onClose, onImported, mediaPath }: ScanModalPro
                     {item.is_loose && ' · loose'}
                     {item.is_zip && ' · zip'}
                     {' · '}
-                    {item.media_path}
+                    {item.file_path}
                   </span>
                 </div>
               </li>

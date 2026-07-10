@@ -19,7 +19,7 @@ const IMPORT_TIMEOUT_MS = 120_000
 
 export interface ScanPreviewItem {
   title: string
-  media_path: string
+  file_path: string
   detected_era: string | null
   is_loose: boolean
   is_zip: boolean
@@ -262,7 +262,7 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
     // Backend no longer has a preview cache to read titles/era from — the
     // client submits {path, title, era} per item, sourced from this hook's own
     // (already-fetched) preview list.
-    const previewByPath = new Map((status?.preview ?? []).map((p) => [p.media_path, p]))
+    const previewByPath = new Map((status?.preview ?? []).map((p) => [p.file_path, p]))
     const selected = selectedPaths.map((path) => {
       const p = previewByPath.get(path)
       return { path, title: p?.title ?? path, era: p?.detected_era ?? undefined }

@@ -185,14 +185,14 @@ def rescan_file_sizes(
 ):
     rows = db.execute(
         text(
-            "SELECT id, media_path FROM software_items "
-            "WHERE file_size_bytes IS NULL AND media_path IS NOT NULL"
+            "SELECT id, file_path FROM software_items "
+            "WHERE file_size_bytes IS NULL AND file_path IS NOT NULL"
         )
     ).fetchall()
     updated = 0
-    for item_id, media_path in rows:
+    for item_id, file_path in rows:
         try:
-            size = os.path.getsize(media_path)
+            size = os.path.getsize(file_path)
             db.execute(
                 text("UPDATE software_items SET file_size_bytes = :size WHERE id = :id"),
                 {"size": size, "id": item_id},

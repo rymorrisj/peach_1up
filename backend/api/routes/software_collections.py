@@ -123,7 +123,7 @@ def add_library_collection(
     """Create a collection-of-one from a single media path."""
     try:
         collection = lib_svc._ingest_media_entry(
-            body.media_path,
+            body.file_path,
             body.title,
             db,
             override_profile_id=body.profile_id,
@@ -297,15 +297,15 @@ def _check_known_items_findable(db: Session) -> None:
     """Fail loud if a DB-known item's file has vanished from disk (moved or
     renamed outside Peach 1UP) instead of letting scan silently work around it.
     Scan is stateless now — it re-walks disk every call and relies on
-    original_name/media_path to reconcile against existing rows, so a
+    original_name/file_path to reconcile against existing rows, so a
     known item that can no longer be found on disk is surfaced immediately
     rather than dropped without explanation."""
-    rows = db.query(SoftwareItem.media_path, SoftwareItem.original_name).filter(
-        SoftwareItem.media_path.isnot(None)
+    rows = db.query(SoftwareItem.file_path, SoftwareItem.original_name).filter(
+        SoftwareItem.file_path.isnot(None)
     ).all()
-    for media_path, original_name in rows:
-        if not Path(media_path).exists():
-            name = original_name or Path(media_path).name
+    for file_path, original_name in rows:
+        if not Path(file_path).exists():
+            name = original_name or Path(file_path).name
             raise HTTPException(
                 status_code=400,
                 detail=f"Cannot find {name} — did you move or rename it?",
@@ -370,7 +370,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
             }
             existing_media_dirs: set[str] = {
                 str(Path(mp).resolve().parent)
-                for (mp,) in db.query(SoftwareItem.media_path).all()
+                for (mp,) in db.query(SoftwareItem.file_path).all()
             }
 
             for _idx, entry in enumerate(entries):
@@ -419,7 +419,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
 
                 preview.append({
                     "title": entry.name,
-                    "media_path": str(scan_path),
+                    "file_path": str(scan_path),
                     "detected_era": era_slug,
                     "is_loose": is_loose,
                     "is_zip": is_zip,

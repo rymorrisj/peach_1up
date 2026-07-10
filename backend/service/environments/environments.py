@@ -275,8 +275,8 @@ def get_health_summary(db: Session) -> dict:
     from backend.models.drive import Drive
     drive_count = db.query(Drive).count()
     extension_count = (
-        db.query(func.count(sa_distinct(SoftwareItem.media_type)))
-        .filter(SoftwareItem.media_type.isnot(None))
+        db.query(func.count(sa_distinct(SoftwareItem.file_type)))
+        .filter(SoftwareItem.file_type.isnot(None))
         .scalar() or 0
     )
 
@@ -339,7 +339,7 @@ def get_storage_stats(db: Session) -> dict:
     )
 
     drive_images_bytes = get_drive_images_bytes(db)
-    source_media_bytes = sum(_safe_file_size(item.media_path) for item in db.query(SoftwareItem).all())
+    source_media_bytes = sum(_safe_file_size(item.file_path) for item in db.query(SoftwareItem).all())
     os_images_bytes = sum(
         _safe_file_size(p.base_image_path) + _safe_file_size(p.working_image_path)
         for p in db.query(Environment).all()

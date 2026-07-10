@@ -13,7 +13,7 @@ from backend.models.software import (
     SoftwareItem, SoftwareItemReorder, SoftwareItemUpdate,
 )
 from backend.service.utils.confirmation_tokens import consume as _consume
-from backend.service.utils.era_media import is_drive_image, media_type_from_path, resolve_media_file_from_directory
+from backend.service.utils.file_types import is_drive_image, file_type_from_path, resolve_media_file_from_directory
 from backend.service.utils.path_utils import normalise_path, resolve_under
 from backend.service.utils.slug_generator import generate_collection_slug, slugify, unique_slug
 
@@ -27,7 +27,7 @@ _COLLECTION_COLUMNS = {
     "platform_id", "profile_id", "last_launched_at", "launch_count",
 }
 _LEAF_COLUMNS = {
-    "media_path", "executable_path", "cover_art_path", "media_type",
+    "file_path", "executable_path", "cover_art_path", "file_type",
     "folder_path", "detection_reason", "file_size_bytes", "original_name",
     "folder_owned",
 }
@@ -113,7 +113,7 @@ def _rewrite_paths_after_folder_rename(
 def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     if executable_path and Path(executable_path).suffix.lower() != ".img":
         return Path(executable_path)
-    from backend.service.utils.era_media import all_supported_extensions
+    from backend.service.utils.file_types import all_supported_extensions
     all_exts = _MEDIA_SUFFIXES | all_supported_extensions()
     folder_name = folder.name
     try:
@@ -205,12 +205,12 @@ def _prepare_item(
     row: dict = {
         "title": title,
         "era": "unknown",
-        "media_path": str(media_src),
+        "file_path": str(media_src),
         "original_name": media_src.name,
         "slug": None,
         "sort_title": None,
         "category": None,
-        "media_type": None,
+        "file_type": None,
         "folder_path": None,
         "folder_owned": None,
         "cover_art_path": None,
@@ -260,7 +260,7 @@ def _prepare_item(
         if existing:
             raise _ItemAlreadyExists(_collection_for_leaf(existing, db))
         sub = db.query(SoftwareItem).filter(
-            SoftwareItem.media_path.like(str(media_src) + "/%")
+            SoftwareItem.file_path.like(str(media_src) + "/%")
         ).first()
         if sub:
             raise _ItemAlreadyExists(_collection_for_leaf(sub, db))
@@ -268,7 +268,7 @@ def _prepare_item(
         _owned_folder_root = media_src
         row["folder_path"] = str(media_src)
         row["folder_owned"] = True
-        row["media_path"] = str(media_src)
+        row["file_path"] = str(media_src)
 
         cover = _find_cover(media_src)
         if cover:
@@ -304,7 +304,7 @@ def _prepare_item(
         if _resolve_era and _resolve_era != "unknown":
             try:
                 resolved_media = resolve_media_file_from_directory(media_src, _resolve_era)
-                row["media_path"] = str(resolved_media)
+                row["file_path"] = str(resolved_media)
                 # Only re-run detection if the era-specific resolver picked a
                 # different file than the one already scanned above — avoids
                 # hashing the same (possibly large) file twice, which widens
@@ -335,11 +335,11 @@ def _prepare_item(
             dest = dest_folder / media_src.name
 
             # Duplicate check: source path or destination copy already tracked.
-            # media_path is always written as str(Path(...).resolve()) by this same
+            # file_path is always written as str(Path(...).resolve()) by this same
             # function, so an exact match against the same two candidate strings
             # finds any prior duplicate without re-resolving the whole table.
             existing_leaf = db.query(SoftwareItem).filter(
-                SoftwareItem.media_path.in_([str(media_src), str(dest)])
+                SoftwareItem.file_path.in_([str(media_src), str(dest)])
             ).first()
             if existing_leaf:
                 raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
@@ -357,7 +357,7 @@ def _prepare_item(
                     _undo_stack.append(lambda _o=_src_parent, _n=dest_folder: _n.rename(_o) if _n.exists() else None)
                 row["folder_path"] = str(dest_folder)
                 row["folder_owned"] = True
-                row["media_path"] = str(dest)
+                row["file_path"] = str(dest)
             else:
                 # dest_folder may already exist here (the rename-in-place branch
                 # above only fires when it doesn't). Reusing it blind via
@@ -378,7 +378,7 @@ def _prepare_item(
                 if dest.exists():
                     if dest.stat().st_size == media_src.stat().st_size:
                         # Identical file already in place — reuse without re-copy
-                        row["media_path"] = str(dest)
+                        row["file_path"] = str(dest)
                     else:
                         raise HTTPException(
                             status_code=409,
@@ -386,12 +386,12 @@ def _prepare_item(
                         )
                 else:
                     if media_src.resolve() == dest.resolve():
-                        row["media_path"] = str(dest)
+                        row["file_path"] = str(dest)
                     else:
                         shutil.move(str(media_src), str(dest))
                         if _undo_stack is not None:
                             _undo_stack.append(lambda _s=media_src, _d=dest: shutil.move(str(_d), str(_s)) if _d.exists() else None)
-                        row["media_path"] = str(dest)
+                        row["file_path"] = str(dest)
 
             cover = _find_cover(dest_folder)
             if cover:
@@ -400,7 +400,7 @@ def _prepare_item(
             _owned_folder_root = dest_folder
         else:
             existing_leaf = db.query(SoftwareItem).filter(
-                SoftwareItem.media_path == str(media_src)
+                SoftwareItem.file_path == str(media_src)
             ).first()
             if existing_leaf:
                 raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
@@ -413,12 +413,12 @@ def _prepare_item(
             row["folder_path"] = str(media_src.parent)
             row["folder_owned"] = False
 
-        _scan = _smart_detect(Path(row["media_path"]))
+        _scan = _smart_detect(Path(row["file_path"]))
         if _scan.era is not None:
             _det_era = _scan.era
             _det_reason = _scan.reason
         elif _scan.warnings:
-            log.warning("Media detection warnings for '%s': %s", row["media_path"], _scan.warnings)
+            log.warning("Media detection warnings for '%s': %s", row["file_path"], _scan.warnings)
 
         # Single-file ingest (e.g. a loose console ROM/ISO with no companion
         # .exe to discover) has no folder to scan for a launch file the way
@@ -429,7 +429,7 @@ def _prepare_item(
         # _create_multi_disc_collection, which already does the same for
         # multi-disc sets (executable_path = disc_file).
         if row["executable_path"] is None:
-            row["executable_path"] = row["media_path"]
+            row["executable_path"] = row["file_path"]
     else:
         raise HTTPException(
             status_code=400,
@@ -452,11 +452,11 @@ def _prepare_item(
         slug_folder = _reconcile_folder_to_slug(_owned_folder_root, row["slug"], undo_stack=_undo_stack)
         if slug_folder != _owned_folder_root:
             _rewrite_paths_after_folder_rename(
-                row, ("folder_path", "media_path", "executable_path", "cover_art_path"),
+                row, ("folder_path", "file_path", "executable_path", "cover_art_path"),
                 _owned_folder_root, slug_folder, log,
             )
 
-    row["media_type"] = media_type_from_path(Path(row["media_path"]))
+    row["file_type"] = file_type_from_path(Path(row["file_path"]))
     row["requires_install"] = _scan.requires_install
 
     # Single resolution + write site for era and detection_reason (Stage 6).
@@ -492,10 +492,10 @@ def _prepare_item(
     if override_profile_id is not None:
         row["profile_id"] = override_profile_id
 
-    row["content_rating"] = detect_rating(row["media_path"]) or None
+    row["content_rating"] = detect_rating(row["file_path"]) or None
 
     try:
-        p = Path(row["media_path"])
+        p = Path(row["file_path"])
         row["file_size_bytes"] = p.stat().st_size if p.is_file() else None
     except OSError:
         row["file_size_bytes"] = None
@@ -633,7 +633,7 @@ def _create_multi_disc_collection(
     """
     Create a SoftwareCollection with one SoftwareItem leaf per disc file.
     disc_files must be pre-sorted (disc 1 first).
-    Each disc file becomes both media_path and executable_path for its leaf.
+    Each disc file becomes both file_path and executable_path for its leaf.
 
     staging_dir, when given, is the shared directory the caller staged every
     disc_files entry into (chunked_uploads.reassemble() / path_import's
@@ -707,9 +707,9 @@ def _create_multi_disc_collection(
             leaf = SoftwareItem(
                 library_collection_id=collection.id,
                 disc_number=disc_number,
-                media_path=str(disc_file),
+                file_path=str(disc_file),
                 executable_path=str(disc_file),
-                media_type=media_type_from_path(disc_file),
+                file_type=file_type_from_path(disc_file),
                 file_size_bytes=_disc_data_size(disc_file),
                 cover_art_path=str(cover) if disc_number == 1 and cover else None,
                 original_name=disc_file.name,
@@ -755,7 +755,7 @@ def create_library_collection(body: SoftwareCollectionCreate, db: Session) -> tu
     try:
         return (
             _ingest_media_entry(
-                body.media_path, body.title, db, override_profile_id=body.profile_id
+                body.file_path, body.title, db, override_profile_id=body.profile_id
             ),
             False,
         )
@@ -775,7 +775,7 @@ def _delete_leaf_media_folders(collection: SoftwareCollection) -> None:
     pre-existing directory the ingest pipeline does not own — most notably the
     parent directory of a loose file ingested with no MEDIA_PATH configured,
     which may be shared with unrelated files or other library items entirely
-    outside this app's control. For those leaves only the tracked media_path
+    outside this app's control. For those leaves only the tracked file_path
     file itself is unlinked; the directory is left alone. This is deliberately
     asymmetric with the owned case (which may leave cover art / companion
     files behind for legacy folder_owned=None rows) — over-deleting a shared
@@ -826,14 +826,14 @@ def _delete_leaf_media_folders(collection: SoftwareCollection) -> None:
                     log.info("Deleted media folder: %s", folder)
             except OSError as exc:
                 log.warning("Could not delete media folder %s: %s", folder, exc)
-        elif leaf.media_path:
+        elif leaf.file_path:
             # folder_path is not exclusively owned (or ownership is unknown) —
             # never rmtree it. Only remove the one tracked file.
-            if leaf.media_path in seen_files:
+            if leaf.file_path in seen_files:
                 continue
-            seen_files.add(leaf.media_path)
+            seen_files.add(leaf.file_path)
 
-            file_path = Path(leaf.media_path).resolve()
+            file_path = Path(leaf.file_path).resolve()
             if not _under_root(file_path):
                 log.error(
                     "Refusing to delete media file '%s' for library item %s: "

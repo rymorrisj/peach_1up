@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from backend.service.utils.era_media import all_supported_extensions, is_drive_image
+from backend.service.utils.file_types import all_supported_extensions, is_drive_image
 from backend.service.utils.upload_utils import TMP_CHUNKS_DIRNAME
 
 

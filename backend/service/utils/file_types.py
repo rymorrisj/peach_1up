@@ -3,14 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import get_args
 
-from backend.constants_generated import MediaType
+from backend.constants_generated import FileType
 from backend.service.utils.eras_config import get_eras
 
-# The generated MediaType Literal is the single source of truth for the allowed
-# media_type vocabulary. Producers below are validated against it so an
+# The generated FileType Literal is the single source of truth for the allowed
+# file_type vocabulary. Producers below are validated against it so an
 # out-of-set value fails loudly at ingest instead of persisting into the
 # String-typed DB column and only surfacing as a read-time 500 later.
-_VALID_MEDIA_TYPES: frozenset[str] = frozenset(get_args(MediaType))
+_VALID_FILE_TYPES: frozenset[str] = frozenset(get_args(FileType))
 
 
 def all_supported_extensions() -> frozenset[str]:
@@ -47,7 +47,7 @@ def is_drive_image(file: Path, folder_name: str) -> bool:
     return file.name.lower() == f"{folder_name}.img".lower()
 
 
-def _classify_media_type(path: Path) -> str:
+def _classify_file_type(path: Path) -> str:
     if path.is_dir():
         return "directory"
     suffix = path.suffix.lower()
@@ -75,23 +75,23 @@ def _classify_media_type(path: Path) -> str:
     return "unknown"
 
 
-def media_type_from_path(path: Path) -> str:
-    """Classify *path* into a MediaType value, validated against the generated set.
+def file_type_from_path(path: Path) -> str:
+    """Classify *path* into a FileType value, validated against the generated set.
 
-    Every media_type written to the DB flows through here (items ingest, drive
+    Every file_type written to the DB flows through here (items ingest, drive
     hydration). The SQLite column is a bare String and does not enforce the
     Literal, so an out-of-vocabulary value would persist silently and only crash
     later when a Pydantic read model rejects it. Validating at the single
     producer choke-point makes that drift fail loudly at ingest instead.
     """
-    media_type = _classify_media_type(path)
-    if media_type not in _VALID_MEDIA_TYPES:
+    file_type = _classify_file_type(path)
+    if file_type not in _VALID_FILE_TYPES:
         raise ValueError(
-            f"media_type_from_path produced '{media_type}' for '{path}', which is "
-            f"not a valid MediaType {sorted(_VALID_MEDIA_TYPES)}. Add it to "
-            f"config/constants.yaml media_types and regenerate constants."
+            f"file_type_from_path produced '{file_type}' for '{path}', which is "
+            f"not a valid FileType {sorted(_VALID_FILE_TYPES)}. Add it to "
+            f"config/constants.yaml file_types and regenerate constants."
         )
-    return media_type
+    return file_type
 
 
 def resolve_media_file_from_directory(directory: Path, era: str | None) -> Path:

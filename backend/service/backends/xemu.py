@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
-from backend.constants import ERA_MEDIA_TYPES
+from backend.constants import ERA_FILE_TYPES
 from backend.constants_generated import Era
 from backend.service.utils.emulator_catalog import (
     resolve_container_enabled,
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
 
 SUPPORTED_ERAS = {Era.XBOX.value}
-SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.XBOX]
+SUPPORTED_MEDIA = ERA_FILE_TYPES[Era.XBOX]
 
 # Portable-mode data root, next to the binary — matches Flycast's data/ convention.
 DATA_DIR_NAME = "data"

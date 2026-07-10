@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from typing import List, TYPE_CHECKING, Tuple
 
-from backend.constants import ERA_MEDIA_TYPES
+from backend.constants import ERA_FILE_TYPES
 from backend.service.utils.fat.geometry import _is_bare_fat_superfloppy, _read_geometry
 from backend.constants_generated import Era
 from backend.service.utils.era_defaults import DOS_WIN_ERAS
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 SUPPORTED_ERAS = DOS_WIN_ERAS
-SUPPORTED_MEDIA = ERA_MEDIA_TYPES[Era.DOS]
+SUPPORTED_MEDIA = ERA_FILE_TYPES[Era.DOS]
 
 
 def validate_media(media_path: Path) -> None:

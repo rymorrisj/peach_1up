@@ -72,7 +72,7 @@ dgvoodoo2_supported_eras:
   - "win98"
   - "winxp"
 
-media_types:
+file_types:
   directory: "Directory"
   iso:       "ISO Image"
   cue:       "CUE/BIN"

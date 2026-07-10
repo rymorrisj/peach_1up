@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from backend.service.utils.era_media import media_type_from_path
+from backend.service.utils.file_types import file_type_from_path
 from backend.service.utils.fat import FAT16_SIZE_MIN_MB
 
 if TYPE_CHECKING:
@@ -54,7 +54,7 @@ def create_drive_for_collection(
     """Create and persist a Drive record for a library collection.
 
     Sizing uses the launch leaf's executable_path when set (the actual launch
-    file), otherwise its media_path. media_type/requires_install are cached on
+    file), otherwise its file_path. file_type/requires_install are cached on
     the collection when not already set. The image lives at
     ``{launch_leaf.folder_path}/{collection.slug}.img`` — the launch leaf is the
     SoftwareItem pointed to by collection.launch_disk_id.
@@ -70,16 +70,16 @@ def create_drive_for_collection(
     from backend.models.drive import Drive
     from backend.service.utils.smart_media_detector import detect as _smart_detect
 
-    media_src = Path(launch_leaf.executable_path if launch_leaf.executable_path else launch_leaf.media_path)
+    media_src = Path(launch_leaf.executable_path if launch_leaf.executable_path else launch_leaf.file_path)
 
-    if not launch_leaf.media_type:
+    if not launch_leaf.file_type:
         _scan = _smart_detect(media_src)
-        media_type = media_type_from_path(media_src)
-        launch_leaf.media_type = media_type
+        media_type = file_type_from_path(media_src)
+        launch_leaf.file_type = media_type
         collection.requires_install = _scan.requires_install
         db.add(launch_leaf)
     else:
-        media_type = launch_leaf.media_type
+        media_type = launch_leaf.file_type
 
     computed = compute_drive_size_mb(media_src, media_type)
 

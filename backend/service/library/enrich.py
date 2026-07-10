@@ -180,7 +180,7 @@ def enrich_entity(
                 ),
             )
         if cover_art_url:
-            dest_dir = Path(entity.folder_path) if entity.folder_path else Path(entity.media_path).parent
+            dest_dir = Path(entity.folder_path) if entity.folder_path else Path(entity.file_path).parent
             entity.cover_art_path = str(_download_cover_art(cover_art_url, dest_dir))
 
     else:

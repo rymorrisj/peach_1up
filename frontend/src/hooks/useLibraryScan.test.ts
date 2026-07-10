@@ -59,7 +59,7 @@ const DONE_JOB = {
   message: 'Scan complete — 1 item(s) ready to import.',
   result: {
     preview: [
-      { title: 'Game', media_path: '/lib/game.nes', detected_era: 'nes', is_loose: true, is_zip: false },
+      { title: 'Game', file_path: '/lib/game.nes', detected_era: 'nes', is_loose: true, is_zip: false },
     ],
   },
 }
