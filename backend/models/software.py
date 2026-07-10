@@ -4,6 +4,7 @@ from typing import Optional
 
 from pydantic import model_validator
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy.orm import validates
 from sqlmodel import Field, Relationship, SQLModel
 
 from backend.constants import PC_ERAS
@@ -193,16 +194,27 @@ class SoftwareCollection(SQLModel, table=True):
         },
     )
 
-    @model_validator(mode="after")
-    def _derive_item_type_from_era(self) -> "SoftwareCollection":
+    @validates("item_type")
+    def _validate_item_type(self, key: str, value: Optional[ItemType]) -> Optional[ItemType]:
         derived = derive_item_type(self.era)
-        if self.item_type is not None and self.item_type != derived:
+        if value is not None and value != derived:
             raise ValueError(
-                f"item_type {self.item_type!r} conflicts with era {self.era!r} "
+                f"item_type {value!r} conflicts with era {self.era!r} "
                 f"(era implies {derived!r}). item_type is derived from era, not independently settable."
             )
-        self.item_type = derived
-        return self
+        return value
+
+    def model_post_init(self, __context: object) -> None:
+        # SQLModel's table-model __setattr__ writes each field twice per
+        # assignment (once via SQLAlchemy instrumentation, once via Pydantic) —
+        # the second write always re-applies the raw incoming value, so a
+        # value *transformed* by returning something different from
+        # @validates never survives. That means item_type can only be
+        # reliably derived here, as an explicit direct assignment after the
+        # whole object is built, not by returning a different value from
+        # _validate_item_type above (which exists solely to reject an
+        # explicitly-conflicting item_type before construction completes).
+        self.item_type = derive_item_type(self.era)
 
 
 class SoftwareCollectionCreate(SQLModel):

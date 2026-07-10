@@ -46,6 +46,19 @@ class _SlugCollision(Exception):
         super().__init__(message or "Import collided with a concurrent change, please retry.")
 
 
+# software_collections.slug is the only unique column on this table (see
+# ix_software_collections_slug in backend/models/software.py); SQLite reports
+# a violation of it as "UNIQUE constraint failed: software_collections.slug"
+# on the wrapped driver exception. Matching on that — instead of catching
+# every IntegrityError as a slug race — keeps unrelated failures (a NOT NULL
+# violation, a bad FK, etc.) from being mislabeled as a retryable collision.
+_SLUG_UNIQUE_VIOLATION_MARKER = "software_collections.slug"
+
+
+def _is_slug_unique_violation(exc: IntegrityError) -> bool:
+    return _SLUG_UNIQUE_VIOLATION_MARKER in str(exc.orig)
+
+
 def _reconcile_folder_to_slug(folder: Path, slug: str, *, undo_stack: list | None = None) -> Path:
     """Rename *folder* so its basename is literally *slug*, in the same parent.
 
@@ -578,7 +591,9 @@ def _ingest_media_entry(
                 _undo()
             except OSError:
                 pass
-        raise _SlugCollision() from exc
+        if _is_slug_unique_violation(exc):
+            raise _SlugCollision() from exc
+        raise
     except Exception:
         db.rollback()
         for _undo in reversed(_undo_ops):
@@ -756,10 +771,12 @@ def _create_multi_disc_collection(
         db.rollback()
         if staged_dir != original_dir and staged_dir.exists():
             staged_dir.rename(original_dir)
-        raise _SlugCollision(
-            f"Import collided with a concurrent change while adding '{slug}' "
-            f"(disc file '{disc_files[0].name}') — please retry."
-        ) from exc
+        if _is_slug_unique_violation(exc):
+            raise _SlugCollision(
+                f"Import collided with a concurrent change while adding '{slug}' "
+                f"(disc file '{disc_files[0].name}') — please retry."
+            ) from exc
+        raise
     except Exception:
         # Any other failure (e.g. an OSError reading a disc file mid-write):
         # revert the folder rename so the caller's own cleanup-on-failure
