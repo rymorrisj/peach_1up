@@ -23,7 +23,7 @@ const CONSOLE_ERA_ITEMS = [
 ];
 
 const NAV_ITEMS = [
-  { to: "/library", label: "Library", glyph: "📚" },
+  { to: "/software", label: "Software", glyph: "📚" },
   { to: "/emulators", label: "Emulators", glyph: "🖥️" },
   { to: "/environments", label: "Environments", glyph: "💻" },
   { to: "/platform-health", label: "Platform Health", glyph: "🩺" },
@@ -182,7 +182,7 @@ export default function Sidebar() {
             <li key={slug}>
               <button
                 type="button"
-                onClick={() => navigate(`/library?era=${slug}`)}
+                onClick={() => navigate(`/software?era=${slug}`)}
                 className="flex w-full items-center gap-2.5 rounded-lg px-3 py-[7px] transition-colors duration-[120ms] hover:text-neutral-200"
                 style={{
                   background: "transparent",
@@ -236,7 +236,7 @@ export default function Sidebar() {
             <li key={slug}>
               <button
                 type="button"
-                onClick={() => navigate(`/library?era=${slug}`)}
+                onClick={() => navigate(`/software?era=${slug}`)}
                 className="flex w-full items-center gap-2.5 rounded-lg px-3 py-[7px] transition-colors duration-[120ms] hover:text-neutral-200"
                 style={{
                   background: "transparent",

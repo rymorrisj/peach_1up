@@ -8,8 +8,10 @@ export interface ManageUserForm {
   name: string;
   pin: string;
   can_launch_media: boolean;
-  can_edit_library: boolean;
-  can_edit_platforms: boolean;
+  can_edit_software: boolean;
+  can_edit_environments: boolean;
+  can_edit_media: boolean;
+  can_manage_controllers: boolean;
   can_manage_profiles: boolean;
   can_edit_settings: boolean;
   can_manage_users: boolean;
@@ -21,8 +23,10 @@ export interface ManageUserForm {
 
 const PERMISSION_FLAGS: { key: keyof ManageUserForm; label: string }[] = [
   { key: "can_launch_media", label: "Launch media" },
-  { key: "can_edit_library", label: "Edit library" },
-  { key: "can_edit_platforms", label: "Edit platforms" },
+  { key: "can_edit_software", label: "Edit software" },
+  { key: "can_edit_environments", label: "Edit environments" },
+  { key: "can_edit_media", label: "Edit media" },
+  { key: "can_manage_controllers", label: "Manage controllers" },
   { key: "can_manage_profiles", label: "Manage profiles" },
   { key: "can_edit_settings", label: "Edit settings" },
   { key: "can_manage_users", label: "Manage own account" },

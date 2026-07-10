@@ -31,7 +31,7 @@ def _enforce_rate_limit(bucket: str, request: Request, limit: int, window_second
 
 
 class EnrichBody(BaseModel):
-    entity_type: Literal["library_collection", "library_item"]
+    entity_type: Literal["software_collection", "software_item"]
     entity_id: int
     title: Optional[str] = None
     description: Optional[str] = None
@@ -145,6 +145,6 @@ def enrich_library_entity(
         confirm_rating_change=body.confirm_rating_change,
         db=db,
     )
-    if entity_type == "library_collection":
+    if entity_type == "software_collection":
         return collection_to_read(entity, db)
     return SoftwareItemRead.model_validate(entity)

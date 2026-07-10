@@ -24,14 +24,14 @@ export function useXisoConvert(collectionId: number) {
 
   const startMutation = useMutation({
     mutationFn: () =>
-      apiFetch(`/api/v1/librarycollection/${collectionId}/convert-xiso`, { method: 'POST' }),
+      apiFetch(`/api/v1/softwarecollection/${collectionId}/convert-xiso`, { method: 'POST' }),
     onSuccess: () => {
       setStatus('converting')
       setError(null)
       pollRef.current = setInterval(async () => {
         try {
           const res = await apiFetch<ConvertStatusResponse>(
-            `/api/v1/librarycollection/${collectionId}/convert-xiso/status`,
+            `/api/v1/softwarecollection/${collectionId}/convert-xiso/status`,
           )
           if (res.status === 'complete') {
             setStatus('complete')

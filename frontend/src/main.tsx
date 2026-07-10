@@ -5,8 +5,8 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { AppProvider } from '@/context/AppContext'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import AppShell from '@/components/layout/AppShell'
-import Library from '@/pages/Library'
-import CollectionDetail from '@/pages/Library/CollectionDetail'
+import Software from '@/pages/Software'
+import CollectionDetail from '@/pages/Software/CollectionDetail'
 import Settings from '@/pages/Settings'
 import Users from '@/pages/Users'
 import Emulators from '@/pages/Emulators'
@@ -97,10 +97,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/first-run" element={<FirstRun />} />
             <Route element={<FirstRunGuard />}>
               <Route element={<RequireAuth />}>
-                <Route path="/" element={<Navigate to="/library" replace />} />
+                <Route path="/" element={<Navigate to="/software" replace />} />
                 <Route element={<AppShell />}>
-                  <Route path="/library" element={<Library />} />
-                  <Route path="/library/:slug" element={<CollectionDetail />} />
+                  <Route path="/software" element={<Software />} />
+                  <Route path="/software/:slug" element={<CollectionDetail />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/users" element={<Users />} />
                   <Route path="/environments" element={<Environments />} />

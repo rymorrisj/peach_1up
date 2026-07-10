@@ -8,7 +8,7 @@ import { ERA_LABELS } from '@/generated/constants'
 import { ERA_COLOR } from '@/types/era'
 import type { components } from '@shared/types'
 
-type Platform = components['schemas']['PlatformRead']
+type Platform = components['schemas']['EnvironmentRead']
 
 type Tab = 'overview' | 'notes'
 

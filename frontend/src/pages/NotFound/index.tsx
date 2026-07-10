@@ -9,10 +9,10 @@ export default function NotFound() {
           Page not found
         </h2>
         <Link
-          to="/library"
+          to="/software"
           className="text-sm font-medium text-peach underline-offset-4 hover:underline"
         >
-          Go to Library
+          Go to Software
         </Link>
       </div>
     </main>

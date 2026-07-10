@@ -89,7 +89,7 @@ def _download_cover_art(url: str, dest_dir: Path) -> Path:
 
 
 def enrich_entity(
-    entity_type: Literal["library_collection", "library_item"],
+    entity_type: Literal["software_collection", "software_item"],
     entity_id: int,
     *,
     title: Optional[str] = None,
@@ -121,7 +121,7 @@ def enrich_entity(
         from backend.core.dependencies import normalize_content_rating
         metadata_fields["content_rating"] = normalize_content_rating(content_rating)
 
-    if entity_type == "library_collection":
+    if entity_type == "software_collection":
         # Metadata lives on the collection; cover art belongs on the individual leaves.
         entity = db.get(SoftwareCollection, entity_id)
         if not entity:
@@ -130,8 +130,8 @@ def enrich_entity(
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    "cover_art_url is not supported for library_collection; "
-                    "apply cover art to individual library_item discs instead."
+                    "cover_art_url is not supported for software_collection; "
+                    "apply cover art to individual software_item discs instead."
                 ),
             )
         if "content_rating" in metadata_fields:
@@ -149,7 +149,7 @@ def enrich_entity(
                         ),
                     )
                 _log.warning(
-                    "content_rating lowered/cleared on library_collection id=%s: %r -> %r "
+                    "content_rating lowered/cleared on software_collection id=%s: %r -> %r "
                     "(confirmed by caller)",
                     entity_id, old_rating, new_rating,
                 )
@@ -166,7 +166,7 @@ def enrich_entity(
             # "manual"-provider row here.
             set_genres_for_collection(db, entity_id, genre)
 
-    elif entity_type == "library_item":
+    elif entity_type == "software_item":
         # Leaf: per-disc cover art only — no metadata fields (those go on the collection).
         entity = db.get(SoftwareItem, entity_id)
         if not entity:
@@ -175,8 +175,8 @@ def enrich_entity(
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    "library_item does not support metadata fields (title, description, etc.); "
-                    "apply those to the parent library_collection."
+                    "software_item does not support metadata fields (title, description, etc.); "
+                    "apply those to the parent software_collection."
                 ),
             )
         if cover_art_url:

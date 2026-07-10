@@ -25,7 +25,7 @@ class LaunchResponse(BaseModel):
     launch_review_flagged: bool = False
 
 
-@router.post("/library/{collection_id}/launch", status_code=202, response_model=LaunchResponse)
+@router.post("/softwarecollection/{collection_id}/launch", status_code=202, response_model=LaunchResponse)
 async def launch_collection(
     collection_id: int,
     body: LaunchRequest = LaunchRequest(),
@@ -67,7 +67,7 @@ async def launch_environment(
     )
 
 
-@router.get("/library/{collection_id}/launches", response_model=list[LaunchHistoryRead])
+@router.get("/softwarecollection/{collection_id}/launches", response_model=list[LaunchHistoryRead])
 def list_collection_launches(
     collection_id: int,
     db: Session = Depends(get_db),

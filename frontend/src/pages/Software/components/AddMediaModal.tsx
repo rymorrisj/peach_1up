@@ -25,7 +25,7 @@ interface StagedDisc {
 
 // A file or folder picked via the server-side file browser (real, absolute,
 // server-resolved path — never a browser File object), staged for import
-// via POST /api/v1/library/import-from-path. Unlike the drag-and-drop/file-
+// via POST /api/v1/software/import-from-path. Unlike the drag-and-drop/file-
 // input entries above, these can offer "delete original after import"
 // because the backend already knows the source's real path.
 interface BrowseImportEntry {
@@ -39,7 +39,7 @@ interface BrowseImportEntry {
 }
 
 // Shape of the inline (non-background) response body from
-// POST /api/v1/library/import-from-path — see path_import.import_inline /
+// POST /api/v1/software/import-from-path — see path_import.import_inline /
 // finalize_reassembled. delete_original_error is only ever present when
 // delete_original was true and the post-import cleanup failed; its presence
 // never means the import itself failed (the collection/item was already
@@ -408,7 +408,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       setBrowseImports((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'importing' } : e)))
       try {
         const title = entry.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim()
-        const res = await apiFetch<ImportFromPathResult>('/api/v1/library/import-from-path', {
+        const res = await apiFetch<ImportFromPathResult>('/api/v1/software/import-from-path', {
           method: 'POST',
           body: JSON.stringify({ source_path: entry.path, title, delete_original: entry.deleteOriginal }),
         })
@@ -956,7 +956,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
         {mediaPath
           ? `Tip: uploads are copied through the browser, which can be slow for very large files. For faster imports of large files, place them directly in ${mediaPath} and use Scan instead.`
-          : 'Tip: uploads are copied through the browser, which can be slow for very large files. Set a media library path in Settings to enable faster imports of large files via Scan.'}
+          : 'Tip: uploads are copied through the browser, which can be slow for very large files. Set a software library path in Settings to enable faster imports of large files via Scan.'}
         {' '}Dragged/dropped or picked files can't offer to delete their source afterward — the
         browser never exposes a real file path for that input method. Use "Import from a path on
         this server" above if you want the option to delete the original after import.

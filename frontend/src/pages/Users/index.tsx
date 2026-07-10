@@ -21,8 +21,10 @@ const EMPTY_MANAGE_USER_FORM: ManageUserForm = {
   name: "",
   pin: "",
   can_launch_media: true,
-  can_edit_library: false,
-  can_edit_platforms: false,
+  can_edit_software: false,
+  can_edit_environments: false,
+  can_edit_media: false,
+  can_manage_controllers: false,
   can_manage_profiles: false,
   can_edit_settings: false,
   can_manage_users: false,
@@ -95,8 +97,10 @@ export default function Users() {
       name: user.name,
       pin: "",
       can_launch_media: user.can_launch_media,
-      can_edit_library: user.can_edit_library,
-      can_edit_platforms: user.can_edit_platforms,
+      can_edit_software: user.can_edit_software,
+      can_edit_environments: user.can_edit_environments,
+      can_edit_media: user.can_edit_media,
+      can_manage_controllers: user.can_manage_controllers,
       can_manage_profiles: user.can_manage_profiles,
       can_edit_settings: user.can_edit_settings,
       can_manage_users: user.can_manage_users,
@@ -132,8 +136,10 @@ export default function Users() {
             name: manageForm.name.trim(),
             pin: manageForm.pin || undefined,
             can_launch_media: manageForm.can_launch_media,
-            can_edit_library: manageForm.can_edit_library,
-            can_edit_platforms: manageForm.can_edit_platforms,
+            can_edit_software: manageForm.can_edit_software,
+            can_edit_environments: manageForm.can_edit_environments,
+            can_edit_media: manageForm.can_edit_media,
+            can_manage_controllers: manageForm.can_manage_controllers,
             can_manage_profiles: manageForm.can_manage_profiles,
             can_edit_settings: manageForm.can_edit_settings,
             can_manage_users: manageForm.can_manage_users,
@@ -151,8 +157,10 @@ export default function Users() {
         };
         if (manageCanEditAdminFields) {
           patchBody.can_launch_media = manageForm.can_launch_media;
-          patchBody.can_edit_library = manageForm.can_edit_library;
-          patchBody.can_edit_platforms = manageForm.can_edit_platforms;
+          patchBody.can_edit_software = manageForm.can_edit_software;
+          patchBody.can_edit_environments = manageForm.can_edit_environments;
+          patchBody.can_edit_media = manageForm.can_edit_media;
+          patchBody.can_manage_controllers = manageForm.can_manage_controllers;
           patchBody.can_manage_profiles = manageForm.can_manage_profiles;
           patchBody.can_edit_settings = manageForm.can_edit_settings;
           patchBody.can_manage_users = manageForm.can_manage_users;

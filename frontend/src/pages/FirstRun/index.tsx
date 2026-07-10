@@ -22,7 +22,7 @@ export default function FirstRun() {
     )
   }
 
-  if (data?.first_run_complete) return <Navigate to="/library" replace />
+  if (data?.first_run_complete) return <Navigate to="/software" replace />
 
   async function completeSetup() {
     setFinishing(true)

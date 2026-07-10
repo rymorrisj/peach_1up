@@ -52,7 +52,7 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Sess
             title = reasm.title or ingest_path.stem.replace("-", " ").title()
             collection = lib_svc._ingest_media_entry(str(ingest_path), title, db)
             return {
-                "result_type": "library_collection",
+                "result_type": "software_collection",
                 "id": collection.id,
                 "title": collection.title,
                 "reused_existing_media": reused,
@@ -74,7 +74,7 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Sess
                 disc_files, reasm.title, db, staging_dir=reasm.dest_dir
             )
             return {
-                "result_type": "library_collection",
+                "result_type": "software_collection",
                 "id": collection.id,
                 "title": collection.title,
                 "disc_count": len(disc_files),

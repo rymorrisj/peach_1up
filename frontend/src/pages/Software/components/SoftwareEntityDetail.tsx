@@ -22,7 +22,7 @@ interface RestrictionsProps {
   error: string | null
 }
 
-interface LibraryEntityDetailProps {
+interface SoftwareEntityDetailProps {
   title: string
   eraLabel: string
   eraDetectionReason?: string
@@ -62,7 +62,7 @@ interface LibraryEntityDetailProps {
   launchHistory?: LaunchHistory[]
 }
 
-export function LibraryEntityDetail({
+export function SoftwareEntityDetail({
   title,
   eraLabel,
   eraDetectionReason,
@@ -87,15 +87,15 @@ export function LibraryEntityDetail({
   launchErrorAction,
   restrictions,
   launchHistory,
-}: LibraryEntityDetailProps) {
+}: SoftwareEntityDetailProps) {
   return (
     <div className="flex flex-col min-h-full">
       <TopBar title={title} />
 
       <div className="p-6">
         <div className="mb-6">
-          <Link to="/library" className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200">
-            ← Library
+          <Link to="/software" className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200">
+            ← Software
           </Link>
         </div>
 

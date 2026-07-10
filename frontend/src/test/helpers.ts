@@ -4,7 +4,7 @@ import type { RenderResult } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
 import type { components } from '@shared/types'
-type LibraryCollection = components['schemas']['LibraryCollectionRead']
+type LibraryCollection = components['schemas']['SoftwareCollectionRead']
 
 function createTestQueryClient() {
   return new QueryClient({

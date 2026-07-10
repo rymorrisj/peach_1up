@@ -13,7 +13,7 @@ import { ERA_LABELS } from '@/generated/constants'
 import { AddMediaModal } from './components/AddMediaModal'
 import { ScanModal } from './components/ScanModal'
 import { CollectionCard } from './components/CollectionCard'
-import type { LibraryCollectionData } from './components/CollectionCard'
+import type { SoftwareCollectionData } from './components/CollectionCard'
 
 // Server-side pagination envelope (backend models/pagination.py). Typed locally
 // so the app builds before @shared/types is regenerated from the OpenAPI spec.
@@ -31,8 +31,9 @@ const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value,
 const SELECT_CLASS =
   'rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#ff8a5c] border'
 
-interface ResolvedPaths {
+interface SoftwarePaths {
   library_path: string | null
+  software_path: string | null
   media_path: string | null
 }
 
@@ -68,11 +69,11 @@ export default function Library() {
     return params.toString()
   }
 
-  const { data: collectionsPage, isLoading } = useQuery<Page<LibraryCollectionData>>({
+  const { data: collectionsPage, isLoading } = useQuery<Page<SoftwareCollectionData>>({
     queryKey: ['library', filters.era, filters.profileFilter, offset],
     queryFn: () =>
-      apiFetch<Page<LibraryCollectionData>>(
-        `/api/v1/library?${listParams({ limit: String(PAGE_SIZE), offset: String(offset) })}`,
+      apiFetch<Page<SoftwareCollectionData>>(
+        `/api/v1/software?${listParams({ limit: String(PAGE_SIZE), offset: String(offset) })}`,
       ),
     placeholderData: keepPreviousData,
   })
@@ -80,14 +81,14 @@ export default function Library() {
   const total = collectionsPage?.total ?? 0
 
   const handleSetDisplayDisk = async (collectionId: number, discId: number) => {
-    await apiFetch(`/api/v1/librarycollection/${collectionId}`, {
+    await apiFetch(`/api/v1/softwarecollection/${collectionId}`, {
       method: 'PATCH',
       body: JSON.stringify({ display_disk_id: discId }),
     })
     queryClient.invalidateQueries({ queryKey: ['library'] })
   }
 
-  const { data: settingsData } = useQuery<{ paths: ResolvedPaths }>({
+  const { data: settingsData } = useQuery<{ paths: SoftwarePaths }>({
     queryKey: ['first-run-status'],
     queryFn: () => apiFetch('/api/v1/settings/first-run-status'),
     staleTime: 60_000,
@@ -109,7 +110,7 @@ export default function Library() {
     return () => window.removeEventListener('upload-complete', invalidate)
   }, [invalidate])
 
-  async function handleRemove(collection: LibraryCollectionData) {
+  async function handleRemove(collection: SoftwareCollectionData) {
     const resolvedDeleteMedia = collection.delete_media_override ?? deleteMediaOnRemoval
     const confirmed = await confirm({
       title: `Remove "${collection.title}"?`,
@@ -121,13 +122,13 @@ export default function Library() {
     try {
       const checkedDeleteMedia = getCheckboxValue()
       if (checkedDeleteMedia !== resolvedDeleteMedia) {
-        await apiFetch(`/api/v1/librarycollection/${collection.id}`, {
+        await apiFetch(`/api/v1/softwarecollection/${collection.id}`, {
           method: 'PATCH',
           body: JSON.stringify({ delete_media_override: checkedDeleteMedia }),
         })
       }
-      const token = await issueToken(`/api/v1/librarycollection/${collection.id}/confirm-delete`)
-      await consumeToken(`/api/v1/librarycollection/${collection.id}`, token)
+      const token = await issueToken(`/api/v1/softwarecollection/${collection.id}/confirm-delete`)
+      await consumeToken(`/api/v1/softwarecollection/${collection.id}`, token)
       queryClient.invalidateQueries({ queryKey: ['library'] })
     } catch (err) {
       const msg = err instanceof ApiError ? err.detail : 'Remove failed.'
@@ -256,13 +257,13 @@ export default function Library() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onAdded={invalidate}
-        mediaPath={settingsData?.paths?.media_path ?? null}
+        mediaPath={settingsData?.paths?.software_path ?? null}
       />
       <ScanModal
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onImported={invalidate}
-        mediaPath={settingsData?.paths?.media_path ?? null}
+        mediaPath={settingsData?.paths?.software_path ?? null}
       />
       <ConfirmModal
         open={confirmOpen}

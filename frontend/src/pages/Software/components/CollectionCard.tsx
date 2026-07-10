@@ -7,7 +7,7 @@ type TagRead = components['schemas']['TagRead']
 
 // Leaf (per-disc) record within a collection. Renamed from the former
 // LibrarySetItemData; single-disc games are collections-of-one.
-export interface LibraryCollectionItemData {
+export interface SoftwareItemData {
   id: number
   library_collection_id: number
   disc_number: number
@@ -23,7 +23,7 @@ export interface LibraryCollectionItemData {
   updated_at?: string | null
 }
 
-export interface LibraryCollectionData {
+export interface SoftwareCollectionData {
   id: number
   slug: string | null
   title: string
@@ -53,7 +53,7 @@ export interface LibraryCollectionData {
   launch_count: number
   created_at: string
   updated_at: string
-  items: LibraryCollectionItemData[]
+  items: SoftwareItemData[]
   tags: TagRead[]
 }
 
@@ -69,7 +69,7 @@ function eraHex(era: string) {
 }
 
 // Full placeholder for the front face when no cover art exists
-function ArtPlaceholder({ collection }: { collection: LibraryCollectionData }) {
+function ArtPlaceholder({ collection }: { collection: SoftwareCollectionData }) {
   const style = ERA_PLACEHOLDER[collection.era] ?? ERA_PLACEHOLDER_DEFAULT
   const label = ERA_LABEL[collection.era] ?? (collection.era?.toUpperCase() ?? '—')
   return (
@@ -153,8 +153,8 @@ const LAYER_BASE =
   'transition-[transform,box-shadow] duration-[220ms] ease-[cubic-bezier(0.16,1,0.3,1)]'
 
 interface CollectionCardProps {
-  collection: LibraryCollectionData
-  onRemove?: (collection: LibraryCollectionData) => void
+  collection: SoftwareCollectionData
+  onRemove?: (collection: SoftwareCollectionData) => void
   onSetDisplayDisk?: (collectionId: number, discId: number) => void
 }
 
@@ -175,7 +175,7 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
   const discCount = collection.items.length
   const isMultiDisc = discCount > 1
   const chipHex = eraHex(collection.era)
-  const to = collection.slug ? `/library/${collection.slug}` : `/library/${collection.id}`
+  const to = collection.slug ? `/software/${collection.slug}` : `/software/${collection.id}`
 
   return (
     <div className="group relative flex flex-col gap-2.5">

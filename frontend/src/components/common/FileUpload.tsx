@@ -5,13 +5,17 @@ import { getCsrfToken } from '@/api/client'
 const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000'
 
 interface FileUploadProps {
-  era: string
-  mediaType: 'os' | 'game'
+  /** Slug of the Environment this install media belongs to — era is derived
+   *  server-side from that Environment record, not supplied by the client.
+   *  Undefined when no Environment exists yet (e.g. still in the create-modal
+   *  flow, before the record — and its slug — exist); the control renders
+   *  nothing in that case since the upload has nowhere to land yet. */
+  slug: string | undefined
   onComplete: (path: string) => void
   accept?: string
 }
 
-export default function FileUpload({ era, mediaType, onComplete, accept }: FileUploadProps) {
+export default function FileUpload({ slug, onComplete, accept }: FileUploadProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [progress, setProgress] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -25,18 +29,17 @@ export default function FileUpload({ era, mediaType, onComplete, accept }: FileU
   }
 
   function upload(file: File) {
+    if (!slug) return
     setUploading(true)
     setProgress(0)
     setError(null)
 
     const fd = new FormData()
     fd.append('file', file)
-    fd.append('era', era)
-    fd.append('media_type', mediaType)
 
     // XHR is required here — fetch() does not expose upload progress events.
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', `${baseURL}/api/v1/media/upload`)
+    xhr.open('POST', `${baseURL}/api/v1/environments/${slug}/install-media`)
     xhr.withCredentials = true
     xhr.setRequestHeader('X-CSRF-Token', getCsrfToken())
 
@@ -51,7 +54,7 @@ export default function FileUpload({ era, mediaType, onComplete, accept }: FileU
       setProgress(null)
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const result = JSON.parse(xhr.responseText) as { path: string }
+          const result = JSON.parse(xhr.responseText) as { path: string; slug: string; size_bytes: number }
           onComplete(result.path)
         } catch {
           setError('Upload succeeded but the response could not be parsed.')
@@ -74,6 +77,8 @@ export default function FileUpload({ era, mediaType, onComplete, accept }: FileU
 
     xhr.send(fd)
   }
+
+  if (!slug) return null
 
   return (
     <div className="mt-1.5 space-y-1.5">

@@ -7,7 +7,7 @@ import type { EditForm as EditFormFields } from '@/hooks/useEditForm'
 import type { components } from '@shared/types'
 
 type LaunchProfile = components['schemas']['ProfileRead']
-type Platform = components['schemas']['PlatformRead']
+type Platform = components['schemas']['EnvironmentRead']
 
 type EditableItem = {
   era: string

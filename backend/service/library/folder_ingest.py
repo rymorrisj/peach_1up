@@ -127,7 +127,7 @@ def ingest_folder(
     """Multi-disc collection when 2+ disc files are present, else a collection-of-one.
 
     Returns ``(result_type, collection, disc_count)`` where result_type is always
-    ``"library_collection"`` and disc_count is the number of discs (1 for a
+    ``"software_collection"`` and disc_count is the number of discs (1 for a
     collection-of-one). Raises the same 4xx HTTPExceptions as the ingester
     on a duplicate/collision — callers translate those (inline route) or mark the
     job failed (background finalizer).
@@ -138,8 +138,8 @@ def ingest_folder(
         collection = lib_svc._create_multi_disc_collection(
             disc_files, title.strip(), db, staging_dir=dest_dir
         )
-        return "library_collection", collection, len(disc_files)
+        return "software_collection", collection, len(disc_files)
 
     pick_folder_launch_file(written_paths)
     collection = lib_svc._ingest_media_entry(str(dest_dir), title.strip(), db)
-    return "library_collection", collection, 1
+    return "software_collection", collection, 1

@@ -39,7 +39,7 @@ export function useCollectionRestrictions({
   const saveMutation = useMutation<void, Error, number[]>({
     mutationFn: (userIds) => {
       if (!collectionId) return Promise.resolve()
-      return apiFetch(`/api/v1/librarycollection/${collectionId}/restrictions`, {
+      return apiFetch(`/api/v1/softwarecollection/${collectionId}/restrictions`, {
         method: 'PUT',
         body: JSON.stringify({ user_ids: userIds }),
       })

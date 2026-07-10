@@ -8,8 +8,9 @@ export interface EmulatorStatus {
   path: string | null
 }
 
-export interface LibraryPaths {
+export interface StoragePaths {
   library_path: string | null
+  software_path: string | null
   media_path: string | null
   os_path: string | null
   profiles_path: string | null
@@ -20,7 +21,7 @@ export interface FirstRunStatus {
   first_run_complete: boolean
   owner_exists: boolean
   emulators: EmulatorStatus[]
-  paths: LibraryPaths
+  paths: StoragePaths
 }
 
 export interface OwnerStatus {

@@ -9,7 +9,7 @@ import LaunchHistory from '@/components/launches/LaunchHistory'
 import { useLaunch } from '@/hooks/useLaunch'
 import { apiFetch, ApiError } from '@/api/client'
 
-type PlatformBase = components['schemas']['PlatformRead']
+type PlatformBase = components['schemas']['EnvironmentRead']
 type Platform = PlatformBase & { installed_at?: string | null }
 
 const EMULATOR_LABELS: Record<string, string> = {

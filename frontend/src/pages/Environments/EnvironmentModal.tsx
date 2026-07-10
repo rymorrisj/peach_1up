@@ -80,6 +80,11 @@ export { ERA_TO_EMULATOR }
 interface EnvironmentModalProps {
   open: boolean
   mode: 'create' | 'edit'
+  /** The Environment's slug — only defined in edit mode, once the record (and
+   *  its slug) already exist. Install-media upload resolves the target
+   *  Environment by slug server-side, so it has nothing to upload to yet
+   *  during create; FileUpload renders nothing when this is undefined. */
+  slug?: string
   form: EnvironmentForm
   formErrors: Partial<Record<keyof EnvironmentForm, string>>
   submitError: string | null
@@ -92,6 +97,7 @@ interface EnvironmentModalProps {
 export default function EnvironmentModal({
   open,
   mode,
+  slug,
   form,
   formErrors,
   submitError,
@@ -236,8 +242,7 @@ export default function EnvironmentModal({
             />
             {form.era && (
               <FileUpload
-                era={form.era}
-                mediaType="os"
+                slug={slug}
                 accept=".iso,.img,.vhd,.cue,.chd"
                 onComplete={(path) => onFieldChange('base_image_path', path)}
               />
@@ -275,8 +280,7 @@ export default function EnvironmentModal({
               />
               {form.era && (
                 <FileUpload
-                  era={form.era}
-                  mediaType="os"
+                  slug={slug}
                   accept=".img,.iso,.vhd,.cue,.chd,.xiso"
                   onComplete={(path) => onFieldChange('base_image_path', path)}
                 />
@@ -300,8 +304,7 @@ export default function EnvironmentModal({
               />
               {form.era && (
                 <FileUpload
-                  era={form.era}
-                  mediaType="os"
+                  slug={slug}
                   accept=".img,.iso,.vhd,.cue,.chd,.xiso"
                   onComplete={(path) => onFieldChange('working_image_path', path)}
                 />

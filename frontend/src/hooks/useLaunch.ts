@@ -49,7 +49,7 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
       const path =
         targetType === 'environment'
           ? `/api/v1/environments/${targetId}/launch`
-          : `/api/v1/library/${targetId}/launch`
+          : `/api/v1/softwarecollection/${targetId}/launch`
       return apiFetch<LaunchResponse>(path, {
         method: 'POST',
         body: JSON.stringify({ profile_id: profileId }),

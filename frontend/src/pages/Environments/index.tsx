@@ -15,7 +15,7 @@ import EnvironmentModal, {
   ERA_TO_EMULATOR,
 } from './EnvironmentModal'
 
-type Platform = components['schemas']['PlatformRead']
+type Platform = components['schemas']['EnvironmentRead']
 
 type EnvModalState = null | { mode: 'create' } | { mode: 'edit'; platform: Platform }
 
@@ -219,6 +219,7 @@ export default function Environments() {
       <EnvironmentModal
         open={modal !== null}
         mode={modal?.mode ?? 'create'}
+        slug={modal?.mode === 'edit' ? (modal.platform.slug ?? undefined) : undefined}
         form={form}
         formErrors={formErrors}
         submitError={submitError}

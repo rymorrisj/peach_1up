@@ -119,7 +119,7 @@ export function FetchMetadataModal({
     setSearchError(null)
     try {
       const data = await apiFetch<{ results: SearchResult[] }>(
-        `/api/v1/library/metadata-search?name=${encodeURIComponent(q)}`,
+        `/api/v1/software/metadata-search?name=${encodeURIComponent(q)}`,
       )
       setResults(data.results)
       setSelectedId(null)
@@ -137,7 +137,7 @@ export function FetchMetadataModal({
     setSearchError(null)
     try {
       const data = await apiFetch<GameDetails>(
-        `/api/v1/library/metadata-details?game_id=${selectedId}`,
+        `/api/v1/software/metadata-details?game_id=${selectedId}`,
       )
       setDetails(data)
       setPhase('preview')
@@ -181,7 +181,7 @@ export function FetchMetadataModal({
     }
 
     try {
-      await apiFetch('/api/v1/library/enrich', {
+      await apiFetch('/api/v1/software/enrich', {
         method: 'POST',
         body: JSON.stringify(payload),
       })

@@ -85,7 +85,7 @@ export function ScanModal({ open, onClose, onImported, mediaPath }: ScanModalPro
           <p className="text-xs text-neutral-400 dark:text-neutral-500">
             {mediaPath
               ? `Scan only looks for new files inside ${mediaPath}. Files outside this folder won't be found.`
-              : 'Scan only looks for new files inside your configured media library path. Set one in Settings before scanning.'}
+              : 'Scan only looks for new files inside your configured software library path. Set one in Settings before scanning.'}
           </p>
           <p className="text-xs text-neutral-400 dark:text-neutral-500">
             Multi-disc games should be added manually via the{' '}

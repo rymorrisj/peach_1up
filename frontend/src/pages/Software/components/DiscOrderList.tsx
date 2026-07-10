@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import type { DragEvent, ReactNode } from 'react'
 import { ChevronUp, ChevronDown, GripVertical } from 'lucide-react'
-import type { LibraryCollectionItemData } from './CollectionCard'
+import type { SoftwareItemData } from './CollectionCard'
 
 interface DiscOrderListProps {
-  discs: LibraryCollectionItemData[]
+  discs: SoftwareItemData[]
   order: number[]
   onReorder: (order: number[]) => void
   disabled?: boolean
-  renderActions?: (disc: LibraryCollectionItemData) => ReactNode
+  renderActions?: (disc: SoftwareItemData) => ReactNode
 }
 
 // Reorderable disc list for the Library edit view. Reordering is local-only —
@@ -20,7 +20,7 @@ interface DiscOrderListProps {
 export function DiscOrderList({ discs, order, onReorder, disabled, renderActions }: DiscOrderListProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const byId = new Map(discs.map((d) => [d.id, d]))
-  const ordered = order.map((id) => byId.get(id)).filter((d): d is LibraryCollectionItemData => !!d)
+  const ordered = order.map((id) => byId.get(id)).filter((d): d is SoftwareItemData => !!d)
 
   function move(fromIndex: number, toIndex: number) {
     if (toIndex < 0 || toIndex >= order.length || fromIndex === toIndex) return
