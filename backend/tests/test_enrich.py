@@ -255,7 +255,7 @@ class TestEnrichEntity:
         from backend.service.library.enrich import enrich_entity
 
         with pytest.raises(HTTPException) as exc_info:
-            enrich_entity("library_collection", 9999, title="New Title", db=mem_session)
+            enrich_entity("software_collection", 9999, title="New Title", db=mem_session)
         assert exc_info.value.status_code == 404
 
     def test_library_item_not_found_raises_404(self, mem_session):
@@ -263,23 +263,23 @@ class TestEnrichEntity:
         from backend.service.library.enrich import enrich_entity
 
         with pytest.raises(HTTPException) as exc_info:
-            enrich_entity("library_item", 9999, cover_art_url="https://cdn.example.com/a.jpg", db=mem_session)
+            enrich_entity("software_item", 9999, cover_art_url="https://cdn.example.com/a.jpg", db=mem_session)
         assert exc_info.value.status_code == 404
 
     def test_library_collection_with_cover_art_url_raises_422(self, mem_session):
         """Collections don't support direct cover art — must be applied to individual discs."""
         from fastapi import HTTPException
-        from backend.models.library import LibraryCollection
+        from backend.models.software import SoftwareCollection
         from backend.service.library.enrich import enrich_entity
 
-        c = LibraryCollection(title="My Set", era="ps1", slug="my-set")
+        c = SoftwareCollection(title="My Set", era="ps1", slug="my-set")
         mem_session.add(c)
         mem_session.commit()
         mem_session.refresh(c)
 
         with pytest.raises(HTTPException) as exc_info:
             enrich_entity(
-                "library_collection",
+                "software_collection",
                 c.id,
                 cover_art_url="https://cdn.example.com/art.jpg",
                 db=mem_session,
@@ -290,22 +290,22 @@ class TestEnrichEntity:
     def test_library_item_with_metadata_fields_raises_422(self, mem_session):
         """Disc-level leaves (library_item) do not accept metadata fields."""
         from fastapi import HTTPException
-        from backend.models.library import LibraryCollection, LibraryItem
+        from backend.models.software import SoftwareCollection, SoftwareItem
         from backend.service.library.enrich import enrich_entity
 
-        c = LibraryCollection(title="My Set", era="ps1", slug="my-set")
+        c = SoftwareCollection(title="My Set", era="ps1", slug="my-set")
         mem_session.add(c)
         mem_session.commit()
         mem_session.refresh(c)
 
-        leaf = LibraryItem(library_collection_id=c.id, media_path="/tmp/disc1.bin", disc_number=1)
+        leaf = SoftwareItem(software_collection_id=c.id, file_path="/tmp/disc1.bin", disc_number=1)
         mem_session.add(leaf)
         mem_session.commit()
         mem_session.refresh(leaf)
 
         with pytest.raises(HTTPException) as exc_info:
             enrich_entity(
-                "library_item",
+                "software_item",
                 leaf.id,
                 title="Should Not Work",
                 db=mem_session,

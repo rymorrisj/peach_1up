@@ -156,88 +156,107 @@ class TestCreateMultiDiscSet:
 
     def test_two_disc_set_creates_one_set_and_two_items(self, tmp_path, mem_session):
         from backend.service.library.items import _create_multi_disc_collection
-        from backend.models.library import LibraryCollection, LibraryItem
+        from backend.models.software import SoftwareCollection, SoftwareItem
 
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
         _create_multi_disc_collection(disc_files, "Sonic Adventure", mem_session)
 
-        sets = mem_session.query(LibraryCollection).all()
+        sets = mem_session.query(SoftwareCollection).all()
         assert len(sets) == 1
         assert sets[0].title == "Sonic Adventure"
 
-        items = mem_session.query(LibraryItem).filter(LibraryItem.library_collection_id == sets[0].id).all()
+        items = mem_session.query(SoftwareItem).filter(SoftwareItem.software_collection_id == sets[0].id).all()
         assert len(items) == 2
 
     def test_launch_disk_id_points_to_first_disc(self, tmp_path, mem_session):
         from backend.service.library.items import _create_multi_disc_collection
-        from backend.models.library import LibraryCollection, LibraryItem
+        from backend.models.software import SoftwareCollection, SoftwareItem
 
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
         library_set = _create_multi_disc_collection(disc_files, "Test Game", mem_session)
 
         items = (
-            mem_session.query(LibraryItem)
-            .filter(LibraryItem.library_collection_id == library_set.id)
-            .order_by(LibraryItem.disc_number)
+            mem_session.query(SoftwareItem)
+            .filter(SoftwareItem.software_collection_id == library_set.id)
+            .order_by(SoftwareItem.disc_number)
             .all()
         )
         assert library_set.launch_disk_id == items[0].id
 
     def test_each_item_has_gdi_as_executable_path(self, tmp_path, mem_session):
         from backend.service.library.items import _create_multi_disc_collection
-        from backend.models.library import LibraryItem
+        from backend.models.software import SoftwareItem
 
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
         library_set = _create_multi_disc_collection(disc_files, "Dreamcast Game", mem_session)
 
         items = (
-            mem_session.query(LibraryItem)
-            .filter(LibraryItem.library_collection_id == library_set.id)
-            .order_by(LibraryItem.disc_number)
+            mem_session.query(SoftwareItem)
+            .filter(SoftwareItem.software_collection_id == library_set.id)
+            .order_by(SoftwareItem.disc_number)
             .all()
         )
         for idx, item in enumerate(items):
             assert item.executable_path == str(disc_files[idx])
-            assert item.media_path == str(disc_files[idx])
+            assert item.file_path == str(disc_files[idx])
             assert Path(item.executable_path).suffix.lower() == ".gdi"
 
     def test_disc_numbers_are_sequential_from_one(self, tmp_path, mem_session):
         from backend.service.library.items import _create_multi_disc_collection
-        from backend.models.library import LibraryItem
+        from backend.models.software import SoftwareItem
 
         disc_files = self._make_disc_files(tmp_path, ["disc1.cue", "disc2.cue", "disc3.cue"])
         library_set = _create_multi_disc_collection(disc_files, "Triple-Disc Game", mem_session)
 
         items = (
-            mem_session.query(LibraryItem)
-            .filter(LibraryItem.library_collection_id == library_set.id)
-            .order_by(LibraryItem.disc_number)
+            mem_session.query(SoftwareItem)
+            .filter(SoftwareItem.software_collection_id == library_set.id)
+            .order_by(SoftwareItem.disc_number)
             .all()
         )
         assert [i.disc_number for i in items] == [1, 2, 3]
 
     def test_era_from_detector_stored_on_set(self, tmp_path, mem_session):
         from backend.service.library.items import _create_multi_disc_collection
-        from backend.models.library import LibraryCollection
+        from backend.models.software import SoftwareCollection
 
         disc_files = self._make_disc_files(tmp_path, ["d1.gdi", "d2.gdi"])
         library_set = _create_multi_disc_collection(disc_files, "Era Test", mem_session)
 
-        stored = mem_session.get(LibraryCollection, library_set.id)
+        stored = mem_session.get(SoftwareCollection, library_set.id)
         assert stored.era == "dreamcast"
 
     def test_content_rating_detected_from_disc_one_filename(self, tmp_path, mem_session):
         """detect_rating is called with disc_files[0] only — a bracketed rating
-        tag on disc 1's filename must land on the LibraryCollection, matching
+        tag on disc 1's filename must land on the SoftwareCollection, matching
         rating_detect's strict (bracket-guarded) filename-stem fallback."""
         from backend.service.library.items import _create_multi_disc_collection
-        from backend.models.library import LibraryCollection
+        from backend.models.software import SoftwareCollection
 
         disc_files = self._make_disc_files(tmp_path, ["disc1 [M].gdi", "disc2.gdi"])
         library_set = _create_multi_disc_collection(disc_files, "Rated Game", mem_session)
 
-        stored = mem_session.get(LibraryCollection, library_set.id)
+        stored = mem_session.get(SoftwareCollection, library_set.id)
         assert stored.content_rating == "M"
+
+    def test_cover_art_found_next_to_disc_one_lands_on_first_disc_only(self, tmp_path, mem_session):
+        """_find_cover is called on disc_files[0]'s parent — a cover image found
+        there must land on disc 1's item only, never on later discs."""
+        from backend.service.library.items import _create_multi_disc_collection
+        from backend.models.software import SoftwareItem
+
+        (tmp_path / "cover.jpg").write_bytes(b"\xff\xd8\xff")
+        disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
+        library_set = _create_multi_disc_collection(disc_files, "Cover Game", mem_session)
+
+        items = (
+            mem_session.query(SoftwareItem)
+            .filter(SoftwareItem.software_collection_id == library_set.id)
+            .order_by(SoftwareItem.disc_number)
+            .all()
+        )
+        assert items[0].cover_art_path == str(tmp_path / "cover.jpg")
+        assert items[1].cover_art_path is None
 
 
 # ---------------------------------------------------------------------------
@@ -257,12 +276,12 @@ class TestDedupDiscAnchor:
 
     def test_repoints_to_existing_orphaned_duplicate(self, tmp_path, mem_session):
         """A byte-identical file already on disk but not referenced by any live
-        LibraryItem (an orphan, e.g. left behind after its item was removed) is
+        SoftwareItem (an orphan, e.g. left behind after its item was removed) is
         reused: the anchor is repointed at it and the newly-uploaded copy is
         deleted rather than kept as a redundant second copy."""
         from backend.service.library.folder_ingest import dedup_disc_anchor
         from backend.service.library.items import _create_multi_disc_collection
-        from backend.models.library import LibraryItem
+        from backend.models.software import SoftwareItem
 
         media_root = tmp_path
         content = b"identical disc1 bytes for dedup anchor test"
@@ -287,20 +306,20 @@ class TestDedupDiscAnchor:
 
         collection = _create_multi_disc_collection(disc_files, "Dedup Orphan Game", mem_session)
         leaf1 = (
-            mem_session.query(LibraryItem)
-            .filter(LibraryItem.library_collection_id == collection.id, LibraryItem.disc_number == 1)
+            mem_session.query(SoftwareItem)
+            .filter(SoftwareItem.software_collection_id == collection.id, SoftwareItem.disc_number == 1)
             .first()
         )
-        assert leaf1.media_path == str(orphan_disc1.resolve())
+        assert leaf1.file_path == str(orphan_disc1.resolve())
 
     def test_raises_item_already_exists_when_duplicate_is_still_tracked(self, tmp_path, mem_session):
-        """A byte-identical file that is still a live LibraryItem.media_path must
+        """A byte-identical file that is still a live SoftwareItem.file_path must
         not be silently repointed — that would create a second tracked row
-        sharing one media_path with an existing collection. dedup_disc_anchor
+        sharing one file_path with an existing collection. dedup_disc_anchor
         raises _ItemAlreadyExists instead, same as the file-kind upload path."""
         from backend.service.library.folder_ingest import dedup_disc_anchor
         from backend.service.library.items import _ItemAlreadyExists
-        from backend.models.library import LibraryCollection, LibraryItem
+        from backend.models.software import SoftwareCollection, SoftwareItem
 
         media_root = tmp_path
         content = b"identical disc1 bytes still tracked by a live item"
@@ -310,13 +329,13 @@ class TestDedupDiscAnchor:
         tracked_disc1 = tracked_dir / "disc1.gdi"
         tracked_disc1.write_bytes(content)
 
-        existing_collection = LibraryCollection(title="Existing Game", era="dreamcast", slug="existing-game")
+        existing_collection = SoftwareCollection(title="Existing Game", era="dreamcast", slug="existing-game")
         mem_session.add(existing_collection)
         mem_session.flush()
-        existing_leaf = LibraryItem(
-            library_collection_id=existing_collection.id,
+        existing_leaf = SoftwareItem(
+            software_collection_id=existing_collection.id,
             disc_number=1,
-            media_path=str(tracked_disc1.resolve()),
+            file_path=str(tracked_disc1.resolve()),
             executable_path=str(tracked_disc1.resolve()),
         )
         mem_session.add(existing_leaf)

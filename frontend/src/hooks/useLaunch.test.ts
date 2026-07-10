@@ -34,7 +34,7 @@ describe('useLaunch', () => {
     await act(async () => { result.current.launch(3) })
 
     expect(mockApiFetch).toHaveBeenCalledWith(
-      '/api/v1/library/7/launch',
+      '/api/v1/softwarecollection/7/launch',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ profile_id: 3 }),

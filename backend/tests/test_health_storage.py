@@ -134,19 +134,19 @@ class TestRescanBustsCache:
 class TestDriveImagesCategory:
     def test_drive_images_category_reflects_actual_drive_usage(self, client):
         from backend.models.drive import Drive
-        from backend.models.library import LibraryCollection
+        from backend.models.software import SoftwareCollection
 
         c, db, base = client
 
         image = base / "drive.img"
         image.write_bytes(b"x" * 4096)
 
-        collection = LibraryCollection(title="Game", era="win98", slug="game")
+        collection = SoftwareCollection(title="Game", era="win98", slug="game")
         db.add(collection)
         db.commit()
         db.refresh(collection)
 
-        drive = Drive(name="C:", library_collection_id=collection.id, image_path=str(image))
+        drive = Drive(name="C:", software_collection_id=collection.id, image_path=str(image))
         db.add(drive)
         db.commit()
 

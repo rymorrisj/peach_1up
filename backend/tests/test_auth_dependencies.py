@@ -41,7 +41,7 @@ def app_client(mem_session):
         return {"id": user.id, "name": user.name}
 
     @app.get("/needs-flag")
-    def needs_flag(user: User = require_permission("can_edit_library")):
+    def needs_flag(user: User = require_permission("can_edit_software")):
         return {"id": user.id}
 
     @app.get("/users/{user_id}/private")
@@ -59,7 +59,7 @@ def make_user(mem_session):
     from backend.models.user import User
 
     def _make(**kwargs):
-        defaults = dict(name="User", is_owner=False, is_admin=False, can_edit_library=False)
+        defaults = dict(name="User", is_owner=False, is_admin=False, can_edit_software=False)
         defaults.update(kwargs)
         u = User(**defaults)
         mem_session.add(u)
@@ -140,21 +140,21 @@ class TestGetActiveUser:
 
 class TestRequirePermission:
     def test_passes_when_flag_true(self, app_client, make_user, make_session):
-        user = make_user(name="Editor", can_edit_library=True)
+        user = make_user(name="Editor", can_edit_software=True)
         cookie = make_session(user)
 
         resp = app_client.get("/needs-flag", cookies={"peach_token": cookie})
         assert resp.status_code == 200
 
     def test_raises_403_when_flag_false(self, app_client, make_user, make_session):
-        user = make_user(name="ReadOnly", can_edit_library=False)
+        user = make_user(name="ReadOnly", can_edit_software=False)
         cookie = make_session(user)
 
         resp = app_client.get("/needs-flag", cookies={"peach_token": cookie})
         assert resp.status_code == 403
 
     def test_owner_bypasses_flag(self, app_client, make_user, make_session):
-        user = make_user(name="Owner", is_owner=True, can_edit_library=False)
+        user = make_user(name="Owner", is_owner=True, can_edit_software=False)
         cookie = make_session(user)
 
         resp = app_client.get("/needs-flag", cookies={"peach_token": cookie})

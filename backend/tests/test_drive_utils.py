@@ -62,15 +62,15 @@ class TestDeleteDriveForCollection:
             yield session
 
     def test_drive_id_is_none_after_delete(self, mem_session):
-        from backend.models.library import LibraryCollection
+        from backend.models.software import SoftwareCollection
         from backend.models.drive import Drive
         from backend.service.utils.drive_utils import delete_drive_for_collection
 
-        collection = LibraryCollection(title="Test Game", era="dos", slug="test-game")
+        collection = SoftwareCollection(title="Test Game", era="dos", slug="test-game")
         mem_session.add(collection)
         mem_session.flush()
 
-        drive = Drive(library_collection_id=collection.id, name="Test Game", size_mb=10)
+        drive = Drive(software_collection_id=collection.id, name="Test Game", size_mb=10)
         mem_session.add(drive)
         mem_session.flush()
 
@@ -83,10 +83,10 @@ class TestDeleteDriveForCollection:
         assert collection.drive_id is None
 
     def test_delete_noop_when_no_drive(self, mem_session):
-        from backend.models.library import LibraryCollection
+        from backend.models.software import SoftwareCollection
         from backend.service.utils.drive_utils import delete_drive_for_collection
 
-        collection = LibraryCollection(title="Test Game", era="dos", slug="test-game")
+        collection = SoftwareCollection(title="Test Game", era="dos", slug="test-game")
         mem_session.add(collection)
         mem_session.commit()
 

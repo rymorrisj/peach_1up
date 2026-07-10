@@ -83,7 +83,7 @@ class TestPrepareFolderRename:
         assert not src_folder.exists(), "Original folder must be gone after rename"
         assert (canonical / "doom.exe").is_file()
         assert row["folder_path"] == str(canonical)
-        assert row["media_path"] == str(canonical / "doom.exe")
+        assert row["file_path"] == str(canonical / "doom.exe")
 
     def test_already_canonically_named_folder_no_rename(self, tmp_path, mem_session, monkeypatch):
         """File in games_root/doom/doom.exe — folder name already matches stem,
@@ -101,7 +101,7 @@ class TestPrepareFolderRename:
         assert src_folder.is_dir(), "Correctly-named folder must still be there"
         assert src_file.is_file(), "File must not have moved"
         assert row["folder_path"] == str(src_folder)
-        assert row["media_path"] == str(src_file)
+        assert row["file_path"] == str(src_file)
 
     def test_canonical_target_exists_falls_back_to_move(self, tmp_path, mem_session, monkeypatch):
         """If games_root/doom/ already exists on disk, the rename branch is
@@ -120,7 +120,7 @@ class TestPrepareFolderRename:
 
         assert (existing_canonical / "doom.exe").is_file()
         assert row["folder_path"] == str(existing_canonical)
-        assert row["media_path"] == str(existing_canonical / "doom.exe")
+        assert row["file_path"] == str(existing_canonical / "doom.exe")
 
     def test_loose_file_at_games_root_still_creates_canonical_folder(self, tmp_path, mem_session, monkeypatch):
         """A file placed directly inside games_root (loose, no parent subfolder)
@@ -202,7 +202,7 @@ class TestPrepareDuplication:
         row = _call_prepare(str(src_file), "Doom", mem_session)
         _commit_row(row, mem_session)
 
-        canonical_file = Path(row["media_path"])
+        canonical_file = Path(row["file_path"])
         assert canonical_file.exists(), "canonical file must exist after rename"
 
         with pytest.raises(_ItemAlreadyExists):
@@ -244,6 +244,6 @@ class TestPrepareDuplication:
         _commit_row(row, mem_session)
 
         # The file was moved to the canonical path; that path is now tracked.
-        canonical_file = Path(row["media_path"])
+        canonical_file = Path(row["file_path"])
         with pytest.raises(_ItemAlreadyExists):
             _call_prepare(str(canonical_file), "Doom Again", mem_session)

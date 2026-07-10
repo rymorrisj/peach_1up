@@ -27,6 +27,16 @@ describe('EmulatorStatus', () => {
     expect(screen.getByText('Unconfigured')).toBeInTheDocument()
   })
 
+  it('displays "Degraded" for status "degraded"', () => {
+    render(<EmulatorStatus status="degraded" />)
+    expect(screen.getByText('Degraded')).toBeInTheDocument()
+  })
+
+  it('displays "Unknown" for status "unknown"', () => {
+    render(<EmulatorStatus status="unknown" />)
+    expect(screen.getByText('Unknown')).toBeInTheDocument()
+  })
+
   it('falls back to the raw status string for an unrecognised value', () => {
     render(<EmulatorStatus status="pending-install" />)
     expect(screen.getByText('pending-install')).toBeInTheDocument()

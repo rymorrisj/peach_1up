@@ -55,10 +55,10 @@ class TestSlugCollision:
             yield session
 
     def test_slug_collision_appends_integer_suffix(self, mem_session):
-        from backend.models.library import LibraryCollection
+        from backend.models.software import SoftwareCollection
         from backend.service.utils.slug_generator import generate_collection_slug
 
-        existing = LibraryCollection(title="Doom", era="dos", slug="doom")
+        existing = SoftwareCollection(title="Doom", era="dos", slug="doom")
         mem_session.add(existing)
         mem_session.commit()
 
@@ -67,21 +67,21 @@ class TestSlugCollision:
         assert new_slug == "doom-2"
 
     def test_collision_does_not_overwrite_existing_item(self, mem_session):
-        from backend.models.library import LibraryCollection
+        from backend.models.software import SoftwareCollection
         from backend.service.utils.slug_generator import generate_collection_slug
 
-        existing = LibraryCollection(title="Doom", era="dos", slug="doom")
+        existing = SoftwareCollection(title="Doom", era="dos", slug="doom")
         mem_session.add(existing)
         mem_session.commit()
         mem_session.refresh(existing)
         existing_id = existing.id
 
         new_slug = generate_collection_slug("Doom", mem_session)
-        new_item = LibraryCollection(title="Doom", era="dos", slug=new_slug)
+        new_item = SoftwareCollection(title="Doom", era="dos", slug=new_slug)
         mem_session.add(new_item)
         mem_session.commit()
 
-        unchanged = mem_session.get(LibraryCollection, existing_id)
+        unchanged = mem_session.get(SoftwareCollection, existing_id)
         assert unchanged.slug == "doom"
         assert unchanged.title == "Doom"
 

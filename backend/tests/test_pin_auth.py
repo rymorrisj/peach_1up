@@ -16,7 +16,6 @@ def mem_session():
     from sqlmodel import SQLModel, Session, create_engine
     from backend.models.user import User  # noqa: F401
     from backend.models.drive import Drive  # noqa: F401
-    from backend.models.library import LibraryCollection, LibraryItem  # noqa: F401
 
     engine = create_engine(
         "sqlite:///:memory:",

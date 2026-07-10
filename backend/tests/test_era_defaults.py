@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from backend.service.utils.era_defaults import defaults_for_era, lookup_platform_and_profile
+from backend.service.utils.era_defaults import defaults_for_era, lookup_environment_and_profile
 
 
 class TestDefaultsForEra:
@@ -51,7 +51,7 @@ class TestLookupPlatformAndProfile:
 
     def test_returns_ids_when_both_found(self):
         db = self._make_db(platform_id=3, profile_id=7)
-        pid, rid = lookup_platform_and_profile("dosbox-x", "dos", db)
+        pid, rid = lookup_environment_and_profile("dosbox-x", "dos", db)
         assert pid == 3
         assert rid == 7
 
@@ -61,7 +61,7 @@ class TestLookupPlatformAndProfile:
         profile.id = 7
         db = MagicMock()
         db.query.return_value.filter.return_value.first.side_effect = [platform, profile]
-        pid, rid = lookup_platform_and_profile("dosbox-x", "dos", db)
+        pid, rid = lookup_environment_and_profile("dosbox-x", "dos", db)
         assert pid is None
         assert rid == 7
 
@@ -70,13 +70,13 @@ class TestLookupPlatformAndProfile:
         platform.id = 3
         db = MagicMock()
         db.query.return_value.filter.return_value.first.side_effect = [platform, None]
-        pid, rid = lookup_platform_and_profile("dosbox-x", "dos", db)
+        pid, rid = lookup_environment_and_profile("dosbox-x", "dos", db)
         assert pid == 3
         assert rid is None
 
     def test_returns_none_tuple_when_both_missing(self):
         db = MagicMock()
         db.query.return_value.filter.return_value.first.side_effect = [None, None]
-        pid, rid = lookup_platform_and_profile("dosbox-x", "dos", db)
+        pid, rid = lookup_environment_and_profile("dosbox-x", "dos", db)
         assert pid is None
         assert rid is None
