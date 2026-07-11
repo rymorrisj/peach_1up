@@ -115,7 +115,7 @@ function retryUnlessForbidden(failureCount: number, error: unknown) {
   return failureCount < 1
 }
 
-export default function PlatformHealth() {
+export default function Health() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set())
@@ -194,7 +194,7 @@ export default function PlatformHealth() {
   if (permissionDenied) {
     return (
       <div className="flex flex-col min-h-full">
-        <TopBar title="Platform Health" />
+        <TopBar />
         <div className="p-6">
           <div
             className="rounded-xl p-6 text-sm"
@@ -209,7 +209,7 @@ export default function PlatformHealth() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopBar title="Platform Health">
+      <TopBar>
         <button
           type="button"
           onClick={handleHealthCheckAll}

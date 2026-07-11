@@ -26,7 +26,7 @@ const NAV_ITEMS = [
   { to: "/software", label: "Software", glyph: "📚" },
   { to: "/emulators", label: "Emulators", glyph: "🖥️" },
   { to: "/environments", label: "Environments", glyph: "💻" },
-  { to: "/platform-health", label: "Platform Health", glyph: "🩺" },
+  { to: "/system/health", label: "System", glyph: "🩺" },
   { to: "/tags", label: "Tags", glyph: "🏷️" },
   { to: "/users", label: "Users", glyph: "👤" },
   {

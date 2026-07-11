@@ -14,7 +14,7 @@ import EmulatorDetail from '@/pages/Emulators/EmulatorDetail'
 import Environments from '@/pages/Environments'
 import EnvironmentDetail from '@/pages/Environments/EnvironmentDetail'
 import Tags from '@/pages/Tags'
-import PlatformHealth from '@/pages/PlatformHealth'
+import System, { systemTabRoutes } from '@/pages/System'
 import FirstRun from '@/pages/FirstRun'
 import NotFound from '@/pages/NotFound'
 import OwnerBroken from '@/pages/OwnerBroken'
@@ -111,7 +111,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                     {emulatorsTabRoutes}
                   </Route>
                   <Route path="/emulators/:slug" element={<EmulatorDetail />} />
-                  <Route path="/platform-health" element={<PlatformHealth />} />
+                  <Route path="/system" element={<System />}>
+                    {systemTabRoutes}
+                  </Route>
+                  <Route path="/platform-health" element={<Navigate to="/system/health" replace />} />
                   <Route path="/tags" element={<Tags />} />
                 </Route>
               </Route>
