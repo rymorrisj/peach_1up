@@ -13,7 +13,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
-import Emulators from '@/pages/Emulators'
+import Emulators from '@/pages/Emulators/Emulators'
 import { apiFetch } from '@/api/client'
 import type { components } from '@shared/types'
 

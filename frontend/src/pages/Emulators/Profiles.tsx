@@ -8,14 +8,14 @@ import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useConfirm } from '@/hooks/useConfirm'
 import { slugify } from '@/lib/slugify'
 import { ERA_LABELS, EMULATOR_CATALOG_SLUGS } from '@/generated/constants'
-import { ProfilesTabList } from './components/ProfilesTabList'
-import { ProfilesTabFormModal } from './components/ProfilesTabFormModal'
-import type { EmulatorEntry, LaunchProfile, ProfileForm, ProfileModalState } from '@/types/profiles'
+import { ProfilesList } from './components/ProfilesList'
+import { ProfileForm } from './components/ProfileForm'
+import type { EmulatorEntry, LaunchProfile, ProfileForm as ProfileFormData, ProfileModalState } from '@/types/profiles'
 
 const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
 const EMULATOR_OPTIONS = EMULATOR_CATALOG_SLUGS.map((slug) => ({ value: slug, label: slug }))
 
-const EMPTY_PROFILE_FORM: ProfileForm = {
+const EMPTY_PROFILE_FORM: ProfileFormData = {
   name: '',
   slug: '',
   emulator_slug: '',
@@ -36,7 +36,11 @@ function formatDate(iso: string): string {
   })
 }
 
-export default function ProfilesTab() {
+// GET /api/v1/profiles returns a bare list[ProfileRead], not Page[T]
+// (dev_docs/v2/08_emulator_profiles_navigation.md, Task 5) — mounted without
+// pagination controls, flagged for the batched backend pass. Cross-emulator,
+// flat list; editing is modal-only, no /emulators/profiles/:slug route.
+export default function Profiles() {
   const queryClient = useQueryClient()
   const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm()
 
@@ -51,8 +55,8 @@ export default function ProfilesTab() {
   })
 
   const [modal, setModal] = useState<ProfileModalState>(null)
-  const [form, setForm] = useState<ProfileForm>(EMPTY_PROFILE_FORM)
-  const [formErrors, setFormErrors] = useState<Partial<Record<keyof ProfileForm, string>>>({})
+  const [form, setForm] = useState<ProfileFormData>(EMPTY_PROFILE_FORM)
+  const [formErrors, setFormErrors] = useState<Partial<Record<keyof ProfileFormData, string>>>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -72,7 +76,7 @@ export default function ProfilesTab() {
     setForm({
       name: profile.name,
       slug: profile.slug,
-      emulator_slug: profile.emulator_slug as ProfileForm['emulator_slug'],
+      emulator_slug: profile.emulator_slug as ProfileFormData['emulator_slug'],
       era: profile.era,
       extra_args: profile.extra_args ?? '',
       enable_networking: profile.enable_networking,
@@ -90,7 +94,7 @@ export default function ProfilesTab() {
     setModal(null)
   }
 
-  function setField<K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) {
+  function setField<K extends keyof ProfileFormData>(key: K, value: ProfileFormData[K]) {
     setForm((prev) => {
       const next = { ...prev, [key]: value }
       if (key === 'name' && modal?.mode === 'create') {
@@ -102,7 +106,7 @@ export default function ProfilesTab() {
   }
 
   function validate(): boolean {
-    const errors: Partial<Record<keyof ProfileForm, string>> = {}
+    const errors: Partial<Record<keyof ProfileFormData, string>> = {}
     if (!form.name.trim()) errors.name = 'Name is required.'
     if (!form.slug.trim()) errors.slug = 'Slug is required.'
     if (!form.emulator_slug.trim()) errors.emulator_slug = 'Emulator slug is required.'
@@ -165,7 +169,7 @@ export default function ProfilesTab() {
   const eraLabel = (era: string) => ERA_OPTIONS.find((e) => e.value === era)?.label ?? era
 
   return (
-    <>
+    <div className="p-6">
       <div className="mb-4 flex items-start justify-between gap-4">
         <p className="text-sm text-neutral-500 dark:text-neutral-400">
           Emulator configuration presets. Assign a profile to each library item to enable launch.
@@ -187,7 +191,7 @@ export default function ProfilesTab() {
           cta={{ label: 'Add Profile', onClick: openCreate }}
         />
       ) : (
-        <ProfilesTabList
+        <ProfilesList
           profiles={profiles}
           eraLabel={eraLabel}
           formatDate={formatDate}
@@ -196,7 +200,7 @@ export default function ProfilesTab() {
         />
       )}
 
-      <ProfilesTabFormModal
+      <ProfileForm
         modal={modal}
         form={form}
         formErrors={formErrors}
@@ -218,6 +222,6 @@ export default function ProfilesTab() {
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />
-    </>
+    </div>
   )
 }

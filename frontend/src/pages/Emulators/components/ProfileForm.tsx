@@ -2,28 +2,28 @@ import { Button, FormField, Input, Modal, Textarea } from '@/ui'
 import LaunchCommandList from '@/components/LaunchCommandList'
 import { DGVOODOO2_SUPPORTED_ERAS } from '@/generated/constants'
 import type { EmulatorCatalogSlug } from '@/generated/constants'
-import type { EmulatorEntry, ProfileForm, ProfileModalState } from '@/types/profiles'
+import type { EmulatorEntry, ProfileForm as ProfileFormData, ProfileModalState } from '@/types/profiles'
 
 const SELECT_CLASS =
   'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
 
-interface ProfilesTabFormModalProps {
+interface ProfileFormProps {
   modal: ProfileModalState
-  form: ProfileForm
-  formErrors: Partial<Record<keyof ProfileForm, string>>
+  form: ProfileFormData
+  formErrors: Partial<Record<keyof ProfileFormData, string>>
   submitError: string | null
   submitting: boolean
   emulators: EmulatorEntry[]
   eraOptions: Array<{ value: string; label: string }>
   emulatorOptions: Array<{ value: string; label: string }>
-  setField: <K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) => void
+  setField: <K extends keyof ProfileFormData>(key: K, value: ProfileFormData[K]) => void
   onSubmit: () => void
   onClose: () => void
 }
 
-export function ProfilesTabFormModal({
+export function ProfileForm({
   modal, form, formErrors, submitError, submitting, emulators, eraOptions, emulatorOptions, setField, onSubmit, onClose,
-}: ProfilesTabFormModalProps) {
+}: ProfileFormProps) {
   const modalTitle = modal?.mode === 'create' ? 'Add Launch Profile' : 'Edit Launch Profile'
 
   return (

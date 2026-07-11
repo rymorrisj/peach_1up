@@ -1,4 +1,4 @@
-export type Tab = 'overview' | 'rom' | 'ext' | 'profiles' | 'limits'
+export type Tab = 'overview' | 'rom' | 'ext' | 'limits'
 
 export function TabBtn({ id: _id, label, count, active, onClick }: {
   id: Tab; label: string; count?: number; active: boolean; onClick: () => void

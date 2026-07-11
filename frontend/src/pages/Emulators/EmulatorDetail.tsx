@@ -11,7 +11,6 @@ import { OverviewTab } from './components/OverviewTab'
 import { RomPackTab } from './components/RomPackTab'
 import { ExtensionsTab } from './components/ExtensionsTab'
 import { LimitationsTab } from './components/LimitationsTab'
-import { ProfilesTabContent } from './components/ProfilesTabContent'
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
 type LaunchProfile = components['schemas']['ProfileRead']
 type BiosRequirement = components['schemas']['BiosRequirement']
@@ -248,7 +247,6 @@ export default function EmulatorDetail() {
             <TabBtn id="rom" label="ROM Packs" active={tab === 'rom'} onClick={() => setTab('rom')} />
           )}
           <TabBtn id="ext" label="Extensions" active={tab === 'ext'} onClick={() => setTab('ext')} />
-          <TabBtn id="profiles" label="Profiles" count={emulatorProfiles.length} active={tab === 'profiles'} onClick={() => setTab('profiles')} />
           {(entry?.known_limitations?.length ?? 0) > 0 && (
             <TabBtn id="limits" label="Known Limitations" count={entry!.known_limitations!.length} active={tab === 'limits'} onClick={() => setTab('limits')} />
           )}
@@ -286,13 +284,6 @@ export default function EmulatorDetail() {
         {tab === 'ext' && <ExtensionsTab entry={entry} />}
 
         {tab === 'limits' && entry && <LimitationsTab entry={entry} />}
-
-        {tab === 'profiles' && (
-          <ProfilesTabContent
-            emulatorProfiles={emulatorProfiles}
-            onNavigateToProfile={(profileSlug) => navigate(`/profiles/${profileSlug}`)}
-          />
-        )}
       </div>
     </div>
   )
