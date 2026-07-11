@@ -5,11 +5,11 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { AppProvider } from '@/context/AppContext'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import AppShell from '@/components/layout/AppShell'
-import Software from '@/pages/Software'
+import Software, { softwareTabRoutes } from '@/pages/Software'
 import CollectionDetail from '@/pages/Software/CollectionDetail'
 import Settings from '@/pages/Settings'
 import Users from '@/pages/Users'
-import Emulators from '@/pages/Emulators'
+import Emulators, { emulatorsTabRoutes } from '@/pages/Emulators'
 import EmulatorDetail from '@/pages/Emulators/EmulatorDetail'
 import Environments from '@/pages/Environments'
 import EnvironmentDetail from '@/pages/Environments/EnvironmentDetail'
@@ -99,13 +99,17 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <Route element={<RequireAuth />}>
                 <Route path="/" element={<Navigate to="/software" replace />} />
                 <Route element={<AppShell />}>
-                  <Route path="/software" element={<Software />} />
-                  <Route path="/software/:slug" element={<CollectionDetail />} />
+                  <Route path="/software" element={<Software />}>
+                    {softwareTabRoutes}
+                  </Route>
+                  <Route path="/software/games/:slug" element={<CollectionDetail />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/users" element={<Users />} />
                   <Route path="/environments" element={<Environments />} />
                   <Route path="/environments/:id" element={<EnvironmentDetail />} />
-                  <Route path="/emulators" element={<Emulators />} />
+                  <Route path="/emulators" element={<Emulators />}>
+                    {emulatorsTabRoutes}
+                  </Route>
                   <Route path="/emulators/:slug" element={<EmulatorDetail />} />
                   <Route path="/platform-health" element={<PlatformHealth />} />
                   <Route path="/tags" element={<Tags />} />

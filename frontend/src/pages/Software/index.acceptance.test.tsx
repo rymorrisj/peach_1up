@@ -13,7 +13,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
-import Library from '@/pages/Software'
+import Games from '@/pages/Software/Games'
 import { apiFetch } from '@/api/client'
 import { createMockLibraryItem } from '@/test/helpers'
 
@@ -37,7 +37,7 @@ function renderPage() {
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
         <AppProvider>
-          <Library />
+          <Games />
         </AppProvider>
       </QueryClientProvider>
     </MemoryRouter>,

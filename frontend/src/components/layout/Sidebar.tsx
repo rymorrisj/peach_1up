@@ -182,7 +182,7 @@ export default function Sidebar() {
             <li key={slug}>
               <button
                 type="button"
-                onClick={() => navigate(`/software?era=${slug}`)}
+                onClick={() => navigate(`/software/games?era=${slug}`)}
                 className="flex w-full items-center gap-2.5 rounded-lg px-3 py-[7px] transition-colors duration-[120ms] hover:text-neutral-200"
                 style={{
                   background: "transparent",
@@ -236,7 +236,7 @@ export default function Sidebar() {
             <li key={slug}>
               <button
                 type="button"
-                onClick={() => navigate(`/software?era=${slug}`)}
+                onClick={() => navigate(`/software/games?era=${slug}`)}
                 className="flex w-full items-center gap-2.5 rounded-lg px-3 py-[7px] transition-colors duration-[120ms] hover:text-neutral-200"
                 style={{
                   background: "transparent",

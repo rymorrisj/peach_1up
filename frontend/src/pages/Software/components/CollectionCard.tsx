@@ -175,7 +175,7 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
   const discCount = collection.items.length
   const isMultiDisc = discCount > 1
   const chipHex = eraHex(collection.era)
-  const to = collection.slug ? `/software/${collection.slug}` : `/software/${collection.id}`
+  const to = collection.slug ? `/software/games/${collection.slug}` : `/software/games/${collection.id}`
 
   return (
     <div className="group relative flex flex-col gap-2.5">
