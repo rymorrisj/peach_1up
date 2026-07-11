@@ -44,7 +44,7 @@ export default function EmulatorDetail() {
 
   const { data: profiles = [] } = useQuery<LaunchProfile[]>({
     queryKey: ['profiles'],
-    queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
+    queryFn: async () => (await apiFetch<{ items: LaunchProfile[] }>('/api/v1/profiles?limit=200')).items,
   })
 
   const entry = catalog.find((e) => e.slug === slug)

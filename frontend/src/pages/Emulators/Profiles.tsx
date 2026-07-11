@@ -6,6 +6,7 @@ import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useConfirm } from '@/hooks/useConfirm'
+import { usePaginatedList } from '@/hooks/usePaginatedList'
 import { slugify } from '@/lib/slugify'
 import { ERA_LABELS, EMULATOR_CATALOG_SLUGS } from '@/generated/constants'
 import { ProfilesList } from './components/ProfilesList'
@@ -36,18 +37,25 @@ function formatDate(iso: string): string {
   })
 }
 
-// GET /api/v1/profiles returns a bare list[ProfileRead], not Page[T]
-// (dev_docs/v2/08_emulator_profiles_navigation.md, Task 5) — mounted without
-// pagination controls, flagged for the batched backend pass. Cross-emulator,
-// flat list; editing is modal-only, no /emulators/profiles/:slug route.
+// Cross-emulator, flat list; editing is modal-only, no /emulators/profiles/:slug route.
 export default function Profiles() {
   const queryClient = useQueryClient()
   const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm()
 
-  const { data: profiles, isLoading } = useQuery<LaunchProfile[]>({
-    queryKey: ['profiles'],
-    queryFn: () => apiFetch<LaunchProfile[]>('/api/v1/profiles'),
-  })
+  const {
+    items: profiles,
+    isLoading,
+    page,
+    pageCount,
+    hasPrevPage,
+    hasNextPage,
+    prevPage,
+    nextPage,
+  } = usePaginatedList<LaunchProfile>({ path: '/api/v1/profiles' })
+
+  function invalidateProfiles() {
+    return queryClient.invalidateQueries({ queryKey: ['paginated-list', '/api/v1/profiles'] })
+  }
 
   const { data: emulators = [] } = useQuery<EmulatorEntry[]>({
     queryKey: ['emulators'],
@@ -141,7 +149,7 @@ export default function Profiles() {
           body: JSON.stringify(body),
         })
       }
-      await queryClient.invalidateQueries({ queryKey: ['profiles'] })
+      await invalidateProfiles()
       closeModal()
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.detail : 'Something went wrong.')
@@ -160,7 +168,7 @@ export default function Profiles() {
     if (!confirmed) return
     try {
       await apiFetch(`/api/v1/profiles/${profile.slug}`, { method: 'DELETE' })
-      await queryClient.invalidateQueries({ queryKey: ['profiles'] })
+      await invalidateProfiles()
     } catch (err) {
       alert(err instanceof ApiError ? err.detail : 'Delete failed.')
     }
@@ -184,20 +192,35 @@ export default function Profiles() {
           <LoadingSpinner label="Loading launch profiles…" />
           <span aria-hidden="true">Loading launch profiles…</span>
         </div>
-      ) : !profiles || profiles.length === 0 ? (
+      ) : profiles.length === 0 ? (
         <EmptyState
           heading="No launch profiles"
           subtext="Launch profiles define the emulator configuration used when launching media. Default profiles are seeded at first run."
           cta={{ label: 'Add Profile', onClick: openCreate }}
         />
       ) : (
-        <ProfilesList
-          profiles={profiles}
-          eraLabel={eraLabel}
-          formatDate={formatDate}
-          onEdit={openEdit}
-          onDelete={handleDelete}
-        />
+        <>
+          <ProfilesList
+            profiles={profiles}
+            eraLabel={eraLabel}
+            formatDate={formatDate}
+            onEdit={openEdit}
+            onDelete={handleDelete}
+          />
+          {pageCount > 1 && (
+            <div className="mt-4 flex items-center justify-between gap-4">
+              <Button variant="secondary" size="sm" onClick={prevPage} disabled={!hasPrevPage}>
+                Previous
+              </Button>
+              <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                Page {page} of {pageCount}
+              </span>
+              <Button variant="secondary" size="sm" onClick={nextPage} disabled={!hasNextPage}>
+                Next
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       <ProfileForm
