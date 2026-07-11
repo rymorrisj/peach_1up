@@ -96,7 +96,7 @@ class TestMediaItemCrud:
 
         list_resp = c.get("/api/v1/media")
         assert list_resp.status_code == 200
-        assert any(i["id"] == item_id for i in list_resp.json())
+        assert any(i["id"] == item_id for i in list_resp.json()["items"])
 
         patch_resp = c.patch(f"/api/v1/media/{item_id}", json={"title": "Doom OST (Remastered)"})
         assert patch_resp.status_code == 200

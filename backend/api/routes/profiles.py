@@ -61,12 +61,20 @@ def _with_stats_bulk(profiles: list[Profile], db: Session) -> list[ProfileRead]:
     return results
 
 
-@router.get("", response_model=list[ProfileRead])
-def list_profiles(era: str | None = None, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+@router.get("", response_model=Page[ProfileRead])
+def list_profiles(
+    era: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
     q = db.query(Profile)
     if era:
         q = q.filter(Profile.era == era)
-    return _with_stats_bulk(q.all(), db)
+    total = q.count()
+    rows = q.order_by(Profile.id).offset(offset).limit(limit).all()
+    return Page(items=_with_stats_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 
 @router.post("", response_model=ProfileRead, status_code=201)

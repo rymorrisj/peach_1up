@@ -11,8 +11,9 @@ from backend.models.media import (
     MediaCollection, MediaCollectionCreate, MediaCollectionRead, MediaCollectionUpdate,
     MediaItem, MediaItemCreate, MediaItemRead, MediaItemUpdate,
     MediaLink, MediaLinkCreate, MediaLinkRead,
-    collection_to_read, item_to_read, items_to_read_bulk,
+    collection_to_read, collections_to_read_bulk, item_to_read, items_to_read_bulk,
 )
+from backend.models.pagination import Page
 from backend.models.software import SoftwareCollection
 from backend.models.user import User
 from backend.service.utils.slug_generator import unique_slug
@@ -39,10 +40,17 @@ def _unique_media_slug(title: str, db: Session) -> str:
 # ---------------------------------------------------------------------------
 
 
-@router.get("", response_model=list[MediaItemRead])
-def list_media_items(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
-    rows = db.query(MediaItem).order_by(MediaItem.id).all()
-    return items_to_read_bulk(rows, db)
+@router.get("", response_model=Page[MediaItemRead])
+def list_media_items(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
+    q = db.query(MediaItem).order_by(MediaItem.id)
+    total = q.count()
+    rows = q.offset(offset).limit(limit).all()
+    return Page(items=items_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 
 @router.post("", response_model=MediaItemRead, status_code=201)
@@ -118,6 +126,19 @@ def create_media_collection(
     db.commit()
     db.refresh(collection)
     return collection_to_read(collection, db)
+
+
+@router.get("/collections", response_model=Page[MediaCollectionRead])
+def list_media_collections(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
+    q = db.query(MediaCollection).order_by(MediaCollection.id)
+    total = q.count()
+    rows = q.offset(offset).limit(limit).all()
+    return Page(items=collections_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 
 @router.get("/collections/{collection_id}", response_model=MediaCollectionRead)
