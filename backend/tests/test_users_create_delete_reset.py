@@ -70,7 +70,7 @@ def _set_active_user(app, user):
 # create_user — capability flag round-trip
 # ---------------------------------------------------------------------------
 
-# The 8 capability flags UserCreate exposes (excludes is_admin, which is a
+# The 7 capability flags UserCreate exposes (excludes is_admin, which is a
 # role flag rather than a capability, and is_owner, which is not settable
 # via UserCreate at all).
 _CAPABILITY_FLAGS = [
@@ -79,7 +79,6 @@ _CAPABILITY_FLAGS = [
     "can_manage_software",
     "can_edit_media",
     "can_manage_controllers",
-    "can_manage_profiles",
     "can_edit_settings",
     "can_manage_users",
 ]
@@ -225,20 +224,27 @@ class TestResetPinLockedGuard:
         assert resp.status_code == 200, resp.text
         assert resp.json()["is_locked"] is False
 
-    def test_locked_admin_self_reset_succeeds_not_blocked(self, http_client):
-        """Confirms actual current behavior for an admin targeting their OWN
-        locked account: the guard at users.py:236 —
-        `if user.is_locked and not (active_user.is_owner or active_user.is_admin)`
-        — exempts is_admin unconditionally, with no carve-out for the target
-        being the admin's own record. So this succeeds (200), it does not 403.
-        Flagged in the session summary as a discrepancy against the assumed
-        403 — not fixed here, per instructions to confirm rather than change
-        existing behavior."""
+    def test_locked_admin_self_reset_rejected(self, http_client):
+        """An admin targeting their OWN locked account is rejected with 403.
+        The guard at users.py rejects any admin target unless the active
+        user is the owner, so an admin can never reset an admin PIN
+        (including their own), regardless of lock state."""
         c, db, app = http_client
         locked_admin = _make_user(db, name="Admin", is_admin=True, is_locked=True, failed_pin_attempts=4)
         _set_active_user(app, locked_admin)
 
         resp = c.post(f"/api/v1/users/{locked_admin.id}/reset-pin", json={"pin": "123456"})
 
-        assert resp.status_code == 200, resp.text
-        assert resp.json()["is_locked"] is False
+        assert resp.status_code == 403, resp.text
+
+    def test_admin_cannot_reset_other_admin_pin(self, http_client):
+        """An admin resetting another admin's PIN is rejected with 403,
+        regardless of the target's lock state."""
+        c, db, app = http_client
+        admin = _make_user(db, name="Admin", is_admin=True)
+        other_admin = _make_user(db, name="OtherAdmin", is_admin=True, is_locked=True, failed_pin_attempts=4)
+        _set_active_user(app, admin)
+
+        resp = c.post(f"/api/v1/users/{other_admin.id}/reset-pin", json={"pin": "123456"})
+
+        assert resp.status_code == 403, resp.text

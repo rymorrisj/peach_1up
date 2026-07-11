@@ -58,13 +58,12 @@ middleware chain. Read alongside `SECURITY.md` (policy rules) and `TECH.md` (sta
 | Flag | Default for owner | Default for sub-account | What it gates |
 |------|:-:|:-:|------|
 | `is_owner` | `True` | always `False` | Bypasses all `require_permission` checks; owner-only operations, including create/delete sub-account (`is_owner` is also used directly as the gating flag on those two endpoints — see Flow 9, Flow 13) |
-| `is_admin` | `True` | `False` | Gates endpoints that check `is_admin` directly: edit/reset-pin/unlock/force-logout sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other `can_*` flag — `require_permission()` only special-cases `is_owner` for bypass; every other flag (including `is_admin` itself) is checked independently via `getattr(active_user, flag, False)` |
+| `is_admin` | `True` | `False` | Gates endpoints that check `is_admin` directly: edit/reset-pin/unlock/force-logout sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other `can_*` flag — `require_permission()` only special-cases `is_owner` for bypass; every other flag (including `is_admin` itself) is checked independently via `getattr(active_user, flag, False)`. On `reset-pin` specifically, an admin may target only regular/capped sub-accounts — the owner and every admin (including the caller's own record) are rejected with 403; only the owner may reset an owner-adjacent PIN |
 | `can_launch_media` | `True` | `True` | Launch any permitted software collection |
 | `can_manage_software` | `True` | `False` | Add/edit/delete software collections and items and their drives, run `POST /software/scan` and import-from-path, **and** create/modify/delete launch Profiles (`routes/profiles.py`). Was `can_edit_library` → `can_edit_software` → this name |
 | `can_edit_environments` | `True` | `False` | Register/modify Environments (Windows OS install workspaces). Was `can_edit_platforms` |
 | `can_edit_media` | `True` | `False` | Add/edit/delete Media (the archival audio/text/image/video domain) |
 | `can_manage_controllers` | `True` | `False` | Create/edit/delete controller mappings (System → Controllers) |
-| `can_manage_profiles` | `True` | `False` | ⚠ **Orphaned**: still on `UserBase` and surfaced in the Users UI, but no route enforces it any more. Profile CRUD moved to `can_manage_software`. Gates nothing today (flagged for cleanup) |
 | `can_edit_settings` | `True` | `False` | Modify application settings |
 | `can_manage_users` | `True` (irrelevant — owner bypasses) | `False` | Lets a sub-account edit **its own** `name` via `PATCH /users/{id}` and reset **its own** PIN via `POST /users/{id}/reset-pin` — nothing else. Grants no capability over any other user's account, no delete, and none of the owner-only create/delete-sub-account operations. Owner-only to grant, like every permission flag. Gated by `require_admin_or_self_manage` in `dependencies.py`, which is checked in addition to (not instead of) the existing `is_admin`-targets-others path on those two endpoints |
 
@@ -102,7 +101,9 @@ flowchart TD
     TG2 -- No --> Z403e[403 Permission denied]
     TG2 -- Yes --> TO
     TO -- Yes --> Z403d[403 Owner account\ncannot be modified here]
-    TO -- No --> TRP{"reset-pin AND\ntarget user.is_locked AND\nactive_user not owner/admin?"}
+    TO -- No --> TAR{"reset-pin AND\ntarget user.is_admin AND\nactive_user not owner?"}
+    TAR -- Yes --> Z403h["403 Only the owner\ncan reset an admin's PIN"]
+    TAR -- No --> TRP{"reset-pin AND\ntarget user.is_locked AND\nactive_user not owner/admin?"}
     TRP -- Yes --> Z403g["403 Account is locked;\nan admin must reset this PIN\n(self-reset unavailable regardless\nof can_manage_users)"]
     TRP -- No --> TO2{"Caller is owner/admin\nediting via PATCH?"}
     TO2 -- Yes --> TPASS[Pass — full UserPatch applied]
@@ -376,6 +377,9 @@ Users page: admin clicks key icon on a user → Reset PIN modal
           field-restriction logic is needed here the way it is on PATCH)
         else → 403
     → target user.is_owner → 403 Owner account cannot be modified here
+    → target user.is_admin AND active_user is NOT owner → 403 Only the owner can reset
+        an admin's PIN (blocks admin-resets-admin and admin-resets-self, regardless of
+        lock state)
     → target user.is_locked AND active_user is NOT owner/admin → 403 Account is locked;
         an admin must reset this PIN (self-reset is unavailable the moment is_locked is
         true, regardless of can_manage_users — falls through to the admin/owner path only,

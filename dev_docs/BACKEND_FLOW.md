@@ -332,7 +332,7 @@ Mechanizability: fully deterministic dependency + DB edges.
 
 F12 — Profiles CRUD (profiles.py)
 
-- GET "" (:79) -> \_with_stats_bulk (counts items+launches). POST "" (:87) [can_manage_profiles] 409 on slug dup. GET /{slug}, /{slug}/items. PATCH /{slug} re-slugs on name
+- GET "" (:79) -> \_with_stats_bulk (counts items+launches). POST "" (:87) [can_manage_software] 409 on slug dup. GET /{slug}, /{slug}/items. PATCH /{slug} re-slugs on name
   change. DELETE /{slug} 403 if bundled.
   Terminal effects: Profile rows. Mechanizability: deterministic; stats are aggregate queries.
 

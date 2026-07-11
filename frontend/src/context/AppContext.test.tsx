@@ -29,7 +29,6 @@ const OWNER: UserRead = {
   can_launch_media: true,
   can_edit_environments: true,
   can_manage_software: true,
-  can_manage_profiles: true,
   can_edit_settings: true,
   is_admin: true,
   block_unrated_media: false,

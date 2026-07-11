@@ -82,9 +82,8 @@ def run_setup(db_path: str | Path) -> bool:
             existing.pin_hash = pin_hash
             existing.pin_required = True
             existing.can_launch_media = True
-            existing.can_edit_platforms = True
-            existing.can_edit_library = True
-            existing.can_manage_profiles = True
+            existing.can_edit_environments = True
+            existing.can_manage_software = True
             existing.can_edit_settings = True
             existing.is_admin = True
             existing.is_locked = False
@@ -97,9 +96,8 @@ def run_setup(db_path: str | Path) -> bool:
                 pin_hash=pin_hash,
                 pin_required=True,
                 can_launch_media=True,
-                can_edit_platforms=True,
-                can_edit_library=True,
-                can_manage_profiles=True,
+                can_edit_environments=True,
+                can_manage_software=True,
                 can_edit_settings=True,
                 is_admin=True,
             ))

@@ -12,7 +12,6 @@ export interface ManageUserForm {
   can_edit_environments: boolean;
   can_edit_media: boolean;
   can_manage_controllers: boolean;
-  can_manage_profiles: boolean;
   can_edit_settings: boolean;
   can_manage_users: boolean;
   is_admin: boolean;
@@ -27,7 +26,6 @@ const PERMISSION_FLAGS: { key: keyof ManageUserForm; label: string }[] = [
   { key: "can_edit_environments", label: "Edit environments" },
   { key: "can_edit_media", label: "Edit media" },
   { key: "can_manage_controllers", label: "Manage controllers" },
-  { key: "can_manage_profiles", label: "Manage profiles" },
   { key: "can_edit_settings", label: "Edit settings" },
   { key: "can_manage_users", label: "Manage own account" },
   { key: "is_admin", label: "Admin" },

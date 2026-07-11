@@ -350,14 +350,14 @@ class TestUpdateUser:
 
         resp = app_client.patch(
             f"/api/v1/users/{sub.id}",
-            json={"can_manage_profiles": True},
+            json={"can_manage_controllers": True},
             cookies={"peach_token": self._cookie(mem_session, admin)},
         )
-        # P2.4: can_manage_profiles is a privilege field; only the owner may set it.
+        # P2.4: can_manage_controllers is a privilege field; only the owner may set it.
         assert resp.status_code == 403
 
         refreshed = mem_session.get(User, sub.id)
-        assert refreshed.can_manage_profiles is False
+        assert refreshed.can_manage_controllers is False
 
     def test_owner_as_edit_target_is_rejected(self, app_client, mem_session, owner):
         resp = app_client.patch(

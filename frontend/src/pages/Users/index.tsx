@@ -25,7 +25,6 @@ const EMPTY_MANAGE_USER_FORM: ManageUserForm = {
   can_edit_environments: false,
   can_edit_media: false,
   can_manage_controllers: false,
-  can_manage_profiles: false,
   can_edit_settings: false,
   can_manage_users: false,
   is_admin: false,
@@ -101,7 +100,6 @@ export default function Users() {
       can_edit_environments: user.can_edit_environments,
       can_edit_media: user.can_edit_media,
       can_manage_controllers: user.can_manage_controllers,
-      can_manage_profiles: user.can_manage_profiles,
       can_edit_settings: user.can_edit_settings,
       can_manage_users: user.can_manage_users,
       is_admin: user.is_admin,
@@ -140,7 +138,6 @@ export default function Users() {
             can_edit_environments: manageForm.can_edit_environments,
             can_edit_media: manageForm.can_edit_media,
             can_manage_controllers: manageForm.can_manage_controllers,
-            can_manage_profiles: manageForm.can_manage_profiles,
             can_edit_settings: manageForm.can_edit_settings,
             can_manage_users: manageForm.can_manage_users,
             is_admin: manageForm.is_admin,
@@ -161,7 +158,6 @@ export default function Users() {
           patchBody.can_edit_environments = manageForm.can_edit_environments;
           patchBody.can_edit_media = manageForm.can_edit_media;
           patchBody.can_manage_controllers = manageForm.can_manage_controllers;
-          patchBody.can_manage_profiles = manageForm.can_manage_profiles;
           patchBody.can_edit_settings = manageForm.can_edit_settings;
           patchBody.can_manage_users = manageForm.can_manage_users;
           patchBody.is_admin = manageForm.is_admin;

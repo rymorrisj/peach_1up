@@ -27,7 +27,6 @@ function makeUser(partial: Pick<UserRead, 'id' | 'name'> & Partial<UserRead>): U
     can_launch_media: true,
     can_edit_environments: false,
     can_manage_software: false,
-    can_manage_profiles: false,
     can_edit_settings: false,
     is_admin: false,
     block_unrated_media: false,

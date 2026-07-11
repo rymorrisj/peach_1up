@@ -32,7 +32,6 @@ _OWNER_ONLY_FIELDS = {
     "can_manage_software",
     "can_edit_media",
     "can_manage_controllers",
-    "can_manage_profiles",
     "can_edit_settings",
     "can_manage_users",
 }
@@ -46,7 +45,6 @@ class UserCreate(BaseModel):
     can_manage_software: bool = False
     can_edit_media: bool = False
     can_manage_controllers: bool = False
-    can_manage_profiles: bool = False
     can_edit_settings: bool = False
     can_manage_users: bool = False
     is_admin: bool = False
@@ -67,7 +65,6 @@ class UserPatch(BaseModel):
     can_manage_software: bool | None = None
     can_edit_media: bool | None = None
     can_manage_controllers: bool | None = None
-    can_manage_profiles: bool | None = None
     can_edit_settings: bool | None = None
     can_manage_users: bool | None = None
     is_admin: bool | None = None
@@ -136,7 +133,6 @@ def create_user(
         can_manage_software=body.can_manage_software,
         can_edit_media=body.can_edit_media,
         can_manage_controllers=body.can_manage_controllers,
-        can_manage_profiles=body.can_manage_profiles,
         can_edit_settings=body.can_edit_settings,
         can_manage_users=body.can_manage_users,
         is_admin=body.is_admin,
@@ -233,6 +229,8 @@ def reset_pin(
         raise HTTPException(status_code=404, detail="User not found.")
     if user.is_owner:
         raise HTTPException(status_code=403, detail="Owner account cannot be modified here.")
+    if user.is_admin and not active_user.is_owner:
+        raise HTTPException(status_code=403, detail="Only the owner can reset an admin's PIN.")
     if user.is_locked and not (active_user.is_owner or active_user.is_admin):
         raise HTTPException(status_code=403, detail="Account is locked; an admin must reset this PIN.")
     _validate_pin(body.pin)

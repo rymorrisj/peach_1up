@@ -62,7 +62,6 @@ Permission flags on sub-accounts:
 | `can_manage_software`    | Add, edit, delete, or scan/import software collections and items, and create/modify/delete launch Profiles. Gates `POST /api/v1/software/scan`. Was `can_edit_library` |
 | `can_edit_media`         | Add, edit, or remove Media (the archival audio/text/image/video domain) |
 | `can_manage_controllers` | Create, edit, or delete controller mappings (System → Controllers) |
-| `can_manage_profiles`    | Orphaned flag: still present and surfaced in the Users UI, but no route enforces it any more (Profile CRUD moved to `can_manage_software`). Slated for cleanup |
 | `can_edit_settings`      | Modify application settings                               |
 | `can_manage_users`       | Lets a sub-account edit its own `name` and reset its own PIN only — no capability over any other account, no self-delete, no create/delete of any sub-account. Owner-only to grant, like every flag here. Checked in addition to (not instead of) the `is_admin` path on the same two endpoints |
 | `is_admin`               | Edit/reset-pin/unlock/force-logout an existing sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other flag in this table — each is checked independently. Creating or deleting a sub-account requires `is_owner`, not `is_admin` |
@@ -71,10 +70,12 @@ Permission flags on sub-accounts:
 
 **PIN reset authorisation** (`POST /api/v1/users/{id}/reset-pin`): the owner
 account's PIN can never be reset through this endpoint (owner recovery is the
-local `setup_admin_user.py` path only). A non-locked sub-account can have its PIN
-reset by the owner or any admin, and a `can_manage_users` holder can reset its own
-PIN. A locked account can only be reset by an owner or admin (the self-service
-path is blocked while locked).
+local `setup_admin_user.py` path only). The owner bypasses every other check and
+can reset any user's PIN regardless of lock state or target role. An admin can
+reset PINs only for regular/capped sub-accounts — the owner and every admin,
+including their own record, are rejected with 403. A `can_manage_users` holder
+can reset its own PIN via self-service, but this path is blocked with 403 while
+the account is locked.
 
 **PIN security:**
 

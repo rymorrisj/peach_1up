@@ -17,7 +17,6 @@ function permissionSummary(user: User): string {
   if (user.can_edit_environments) labels.push("environments");
   if (user.can_edit_media) labels.push("media");
   if (user.can_manage_controllers) labels.push("controllers");
-  if (user.can_manage_profiles) labels.push("profiles");
   if (user.can_edit_settings) labels.push("settings");
   if (user.can_manage_users) labels.push("self-manage");
   if (user.is_admin) labels.push("admin");

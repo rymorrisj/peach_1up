@@ -160,7 +160,6 @@ def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depen
         can_manage_software=True,
         can_edit_media=True,
         can_manage_controllers=True,
-        can_manage_profiles=True,
         can_edit_settings=True,
         pin_hash=pin_hash,
         identity_token_secret=generate_identity_secret(),

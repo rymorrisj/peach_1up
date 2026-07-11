@@ -66,7 +66,6 @@ Permission flags on sub-accounts. The authoritative list is `UserBase` in
 | `can_manage_software`    | Create, edit, delete, or scan/import software collections and items, **and** create/modify/delete launch Profiles (the `Profile` model in `routes/profiles.py`). Also the gate on `POST /api/v1/software/scan`. Was `can_edit_library` (renamed once to `can_edit_software`, then to this name to reflect that it covers create/delete/scan-import, not just edits) |
 | `can_edit_media`         | Add, edit, or remove Media (the archival audio/text/image/video domain)                                                                                                                                                                                                                          |
 | `can_manage_controllers` | Create, edit, or delete controller mappings (System → Controllers)                                                                                                                                                                                                                              |
-| `can_manage_profiles`    | ⚠ **Orphaned flag.** Still present on `UserBase`, seeded on the owner, settable via user create/patch, and surfaced in the Users UI as "Manage profiles", but **no backend route enforces it**. Profile CRUD moved to `can_manage_software`, so it currently gates nothing. Flagged for cleanup (remove the flag and its UI toggle, or repoint a route at it); see the discrepancy note in the reconciliation summary |
 | `can_edit_settings`      | Modify application settings                                                                                                                                                                                                                                                                     |
 | `can_manage_users`       | Lets a sub-account edit its own `name` and reset its own PIN only — no capability over any other account, no self-delete, no create/delete of any sub-account. Owner-only to grant, like every flag here. Checked in addition to (not instead of) the `is_admin` path on the same two endpoints |
 | `is_admin`               | Edit/reset-pin/unlock/force-logout an existing sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other flag in this table — each is checked independently. Creating or deleting a sub-account requires `is_owner`, not `is_admin`        |
@@ -81,24 +80,15 @@ rules, as implemented in `users.py::reset_pin` and locked by
 - The **owner account's** PIN can never be reset through this endpoint by anyone
   (owner-target requests are rejected with 403; owner PIN recovery is the local
   `scripts/setup_admin_user.py` path only).
-- A **non-locked** sub-account (including an admin sub-account) can have its PIN
-  reset by the owner or any admin. A user holding `can_manage_users` can reset
-  **its own** PIN via the same endpoint (self-service), but no one else's.
-- A **locked** account can only be reset by an owner or an admin; the
-  `can_manage_users` self-service path is blocked while locked, so a locked
-  sub-account cannot self-recover.
-
-> ⚠ **Known discrepancy (flagged, not silently resolved).** The single guard
-> `if user.is_locked and not (active_user.is_owner or active_user.is_admin)`
-> exempts `is_admin` unconditionally, with no carve-out for an admin targeting
-> **their own** locked record. So a locked admin can reset their own PIN and
-> clear their own lockout, so the admin lockout-bypass is **not** closed. There is
-> also no rule preventing one admin from resetting another admin's PIN. This is
-> asserted as current behaviour in
-> `test_users_create_delete_reset.py::test_locked_admin_self_reset_succeeds_not_blocked`.
-> If the intended policy is "only the owner may reset an owner or admin PIN, and
-> admins may reset only non-owner non-admin accounts," that is a code change, not
-> a docs change, and needs Ryan's decision.
+- The **owner** bypasses every other check and can reset any user's PIN
+  regardless of lock state or target role.
+- An **admin** can reset PINs only for accounts that are neither the owner nor
+  another admin, i.e. regular/capped sub-accounts only. Attempting to reset the
+  owner's PIN or any admin's PIN, including their own, returns 403.
+- A user holding `can_manage_users` can reset **its own** PIN via the same
+  endpoint (self-service), but no one else's, and this self-service path is
+  blocked with 403 while the account is locked, so a locked sub-account cannot
+  self-recover.
 
 **PIN security:**
 
