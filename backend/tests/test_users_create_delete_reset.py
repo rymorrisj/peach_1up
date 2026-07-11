@@ -76,7 +76,7 @@ def _set_active_user(app, user):
 _CAPABILITY_FLAGS = [
     "can_launch_media",
     "can_edit_environments",
-    "can_edit_software",
+    "can_manage_software",
     "can_edit_media",
     "can_manage_controllers",
     "can_manage_profiles",
@@ -221,6 +221,24 @@ class TestResetPinLockedGuard:
         _set_active_user(app, owner)
 
         resp = c.post(f"/api/v1/users/{locked.id}/reset-pin", json={"pin": "123456"})
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["is_locked"] is False
+
+    def test_locked_admin_self_reset_succeeds_not_blocked(self, http_client):
+        """Confirms actual current behavior for an admin targeting their OWN
+        locked account: the guard at users.py:236 —
+        `if user.is_locked and not (active_user.is_owner or active_user.is_admin)`
+        — exempts is_admin unconditionally, with no carve-out for the target
+        being the admin's own record. So this succeeds (200), it does not 403.
+        Flagged in the session summary as a discrepancy against the assumed
+        403 — not fixed here, per instructions to confirm rather than change
+        existing behavior."""
+        c, db, app = http_client
+        locked_admin = _make_user(db, name="Admin", is_admin=True, is_locked=True, failed_pin_attempts=4)
+        _set_active_user(app, locked_admin)
+
+        resp = c.post(f"/api/v1/users/{locked_admin.id}/reset-pin", json={"pin": "123456"})
 
         assert resp.status_code == 200, resp.text
         assert resp.json()["is_locked"] is False

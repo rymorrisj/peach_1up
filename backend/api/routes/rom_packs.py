@@ -1,10 +1,11 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
+from backend.models.pagination import Page
 from backend.models.rom_pack import RomPackItem, RomPackItemRead
 from backend.models.user import User
 from backend.service.utils.emulator_catalog import get_emulator, get_install_path, load_catalog
@@ -40,11 +41,18 @@ def _to_read(entry: dict, row: Optional[RomPackItem]) -> RomPackItemRead:
     )
 
 
-@router.get("", response_model=list[RomPackItemRead])
-def list_rom_packs(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+@router.get("", response_model=Page[RomPackItemRead])
+def list_rom_packs(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_active_user),
+):
     entries = _rom_pack_catalog_entries()
     rows_by_slug = {r.slug: r for r in db.query(RomPackItem).all()}
-    return [_to_read(entry, rows_by_slug.get(entry["slug"])) for entry in entries]
+    items = [_to_read(entry, rows_by_slug.get(entry["slug"])) for entry in entries]
+    total = len(items)
+    return Page(items=items[offset:offset + limit], total=total, limit=limit, offset=offset)
 
 
 @router.get("/{slug}", response_model=RomPackItemRead)

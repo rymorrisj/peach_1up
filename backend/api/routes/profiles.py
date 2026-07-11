@@ -78,7 +78,7 @@ def list_profiles(
 
 
 @router.post("", response_model=ProfileRead, status_code=201)
-def create_profile(body: ProfileCreate, db: Session = Depends(get_db), _: User = require_permission("can_edit_software")):
+def create_profile(body: ProfileCreate, db: Session = Depends(get_db), _: User = require_permission("can_manage_software")):
     existing = db.query(Profile).filter(Profile.slug == body.slug).first()
     if existing:
         raise HTTPException(status_code=409, detail="Profile slug already exists.")
@@ -115,7 +115,7 @@ def get_profile_items(
 
 
 @router.patch("/{slug}", response_model=ProfileRead)
-def update_profile(slug: str, body: ProfileUpdate, db: Session = Depends(get_db), _: User = require_permission("can_edit_software")):
+def update_profile(slug: str, body: ProfileUpdate, db: Session = Depends(get_db), _: User = require_permission("can_manage_software")):
     profile = db.query(Profile).filter(Profile.slug == slug).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
@@ -134,7 +134,7 @@ def update_profile(slug: str, body: ProfileUpdate, db: Session = Depends(get_db)
 
 
 @router.delete("/{slug}", status_code=204)
-def delete_profile(slug: str, db: Session = Depends(get_db), _: User = require_permission("can_edit_software")):
+def delete_profile(slug: str, db: Session = Depends(get_db), _: User = require_permission("can_manage_software")):
     profile = db.query(Profile).filter(Profile.slug == slug).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")

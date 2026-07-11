@@ -184,6 +184,10 @@ describe('Profiles (Emulators sibling tab) — CRUD via modal', () => {
       'utf-8',
     )
     expect(profilesSource).not.toMatch(/navigate\(/)
-    expect(profilesSource).not.toMatch(/\/profiles\/\$\{/)
+    // Scoped to an actual navigate() call target, not any string containing
+    // `/profiles/${` — the legitimate REST calls apiFetch(`/api/v1/profiles/${...}`)
+    // in handleSubmit/handleDelete also match that bare substring and are not
+    // the retired P2 navigation pattern this guard is checking for.
+    expect(profilesSource).not.toMatch(/navigate\(\s*[`'"]\/(?:emulators\/)?profiles\/\$\{/)
   })
 })

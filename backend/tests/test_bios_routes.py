@@ -132,5 +132,56 @@ class TestListRouteIncludesRequiredField:
         resp = c.get("/api/v1/bios")
         assert resp.status_code == 200
         body = resp.json()
-        assert body[0]["slug"] == "ps1-bios"
-        assert body[0]["required"] is True
+        assert body["items"][0]["slug"] == "ps1-bios"
+        assert body["items"][0]["required"] is True
+
+
+class TestListRoutePagination:
+    """GET /api/v1/bios returns Page[BiosRequirement] (dev_docs/v2/08, Task 3)."""
+
+    def _entries(self, n):
+        return [
+            {
+                "slug": f"bios-{i}",
+                "name": f"BIOS {i}",
+                "platform": "ps1",
+                "bios_path": f"test-bios-{i}",
+                "required": True,
+            }
+            for i in range(n)
+        ]
+
+    def test_envelope_shape_and_first_page(self, client, monkeypatch):
+        c, _ = client
+        from backend.api.routes import bios as bios_mod
+        monkeypatch.setattr(bios_mod, "load_bios_requirements", lambda: self._entries(3))
+
+        resp = c.get("/api/v1/bios", params={"limit": 2, "offset": 0})
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["total"] == 3
+        assert body["limit"] == 2
+        assert body["offset"] == 0
+        assert [item["slug"] for item in body["items"]] == ["bios-0", "bios-1"]
+
+    def test_offset_returns_remaining_page(self, client, monkeypatch):
+        c, _ = client
+        from backend.api.routes import bios as bios_mod
+        monkeypatch.setattr(bios_mod, "load_bios_requirements", lambda: self._entries(3))
+
+        resp = c.get("/api/v1/bios", params={"limit": 2, "offset": 2})
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["total"] == 3
+        assert [item["slug"] for item in body["items"]] == ["bios-2"]
+
+    def test_default_pagination_returns_all_when_under_default_limit(self, client):
+        c, _ = client
+        resp = c.get("/api/v1/bios")
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["limit"] == 50
+        assert body["offset"] == 0
+        assert body["total"] == 1

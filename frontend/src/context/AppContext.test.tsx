@@ -28,7 +28,7 @@ const OWNER: UserRead = {
   pin_required: false,
   can_launch_media: true,
   can_edit_environments: true,
-  can_edit_software: true,
+  can_manage_software: true,
   can_manage_profiles: true,
   can_edit_settings: true,
   is_admin: true,

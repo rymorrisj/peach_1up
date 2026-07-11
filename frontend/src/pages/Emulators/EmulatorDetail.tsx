@@ -51,9 +51,12 @@ export default function EmulatorDetail() {
   const romPackSlug = entry?.rom_pack_slug ?? undefined
   const emulatorBiosPlatform = slug ? EMULATOR_BIOS_PLATFORM[slug] : undefined
 
+  // Lookup-only consumer of GET /api/v1/bios (now Page[BiosRequirement]) —
+  // unwraps .items, capped at limit=200 (same pattern as the /api/v1/profiles
+  // lookup consumers), not expected to exceed that at current catalog scale.
   const { data: allBios = [] } = useQuery<BiosRequirement[]>({
     queryKey: ['bios-requirements'],
-    queryFn: () => apiFetch<BiosRequirement[]>('/api/v1/bios'),
+    queryFn: async () => (await apiFetch<{ items: BiosRequirement[] }>('/api/v1/bios?limit=200')).items,
     enabled: !!emulatorBiosPlatform,
   })
 

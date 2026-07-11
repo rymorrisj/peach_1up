@@ -13,6 +13,9 @@ in those two files and are not duplicated here). Covers:
       capped/restricted user must get the same no-leak 404 as browsing
     - the fail-closed target_type filter on GET /launches (launches.py:94-99),
       a prior fail-open bug — regression-locked here
+    - can_launch_media gating on POST /environments/{id}/launch
+      (launches.py:50) and the missing-environment 404 branch
+    - can_launch_media gating on POST /launches/{id}/stop (launches.py:117)
 
 Uses the same in-memory SQLModel SQLite DB + StaticPool +
 get_active_user/get_db dependency-override pattern as
@@ -80,6 +83,18 @@ def _make_launch_history(db, **overrides):
     return record
 
 
+def _make_environment(db, **overrides):
+    from backend.models import Environment
+
+    kwargs = dict(name="DOS Box", era="dos", emulator_slug="dosbox-x")
+    kwargs.update(overrides)
+    env = Environment(**kwargs)
+    db.add(env)
+    db.commit()
+    db.refresh(env)
+    return env
+
+
 @pytest.fixture
 def http_client(mem_db_session):
     from fastapi import FastAPI
@@ -115,6 +130,37 @@ def _stub_launch_collection(monkeypatch, *, history_id=1):
         return LaunchResult(history_id=history_id)
 
     monkeypatch.setattr(launches_mod.svc, "launch_collection", _fake_launch_collection)
+    return calls
+
+
+def _stub_launch_environment(monkeypatch, *, history_id=1):
+    """Stub out svc.launch_environment so gate tests exercise only the route's
+    permission wiring, not the coordinator's provisioning/launch logic."""
+    from backend.api.routes import launches as launches_mod
+    from backend.service.launch.coordinator import LaunchResult
+
+    calls = []
+
+    async def _fake_launch_environment(platform, profile_id, db):
+        calls.append((platform.id, profile_id))
+        return LaunchResult(history_id=history_id)
+
+    monkeypatch.setattr(launches_mod.svc, "launch_environment", _fake_launch_environment)
+    return calls
+
+
+def _stub_stop_launch(monkeypatch, *, stopped=True):
+    """Stub out svc.stop_launch so gate tests exercise only the route's
+    permission wiring, not process_registry/coordinator internals."""
+    from backend.api.routes import launches as launches_mod
+
+    calls = []
+
+    def _fake_stop_launch(history_id, active_user, db):
+        calls.append((history_id, active_user.id))
+        return {"stopped": stopped}
+
+    monkeypatch.setattr(launches_mod.svc, "stop_launch", _fake_stop_launch)
     return calls
 
 
@@ -246,3 +292,80 @@ class TestTargetTypeFailClosed:
         assert collection_resp.status_code == 200, collection_resp.text
         collection_ids = {row["id"] for row in collection_resp.json()}
         assert collection_ids == {collection_record.id}
+
+
+# ---------------------------------------------------------------------------
+# can_launch_media gating — POST /environments/{id}/launch
+# ---------------------------------------------------------------------------
+
+
+class TestCanLaunchMediaGateEnvironment:
+    def test_can_launch_media_false_blocks_launch_at_route(self, http_client, monkeypatch):
+        c, db, app = http_client
+        env = _make_environment(db)
+        calls = _stub_launch_environment(monkeypatch)
+        blocked_user = _make_user(db, can_launch_media=False)
+        _set_active_user(app, blocked_user)
+
+        resp = c.post(f"/api/v1/environments/{env.id}/launch")
+
+        assert resp.status_code == 403, resp.text
+        # The gate must reject before the coordinator is ever reached.
+        assert calls == []
+
+    def test_can_launch_media_true_allows_launch_past_gate(self, http_client, monkeypatch):
+        c, db, app = http_client
+        env = _make_environment(db)
+        calls = _stub_launch_environment(monkeypatch, history_id=88)
+        permitted_user = _make_user(db, can_launch_media=True)
+        _set_active_user(app, permitted_user)
+
+        resp = c.post(f"/api/v1/environments/{env.id}/launch")
+
+        assert resp.status_code == 202, resp.text
+        assert resp.json()["launch_history_id"] == 88
+        assert calls == [(env.id, None)]
+
+    def test_missing_environment_returns_404(self, http_client, monkeypatch):
+        c, db, app = http_client
+        calls = _stub_launch_environment(monkeypatch)
+        permitted_user = _make_user(db, can_launch_media=True)
+        _set_active_user(app, permitted_user)
+
+        resp = c.post("/api/v1/environments/999999/launch")
+
+        assert resp.status_code == 404, resp.text
+        assert calls == []
+
+
+# ---------------------------------------------------------------------------
+# can_launch_media gating — POST /launches/{id}/stop
+# ---------------------------------------------------------------------------
+
+
+class TestCanLaunchMediaGateStopLaunch:
+    def test_can_launch_media_false_blocks_stop_at_route(self, http_client, monkeypatch):
+        c, db, app = http_client
+        record = _make_launch_history(db)
+        calls = _stub_stop_launch(monkeypatch)
+        blocked_user = _make_user(db, can_launch_media=False)
+        _set_active_user(app, blocked_user)
+
+        resp = c.post(f"/api/v1/launches/{record.id}/stop")
+
+        assert resp.status_code == 403, resp.text
+        # The gate must reject before svc.stop_launch is ever reached.
+        assert calls == []
+
+    def test_can_launch_media_true_allows_stop_past_gate(self, http_client, monkeypatch):
+        c, db, app = http_client
+        record = _make_launch_history(db)
+        calls = _stub_stop_launch(monkeypatch, stopped=True)
+        permitted_user = _make_user(db, can_launch_media=True)
+        _set_active_user(app, permitted_user)
+
+        resp = c.post(f"/api/v1/launches/{record.id}/stop")
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == {"stopped": True}
+        assert calls == [(record.id, permitted_user.id)]

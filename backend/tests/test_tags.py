@@ -163,8 +163,8 @@ _ENTITY_FACTORIES = {
 
 # entity_type -> a User authorized to write an assignment for it.
 _ENTITY_AUTHORIZED_USER = {
-    "software_collection": lambda: _user(1, can_edit_software=True),
-    "software_item": lambda: _user(1, can_edit_software=True),
+    "software_collection": lambda: _user(1, can_manage_software=True),
+    "software_item": lambda: _user(1, can_manage_software=True),
     "media_item": lambda: _user(1, can_edit_media=True),
     "media_collection": lambda: _user(1, can_edit_media=True),
     "environment": lambda: _user(1, can_edit_environments=True),
@@ -197,9 +197,9 @@ class TestDispatchOrder:
 
     def test_permission_check_precedes_existence_checks_no_leak(self, client):
         c, _ = client
-        # Neither the tag nor the entity exist, and the user lacks can_edit_software.
+        # Neither the tag nor the entity exist, and the user lacks can_manage_software.
         # If existence were checked first this would 404; it must 403 instead.
-        _override_user(c, _user(2, can_edit_software=False))
+        _override_user(c, _user(2, can_manage_software=False))
         resp = c.post(
             "/api/v1/tags/999999/assignments",
             json={"entity_type": "software_item", "entity_id": 999999},
@@ -209,7 +209,7 @@ class TestDispatchOrder:
     def test_tag_not_found_is_404(self, client):
         c, db = client
         collection = _make_software_collection(db)
-        _override_user(c, _user(1, can_edit_software=True))
+        _override_user(c, _user(1, can_manage_software=True))
         resp = c.post(
             "/api/v1/tags/999999/assignments",
             json={"entity_type": "software_collection", "entity_id": collection.id},
@@ -220,7 +220,7 @@ class TestDispatchOrder:
     def test_entity_not_found_is_404(self, client):
         c, db = client
         tag = _make_tag(db)
-        _override_user(c, _user(1, can_edit_software=True))
+        _override_user(c, _user(1, can_manage_software=True))
         resp = c.post(
             f"/api/v1/tags/{tag.id}/assignments",
             json={"entity_type": "software_collection", "entity_id": 999999},
@@ -346,7 +346,7 @@ class TestCreateTagAssignmentIdempotency:
         c, db = client
         tag = _make_tag(db)
         collection = _make_software_collection(db)
-        _override_user(c, _user(1, can_edit_software=True))
+        _override_user(c, _user(1, can_manage_software=True))
 
         body = {"entity_type": "software_collection", "entity_id": collection.id}
         first = c.post(f"/api/v1/tags/{tag.id}/assignments", json=body)
@@ -377,7 +377,7 @@ class TestDeleteTagAssignment:
         c, db = client
         tag = _make_tag(db)
         collection = _make_software_collection(db)
-        _override_user(c, _user(1, can_edit_software=True))
+        _override_user(c, _user(1, can_manage_software=True))
 
         resp = c.request(
             "DELETE",

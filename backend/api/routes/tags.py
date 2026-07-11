@@ -31,8 +31,8 @@ _ASSIGNMENT_TARGETS: dict[str, type] = {
 # controller_mapping is intentionally absent: it uses the bespoke
 # check_controller_edit_permission rule instead of a plain flag.
 _ASSIGNMENT_PERMISSIONS: dict[str, str] = {
-    "software_collection": "can_edit_software",
-    "software_item": "can_edit_software",
+    "software_collection": "can_manage_software",
+    "software_item": "can_manage_software",
     "media_item": "can_edit_media",
     "media_collection": "can_edit_media",
     "environment": "can_edit_environments",
@@ -65,7 +65,7 @@ def list_tags(db: Session = Depends(get_db), _: User = Depends(get_active_user))
 def create_tag(
     body: TagCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_software"),
+    _: User = require_permission("can_manage_software"),
 ):
     name = body.name.strip()
     if not name:
@@ -83,7 +83,7 @@ def create_tag(
 def delete_tag(
     tag_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_software"),
+    _: User = require_permission("can_manage_software"),
 ):
     tag = db.get(Tag, tag_id)
     if not tag:

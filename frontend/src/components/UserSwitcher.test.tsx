@@ -26,7 +26,7 @@ function makeUser(partial: Pick<UserRead, 'id' | 'name'> & Partial<UserRead>): U
     pin_required: false,
     can_launch_media: true,
     can_edit_environments: false,
-    can_edit_software: false,
+    can_manage_software: false,
     can_manage_profiles: false,
     can_edit_settings: false,
     is_admin: false,

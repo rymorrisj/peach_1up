@@ -1,12 +1,13 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
 from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.models.bios import BiosRequirement
+from backend.models.pagination import Page
 from backend.models.user import User
 from backend.service.utils.bios_placement import PlacementError, place_bios_asset
 from backend.service.utils.emulator_catalog import check_bios_presence, load_bios_requirements
@@ -23,8 +24,12 @@ class BiosPlaceResult(BaseModel):
     warnings: list[str]
 
 
-@router.get("", response_model=list[BiosRequirement])
-def list_bios_requirements(_: User = Depends(get_active_user)):
+@router.get("", response_model=Page[BiosRequirement])
+def list_bios_requirements(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    _: User = Depends(get_active_user),
+):
     result = []
     for entry in load_bios_requirements():
         bios_path = entry.get("bios_path", "")
@@ -43,7 +48,8 @@ def list_bios_requirements(_: User = Depends(get_active_user)):
             ) if bios_path else False,
             "required": entry.get("required", True),
         })
-    return result
+    total = len(result)
+    return Page(items=result[offset:offset + limit], total=total, limit=limit, offset=offset)
 
 
 @router.post("/{slug}/place", response_model=BiosPlaceResult)

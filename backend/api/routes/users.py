@@ -29,7 +29,7 @@ _OWNER_ONLY_FIELDS = {
     "is_admin",
     "can_launch_media",
     "can_edit_environments",
-    "can_edit_software",
+    "can_manage_software",
     "can_edit_media",
     "can_manage_controllers",
     "can_manage_profiles",
@@ -43,7 +43,7 @@ class UserCreate(BaseModel):
     pin: str | None = None
     can_launch_media: bool = True
     can_edit_environments: bool = False
-    can_edit_software: bool = False
+    can_manage_software: bool = False
     can_edit_media: bool = False
     can_manage_controllers: bool = False
     can_manage_profiles: bool = False
@@ -64,7 +64,7 @@ class UserPatch(BaseModel):
     name: str | None = None
     can_launch_media: bool | None = None
     can_edit_environments: bool | None = None
-    can_edit_software: bool | None = None
+    can_manage_software: bool | None = None
     can_edit_media: bool | None = None
     can_manage_controllers: bool | None = None
     can_manage_profiles: bool | None = None
@@ -133,7 +133,7 @@ def create_user(
         identity_token_secret=generate_identity_secret(),
         can_launch_media=body.can_launch_media,
         can_edit_environments=body.can_edit_environments,
-        can_edit_software=body.can_edit_software,
+        can_manage_software=body.can_manage_software,
         can_edit_media=body.can_edit_media,
         can_manage_controllers=body.can_manage_controllers,
         can_manage_profiles=body.can_manage_profiles,

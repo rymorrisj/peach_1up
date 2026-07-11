@@ -165,11 +165,11 @@ def require_admin_or_self_manage(request: Request, active_user: User = Depends(g
 
 def require_software_or_environment_editor(active_user: User = Depends(get_active_user)) -> User:
     """Allow owners and anyone who can edit the software library or environments (e.g. filesystem browsing)."""
-    if active_user.is_owner or active_user.can_edit_software or active_user.can_edit_environments:
+    if active_user.is_owner or active_user.can_manage_software or active_user.can_edit_environments:
         return active_user
     raise HTTPException(
         status_code=403,
-        detail="Permission denied: requires can_edit_software or can_edit_environments.",
+        detail="Permission denied: requires can_manage_software or can_edit_environments.",
     )
 
 
@@ -179,7 +179,7 @@ def require_permission(flag: str):
     Owner accounts bypass all permission checks. Usage::
 
         @router.post("/items")
-        def create_item(_: User = require_permission("can_edit_software"), ...):
+        def create_item(_: User = require_permission("can_manage_software"), ...):
             ...
     """
     def _check(active_user: User = Depends(get_active_user)) -> User:
@@ -202,7 +202,10 @@ def get_filtered_collections(active_user: User, db: Session):
     - ``block_unrated_media=True`` excludes collections with null/empty content_rating.
     - ``max_content_rating`` limits results to ratings at or below the ordinal threshold.
       For a user with a ceiling, collections whose rating is unrecognised are DENIED,
-      not passed through — an unknown rating must never leak past a parental cap.
+      not passed through — an unknown rating must never leak past a parental cap. If the
+      user's own ceiling cannot be resolved to a known ordinal (e.g. a ``rating_ordinals``
+      settings change orphaned a previously-valid value), this fails closed: no rated
+      content passes, rather than silently dropping the ceiling entirely.
       Null/empty ratings are governed separately by ``block_unrated_media`` above.
 
     Returns a SQLAlchemy Query that callers can chain additional filters onto.
@@ -226,15 +229,16 @@ def get_filtered_collections(active_user: User, db: Session):
     if active_user.max_content_rating:
         ordinal_map = _load_rating_ordinals()
         max_ord = ordinal_map.get(active_user.max_content_rating)
-        if max_ord is not None:
-            allowed = {r for r, o in ordinal_map.items() if o <= max_ord}
-            q = q.filter(
-                or_(
-                    SoftwareCollection.content_rating.is_(None),
-                    SoftwareCollection.content_rating == "",
-                    SoftwareCollection.content_rating.in_(list(allowed)),
-                )
+        # An unresolvable ceiling must fail closed (deny all rated content),
+        # not silently disable the rating filter — see docstring above.
+        allowed = {r for r, o in ordinal_map.items() if o <= max_ord} if max_ord is not None else set()
+        q = q.filter(
+            or_(
+                SoftwareCollection.content_rating.is_(None),
+                SoftwareCollection.content_rating == "",
+                SoftwareCollection.content_rating.in_(list(allowed)),
             )
+        )
 
     return q
 

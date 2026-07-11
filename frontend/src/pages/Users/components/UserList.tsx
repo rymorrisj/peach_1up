@@ -13,7 +13,7 @@ type ActionState = {
 function permissionSummary(user: User): string {
   const labels: string[] = [];
   if (user.can_launch_media) labels.push("launch");
-  if (user.can_edit_software) labels.push("software");
+  if (user.can_manage_software) labels.push("software");
   if (user.can_edit_environments) labels.push("environments");
   if (user.can_edit_media) labels.push("media");
   if (user.can_manage_controllers) labels.push("controllers");

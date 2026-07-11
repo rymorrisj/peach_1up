@@ -33,7 +33,7 @@ def get_drive(drive_id: int, db: Session = Depends(get_db), _: User = Depends(ge
 def issue_delete_token(
     drive_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_software"),
+    _: User = require_permission("can_manage_software"),
 ):
     if not db.get(Drive, drive_id):
         raise HTTPException(status_code=404, detail="Drive not found.")
@@ -45,7 +45,7 @@ def delete_drive(
     drive_id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_software"),
+    _: User = require_permission("can_manage_software"),
 ):
     if not confirmation_tokens.consume(confirmation_token, "drive", drive_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")

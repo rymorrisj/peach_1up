@@ -1,20 +1,24 @@
-import { useQuery } from '@tanstack/react-query'
-import { apiFetch } from '@/api/client'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import EmptyState from '@/components/common/EmptyState'
+import { Button } from '@/ui'
+import { usePaginatedList } from '@/hooks/usePaginatedList'
 import { StatusDot, GuidanceNote } from './components/EmulatorDetailPrimitives'
 import { BiosPlaceAction } from './components/BiosPlaceAction'
 import type { components } from '@shared/types'
 type BiosRequirement = components['schemas']['BiosRequirement']
 
-// GET /api/v1/bios returns a bare list[BiosRequirement], not a Page[T]
-// envelope (dev_docs/v2/08_emulator_profiles_navigation.md, Task 3) — mounted
-// without pagination controls; flagged for the batched backend pass.
+// GET /api/v1/bios returns Page[BiosRequirement] (dev_docs/v2/08, Task 3).
 export default function Bios() {
-  const { data: bios = [], isLoading } = useQuery<BiosRequirement[]>({
-    queryKey: ['bios-requirements'],
-    queryFn: () => apiFetch<BiosRequirement[]>('/api/v1/bios'),
-  })
+  const {
+    items: bios,
+    isLoading,
+    page,
+    pageCount,
+    hasPrevPage,
+    hasNextPage,
+    prevPage,
+    nextPage,
+  } = usePaginatedList<BiosRequirement>({ path: '/api/v1/bios' })
 
   return (
     <div className="p-6">
@@ -26,6 +30,7 @@ export default function Bios() {
       ) : bios.length === 0 ? (
         <EmptyState heading="No BIOS requirements" subtext="No emulators in the catalog require a BIOS asset." />
       ) : (
+        <>
         <div className="rounded-xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
           {bios.map((b, i) => (
             <div
@@ -64,6 +69,20 @@ export default function Bios() {
             </div>
           ))}
         </div>
+        {pageCount > 1 && (
+          <div className="mt-4 flex items-center justify-between gap-4">
+            <Button variant="secondary" size="sm" onClick={prevPage} disabled={!hasPrevPage}>
+              Previous
+            </Button>
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">
+              Page {page} of {pageCount}
+            </span>
+            <Button variant="secondary" size="sm" onClick={nextPage} disabled={!hasNextPage}>
+              Next
+            </Button>
+          </div>
+        )}
+        </>
       )}
     </div>
   )

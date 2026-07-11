@@ -21,7 +21,7 @@ const EMPTY_MANAGE_USER_FORM: ManageUserForm = {
   name: "",
   pin: "",
   can_launch_media: true,
-  can_edit_software: false,
+  can_manage_software: false,
   can_edit_environments: false,
   can_edit_media: false,
   can_manage_controllers: false,
@@ -97,7 +97,7 @@ export default function Users() {
       name: user.name,
       pin: "",
       can_launch_media: user.can_launch_media,
-      can_edit_software: user.can_edit_software,
+      can_manage_software: user.can_manage_software,
       can_edit_environments: user.can_edit_environments,
       can_edit_media: user.can_edit_media,
       can_manage_controllers: user.can_manage_controllers,
@@ -136,7 +136,7 @@ export default function Users() {
             name: manageForm.name.trim(),
             pin: manageForm.pin || undefined,
             can_launch_media: manageForm.can_launch_media,
-            can_edit_software: manageForm.can_edit_software,
+            can_manage_software: manageForm.can_manage_software,
             can_edit_environments: manageForm.can_edit_environments,
             can_edit_media: manageForm.can_edit_media,
             can_manage_controllers: manageForm.can_manage_controllers,
@@ -157,7 +157,7 @@ export default function Users() {
         };
         if (manageCanEditAdminFields) {
           patchBody.can_launch_media = manageForm.can_launch_media;
-          patchBody.can_edit_software = manageForm.can_edit_software;
+          patchBody.can_manage_software = manageForm.can_manage_software;
           patchBody.can_edit_environments = manageForm.can_edit_environments;
           patchBody.can_edit_media = manageForm.can_edit_media;
           patchBody.can_manage_controllers = manageForm.can_manage_controllers;

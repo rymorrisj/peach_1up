@@ -34,7 +34,7 @@ def update_library_item(
     leaf_id: int,
     body: SoftwareItemUpdate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_software"),
+    _: User = require_permission("can_manage_software"),
 ):
     leaf = db.get(SoftwareItem, leaf_id)
     if leaf is None:

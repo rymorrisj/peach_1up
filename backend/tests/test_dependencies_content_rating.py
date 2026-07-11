@@ -367,6 +367,34 @@ class TestGetFilteredCollectionsUnknownRatingDenies:
         assert restricted.id not in {c.id for c in results}
 
 
+class TestGetFilteredCollectionsUnresolvableOwnCeilingFailsClosed:
+    def test_orphaned_own_max_content_rating_denies_all_rated_content(self, mem_db_session, monkeypatch):
+        """Regression lock: if the CALLER's own max_content_rating can no longer
+        be resolved to a known ordinal (e.g. a rating_ordinals settings change
+        orphaned a value that was valid when it was set), the ceiling must fail
+        closed — no rated content passes — rather than silently skipping the
+        rating filter and uncapping the account (the previous fail-open bug)."""
+        import backend.core.dependencies as deps
+
+        # "AO" is valid against the base ordinal map, so user creation succeeds
+        # normally (validate_max_content_rating resolves it at write time).
+        capped = _make_user(mem_db_session, max_content_rating="AO")
+        rated = _make_collection(mem_db_session, slug="rated", content_rating="E")
+        unrated = _make_collection(mem_db_session, slug="unrated", content_rating=None)
+
+        # Simulate a rating_ordinals settings change made after the ceiling was
+        # set: the custom map no longer contains "AO" at all.
+        monkeypatch.setattr(deps, "_load_rating_ordinals", lambda: {"E": 0, "T": 1})
+
+        results = deps.get_filtered_collections(capped, mem_db_session).all()
+        ids = {c.id for c in results}
+
+        assert rated.id not in ids
+        # Null/empty ratings remain governed separately by block_unrated_media,
+        # unaffected by the ceiling being unresolvable.
+        assert unrated.id in ids
+
+
 class TestGetFilteredCollection:
     def test_visible_collection_returned_by_id(self, mem_db_session):
         from backend.core.dependencies import get_filtered_collection

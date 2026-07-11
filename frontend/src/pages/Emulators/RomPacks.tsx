@@ -3,11 +3,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import EmptyState from '@/components/common/EmptyState'
+import { Button } from '@/ui'
+import { usePaginatedList } from '@/hooks/usePaginatedList'
 import { StatusDot, GuidanceNote } from './components/EmulatorDetailPrimitives'
 import { CloneRomPackButton } from './components/CloneRomPackButton'
 import type { EmulatorStatusData } from '@/pages/FirstRun/types'
 import type { components } from '@shared/types'
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
+type RomPackItem = components['schemas']['RomPackItemRead']
 
 function RomPackRow({ entry, isLast }: { entry: CatalogEntry; isLast: boolean }) {
   const queryClient = useQueryClient()
@@ -26,7 +29,7 @@ function RomPackRow({ entry, isLast }: { entry: CatalogEntry; isLast: boolean })
     if (cloneStatus.status === 'complete') {
       setIsCloning(false)
       queryClient.invalidateQueries({ queryKey: ['emulators-catalog'] })
-      queryClient.invalidateQueries({ queryKey: ['rom-packs'] })
+      queryClient.invalidateQueries({ queryKey: ['paginated-list', '/api/v1/emulators/rom-packs'] })
     }
     if (cloneStatus.status === 'error') {
       setIsCloning(false)
@@ -72,20 +75,38 @@ function RomPackRow({ entry, isLast }: { entry: CatalogEntry; isLast: boolean })
   )
 }
 
-// Cross-emulator ROM pack list — GET /api/v1/emulators/rom-packs returns a
-// bare list[RomPackItemRead], not Page[T] (dev_docs/v2/08, Task 4); mounted
-// without pagination controls, flagged for the batched backend pass. The
-// install/clone action itself is driven off the emulator catalog
-// (/api/v1/emulators), same as the per-emulator RomPackTab, since
-// CloneRomPackButton and the install/status endpoints are catalog-scoped.
+// Cross-emulator ROM pack list, paginated via GET /api/v1/emulators/rom-packs
+// (Page[RomPackItemRead], dev_docs/v2/08, Task 4). Each paginated slug is
+// cross-referenced against the emulator catalog (/api/v1/emulators, small and
+// unpaginated by design — same source doc 08 P7 uses for the per-emulator
+// RomPackTab) to get the live is_installed/guidance fields the reused
+// CloneRomPackButton/GuidanceNote components need — the backend derives both
+// endpoints from the same catalog, so every paginated slug always resolves.
 export default function RomPacks() {
-  const { data: catalog = [], isLoading } = useQuery<CatalogEntry[]>({
+  const {
+    items: romPackItems,
+    isLoading: isRomPacksLoading,
+    page,
+    pageCount,
+    hasPrevPage,
+    hasNextPage,
+    prevPage,
+    nextPage,
+  } = usePaginatedList<RomPackItem>({ path: '/api/v1/emulators/rom-packs' })
+
+  const { data: catalog = [], isLoading: isCatalogLoading } = useQuery<CatalogEntry[]>({
     queryKey: ['emulators-catalog'],
     queryFn: () => apiFetch<CatalogEntry[]>('/api/v1/emulators'),
     staleTime: 10_000,
   })
 
-  const romPacks = catalog.filter((e) => e.install_type === 'rom_pack')
+  // Both sources must be loaded before rendering — romPacks below depends on
+  // cross-referencing the two, so a partial load must not show an empty state.
+  const isLoading = isRomPacksLoading || isCatalogLoading
+
+  const romPacks = romPackItems
+    .map((item) => catalog.find((c) => c.slug === item.slug))
+    .filter((entry): entry is CatalogEntry => entry !== undefined)
 
   return (
     <div className="p-6">
@@ -97,11 +118,26 @@ export default function RomPacks() {
       ) : romPacks.length === 0 ? (
         <EmptyState heading="No ROM packs" subtext="No emulators in the catalog require a ROM pack." />
       ) : (
+        <>
         <div className="rounded-xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
           {romPacks.map((entry, i) => (
             <RomPackRow key={entry.slug} entry={entry} isLast={i === romPacks.length - 1} />
           ))}
         </div>
+        {pageCount > 1 && (
+          <div className="mt-4 flex items-center justify-between gap-4">
+            <Button variant="secondary" size="sm" onClick={prevPage} disabled={!hasPrevPage}>
+              Previous
+            </Button>
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">
+              Page {page} of {pageCount}
+            </span>
+            <Button variant="secondary" size="sm" onClick={nextPage} disabled={!hasNextPage}>
+              Next
+            </Button>
+          </div>
+        )}
+        </>
       )}
     </div>
   )

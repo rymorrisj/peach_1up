@@ -149,11 +149,12 @@ class TestListRomPacks:
 
         assert resp.status_code == 200
         body = resp.json()
-        assert len(body) == 1
-        assert body[0]["slug"] == "mame-roms"
-        assert body[0]["emulator_slug"] == "mame"
-        assert body[0]["is_present"] is False
-        assert body[0]["id"] is None
+        assert body["total"] == 1
+        assert len(body["items"]) == 1
+        assert body["items"][0]["slug"] == "mame-roms"
+        assert body["items"][0]["emulator_slug"] == "mame"
+        assert body["items"][0]["is_present"] is False
+        assert body["items"][0]["id"] is None
 
     def test_uses_existing_row_when_present(self, client, monkeypatch):
         c, db = client
@@ -164,9 +165,9 @@ class TestListRomPacks:
 
         assert resp.status_code == 200
         body = resp.json()
-        assert len(body) == 1
-        assert body[0]["is_present"] is True
-        assert body[0]["install_path"] == "/roms/mame"
+        assert len(body["items"]) == 1
+        assert body["items"][0]["is_present"] is True
+        assert body["items"][0]["install_path"] == "/roms/mame"
 
     def test_non_rom_pack_entries_excluded(self, client, monkeypatch):
         c, db = client
@@ -175,7 +176,43 @@ class TestListRomPacks:
         resp = c.get("/api/v1/emulators/rom-packs")
 
         assert resp.status_code == 200
-        assert resp.json() == []
+        body = resp.json()
+        assert body["items"] == []
+        assert body["total"] == 0
+
+
+class TestListRomPacksPagination:
+    """GET /api/v1/emulators/rom-packs returns Page[RomPackItemRead] (dev_docs/v2/08, Task 4)."""
+
+    def _catalog(self, n):
+        return [
+            {"slug": f"pack-{i}", "name": f"Pack {i}", "install_type": "rom_pack"}
+            for i in range(n)
+        ]
+
+    def test_envelope_shape_and_first_page(self, client, monkeypatch):
+        c, db = client
+        _set_catalog(monkeypatch, self._catalog(3))
+
+        resp = c.get("/api/v1/emulators/rom-packs", params={"limit": 2, "offset": 0})
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["total"] == 3
+        assert body["limit"] == 2
+        assert body["offset"] == 0
+        assert [item["slug"] for item in body["items"]] == ["pack-0", "pack-1"]
+
+    def test_offset_returns_remaining_page(self, client, monkeypatch):
+        c, db = client
+        _set_catalog(monkeypatch, self._catalog(3))
+
+        resp = c.get("/api/v1/emulators/rom-packs", params={"limit": 2, "offset": 2})
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["total"] == 3
+        assert [item["slug"] for item in body["items"]] == ["pack-2"]
 
 
 class TestGetRomPack:

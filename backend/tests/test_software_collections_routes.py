@@ -6,9 +6,9 @@ Per dev_docs/v2/09_test_coverage.md item 3 — the largest untested route file
 the route's other untested surfaces:
 
     - GET/PUT .../restrictions (is_admin gate)
-    - POST /software/import-from-path (can_edit_software gate)
-    - POST /software/scan/import (can_edit_software gate)
-    - PATCH .../items/reorder (can_edit_software gate)
+    - POST /software/import-from-path (can_manage_software gate)
+    - POST /software/scan/import (can_manage_software gate)
+    - PATCH .../items/reorder (can_manage_software gate)
     - POST .../flag-launch (can_launch_media gate)
 
 Does NOT duplicate the get_filtered_collections/get_filtered_collection
@@ -127,7 +127,7 @@ class TestRestrictionsEndpoint:
     def test_non_admin_gets_403_on_get(self, http_client):
         c, db, app = http_client
         collection = _make_collection(db)
-        non_admin = _make_user(db, can_edit_software=True, is_admin=False)
+        non_admin = _make_user(db, can_manage_software=True, is_admin=False)
         _set_active_user(app, non_admin)
 
         resp = c.get(f"/api/v1/softwarecollection/{collection.id}/restrictions")
@@ -151,7 +151,7 @@ class TestRestrictionsEndpoint:
     def test_non_admin_gets_403_on_put(self, http_client):
         c, db, app = http_client
         collection = _make_collection(db)
-        non_admin = _make_user(db, can_edit_software=True, is_admin=False)
+        non_admin = _make_user(db, can_manage_software=True, is_admin=False)
         _set_active_user(app, non_admin)
 
         resp = c.put(
@@ -196,7 +196,7 @@ class TestRestrictionsEndpoint:
 
 
 # ---------------------------------------------------------------------------
-# POST /software/import-from-path — can_edit_software gate
+# POST /software/import-from-path — can_manage_software gate
 # ---------------------------------------------------------------------------
 
 
@@ -233,7 +233,7 @@ class TestImportFromPath:
         c, db, app, source_dir = client
         source_file = source_dir / "game.iso"
         source_file.write_bytes(b"not a real iso but enough bytes")
-        non_permitted = _make_user(db, can_edit_software=False, is_admin=False)
+        non_permitted = _make_user(db, can_manage_software=False, is_admin=False)
         _set_active_user(app, non_permitted)
 
         resp = c.post(
@@ -246,7 +246,7 @@ class TestImportFromPath:
         c, db, app, source_dir = client
         source_file = source_dir / "game.iso"
         source_file.write_bytes(b"not a real iso but enough bytes")
-        permitted = _make_user(db, can_edit_software=True, is_admin=False)
+        permitted = _make_user(db, can_manage_software=True, is_admin=False)
         _set_active_user(app, permitted)
 
         resp = c.post(
@@ -258,7 +258,7 @@ class TestImportFromPath:
 
 
 # ---------------------------------------------------------------------------
-# POST /software/scan/import — can_edit_software gate
+# POST /software/scan/import — can_manage_software gate
 # ---------------------------------------------------------------------------
 
 
@@ -288,7 +288,7 @@ class TestScanImport:
         c, db, app = client
         source_file = tmp_path / "game.iso"
         source_file.write_bytes(b"content")
-        non_permitted = _make_user(db, can_edit_software=False, is_admin=False)
+        non_permitted = _make_user(db, can_manage_software=False, is_admin=False)
         _set_active_user(app, non_permitted)
 
         resp = c.post(
@@ -303,7 +303,7 @@ class TestScanImport:
         c, db, app = client
         source_file = tmp_path / "game.iso"
         source_file.write_bytes(b"content")
-        permitted = _make_user(db, can_edit_software=True, is_admin=False)
+        permitted = _make_user(db, can_manage_software=True, is_admin=False)
         _set_active_user(app, permitted)
 
         resp = c.post(
@@ -320,7 +320,7 @@ class TestScanImport:
 
 
 # ---------------------------------------------------------------------------
-# PATCH .../items/reorder — can_edit_software gate
+# PATCH .../items/reorder — can_manage_software gate
 # ---------------------------------------------------------------------------
 
 
@@ -330,7 +330,7 @@ class TestItemsReorder:
         collection = _make_collection(db)
         item1 = _make_item(db, collection.id, disc_number=1, file_path="/disc1")
         item2 = _make_item(db, collection.id, disc_number=2, file_path="/disc2")
-        non_permitted = _make_user(db, can_edit_software=False, is_admin=False)
+        non_permitted = _make_user(db, can_manage_software=False, is_admin=False)
         _set_active_user(app, non_permitted)
 
         resp = c.patch(
@@ -346,7 +346,7 @@ class TestItemsReorder:
         collection = _make_collection(db)
         item1 = _make_item(db, collection.id, disc_number=1, file_path="/disc1")
         item2 = _make_item(db, collection.id, disc_number=2, file_path="/disc2")
-        permitted = _make_user(db, can_edit_software=True, is_admin=False)
+        permitted = _make_user(db, can_manage_software=True, is_admin=False)
         _set_active_user(app, permitted)
 
         resp = c.patch(

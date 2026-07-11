@@ -8,7 +8,7 @@ export interface ManageUserForm {
   name: string;
   pin: string;
   can_launch_media: boolean;
-  can_edit_software: boolean;
+  can_manage_software: boolean;
   can_edit_environments: boolean;
   can_edit_media: boolean;
   can_manage_controllers: boolean;
@@ -23,7 +23,7 @@ export interface ManageUserForm {
 
 const PERMISSION_FLAGS: { key: keyof ManageUserForm; label: string }[] = [
   { key: "can_launch_media", label: "Launch media" },
-  { key: "can_edit_software", label: "Edit software" },
+  { key: "can_manage_software", label: "Edit software" },
   { key: "can_edit_environments", label: "Edit environments" },
   { key: "can_edit_media", label: "Edit media" },
   { key: "can_manage_controllers", label: "Manage controllers" },

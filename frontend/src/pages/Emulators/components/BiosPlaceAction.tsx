@@ -51,6 +51,10 @@ export function BiosPlaceAction({ bios }: { bios: BiosRequirement }) {
         throw new Error(body.detail ?? `Placement failed (HTTP ${res.status}).`)
       }
       setResult(body as BiosPlaceResult)
+      // Two independent consumers cache this data under different keys: the
+      // paginated Bios.tsx list view (usePaginatedList) and EmulatorDetail's
+      // own full-list lookup (queried separately, capped at limit=200).
+      qc.invalidateQueries({ queryKey: ['paginated-list', '/api/v1/bios'] })
       qc.invalidateQueries({ queryKey: ['bios-requirements'] })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Placement failed.')
