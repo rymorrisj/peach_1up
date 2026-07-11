@@ -58,17 +58,19 @@ Everything should show green. If any emulator shows as missing, report it in Dis
 The bundle includes pre-loaded media. The wizard will find it automatically.
 You do not need to point Peach 1UP at any external folders to get started.
 
-When the wizard completes you land on the Library page.
+When the wizard completes you land on the Software page.
 
 ---
 
 ## Feature Walkthroughs
 
-### Library
+### Software
 
-The Library is the main view — all your media in one place.
+**Software** is the main view, all your launchable titles in one place. It is
+organised into tabs: **Games**, **Media**, and **Apps**. (This section was called
+"Library" in earlier builds.)
 
-- **Browse** — scroll through library items; filter by era using the sidebar
+- **Browse** — scroll through collections; filter by era using the sidebar
 - **Add media** — click Add Media, browse to a file or folder, and Peach 1UP detects the era automatically
 - **Item detail** — click any item to see its details: era, detected executable, drive, profile, launch history
 - **Launch** — select a profile from the dropdown on the item detail page, then click Launch. The profile must be set before Launch is enabled
@@ -77,10 +79,12 @@ The Library is the main view — all your media in one place.
 
 ### Emulators
 
-Shows all supported emulators and their detection status.
+Shows all supported emulators and their detection status. The Emulators page is
+organised into tabs: **Emulators**, **BIOS**, **ROM Packs**, and **Profiles**
+(Profiles used to be their own top-level page; they are now a tab here).
 
 - **Status** — green means the binary is detected and ready; amber means configuration needed; red means missing
-- **Profiles** — each emulator has one or more launch profiles (hardware presets). You can create, edit, clone, and delete profiles
+- **Profiles** — each emulator has one or more launch profiles (hardware presets), managed on the Profiles tab. You can create, edit, clone, and delete profiles
 - **Sandbox tier** — shows the current isolation level (Job Object or AppContainer). xemu shows a warning banner instead of a toggle — this is expected, see Known Limitations
 - **Auto-detect** — re-scans for emulator binaries if you've moved or updated one
 
@@ -96,20 +100,24 @@ Environments are persistent workspaces for software that requires installation �
 
 Peach 1UP supports multiple household accounts.
 
+Users is its own section in the sidebar (it is no longer nested under Settings).
+
 - **Switch user** — click your avatar in the top bar to open the user switcher; select a profile and enter its PIN
-- **Add user** — owner only; go to Settings → Users → Add User; set a name, PIN, and content rating limit
-- **PIN lockout** — 4 consecutive wrong PINs locks the account; the owner can unlock it in Settings → Users
+- **Add user** — owner only; open **Users** in the sidebar and click Add User; set a name, PIN, and content rating limit
+- **PIN lockout** — 4 consecutive wrong PINs locks the account; the owner can unlock it from the **Users** page
 - **Owner lockout** — if the owner is locked out, run `scripts/setup_admin_user.py` from the install directory in a terminal
 
 ### Settings
 
 - **Library paths** — configure where Peach 1UP looks for media (no in-app way to change these for non-standard locations in this build — see Known Limitations)
-- **Users** — manage accounts, reset PINs, unlock accounts
 - **Attribution** — GPL source links and emulator credits
+
+(Account management, i.e. reset PINs and unlock accounts, now lives on the **Users** page, not in Settings.)
 
 ### Tags
 
-Tags associate profiles with contexts — hardware configs, content types, environments.
+Tags are universal — they can be attached to software, profiles, and other entities, and
+cover contexts like hardware configs, content types, and environments.
 System tags are pre-created (voodoo, mt32, soundblaster, adlib, accuracy-mode, networking, mods).
 Create custom tags freely. Tags appear on item detail and profile pages for filtering.
 
@@ -117,7 +125,7 @@ Create custom tags freely. Tags appear on item detail and profile pages for filt
 
 ## Launching Your First Game
 
-1. Go to **Library**
+1. Go to **Software**
 2. Click any item in the list
 3. On the item detail page, open the **Profile** dropdown and select a profile
 4. Click **Launch**
@@ -164,7 +172,7 @@ Close the emulator. Check the item detail page for a "short-lived exit" warning 
 Check the system tray — if the Peach 1UP icon is present, right-click and select Restart. If the icon is absent, relaunch from Start Menu → Peach 1UP.
 
 **PIN lockout (sub-account)**
-Owner goes to Settings → Users, finds the locked account, and clicks Unlock.
+Owner opens the **Users** page, finds the locked account, and clicks Unlock.
 
 **PIN lockout (owner)**
 Open a terminal in the Peach 1UP install directory and run:
@@ -176,7 +184,7 @@ python scripts/setup_admin_user.py
 This overwrites the owner account interactively. You will need to set a new PIN.
 
 **86Box launches but immediately closes**
-The ROM pack may not be detected. Check Settings → Emulators → 86Box for a ROM path warning. There is currently no in-app or config-file way to correct `ROMS_PATH` if it's wrong in this build (see Known Limitations — Library path configuration) — for now, place the ROM pack at the default location, `{install directory}/library/system/roms/86box`.
+The ROM pack may not be detected. Check the **Emulators** page → 86Box for a ROM path warning. There is currently no in-app or config-file way to correct `ROMS_PATH` if it's wrong in this build (see Known Limitations — Library path configuration) — for now, place the ROM pack at the default location, `{install directory}/library/system/roms/86box`.
 
 **Environment (Win95/98/XP) shows driver prompts on every boot**
 This is the PnP hardware detection loop. It should not occur in this build — if you see repeated driver prompts on consecutive boots of the same environment, report it with the era and any steps to reproduce.

@@ -23,7 +23,7 @@ are Windows-first today.
 
 | Requirement | Why | Where |
 | ----------- | --- | ----- |
-| **Python 3.11** | Backend runtime | [python.org](https://www.python.org/downloads/) — on Windows, check "Add Python to PATH" |
+| **Python 3.11 or later** | Backend runtime | [python.org](https://www.python.org/downloads/) — on Windows, check "Add Python to PATH" |
 | **Node.js 18+** | Frontend build & dev server | [nodejs.org](https://nodejs.org/) |
 | **Emulators** | Run on the host OS; Peach 1UP launches them | See the table below |
 | **BIOS / ROMs** | Required by some emulators; sourced from your own hardware | Peach 1UP never provides these |
@@ -34,7 +34,7 @@ Install the emulators for the eras you care about — you don't need all of them
 
 | Emulator | Era | Notes |
 | -------- | --- | ----- |
-| DOSBox-X | DOS, Windows 3.1 | No ROM required |
+| DOSBox-X | DOS | No ROM required |
 | 86Box (+ ROM pack) | Windows 95 / 98 / XP | Requires the [86Box ROM pack](https://github.com/86Box/roms) |
 | DuckStation | PS1 | Requires PS1 BIOS |
 | PCSX2 | PS2 | Requires PS2 BIOS |

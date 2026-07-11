@@ -14,7 +14,7 @@ middleware chain. Read alongside `SECURITY.md` (policy rules) and `TECH.md` (sta
 | `backend/api/routes/auth.py` | `/api/v1/auth` — setup-owner, switch, logout, me, refresh |
 | `backend/api/routes/users.py` | `/api/v1/users` — CRUD users, reset-pin, unlock. `GET /api/v1/users` (list) is intentionally unauthenticated — see dedicated section below |
 | `backend/api/routes/settings.py` | `/api/v1/settings` — first-run-status, complete-first-run, patch settings |
-| `backend/core/dependencies.py` | `get_active_user`, `require_permission`, `require_self_or_admin`, `get_filtered_library` |
+| `backend/core/dependencies.py` | `get_active_user`, `require_permission`, `require_self_or_admin`, `require_admin_or_self_manage`, `get_filtered_collections` / `get_filtered_collection` |
 | `backend/core/identity.py` | `generate_identity_secret`, `mint_session_token`, `issue_session`, `extend_session`, `clear_session`, `validate_session`, `parse_session_cookie` — HMAC-derived session tokens, no separate token table |
 | `backend/models/user.py` | `User` DB model + `UserRead` response schema; carries `identity_token_secret`, `session_token_hash`, `session_token_expires_at`, `session_token_ttl` |
 | `backend/models/media_restriction.py` | `MediaRestriction` — per-user item block list |
@@ -59,10 +59,12 @@ middleware chain. Read alongside `SECURITY.md` (policy rules) and `TECH.md` (sta
 |------|:-:|:-:|------|
 | `is_owner` | `True` | always `False` | Bypasses all `require_permission` checks; owner-only operations, including create/delete sub-account (`is_owner` is also used directly as the gating flag on those two endpoints — see Flow 9, Flow 13) |
 | `is_admin` | `True` | `False` | Gates endpoints that check `is_admin` directly: edit/reset-pin/unlock/force-logout sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other `can_*` flag — `require_permission()` only special-cases `is_owner` for bypass; every other flag (including `is_admin` itself) is checked independently via `getattr(active_user, flag, False)` |
-| `can_launch_media` | `True` | `True` | Launch any permitted library item |
-| `can_edit_library` | `True` | `False` | Add/edit/delete library items and drive |
-| `can_edit_platforms` | `True` | `False` | Register/modify OS platforms |
-| `can_manage_profiles` | `True` | `False` | Create/modify/delete launch profiles (the `Profile` model in `routes/profiles.py` — emulator/era launch presets). **Not** related to sub-account management despite the name; see `routes/profiles.py:87,115,130` |
+| `can_launch_media` | `True` | `True` | Launch any permitted software collection |
+| `can_manage_software` | `True` | `False` | Add/edit/delete software collections and items and their drives, run `POST /software/scan` and import-from-path, **and** create/modify/delete launch Profiles (`routes/profiles.py`). Was `can_edit_library` → `can_edit_software` → this name |
+| `can_edit_environments` | `True` | `False` | Register/modify Environments (Windows OS install workspaces). Was `can_edit_platforms` |
+| `can_edit_media` | `True` | `False` | Add/edit/delete Media (the archival audio/text/image/video domain) |
+| `can_manage_controllers` | `True` | `False` | Create/edit/delete controller mappings (System → Controllers) |
+| `can_manage_profiles` | `True` | `False` | ⚠ **Orphaned**: still on `UserBase` and surfaced in the Users UI, but no route enforces it any more. Profile CRUD moved to `can_manage_software`. Gates nothing today (flagged for cleanup) |
 | `can_edit_settings` | `True` | `False` | Modify application settings |
 | `can_manage_users` | `True` (irrelevant — owner bypasses) | `False` | Lets a sub-account edit **its own** `name` via `PATCH /users/{id}` and reset **its own** PIN via `POST /users/{id}/reset-pin` — nothing else. Grants no capability over any other user's account, no delete, and none of the owner-only create/delete-sub-account operations. Owner-only to grant, like every permission flag. Gated by `require_admin_or_self_manage` in `dependencies.py`, which is checked in addition to (not instead of) the existing `is_admin`-targets-others path on those two endpoints |
 
@@ -83,7 +85,7 @@ flowchart TD
     E --> F{require_permission flag}
     F --> G{active_user.is_owner?}
     G -- Yes --> PASS1[Pass — owner bypasses every\nrequire_permission check]
-    G -- No --> H["getattr(active_user, flag, False)\nflag is literal: can_edit_library,\ncan_edit_platforms, can_manage_profiles,\ncan_edit_settings, can_launch_media,\nis_admin, or is_owner"]
+    G -- No --> H["getattr(active_user, flag, False)\nflag is literal: can_manage_software,\ncan_edit_environments, can_edit_media,\ncan_manage_controllers, can_edit_settings,\ncan_launch_media, is_admin, or is_owner"]
     H -- True --> PASS2[Pass]
     H -- False --> Z403[403 Permission denied: requires flag\nis_admin grants no other flag implicitly]
 
@@ -172,7 +174,7 @@ User fills name + PIN + confirm PIN → clicks "Create Account"
     → require_permission("can_edit_settings") → owner → pass
     → write settings row first_run_complete="true"
     → set_first_run_complete() → _first_run_done_cache = true
-  → Frontend: window.location.replace("/") → full reload → redirect to /library
+  → Frontend: window.location.replace("/") → full reload → redirect to /software
 ```
 
 ---
@@ -456,41 +458,43 @@ require_self_or_admin:
 
 ---
 
-## Flow 16 — Content Rating / Media Restriction (library filtering)
+## Flow 16 — Content Rating / Media Restriction (software collection filtering)
 
 ```
-GET /api/v1/library (or any library endpoint using get_filtered_library)
+GET /api/v1/software (or any endpoint using get_filtered_collections)
   → get_active_user → user
-  → get_filtered_library(user, db):
-    → user.is_owner → return all items (no filter)
-    → exclude items in MediaRestriction WHERE user_id=user.id
-    → block_unrated_media=true → exclude items WHERE content_rating IS NULL OR ""
+  → get_filtered_collections(user, db):
+    → user.is_owner → return all collections (no filter)
+    → exclude collections in MediaRestriction WHERE user_id=user.id (software_collection_id)
+    → block_unrated_media=true → exclude collections WHERE content_rating IS NULL OR ""
     → max_content_rating set → load rating_ordinals from app_settings (or defaults; ⚠ no write path exists today, see SECURITY.md Known Gaps)
       → compute allowed set: all ratings with ordinal ≤ max
-      → filter: item passes if rating is NULL/empty, in allowed set, or unknown (foreign ratings pass through)
+      → filter FAILS CLOSED: a collection passes only if its rating is NULL/empty or in
+        the allowed set. An unrecognised rating is DENIED, not passed through; and if the
+        user's own ceiling can't resolve to a known ordinal, no rated content passes
 ```
 
-MediaRestriction rows are managed by admin via `GET/POST /api/v1/library/{item_id}/restrictions` (requires `is_admin`).
+MediaRestriction rows are managed by admin via `GET/PUT /api/v1/softwarecollection/{collection_id}/restrictions` (requires `is_admin`).
 
 ---
 
 ## Flow 17 — Destructive Operation Confirmation Token
 
 ```
-Example: delete library item
+Example: delete software collection
 
-Step 1 — GET /api/v1/library/{item_id}/confirm-token
-  → require_permission("can_edit_library")
-  → confirmation_tokens.issue("library", item_id) → in-memory store, 60s TTL
+Step 1 — POST /api/v1/softwarecollection/{collection_id}/confirm-delete
+  → require_permission("can_manage_software")
+  → confirmation_tokens.issue("software", collection_id) → in-memory store, 60s TTL
   → return { confirmation_token, expires_in_seconds: 60 }
 
-Step 2 — DELETE /api/v1/library/{item_id}?confirmation_token=<token>
-  → require_permission("can_edit_library")
-  → confirmation_tokens.consume(token, "library", item_id) → validates type+id+expiry
+Step 2 — DELETE /api/v1/softwarecollection/{collection_id}?confirmation_token=<token>
+  → require_permission("can_manage_software")
+  → confirmation_tokens.consume(token, "software", collection_id) → validates type+id+expiry
   → FAIL → 400 "Invalid or expired confirmation token"
-  → PASS → delete item
+  → PASS → delete collection
 
-Same pattern applies to: platform delete, drive delete, snapshot delete/restore.
+Same pattern applies to: environment delete, drive delete, snapshot delete/restore.
 Admin sandbox reset uses install_registry's own confirm token (same TTL model).
 ```
 

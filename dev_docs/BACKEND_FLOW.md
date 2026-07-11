@@ -3,6 +3,38 @@ Peach 1UP — Backend Flow Atlas (discovery pass, current code)
 Conventions: each step is caller (file:line) -> callee (file:line) [what happens]. Branch points list each continuation separately. "⇒ converges to Fx" marks shared subgraphs.
 One-line Terminal effects per flow. Notes prefixed ⚠ are observations only (not findings).
 
+═══════════════════════════════════════════════════════════════════════════════
+V2 RENAME BANNER (applies to this ENTIRE document, supersedes both the body and
+the 2026-07-04 addendum below)
+═══════════════════════════════════════════════════════════════════════════════
+
+This atlas was written before the v2 domain refactor. The flows are still
+structurally accurate, but the vocabulary and file:line references below predate
+v2 and are indicative, not exact. Apply this map throughout:
+
+- `LibraryCollection` → `SoftwareCollection`; the leaf `LibraryItem` → `SoftwareItem`;
+  `LibrarySet` is gone (folded into the collection/leaf model).
+- `Platform` → `Environment` (model, rows, "platform" prose). `PlatformHealthCounts`
+  → `EnvironmentHealthCounts`; status is the `EnvironmentStatus` Literal.
+- Models: `models/library.py` → `models/software.py`; leaf field `media_type` →
+  `file_type` (`FileType`); `media_path` is the leaf's `file_path`.
+- Routes: `models`/routers `library.py`/`library_collections.py`/`libraryitems.py`
+  → `software_collections.py` + `software_items.py`. `platforms.py` → `environments.py`.
+- Route prefixes: `/api/v1/library*` → `/api/v1/software` and `/api/v1/softwarecollection`;
+  `/api/v1/platforms` → `/api/v1/environments`. Collection launch is
+  `POST /api/v1/softwarecollection/{collection_id}/launch` (F1).
+- `launch_history.library_item_id`/`library_collection_id` → `software_collection_id`;
+  derived `target_type` value `library_collection` → `software_collection`.
+- Permission flags: `can_edit_library` → `can_manage_software` (which also now gates
+  Profile CRUD and `POST /software/scan`); `can_edit_platforms` → `can_edit_environments`.
+  `can_manage_profiles` is now an orphaned flag that gates nothing (Profile CRUD moved
+  to `can_manage_software`).
+- New in v2 and not in this atlas: the Media/archive domain (`/api/v1/media`), System
+  domain (Health + Controllers, `can_manage_controllers`), and generalized Tags.
+
+The remainder of the document is left in its original pre-v2 wording for historical
+continuity; read it through the map above.
+
 App wiring: main.py:39-42 middleware stack (LIFO → runtime order CORS → Security → CSRF → FirstRunGuard → router); main.py:44-57 14 routers included; main.py:65,94,96 three
 catch-alls (/media/\*, docs host, SPA). All db params resolve through get_db (core/database.py:47), a per-request session generator.
 

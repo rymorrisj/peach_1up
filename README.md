@@ -15,7 +15,7 @@ Covers PC platforms from DOS through Windows XP and first-generation consoles
 
 | Emulator    | Era              | Notes                                                                                     |
 | ----------- | ---------------- | ----------------------------------------------------------------------------------------- |
-| DOSBox-X    | DOS, Windows 3.1 | [dosbox-x.com](https://dosbox-x.com) — no ROM required                                    |
+| DOSBox-X    | DOS              | [dosbox-x.com](https://dosbox-x.com) — no ROM required                                    |
 | 86Box       | Win95/98/XP      | [86box.net](https://86box.net) — requires ROM pack                                        |
 | 86Box ROMs  | Win95/98/XP      | [github.com/86Box/roms](https://github.com/86Box/roms)                                    |
 | DuckStation | PS1              | [duckstation.org](https://www.duckstation.org) — requires PS1 BIOS                        |
@@ -29,9 +29,9 @@ Emulators marked "requires BIOS" need a BIOS image sourced from your own hardwar
 
 ### Python
 
-| Requirement | Notes                                           |
-| ----------- | ----------------------------------------------- |
-| Python 3.11 | [python.org](https://www.python.org/downloads/) |
+| Requirement         | Notes                                                                              |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| Python 3.11 or later | [python.org](https://www.python.org/downloads/) — `build.bat` requires ≥ 3.11; CI runs on 3.14.6 |
 
 ---
 

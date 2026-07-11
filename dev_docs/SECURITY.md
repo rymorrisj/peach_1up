@@ -43,10 +43,10 @@ Realistic threats specific to this application:
 
 ## Sequential integer primary keys (accepted tradeoff)
 
-All primary keys in this codebase — `LibraryItem.id`, `LibrarySet.id`,
-`Profile.id`, etc. — are sequential auto-increment integers, exposed directly in
-API route paths E.G.: (`/api/v1/library/{item_id}`, `/api/v1/library/sets/{set_id}`,
-`/api/v1/tags/{tag_id}/items/{item_id}`, etc.). These IDs are enumerable by any authenticated user.
+All primary keys in this codebase — `SoftwareCollection.id`, `SoftwareItem.id`,
+`Environment.id`, `Profile.id`, etc. — are sequential auto-increment integers, exposed directly in
+API route paths E.G.: (`/api/v1/softwarecollection/{id}`, `/api/v1/softwareitem/{id}`,
+`/api/v1/environments/{platform_id}`, `/api/v1/tags/{tag_id}/items/{item_id}`, etc.). These IDs are enumerable by any authenticated user.
 
 It is documented here as a standing, accepted tradeoff.
 A migration to opaque identifiers (e.g. UUIDs) has been flagged as a separate,
@@ -56,17 +56,49 @@ larger future discussion if the threat model ever warrants revisiting it.
 
 ## Authorisation and Permissions
 
-Permission flags on sub-accounts:
+Permission flags on sub-accounts. The authoritative list is `UserBase` in
+`backend/models/user.py`; this table must be kept in step with it.
 
-| Flag                  | What it controls                                                                                                                                                                                                                                                                                |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `can_launch_media`    | Launch any permitted library item (default: true)                                                                                                                                                                                                                                               |
-| `can_edit_platforms`  | Register or modify OS platforms                                                                                                                                                                                                                                                                 |
-| `can_edit_library`    | Add, edit, or remove library items                                                                                                                                                                                                                                                              |
-| `can_manage_profiles` | Create, modify, or delete launch profiles (the `Profile` model in `routes/profiles.py` — emulator/era launch presets). Unrelated to sub-account management despite the name                                                                                                                     |
-| `can_edit_settings`   | Modify application settings                                                                                                                                                                                                                                                                     |
-| `can_manage_users`    | Lets a sub-account edit its own `name` and reset its own PIN only — no capability over any other account, no self-delete, no create/delete of any sub-account. Owner-only to grant, like every flag here. Checked in addition to (not instead of) the `is_admin` path on the same two endpoints |
-| `is_admin`            | Edit/reset-pin/unlock/force-logout an existing sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other flag in this table — each is checked independently. Creating or deleting a sub-account requires `is_owner`, not `is_admin`        |
+| Flag                     | What it controls                                                                                                                                                                                                                                                                                |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `can_launch_media`       | Launch any permitted software collection (default: true)                                                                                                                                                                                                                                        |
+| `can_edit_environments`  | Register or modify Environments (the Windows OS install workspaces; was `can_edit_platforms`)                                                                                                                                                                                                   |
+| `can_manage_software`    | Create, edit, delete, or scan/import software collections and items, **and** create/modify/delete launch Profiles (the `Profile` model in `routes/profiles.py`). Also the gate on `POST /api/v1/software/scan`. Was `can_edit_library` (renamed once to `can_edit_software`, then to this name to reflect that it covers create/delete/scan-import, not just edits) |
+| `can_edit_media`         | Add, edit, or remove Media (the archival audio/text/image/video domain)                                                                                                                                                                                                                          |
+| `can_manage_controllers` | Create, edit, or delete controller mappings (System → Controllers)                                                                                                                                                                                                                              |
+| `can_manage_profiles`    | ⚠ **Orphaned flag.** Still present on `UserBase`, seeded on the owner, settable via user create/patch, and surfaced in the Users UI as "Manage profiles", but **no backend route enforces it**. Profile CRUD moved to `can_manage_software`, so it currently gates nothing. Flagged for cleanup (remove the flag and its UI toggle, or repoint a route at it); see the discrepancy note in the reconciliation summary |
+| `can_edit_settings`      | Modify application settings                                                                                                                                                                                                                                                                     |
+| `can_manage_users`       | Lets a sub-account edit its own `name` and reset its own PIN only — no capability over any other account, no self-delete, no create/delete of any sub-account. Owner-only to grant, like every flag here. Checked in addition to (not instead of) the `is_admin` path on the same two endpoints |
+| `is_admin`               | Edit/reset-pin/unlock/force-logout an existing sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other flag in this table — each is checked independently. Creating or deleting a sub-account requires `is_owner`, not `is_admin`        |
+
+`is_owner` bypasses every permission check (`require_permission` short-circuits
+for the owner). It is not settable via the user create/patch API.
+
+**PIN reset authorisation (`POST /api/v1/users/{id}/reset-pin`).** The enforced
+rules, as implemented in `users.py::reset_pin` and locked by
+`test_users_create_delete_reset.py`, are:
+
+- The **owner account's** PIN can never be reset through this endpoint by anyone
+  (owner-target requests are rejected with 403; owner PIN recovery is the local
+  `scripts/setup_admin_user.py` path only).
+- A **non-locked** sub-account (including an admin sub-account) can have its PIN
+  reset by the owner or any admin. A user holding `can_manage_users` can reset
+  **its own** PIN via the same endpoint (self-service), but no one else's.
+- A **locked** account can only be reset by an owner or an admin; the
+  `can_manage_users` self-service path is blocked while locked, so a locked
+  sub-account cannot self-recover.
+
+> ⚠ **Known discrepancy (flagged, not silently resolved).** The single guard
+> `if user.is_locked and not (active_user.is_owner or active_user.is_admin)`
+> exempts `is_admin` unconditionally, with no carve-out for an admin targeting
+> **their own** locked record. So a locked admin can reset their own PIN and
+> clear their own lockout, so the admin lockout-bypass is **not** closed. There is
+> also no rule preventing one admin from resetting another admin's PIN. This is
+> asserted as current behaviour in
+> `test_users_create_delete_reset.py::test_locked_admin_self_reset_succeeds_not_blocked`.
+> If the intended policy is "only the owner may reset an owner or admin PIN, and
+> admins may reset only non-owner non-admin accounts," that is a code change, not
+> a docs change, and needs Ryan's decision.
 
 **PIN security:**
 
@@ -84,8 +116,14 @@ Permission flags on sub-accounts:
   are visible to a sub-account.
 - Each sub-account has a `max_content_rating` threshold. Items above the threshold are
   filtered at the query level — hidden entirely, not surfaced and denied at launch.
+- The rating filter **fails closed**. An unknown `max_content_rating` is rejected on
+  write (`validate_max_content_rating`), and if a stored ceiling can no longer resolve
+  to a known ordinal (e.g. a `rating_ordinals` change orphaned a previously-valid
+  value), `get_filtered_collections` denies all rated content rather than silently
+  dropping the cap. A collection whose own rating is unrecognised is likewise denied to
+  a capped user, never passed through.
 - Enforcement is server-side. Deny wins over any permission flag with no override path.
-- Rating scale is freetext on `LibraryItem`. Recommended: ESRB (E, E10+, T, M, AO) or
+- Rating scale is freetext on `SoftwareCollection.content_rating`. Recommended: ESRB (E, E10+, T, M, AO) or
   PEGI (3, 7, 12, 16, 18). Ordinal comparison map configured via the
   `rating_ordinals` key in `app_settings` (falls back to defaults in
   `dependencies.py` — ⚠ no write path exists today; see Known Gaps).
@@ -100,9 +138,9 @@ Permission flags on sub-accounts:
   field, settings value — **must be resolved and normalised** before any filesystem
   operation is performed. Paths used for library scans, media scanning, and profile
   operations **must be validated against an allowlist** of permitted base directories:
-  the configured `LIBRARY_PATH` (and its derived sub-paths `MEDIA_PATH`, `OS_PATH`,
-  `ROMS_PATH`), `PROFILES_PATH`, and the application config
-  directory. **Exception:** platform image paths (`base_image_path`,
+  the configured `LIBRARY_PATH` (and its derived sub-paths `SOFTWARE_PATH`, `MEDIA_PATH`,
+  `OS_PATH`, `ROMS_PATH`), `PROFILES_PATH`, and the application config
+  directory. **Exception:** Environment image paths (`base_image_path`,
   `working_image_path`) may reside anywhere on the host filesystem — see Known Gaps.
 - Path traversal attempts (resolved path escapes its permitted base) **must be rejected
   with a 400 error and logged** before any filesystem operation occurs. This applies to
@@ -136,7 +174,7 @@ Permission flags on sub-accounts:
 - A launch cooldown is enforced between successive requests to prevent rapid-fire
   spawning.
 - All spawned processes are tracked and recorded in `LaunchHistory` (emulator, profile,
-  media path, start time, exit code).
+  the launch target as `software_collection_id` or `environment_id`, start time, exit code).
 - On Windows, every spawned process is assigned to a Job Object. If Job Object creation
   or assignment fails, the launch is aborted — there is no unsandboxed fallback.
 - On Linux, process isolation is a design target (planned for P8). No hardened sandbox
@@ -206,8 +244,8 @@ Any endpoint that deletes or overwrites data requires a two-step confirmation:
 
 Applies to:
 
-- Platform delete
-- Library item delete
+- Environment delete
+- Software collection delete
 - Snapshot delete
 - Snapshot restore (overwrites the working image)
 - Working image reset to base
@@ -386,7 +424,7 @@ user + Job Object model.
 ### Drive image path is user-controlled per profile
 
 Drive .img files are created at `{item.folder_path}/{item.slug}.img` — alongside the
-library item's media folder under `library/media/`. The slug is validated
+software collection's media folder under `library/media/`. The slug is validated
 at creation time. At launch time, `write_launch_conf` confirms the resolved
 drive path is within the `library/` tree via `is_relative_to()`.
 IMGMAKE receives the absolute path derived from the slug — no user string
@@ -414,13 +452,16 @@ committed to the repo, but the No-Intro/Redump DAT files it was built from are n
 are external, licensed datasets not included here. There is no way to regenerate or verify
 this index from files in the repo alone. Flag only, no fix planned.
 
-### No CI, pre-commit, or husky config exists anywhere
+### CI runs tests but not pre-commit or husky
 
-There is no continuous integration, pre-commit hook, or husky config in this repo. Build
-and regeneration rules (e.g. keeping `export_and_build_types.py`'s `ROUTERS` in sync,
-regenerating `shared/types.ts`, running `gen_constants.py` before export) are enforced by
-convention and manual process only — nothing mechanically blocks a commit or PR that
-skips them. Flag only, no fix planned.
+A GitHub Actions workflow (`.github/workflows/test.yml`) now runs on every push and pull
+request to `main`: it regenerates constants and the OpenAPI/TypeScript types, runs the
+backend `pytest --cov` suite on `windows-latest` (Python 3.14.6), and runs `vitest run
+--coverage` for the frontend. There is still **no pre-commit hook or husky config**, and
+the type-generation job regenerates and uploads artifacts rather than diffing them against
+the committed `shared/types.ts` / `constants_generated.py`, so a stale-but-committed
+generated file is not yet mechanically caught. `_check_router_parity()` in
+`export_and_build_types.py` still guards the ROUTERS-vs-`main.py` mismatch at export time.
 
 ### Platform health check is a shallow integrity probe, not full validation
 
@@ -439,18 +480,18 @@ check.
 
 ## Known Gaps
 
-### Platform image path traversal relies on OS trust model
+### Environment image path traversal relies on OS trust model
 
-`base_image_path` and `working_image_path` on Platform records may be set by any user
-with `can_edit_platforms` permission and may point to any location on the host filesystem.
+`base_image_path` and `working_image_path` on Environment records may be set by any user
+with `can_edit_environments` permission and may point to any location on the host filesystem.
 The runtime allowlist check against `OS_PATH` and `LIBRARY_PATH` was intentionally
 removed to allow images on secondary drives, external volumes, and NAS shares outside
 the configured library directories.
 
-**Implications:** A user with `can_edit_platforms` can cause the backend to read, copy,
+**Implications:** A user with `can_edit_environments` can cause the backend to read, copy,
 or perform existence checks on files at arbitrary paths on the host. Mitigating factors:
 
-- `can_edit_platforms` is an explicit operator-granted permission, not a default for
+- `can_edit_environments` is an explicit operator-granted permission, not a default for
   sub-accounts.
 - The application runs as a local user, not a privileged service account.
 - Operations on image paths are limited to copy, read, and existence check — no shell

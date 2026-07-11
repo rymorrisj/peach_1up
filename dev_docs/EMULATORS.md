@@ -1,13 +1,13 @@
 # Peach 1UP — Emulator Reference
 
 Canonical reference for every supported emulator. Used to build and maintain
-the emulator descriptor manifest (`config/emulators.yaml`).
+the per-emulator descriptor manifests (`config/emulators/*.toml`).
 
 ---
 
 ## DOSBox-X
 
-**Supported eras:** DOS, Windows 3.1
+**Supported eras:** DOS
 
 **Portable mode mechanism:** Pass `-conf <path>` to specify config file, or
 set `working directory = program` in the config — DOSBox-X resolves data paths
@@ -15,7 +15,7 @@ relative to the config file's directory.
 
 **Default user data path (Windows):** `%APPDATA%\DOSBox-X\`
 
-**Required files:** None. No BIOS required for DOS or Windows 3.1.
+**Required files:** None. No BIOS required for DOS.
 
 **Optional files:**
 

@@ -58,7 +58,6 @@ dos:
 | Era         | Memory cap | CPU cap |
 | ----------- | ---------- | ------- |
 | DOS         | 512 MB     | 50%     |
-| Windows 3.1 | 512 MB     | 50%     |
 | Windows 95  | 2048 MB    | 75%     |
 | Windows 98  | 2048 MB    | 75%     |
 | Windows XP  | 3072 MB    | 80%     |

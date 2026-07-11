@@ -50,7 +50,7 @@ throughout. Radix UI primitives (dialog, slot) with hand-rolled component librar
 
 ## Emulators (PC)
 
-- **DOSBox-X** — DOS, Windows 3.1. No ROM required.
+- **DOSBox-X** — DOS. No ROM required.
 - **86Box** — Windows 95, 98, XP. User supplies ROM pack.
 
 ### Limitations
@@ -103,9 +103,10 @@ Detection runs in tier order and short-circuits on the first confident match:
 
 ## Upload System
 
-Single-file and folder uploads are handled via `POST /api/v1/library/upload`
-and `POST /api/v1/library/upload-folder` respectively. Both routes require
-`can_edit_library` permission.
+Single-file and folder uploads are handled by the chunked upload router at
+`/api/v1/software/uploads/*` — `POST /init` opens a session and the per-chunk
+`PUT /{upload_id}/chunks/{file_index}/{chunk_index}` calls stream the bytes. All
+upload routes require `can_manage_software` permission.
 
 **File size limits:** enforced per-file via `stream_upload_to_disk` (see
 `upload_utils.py` for the current cap). No total-folder-size limit exists

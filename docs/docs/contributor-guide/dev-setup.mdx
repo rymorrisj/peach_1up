@@ -66,7 +66,7 @@ For the commit message format, allowed types and scopes, and PR rules, see the r
 | ---------------- | ------- |
 | `backend/main.py` | FastAPI app entry point; mounts all routers |
 | `scripts/export_and_build_types.py` | Generates `shared/openapi.json` and `shared/types.ts` — run this when routers change |
-| `config/settings.yaml` | Runtime settings; gitignored, auto-generated on first launch |
+| `app_settings` DB table | Runtime settings and path keys; stored in the SQLite DB (`config/settings.yaml` was removed) |
 | `config/emulators/` | Per-emulator configuration `.toml` files |
 | `frontend/src/api/generated/` | Generated API client; never edit by hand |
 
