@@ -7,11 +7,11 @@ from sqlalchemy.orm import Session
 from backend.core import rate_limit
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
-from backend.models.software import SoftwareItemRead, collection_to_read
+from backend.models.game import GameItemRead, game_item_bundle_to_read
 from backend.models.user import User
-from backend.service.library import enrich as enrich_svc
+from backend.service.games import enrich as enrich_svc
 
-router = APIRouter(prefix="/api/v1/software", tags=["library"])
+router = APIRouter(prefix="/api/v1/game-items", tags=["games"])
 
 _METADATA_RATE_LIMIT = 30
 _METADATA_RATE_WINDOW_SECONDS = 60.0
@@ -31,7 +31,7 @@ def _enforce_rate_limit(bucket: str, request: Request, limit: int, window_second
 
 
 class EnrichBody(BaseModel):
-    entity_type: Literal["software_collection", "software_item"]
+    entity_type: Literal["game_item_bundle", "game_item"]
     entity_id: int
     title: Optional[str] = None
     description: Optional[str] = None
@@ -145,6 +145,6 @@ def enrich_library_entity(
         confirm_rating_change=body.confirm_rating_change,
         db=db,
     )
-    if entity_type == "software_collection":
-        return collection_to_read(entity, db)
-    return SoftwareItemRead.model_validate(entity)
+    if entity_type == "game_item_bundle":
+        return game_item_bundle_to_read(entity, db)
+    return GameItemRead.model_validate(entity)

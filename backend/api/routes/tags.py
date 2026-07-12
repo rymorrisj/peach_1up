@@ -6,12 +6,12 @@ from sqlmodel import SQLModel
 from backend.api.routes.controllers import check_controller_edit_permission
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
-from backend.models.app import AppCollection, AppItem
+from backend.models.app import AppItemBundle, AppItem
 from backend.models.controller_mapping import ControllerMapping
-from backend.models.environment import Environment
-from backend.models.media import MediaCollection, MediaItem
+from backend.models.environment import EnvironmentItem
+from backend.models.media import MediaItemBundle, MediaItem
 from backend.models.rom_pack import RomPackItem
-from backend.models.software import SoftwareCollection, SoftwareItem
+from backend.models.game import GameItemBundle, GameItem
 from backend.models.tag import EntityTag, Tag, TagCreate, TagRead
 from backend.models.user import User
 
@@ -19,14 +19,14 @@ router = APIRouter(prefix="/api/v1/tags", tags=["tags"])
 
 # entity_type -> model to existence-check entity_id against.
 _ASSIGNMENT_TARGETS: dict[str, type] = {
-    "software_collection": SoftwareCollection,
-    "software_item": SoftwareItem,
+    "game_item_bundle": GameItemBundle,
+    "game_item": GameItem,
     "media_item": MediaItem,
-    "media_collection": MediaCollection,
-    "environment": Environment,
+    "media_item_bundle": MediaItemBundle,
+    "environment_item": EnvironmentItem,
     "rom_pack_item": RomPackItem,
     "controller_mapping": ControllerMapping,
-    "app_collection": AppCollection,
+    "app_item_bundle": AppItemBundle,
     "app_item": AppItem,
 }
 
@@ -34,13 +34,13 @@ _ASSIGNMENT_TARGETS: dict[str, type] = {
 # controller_mapping is intentionally absent: it uses the bespoke
 # check_controller_edit_permission rule instead of a plain flag.
 _ASSIGNMENT_PERMISSIONS: dict[str, str] = {
-    "software_collection": "can_manage_software",
-    "software_item": "can_manage_software",
+    "game_item_bundle": "can_manage_software",
+    "game_item": "can_manage_software",
     "media_item": "can_edit_media",
-    "media_collection": "can_edit_media",
-    "environment": "can_edit_environments",
+    "media_item_bundle": "can_edit_media",
+    "environment_item": "can_edit_environments",
     "rom_pack_item": "can_edit_environments",
-    "app_collection": "can_manage_apps",
+    "app_item_bundle": "can_manage_apps",
     "app_item": "can_manage_apps",
 }
 

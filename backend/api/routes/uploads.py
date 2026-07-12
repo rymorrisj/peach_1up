@@ -3,7 +3,7 @@
 Flow: init (create session) → PUT chunks → complete (reassemble + ingest). Small
 uploads finalize inline and return 201; uploads over the background threshold
 return 202 with a job_id and finalize in a BackgroundTask surfaced in the nav
-bell. Cleanup of the staging area is owned by service.library.chunked_uploads.
+bell. Cleanup of the staging area is owned by service.games.chunked_uploads.
 """
 from pathlib import Path
 from typing import Literal, Optional
@@ -18,15 +18,15 @@ from backend.core.database import get_db
 from backend.core.dependencies import require_permission
 from backend.core.logger import get_logger
 from backend.models.user import User
-from backend.service.library import chunked_uploads as cu
-from backend.service.library import upload_finalize
-from backend.service.library.items import _ItemAlreadyExists, _SlugCollision
+from backend.service.games import chunked_uploads as cu
+from backend.service.games import upload_finalize
+from backend.service.games.items import _ItemAlreadyExists, _SlugCollision
 from backend.service.utils.upload_utils import (
     DEFAULT_BACKGROUND_THRESHOLD_BYTES,
     DEFAULT_CHUNK_MAX_BYTES,
 )
 
-router = APIRouter(prefix="/api/v1/software/uploads", tags=["uploads"])
+router = APIRouter(prefix="/api/v1/game-items/uploads", tags=["uploads"])
 logger = get_logger(__name__)
 
 # Session creation shares the library-upload bucket; the per-chunk PUTs are NOT

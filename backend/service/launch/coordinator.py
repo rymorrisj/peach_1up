@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from backend.core import process_registry
 from backend.core.logger import get_logger
 from backend.core.process_registry import ProcessEntry
-from backend.models import Environment, LaunchHistory, Profile
+from backend.models import EnvironmentItem, LaunchHistory, Profile
 from backend.service.launch.drive_hydration import hydrate_drive_for_entity
 from backend.service.launch.history import write_session_ends
 from backend.service.launch.launch_spec import LaunchSpec
@@ -161,7 +161,7 @@ def _resolve_profile_for_item(entity_profile_id: int | None, profile_id: int | N
     return profile
 
 
-def _resolve_profile_for_environment(platform: Environment, profile_id: int | None, db: Session) -> Profile:
+def _resolve_profile_for_environment(platform: EnvironmentItem, profile_id: int | None, db: Session) -> Profile:
     profile: Profile | None = None
     if profile_id:
         profile = db.get(Profile, profile_id)
@@ -182,7 +182,7 @@ def _resolve_profile_for_environment(platform: Environment, profile_id: int | No
 def _build_spec_for_entity(
     entity: "LaunchableEntity",
     profile: Profile,
-    platform: Environment | None,
+    platform: EnvironmentItem | None,
     drive: "Drive | None",
     effective_media_path: str,
 ) -> LaunchSpec:
@@ -305,7 +305,7 @@ def _build_spec_for_entity(
 
 
 def _build_spec_for_environment(
-    platform: Environment,
+    platform: EnvironmentItem,
     profile: Profile,
     resolved_install_path: str | None = None,
     resolved_rom_path: str | None = None,
@@ -383,9 +383,9 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
     is_app = spec.source_type == "app"
     try:
         history = LaunchHistory(
-            software_collection_id=spec.collection_id if not is_app else None,
-            app_collection_id=spec.collection_id if is_app else None,
-            environment_id=spec.platform_id,
+            game_item_bundle_id=spec.collection_id if not is_app else None,
+            app_item_bundle_id=spec.collection_id if is_app else None,
+            environment_item_id=spec.platform_id,
             profile_id=spec.profile_id,
             emulator_slug=spec.emulator_slug,
             started_at=datetime.now(timezone.utc),
@@ -489,16 +489,16 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
         process_registry.release(reservation)
 
 
-def _resolve_environment_for_pc_entity(entity: "LaunchableEntity", db: Session) -> Environment | None:
+def _resolve_environment_for_pc_entity(entity: "LaunchableEntity", db: Session) -> EnvironmentItem | None:
     """Resolve the Environment for a PC SoftwareCollection launch (doc 02 A5).
 
-    Resolves directly via the collection's own environment_id FK instead of
-    the old Environment.profile_id reverse-lookup. Falls back to the
-    era-matched system Environment only when environment_id is still null —
+    Resolves directly via the collection's own environment_item_id FK instead of
+    the old EnvironmentItem.profile_id reverse-lookup. Falls back to the
+    era-matched system Environment only when environment_item_id is still null —
     a runtime fallback for the backfill transition window, not a migration.
     """
-    if entity.environment_id is not None:
-        return db.get(Environment, entity.environment_id)
+    if entity.environment_item_id is not None:
+        return db.get(EnvironmentItem, entity.environment_item_id)
     from backend.service.utils.era_defaults import lookup_system_environment_by_era
     return lookup_system_environment_by_era(entity.era, db)
 
@@ -513,7 +513,7 @@ async def _launch_entity(entity: "LaunchableEntity", profile_id: int | None, db:
 
     # Environment is strictly PC (doc 02 A5): console entities never touch
     # Environment at all, not even to check for one.
-    platform_record: Environment | None = None
+    platform_record: EnvironmentItem | None = None
     if entity.item_type == "pc":
         platform_record = _resolve_environment_for_pc_entity(entity, db)
         if platform_record is None:
@@ -561,7 +561,7 @@ async def launch_app_collection(app_collection_id: int, profile_id: int | None, 
     """App entry point. Mirrors launch_collection but resolves an AppCollection.
 
     Reuses _launch_entity unchanged: entity.item_type is always "pc" and
-    entity.environment_id is always non-null for an App (see
+    entity.environment_item_id is always non-null for an App (see
     launchable_resolver.resolve_launchable_app), so _resolve_environment_for_pc_entity
     always takes its direct-lookup branch here -- there is no era-fallback
     path to reach, since Apps have no missing-environment state.
@@ -578,7 +578,7 @@ async def launch_app_collection(app_collection_id: int, profile_id: int | None, 
     return await _launch_entity(entity, profile_id, db)
 
 
-async def launch_environment(platform: Environment, profile_id: int | None, db: Session) -> LaunchResult:
+async def launch_environment(platform: EnvironmentItem, profile_id: int | None, db: Session) -> LaunchResult:
     logger.info("launch_environment entry: platform_id=%d era=%s profile_id=%s", platform.id, platform.era, profile_id)
     exited = process_registry.cleanup_exited()
     if exited:
@@ -600,8 +600,8 @@ async def launch_environment(platform: Environment, profile_id: int | None, db: 
             ) = await asyncio.to_thread(provision_platform, platform)
             if _iso_path and not platform.base_image_path:
                 db.execute(
-                    update(Environment)
-                    .where(Environment.id == platform.id)
+                    update(EnvironmentItem)
+                    .where(EnvironmentItem.id == platform.id)
                     .values(base_image_path=str(_iso_path))
                 )
                 db.flush()
@@ -658,12 +658,12 @@ def stop_launch(history_id: int, active_user, db: Session) -> dict:
     for pid, entry in process_registry.get_all().items():
         by_history = entry.launch_history_id == history_id
         by_collection = (
-            record.software_collection_id is not None
-            and entry.software_collection_id == record.software_collection_id
+            record.game_item_bundle_id is not None
+            and entry.software_collection_id == record.game_item_bundle_id
         )
         by_app_collection = (
-            record.app_collection_id is not None
-            and entry.app_collection_id == record.app_collection_id
+            record.app_item_bundle_id is not None
+            and entry.app_collection_id == record.app_item_bundle_id
         )
         if by_history or by_collection or by_app_collection:
             process_registry.terminate(pid)

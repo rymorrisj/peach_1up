@@ -8,22 +8,22 @@ from backend.constants import PC_ERAS
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
-from backend.models.environment import Environment, EnvironmentCreate, EnvironmentRead, EnvironmentUpdate
+from backend.models.environment import EnvironmentItem, EnvironmentItemCreate, EnvironmentItemRead, EnvironmentItemUpdate
 from backend.models.user import User
 from backend.service.environments import environments as plat_svc
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
 
-router = APIRouter(prefix="/api/v1/environments", tags=["environments"], redirect_slashes=False)
+router = APIRouter(prefix="/api/v1/environment-items", tags=["environments"], redirect_slashes=False)
 logger = get_logger(__name__)
 
 
-@router.get("", response_model=list[EnvironmentRead])
-def list_platforms(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
-    platforms = db.query(Environment).all()
+@router.get("", response_model=list[EnvironmentItemRead])
+def list_environment_items(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+    platforms = db.query(EnvironmentItem).all()
     result = []
     for p in platforms:
-        data = EnvironmentRead.model_validate(p)
+        data = EnvironmentItemRead.model_validate(p)
         # Recomputed live, not read from the persisted status column, so this
         # always reflects current disk state — same freshness the Emulators
         # page already gets from get_install_path() on every request.
@@ -42,51 +42,51 @@ def list_platforms(db: Session = Depends(get_db), _: User = Depends(get_active_u
     return result
 
 
-@router.post("", response_model=EnvironmentRead, status_code=201)
-def create_platform(body: EnvironmentCreate, db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
-    return plat_svc.create_platform(body, db)
+@router.post("", response_model=EnvironmentItemRead, status_code=201)
+def create_environment_item(body: EnvironmentItemCreate, db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
+    return plat_svc.create_environment_item(body, db)
 
 
-@router.get("/{platform_id}", response_model=EnvironmentRead)
-def get_platform(platform_id: int, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
-    platform = db.get(Environment, platform_id)
+@router.get("/{id}", response_model=EnvironmentItemRead)
+def get_environment_item(id: int, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+    platform = db.get(EnvironmentItem, id)
     if not platform:
         raise HTTPException(status_code=404, detail="Environment not found.")
-    data = EnvironmentRead.model_validate(platform)
-    # Recomputed live, matching list_platforms, so the detail page can't
+    data = EnvironmentItemRead.model_validate(platform)
+    # Recomputed live, matching list_environment_items, so the detail page can't
     # disagree with the list page for the same platform on the same load.
     data.status = plat_svc.compute_live_status(platform)
     return data
 
 
-@router.patch("/{platform_id}", response_model=EnvironmentRead)
-def update_platform(platform_id: int, body: EnvironmentUpdate, db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
-    return plat_svc.update_platform(platform_id, body, db)
+@router.patch("/{id}", response_model=EnvironmentItemRead)
+def update_environment_item(id: int, body: EnvironmentItemUpdate, db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
+    return plat_svc.update_environment_item(id, body, db)
 
 
-@router.post("/{platform_id}/confirm-delete")
-def issue_delete_token(platform_id: int, db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
-    if not db.get(Environment, platform_id):
+@router.post("/{id}/confirm-delete")
+def issue_delete_token(id: int, db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
+    if not db.get(EnvironmentItem, id):
         raise HTTPException(status_code=404, detail="Environment not found.")
-    return {"confirmation_token": confirmation_tokens.issue("environment", platform_id, "delete"), "expires_in_seconds": TOKEN_TTL}
+    return {"confirmation_token": confirmation_tokens.issue("environment_item", id, "delete"), "expires_in_seconds": TOKEN_TTL}
 
 
-@router.delete("/{platform_id}", status_code=204)
-def delete_platform(
-    platform_id: int,
+@router.delete("/{id}", status_code=204)
+def delete_environment_item(
+    id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_environments"),
 ):
-    plat_svc.delete_platform(platform_id, confirmation_token, db)
+    plat_svc.delete_environment_item(id, confirmation_token, db)
 
 
-@router.post("/{platform_id}/health")
-def platform_health(platform_id: int, db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
-    platform = db.get(Environment, platform_id)
+@router.post("/{id}/health")
+def environment_item_health(id: int, db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
+    platform = db.get(EnvironmentItem, id)
     if not platform:
         raise HTTPException(status_code=404, detail="Environment not found.")
-    return plat_svc.check_platform_health(platform, db)
+    return plat_svc.check_environment_item_health(platform, db)
 
 
 @router.post("/{slug}/install-media")
@@ -96,7 +96,7 @@ async def upload_install_media(
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_environments"),
 ):
-    """Stream-write an uploaded OS install/disk image for the named Environment.
+    """Stream-write an uploaded OS install/disk image for the named EnvironmentItem.
 
     Environment infrastructure, not a SoftwareItem — never scanned, never
     deduped against the library (relocated from the former
@@ -106,7 +106,7 @@ async def upload_install_media(
     Returns:
         { path, slug, size_bytes }
     """
-    environment = db.query(Environment).filter(Environment.slug == slug).first()
+    environment = db.query(EnvironmentItem).filter(EnvironmentItem.slug == slug).first()
     if not environment:
         raise HTTPException(status_code=404, detail="Environment not found.")
     if environment.era not in PC_ERAS:

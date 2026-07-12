@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from backend.models.environment import Environment, EnvironmentCreate, EnvironmentUpdate
+from backend.models.environment import EnvironmentItem, EnvironmentItemCreate, EnvironmentItemUpdate
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.era_defaults import DOS_WIN_ERAS
 from backend.service.utils.slug_generator import unique_slug
@@ -85,7 +85,7 @@ def _compute_status(era: str, working: str | None, base: str | None) -> str:
     return "healthy"
 
 
-def compute_live_status(platform: Environment) -> str:
+def compute_live_status(platform: EnvironmentItem) -> str:
     """Uncached status for *platform*, safe to call on every read (list/summary
     endpoints) as well as before persisting (health-check endpoints) — a single
     implementation for both so the two paths can't drift apart again."""
@@ -96,7 +96,7 @@ def compute_live_status(platform: Environment) -> str:
     return _compute_status(platform.era, platform.working_image_path, platform.base_image_path)
 
 
-def create_platform(body: EnvironmentCreate, db: Session) -> Environment:
+def create_environment_item(body: EnvironmentItemCreate, db: Session) -> EnvironmentItem:
     from backend.core.logger import get_logger
     logger = get_logger(__name__)
 
@@ -109,11 +109,11 @@ def create_platform(body: EnvironmentCreate, db: Session) -> Environment:
     if body.working_image_path:
         platform_data["working_image_path"] = str(_validate_image_path(body.working_image_path))
 
-    platform = Environment(**platform_data)
+    platform = EnvironmentItem(**platform_data)
     if not platform.slug:
         platform.slug = unique_slug(
             platform.name,
-            lambda s: db.query(Environment).filter(Environment.slug == s).first() is not None,
+            lambda s: db.query(EnvironmentItem).filter(EnvironmentItem.slug == s).first() is not None,
             fallback="platform",
         )
     db.add(platform)
@@ -145,23 +145,23 @@ def create_platform(body: EnvironmentCreate, db: Session) -> Environment:
     return platform
 
 
-def delete_platform(platform_id: int, token: str, db: Session) -> None:
+def delete_environment_item(platform_id: int, token: str, db: Session) -> None:
     from backend.core.logger import get_logger
     logger = get_logger(__name__)
 
-    if not _consume(token, "environment", platform_id, "delete"):
+    if not _consume(token, "environment_item", platform_id, "delete"):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
-    platform = db.get(Environment, platform_id)
+    platform = db.get(EnvironmentItem, platform_id)
     if not platform:
         raise HTTPException(status_code=404, detail="Environment not found.")
 
-    # AppCollection.environment_id is NOT NULL (ondelete="RESTRICT") -- an App
-    # without a verified Environment must never exist. SoftwareCollection has
-    # no equivalent guard because its environment_id is nullable (ondelete
+    # AppItemBundle.environment_item_id is NOT NULL (ondelete="RESTRICT") -- an App
+    # without a verified Environment must never exist. GameItemBundle has
+    # no equivalent guard because its environment_item_id is nullable (ondelete
     # SET NULL); Apps have no such fallback state, so the block must happen
     # here rather than relying on the DB to reject the DELETE.
-    from backend.models.app import AppCollection
-    app_count = db.query(AppCollection).filter(AppCollection.environment_id == platform_id).count()
+    from backend.models.app import AppItemBundle
+    app_count = db.query(AppItemBundle).filter(AppItemBundle.environment_item_id == platform_id).count()
     if app_count:
         raise HTTPException(
             status_code=409,
@@ -186,8 +186,8 @@ def delete_platform(platform_id: int, token: str, db: Session) -> None:
     working_path = platform.working_image_path
     if working_path:
         still_referenced = (
-            db.query(Environment)
-            .filter(Environment.id != platform_id, Environment.working_image_path == working_path)
+            db.query(EnvironmentItem)
+            .filter(EnvironmentItem.id != platform_id, EnvironmentItem.working_image_path == working_path)
             .first()
             is not None
         )
@@ -213,8 +213,8 @@ def delete_platform(platform_id: int, token: str, db: Session) -> None:
     db.commit()
 
 
-def update_platform(platform_id: int, body: EnvironmentUpdate, db: Session) -> Environment:
-    platform = db.get(Environment, platform_id)
+def update_environment_item(platform_id: int, body: EnvironmentItemUpdate, db: Session) -> EnvironmentItem:
+    platform = db.get(EnvironmentItem, platform_id)
     if not platform:
         raise HTTPException(status_code=404, detail="Environment not found.")
     updates = body.model_dump(exclude_none=True)
@@ -231,7 +231,7 @@ def update_platform(platform_id: int, body: EnvironmentUpdate, db: Session) -> E
     return platform
 
 
-def check_platform_health(platform: Environment, db: Session) -> dict:
+def check_environment_item_health(platform: EnvironmentItem, db: Session) -> dict:
     status = compute_live_status(platform)
     platform.status = status
     platform.last_health_check = datetime.now(timezone.utc)
@@ -254,7 +254,7 @@ def check_platform_health(platform: Environment, db: Session) -> dict:
 
 
 def batch_health_check(db: Session) -> dict:
-    platforms = db.query(Environment).filter(Environment.is_system == False).all()
+    platforms = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()
     results = []
     for platform in platforms:
         status = compute_live_status(platform)
@@ -267,7 +267,7 @@ def batch_health_check(db: Session) -> dict:
 
 def get_health_summary(db: Session) -> dict:
     from sqlalchemy import func, distinct as sa_distinct
-    from backend.models.software import SoftwareCollection, SoftwareItem
+    from backend.models.game import GameItemBundle, GameItem
     from backend.service.utils.emulator_catalog import (
         check_bios_presence,
         get_install_path,
@@ -275,7 +275,7 @@ def get_health_summary(db: Session) -> dict:
         load_catalog,
     )
 
-    user_platforms = db.query(Environment).filter(Environment.is_system == False).all()
+    user_platforms = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()
     # Computed live (not read from the persisted status column) so this always
     # matches what list_platforms/GET /platforms shows on the same page load —
     # see compute_live_status.
@@ -285,14 +285,14 @@ def get_health_summary(db: Session) -> dict:
     platform_degraded = len(user_platforms) - platform_healthy - platform_unconfigured
 
     # "library total" = number of games (collections); a multi-disc set counts once.
-    library_count = db.query(SoftwareCollection).count()
+    library_count = db.query(GameItemBundle).count()
     # Count actual per-collection Drive rows (mirrors get_drive_images_bytes, which
     # sums those same rows' image files).
     from backend.models.drive import Drive
     drive_count = db.query(Drive).count()
     extension_count = (
-        db.query(func.count(sa_distinct(SoftwareItem.file_type)))
-        .filter(SoftwareItem.file_type.isnot(None))
+        db.query(func.count(sa_distinct(GameItem.file_type)))
+        .filter(GameItem.file_type.isnot(None))
         .scalar() or 0
     )
 
@@ -355,7 +355,7 @@ def get_drive_images_bytes(db: Session) -> int:
 
 
 def get_storage_stats(db: Session) -> dict:
-    from backend.models.software import SoftwareItem
+    from backend.models.game import GameItem
     from backend.service.utils import settings as _settings
     from backend.service.utils.emulator_catalog import (
         get_settings_key as _get_settings_key,
@@ -363,10 +363,10 @@ def get_storage_stats(db: Session) -> dict:
     )
 
     drive_images_bytes = get_drive_images_bytes(db)
-    source_media_bytes = sum(_safe_file_size(item.file_path) for item in db.query(SoftwareItem).all())
+    source_media_bytes = sum(_safe_file_size(item.file_path) for item in db.query(GameItem).all())
     os_images_bytes = sum(
         _safe_file_size(p.base_image_path) + _safe_file_size(p.working_image_path)
-        for p in db.query(Environment).all()
+        for p in db.query(EnvironmentItem).all()
     )
     emulator_binaries_bytes = sum(
         _safe_file_size(_settings.get(_get_settings_key(e["slug"])) or "")

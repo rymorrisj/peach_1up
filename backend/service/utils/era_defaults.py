@@ -20,12 +20,12 @@ def lookup_environment_and_profile(
     db: Session,
 ) -> tuple[int | None, int | None]:
     """Return (environment_id, profile_id) for the given emulator and era, querying system records only."""
-    from backend.models.environment import Environment
+    from backend.models.environment import EnvironmentItem
     from backend.models.profile import Profile
 
     platform = (
-        db.query(Environment)
-        .filter(Environment.emulator_slug == emulator_slug, Environment.is_system == True)
+        db.query(EnvironmentItem)
+        .filter(EnvironmentItem.emulator_slug == emulator_slug, EnvironmentItem.is_system == True)
         .first()
     )
     profile = (
@@ -45,26 +45,26 @@ def lookup_system_environment_by_era(era: str, db: Session):
     lookup_environment_and_profile above) because the caller already knows the
     collection's era and has no emulator_slug to key off.
     """
-    from backend.models.environment import Environment
+    from backend.models.environment import EnvironmentItem
 
     return (
-        db.query(Environment)
-        .filter(Environment.era == era, Environment.is_system == True)
+        db.query(EnvironmentItem)
+        .filter(EnvironmentItem.era == era, EnvironmentItem.is_system == True)
         .first()
     )
 
 
 def system_environment_eras(eras: set[str], db: Session) -> set[str]:
     """Batch form of lookup_system_environment_by_era: which of *eras* have a
-    matching is_system Environment. One query for N collections instead of N
+    matching is_system EnvironmentItem. One query for N collections instead of N
     queries -- used by the read-time launch-blocked gate (collections_to_read_bulk)."""
-    from backend.models.environment import Environment
+    from backend.models.environment import EnvironmentItem
 
     if not eras:
         return set()
     rows = (
-        db.query(Environment.era)
-        .filter(Environment.era.in_(eras), Environment.is_system == True)
+        db.query(EnvironmentItem.era)
+        .filter(EnvironmentItem.era.in_(eras), EnvironmentItem.is_system == True)
         .all()
     )
     return {row[0] for row in rows}

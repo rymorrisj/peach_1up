@@ -8,7 +8,7 @@ from backend.constants_generated import CONTENT_RATINGS
 from backend.core.database import get_db
 from backend.core.identity import parse_session_cookie, validate_session
 from backend.core.logger import get_logger
-from backend.models.software import SoftwareCollection
+from backend.models.game import GameItemBundle
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import User
 
@@ -111,7 +111,7 @@ def validate_max_content_rating(value: str | None) -> str | None:
     """Return *value* if it is a recognised rating key, else raise ValueError.
 
     ``None`` means "no ceiling" and always passes. An unknown value must be
-    rejected on write: get_filtered_collections looks the ceiling up in the
+    rejected on write: get_filtered_game_item_bundles looks the ceiling up in the
     ordinal map, gets ``None`` for an unrecognised value, and then skips the
     rating filter entirely — silently uncapping the user. Rejecting here keeps
     that bypass closed.
@@ -195,8 +195,8 @@ def require_permission(flag: str):
     return Depends(_check)
 
 
-def get_filtered_collections(active_user: User, db: Session):
-    """Return a SoftwareCollection query filtered to what *active_user* may see.
+def get_filtered_game_item_bundles(active_user: User, db: Session):
+    """Return a GameItemBundle query filtered to what *active_user* may see.
 
     Owner sees all collections. For non-owners:
     - ``block_unrated_media=True`` excludes collections with null/empty content_rating.
@@ -210,20 +210,20 @@ def get_filtered_collections(active_user: User, db: Session):
 
     Returns a SQLAlchemy Query that callers can chain additional filters onto.
     """
-    q = db.query(SoftwareCollection)
+    q = db.query(GameItemBundle)
 
     if active_user.is_owner:
         return q
 
-    restricted_ids = db.query(MediaRestriction.software_collection_id).filter(
+    restricted_ids = db.query(MediaRestriction.game_item_bundle_id).filter(
         MediaRestriction.user_id == active_user.id
     ).scalar_subquery()
-    q = q.filter(SoftwareCollection.id.not_in(restricted_ids))
+    q = q.filter(GameItemBundle.id.not_in(restricted_ids))
 
     if active_user.block_unrated_media:
         q = q.filter(
-            SoftwareCollection.content_rating.isnot(None),
-            SoftwareCollection.content_rating != "",
+            GameItemBundle.content_rating.isnot(None),
+            GameItemBundle.content_rating != "",
         )
 
     if active_user.max_content_rating:
@@ -234,28 +234,28 @@ def get_filtered_collections(active_user: User, db: Session):
         allowed = {r for r, o in ordinal_map.items() if o <= max_ord} if max_ord is not None else set()
         q = q.filter(
             or_(
-                SoftwareCollection.content_rating.is_(None),
-                SoftwareCollection.content_rating == "",
-                SoftwareCollection.content_rating.in_(list(allowed)),
+                GameItemBundle.content_rating.is_(None),
+                GameItemBundle.content_rating == "",
+                GameItemBundle.content_rating.in_(list(allowed)),
             )
         )
 
     return q
 
 
-def get_filtered_collection(id_or_slug: int | str, active_user: User, db: Session) -> SoftwareCollection:
-    """Return a single SoftwareCollection if *active_user* is allowed to see it.
+def get_filtered_game_item_bundle(id_or_slug: int | str, active_user: User, db: Session) -> GameItemBundle:
+    """Return a single GameItemBundle if *active_user* is allowed to see it.
 
-    Reuses get_filtered_collections' owner-bypass and restriction/rating filters,
+    Reuses get_filtered_game_item_bundles' owner-bypass and restriction/rating filters,
     narrowed to one collection. Raises 404 (not a different status) whether the
     collection doesn't exist or is filtered out, so existence isn't leaked to
     callers who shouldn't see it.
     """
-    q = get_filtered_collections(active_user, db)
+    q = get_filtered_game_item_bundles(active_user, db)
     if isinstance(id_or_slug, int):
-        q = q.filter(SoftwareCollection.id == id_or_slug)
+        q = q.filter(GameItemBundle.id == id_or_slug)
     else:
-        q = q.filter(SoftwareCollection.slug == id_or_slug)
+        q = q.filter(GameItemBundle.slug == id_or_slug)
     collection = q.first()
     if collection is None:
         raise HTTPException(status_code=404, detail="Software collection not found.")

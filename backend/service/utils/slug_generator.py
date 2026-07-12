@@ -6,7 +6,7 @@ collision: doom → doom-2 → doom-3.
 Public API:
     slugify       — normalise a name to a base slug string.
     unique_slug   — produce a collision-free slug using a caller-supplied check.
-    generate_collection_slug — convenience wrapper for SoftwareCollection slugs.
+    generate_collection_slug — convenience wrapper for GameItemBundle slugs.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def unique_slug(name: str, query_fn: Callable[[str], bool], *, fallback: str = "
 
 
 def generate_collection_slug(name: str, db: Session) -> str:
-    """Return a unique slug for a SoftwareCollection.
+    """Return a unique slug for a GameItemBundle.
 
     Args:
         name: Human-readable title of the collection.
@@ -58,9 +58,9 @@ def generate_collection_slug(name: str, db: Session) -> str:
     Returns:
         A globally unique slug string suitable for use as a folder name.
     """
-    from backend.models.software import SoftwareCollection
+    from backend.models.game import GameItemBundle
 
     return unique_slug(
         name,
-        lambda s: db.query(SoftwareCollection).filter(SoftwareCollection.slug == s).first() is not None,
+        lambda s: db.query(GameItemBundle).filter(GameItemBundle.slug == s).first() is not None,
     )

@@ -105,7 +105,7 @@ def find_existing_duplicate(media_root: Path, uploaded_path: Path, uploaded_size
 
     Returns the path of the matching existing file, or None.
     """
-    from backend.service.library.items import _MEDIA_SUFFIXES
+    from backend.service.games.items import _MEDIA_SUFFIXES
     from backend.service.utils import media_dup_index
     from backend.service.utils.file_types import all_supported_extensions
 

@@ -12,7 +12,7 @@ stage_from_source always copies (never moves) the source into a fresh
 directory under SOFTWARE_PATH, so the source is untouched until ingest has fully
 succeeded. Only then, if the caller opted in, is the original deleted — never
 before a confirmed successful write into the library. stage_from_source builds
-the same ReassembledUpload shape service.library.chunked_uploads produces from
+the same ReassembledUpload shape service.games.chunked_uploads produces from
 staged chunks, so upload_finalize.finalize_reassembled (dedup, multi-disc
 detection, cleanup-on-failure) is reused unmodified.
 """
@@ -25,8 +25,8 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from backend.core.logger import get_logger
-from backend.service.library import chunked_uploads as cu
-from backend.service.library import upload_finalize
+from backend.service.games import chunked_uploads as cu
+from backend.service.games import upload_finalize
 from backend.service.utils.path_utils import resolve_under, sanitize_filename
 from backend.service.utils.slug_generator import unique_slug
 from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES

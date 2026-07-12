@@ -4,10 +4,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user, get_filtered_collection, require_permission
+from backend.core.dependencies import get_active_user, get_filtered_game_item_bundle, require_permission
 from backend.core.logger import get_logger
-from backend.models import Environment, LaunchHistory
-from backend.models.app import AppCollection
+from backend.models import EnvironmentItem, LaunchHistory
+from backend.models.app import AppItemBundle
 from backend.models.launch_history import LaunchHistoryRead
 from backend.models.user import User
 from backend.service.launch import coordinator as svc
@@ -26,15 +26,15 @@ class LaunchResponse(BaseModel):
     launch_review_flagged: bool = False
 
 
-@router.post("/softwarecollection/{collection_id}/launch", status_code=202, response_model=LaunchResponse)
+@router.post("/game-item-bundle/{collection_id}/launch", status_code=202, response_model=LaunchResponse)
 async def launch_collection(
     collection_id: int,
     body: LaunchRequest = LaunchRequest(),
     db: Session = Depends(get_db),
     active_user: User = require_permission("can_launch_media"),
 ):
-    # get_filtered_collection enforces the caller's restriction/rating filters and 404s otherwise.
-    collection = get_filtered_collection(collection_id, active_user, db)
+    # get_filtered_game_item_bundle enforces the caller's restriction/rating filters and 404s otherwise.
+    collection = get_filtered_game_item_bundle(collection_id, active_user, db)
     result = await svc.launch_collection(collection.id, body.profile_id, db)
     return LaunchResponse(
         launch_history_id=result.history_id,
@@ -43,7 +43,7 @@ async def launch_collection(
     )
 
 
-@router.post("/appcollection/{collection_id}/launch", status_code=202, response_model=LaunchResponse)
+@router.post("/app-item-bundle/{collection_id}/launch", status_code=202, response_model=LaunchResponse)
 async def launch_app_collection(
     collection_id: int,
     body: LaunchRequest = LaunchRequest(),
@@ -51,11 +51,11 @@ async def launch_app_collection(
     active_user: User = require_permission("can_launch_media"),
 ):
     # No restriction/rating filter here: App restriction logic (mirroring
-    # get_filtered_collection for Software) is explicitly out of scope this
+    # get_filtered_game_item_bundle for Software) is explicitly out of scope this
     # session -- Apps have no content_rating concept to filter on (doc
     # backend/models/app.py). Existence is still checked directly (404, not
     # a bare 500) before ever reaching the coordinator.
-    if not db.get(AppCollection, collection_id):
+    if not db.get(AppItemBundle, collection_id):
         raise HTTPException(status_code=404, detail="App collection not found.")
     result = await svc.launch_app_collection(collection_id, body.profile_id, db)
     return LaunchResponse(
@@ -65,23 +65,23 @@ async def launch_app_collection(
     )
 
 
-@router.post("/environments/{platform_id}/launch", status_code=202, response_model=LaunchResponse)
+@router.post("/environment-items/{id}/launch", status_code=202, response_model=LaunchResponse)
 async def launch_environment(
-    platform_id: int,
+    id: int,
     body: LaunchRequest = LaunchRequest(),
     db: Session = Depends(get_db),
     _: User = require_permission("can_launch_media"),
 ):
-    platform = db.get(Environment, platform_id)
+    platform = db.get(EnvironmentItem, id)
     if not platform:
         raise HTTPException(status_code=404, detail="Environment not found.")
-    logger.info("launch_environment route: platform_id=%d era=%s", platform_id, platform.era)
+    logger.info("launch_environment route: id=%d era=%s", id, platform.era)
     try:
         result = await svc.launch_environment(platform, body.profile_id, db)
     except HTTPException:
         raise
     except Exception:
-        logger.exception("launch_environment route unhandled exception: platform_id=%d", platform_id)
+        logger.exception("launch_environment route unhandled exception: id=%d", id)
         raise
     return LaunchResponse(
         launch_history_id=result.history_id,
@@ -90,7 +90,7 @@ async def launch_environment(
     )
 
 
-@router.get("/softwarecollection/{collection_id}/launches", response_model=list[LaunchHistoryRead])
+@router.get("/game-item-bundle/{collection_id}/launches", response_model=list[LaunchHistoryRead])
 def list_collection_launches(
     collection_id: int,
     db: Session = Depends(get_db),
@@ -98,7 +98,7 @@ def list_collection_launches(
 ):
     return (
         db.query(LaunchHistory)
-        .filter(LaunchHistory.software_collection_id == collection_id)
+        .filter(LaunchHistory.game_item_bundle_id == collection_id)
         .order_by(LaunchHistory.started_at.desc())
         .limit(20)
         .all()
@@ -114,12 +114,12 @@ def list_launches(
 ):
     q = db.query(LaunchHistory)
     if target_id is not None and target_type is not None:
-        if target_type == "environment":
-            q = q.filter(LaunchHistory.environment_id == target_id)
-        elif target_type == "software_collection":
-            q = q.filter(LaunchHistory.software_collection_id == target_id)
-        elif target_type == "app_collection":
-            q = q.filter(LaunchHistory.app_collection_id == target_id)
+        if target_type == "environment_item":
+            q = q.filter(LaunchHistory.environment_item_id == target_id)
+        elif target_type == "game_item_bundle":
+            q = q.filter(LaunchHistory.game_item_bundle_id == target_id)
+        elif target_type == "app_item_bundle":
+            q = q.filter(LaunchHistory.app_item_bundle_id == target_id)
         else:
             raise HTTPException(status_code=422, detail=f"Unknown target_type: {target_type!r}")
     return q.order_by(LaunchHistory.started_at.desc()).limit(50).all()

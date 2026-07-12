@@ -9,9 +9,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.constants import PC_ERAS
-from backend.models.software import (
-    SoftwareCollection, SoftwareCollectionCreate, SoftwareCollectionUpdate,
-    SoftwareItem, SoftwareItemReorder, SoftwareItemUpdate, derive_item_type,
+from backend.models.game import (
+    GameItemBundle, GameItemBundleCreate, GameItemBundleUpdate,
+    GameItem, GameItemReorder, GameItemUpdate, derive_item_type,
 )
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.file_types import is_drive_image, file_type_from_path, resolve_media_file_from_directory
@@ -25,7 +25,7 @@ _COLLECTION_COLUMNS = {
     "title", "era", "slug", "sort_title", "category", "description", "publisher",
     "year", "external_game_id", "metadata_source", "content_rating",
     "launch_commands", "launch_review_flagged", "installed", "requires_install",
-    "environment_id", "profile_id", "last_launched_at", "launch_count",
+    "environment_item_id", "profile_id", "last_launched_at", "launch_count",
 }
 _LEAF_COLUMNS = {
     "file_path", "executable_path", "cover_art_path", "file_type",
@@ -36,7 +36,7 @@ _LEAF_COLUMNS = {
 
 class _ItemAlreadyExists(Exception):
     """Raised by _prepare_item when the media path is already tracked."""
-    def __init__(self, collection: SoftwareCollection | None):
+    def __init__(self, collection: GameItemBundle | None):
         self.collection = collection
 
 
@@ -46,13 +46,13 @@ class _SlugCollision(Exception):
         super().__init__(message or "Import collided with a concurrent change, please retry.")
 
 
-# software_collections.slug is the only unique column on this table (see
-# ix_software_collections_slug in backend/models/software.py); SQLite reports
-# a violation of it as "UNIQUE constraint failed: software_collections.slug"
+# game_item_bundles.slug is the only unique column on this table (see
+# ix_game_item_bundles_slug in backend/models/software.py); SQLite reports
+# a violation of it as "UNIQUE constraint failed: game_item_bundles.slug"
 # on the wrapped driver exception. Matching on that — instead of catching
 # every IntegrityError as a slug race — keeps unrelated failures (a NOT NULL
 # violation, a bad FK, etc.) from being mislabeled as a retryable collision.
-_SLUG_UNIQUE_VIOLATION_MARKER = "software_collections.slug"
+_SLUG_UNIQUE_VIOLATION_MARKER = "game_item_bundles.slug"
 
 
 def _is_slug_unique_violation(exc: IntegrityError) -> bool:
@@ -143,10 +143,10 @@ def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     return hit if hit is not None else folder
 
 
-def _collection_for_leaf(leaf: SoftwareItem | None, db: Session) -> SoftwareCollection | None:
+def _collection_for_leaf(leaf: GameItem | None, db: Session) -> GameItemBundle | None:
     if leaf is None:
         return None
-    return db.get(SoftwareCollection, leaf.software_collection_id)
+    return db.get(GameItemBundle, leaf.game_item_bundle_id)
 
 
 def _prepare_item(
@@ -185,7 +185,7 @@ def _prepare_item(
     """
     from backend.core.logger import get_logger
     from backend.core.settings import get_settings
-    from backend.models.environment import Environment
+    from backend.models.environment import EnvironmentItem
     from backend.service.utils.era_defaults import defaults_for_era, lookup_environment_and_profile
     from backend.service.utils.profile_builder import _EXECUTABLE_PRIORITY, _find_cover
     from backend.service.utils.smart_media_detector import detect as _smart_detect
@@ -206,7 +206,7 @@ def _prepare_item(
     incoming_norm = media_src.as_posix()
 
     for base_path, working_path in db.query(
-        Environment.base_image_path, Environment.working_image_path
+        EnvironmentItem.base_image_path, EnvironmentItem.working_image_path
     ).all():
         if (base_path and Path(base_path).resolve().as_posix() == incoming_norm) or (
             working_path and Path(working_path).resolve().as_posix() == incoming_norm
@@ -240,7 +240,7 @@ def _prepare_item(
         "installed": False,
         "requires_install": False,
         "detection_reason": None,
-        "environment_id": None,
+        "environment_item_id": None,
         "profile_id": None,
         "last_launched_at": None,
         "launch_count": 0,
@@ -268,13 +268,13 @@ def _prepare_item(
                     detail="Folder is outside the media library (library/media/).",
                 )
 
-        existing = db.query(SoftwareItem).filter(
-            SoftwareItem.folder_path == str(media_src)
+        existing = db.query(GameItem).filter(
+            GameItem.folder_path == str(media_src)
         ).first()
         if existing:
             raise _ItemAlreadyExists(_collection_for_leaf(existing, db))
-        sub = db.query(SoftwareItem).filter(
-            SoftwareItem.file_path.like(str(media_src) + "/%")
+        sub = db.query(GameItem).filter(
+            GameItem.file_path.like(str(media_src) + "/%")
         ).first()
         if sub:
             raise _ItemAlreadyExists(_collection_for_leaf(sub, db))
@@ -352,8 +352,8 @@ def _prepare_item(
             # file_path is always written as str(Path(...).resolve()) by this same
             # function, so an exact match against the same two candidate strings
             # finds any prior duplicate without re-resolving the whole table.
-            existing_leaf = db.query(SoftwareItem).filter(
-                SoftwareItem.file_path.in_([str(media_src), str(dest)])
+            existing_leaf = db.query(GameItem).filter(
+                GameItem.file_path.in_([str(media_src), str(dest)])
             ).first()
             if existing_leaf:
                 raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
@@ -413,8 +413,8 @@ def _prepare_item(
 
             _owned_folder_root = dest_folder
         else:
-            existing_leaf = db.query(SoftwareItem).filter(
-                SoftwareItem.file_path == str(media_src)
+            existing_leaf = db.query(GameItem).filter(
+                GameItem.file_path == str(media_src)
             ).first()
             if existing_leaf:
                 raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
@@ -495,16 +495,16 @@ def _prepare_item(
     if row["era"] and row["era"] != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(row["era"])
         if _emulator_slug and _profile_era:
-            _def_environment_id, _def_profile_id = lookup_environment_and_profile(
+            _def_environment_item_id, _def_profile_id = lookup_environment_and_profile(
                 _emulator_slug, _profile_era, db
             )
             if _def_profile_id is not None:
                 row["profile_id"] = _def_profile_id
             # Environment is strictly PC (doc 02 A5) — a console era must never
-            # get environment_id populated, even if a system Environment happens
+            # get environment_item_id populated, even if a system Environment happens
             # to exist for its emulator_slug (e.g. a seeded DuckStation/PS1 row).
-            if _def_environment_id is not None and row["era"] in PC_ERAS:
-                row["environment_id"] = _def_environment_id
+            if _def_environment_item_id is not None and row["era"] in PC_ERAS:
+                row["environment_item_id"] = _def_environment_item_id
 
     if override_profile_id is not None:
         row["profile_id"] = override_profile_id
@@ -520,34 +520,34 @@ def _prepare_item(
     return row
 
 
-def _enforce_environment_binding(collection: SoftwareCollection) -> None:
-    """Environment is strictly PC (doc 02 A5): console items may never carry an environment_id.
+def _enforce_environment_binding(collection: GameItemBundle) -> None:
+    """Environment is strictly PC (doc 02 A5): console items may never carry an environment_item_id.
 
-    PC items may have a null environment_id at this point (backfilled later /
+    PC items may have a null environment_item_id at this point (backfilled later /
     pre-launch-gated — doc 02 part B); only the console+non-null combination is
     rejected here.
     """
-    if collection.item_type == "console" and collection.environment_id is not None:
+    if collection.item_type == "console" and collection.environment_item_id is not None:
         raise HTTPException(
             status_code=422,
-            detail="Console software cannot have an environment_id; Environment is strictly PC.",
+            detail="Console software cannot have an environment_item_id; Environment is strictly PC.",
         )
 
 
-def _persist_collection_of_one(row: dict, db: Session) -> SoftwareCollection:
-    """Create a SoftwareCollection + its single SoftwareItem leaf from a prepared row.
+def _persist_collection_of_one(row: dict, db: Session) -> GameItemBundle:
+    """Create a GameItemBundle + its single GameItem leaf from a prepared row.
 
     Flushes both so ids exist and launch/display disk pointers are set to the
     leaf. Does NOT commit — the caller owns the transaction (and any undo of
     filesystem side effects on IntegrityError).
     """
-    collection = SoftwareCollection(**{k: row[k] for k in _COLLECTION_COLUMNS if k in row})
+    collection = GameItemBundle(**{k: row[k] for k in _COLLECTION_COLUMNS if k in row})
     _enforce_environment_binding(collection)
     db.add(collection)
     db.flush()
 
-    leaf = SoftwareItem(
-        software_collection_id=collection.id,
+    leaf = GameItem(
+        game_item_bundle_id=collection.id,
         disc_number=1,
         **{k: row[k] for k in _LEAF_COLUMNS if k in row},
     )
@@ -566,7 +566,7 @@ def _ingest_media_entry(
     db: Session,
     *,
     override_profile_id: int | None = None,
-) -> SoftwareCollection:
+) -> GameItemBundle:
     """
     Single shared ingest pipeline: prepare → persist a collection-of-one.
     Called by both the manual add route and the scanner import endpoint.
@@ -663,9 +663,9 @@ def _create_multi_disc_collection(
     db: Session,
     *,
     staging_dir: Path | None = None,
-) -> SoftwareCollection:
+) -> GameItemBundle:
     """
-    Create a SoftwareCollection with one SoftwareItem leaf per disc file.
+    Create a GameItemBundle with one GameItem leaf per disc file.
     disc_files must be pre-sorted (disc 1 first).
     Each disc file becomes both file_path and executable_path for its leaf.
 
@@ -695,19 +695,19 @@ def _create_multi_disc_collection(
         log.warning("Media detection warnings for '%s': %s", disc_files[0], _scan.warnings)
     detected_era: str = _scan.era if _scan.era is not None else "unknown"
 
-    detected_environment_id: int | None = None
+    detected_environment_item_id: int | None = None
     detected_profile_id: int | None = None
     if detected_era and detected_era != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(detected_era)
         if _emulator_slug and _profile_era:
-            _looked_up_environment_id, detected_profile_id = lookup_environment_and_profile(
+            _looked_up_environment_item_id, detected_profile_id = lookup_environment_and_profile(
                 _emulator_slug, _profile_era, db
             )
-            # Environment is strictly PC (doc 02 A5) — never populate environment_id
+            # Environment is strictly PC (doc 02 A5) — never populate environment_item_id
             # for a console era, even if a system Environment exists for its
             # emulator_slug (e.g. a seeded DuckStation/PS1 row).
             if detected_era in PC_ERAS:
-                detected_environment_id = _looked_up_environment_id
+                detected_environment_item_id = _looked_up_environment_item_id
 
     slug = generate_collection_slug(title, db)
 
@@ -727,11 +727,11 @@ def _create_multi_disc_collection(
                 for f in disc_files
             ]
 
-    collection = SoftwareCollection(
+    collection = GameItemBundle(
         title=title,
         era=detected_era,
         slug=slug,
-        environment_id=detected_environment_id,
+        environment_item_id=detected_environment_item_id,
         profile_id=detected_profile_id,
         content_rating=detect_rating(str(disc_files[0])) or None,
     )
@@ -742,10 +742,10 @@ def _create_multi_disc_collection(
 
         cover = _find_cover(staged_dir if staged_dir is not None else disc_files[0].parent)
 
-        leaves: list[SoftwareItem] = []
+        leaves: list[GameItem] = []
         for disc_number, disc_file in enumerate(disc_files, start=1):
-            leaf = SoftwareItem(
-                software_collection_id=collection.id,
+            leaf = GameItem(
+                game_item_bundle_id=collection.id,
                 disc_number=disc_number,
                 file_path=str(disc_file),
                 executable_path=str(disc_file),
@@ -792,7 +792,7 @@ def _create_multi_disc_collection(
     return collection
 
 
-def create_library_collection(body: SoftwareCollectionCreate, db: Session) -> tuple[SoftwareCollection, bool]:
+def create_library_collection(body: GameItemBundleCreate, db: Session) -> tuple[GameItemBundle, bool]:
     """Backward-compat wrapper. Returns (collection, already_existed)."""
     try:
         return (
@@ -805,7 +805,7 @@ def create_library_collection(body: SoftwareCollectionCreate, db: Session) -> tu
         return e.collection, True
 
 
-def _delete_leaf_media_folders(collection: SoftwareCollection) -> None:
+def _delete_leaf_media_folders(collection: GameItemBundle) -> None:
     """Delete each leaf's on-disk media, used only when _should_delete_media()
     resolves true (per-collection override, else the global
     delete_media_on_removal setting).
@@ -891,7 +891,7 @@ def _delete_leaf_media_folders(collection: SoftwareCollection) -> None:
                 log.warning("Could not delete media file %s: %s", file_path, exc)
 
 
-def _should_delete_media(collection: SoftwareCollection) -> bool:
+def _should_delete_media(collection: GameItemBundle) -> bool:
     """Resolve the effective delete-media decision for a collection: its own
     override if set, else the global delete_media_on_removal setting."""
     if collection.delete_media_override is not None:
@@ -901,9 +901,9 @@ def _should_delete_media(collection: SoftwareCollection) -> bool:
 
 
 def delete_library_collection(collection_id: int, token: str, db: Session) -> None:
-    if not _consume(token, "software", collection_id):
+    if not _consume(token, "game", collection_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
-    collection = db.get(SoftwareCollection, collection_id)
+    collection = db.get(GameItemBundle, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Software collection not found.")
     # Remove the collection-owned drive row and its on-disk FAT16 image before
@@ -920,11 +920,11 @@ def delete_library_collection(collection_id: int, token: str, db: Session) -> No
 
 
 def update_library_collection(
-    collection_id: int, body: SoftwareCollectionUpdate, db: Session
-) -> SoftwareCollection:
+    collection_id: int, body: GameItemBundleUpdate, db: Session
+) -> GameItemBundle:
     from sqlalchemy import select as _select
 
-    collection = db.get(SoftwareCollection, collection_id)
+    collection = db.get(GameItemBundle, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Software collection not found.")
 
@@ -933,7 +933,7 @@ def update_library_collection(
         if fields.get(disk_field) is not None:
             leaf_ids = set(
                 db.execute(
-                    _select(SoftwareItem.id).where(SoftwareItem.software_collection_id == collection_id)
+                    _select(GameItem.id).where(GameItem.game_item_bundle_id == collection_id)
                 ).scalars().all()
             )
             if fields[disk_field] not in leaf_ids:
@@ -941,7 +941,7 @@ def update_library_collection(
     for key, value in fields.items():
         setattr(collection, key, value)
     if "era" in fields:
-        # setattr bypasses SoftwareCollection._derive_item_type_from_era (no
+        # setattr bypasses GameItemBundle._derive_item_type_from_era (no
         # validate_assignment) — re-derive explicitly whenever era changes.
         collection.item_type = derive_item_type(collection.era)
     _enforce_environment_binding(collection)
@@ -954,9 +954,9 @@ _PATH_FIELDS = {"executable_path", "cover_art_path"}
 _EXISTENCE_FIELDS = {"executable_path"}
 
 
-def update_library_leaf(collection_id: int, leaf_id: int, body: SoftwareItemUpdate, db: Session) -> SoftwareItem:
-    leaf = db.get(SoftwareItem, leaf_id)
-    if not leaf or leaf.software_collection_id != collection_id:
+def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, db: Session) -> GameItem:
+    leaf = db.get(GameItem, leaf_id)
+    if not leaf or leaf.game_item_bundle_id != collection_id:
         raise HTTPException(status_code=404, detail="Software item not found.")
     fields = body.model_dump(exclude_none=True)
     for key in _PATH_FIELDS & fields.keys():
@@ -975,8 +975,8 @@ def update_library_leaf(collection_id: int, leaf_id: int, body: SoftwareItemUpda
 
 
 def reorder_library_items(
-    collection_id: int, body: SoftwareItemReorder, db: Session
-) -> SoftwareCollection:
+    collection_id: int, body: GameItemReorder, db: Session
+) -> GameItemBundle:
     """Persist a staged disc reorder in one transaction.
 
     ``body.disc_order`` must be exactly the collection's current leaf ids,
@@ -987,11 +987,11 @@ def reorder_library_items(
     endpoint would risk a mid-loop failure leaving ``disc_number`` duplicated
     or gapped across leaves; this commits all of them together or none.
     """
-    collection = db.get(SoftwareCollection, collection_id)
+    collection = db.get(GameItemBundle, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Software collection not found.")
 
-    leaves = db.query(SoftwareItem).filter(SoftwareItem.software_collection_id == collection_id).all()
+    leaves = db.query(GameItem).filter(GameItem.game_item_bundle_id == collection_id).all()
     leaf_ids = {leaf.id for leaf in leaves}
     if not body.disc_order or set(body.disc_order) != leaf_ids or len(body.disc_order) != len(leaf_ids):
         raise HTTPException(

@@ -3,8 +3,8 @@
 Extracted from the upload-folder route so both the (removed) synchronous route
 path and the chunked/background finalizer share one implementation. This is a
 helper imported by upload_finalize (the orchestration entry point); it funnels
-into the shared collection ingester in service.library.items. Every upload —
-single disc or multi-disc — becomes a SoftwareCollection (single-disc is a
+into the shared collection ingester in service.games.items. Every upload —
+single disc or multi-disc — becomes a GameItemBundle (single-disc is a
 collection-of-one).
 """
 from __future__ import annotations
@@ -14,8 +14,8 @@ from pathlib import Path
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from backend.service.library import items as lib_svc
-from backend.service.library.items import _ItemAlreadyExists
+from backend.service.games import items as lib_svc
+from backend.service.games.items import _ItemAlreadyExists
 
 # Priority order matches _EXECUTABLE_PRIORITY in profile_builder.py: .gdi > .cue > .chd.
 # Shared by detect_disc_files and select_disc_pointer_files so folder uploads and
@@ -98,7 +98,7 @@ def dedup_disc_anchor(media_root: Path, anchor: Path, db: Session) -> Path:
 
     ``_create_multi_disc_collection`` has no existing-file_path guard the way
     ``_prepare_item`` does for single items, so a duplicate that is still a
-    live ``SoftwareItem.file_path`` is rejected here with ``_ItemAlreadyExists``
+    live ``GameItem.file_path`` is rejected here with ``_ItemAlreadyExists``
     (same exception the file-kind path raises, caught by the upload route as a
     409) rather than being silently repointed — that would create a second
     tracked row sharing one file_path with an existing collection. Only a
@@ -106,16 +106,16 @@ def dedup_disc_anchor(media_root: Path, anchor: Path, db: Session) -> Path:
     live item — e.g. left behind after its item was deleted, per
     ``find_existing_duplicate``'s own docstring) is reused.
     """
-    from backend.models.software import SoftwareCollection, SoftwareItem
+    from backend.models.game import GameItemBundle, GameItem
     from backend.service.utils.upload_utils import find_existing_duplicate
 
     duplicate = find_existing_duplicate(media_root, anchor, anchor.stat().st_size)
     if duplicate is None:
         return anchor
 
-    live_leaf = db.query(SoftwareItem).filter(SoftwareItem.file_path == str(duplicate)).first()
+    live_leaf = db.query(GameItem).filter(GameItem.file_path == str(duplicate)).first()
     if live_leaf is not None:
-        raise _ItemAlreadyExists(db.get(SoftwareCollection, live_leaf.software_collection_id))
+        raise _ItemAlreadyExists(db.get(GameItemBundle, live_leaf.game_item_bundle_id))
 
     anchor.unlink(missing_ok=True)
     return duplicate
@@ -127,7 +127,7 @@ def ingest_folder(
     """Multi-disc collection when 2+ disc files are present, else a collection-of-one.
 
     Returns ``(result_type, collection, disc_count)`` where result_type is always
-    ``"software_collection"`` and disc_count is the number of discs (1 for a
+    ``"game_item_bundle"`` and disc_count is the number of discs (1 for a
     collection-of-one). Raises the same 4xx HTTPExceptions as the ingester
     on a duplicate/collision — callers translate those (inline route) or mark the
     job failed (background finalizer).
@@ -138,8 +138,8 @@ def ingest_folder(
         collection = lib_svc._create_multi_disc_collection(
             disc_files, title.strip(), db, staging_dir=dest_dir
         )
-        return "software_collection", collection, len(disc_files)
+        return "game_item_bundle", collection, len(disc_files)
 
     pick_folder_launch_file(written_paths)
     collection = lib_svc._ingest_media_entry(str(dest_dir), title.strip(), db)
-    return "software_collection", collection, 1
+    return "game_item_bundle", collection, 1

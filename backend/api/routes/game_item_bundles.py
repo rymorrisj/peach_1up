@@ -11,25 +11,25 @@ from backend.constants_generated import EraValue
 from backend.core import install_registry, jobs, rate_limit
 from backend.core.database import get_db
 from backend.core.dependencies import (
-    get_active_user, get_filtered_collection, get_filtered_collections, require_permission,
+    get_active_user, get_filtered_game_item_bundle, get_filtered_game_item_bundles, require_permission,
 )
 from backend.core.logger import get_logger
-from backend.models.software import (
-    ImportResult, SoftwareCollection, SoftwareCollectionCreate, SoftwareCollectionRead,
-    SoftwareCollectionUpdate, SoftwareItem, SoftwareItemRead, SoftwareItemReorder, SoftwareItemUpdate,
-    ScanStatus, collection_to_read, collections_to_read_bulk,
+from backend.models.game import (
+    ImportResult, GameItemBundle, GameItemBundleCreate, GameItemBundleRead,
+    GameItemBundleUpdate, GameItem, GameItemRead, GameItemReorder, GameItemUpdate,
+    ScanStatus, game_item_bundle_to_read, game_item_bundles_to_read_bulk,
 )
 from backend.models.media_restriction import MediaRestriction
 from backend.models.pagination import Page
 from backend.models.user import User
-from backend.service.library import items as lib_svc
-from backend.service.library import path_import
+from backend.service.games import items as lib_svc
+from backend.service.games import path_import
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
 from backend.service.utils.path_utils import allowed_browse_roots, is_within_roots, normalise_path
 from backend.service.utils.upload_utils import DEFAULT_BACKGROUND_THRESHOLD_BYTES, DEFAULT_MAX_BYTES
 
-router = APIRouter(prefix="/api/v1", tags=["library"])
+router = APIRouter(prefix="/api/v1", tags=["games"])
 logger = get_logger(__name__)
 
 # Guards re-entry ("one scan running at a time") only — no preview or other
@@ -77,11 +77,11 @@ class ScanImportBody(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/software", response_model=Page[SoftwareCollectionRead])
-def list_library(
+@router.get("/game-items", response_model=Page[GameItemBundleRead])
+def list_game_items(
     era: str | None = None,
     category: str | None = None,
-    environment_id: int | None = None,
+    environment_item_id: int | None = None,
     tag: str | None = None,
     profile_assigned: bool | None = None,
     limit: int = Query(default=50, ge=1, le=200),
@@ -89,34 +89,34 @@ def list_library(
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
 ):
-    q = get_filtered_collections(active_user, db)
+    q = get_filtered_game_item_bundles(active_user, db)
     if era:
-        q = q.filter(SoftwareCollection.era == era)
+        q = q.filter(GameItemBundle.era == era)
     if category:
-        q = q.filter(SoftwareCollection.category == category)
-    if environment_id is not None:
-        q = q.filter(SoftwareCollection.environment_id == environment_id)
+        q = q.filter(GameItemBundle.category == category)
+    if environment_item_id is not None:
+        q = q.filter(GameItemBundle.environment_item_id == environment_item_id)
     if profile_assigned is True:
-        q = q.filter(SoftwareCollection.profile_id.isnot(None))
+        q = q.filter(GameItemBundle.profile_id.isnot(None))
     elif profile_assigned is False:
-        q = q.filter(SoftwareCollection.profile_id.is_(None))
+        q = q.filter(GameItemBundle.profile_id.is_(None))
     if tag:
         from backend.models.tag import Tag, EntityTag
         subq = (
             db.query(EntityTag.entity_id)
             .join(Tag, EntityTag.tag_id == Tag.id)
-            .filter(EntityTag.entity_type == "software_collection", Tag.name == tag)
+            .filter(EntityTag.entity_type == "game_item_bundle", Tag.name == tag)
             .subquery()
         )
-        q = q.filter(SoftwareCollection.id.in_(subq))
+        q = q.filter(GameItemBundle.id.in_(subq))
     total = q.count()
-    rows = q.order_by(SoftwareCollection.id).offset(offset).limit(limit).all()
-    return Page(items=collections_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
+    rows = q.order_by(GameItemBundle.id).offset(offset).limit(limit).all()
+    return Page(items=game_item_bundles_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 
-@router.post("/software", response_model=SoftwareCollectionRead, status_code=201)
-def add_library_collection(
-    body: SoftwareCollectionCreate,
+@router.post("/game-items", response_model=GameItemBundleRead, status_code=201)
+def create_game_item_bundle(
+    body: GameItemBundleCreate,
     db: Session = Depends(get_db),
     _: User = require_permission("can_manage_software"),
 ):
@@ -128,7 +128,7 @@ def add_library_collection(
             db,
             override_profile_id=body.profile_id,
         )
-        return collection_to_read(collection, db)
+        return game_item_bundle_to_read(collection, db)
     except lib_svc._ItemAlreadyExists:
         raise HTTPException(status_code=409, detail="This media path is already in the library.")
     except lib_svc._SlugCollision as exc:
@@ -141,7 +141,7 @@ class ImportFromPathBody(BaseModel):
     delete_original: bool = False
 
 
-@router.post("/software/import-from-path")
+@router.post("/game-items/import-from-path")
 def import_from_path(
     body: ImportFromPathBody,
     request: Request,
@@ -155,7 +155,7 @@ def import_from_path(
     for when the source is already local to the server: no chunked transfer,
     and (opt-in, per delete_original) the source can be deleted afterward,
     which a browser upload can never do since the browser never exposes the
-    source's real path. See service.library.path_import for the copy-then-
+    source's real path. See service.games.path_import for the copy-then-
     optionally-delete implementation.
     """
     _enforce_rate_limit("library-path-import", request, _PATH_IMPORT_RATE_LIMIT, _PATH_IMPORT_RATE_WINDOW_SECONDS)
@@ -179,9 +179,9 @@ def import_from_path(
     # already-copied path under SOFTWARE_PATH — by then the (potentially huge)
     # copy has already happened and would silently duplicate an OS image into
     # the library. Check the original source here, before staging starts.
-    from backend.models.environment import Environment
+    from backend.models.environment import EnvironmentItem
     incoming_norm = resolved.as_posix()
-    for base_path, working_path in db.query(Environment.base_image_path, Environment.working_image_path).all():
+    for base_path, working_path in db.query(EnvironmentItem.base_image_path, EnvironmentItem.working_image_path).all():
         if (base_path and Path(base_path).resolve().as_posix() == incoming_norm) or (
             working_path and Path(working_path).resolve().as_posix() == incoming_norm
         ):
@@ -230,13 +230,13 @@ def import_from_path(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/software/scan/status", response_model=ScanStatus)
+@router.get("/game-items/scan/status", response_model=ScanStatus)
 def scan_status():
     with _scan_lock:
         return {"running": _scan_running, "job_id": _scan_job_id, "error": _scan_error}
 
 
-@router.post("/software/scan/{job_id}/cancel")
+@router.post("/game-items/scan/{job_id}/cancel")
 def cancel_scan(job_id: str):
     """Cooperative cancellation for an in-flight scan job. Flags the job so
     _run_scan's loop exits at its next check, then returns the updated job
@@ -300,8 +300,8 @@ def _check_known_items_findable(db: Session) -> None:
     original_name/file_path to reconcile against existing rows, so a
     known item that can no longer be found on disk is surfaced immediately
     rather than dropped without explanation."""
-    rows = db.query(SoftwareItem.file_path, SoftwareItem.original_name).filter(
-        SoftwareItem.file_path.isnot(None)
+    rows = db.query(GameItem.file_path, GameItem.original_name).filter(
+        GameItem.file_path.isnot(None)
     ).all()
     for file_path, original_name in rows:
         if not Path(file_path).exists():
@@ -312,7 +312,7 @@ def _check_known_items_findable(db: Session) -> None:
             )
 
 
-@router.post("/software/scan")
+@router.post("/game-items/scan")
 def trigger_scan(
     request: Request,
     background_tasks: BackgroundTasks = BackgroundTasks(),
@@ -346,7 +346,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
     centre.
     """
     from backend.core.database import get_engine
-    from backend.service.library.items import best_detect_path
+    from backend.service.games.items import best_detect_path
     from backend.service.utils.smart_media_detector import detect as _smart_detect
     from backend.service.utils.profile_builder import scan_media_folders
     from sqlalchemy.orm import Session as _Session
@@ -365,13 +365,13 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
         try:
             existing_folder_paths: set[str] = {
                 str(Path(fp).resolve())
-                for (fp,) in db.query(SoftwareItem.folder_path)
-                .filter(SoftwareItem.folder_path.isnot(None))
+                for (fp,) in db.query(GameItem.folder_path)
+                .filter(GameItem.folder_path.isnot(None))
                 .all()
             }
             existing_media_dirs: set[str] = {
                 str(Path(mp).resolve().parent)
-                for (mp,) in db.query(SoftwareItem.file_path).all()
+                for (mp,) in db.query(GameItem.file_path).all()
             }
 
             for _idx, entry in enumerate(entries):
@@ -448,7 +448,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
                 )
 
 
-@router.post("/software/scan/import", response_model=ImportResult)
+@router.post("/game-items/scan/import", response_model=ImportResult)
 def import_scan_results(
     body: ScanImportBody,
     db: Session = Depends(get_db),
@@ -460,11 +460,11 @@ def import_scan_results(
     drive here — the drive is created lazily on first launch
     (drive_hydration.hydrate_drive_for_entity).
     """
-    from backend.service.library.items import _ItemAlreadyExists, _persist_collection_of_one, _prepare_item
+    from backend.service.games.items import _ItemAlreadyExists, _persist_collection_of_one, _prepare_item
 
     used_slugs: set[str] = {
         s
-        for (s,) in db.query(SoftwareCollection.slug).filter(SoftwareCollection.slug.isnot(None)).all()
+        for (s,) in db.query(GameItemBundle.slug).filter(GameItemBundle.slug.isnot(None)).all()
     }
 
     imported = 0
@@ -515,47 +515,47 @@ def import_scan_results(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/softwarecollection/by-slug/{slug}", response_model=SoftwareCollectionRead)
-def get_collection_by_slug(
+@router.get("/game-item-bundle/by-slug/{slug}", response_model=GameItemBundleRead)
+def get_game_item_bundle_by_slug(
     slug: str,
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
 ):
-    return collection_to_read(get_filtered_collection(slug, active_user, db), db)
+    return game_item_bundle_to_read(get_filtered_game_item_bundle(slug, active_user, db), db)
 
 
-@router.get("/softwarecollection/{collection_id}", response_model=SoftwareCollectionRead)
-def get_collection(
+@router.get("/game-item-bundle/{collection_id}", response_model=GameItemBundleRead)
+def get_game_item_bundle(
     collection_id: int,
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
 ):
-    return collection_to_read(get_filtered_collection(collection_id, active_user, db), db)
+    return game_item_bundle_to_read(get_filtered_game_item_bundle(collection_id, active_user, db), db)
 
 
-@router.patch("/softwarecollection/{collection_id}", response_model=SoftwareCollectionRead)
-def update_collection(
+@router.patch("/game-item-bundle/{collection_id}", response_model=GameItemBundleRead)
+def update_game_item_bundle(
     collection_id: int,
-    body: SoftwareCollectionUpdate,
+    body: GameItemBundleUpdate,
     db: Session = Depends(get_db),
     _: User = require_permission("can_manage_software"),
 ):
-    return collection_to_read(lib_svc.update_library_collection(collection_id, body, db), db)
+    return game_item_bundle_to_read(lib_svc.update_library_collection(collection_id, body, db), db)
 
 
-@router.post("/softwarecollection/{collection_id}/flag-launch", response_model=SoftwareCollectionRead)
+@router.post("/game-item-bundle/{collection_id}/flag-launch", response_model=GameItemBundleRead)
 def flag_launch(
     collection_id: int,
     db: Session = Depends(get_db),
     _: User = require_permission("can_launch_media"),
 ):
-    collection = db.get(SoftwareCollection, collection_id)
+    collection = db.get(GameItemBundle, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Software collection not found.")
     collection.launch_review_flagged = True
     db.commit()
     db.refresh(collection)
-    return collection_to_read(collection, db)
+    return game_item_bundle_to_read(collection, db)
 
 
 def _xiso_convert_key(collection_id: int) -> str:
@@ -573,7 +573,7 @@ def _run_xiso_conversion(key: str, media_path: str) -> None:
         logger.error("extract-xiso conversion failed for %s: %s", media_path, exc)
 
 
-@router.post("/softwarecollection/{collection_id}/convert-xiso")
+@router.post("/game-item-bundle/{collection_id}/convert-xiso")
 def start_xiso_conversion(
     collection_id: int,
     background_tasks: BackgroundTasks,
@@ -591,7 +591,7 @@ def start_xiso_conversion(
     """
     from backend.service.launch.launchable_resolver import resolve_launchable
 
-    collection = get_filtered_collection(collection_id, active_user, db)
+    collection = get_filtered_game_item_bundle(collection_id, active_user, db)
     if collection.era != "xbox":
         raise HTTPException(status_code=400, detail="extract-xiso conversion only applies to Xbox media.")
 
@@ -609,7 +609,7 @@ def start_xiso_conversion(
     return {"status": "converting"}
 
 
-@router.get("/softwarecollection/{collection_id}/convert-xiso/status")
+@router.get("/game-item-bundle/{collection_id}/convert-xiso/status")
 def get_xiso_conversion_status(
     collection_id: int,
     _: User = require_permission("can_launch_media"),
@@ -622,21 +622,21 @@ def get_xiso_conversion_status(
     }
 
 
-@router.post("/softwarecollection/{collection_id}/confirm-delete")
+@router.post("/game-item-bundle/{collection_id}/confirm-delete")
 def issue_delete_token(
     collection_id: int,
     db: Session = Depends(get_db),
     _: User = require_permission("can_manage_software"),
 ):
-    collection = db.get(SoftwareCollection, collection_id)
+    collection = db.get(GameItemBundle, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Software collection not found.")
-    token = confirmation_tokens.issue("software", collection_id)
+    token = confirmation_tokens.issue("game", collection_id)
     return {"confirmation_token": token, "expires_in_seconds": TOKEN_TTL}
 
 
-@router.delete("/softwarecollection/{collection_id}", status_code=204)
-def delete_collection(
+@router.delete("/game-item-bundle/{collection_id}", status_code=204)
+def delete_game_item_bundle(
     collection_id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
@@ -645,38 +645,38 @@ def delete_collection(
     lib_svc.delete_library_collection(collection_id, confirmation_token, db)
 
 
-@router.get("/softwarecollection/{collection_id}/restrictions")
+@router.get("/game-item-bundle/{collection_id}/restrictions")
 def get_restrictions(
     collection_id: int,
     db: Session = Depends(get_db),
     _: User = require_permission("is_admin"),
 ):
-    if not db.get(SoftwareCollection, collection_id):
+    if not db.get(GameItemBundle, collection_id):
         raise HTTPException(status_code=404, detail="Software collection not found.")
-    rows = db.query(MediaRestriction).filter(MediaRestriction.software_collection_id == collection_id).all()
+    rows = db.query(MediaRestriction).filter(MediaRestriction.game_item_bundle_id == collection_id).all()
     return {"restricted_user_ids": [r.user_id for r in rows]}
 
 
-@router.put("/softwarecollection/{collection_id}/restrictions")
+@router.put("/game-item-bundle/{collection_id}/restrictions")
 def set_restrictions(
     collection_id: int,
     body: RestrictionsBody,
     db: Session = Depends(get_db),
     _: User = require_permission("is_admin"),
 ):
-    if not db.get(SoftwareCollection, collection_id):
+    if not db.get(GameItemBundle, collection_id):
         raise HTTPException(status_code=404, detail="Software collection not found.")
-    db.query(MediaRestriction).filter(MediaRestriction.software_collection_id == collection_id).delete()
+    db.query(MediaRestriction).filter(MediaRestriction.game_item_bundle_id == collection_id).delete()
     for user_id in body.user_ids:
-        db.add(MediaRestriction(user_id=user_id, software_collection_id=collection_id))
+        db.add(MediaRestriction(user_id=user_id, game_item_bundle_id=collection_id))
     db.commit()
     return {"restricted_user_ids": body.user_ids}
 
 
-@router.patch("/softwarecollection/{collection_id}/items/reorder", response_model=SoftwareCollectionRead)
-def reorder_collection_items(
+@router.patch("/game-item-bundle/{collection_id}/items/reorder", response_model=GameItemBundleRead)
+def reorder_game_item_bundle_items(
     collection_id: int,
-    body: SoftwareItemReorder,
+    body: GameItemReorder,
     db: Session = Depends(get_db),
     _: User = require_permission("can_manage_software"),
 ):
@@ -684,17 +684,17 @@ def reorder_collection_items(
     # type constraint in the path itself, so a literal "reorder" segment
     # would otherwise match that route first and 422 on int conversion.
     collection = lib_svc.reorder_library_items(collection_id, body, db)
-    return collection_to_read(collection, db)
+    return game_item_bundle_to_read(collection, db)
 
 
-@router.patch("/softwarecollection/{collection_id}/items/{leaf_id}", response_model=SoftwareItemRead)
-def update_collection_leaf(
+@router.patch("/game-item-bundle/{collection_id}/items/{leaf_id}", response_model=GameItemRead)
+def update_game_item(
     collection_id: int,
     leaf_id: int,
-    body: SoftwareItemUpdate,
+    body: GameItemUpdate,
     db: Session = Depends(get_db),
     _: User = require_permission("can_manage_software"),
 ):
-    return SoftwareItemRead.model_validate(
+    return GameItemRead.model_validate(
         lib_svc.update_library_leaf(collection_id, leaf_id, body, db)
     )

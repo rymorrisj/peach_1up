@@ -49,7 +49,7 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
     The installed=True write-back goes through entity._db_collection.
     """
     from backend.models.drive import Drive
-    from backend.models.software import SoftwareItem
+    from backend.models.game import GameItem
     from backend.service.utils.drive_utils import compute_drive_size_mb, create_drive_for_collection
     from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DRIVE_ERAS
 
@@ -60,7 +60,7 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
     # for Software, the linked Environment's era for Apps -- see
     # launchable_resolver.resolve_launchable_app), so the DOS-era gate below
     # is source-type-agnostic. Only the launch-leaf lookup differs, since
-    # SoftwareItem and AppItem are separate tables with non-overlapping id
+    # GameItem and AppItem are separate tables with non-overlapping id
     # spaces -- collection.launch_disk_id must be resolved against whichever
     # table entity.source_type actually points into.
     collection = entity._db_collection
@@ -75,7 +75,7 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
 
             launch_leaf = db.get(AppItem, collection.launch_disk_id)
         else:
-            launch_leaf = db.get(SoftwareItem, collection.launch_disk_id)
+            launch_leaf = db.get(GameItem, collection.launch_disk_id)
         if launch_leaf is not None:
             drive = create_drive_for_collection(collection, launch_leaf, db)
 

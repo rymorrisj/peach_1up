@@ -80,7 +80,7 @@ class LaunchSpec:
     platform_id: int | None = None
     launch_review_flagged: bool = False
 
-    # Which table collection_id points into — "software" (software_collections)
-    # or "app" (app_collections). Lets the coordinator write the LaunchHistory
+    # Which table collection_id points into — "game" (game_item_bundles)
+    # or "app" (app_item_bundles). Lets the coordinator write the LaunchHistory
     # FK into the right column without a second, parallel launch() path.
-    source_type: str = "software"
+    source_type: str = "game"

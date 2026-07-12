@@ -14,8 +14,8 @@ from backend.service.utils.fat import FAT16_SIZE_MIN_MB
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
-    from backend.models.app import AppCollection, AppItem
-    from backend.models.software import SoftwareCollection, SoftwareItem
+    from backend.models.app import AppItemBundle, AppItem
+    from backend.models.game import GameItemBundle, GameItem
     from backend.models.drive import Drive
 
 # iso/cue media is mounted directly and never passed to format_fat16 (it always
@@ -50,8 +50,8 @@ def compute_drive_size_mb(media_path: Path, media_type: str) -> int:
 
 
 def create_drive_for_collection(
-    collection: "SoftwareCollection | AppCollection",
-    launch_leaf: "SoftwareItem | AppItem",
+    collection: "GameItemBundle | AppItemBundle",
+    launch_leaf: "GameItem | AppItem",
     db: "Session",
 ) -> "Drive":
     """Create and persist a Drive record for a library collection.
@@ -60,24 +60,24 @@ def create_drive_for_collection(
     file), otherwise its file_path. file_type/requires_install are cached on
     the collection when not already set. The image lives at
     ``{launch_leaf.folder_path}/{collection.slug}.img`` — the launch leaf is the
-    SoftwareItem/AppItem pointed to by collection.launch_disk_id.
+    GameItem/AppItem pointed to by collection.launch_disk_id.
 
-    Works for either owning collection type: AppItem/AppCollection carry the
+    Works for either owning collection type: AppItem/AppItemBundle carry the
     same field names (file_path, executable_path, file_type, folder_path,
     slug, title, id, drive_id) as their Software counterparts, so the sizing
     and image-path logic below is unchanged; only the Drive FK that records
     ownership differs.
 
     Args:
-        collection:  SoftwareCollection or AppCollection ORM instance (already
+        collection:  GameItemBundle or AppItemBundle ORM instance (already
                      flushed, has an id).
-        launch_leaf: The collection's launch-disc SoftwareItem or AppItem.
+        launch_leaf: The collection's launch-disc GameItem or AppItem.
         db:          Active SQLAlchemy session.
 
     Returns:
         The newly created and refreshed Drive instance.
     """
-    from backend.models.app import AppCollection
+    from backend.models.app import AppItemBundle
     from backend.models.drive import Drive
     from backend.service.utils.smart_media_detector import detect as _smart_detect
 
@@ -99,7 +99,7 @@ def create_drive_for_collection(
         if launch_leaf.folder_path and collection.slug
         else None
     )
-    owner_field = "app_collection_id" if isinstance(collection, AppCollection) else "software_collection_id"
+    owner_field = "app_item_bundle_id" if isinstance(collection, AppItemBundle) else "game_item_bundle_id"
     drive = Drive(
         name=collection.title,
         size_mb=computed,
@@ -115,7 +115,7 @@ def create_drive_for_collection(
     return drive
 
 
-def delete_drive_for_collection(collection: "SoftwareCollection | AppCollection", db: "Session") -> None:
+def delete_drive_for_collection(collection: "GameItemBundle | AppItemBundle", db: "Session") -> None:
     """Delete the Drive record and its on-disk image for a library collection.
 
     No-op if the collection has no drive_id. Unlinks the FAT16 image file (if
@@ -127,7 +127,7 @@ def delete_drive_for_collection(collection: "SoftwareCollection | AppCollection"
     still proceeds.
 
     Args:
-        collection: SoftwareCollection or AppCollection ORM instance.
+        collection: GameItemBundle or AppItemBundle ORM instance.
         db:         Active SQLAlchemy session.
     """
     if collection.drive_id is None:

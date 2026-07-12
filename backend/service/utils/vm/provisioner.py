@@ -14,7 +14,7 @@ from pathlib import Path
 
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
-from backend.models.environment import Environment
+from backend.models.environment import EnvironmentItem
 from backend.service.utils.emulator_catalog import get_86box_profile
 from backend.service.utils.eras_config import get_eras
 from backend.service.utils.ini_writer import patch_ini
@@ -59,12 +59,12 @@ def _resolve_within(base: Path, *parts: str) -> Path:
     return target
 
 
-def _vm_name(platform: Environment) -> str:
+def _vm_name(platform: EnvironmentItem) -> str:
     return platform.slug or f"p{platform.id}"
 
 
 def provision_86box_vm(
-    platform: Environment,
+    platform: EnvironmentItem,
     box86_path: str,
     rom_path: str,
     hardware_profile: str = "standard",
@@ -187,7 +187,7 @@ def provision_86box_vm(
 
 
 def provision_dosbox_drive(
-    platform: Environment,
+    platform: EnvironmentItem,
 ) -> tuple[str | None, str | None, str | None, str | None, str | None]:
     """Provision the shared FAT16 C: image for a DOS environment.
 
@@ -240,7 +240,7 @@ def provision_dosbox_drive(
 
 
 def provision_platform(
-    platform: Environment,
+    platform: EnvironmentItem,
 ) -> tuple[str | None, str | None, str | None, str | None, str | None]:
     """Provision a working image for a platform, selecting the backend by era.
 

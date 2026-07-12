@@ -62,12 +62,12 @@ def poll_short_lived() -> None:
 
 def _flag_short_lived_item(collection_id: int) -> None:
     from backend.core.database import get_engine
-    from backend.models import SoftwareCollection
+    from backend.models import GameItemBundle
     from sqlalchemy.orm import Session
 
     try:
         with Session(get_engine()) as db:
-            collection = db.get(SoftwareCollection, collection_id)
+            collection = db.get(GameItemBundle, collection_id)
             if collection is not None:
                 collection.launch_review_flagged = True
                 db.commit()

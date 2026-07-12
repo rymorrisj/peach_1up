@@ -33,10 +33,10 @@ def _cleanup_stale_sessions(db) -> None:
 
 def _flag_corrupt_platform_working_paths(db) -> None:
     try:
-        from backend.models import Environment
+        from backend.models import EnvironmentItem
         corrupt = (
-            db.query(Environment)
-            .filter(Environment.working_image_path.like("%.cfg"))
+            db.query(EnvironmentItem)
+            .filter(EnvironmentItem.working_image_path.like("%.cfg"))
             .all()
         )
         for p in corrupt:
@@ -149,7 +149,7 @@ def _sweep_upload_tmp() -> None:
         from pathlib import Path
 
         from backend.core.settings import get_settings
-        from backend.service.library.chunked_uploads import sweep_orphans
+        from backend.service.games.chunked_uploads import sweep_orphans
         from backend.service.utils.upload_utils import DEFAULT_UPLOAD_TMP_TTL_SECONDS
 
         software_path = get_settings().get("SOFTWARE_PATH", "") or ""

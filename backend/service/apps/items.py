@@ -5,8 +5,8 @@ from fastapi import HTTPException
 from sqlalchemy import select as _select
 from sqlalchemy.orm import Session
 
-from backend.models.app import AppCollection, AppCollectionCreate, AppCollectionUpdate, AppItem, AppItemUpdate
-from backend.models.environment import Environment
+from backend.models.app import AppItemBundle, AppItemBundleCreate, AppItemBundleUpdate, AppItem, AppItemUpdate
+from backend.models.environment import EnvironmentItem
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.file_types import file_type_from_path
 from backend.service.utils.path_utils import allowed_browse_roots, is_within_roots, normalise_path
@@ -22,18 +22,18 @@ _EXISTENCE_FIELDS = {"executable_path"}
 def _generate_app_slug(name: str, db: Session) -> str:
     return unique_slug(
         name,
-        lambda s: db.query(AppCollection).filter(AppCollection.slug == s).first() is not None,
+        lambda s: db.query(AppItemBundle).filter(AppItemBundle.slug == s).first() is not None,
     )
 
 
-def create_app_collection(body: AppCollectionCreate, db: Session) -> AppCollection:
+def create_app_item_bundle(body: AppItemBundleCreate, db: Session) -> AppItemBundle:
     """Create an App collection-of-one from a single file or folder path.
 
     No era/smart-media detection runs here (unlike Software ingest) — Apps
-    have no era of their own to detect; the caller supplies environment_id
+    have no era of their own to detect; the caller supplies environment_item_id
     explicitly, and this is validated only for existence, not "health".
     """
-    if not db.get(Environment, body.environment_id):
+    if not db.get(EnvironmentItem, body.environment_item_id):
         raise HTTPException(status_code=404, detail="Environment not found.")
 
     try:
@@ -49,24 +49,24 @@ def create_app_collection(body: AppCollectionCreate, db: Session) -> AppCollecti
     slug = _generate_app_slug(title, db)
 
     is_file = resolved.is_file()
-    collection = AppCollection(
+    collection = AppItemBundle(
         title=title,
         slug=slug,
-        environment_id=body.environment_id,
+        environment_item_id=body.environment_item_id,
         profile_id=body.profile_id,
     )
     db.add(collection)
     db.flush()
 
     leaf = AppItem(
-        app_collection_id=collection.id,
+        app_item_bundle_id=collection.id,
         file_path=str(resolved),
         executable_path=str(resolved) if is_file else None,
         folder_path=str(resolved.parent) if is_file else str(resolved),
         file_type=file_type_from_path(resolved),
         file_size_bytes=resolved.stat().st_size if is_file else None,
         original_name=resolved.name,
-        # Never owned: create_app_collection points at an existing path rather
+        # Never owned: create_app_item_bundle points at an existing path rather
         # than creating/renaming a directory for the item, so delete must
         # never rmtree it — mirrors SoftwareItem's folder_owned=False default
         # for the same "pre-existing, not ours" case.
@@ -82,19 +82,19 @@ def create_app_collection(body: AppCollectionCreate, db: Session) -> AppCollecti
     return collection
 
 
-def update_app_collection(collection_id: int, body: AppCollectionUpdate, db: Session) -> AppCollection:
-    collection = db.get(AppCollection, collection_id)
+def update_app_item_bundle(collection_id: int, body: AppItemBundleUpdate, db: Session) -> AppItemBundle:
+    collection = db.get(AppItemBundle, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="App collection not found.")
 
     fields = body.model_dump(exclude_unset=True)
-    if "environment_id" in fields and not db.get(Environment, fields["environment_id"]):
+    if "environment_item_id" in fields and not db.get(EnvironmentItem, fields["environment_item_id"]):
         raise HTTPException(status_code=404, detail="Environment not found.")
     for disk_field in ("display_disk_id", "launch_disk_id"):
         if fields.get(disk_field) is not None:
             leaf_ids = set(
                 db.execute(
-                    _select(AppItem.id).where(AppItem.app_collection_id == collection_id)
+                    _select(AppItem.id).where(AppItem.app_item_bundle_id == collection_id)
                 ).scalars().all()
             )
             if fields[disk_field] not in leaf_ids:
@@ -108,7 +108,7 @@ def update_app_collection(collection_id: int, body: AppCollectionUpdate, db: Ses
 
 def update_app_leaf(collection_id: int, leaf_id: int, body: AppItemUpdate, db: Session) -> AppItem:
     leaf = db.get(AppItem, leaf_id)
-    if not leaf or leaf.app_collection_id != collection_id:
+    if not leaf or leaf.app_item_bundle_id != collection_id:
         raise HTTPException(status_code=404, detail="App item not found.")
     fields = body.model_dump(exclude_none=True)
     for key in _PATH_FIELDS & fields.keys():
@@ -126,14 +126,14 @@ def update_app_leaf(collection_id: int, leaf_id: int, body: AppItemUpdate, db: S
     return leaf
 
 
-def _should_delete_media(collection: AppCollection) -> bool:
+def _should_delete_media(collection: AppItemBundle) -> bool:
     if collection.delete_media_override is not None:
         return collection.delete_media_override
     from backend.core.settings import get_settings
     return bool(get_settings().get("delete_media_on_removal", False))
 
 
-def _delete_leaf_media_folders(collection: AppCollection) -> None:
+def _delete_leaf_media_folders(collection: AppItemBundle) -> None:
     """Delete each leaf's on-disk media. Same containment and ownership rules
     as backend/service/library/items.py's _delete_leaf_media_folders: only
     rmtree a folder_path the app itself owns (folder_owned=True); otherwise
@@ -198,10 +198,10 @@ def _delete_leaf_media_folders(collection: AppCollection) -> None:
                 log.warning("Could not delete media file %s: %s", file_path, exc)
 
 
-def delete_app_collection(collection_id: int, token: str, db: Session) -> None:
-    if not _consume(token, "app_collection", collection_id):
+def delete_app_item_bundle(collection_id: int, token: str, db: Session) -> None:
+    if not _consume(token, "app_item_bundle", collection_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
-    collection = db.get(AppCollection, collection_id)
+    collection = db.get(AppItemBundle, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="App collection not found.")
 

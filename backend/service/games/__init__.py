@@ -1,4 +1,4 @@
-from backend.service.library.items import (
+from backend.service.games.items import (
     create_library_collection,
     delete_library_collection,
     update_library_collection,

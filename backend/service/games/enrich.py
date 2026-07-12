@@ -8,7 +8,7 @@ import httpx
 from fastapi import HTTPException
 
 from backend.core.logger import get_logger
-from backend.models.software import SoftwareCollection, SoftwareItem
+from backend.models.game import GameItemBundle, GameItem
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -89,7 +89,7 @@ def _download_cover_art(url: str, dest_dir: Path) -> Path:
 
 
 def enrich_entity(
-    entity_type: Literal["software_collection", "software_item"],
+    entity_type: Literal["game_item_bundle", "game_item"],
     entity_id: int,
     *,
     title: Optional[str] = None,
@@ -121,17 +121,17 @@ def enrich_entity(
         from backend.core.dependencies import normalize_content_rating
         metadata_fields["content_rating"] = normalize_content_rating(content_rating)
 
-    if entity_type == "software_collection":
+    if entity_type == "game_item_bundle":
         # Metadata lives on the collection; cover art belongs on the individual leaves.
-        entity = db.get(SoftwareCollection, entity_id)
+        entity = db.get(GameItemBundle, entity_id)
         if not entity:
             raise HTTPException(status_code=404, detail="Software collection not found.")
         if cover_art_url:
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    "cover_art_url is not supported for software_collection; "
-                    "apply cover art to individual software_item discs instead."
+                    "cover_art_url is not supported for game_item_bundle; "
+                    "apply cover art to individual game_item discs instead."
                 ),
             )
         if "content_rating" in metadata_fields:
@@ -149,7 +149,7 @@ def enrich_entity(
                         ),
                     )
                 _log.warning(
-                    "content_rating lowered/cleared on software_collection id=%s: %r -> %r "
+                    "content_rating lowered/cleared on game_item_bundle id=%s: %r -> %r "
                     "(confirmed by caller)",
                     entity_id, old_rating, new_rating,
                 )
@@ -166,17 +166,17 @@ def enrich_entity(
             # "manual"-provider row here.
             set_genres_for_collection(db, entity_id, genre)
 
-    elif entity_type == "software_item":
+    elif entity_type == "game_item":
         # Leaf: per-disc cover art only — no metadata fields (those go on the collection).
-        entity = db.get(SoftwareItem, entity_id)
+        entity = db.get(GameItem, entity_id)
         if not entity:
             raise HTTPException(status_code=404, detail="Software item not found.")
         if metadata_fields or genre is not None:
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    "software_item does not support metadata fields (title, description, etc.); "
-                    "apply those to the parent software_collection."
+                    "game_item does not support metadata fields (title, description, etc.); "
+                    "apply those to the parent game_item_bundle."
                 ),
             )
         if cover_art_url:

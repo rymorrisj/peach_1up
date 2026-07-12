@@ -6,7 +6,7 @@ normalized result the route sends as 201. `finalize_background` runs as a
 BackgroundTask (large uploads) with its own DB session, reporting progress into
 core.jobs and reaping the destination on failure. Both reassemble from staged
 upload chunks, then call `finalize_reassembled`, so the ingest → cleanup
-sequence lives in exactly one place — `service.library.path_import` reuses
+sequence lives in exactly one place — `service.games.path_import` reuses
 `finalize_reassembled` directly for server-side-path imports, whose "reassembly"
 is a filesystem copy instead of a chunk reassembly. Anchor dedup (content-hash
 reuse of an existing on-disk file) only applies to the "file" and auto-detected
@@ -21,9 +21,9 @@ from sqlalchemy.orm import Session
 
 from backend.core import jobs
 from backend.core.logger import get_logger
-from backend.service.library import chunked_uploads as cu
-from backend.service.library import folder_ingest
-from backend.service.library import items as lib_svc
+from backend.service.games import chunked_uploads as cu
+from backend.service.games import folder_ingest
+from backend.service.games import items as lib_svc
 
 logger = get_logger(__name__)
 
@@ -52,7 +52,7 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Sess
             title = reasm.title or ingest_path.stem.replace("-", " ").title()
             collection = lib_svc._ingest_media_entry(str(ingest_path), title, db)
             return {
-                "result_type": "software_collection",
+                "result_type": "game_item_bundle",
                 "id": collection.id,
                 "title": collection.title,
                 "reused_existing_media": reused,
@@ -74,7 +74,7 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Sess
                 disc_files, reasm.title, db, staging_dir=reasm.dest_dir
             )
             return {
-                "result_type": "software_collection",
+                "result_type": "game_item_bundle",
                 "id": collection.id,
                 "title": collection.title,
                 "disc_count": len(disc_files),

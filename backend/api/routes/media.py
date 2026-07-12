@@ -8,17 +8,17 @@ from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
 from backend.models.media import (
-    MediaCollection, MediaCollectionCreate, MediaCollectionRead, MediaCollectionUpdate,
+    MediaItemBundle, MediaItemBundleCreate, MediaItemBundleRead, MediaItemBundleUpdate,
     MediaItem, MediaItemCreate, MediaItemRead, MediaItemUpdate,
     MediaLink, MediaLinkCreate, MediaLinkRead,
-    collection_to_read, collections_to_read_bulk, item_to_read, items_to_read_bulk,
+    media_item_bundle_to_read, media_item_bundle_to_read_bulk, item_to_read, items_to_read_bulk,
 )
 from backend.models.pagination import Page
-from backend.models.software import SoftwareCollection
+from backend.models.game import GameItemBundle
 from backend.models.user import User
 from backend.service.utils.slug_generator import unique_slug
 
-router = APIRouter(prefix="/api/v1/media", tags=["media"])
+router = APIRouter(prefix="/api/v1", tags=["media"])
 logger = get_logger(__name__)
 
 
@@ -30,7 +30,7 @@ def _unique_media_slug(title: str, db: Session) -> str:
         title,
         lambda s: (
             db.query(MediaItem).filter(MediaItem.slug == s).first() is not None
-            or db.query(MediaCollection).filter(MediaCollection.slug == s).first() is not None
+            or db.query(MediaItemBundle).filter(MediaItemBundle.slug == s).first() is not None
         ),
     )
 
@@ -40,7 +40,7 @@ def _unique_media_slug(title: str, db: Session) -> str:
 # ---------------------------------------------------------------------------
 
 
-@router.get("", response_model=Page[MediaItemRead])
+@router.get("/media-items", response_model=Page[MediaItemRead])
 def list_media_items(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -53,7 +53,7 @@ def list_media_items(
     return Page(items=items_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 
-@router.post("", response_model=MediaItemRead, status_code=201)
+@router.post("/media-items", response_model=MediaItemRead, status_code=201)
 def create_media_item(
     body: MediaItemCreate,
     db: Session = Depends(get_db),
@@ -71,7 +71,7 @@ def create_media_item(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{item_id}", response_model=MediaItemRead)
+@router.get("/media-item/{item_id}", response_model=MediaItemRead)
 def get_media_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
     item = db.get(MediaItem, item_id)
     if not item:
@@ -79,7 +79,7 @@ def get_media_item(item_id: int, db: Session = Depends(get_db), _: User = Depend
     return item_to_read(item, db)
 
 
-@router.patch("/{item_id}", response_model=MediaItemRead)
+@router.patch("/media-item/{item_id}", response_model=MediaItemRead)
 def update_media_item(
     item_id: int,
     body: MediaItemUpdate,
@@ -97,7 +97,7 @@ def update_media_item(
     return item_to_read(item, db)
 
 
-@router.delete("/{item_id}", status_code=204)
+@router.delete("/media-item/{item_id}", status_code=204)
 def delete_media_item(
     item_id: int,
     db: Session = Depends(get_db),
@@ -115,50 +115,50 @@ def delete_media_item(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/collections", response_model=MediaCollectionRead, status_code=201)
-def create_media_collection(
-    body: MediaCollectionCreate,
+@router.post("/media-item-bundles", response_model=MediaItemBundleRead, status_code=201)
+def create_media_item_bundle(
+    body: MediaItemBundleCreate,
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_media"),
 ):
-    collection = MediaCollection(**body.model_dump(), slug=_unique_media_slug(body.title, db))
+    collection = MediaItemBundle(**body.model_dump(), slug=_unique_media_slug(body.title, db))
     db.add(collection)
     db.commit()
     db.refresh(collection)
-    return collection_to_read(collection, db)
+    return media_item_bundle_to_read(collection, db)
 
 
-@router.get("/collections", response_model=Page[MediaCollectionRead])
-def list_media_collections(
+@router.get("/media-item-bundles", response_model=Page[MediaItemBundleRead])
+def list_media_item_bundles(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     _: User = Depends(get_active_user),
 ):
-    q = db.query(MediaCollection).order_by(MediaCollection.id)
+    q = db.query(MediaItemBundle).order_by(MediaItemBundle.id)
     total = q.count()
     rows = q.offset(offset).limit(limit).all()
-    return Page(items=collections_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
+    return Page(items=media_item_bundle_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 
-@router.get("/collections/{collection_id}", response_model=MediaCollectionRead)
-def get_media_collection(
+@router.get("/media-item-bundle/{collection_id}", response_model=MediaItemBundleRead)
+def get_media_item_bundle(
     collection_id: int, db: Session = Depends(get_db), _: User = Depends(get_active_user)
 ):
-    collection = db.get(MediaCollection, collection_id)
+    collection = db.get(MediaItemBundle, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Media collection not found.")
-    return collection_to_read(collection, db)
+    return media_item_bundle_to_read(collection, db)
 
 
-@router.patch("/collections/{collection_id}", response_model=MediaCollectionRead)
-def update_media_collection(
+@router.patch("/media-item-bundle/{collection_id}", response_model=MediaItemBundleRead)
+def update_media_item_bundle(
     collection_id: int,
-    body: MediaCollectionUpdate,
+    body: MediaItemBundleUpdate,
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_media"),
 ):
-    collection = db.get(MediaCollection, collection_id)
+    collection = db.get(MediaItemBundle, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Media collection not found.")
     for key, value in body.model_dump(exclude_unset=True).items():
@@ -166,16 +166,16 @@ def update_media_collection(
     db.add(collection)
     db.commit()
     db.refresh(collection)
-    return collection_to_read(collection, db)
+    return media_item_bundle_to_read(collection, db)
 
 
-@router.delete("/collections/{collection_id}", status_code=204)
-def delete_media_collection(
+@router.delete("/media-item-bundle/{collection_id}", status_code=204)
+def delete_media_item_bundle(
     collection_id: int,
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_media"),
 ):
-    collection = db.get(MediaCollection, collection_id)
+    collection = db.get(MediaItemBundle, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Media collection not found.")
     db.delete(collection)
@@ -183,16 +183,16 @@ def delete_media_collection(
 
 
 # ---------------------------------------------------------------------------
-# Link / unlink a MediaItem or MediaCollection to a SoftwareCollection.
+# Link / unlink a MediaItem or MediaItemBundle to a GameItemBundle.
 #
 # doc 03's route table only listed item-level linking (/media/{id}/link);
 # the collections/{id}/link counterpart below closes that gap — the doc's own
 # prose names "an OST collection linked to a game" as a canonical case, so a
-# MediaCollection needs the same link/unlink surface as a MediaItem.
+# MediaItemBundle needs the same link/unlink surface as a MediaItem.
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{item_id}/link", response_model=MediaLinkRead, status_code=201)
+@router.post("/media-item/{item_id}/link", response_model=MediaLinkRead, status_code=201)
 def link_media_item(
     item_id: int,
     body: MediaLinkCreate,
@@ -202,11 +202,11 @@ def link_media_item(
     item = db.get(MediaItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Media item not found.")
-    if not db.get(SoftwareCollection, body.software_collection_id):
+    if not db.get(GameItemBundle, body.game_item_bundle_id):
         raise HTTPException(status_code=404, detail="Software collection not found.")
     link = MediaLink(
         media_item_id=item_id,
-        software_collection_id=body.software_collection_id,
+        game_item_bundle_id=body.game_item_bundle_id,
         link_note=body.link_note,
     )
     db.add(link)
@@ -215,10 +215,10 @@ def link_media_item(
     return link
 
 
-@router.delete("/{item_id}/link", status_code=204)
+@router.delete("/media-item/{item_id}/link", status_code=204)
 def unlink_media_item(
     item_id: int,
-    software_collection_id: int = Query(...),
+    game_item_bundle_id: int = Query(...),
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_media"),
 ):
@@ -226,7 +226,7 @@ def unlink_media_item(
         db.query(MediaLink)
         .filter(
             MediaLink.media_item_id == item_id,
-            MediaLink.software_collection_id == software_collection_id,
+            MediaLink.game_item_bundle_id == game_item_bundle_id,
         )
         .first()
     )
@@ -236,21 +236,21 @@ def unlink_media_item(
     db.commit()
 
 
-@router.post("/collections/{collection_id}/link", response_model=MediaLinkRead, status_code=201)
-def link_media_collection(
+@router.post("/media-item-bundle/{collection_id}/link", response_model=MediaLinkRead, status_code=201)
+def link_media_item_bundle(
     collection_id: int,
     body: MediaLinkCreate,
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_media"),
 ):
-    collection = db.get(MediaCollection, collection_id)
+    collection = db.get(MediaItemBundle, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Media collection not found.")
-    if not db.get(SoftwareCollection, body.software_collection_id):
+    if not db.get(GameItemBundle, body.game_item_bundle_id):
         raise HTTPException(status_code=404, detail="Software collection not found.")
     link = MediaLink(
-        media_collection_id=collection_id,
-        software_collection_id=body.software_collection_id,
+        media_item_bundle_id=collection_id,
+        game_item_bundle_id=body.game_item_bundle_id,
         link_note=body.link_note,
     )
     db.add(link)
@@ -259,18 +259,18 @@ def link_media_collection(
     return link
 
 
-@router.delete("/collections/{collection_id}/link", status_code=204)
-def unlink_media_collection(
+@router.delete("/media-item-bundle/{collection_id}/link", status_code=204)
+def unlink_media_item_bundle(
     collection_id: int,
-    software_collection_id: int = Query(...),
+    game_item_bundle_id: int = Query(...),
     db: Session = Depends(get_db),
     _: User = require_permission("can_edit_media"),
 ):
     link = (
         db.query(MediaLink)
         .filter(
-            MediaLink.media_collection_id == collection_id,
-            MediaLink.software_collection_id == software_collection_id,
+            MediaLink.media_item_bundle_id == collection_id,
+            MediaLink.game_item_bundle_id == game_item_bundle_id,
         )
         .first()
     )
@@ -290,7 +290,7 @@ def unlink_media_collection(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/upload")
+@router.post("/media-items/upload")
 async def upload_media_archive(
     file: UploadFile,
     _: User = require_permission("can_edit_media"),

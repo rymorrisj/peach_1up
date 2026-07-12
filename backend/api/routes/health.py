@@ -141,13 +141,13 @@ def _compute_storage_footprint(db: Session) -> dict:
     # era lives on the collection; file sizes on the leaf — join to break down by era.
     sized_rows = db.execute(
         text(
-            "SELECT c.era, i.file_size_bytes FROM software_items i "
-            "JOIN software_collections c ON c.id = i.software_collection_id "
+            "SELECT c.era, i.file_size_bytes FROM game_items i "
+            "JOIN game_item_bundles c ON c.id = i.game_item_bundle_id "
             "WHERE i.file_size_bytes IS NOT NULL"
         )
     ).fetchall()
     unsized_count = db.execute(
-        text("SELECT COUNT(*) FROM software_items WHERE file_size_bytes IS NULL")
+        text("SELECT COUNT(*) FROM game_items WHERE file_size_bytes IS NULL")
     ).scalar() or 0
 
     era_map: dict[str, dict] = {}
@@ -208,7 +208,7 @@ def rescan_file_sizes(
 ):
     rows = db.execute(
         text(
-            "SELECT id, file_path FROM software_items "
+            "SELECT id, file_path FROM game_items "
             "WHERE file_size_bytes IS NULL AND file_path IS NOT NULL"
         )
     ).fetchall()
@@ -217,7 +217,7 @@ def rescan_file_sizes(
         try:
             size = os.path.getsize(file_path)
             db.execute(
-                text("UPDATE software_items SET file_size_bytes = :size WHERE id = :id"),
+                text("UPDATE game_items SET file_size_bytes = :size WHERE id = :id"),
                 {"size": size, "id": item_id},
             )
             updated += 1
