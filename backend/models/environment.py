@@ -6,7 +6,7 @@ from sqlmodel import Field, SQLModel
 from backend.constants_generated import EmulatorCatalogSlug, EnvironmentStatus, EraValue, HardwareProfile
 
 
-class EnvironmentBase(SQLModel):
+class EnvironmentItemBase(SQLModel):
     name: str
     era: EraValue = Field(sa_column=Column(String, nullable=False))
     emulator_slug: EmulatorCatalogSlug = Field(sa_column=Column(String, nullable=False))
@@ -25,8 +25,8 @@ class EnvironmentBase(SQLModel):
     launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
 
 
-class Environment(EnvironmentBase, table=True):
-    __tablename__ = "environments"
+class EnvironmentItem(EnvironmentItemBase, table=True):
+    __tablename__ = "environment_items"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     slug: Optional[str] = Field(default=None, unique=True)
@@ -45,12 +45,12 @@ class Environment(EnvironmentBase, table=True):
     )
 
 
-class EnvironmentCreate(EnvironmentBase):
+class EnvironmentItemCreate(EnvironmentItemBase):
     slug: Optional[str] = None
     profile_id: Optional[int] = None
 
 
-class EnvironmentUpdate(SQLModel):
+class EnvironmentItemUpdate(SQLModel):
     name: Optional[str] = None
     era: Optional[EraValue] = None
     emulator_slug: Optional[EmulatorCatalogSlug] = None
@@ -70,7 +70,7 @@ class EnvironmentUpdate(SQLModel):
     launch_commands: Optional[list[str]] = None
 
 
-class EnvironmentRead(EnvironmentBase):
+class EnvironmentItemRead(EnvironmentItemBase):
     id: int
     slug: Optional[str] = None
     profile_id: Optional[int] = None
@@ -88,7 +88,7 @@ class StorageStats(SQLModel):
     emulator_binaries_bytes: int
 
 
-class EnvironmentHealthCounts(SQLModel):
+class EnvironmentItemHealthCounts(SQLModel):
     total: int
     healthy: int
     degraded: int
@@ -110,7 +110,7 @@ class BiosCounts(SQLModel):
 
 
 class HealthSummary(SQLModel):
-    environments: EnvironmentHealthCounts
+    environments: EnvironmentItemHealthCounts
     library: CountTotal
     drives: CountTotal
     extensions: CountTotal

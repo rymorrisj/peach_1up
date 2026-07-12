@@ -5,8 +5,8 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, func
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
-    from backend.models.app import AppCollection
-    from backend.models.software import SoftwareCollection
+    from backend.models.app import AppItemBundle
+    from backend.models.game import GameItemBundle
 
 class DriveBase(SQLModel):
     name: str
@@ -14,10 +14,10 @@ class DriveBase(SQLModel):
     image_path: Optional[str] = None
 
 # ---------------------------------------------------------------------------
-# Drive ownership: exactly one of software_collection_id / app_collection_id
+# Drive ownership: exactly one of game_item_bundle_id / app_item_bundle_id
 # must be set per row. A model_validator(mode="after") does not fire on direct
 # construction (Drive(...) + db.add()) on a SQLModel table=True class -- same
-# bug class as SoftwareCollection.item_type (backend/models/software.py) and
+# bug class as GameItemBundle.item_type (backend/models/game.py) and
 # MediaLink (backend/models/media.py). This mirrors MediaLink's fix exactly: a
 # model_post_init override runs the check once, after the full object is built
 # and both FK fields hold their final values. Unlike item_type there is no
@@ -29,21 +29,21 @@ class Drive(DriveBase, table=True):
     __tablename__ = "drives"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    software_collection_id: Optional[int] = Field(
+    game_item_bundle_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
             Integer,
-            ForeignKey("software_collections.id", ondelete="CASCADE"),
+            ForeignKey("game_item_bundles.id", ondelete="CASCADE"),
             nullable=True,
             unique=True,
             index=True,
         ),
     )
-    app_collection_id: Optional[int] = Field(
+    app_item_bundle_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
             Integer,
-            ForeignKey("app_collections.id", ondelete="CASCADE"),
+            ForeignKey("app_item_bundles.id", ondelete="CASCADE"),
             nullable=True,
             unique=True,
             index=True,
@@ -54,33 +54,33 @@ class Drive(DriveBase, table=True):
         sa_column=Column(DateTime, server_default=func.now(), nullable=False),
     )
 
-    software_collection: Optional["SoftwareCollection"] = Relationship(
+    game_item_bundle: Optional["GameItemBundle"] = Relationship(
         back_populates="drive",
         sa_relationship_kwargs={
-            "foreign_keys": "Drive.software_collection_id",
+            "foreign_keys": "Drive.game_item_bundle_id",
             "uselist": False,
         },
     )
-    app_collection: Optional["AppCollection"] = Relationship(
+    app_item_bundle: Optional["AppItemBundle"] = Relationship(
         back_populates="drive",
         sa_relationship_kwargs={
-            "foreign_keys": "Drive.app_collection_id",
+            "foreign_keys": "Drive.app_item_bundle_id",
             "uselist": False,
         },
     )
 
     def model_post_init(self, __context: object) -> None:
-        has_software = self.software_collection_id is not None
-        has_app = self.app_collection_id is not None
-        if has_software == has_app:
+        has_game = self.game_item_bundle_id is not None
+        has_app = self.app_item_bundle_id is not None
+        if has_game == has_app:
             raise ValueError(
-                "Exactly one of software_collection_id or app_collection_id must be set on a "
-                f"Drive (got software_collection_id={self.software_collection_id!r}, "
-                f"app_collection_id={self.app_collection_id!r})."
+                "Exactly one of game_item_bundle_id or app_item_bundle_id must be set on a "
+                f"Drive (got game_item_bundle_id={self.game_item_bundle_id!r}, "
+                f"app_item_bundle_id={self.app_item_bundle_id!r})."
             )
 
 class DriveRead(DriveBase):
     id: int
-    software_collection_id: Optional[int] = None
-    app_collection_id: Optional[int] = None
+    game_item_bundle_id: Optional[int] = None
+    app_item_bundle_id: Optional[int] = None
     created_at: datetime

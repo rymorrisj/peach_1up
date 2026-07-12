@@ -11,7 +11,7 @@ class MediaRestriction(SQLModel, table=True):
     user_id: int = Field(
         sa_column=Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     )
-    software_collection_id: Optional[int] = Field(
+    game_item_bundle_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("software_collections.id", ondelete="CASCADE"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("game_item_bundles.id", ondelete="CASCADE"), nullable=True),
     )

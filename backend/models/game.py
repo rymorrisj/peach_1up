@@ -21,18 +21,18 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 # ---------------------------------------------------------------------------
-# Leaf entity: SoftwareItem (one disc / media record within a collection).
-# Renamed from the former LibrarySetItem; single-disc games are collections-of-one.
+# Leaf entity: GameItem (one disc / media record within a bundle).
+# Single-disc games are bundles-of-one.
 # ---------------------------------------------------------------------------
 
-class SoftwareItem(SQLModel, table=True):
-    __tablename__ = "software_items"
+class GameItem(SQLModel, table=True):
+    __tablename__ = "game_items"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    software_collection_id: int = Field(
+    game_item_bundle_id: int = Field(
         sa_column=Column(
             Integer,
-            ForeignKey("software_collections.id", ondelete="CASCADE"),
+            ForeignKey("game_item_bundles.id", ondelete="CASCADE"),
             nullable=False,
             index=True,
         )
@@ -50,8 +50,8 @@ class SoftwareItem(SQLModel, table=True):
     # row even after the on-disk name has since diverged from the DB slug.
     original_name: Optional[str] = None
     # True only when folder_path was created/renamed exclusively for this item
-    # (or, for a multi-disc set, this collection) by the ingest pipeline itself
-    # — safe to rmtree on delete. False/None means folder_path is a pre-existing
+    # (or, for a multi-disc set, this bundle) by the ingest pipeline itself
+    #, safe to rmtree on delete. False/None means folder_path is a pre-existing
     # directory the ingest pipeline does not own (e.g. the parent of a loose
     # file ingested with no SOFTWARE_PATH configured) and must never be rmtree'd;
     # None covers rows written before this column existed, treated the same as
@@ -66,13 +66,13 @@ class SoftwareItem(SQLModel, table=True):
         sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False),
     )
 
-    software_collection: Optional["SoftwareCollection"] = Relationship(
+    game_item_bundle: Optional["GameItemBundle"] = Relationship(
         back_populates="items"
     )
 
-class SoftwareItemRead(SQLModel):
+class GameItemRead(SQLModel):
     id: int
-    software_collection_id: int
+    game_item_bundle_id: int
     disc_number: int
     file_path: str
     executable_path: Optional[str] = None
@@ -86,7 +86,7 @@ class SoftwareItemRead(SQLModel):
     updated_at: Optional[datetime] = None
 
     @model_validator(mode="after")
-    def _compute_cover_art_url(self) -> "SoftwareItemRead":
+    def _compute_cover_art_url(self) -> "GameItemRead":
         if not self.cover_art_path:
             return self
         try:
@@ -99,20 +99,20 @@ class SoftwareItemRead(SQLModel):
             pass
         return self
 
-class SoftwareItemUpdate(SQLModel):
+class GameItemUpdate(SQLModel):
     executable_path: Optional[str] = None
     cover_art_path: Optional[str] = None
 
 
-class SoftwareItemReorder(SQLModel):
-    # Every leaf id belonging to the collection, top-to-bottom. The first id
+class GameItemReorder(SQLModel):
+    # Every leaf id belonging to the bundle, top-to-bottom. The first id
     # becomes the new launch disc. disc_number columns are existing data, not
-    # a schema change — this only adds a write path for them.
+    # a schema change, this only adds a write path for them.
     disc_order: list[int]
 
 # ---------------------------------------------------------------------------
-# Parent entity: SoftwareCollection (the game / collection). Renamed from LibrarySet;
-# owns metadata, the writable drive (DOS), and the ordered leaf list.
+# Parent entity: GameItemBundle (the game). Owns metadata, the writable drive
+# (DOS), and the ordered leaf list.
 # ---------------------------------------------------------------------------
 
 
@@ -121,8 +121,8 @@ def derive_item_type(era: EraValue) -> ItemType:
     return "pc" if era in PC_ERAS else "console"
 
 
-class SoftwareCollection(SQLModel, table=True):
-    __tablename__ = "software_collections"
+class GameItemBundle(SQLModel, table=True):
+    __tablename__ = "game_item_bundles"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     slug: Optional[str] = Field(default=None, index=True, unique=True)
@@ -130,7 +130,7 @@ class SoftwareCollection(SQLModel, table=True):
     sort_title: Optional[str] = None
     era: EraValue = Field(sa_column=Column(String, nullable=False))
     # Derived-and-validated from era on write (see _derive_item_type_from_era below);
-    # default=None only so construction can omit it before the validator fills it in —
+    # default=None only so construction can omit it before the validator fills it in,
     # the stored column is NOT NULL.
     item_type: ItemType = Field(default=None, sa_column=Column(String, nullable=False))
     category: Optional[str] = None
@@ -146,12 +146,12 @@ class SoftwareCollection(SQLModel, table=True):
     requires_install: bool = False
     launch_review_flagged: bool = Field(default=False)
     # None = inherit the global delete_media_on_removal setting. True/False
-    # explicitly overrides it for this collection only.
+    # explicitly overrides it for this bundle only.
     delete_media_override: Optional[bool] = None
 
-    environment_id: Optional[int] = Field(
+    environment_item_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("environments.id", ondelete="SET NULL"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("environment_items.id", ondelete="SET NULL"), nullable=True),
     )
     profile_id: Optional[int] = Field(
         default=None,
@@ -161,8 +161,8 @@ class SoftwareCollection(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("drives.id"), nullable=True),
     )
-    # Logical FKs to software_items.id. Not DB-level constraints to avoid a circular
-    # reference between software_collections and software_items during table creation.
+    # Logical FKs to game_items.id. Not DB-level constraints to avoid a circular
+    # reference between game_item_bundles and game_items during table creation.
     launch_disk_id: Optional[int] = Field(default=None)
     # Which leaf's art is shown as the stack front-face. Falls back to launch_disk_id when null.
     display_disk_id: Optional[int] = Field(default=None)
@@ -178,18 +178,18 @@ class SoftwareCollection(SQLModel, table=True):
         sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False),
     )
 
-    items: list["SoftwareItem"] = Relationship(
-        back_populates="software_collection",
+    items: list["GameItem"] = Relationship(
+        back_populates="game_item_bundle",
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
-            "order_by": "SoftwareItem.disc_number",
+            "order_by": "GameItem.disc_number",
         },
     )
 
     drive: Optional["Drive"] = Relationship(
-        back_populates="software_collection",
+        back_populates="game_item_bundle",
         sa_relationship_kwargs={
-            "foreign_keys": "Drive.software_collection_id",
+            "foreign_keys": "Drive.game_item_bundle_id",
             "uselist": False,
         },
     )
@@ -206,7 +206,7 @@ class SoftwareCollection(SQLModel, table=True):
 
     def model_post_init(self, __context: object) -> None:
         # SQLModel's table-model __setattr__ writes each field twice per
-        # assignment (once via SQLAlchemy instrumentation, once via Pydantic) —
+        # assignment (once via SQLAlchemy instrumentation, once via Pydantic),
         # the second write always re-applies the raw incoming value, so a
         # value *transformed* by returning something different from
         # @validates never survives. That means item_type can only be
@@ -217,15 +217,15 @@ class SoftwareCollection(SQLModel, table=True):
         self.item_type = derive_item_type(self.era)
 
 
-class SoftwareCollectionCreate(SQLModel):
+class GameItemBundleCreate(SQLModel):
     title: str
     file_path: str
     era: EraValue = "unknown"
     profile_id: Optional[int] = None
-    environment_id: Optional[int] = None
+    environment_item_id: Optional[int] = None
 
 
-class SoftwareCollectionUpdate(SQLModel):
+class GameItemBundleUpdate(SQLModel):
     title: Optional[str] = None
     sort_title: Optional[str] = None
     era: Optional[EraValue] = None
@@ -241,7 +241,7 @@ class SoftwareCollectionUpdate(SQLModel):
     installed: Optional[bool] = None
     requires_install: Optional[bool] = None
     delete_media_override: Optional[bool] = None
-    environment_id: Optional[int] = None
+    environment_item_id: Optional[int] = None
     profile_id: Optional[int] = None
     display_disk_id: Optional[int] = None
     launch_disk_id: Optional[int] = None
@@ -256,7 +256,7 @@ class SoftwareCollectionUpdate(SQLModel):
         return data
 
 
-class SoftwareCollectionRead(SQLModel):
+class GameItemBundleRead(SQLModel):
     id: int
     slug: Optional[str] = None
     title: str
@@ -277,7 +277,7 @@ class SoftwareCollectionRead(SQLModel):
     requires_install: bool = False
     launch_review_flagged: bool = False
     delete_media_override: Optional[bool] = None
-    environment_id: Optional[int] = None
+    environment_item_id: Optional[int] = None
     profile_id: Optional[int] = None
     drive_id: Optional[int] = None
     launch_disk_id: Optional[int] = None
@@ -286,14 +286,14 @@ class SoftwareCollectionRead(SQLModel):
     launch_count: int = 0
     created_at: datetime
     updated_at: datetime
-    items: list[SoftwareItemRead] = []
+    items: list[GameItemRead] = []
     drive: Optional[DriveRead] = None
     tags: list[TagRead] = []
     # Pre-launch UX gate (doc 02 A5 part B): set to "no_environment" when this
-    # is a PC collection with no resolvable Environment (neither environment_id
+    # is a PC bundle with no resolvable Environment (neither environment_item_id
     # nor an era-matched system Environment fallback). Always None for console
-    # items. Computed at read time in collection_to_read / collections_to_read_bulk,
-    # not stored.
+    # items. Computed at read time in game_item_bundle_to_read /
+    # game_item_bundles_to_read_bulk, not stored.
     launch_blocked_reason: Optional[str] = None
 
 
@@ -332,8 +332,8 @@ class ImportResult(SQLModel):
 # ---------------------------------------------------------------------------
 
 
-def _leaf_to_read(leaf: SoftwareItem) -> Optional[SoftwareItemRead]:
-    """Validate one leaf into a SoftwareItemRead, isolating a single bad row.
+def _leaf_to_read(leaf: GameItem) -> Optional[GameItemRead]:
+    """Validate one leaf into a GameItemRead, isolating a single bad row.
 
     A leaf whose DB-persisted ``file_type`` predates the current FileType
     vocabulary (the column is a bare String and enforces no Literal) would raise
@@ -348,7 +348,7 @@ def _leaf_to_read(leaf: SoftwareItem) -> Optional[SoftwareItemRead]:
     from backend.core.logger import get_logger
 
     try:
-        return SoftwareItemRead.model_validate(leaf)
+        return GameItemRead.model_validate(leaf)
     except ValidationError as exc:
         log = get_logger(__name__)
         leaf_id = getattr(leaf, "id", None)
@@ -361,11 +361,11 @@ def _leaf_to_read(leaf: SoftwareItem) -> Optional[SoftwareItemRead]:
         try:
             payload = {
                 name: getattr(leaf, name, None)
-                for name in SoftwareItemRead.model_fields
+                for name in GameItemRead.model_fields
                 if name != "cover_art_url"
             }
             payload["file_type"] = None
-            return SoftwareItemRead.model_validate(payload)
+            return GameItemRead.model_validate(payload)
         except ValidationError as exc2:
             log.warning(
                 "Library item %s is unreadable even after degrading file_type; "
@@ -375,88 +375,88 @@ def _leaf_to_read(leaf: SoftwareItem) -> Optional[SoftwareItemRead]:
             return None
 
 
-def _leaves_for_collection(collection_id: int, db: "Session") -> list[SoftwareItem]:
+def _leaves_for_bundle(bundle_id: int, db: "Session") -> list[GameItem]:
     from sqlalchemy import select as _select
 
     return list(
         db.execute(
-            _select(SoftwareItem)
-            .where(SoftwareItem.software_collection_id == collection_id)
-            .order_by(SoftwareItem.disc_number)
+            _select(GameItem)
+            .where(GameItem.game_item_bundle_id == bundle_id)
+            .order_by(GameItem.disc_number)
         ).scalars().all()
     )
 
 
-def _launch_blocked_reason(c: "SoftwareCollection", system_eras: set[str]) -> Optional[str]:
-    """Returns "no_environment" iff *c* is a PC collection with no resolvable
-    Environment (neither its own environment_id nor an era-matched is_system
+def _launch_blocked_reason(c: "GameItemBundle", system_eras: set[str]) -> Optional[str]:
+    """Returns "no_environment" iff *c* is a PC bundle with no resolvable
+    Environment (neither its own environment_item_id nor an era-matched is_system
     Environment fallback -- see coordinator._resolve_environment_for_pc_entity,
     the launch-time counterpart of this same resolution). None for console
     items and any PC item with a resolvable Environment."""
     if c.item_type != "pc":
         return None
-    if c.environment_id is not None:
+    if c.environment_item_id is not None:
         return None
     if c.era in system_eras:
         return None
     return "no_environment"
 
 
-def collection_to_read(c: "SoftwareCollection", db: "Session") -> SoftwareCollectionRead:
-    """Build a SoftwareCollectionRead, nesting ordered leaves, tags, and genres."""
-    from backend.models.metadata_lookup import get_genres_for_collection
+def game_item_bundle_to_read(c: "GameItemBundle", db: "Session") -> GameItemBundleRead:
+    """Build a GameItemBundleRead, nesting ordered leaves, tags, and genres."""
+    from backend.models.metadata_lookup import get_genres_for_game_item_bundle
     from backend.service.utils.era_defaults import system_environment_eras
 
-    read = SoftwareCollectionRead.model_validate(c)
+    read = GameItemBundleRead.model_validate(c)
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
-    read.tags = get_tags_for_entity("software_collection", c.id, db)
-    read.genres = get_genres_for_collection(c.id, db)
-    needed_eras = {c.era} if c.item_type == "pc" and c.environment_id is None else set()
+    read.tags = get_tags_for_entity("game_item_bundle", c.id, db)
+    read.genres = get_genres_for_game_item_bundle(c.id, db)
+    needed_eras = {c.era} if c.item_type == "pc" and c.environment_item_id is None else set()
     read.launch_blocked_reason = _launch_blocked_reason(c, system_environment_eras(needed_eras, db))
     return read
 
 
-def collections_to_read_bulk(
-    collections: list["SoftwareCollection"], db: "Session"
-) -> list[SoftwareCollectionRead]:
-    """collection_to_read over a list in three bulk queries total (all leaves,
-    all tags, all genres) instead of the per-collection N+1."""
+def game_item_bundles_to_read_bulk(
+    bundles: list["GameItemBundle"], db: "Session"
+) -> list[GameItemBundleRead]:
+    """game_item_bundle_to_read over a list in three bulk queries total (all
+    leaves, all tags, all genres) instead of the per-bundle N+1."""
     from sqlalchemy import select as _select
 
-    from backend.models.metadata_lookup import get_genres_for_collections
+    from backend.models.metadata_lookup import get_genres_for_game_item_bundles
     from backend.service.utils.era_defaults import system_environment_eras
 
-    if not collections:
+    if not bundles:
         return []
 
-    collection_ids = [c.id for c in collections]
+    bundle_ids = [c.id for c in bundles]
     leaves = db.execute(
-        _select(SoftwareItem)
-        .where(SoftwareItem.software_collection_id.in_(collection_ids))
-        .order_by(SoftwareItem.software_collection_id, SoftwareItem.disc_number)
+        _select(GameItem)
+        .where(GameItem.game_item_bundle_id.in_(bundle_ids))
+        .order_by(GameItem.game_item_bundle_id, GameItem.disc_number)
     ).scalars().all()
 
-    leaves_by_collection: dict[int, list[SoftwareItemRead]] = {}
+    leaves_by_bundle: dict[int, list[GameItemRead]] = {}
     for leaf in leaves:
         leaf_read = _leaf_to_read(leaf)
         if leaf_read is None:
             continue
-        leaves_by_collection.setdefault(leaf.software_collection_id, []).append(leaf_read)
+        leaves_by_bundle.setdefault(leaf.game_item_bundle_id, []).append(leaf_read)
 
-    tag_map = get_tags_for_entities("software_collection", collection_ids, db)
-    genre_map = get_genres_for_collections(collection_ids, db)
+    tag_map = get_tags_for_entities("game_item_bundle", bundle_ids, db)
+    genre_map = get_genres_for_game_item_bundles(bundle_ids, db)
 
     # One batched query for every era that might need the system-Environment
-    # fallback, instead of a per-collection lookup (N+1).
+    # fallback, instead of a per-bundle lookup (N+1).
     needed_eras = {
-        c.era for c in collections if c.item_type == "pc" and c.environment_id is None
+        c.era for c in bundles if c.item_type == "pc" and c.environment_item_id is None
     }
     system_eras = system_environment_eras(needed_eras, db)
 
-    reads: list[SoftwareCollectionRead] = []
-    for c in collections:
-        read = SoftwareCollectionRead.model_validate(c)
-        read.items = leaves_by_collection.get(c.id, [])
+    reads: list[GameItemBundleRead] = []
+    for c in bundles:
+        read = GameItemBundleRead.model_validate(c)
+        read.items = leaves_by_bundle.get(c.id, [])
         read.tags = tag_map.get(c.id, [])
         read.genres = genre_map.get(c.id, [])
         read.launch_blocked_reason = _launch_blocked_reason(c, system_eras)

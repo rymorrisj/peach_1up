@@ -20,17 +20,17 @@ class LaunchHistory(LaunchHistoryBase, table=True):
     __tablename__ = "launch_history"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    software_collection_id: Optional[int] = Field(
+    game_item_bundle_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("software_collections.id", ondelete="CASCADE"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("game_item_bundles.id", ondelete="CASCADE"), nullable=True),
     )
-    app_collection_id: Optional[int] = Field(
+    app_item_bundle_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("app_collections.id", ondelete="CASCADE"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("app_item_bundles.id", ondelete="CASCADE"), nullable=True),
     )
-    environment_id: Optional[int] = Field(
+    environment_item_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("environments.id", ondelete="CASCADE"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("environment_items.id", ondelete="CASCADE"), nullable=True),
     )
     profile_id: Optional[int] = Field(
         default=None,
@@ -47,23 +47,23 @@ class LaunchHistory(LaunchHistoryBase, table=True):
 
 class LaunchHistoryRead(LaunchHistoryBase):
     id: int
-    software_collection_id: Optional[int] = None
-    app_collection_id: Optional[int] = None
-    environment_id: Optional[int] = None
+    game_item_bundle_id: Optional[int] = None
+    app_item_bundle_id: Optional[int] = None
+    environment_item_id: Optional[int] = None
     profile_id: Optional[int] = None
     started_at: datetime
     ended_at: Optional[datetime] = None
     exit_code: Optional[int] = None
     error_message: Optional[str] = None
-    # Derived discriminator (not stored): a collection launch vs an environment launch.
+    # Derived discriminator (not stored): a bundle launch vs an environment launch.
     target_type: Optional[str] = None
 
     @model_validator(mode="after")
     def _derive_target_type(self) -> "LaunchHistoryRead":
-        if self.software_collection_id is not None:
-            self.target_type = "software_collection"
-        elif self.app_collection_id is not None:
-            self.target_type = "app_collection"
-        elif self.environment_id is not None:
-            self.target_type = "environment"
+        if self.game_item_bundle_id is not None:
+            self.target_type = "game_item_bundle"
+        elif self.app_item_bundle_id is not None:
+            self.target_type = "app_item_bundle"
+        elif self.environment_item_id is not None:
+            self.target_type = "environment_item"
         return self

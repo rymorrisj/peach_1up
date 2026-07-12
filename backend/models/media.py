@@ -13,8 +13,8 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 # ---------------------------------------------------------------------------
-# Leaf entity: MediaItem (one archival file — audio/text/image/video).
-# Mirrors SoftwareItem/SoftwareCollection deliberately (see backend/models/software.py).
+# Leaf entity: MediaItem (one archival file, audio/text/image/video).
+# Mirrors GameItem/GameItemBundle deliberately (see backend/models/game.py).
 # ---------------------------------------------------------------------------
 
 
@@ -29,11 +29,11 @@ class MediaItem(SQLModel, table=True):
     file_size_bytes: Optional[int] = None
     cover_art_path: Optional[str] = None
     description: Optional[str] = None
-    media_collection_id: Optional[int] = Field(
+    media_item_bundle_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
             Integer,
-            ForeignKey("media_collections.id", ondelete="CASCADE"),
+            ForeignKey("media_item_bundles.id", ondelete="CASCADE"),
             nullable=True,
         ),
     )
@@ -47,7 +47,7 @@ class MediaItem(SQLModel, table=True):
         sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False),
     )
 
-    collection: Optional["MediaCollection"] = Relationship(back_populates="items")
+    bundle: Optional["MediaItemBundle"] = Relationship(back_populates="items")
 
 
 class MediaItemCreate(SQLModel):
@@ -57,7 +57,7 @@ class MediaItemCreate(SQLModel):
     file_size_bytes: Optional[int] = None
     cover_art_path: Optional[str] = None
     description: Optional[str] = None
-    media_collection_id: Optional[int] = None
+    media_item_bundle_id: Optional[int] = None
     sort_index: int = 0
 
 
@@ -65,14 +65,14 @@ class MediaItemUpdate(SQLModel):
     title: Optional[str] = None
     cover_art_path: Optional[str] = None
     description: Optional[str] = None
-    media_collection_id: Optional[int] = None
+    media_item_bundle_id: Optional[int] = None
     sort_index: Optional[int] = None
 
 
 def _compute_cover_art_url(cover_art_path: Optional[str]) -> Optional[str]:
-    """Same pattern as SoftwareItemRead._compute_cover_art_url: cover art is
+    """Same pattern as GameItemRead._compute_cover_art_url: cover art is
     served through main.py's static /media/{file_path} route, which resolves
-    any path under LIBRARY_PATH — not specifically the MEDIA_PATH subtree — so
+    any path under LIBRARY_PATH, not specifically the MEDIA_PATH subtree, so
     this works unchanged for the Media domain's own MEDIA_PATH-rooted files."""
     if not cover_art_path:
         return None
@@ -86,11 +86,11 @@ def _compute_cover_art_url(cover_art_path: Optional[str]) -> Optional[str]:
         return None
 
 
-class LinkedSoftwareRef(SQLModel):
-    """One SoftwareCollection a MediaItem/MediaCollection is linked to, via MediaLink."""
+class LinkedGameRef(SQLModel):
+    """One GameItemBundle a MediaItem/MediaItemBundle is linked to, via MediaLink."""
 
     link_id: int
-    software_collection_id: int
+    game_item_bundle_id: int
     title: str
     slug: Optional[str] = None
     link_note: Optional[str] = None
@@ -106,12 +106,12 @@ class MediaItemRead(SQLModel):
     cover_art_path: Optional[str] = None
     cover_art_url: Optional[str] = None
     description: Optional[str] = None
-    media_collection_id: Optional[int] = None
+    media_item_bundle_id: Optional[int] = None
     sort_index: int = 0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     tags: list[TagRead] = []
-    linked_software: list[LinkedSoftwareRef] = []
+    linked_game: list[LinkedGameRef] = []
 
     @model_validator(mode="after")
     def _fill_cover_art_url(self) -> "MediaItemRead":
@@ -120,13 +120,13 @@ class MediaItemRead(SQLModel):
 
 
 # ---------------------------------------------------------------------------
-# Parent entity: MediaCollection (grouping of same-kind media, e.g. a
-# multi-track OST). Mirrors SoftwareCollection's items relationship.
+# Parent entity: MediaItemBundle (grouping of same-kind media, e.g. a
+# multi-track OST). Mirrors GameItemBundle's items relationship.
 # ---------------------------------------------------------------------------
 
 
-class MediaCollection(SQLModel, table=True):
-    __tablename__ = "media_collections"
+class MediaItemBundle(SQLModel, table=True):
+    __tablename__ = "media_item_bundles"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     slug: Optional[str] = Field(default=None, index=True, unique=True)
@@ -144,7 +144,7 @@ class MediaCollection(SQLModel, table=True):
     )
 
     items: list["MediaItem"] = Relationship(
-        back_populates="collection",
+        back_populates="bundle",
         sa_relationship_kwargs={
             "order_by": "MediaItem.sort_index",
             "cascade": "all, delete-orphan",
@@ -152,20 +152,20 @@ class MediaCollection(SQLModel, table=True):
     )
 
 
-class MediaCollectionCreate(SQLModel):
+class MediaItemBundleCreate(SQLModel):
     title: str
     media_kind: MediaKind
     description: Optional[str] = None
     cover_art_path: Optional[str] = None
 
 
-class MediaCollectionUpdate(SQLModel):
+class MediaItemBundleUpdate(SQLModel):
     title: Optional[str] = None
     description: Optional[str] = None
     cover_art_path: Optional[str] = None
 
 
-class MediaCollectionRead(SQLModel):
+class MediaItemBundleRead(SQLModel):
     id: int
     slug: Optional[str] = None
     title: str
@@ -177,28 +177,28 @@ class MediaCollectionRead(SQLModel):
     updated_at: Optional[datetime] = None
     items: list[MediaItemRead] = []
     tags: list[TagRead] = []
-    linked_software: list[LinkedSoftwareRef] = []
+    linked_game: list[LinkedGameRef] = []
 
     @model_validator(mode="after")
-    def _fill_cover_art_url(self) -> "MediaCollectionRead":
+    def _fill_cover_art_url(self) -> "MediaItemBundleRead":
         self.cover_art_url = _compute_cover_art_url(self.cover_art_path)
         return self
 
 
 # ---------------------------------------------------------------------------
-# MediaLink — Media <-> Software join. Exactly one of media_item_id /
-# media_collection_id must be set per row. A model_validator(mode="after")
+# MediaLink, Media <-> Game join. Exactly one of media_item_id /
+# media_item_bundle_id must be set per row. A model_validator(mode="after")
 # does not fire on direct construction (MediaLink(...) + db.add()) on a
-# SQLModel table=True class — same bug class as SoftwareCollection.item_type
-# (see backend/models/software.py). @validates on each FK field individually
+# SQLModel table=True class, same bug class as GameItemBundle.item_type
+# (see backend/models/game.py). @validates on each FK field individually
 # does not work either: sqlmodel_table_construct() setattr()s every field in
-# class-declaration order (media_item_id before media_collection_id), so
+# class-declaration order (media_item_id before media_item_bundle_id), so
 # constructing with only the *second*-declared field passed causes the
 # first-declared field's validator to fire first, while the second field is
-# still unset — it sees both as None and incorrectly raises "neither set"
+# still unset, it sees both as None and incorrectly raises "neither set"
 # before the real value is ever assigned. Whichever field is declared first
 # always breaks single-field construction of the *other* field. Fixed the
-# same way as SoftwareCollection.item_type: a model_post_init override runs
+# same way as GameItemBundle.item_type: a model_post_init override runs
 # the check once, after the full object is built and both fields hold their
 # final values.
 # ---------------------------------------------------------------------------
@@ -212,77 +212,77 @@ class MediaLink(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=True),
     )
-    media_collection_id: Optional[int] = Field(
+    media_item_bundle_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("media_collections.id", ondelete="CASCADE"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("media_item_bundles.id", ondelete="CASCADE"), nullable=True),
     )
-    software_collection_id: int = Field(
+    game_item_bundle_id: int = Field(
         sa_column=Column(
-            Integer, ForeignKey("software_collections.id", ondelete="CASCADE"), nullable=False
+            Integer, ForeignKey("game_item_bundles.id", ondelete="CASCADE"), nullable=False
         )
     )
     link_note: Optional[str] = None
 
     def model_post_init(self, __context: object) -> None:
         has_item = self.media_item_id is not None
-        has_collection = self.media_collection_id is not None
-        if has_item == has_collection:
+        has_bundle = self.media_item_bundle_id is not None
+        if has_item == has_bundle:
             raise ValueError(
-                "Exactly one of media_item_id or media_collection_id must be set on a "
+                "Exactly one of media_item_id or media_item_bundle_id must be set on a "
                 f"MediaLink (got media_item_id={self.media_item_id!r}, "
-                f"media_collection_id={self.media_collection_id!r})."
+                f"media_item_bundle_id={self.media_item_bundle_id!r})."
             )
 
 
 class MediaLinkCreate(SQLModel):
-    software_collection_id: int
+    game_item_bundle_id: int
     link_note: Optional[str] = None
 
 
 class MediaLinkRead(SQLModel):
     id: int
     media_item_id: Optional[int] = None
-    media_collection_id: Optional[int] = None
-    software_collection_id: int
+    media_item_bundle_id: Optional[int] = None
+    game_item_bundle_id: int
     link_note: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
-# Read-model builders — tags via the generic get_tags_for_entity(_entities)
-# helper Software already uses (backend/models/tag.py), called here with the
-# new "media_item"/"media_collection" entity_type strings.
+# Read-model builders, tags via the generic get_tags_for_entity(_entities)
+# helper Game already uses (backend/models/tag.py), called here with the
+# "media_item"/"media_item_bundle" entity_type strings.
 # ---------------------------------------------------------------------------
 
 
-def _linked_software_for(
+def _linked_game_for(
     entity_type: str, entity_id: int, db: "Session"
-) -> list[LinkedSoftwareRef]:
-    return _linked_software_for_many(entity_type, [entity_id], db).get(entity_id, [])
+) -> list[LinkedGameRef]:
+    return _linked_game_for_many(entity_type, [entity_id], db).get(entity_id, [])
 
 
-def _linked_software_for_many(
+def _linked_game_for_many(
     entity_type: str, entity_ids: list[int], db: "Session"
-) -> dict[int, list[LinkedSoftwareRef]]:
+) -> dict[int, list[LinkedGameRef]]:
     if not entity_ids:
         return {}
     from sqlalchemy import select as _select
 
-    from backend.models.software import SoftwareCollection
+    from backend.models.game import GameItemBundle
 
-    link_col = MediaLink.media_item_id if entity_type == "media_item" else MediaLink.media_collection_id
+    link_col = MediaLink.media_item_id if entity_type == "media_item" else MediaLink.media_item_bundle_id
     rows = db.execute(
-        _select(link_col, MediaLink.id, MediaLink.link_note, SoftwareCollection)
-        .join(SoftwareCollection, SoftwareCollection.id == MediaLink.software_collection_id)
+        _select(link_col, MediaLink.id, MediaLink.link_note, GameItemBundle)
+        .join(GameItemBundle, GameItemBundle.id == MediaLink.game_item_bundle_id)
         .where(link_col.in_(entity_ids))
     ).all()
-    result: dict[int, list[LinkedSoftwareRef]] = {}
-    for owner_id, link_id, link_note, collection in rows:
+    result: dict[int, list[LinkedGameRef]] = {}
+    for owner_id, link_id, link_note, bundle in rows:
         result.setdefault(owner_id, []).append(
-            LinkedSoftwareRef(
+            LinkedGameRef(
                 link_id=link_id,
-                software_collection_id=collection.id,
-                title=collection.title,
-                slug=collection.slug,
+                game_item_bundle_id=bundle.id,
+                title=bundle.title,
+                slug=bundle.slug,
                 link_note=link_note,
             )
         )
@@ -292,7 +292,7 @@ def _linked_software_for_many(
 def item_to_read(item: MediaItem, db: "Session") -> MediaItemRead:
     read = MediaItemRead.model_validate(item)
     read.tags = get_tags_for_entity("media_item", item.id, db)
-    read.linked_software = _linked_software_for("media_item", item.id, db)
+    read.linked_game = _linked_game_for("media_item", item.id, db)
     return read
 
 
@@ -301,37 +301,37 @@ def items_to_read_bulk(items: list[MediaItem], db: "Session") -> list[MediaItemR
         return []
     item_ids = [i.id for i in items]
     tag_map = get_tags_for_entities("media_item", item_ids, db)
-    linked_map = _linked_software_for_many("media_item", item_ids, db)
+    linked_map = _linked_game_for_many("media_item", item_ids, db)
     reads = []
     for i in items:
         read = MediaItemRead.model_validate(i)
         read.tags = tag_map.get(i.id, [])
-        read.linked_software = linked_map.get(i.id, [])
+        read.linked_game = linked_map.get(i.id, [])
         reads.append(read)
     return reads
 
 
-def collection_to_read(collection: MediaCollection, db: "Session") -> MediaCollectionRead:
-    read = MediaCollectionRead.model_validate(collection)
-    read.items = items_to_read_bulk(list(collection.items), db)
-    read.tags = get_tags_for_entity("media_collection", collection.id, db)
-    read.linked_software = _linked_software_for("media_collection", collection.id, db)
+def media_item_bundle_to_read(bundle: MediaItemBundle, db: "Session") -> MediaItemBundleRead:
+    read = MediaItemBundleRead.model_validate(bundle)
+    read.items = items_to_read_bulk(list(bundle.items), db)
+    read.tags = get_tags_for_entity("media_item_bundle", bundle.id, db)
+    read.linked_game = _linked_game_for("media_item_bundle", bundle.id, db)
     return read
 
 
-def collections_to_read_bulk(
-    collections: list[MediaCollection], db: "Session"
-) -> list[MediaCollectionRead]:
-    if not collections:
+def media_item_bundle_to_read_bulk(
+    bundles: list[MediaItemBundle], db: "Session"
+) -> list[MediaItemBundleRead]:
+    if not bundles:
         return []
-    collection_ids = [c.id for c in collections]
-    tag_map = get_tags_for_entities("media_collection", collection_ids, db)
-    linked_map = _linked_software_for_many("media_collection", collection_ids, db)
+    bundle_ids = [c.id for c in bundles]
+    tag_map = get_tags_for_entities("media_item_bundle", bundle_ids, db)
+    linked_map = _linked_game_for_many("media_item_bundle", bundle_ids, db)
     reads = []
-    for c in collections:
-        read = MediaCollectionRead.model_validate(c)
+    for c in bundles:
+        read = MediaItemBundleRead.model_validate(c)
         read.items = items_to_read_bulk(list(c.items), db)
         read.tags = tag_map.get(c.id, [])
-        read.linked_software = linked_map.get(c.id, [])
+        read.linked_game = linked_map.get(c.id, [])
         reads.append(read)
     return reads

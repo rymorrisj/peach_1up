@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 
 class Genre(SQLModel, table=True):
-    """Provider-resolved genre, joinable onto SoftwareCollection (many-to-many).
+    """Provider-resolved genre, joinable onto GameItemBundle (many-to-many).
 
     Unique on (provider, external_id) for the fast cache-hit path used by a
     provider's own ID resolution loop. name also carries its own unique
@@ -25,15 +25,15 @@ class Genre(SQLModel, table=True):
     name: str = Field(sa_column=Column(String, nullable=False, unique=True, index=True))
 
 
-class SoftwareCollectionGenre(SQLModel, table=True):
-    """Join row: one per (collection, genre) pair. Real FK, not polymorphic —
-    genre only ever applies to SoftwareCollection, unlike EntityTag's tags."""
-    __tablename__ = "software_collection_genres"
-    __table_args__ = (UniqueConstraint("software_collection_id", "genre_id"),)
+class GameItemBundleGenre(SQLModel, table=True):
+    """Join row: one per (bundle, genre) pair. Real FK, not polymorphic —
+    genre only ever applies to GameItemBundle, unlike EntityTag's tags."""
+    __tablename__ = "game_item_bundle_genres"
+    __table_args__ = (UniqueConstraint("game_item_bundle_id", "genre_id"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    software_collection_id: int = Field(
-        sa_column=Column(Integer, ForeignKey("software_collections.id", ondelete="CASCADE"), nullable=False, index=True)
+    game_item_bundle_id: int = Field(
+        sa_column=Column(Integer, ForeignKey("game_item_bundles.id", ondelete="CASCADE"), nullable=False, index=True)
     )
     genre_id: int = Field(
         sa_column=Column(Integer, ForeignKey("genres.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -42,8 +42,8 @@ class SoftwareCollectionGenre(SQLModel, table=True):
 
 class Developer(SQLModel, table=True):
     """Provider ID -> name cache, used internally by a provider's resolver
-    only. Never joined onto SoftwareCollection — the resolved name is written
-    into SoftwareCollection.developer as a plain string, same as publisher."""
+    only. Never joined onto GameItemBundle — the resolved name is written
+    into GameItemBundle.developer as a plain string, same as publisher."""
     __tablename__ = "developers"
     __table_args__ = (UniqueConstraint("provider", "external_id"),)
 
@@ -116,43 +116,43 @@ def get_or_create_publisher(db: "Session", provider: str, external_id: int, name
     return publisher
 
 
-def get_genres_for_collection(collection_id: int, db: "Session") -> list[str]:
+def get_genres_for_game_item_bundle(bundle_id: int, db: "Session") -> list[str]:
     from sqlalchemy import select as _select
 
     rows = db.execute(
         _select(Genre.name)
-        .join(SoftwareCollectionGenre, SoftwareCollectionGenre.genre_id == Genre.id)
-        .where(SoftwareCollectionGenre.software_collection_id == collection_id)
+        .join(GameItemBundleGenre, GameItemBundleGenre.genre_id == Genre.id)
+        .where(GameItemBundleGenre.game_item_bundle_id == bundle_id)
         .order_by(Genre.name)
     ).scalars().all()
     return list(rows)
 
 
-def get_genres_for_collections(collection_ids: list[int], db: "Session") -> dict[int, list[str]]:
-    """Bulk variant of get_genres_for_collection — one query for many collections."""
-    if not collection_ids:
+def get_genres_for_game_item_bundles(bundle_ids: list[int], db: "Session") -> dict[int, list[str]]:
+    """Bulk variant of get_genres_for_game_item_bundle — one query for many bundles."""
+    if not bundle_ids:
         return {}
     from sqlalchemy import select as _select
 
     rows = db.execute(
-        _select(SoftwareCollectionGenre.software_collection_id, Genre.name)
-        .join(Genre, SoftwareCollectionGenre.genre_id == Genre.id)
-        .where(SoftwareCollectionGenre.software_collection_id.in_(collection_ids))
-        .order_by(SoftwareCollectionGenre.software_collection_id, Genre.name)
+        _select(GameItemBundleGenre.game_item_bundle_id, Genre.name)
+        .join(Genre, GameItemBundleGenre.genre_id == Genre.id)
+        .where(GameItemBundleGenre.game_item_bundle_id.in_(bundle_ids))
+        .order_by(GameItemBundleGenre.game_item_bundle_id, Genre.name)
     ).all()
     result: dict[int, list[str]] = {}
-    for collection_id, name in rows:
-        result.setdefault(collection_id, []).append(name)
+    for bundle_id, name in rows:
+        result.setdefault(bundle_id, []).append(name)
     return result
 
 
-def set_genres_for_collection(db: "Session", collection_id: int, names: list[str], *, provider: Optional[str] = None) -> None:
-    """Replace-all write: delete this collection's existing genre links, then
+def set_genres_for_game_item_bundle(db: "Session", bundle_id: int, names: list[str], *, provider: Optional[str] = None) -> None:
+    """Replace-all write: delete this bundle's existing genre links, then
     re-link to (get-or-create) a Genre row for each name. Matches how every
     other enrich_entity() field is a full overwrite, not a merge."""
-    db.query(SoftwareCollectionGenre).filter(
-        SoftwareCollectionGenre.software_collection_id == collection_id
+    db.query(GameItemBundleGenre).filter(
+        GameItemBundleGenre.game_item_bundle_id == bundle_id
     ).delete()
     for name in names:
         genre = get_or_create_genre(db, name, provider=provider)
-        db.add(SoftwareCollectionGenre(software_collection_id=collection_id, genre_id=genre.id))
+        db.add(GameItemBundleGenre(game_item_bundle_id=bundle_id, genre_id=genre.id))

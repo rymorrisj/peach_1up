@@ -2,25 +2,25 @@ from backend.models.bios import BiosRequirement
 from backend.models.drive import Drive, DriveBase, DriveRead
 from backend.models.filesystem import BrowseResult, DirEntry, DriveEntry, DrivesResult, FileEntry
 from backend.models.app import (
-    AppCollection, AppCollectionCreate, AppCollectionRead, AppCollectionUpdate,
+    AppItemBundle, AppItemBundleCreate, AppItemBundleRead, AppItemBundleUpdate,
     AppItem, AppItemRead, AppItemUpdate,
-    app_to_read, apps_to_read_bulk,
+    app_item_bundle_to_read, app_item_bundles_to_read_bulk,
 )
-from backend.models.software import (
+from backend.models.game import (
     ImportErrorItem, ImportResult,
-    SoftwareCollection, SoftwareCollectionCreate, SoftwareCollectionRead, SoftwareCollectionUpdate,
-    SoftwareItem, SoftwareItemRead, SoftwareItemUpdate,
+    GameItemBundle, GameItemBundleCreate, GameItemBundleRead, GameItemBundleUpdate,
+    GameItem, GameItemRead, GameItemUpdate,
     ScanPreviewItem, ScanStatus,
-    collection_to_read, collections_to_read_bulk,
+    game_item_bundle_to_read, game_item_bundles_to_read_bulk,
 )
-from backend.models.environment import BiosCounts, CountTotal, HealthSummary, InstalledCounts, Environment, EnvironmentBase, EnvironmentCreate, EnvironmentHealthCounts, EnvironmentUpdate, EnvironmentRead, StorageStats
+from backend.models.environment import BiosCounts, CountTotal, HealthSummary, InstalledCounts, EnvironmentItem, EnvironmentItemBase, EnvironmentItemCreate, EnvironmentItemHealthCounts, EnvironmentItemUpdate, EnvironmentItemRead, StorageStats
 from backend.models.media import (
-    LinkedSoftwareRef,
-    MediaCollection, MediaCollectionCreate, MediaCollectionRead, MediaCollectionUpdate,
+    LinkedGameRef,
+    MediaItemBundle, MediaItemBundleCreate, MediaItemBundleRead, MediaItemBundleUpdate,
     MediaItem, MediaItemCreate, MediaItemRead, MediaItemUpdate,
     MediaLink, MediaLinkCreate, MediaLinkRead,
-    collection_to_read as media_collection_to_read,
-    collections_to_read_bulk as media_collections_to_read_bulk,
+    media_item_bundle_to_read,
+    media_item_bundle_to_read_bulk,
     item_to_read as media_item_to_read,
     items_to_read_bulk as media_items_to_read_bulk,
 )
@@ -37,10 +37,10 @@ from backend.models.controller_mapping import (
     ControllerMappingRead, ControllerMappingUpdate, mapping_to_read as controller_mapping_to_read,
 )
 from backend.models.metadata_lookup import (
-    Developer, Genre, SoftwareCollectionGenre, Publisher,
-    get_genres_for_collection, get_genres_for_collections,
+    Developer, Genre, GameItemBundleGenre, Publisher,
+    get_genres_for_game_item_bundle, get_genres_for_game_item_bundles,
     get_or_create_developer, get_or_create_genre, get_or_create_publisher,
-    set_genres_for_collection,
+    set_genres_for_game_item_bundle,
 )
 
 # We do not maintain a __all__ as * wildcard imports are to be avoided per project practices
