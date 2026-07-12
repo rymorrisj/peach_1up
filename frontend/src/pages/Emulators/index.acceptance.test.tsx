@@ -91,7 +91,7 @@ describe('Emulators acceptance', () => {
   it('loads emulator cards and the Auto-detect button remains functional', async () => {
     const user = userEvent.setup()
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (typeof url === 'string' && url.includes('/api/v1/emulators')) {
+      if (typeof url === 'string' && url.includes('/api/v1/emulator-items')) {
         return Promise.resolve(CATALOG)
       }
       return Promise.resolve([])

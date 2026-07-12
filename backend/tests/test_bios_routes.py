@@ -137,7 +137,7 @@ class TestListRouteIncludesRequiredField:
 
 
 class TestListRoutePagination:
-    """GET /api/v1/bios returns Page[BiosRequirement] (dev_docs/v2/08, Task 3)."""
+    """GET /api/v1/bios returns Page[BiosItem] (dev_docs/v2/08, Task 3)."""
 
     def _entries(self, n):
         return [

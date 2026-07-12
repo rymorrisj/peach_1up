@@ -57,7 +57,7 @@ def _override_user(c, user):
 
 
 def _make_mapping(db, **overrides):
-    from backend.models.controller_mapping import ControllerMapping
+    from backend.models.controller_mapping import ControllerMappingItem
 
     kwargs = dict(
         name="Xbox Pad",
@@ -66,7 +66,7 @@ def _make_mapping(db, **overrides):
         mapping_json={"a": "a"},
     )
     kwargs.update(overrides)
-    mapping = ControllerMapping(**kwargs)
+    mapping = ControllerMappingItem(**kwargs)
     db.add(mapping)
     db.commit()
     db.refresh(mapping)
@@ -124,8 +124,8 @@ class TestCreate:
         body = resp.json()
         assert body["created_by"] == 7
 
-        from backend.models.controller_mapping import ControllerMapping
-        row = db.get(ControllerMapping, body["id"])
+        from backend.models.controller_mapping import ControllerMappingItem
+        row = db.get(ControllerMappingItem, body["id"])
         assert row.created_by == 7
 
 

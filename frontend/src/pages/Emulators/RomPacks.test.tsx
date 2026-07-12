@@ -74,9 +74,9 @@ const NON_ROM_PACK_ENTRY: CatalogEntry = {
   known_limitations: [],
 }
 
-// GET /api/v1/emulators/rom-packs returns Page[RomPackItemRead]
+// GET /api/v1/emulator-items/rom-packs returns Page[RomPackItemRead]
 // (dev_docs/v2/08, Task 4) — items are cross-referenced against the
-// (still bare-list) /api/v1/emulators catalog by slug for the
+// (still bare-list) /api/v1/emulator-items catalog by slug for the
 // is_installed/guidance fields CloneRomPackButton/GuidanceNote need.
 function romPackItemFor(entry: CatalogEntry): RomPackItem {
   return {
@@ -107,14 +107,14 @@ function mockRomPacksApi(
   const defaultPage = romPacksPage(catalog.filter((e) => e.install_type === 'rom_pack').map(romPackItemFor))
   vi.mocked(apiFetch).mockImplementation((url) => {
     if (typeof url !== 'string') return Promise.resolve([])
-    if (url.includes('/api/v1/emulators/rom-packs')) {
+    if (url.includes('/api/v1/emulator-items/rom-packs')) {
       if (romPackPageByOffset) {
         const offset = new URL(url, 'http://localhost').searchParams.get('offset')
         return Promise.resolve(romPackPageByOffset(offset))
       }
       return Promise.resolve(defaultPage)
     }
-    if (url.includes('/api/v1/emulators')) return Promise.resolve(catalog)
+    if (url.includes('/api/v1/emulator-items')) return Promise.resolve(catalog)
     return Promise.resolve([])
   })
 }

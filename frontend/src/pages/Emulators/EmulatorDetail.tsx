@@ -13,7 +13,7 @@ import { ExtensionsTab } from './components/ExtensionsTab'
 import { LimitationsTab } from './components/LimitationsTab'
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
 type LaunchProfile = components['schemas']['ProfileRead']
-type BiosRequirement = components['schemas']['BiosRequirement']
+type BiosItem = components['schemas']['BiosItem']
 
 
 const EMULATOR_BIOS_PLATFORM: Record<string, string> = {
@@ -38,7 +38,7 @@ export default function EmulatorDetail() {
 
   const { data: catalog = [] } = useQuery<CatalogEntry[]>({
     queryKey: ['emulators-catalog'],
-    queryFn: () => apiFetch<CatalogEntry[]>('/api/v1/emulators'),
+    queryFn: () => apiFetch<CatalogEntry[]>('/api/v1/emulator-items'),
     staleTime: 10_000,
   })
 
@@ -51,25 +51,25 @@ export default function EmulatorDetail() {
   const romPackSlug = entry?.rom_pack_slug ?? undefined
   const emulatorBiosPlatform = slug ? EMULATOR_BIOS_PLATFORM[slug] : undefined
 
-  // Lookup-only consumer of GET /api/v1/bios (now Page[BiosRequirement]) —
+  // Lookup-only consumer of GET /api/v1/bios (now Page[BiosItem]) —
   // unwraps .items, capped at limit=200 (same pattern as the /api/v1/profiles
   // lookup consumers), not expected to exceed that at current catalog scale.
-  const { data: allBios = [] } = useQuery<BiosRequirement[]>({
+  const { data: allBios = [] } = useQuery<BiosItem[]>({
     queryKey: ['bios-requirements'],
-    queryFn: async () => (await apiFetch<{ items: BiosRequirement[] }>('/api/v1/bios?limit=200')).items,
+    queryFn: async () => (await apiFetch<{ items: BiosItem[] }>('/api/v1/bios?limit=200')).items,
     enabled: !!emulatorBiosPlatform,
   })
 
   const { data: installStatus } = useQuery<EmulatorStatusData>({
     queryKey: ['emulator-status', slug],
-    queryFn: () => apiFetch<EmulatorStatusData>(`/api/v1/emulators/${slug}/status`),
+    queryFn: () => apiFetch<EmulatorStatusData>(`/api/v1/emulator-items/${slug}/status`),
     refetchInterval: isInstalling ? 3000 : false,
     enabled: isInstalling && !!slug,
   })
 
   const { data: cloneStatus } = useQuery<EmulatorStatusData>({
     queryKey: ['emulator-status', romPackSlug],
-    queryFn: () => apiFetch<EmulatorStatusData>(`/api/v1/emulators/${romPackSlug}/status`),
+    queryFn: () => apiFetch<EmulatorStatusData>(`/api/v1/emulator-items/${romPackSlug}/status`),
     refetchInterval: isCloning ? 4000 : false,
     enabled: isCloning && !!romPackSlug,
   })
@@ -111,7 +111,7 @@ export default function EmulatorDetail() {
     if (!slug || sandboxSaving) return
     setSandboxSaving(true)
     try {
-      await apiFetch(`/api/v1/emulators/${slug}/sandbox`, {
+      await apiFetch(`/api/v1/emulator-items/${slug}/sandbox`, {
         method: 'PATCH',
         body: JSON.stringify({ [field]: value }),
       })
@@ -125,8 +125,8 @@ export default function EmulatorDetail() {
     if (!slug || !entry) return
     if (!window.confirm(`Remove "${entry.name}"? This unregisters the binary but does not delete files.`)) return
     try {
-      const { token } = await apiFetch<{ token: string }>(`/api/v1/emulators/${slug}/confirm-token`)
-      await apiFetch(`/api/v1/emulators/${slug}`, {
+      const { token } = await apiFetch<{ token: string }>(`/api/v1/emulator-items/${slug}/confirm-token`)
+      await apiFetch(`/api/v1/emulator-items/${slug}`, {
         method: 'DELETE',
         body: JSON.stringify({ confirmation_token: token }),
       })
@@ -142,7 +142,7 @@ export default function EmulatorDetail() {
     setIsInstalling(true)
     setInstallError(null)
     try {
-      await apiFetch(`/api/v1/emulators/${slug}/install`, { method: 'POST' })
+      await apiFetch(`/api/v1/emulator-items/${slug}/install`, { method: 'POST' })
     } catch (err) {
       setIsInstalling(false)
       setInstallError(err instanceof ApiError ? err.detail : 'Failed to launch installer.')
@@ -154,7 +154,7 @@ export default function EmulatorDetail() {
     setIsCloning(true)
     setCloneError(null)
     try {
-      await apiFetch(`/api/v1/emulators/${romPackSlug}/install`, { method: 'POST' })
+      await apiFetch(`/api/v1/emulator-items/${romPackSlug}/install`, { method: 'POST' })
     } catch (err) {
       setIsCloning(false)
       setCloneError(err instanceof ApiError ? err.detail : 'Failed to start clone.')

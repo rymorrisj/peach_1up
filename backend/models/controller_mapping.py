@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 
-class ControllerMappingBase(SQLModel):
+class ControllerMappingItemBase(SQLModel):
     name: str
     # SDL GUID format: the 32-hex-character device identifier SDL2 /
     # SDL_GameControllerDB use to key a controller by vendor/product/version/
@@ -34,8 +34,8 @@ class ControllerMappingBase(SQLModel):
     mapping_json: Optional[dict] = Field(default=None, sa_column=Column(JSON))
 
 
-class ControllerMapping(ControllerMappingBase, table=True):
-    __tablename__ = "controller_mappings"
+class ControllerMappingItem(ControllerMappingItemBase, table=True):
+    __tablename__ = "controller_mapping_items"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     slug: Optional[str] = Field(default=None, sa_column=Column(String, unique=True, index=True))
@@ -53,21 +53,21 @@ class ControllerMapping(ControllerMappingBase, table=True):
     )
 
 
-class ControllerMappingCreate(SQLModel):
+class ControllerMappingItemCreate(SQLModel):
     name: str
     device_signature: str
     mapping_json: Optional[dict] = None
     slug: Optional[str] = None
 
 
-class ControllerMappingUpdate(SQLModel):
+class ControllerMappingItemUpdate(SQLModel):
     name: Optional[str] = None
     device_signature: Optional[str] = None
     mapping_json: Optional[dict] = None
     slug: Optional[str] = None
 
 
-class ControllerMappingRead(SQLModel):
+class ControllerMappingItemRead(SQLModel):
     id: int
     slug: Optional[str] = None
     name: str
@@ -79,7 +79,7 @@ class ControllerMappingRead(SQLModel):
     tags: list[TagRead] = []
 
 
-def mapping_to_read(mapping: ControllerMapping, db: "Session") -> ControllerMappingRead:
-    read = ControllerMappingRead.model_validate(mapping)
+def mapping_to_read(mapping: ControllerMappingItem, db: "Session") -> ControllerMappingItemRead:
+    read = ControllerMappingItemRead.model_validate(mapping)
     read.tags = get_tags_for_entity("controller_mapping", mapping.id, db)
     return read

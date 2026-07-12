@@ -89,7 +89,7 @@ function mockApi() {
     if (typeof url === 'string' && url.includes('/api/v1/profiles')) {
       return Promise.resolve({ items: [PROFILE_ONE, PROFILE_TWO], total: 2, limit: 50, offset: 0 })
     }
-    if (typeof url === 'string' && url.includes('/api/v1/emulators')) {
+    if (typeof url === 'string' && url.includes('/api/v1/emulator-items')) {
       return Promise.resolve(EMULATORS)
     }
     return Promise.resolve([])

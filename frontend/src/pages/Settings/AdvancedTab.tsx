@@ -528,9 +528,9 @@ export default function AdvancedTab() {
     setResetSuccess(false)
     try {
       const { token } = await apiFetch<{ token: string }>(
-        '/api/v1/emulators/sandbox-state/confirm-token',
+        '/api/v1/emulator-items/sandbox-state/confirm-token',
       )
-      await apiFetch('/api/v1/emulators/sandbox-state', {
+      await apiFetch('/api/v1/emulator-items/sandbox-state', {
         method: 'DELETE',
         body: JSON.stringify({ confirmation_token: token }),
       })

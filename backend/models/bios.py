@@ -1,7 +1,7 @@
 from sqlmodel import SQLModel
 
 
-class BiosRequirement(SQLModel):
+class BiosItem(SQLModel):
     slug: str
     name: str
     platform: str

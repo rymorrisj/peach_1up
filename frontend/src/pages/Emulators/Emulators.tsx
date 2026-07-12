@@ -309,7 +309,7 @@ export default function Emulators() {
 
   const { data: catalog = [], isLoading } = useQuery<CatalogEntry[]>({
     queryKey: ["emulators-catalog"],
-    queryFn: () => apiFetch<CatalogEntry[]>("/api/v1/emulators"),
+    queryFn: () => apiFetch<CatalogEntry[]>("/api/v1/emulator-items"),
     staleTime: 10_000,
   });
 
@@ -342,9 +342,9 @@ export default function Emulators() {
       return;
     try {
       const { token } = await apiFetch<{ token: string }>(
-        `/api/v1/emulators/${entry.slug}/confirm-token`,
+        `/api/v1/emulator-items/${entry.slug}/confirm-token`,
       );
-      await apiFetch(`/api/v1/emulators/${entry.slug}`, {
+      await apiFetch(`/api/v1/emulator-items/${entry.slug}`, {
         method: "DELETE",
         body: JSON.stringify({ confirmation_token: token }),
       });

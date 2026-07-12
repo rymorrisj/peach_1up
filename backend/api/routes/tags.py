@@ -7,7 +7,7 @@ from backend.api.routes.controllers import check_controller_edit_permission
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.models.app import AppItemBundle, AppItem
-from backend.models.controller_mapping import ControllerMapping
+from backend.models.controller_mapping import ControllerMappingItem
 from backend.models.environment import EnvironmentItem
 from backend.models.media import MediaItemBundle, MediaItem
 from backend.models.rom_pack import RomPackItem
@@ -25,7 +25,7 @@ _ASSIGNMENT_TARGETS: dict[str, type] = {
     "media_item_bundle": MediaItemBundle,
     "environment_item": EnvironmentItem,
     "rom_pack_item": RomPackItem,
-    "controller_mapping": ControllerMapping,
+    "controller_mapping": ControllerMappingItem,
     "app_item_bundle": AppItemBundle,
     "app_item": AppItem,
 }

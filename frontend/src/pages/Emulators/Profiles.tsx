@@ -59,7 +59,7 @@ export default function Profiles() {
 
   const { data: emulators = [] } = useQuery<EmulatorEntry[]>({
     queryKey: ['emulators'],
-    queryFn: () => apiFetch<EmulatorEntry[]>('/api/v1/emulators'),
+    queryFn: () => apiFetch<EmulatorEntry[]>('/api/v1/emulator-items'),
   })
 
   const [modal, setModal] = useState<ProfileModalState>(null)

@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BiosPlaceAction } from './BiosPlaceAction'
 import type { components } from '@shared/types'
-type BiosRequirement = components['schemas']['BiosRequirement']
+type BiosItem = components['schemas']['BiosItem']
 
 // FileBrowser drives its own dialog/query plumbing — out of scope here. Stubbed
 // to a single button that immediately fires onSelect with a fixed path, so
@@ -12,7 +12,7 @@ vi.mock('@/components/common/FileBrowser', () => ({
     open ? <button onClick={() => onSelect('/fake/path/to/bios')}>fake-select</button> : null,
 }))
 
-function renderAction(bios: BiosRequirement) {
+function renderAction(bios: BiosItem) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
@@ -21,7 +21,7 @@ function renderAction(bios: BiosRequirement) {
   )
 }
 
-const PS1_BIOS: BiosRequirement = {
+const PS1_BIOS: BiosItem = {
   slug: 'ps1-bios',
   name: 'PS1 BIOS',
   platform: 'ps1',

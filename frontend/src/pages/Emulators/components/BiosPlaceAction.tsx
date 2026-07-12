@@ -4,7 +4,7 @@ import FileBrowser from '@/components/common/FileBrowser'
 import { getCsrfToken } from '@/api/client'
 import type { components } from '@shared/types'
 type BiosPlaceResult = components['schemas']['BiosPlaceResult']
-type BiosRequirement = components['schemas']['BiosRequirement']
+type BiosItem = components['schemas']['BiosItem']
 
 // Multipart-only endpoint (accepts source_path or file uploads) — uses raw
 // fetch + FormData here rather than apiFetch, matching the existing
@@ -23,7 +23,7 @@ const PICKER_MODE: Record<string, 'file' | 'folder' | 'both'> = {
   'mesen-fds-bios': 'file',
 }
 
-export function BiosPlaceAction({ bios }: { bios: BiosRequirement }) {
+export function BiosPlaceAction({ bios }: { bios: BiosItem }) {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const [isPlacing, setIsPlacing] = useState(false)

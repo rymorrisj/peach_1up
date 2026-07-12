@@ -4,10 +4,10 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user
 from backend.models.controller_mapping import (
-    ControllerMapping,
-    ControllerMappingCreate,
-    ControllerMappingRead,
-    ControllerMappingUpdate,
+    ControllerMappingItem,
+    ControllerMappingItemCreate,
+    ControllerMappingItemRead,
+    ControllerMappingItemUpdate,
     mapping_to_read,
 )
 from backend.models.user import User
@@ -16,7 +16,7 @@ from backend.service.utils.slug_generator import unique_slug
 router = APIRouter(prefix="/api/v1/controllers", tags=["controllers"])
 
 
-def check_controller_edit_permission(mapping: ControllerMapping, active_user: User) -> None:
+def check_controller_edit_permission(mapping: ControllerMappingItem, active_user: User) -> None:
     """Bespoke compound-permission rule for editing an existing mapping.
 
     require_permission(flag) (dependencies.py:176) only supports "owner-bypass
@@ -52,34 +52,34 @@ def require_controller_edit(
     if active_user.is_owner:
         return active_user
     mapping_id = int(request.path_params.get("id", 0))
-    mapping = db.get(ControllerMapping, mapping_id)
+    mapping = db.get(ControllerMappingItem, mapping_id)
     if not mapping:
         raise HTTPException(status_code=404, detail="Controller mapping not found.")
     check_controller_edit_permission(mapping, active_user)
     return active_user
 
 
-@router.get("", response_model=list[ControllerMappingRead])
+@router.get("", response_model=list[ControllerMappingItemRead])
 def list_mappings(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
-    mappings = db.query(ControllerMapping).order_by(ControllerMapping.name).all()
+    mappings = db.query(ControllerMappingItem).order_by(ControllerMappingItem.name).all()
     return [mapping_to_read(m, db) for m in mappings]
 
 
-@router.get("/{id}", response_model=ControllerMappingRead)
+@router.get("/{id}", response_model=ControllerMappingItemRead)
 def get_mapping(id: int, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
-    mapping = db.get(ControllerMapping, id)
+    mapping = db.get(ControllerMappingItem, id)
     if not mapping:
         raise HTTPException(status_code=404, detail="Controller mapping not found.")
     return mapping_to_read(mapping, db)
 
 
-@router.post("", response_model=ControllerMappingRead, status_code=201)
+@router.post("", response_model=ControllerMappingItemRead, status_code=201)
 def create_mapping(
-    body: ControllerMappingCreate,
+    body: ControllerMappingItemCreate,
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
 ):
-    mapping = ControllerMapping(
+    mapping = ControllerMappingItem(
         name=body.name,
         device_signature=body.device_signature,
         mapping_json=body.mapping_json,
@@ -87,7 +87,7 @@ def create_mapping(
     )
     mapping.slug = body.slug or unique_slug(
         body.name,
-        lambda s: db.query(ControllerMapping).filter(ControllerMapping.slug == s).first() is not None,
+        lambda s: db.query(ControllerMappingItem).filter(ControllerMappingItem.slug == s).first() is not None,
         fallback="controller-mapping",
     )
     db.add(mapping)
@@ -96,17 +96,17 @@ def create_mapping(
     return mapping_to_read(mapping, db)
 
 
-@router.post("/{id}/duplicate", response_model=ControllerMappingRead, status_code=201)
+@router.post("/{id}/duplicate", response_model=ControllerMappingItemRead, status_code=201)
 def duplicate_mapping(
     id: int,
     db: Session = Depends(get_db),
     active_user: User = Depends(get_active_user),
 ):
-    source = db.get(ControllerMapping, id)
+    source = db.get(ControllerMappingItem, id)
     if not source:
         raise HTTPException(status_code=404, detail="Controller mapping not found.")
     name = f"{source.name} (copy)"
-    mapping = ControllerMapping(
+    mapping = ControllerMappingItem(
         name=name,
         device_signature=source.device_signature,
         mapping_json=source.mapping_json,
@@ -114,7 +114,7 @@ def duplicate_mapping(
     )
     mapping.slug = unique_slug(
         name,
-        lambda s: db.query(ControllerMapping).filter(ControllerMapping.slug == s).first() is not None,
+        lambda s: db.query(ControllerMappingItem).filter(ControllerMappingItem.slug == s).first() is not None,
         fallback="controller-mapping",
     )
     db.add(mapping)
@@ -123,14 +123,14 @@ def duplicate_mapping(
     return mapping_to_read(mapping, db)
 
 
-@router.patch("/{id}", response_model=ControllerMappingRead)
+@router.patch("/{id}", response_model=ControllerMappingItemRead)
 def update_mapping(
     id: int,
-    body: ControllerMappingUpdate,
+    body: ControllerMappingItemUpdate,
     db: Session = Depends(get_db),
     _: User = Depends(require_controller_edit),
 ):
-    mapping = db.get(ControllerMapping, id)
+    mapping = db.get(ControllerMappingItem, id)
     if not mapping:
         raise HTTPException(status_code=404, detail="Controller mapping not found.")
     updates = body.model_dump(exclude_none=True)
@@ -147,7 +147,7 @@ def delete_mapping(
     db: Session = Depends(get_db),
     _: User = Depends(require_controller_edit),
 ):
-    mapping = db.get(ControllerMapping, id)
+    mapping = db.get(ControllerMappingItem, id)
     if not mapping:
         raise HTTPException(status_code=404, detail="Controller mapping not found.")
     db.delete(mapping)

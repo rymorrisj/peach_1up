@@ -11,7 +11,7 @@ from backend.models.user import User
 from backend.service.utils.emulator_catalog import get_emulator, get_install_path, load_catalog
 from backend.service.utils.emulator_installer import record_rom_pack_item
 
-router = APIRouter(prefix="/api/v1/emulators/rom-packs", tags=["rom-packs"])
+router = APIRouter(prefix="/api/v1/emulator-items/rom-packs", tags=["rom-packs"])
 
 
 def _rom_pack_catalog_entries() -> list[dict]:
@@ -72,7 +72,7 @@ def verify_rom_pack(slug: str, db: Session = Depends(get_db), _: User = require_
     """Re-check on-disk presence and sync the owned rom_pack_items row.
 
     Does not perform the clone itself — that remains
-    POST /api/v1/emulators/{slug}/install (clone_rom_pack, unchanged). This
+    POST /api/v1/emulator-items/{slug}/install (clone_rom_pack, unchanged). This
     covers the case where a ROM pack was placed manually rather than cloned.
     """
     try:

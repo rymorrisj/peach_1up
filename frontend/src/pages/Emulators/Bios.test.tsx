@@ -8,7 +8,7 @@ import Bios from '@/pages/Emulators/Bios'
 import { apiFetch } from '@/api/client'
 import type { components } from '@shared/types'
 
-type BiosRequirement = components['schemas']['BiosRequirement']
+type BiosItem = components['schemas']['BiosItem']
 
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
@@ -38,7 +38,7 @@ function renderPage() {
   )
 }
 
-const PS1_BIOS: BiosRequirement = {
+const PS1_BIOS: BiosItem = {
   slug: 'ps1-bios',
   name: 'PS1 BIOS',
   platform: 'ps1',
@@ -49,8 +49,8 @@ const PS1_BIOS: BiosRequirement = {
   required: true,
 }
 
-// GET /api/v1/bios returns Page[BiosRequirement] (dev_docs/v2/08, Task 3).
-function biosPage(items: BiosRequirement[], overrides: Partial<{ total: number; limit: number; offset: number }> = {}) {
+// GET /api/v1/bios returns Page[BiosItem] (dev_docs/v2/08, Task 3).
+function biosPage(items: BiosItem[], overrides: Partial<{ total: number; limit: number; offset: number }> = {}) {
   return { items, total: overrides.total ?? items.length, limit: overrides.limit ?? 50, offset: overrides.offset ?? 0 }
 }
 
@@ -123,7 +123,7 @@ describe('Bios tab (/emulators/bios) — list-only, no detail route', () => {
   })
 
   it('renders pagination controls and pages forward when total exceeds one page', async () => {
-    const PAGE_2_BIOS: BiosRequirement = { ...PS1_BIOS, slug: 'ps2-bios', name: 'PS2 BIOS' }
+    const PAGE_2_BIOS: BiosItem = { ...PS1_BIOS, slug: 'ps2-bios', name: 'PS2 BIOS' }
     vi.mocked(apiFetch).mockImplementation((url) => {
       if (typeof url === 'string' && url.includes('/api/v1/bios')) {
         const offset = new URL(url, 'http://localhost').searchParams.get('offset')

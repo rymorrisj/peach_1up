@@ -272,7 +272,7 @@ async def place_bios_asset(
     if slug == "xbox-bios":
         raise PlacementError(
             "xemu uses its own configuration flow, not a copy-into-place flow — "
-            "set bootrom/flashrom/hdd_image paths via PATCH /api/v1/emulators/xemu/asset-paths."
+            "set bootrom/flashrom/hdd_image paths via PATCH /api/v1/emulator-items/xemu/asset-paths."
         )
 
     raise PlacementError(f"Unsupported BIOS slug for placement: '{slug}'.")

@@ -141,10 +141,10 @@ def _make_rom_pack_item(db, **overrides):
 
 
 def _make_controller_mapping(db, **overrides):
-    from backend.models.controller_mapping import ControllerMapping
+    from backend.models.controller_mapping import ControllerMappingItem
     kwargs = dict(name="Xbox Pad", device_signature="030000005e0400008e02000010010000", slug="xbox-pad")
     kwargs.update(overrides)
-    row = ControllerMapping(**kwargs)
+    row = ControllerMappingItem(**kwargs)
     db.add(row)
     db.commit()
     db.refresh(row)

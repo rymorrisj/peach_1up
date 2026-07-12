@@ -91,11 +91,11 @@ function mockApiGenerically() {
       return Promise.resolve({ items: [], total: 0, limit: 200, offset: 0 })
     }
 
-    if (url === '/api/v1/emulators') {
+    if (url === '/api/v1/emulator-items') {
       return Promise.resolve([])
     }
 
-    if (url.includes('/api/v1/emulators/') && url.endsWith('/status')) {
+    if (url.includes('/api/v1/emulator-items/') && url.endsWith('/status')) {
       return Promise.resolve({ status: 'idle', binary_detected: false, error: null })
     }
 

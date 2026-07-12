@@ -3,14 +3,14 @@ import { BiosPlaceAction } from './BiosPlaceAction'
 import { CloneRomPackButton } from './CloneRomPackButton'
 import type { components } from '@shared/types'
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
-type BiosRequirement = components['schemas']['BiosRequirement']
+type BiosItem = components['schemas']['BiosItem']
 
 interface OverviewTabProps {
   entry: CatalogEntry
   eras: string[]
   isReady: boolean | string | null | undefined
   emulatorProfilesCount: number
-  emulatorBios: BiosRequirement[]
+  emulatorBios: BiosItem[]
   sandboxSaving: boolean
   onSandboxToggle: (field: 'container_enabled' | 'skip_cpu_limit' | 'skip_memory_limit', value: boolean) => void
   onShowLimitations: () => void

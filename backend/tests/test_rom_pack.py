@@ -145,7 +145,7 @@ class TestListRomPacks:
         c, db = client
         _set_catalog(monkeypatch, [EMULATOR_ENTRY_WITH_DEP, ROM_PACK_ENTRY])
 
-        resp = c.get("/api/v1/emulators/rom-packs")
+        resp = c.get("/api/v1/emulator-items/rom-packs")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -161,7 +161,7 @@ class TestListRomPacks:
         _set_catalog(monkeypatch, [EMULATOR_ENTRY_WITH_DEP, ROM_PACK_ENTRY])
         _make_rom_pack_item(db, is_present=True, install_path="/roms/mame")
 
-        resp = c.get("/api/v1/emulators/rom-packs")
+        resp = c.get("/api/v1/emulator-items/rom-packs")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -173,7 +173,7 @@ class TestListRomPacks:
         c, db = client
         _set_catalog(monkeypatch, [NON_ROM_PACK_ENTRY])
 
-        resp = c.get("/api/v1/emulators/rom-packs")
+        resp = c.get("/api/v1/emulator-items/rom-packs")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -182,7 +182,7 @@ class TestListRomPacks:
 
 
 class TestListRomPacksPagination:
-    """GET /api/v1/emulators/rom-packs returns Page[RomPackItemRead] (dev_docs/v2/08, Task 4)."""
+    """GET /api/v1/emulator-items/rom-packs returns Page[RomPackItemRead] (dev_docs/v2/08, Task 4)."""
 
     def _catalog(self, n):
         return [
@@ -194,7 +194,7 @@ class TestListRomPacksPagination:
         c, db = client
         _set_catalog(monkeypatch, self._catalog(3))
 
-        resp = c.get("/api/v1/emulators/rom-packs", params={"limit": 2, "offset": 0})
+        resp = c.get("/api/v1/emulator-items/rom-packs", params={"limit": 2, "offset": 0})
 
         assert resp.status_code == 200, resp.text
         body = resp.json()
@@ -207,7 +207,7 @@ class TestListRomPacksPagination:
         c, db = client
         _set_catalog(monkeypatch, self._catalog(3))
 
-        resp = c.get("/api/v1/emulators/rom-packs", params={"limit": 2, "offset": 2})
+        resp = c.get("/api/v1/emulator-items/rom-packs", params={"limit": 2, "offset": 2})
 
         assert resp.status_code == 200, resp.text
         body = resp.json()
@@ -220,7 +220,7 @@ class TestGetRomPack:
         c, _ = client
         _set_catalog(monkeypatch, [])
 
-        resp = c.get("/api/v1/emulators/rom-packs/unknown-slug")
+        resp = c.get("/api/v1/emulator-items/rom-packs/unknown-slug")
 
         assert resp.status_code == 404
 
@@ -228,7 +228,7 @@ class TestGetRomPack:
         c, _ = client
         _set_catalog(monkeypatch, [NON_ROM_PACK_ENTRY])
 
-        resp = c.get("/api/v1/emulators/rom-packs/duckstation")
+        resp = c.get("/api/v1/emulator-items/rom-packs/duckstation")
 
         assert resp.status_code == 404
 
@@ -236,7 +236,7 @@ class TestGetRomPack:
         c, _ = client
         _set_catalog(monkeypatch, [EMULATOR_ENTRY_WITH_DEP, ROM_PACK_ENTRY])
 
-        resp = c.get("/api/v1/emulators/rom-packs/mame-roms")
+        resp = c.get("/api/v1/emulator-items/rom-packs/mame-roms")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -248,7 +248,7 @@ class TestGetRomPack:
         _set_catalog(monkeypatch, [EMULATOR_ENTRY_WITH_DEP, ROM_PACK_ENTRY])
         _make_rom_pack_item(db, is_present=True)
 
-        resp = c.get("/api/v1/emulators/rom-packs/mame-roms")
+        resp = c.get("/api/v1/emulator-items/rom-packs/mame-roms")
 
         assert resp.status_code == 200
         assert resp.json()["is_present"] is True
@@ -261,7 +261,7 @@ class TestVerifyRomPack:
         _set_catalog(monkeypatch, [EMULATOR_ENTRY_WITH_DEP, ROM_PACK_ENTRY])
         c.app.dependency_overrides[get_active_user] = _no_permission_user
 
-        resp = c.post("/api/v1/emulators/rom-packs/mame-roms/verify")
+        resp = c.post("/api/v1/emulator-items/rom-packs/mame-roms/verify")
 
         assert resp.status_code == 403
 
@@ -269,7 +269,7 @@ class TestVerifyRomPack:
         c, _ = client
         _set_catalog(monkeypatch, [])
 
-        resp = c.post("/api/v1/emulators/rom-packs/unknown-slug/verify")
+        resp = c.post("/api/v1/emulator-items/rom-packs/unknown-slug/verify")
 
         assert resp.status_code == 404
 
@@ -277,7 +277,7 @@ class TestVerifyRomPack:
         c, _ = client
         _set_catalog(monkeypatch, [NON_ROM_PACK_ENTRY])
 
-        resp = c.post("/api/v1/emulators/rom-packs/duckstation/verify")
+        resp = c.post("/api/v1/emulator-items/rom-packs/duckstation/verify")
 
         assert resp.status_code == 400
 
@@ -292,7 +292,7 @@ class TestVerifyRomPack:
         from backend.api.routes import rom_packs
         monkeypatch.setattr(rom_packs, "get_install_path", lambda slug: rom_dir)
 
-        resp = c.post("/api/v1/emulators/rom-packs/mame-roms/verify")
+        resp = c.post("/api/v1/emulator-items/rom-packs/mame-roms/verify")
 
         assert resp.status_code == 200, resp.text
         body = resp.json()
@@ -318,7 +318,7 @@ class TestVerifyRomPack:
         from backend.api.routes import rom_packs
         monkeypatch.setattr(rom_packs, "get_install_path", lambda slug: None)
 
-        resp = c.post("/api/v1/emulators/rom-packs/mame-roms/verify")
+        resp = c.post("/api/v1/emulator-items/rom-packs/mame-roms/verify")
 
         assert resp.status_code == 200, resp.text
         assert resp.json()["is_present"] is False

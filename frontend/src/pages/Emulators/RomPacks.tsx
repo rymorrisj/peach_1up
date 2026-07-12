@@ -19,7 +19,7 @@ function RomPackRow({ entry, isLast }: { entry: CatalogEntry; isLast: boolean })
 
   const { data: cloneStatus } = useQuery<EmulatorStatusData>({
     queryKey: ['emulator-status', entry.slug],
-    queryFn: () => apiFetch<EmulatorStatusData>(`/api/v1/emulators/${entry.slug}/status`),
+    queryFn: () => apiFetch<EmulatorStatusData>(`/api/v1/emulator-items/${entry.slug}/status`),
     refetchInterval: isCloning ? 4000 : false,
     enabled: isCloning,
   })
@@ -29,7 +29,7 @@ function RomPackRow({ entry, isLast }: { entry: CatalogEntry; isLast: boolean })
     if (cloneStatus.status === 'complete') {
       setIsCloning(false)
       queryClient.invalidateQueries({ queryKey: ['emulators-catalog'] })
-      queryClient.invalidateQueries({ queryKey: ['paginated-list', '/api/v1/emulators/rom-packs'] })
+      queryClient.invalidateQueries({ queryKey: ['paginated-list', '/api/v1/emulator-items/rom-packs'] })
     }
     if (cloneStatus.status === 'error') {
       setIsCloning(false)
@@ -41,7 +41,7 @@ function RomPackRow({ entry, isLast }: { entry: CatalogEntry; isLast: boolean })
     setIsCloning(true)
     setCloneError(null)
     try {
-      await apiFetch(`/api/v1/emulators/${entry.slug}/install`, { method: 'POST' })
+      await apiFetch(`/api/v1/emulator-items/${entry.slug}/install`, { method: 'POST' })
     } catch (err) {
       setIsCloning(false)
       setCloneError(err instanceof ApiError ? err.detail : 'Failed to start clone.')
@@ -75,9 +75,9 @@ function RomPackRow({ entry, isLast }: { entry: CatalogEntry; isLast: boolean })
   )
 }
 
-// Cross-emulator ROM pack list, paginated via GET /api/v1/emulators/rom-packs
+// Cross-emulator ROM pack list, paginated via GET /api/v1/emulator-items/rom-packs
 // (Page[RomPackItemRead], dev_docs/v2/08, Task 4). Each paginated slug is
-// cross-referenced against the emulator catalog (/api/v1/emulators, small and
+// cross-referenced against the emulator catalog (/api/v1/emulator-items, small and
 // unpaginated by design — same source doc 08 P7 uses for the per-emulator
 // RomPackTab) to get the live is_installed/guidance fields the reused
 // CloneRomPackButton/GuidanceNote components need — the backend derives both
@@ -92,11 +92,11 @@ export default function RomPacks() {
     hasNextPage,
     prevPage,
     nextPage,
-  } = usePaginatedList<RomPackItem>({ path: '/api/v1/emulators/rom-packs' })
+  } = usePaginatedList<RomPackItem>({ path: '/api/v1/emulator-items/rom-packs' })
 
   const { data: catalog = [], isLoading: isCatalogLoading } = useQuery<CatalogEntry[]>({
     queryKey: ['emulators-catalog'],
-    queryFn: () => apiFetch<CatalogEntry[]>('/api/v1/emulators'),
+    queryFn: () => apiFetch<CatalogEntry[]>('/api/v1/emulator-items'),
     staleTime: 10_000,
   })
 

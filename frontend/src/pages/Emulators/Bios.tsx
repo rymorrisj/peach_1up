@@ -5,9 +5,9 @@ import { usePaginatedList } from '@/hooks/usePaginatedList'
 import { StatusDot, GuidanceNote } from './components/EmulatorDetailPrimitives'
 import { BiosPlaceAction } from './components/BiosPlaceAction'
 import type { components } from '@shared/types'
-type BiosRequirement = components['schemas']['BiosRequirement']
+type BiosItem = components['schemas']['BiosItem']
 
-// GET /api/v1/bios returns Page[BiosRequirement] (dev_docs/v2/08, Task 3).
+// GET /api/v1/bios returns Page[BiosItem] (dev_docs/v2/08, Task 3).
 export default function Bios() {
   const {
     items: bios,
@@ -18,7 +18,7 @@ export default function Bios() {
     hasNextPage,
     prevPage,
     nextPage,
-  } = usePaginatedList<BiosRequirement>({ path: '/api/v1/bios' })
+  } = usePaginatedList<BiosItem>({ path: '/api/v1/bios' })
 
   return (
     <div className="p-6">

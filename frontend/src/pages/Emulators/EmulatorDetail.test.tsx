@@ -70,7 +70,7 @@ describe('EmulatorDetail — catalog-miss 404 UI', () => {
 
   it('shows "Emulator not found." when the catalog is non-empty but has no matching slug', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (url === '/api/v1/emulators') return Promise.resolve([KNOWN_ENTRY])
+      if (url === '/api/v1/emulator-items') return Promise.resolve([KNOWN_ENTRY])
       if (typeof url === 'string' && url.startsWith('/api/v1/profiles')) return Promise.resolve({ items: [] })
       return Promise.resolve([])
     })
@@ -87,7 +87,7 @@ describe('EmulatorDetail — catalog-miss 404 UI', () => {
 
   it('renders the normal detail page (not the 404 branch) when the slug matches a catalog entry', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (url === '/api/v1/emulators') return Promise.resolve([KNOWN_ENTRY])
+      if (url === '/api/v1/emulator-items') return Promise.resolve([KNOWN_ENTRY])
       if (typeof url === 'string' && url.startsWith('/api/v1/profiles')) return Promise.resolve({ items: [] })
       return Promise.resolve([])
     })

@@ -85,7 +85,7 @@ describe('Emulators page', () => {
 
   it('renders emulator cards after a successful API response', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (typeof url === 'string' && url.includes('/api/v1/emulators')) {
+      if (typeof url === 'string' && url.includes('/api/v1/emulator-items')) {
         return Promise.resolve([DOSBOX_ENTRY, PCSX2_ENTRY])
       }
       return Promise.resolve([])
@@ -99,7 +99,7 @@ describe('Emulators page', () => {
 
   it('shows the empty state when the catalog is empty', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (typeof url === 'string' && url.includes('/api/v1/emulators')) {
+      if (typeof url === 'string' && url.includes('/api/v1/emulator-items')) {
         return Promise.resolve([])
       }
       return Promise.resolve([])
@@ -112,7 +112,7 @@ describe('Emulators page', () => {
 
   it('shows how many emulators are ready', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (typeof url === 'string' && url.includes('/api/v1/emulators')) {
+      if (typeof url === 'string' && url.includes('/api/v1/emulator-items')) {
         return Promise.resolve([DOSBOX_ENTRY, PCSX2_ENTRY])
       }
       return Promise.resolve([])

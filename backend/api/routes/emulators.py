@@ -29,7 +29,7 @@ from backend.service.utils.emulator_installer import (
 from backend.service.utils.github_release_installer import install_from_github_release
 from backend.service.utils import settings as _settings
 
-router = APIRouter(prefix="/api/v1/emulators", tags=["emulators"])
+router = APIRouter(prefix="/api/v1/emulator-items", tags=["emulators"])
 logger = get_logger(__name__)
 
 
@@ -187,7 +187,7 @@ def list_emulators():
 def list_attribution():
     """Attribution list for Settings > Attribution — emulator catalog entries
     merged with non-emulator third-party tools (e.g. extract-xiso). Distinct
-    from GET /api/v1/emulators: that endpoint drives the Emulators page and
+    from GET /api/v1/emulator-items: that endpoint drives the Emulators page and
     must never include non-launchable tools.
     """
     from backend.service.utils.third_party_tools import get_third_party_tools

@@ -14,7 +14,7 @@ interface AttributionEntry {
 export default function AttributionTab() {
   const { data: attribution } = useQuery<AttributionEntry[]>({
     queryKey: ["attribution"],
-    queryFn: () => apiFetch<AttributionEntry[]>("/api/v1/emulators/attribution"),
+    queryFn: () => apiFetch<AttributionEntry[]>("/api/v1/emulator-items/attribution"),
     staleTime: 60_000,
   });
 

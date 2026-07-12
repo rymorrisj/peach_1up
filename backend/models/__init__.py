@@ -1,4 +1,4 @@
-from backend.models.bios import BiosRequirement
+from backend.models.bios import BiosItem
 from backend.models.drive import Drive, DriveBase, DriveRead
 from backend.models.filesystem import BrowseResult, DirEntry, DriveEntry, DrivesResult, FileEntry
 from backend.models.app import (
@@ -33,8 +33,8 @@ from backend.models.tag import EntityTag, Tag, TagCreate, TagRead, get_tags_for_
 from backend.models.emulator_install import EmulatorInstall
 from backend.models.rom_pack import RomPackItem, RomPackItemRead
 from backend.models.controller_mapping import (
-    ControllerMapping, ControllerMappingBase, ControllerMappingCreate,
-    ControllerMappingRead, ControllerMappingUpdate, mapping_to_read as controller_mapping_to_read,
+    ControllerMappingItem, ControllerMappingItemBase, ControllerMappingItemCreate,
+    ControllerMappingItemRead, ControllerMappingItemUpdate, mapping_to_read as controller_mapping_to_read,
 )
 from backend.models.metadata_lookup import (
     Developer, Genre, GameItemBundleGenre, Publisher,

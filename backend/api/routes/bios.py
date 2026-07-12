@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
-from backend.models.bios import BiosRequirement
+from backend.models.bios import BiosItem
 from backend.models.pagination import Page
 from backend.models.user import User
 from backend.service.utils.bios_placement import PlacementError, place_bios_asset
@@ -24,7 +24,7 @@ class BiosPlaceResult(BaseModel):
     warnings: list[str]
 
 
-@router.get("", response_model=Page[BiosRequirement])
+@router.get("", response_model=Page[BiosItem])
 def list_bios_requirements(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
