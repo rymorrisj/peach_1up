@@ -57,7 +57,7 @@ def list_media_items(
 def create_media_item(
     body: MediaItemCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_media"),
+    _: User = require_permission("can_manage_media"),
 ):
     item = MediaItem(**body.model_dump(), slug=_unique_media_slug(body.title, db))
     db.add(item)
@@ -84,7 +84,7 @@ def update_media_item(
     item_id: int,
     body: MediaItemUpdate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_media"),
+    _: User = require_permission("can_manage_media"),
 ):
     item = db.get(MediaItem, item_id)
     if not item:
@@ -101,7 +101,7 @@ def update_media_item(
 def delete_media_item(
     item_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_media"),
+    _: User = require_permission("can_manage_media"),
 ):
     item = db.get(MediaItem, item_id)
     if not item:
@@ -119,7 +119,7 @@ def delete_media_item(
 def create_media_item_bundle(
     body: MediaItemBundleCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_media"),
+    _: User = require_permission("can_manage_media"),
 ):
     collection = MediaItemBundle(**body.model_dump(), slug=_unique_media_slug(body.title, db))
     db.add(collection)
@@ -156,7 +156,7 @@ def update_media_item_bundle(
     collection_id: int,
     body: MediaItemBundleUpdate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_media"),
+    _: User = require_permission("can_manage_media"),
 ):
     collection = db.get(MediaItemBundle, collection_id)
     if not collection:
@@ -173,7 +173,7 @@ def update_media_item_bundle(
 def delete_media_item_bundle(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_media"),
+    _: User = require_permission("can_manage_media"),
 ):
     collection = db.get(MediaItemBundle, collection_id)
     if not collection:
@@ -197,7 +197,7 @@ def link_media_item(
     item_id: int,
     body: MediaLinkCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_media"),
+    _: User = require_permission("can_manage_media"),
 ):
     item = db.get(MediaItem, item_id)
     if not item:
@@ -220,7 +220,7 @@ def unlink_media_item(
     item_id: int,
     game_item_bundle_id: int = Query(...),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_media"),
+    _: User = require_permission("can_manage_media"),
 ):
     link = (
         db.query(MediaLink)
@@ -241,7 +241,7 @@ def link_media_item_bundle(
     collection_id: int,
     body: MediaLinkCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_media"),
+    _: User = require_permission("can_manage_media"),
 ):
     collection = db.get(MediaItemBundle, collection_id)
     if not collection:
@@ -264,7 +264,7 @@ def unlink_media_item_bundle(
     collection_id: int,
     game_item_bundle_id: int = Query(...),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_media"),
+    _: User = require_permission("can_manage_media"),
 ):
     link = (
         db.query(MediaLink)
@@ -293,7 +293,7 @@ def unlink_media_item_bundle(
 @router.post("/media-items/upload")
 async def upload_media_archive(
     file: UploadFile,
-    _: User = require_permission("can_edit_media"),
+    _: User = require_permission("can_manage_media"),
 ):
     if not file.filename:
         raise HTTPException(status_code=422, detail="A filename is required.")

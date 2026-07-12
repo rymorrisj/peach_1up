@@ -20,7 +20,7 @@ def check_controller_edit_permission(mapping: ControllerMapping, active_user: Us
     """Bespoke compound-permission rule for editing an existing mapping.
 
     require_permission(flag) (dependencies.py:176) only supports "owner-bypass
-    OR single flag"; this rule is "creator OR (admin AND can_manage_controllers)"
+    OR single flag"; this rule is "creator OR (admin AND can_manage_controllerMapping)"
     — an AND nested inside an OR, which the generic factory can't express.
     Owner still bypasses everything, matching every other guard in the app.
 
@@ -32,11 +32,11 @@ def check_controller_edit_permission(mapping: ControllerMapping, active_user: Us
         return
     if mapping.created_by is not None and mapping.created_by == active_user.id:
         return
-    if active_user.is_admin and active_user.can_manage_controllers:
+    if active_user.is_admin and active_user.can_manage_controllerMapping:
         return
     raise HTTPException(
         status_code=403,
-        detail="Permission denied: requires ownership of this mapping, or is_admin with can_manage_controllers.",
+        detail="Permission denied: requires ownership of this mapping, or is_admin with can_manage_controllerMapping.",
     )
 
 

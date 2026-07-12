@@ -48,8 +48,8 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
       // collection. A collection launch is keyed on the collection id.
       const path =
         targetType === 'environment'
-          ? `/api/v1/environments/${targetId}/launch`
-          : `/api/v1/softwarecollection/${targetId}/launch`
+          ? `/api/v1/environment-items/${targetId}/launch`
+          : `/api/v1/game-item-bundle/${targetId}/launch`
       return apiFetch<LaunchResponse>(path, {
         method: 'POST',
         body: JSON.stringify({ profile_id: profileId }),

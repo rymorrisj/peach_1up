@@ -28,11 +28,11 @@ _TTL_MAX = 525_600  # 365 days × 24 h × 60 min
 _OWNER_ONLY_FIELDS = {
     "is_admin",
     "can_launch_media",
-    "can_edit_environments",
-    "can_manage_software",
-    "can_edit_media",
-    "can_manage_controllers",
-    "can_edit_settings",
+    "can_manage_environment",
+    "can_manage_game",
+    "can_manage_media",
+    "can_manage_controllerMapping",
+    "can_manage_settings",
     "can_manage_users",
 }
 
@@ -41,11 +41,11 @@ class UserCreate(BaseModel):
     name: str
     pin: str | None = None
     can_launch_media: bool = True
-    can_edit_environments: bool = False
-    can_manage_software: bool = False
-    can_edit_media: bool = False
-    can_manage_controllers: bool = False
-    can_edit_settings: bool = False
+    can_manage_environment: bool = False
+    can_manage_game: bool = False
+    can_manage_media: bool = False
+    can_manage_controllerMapping: bool = False
+    can_manage_settings: bool = False
     can_manage_users: bool = False
     is_admin: bool = False
     max_content_rating: str | None = None
@@ -61,11 +61,11 @@ class UserCreate(BaseModel):
 class UserPatch(BaseModel):
     name: str | None = None
     can_launch_media: bool | None = None
-    can_edit_environments: bool | None = None
-    can_manage_software: bool | None = None
-    can_edit_media: bool | None = None
-    can_manage_controllers: bool | None = None
-    can_edit_settings: bool | None = None
+    can_manage_environment: bool | None = None
+    can_manage_game: bool | None = None
+    can_manage_media: bool | None = None
+    can_manage_controllerMapping: bool | None = None
+    can_manage_settings: bool | None = None
     can_manage_users: bool | None = None
     is_admin: bool | None = None
     max_content_rating: str | None = None
@@ -129,11 +129,11 @@ def create_user(
         pin_hash=pin_hash,
         identity_token_secret=generate_identity_secret(),
         can_launch_media=body.can_launch_media,
-        can_edit_environments=body.can_edit_environments,
-        can_manage_software=body.can_manage_software,
-        can_edit_media=body.can_edit_media,
-        can_manage_controllers=body.can_manage_controllers,
-        can_edit_settings=body.can_edit_settings,
+        can_manage_environment=body.can_manage_environment,
+        can_manage_game=body.can_manage_game,
+        can_manage_media=body.can_manage_media,
+        can_manage_controllerMapping=body.can_manage_controllerMapping,
+        can_manage_settings=body.can_manage_settings,
         can_manage_users=body.can_manage_users,
         is_admin=body.is_admin,
         max_content_rating=body.max_content_rating,

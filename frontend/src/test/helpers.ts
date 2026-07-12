@@ -4,7 +4,7 @@ import type { RenderResult } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
 import type { components } from '@shared/types'
-type LibraryCollection = components['schemas']['SoftwareCollectionRead']
+type LibraryCollection = components['schemas']['GameItemBundleRead']
 
 function createTestQueryClient() {
   return new QueryClient({
@@ -50,7 +50,7 @@ export function createMockLibraryItem(overrides?: Partial<LibraryCollection>): L
     base.items = [
       {
         id: 100,
-        library_collection_id: base.id,
+        game_item_bundle_id: base.id,
         disc_number: 1,
         media_path: '/images/test.iso',
         cover_art_url: null,

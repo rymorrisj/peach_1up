@@ -34,14 +34,14 @@ _ASSIGNMENT_TARGETS: dict[str, type] = {
 # controller_mapping is intentionally absent: it uses the bespoke
 # check_controller_edit_permission rule instead of a plain flag.
 _ASSIGNMENT_PERMISSIONS: dict[str, str] = {
-    "game_item_bundle": "can_manage_software",
-    "game_item": "can_manage_software",
-    "media_item": "can_edit_media",
-    "media_item_bundle": "can_edit_media",
-    "environment_item": "can_edit_environments",
-    "rom_pack_item": "can_edit_environments",
-    "app_item_bundle": "can_manage_apps",
-    "app_item": "can_manage_apps",
+    "game_item_bundle": "can_manage_game",
+    "game_item": "can_manage_game",
+    "media_item": "can_manage_media",
+    "media_item_bundle": "can_manage_media",
+    "environment_item": "can_manage_environment",
+    "rom_pack_item": "can_manage_environment",
+    "app_item_bundle": "can_manage_app",
+    "app_item": "can_manage_app",
 }
 
 
@@ -70,7 +70,7 @@ def list_tags(db: Session = Depends(get_db), _: User = Depends(get_active_user))
 def create_tag(
     body: TagCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     name = body.name.strip()
     if not name:
@@ -88,7 +88,7 @@ def create_tag(
 def delete_tag(
     tag_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     tag = db.get(Tag, tag_id)
     if not tag:

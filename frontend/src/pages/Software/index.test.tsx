@@ -51,7 +51,7 @@ describe('Software page', () => {
       createMockLibraryItem({ id: 2, title: 'Quake', era: 'dos', slug: 'quake' }),
     ]
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (typeof url === 'string' && url.includes('/api/v1/software')) {
+      if (typeof url === 'string' && url.includes('/api/v1/game-items')) {
         return Promise.resolve({ items, total: items.length, limit: 50, offset: 0 })
       }
       return Promise.resolve([])
@@ -66,7 +66,7 @@ describe('Software page', () => {
 
   it('renders the empty state when the library is empty', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (typeof url === 'string' && url.includes('/api/v1/software')) {
+      if (typeof url === 'string' && url.includes('/api/v1/game-items')) {
         return Promise.resolve({ items: [], total: 0, limit: 50, offset: 0 })
       }
       return Promise.resolve([])

@@ -21,11 +21,11 @@ const EMPTY_MANAGE_USER_FORM: ManageUserForm = {
   name: "",
   pin: "",
   can_launch_media: true,
-  can_manage_software: false,
-  can_edit_environments: false,
-  can_edit_media: false,
-  can_manage_controllers: false,
-  can_edit_settings: false,
+  can_manage_game: false,
+  can_manage_environment: false,
+  can_manage_media: false,
+  can_manage_controllerMapping: false,
+  can_manage_settings: false,
   can_manage_users: false,
   is_admin: false,
   max_content_rating: "",
@@ -96,11 +96,11 @@ export default function Users() {
       name: user.name,
       pin: "",
       can_launch_media: user.can_launch_media,
-      can_manage_software: user.can_manage_software,
-      can_edit_environments: user.can_edit_environments,
-      can_edit_media: user.can_edit_media,
-      can_manage_controllers: user.can_manage_controllers,
-      can_edit_settings: user.can_edit_settings,
+      can_manage_game: user.can_manage_game,
+      can_manage_environment: user.can_manage_environment,
+      can_manage_media: user.can_manage_media,
+      can_manage_controllerMapping: user.can_manage_controllerMapping,
+      can_manage_settings: user.can_manage_settings,
       can_manage_users: user.can_manage_users,
       is_admin: user.is_admin,
       max_content_rating: user.max_content_rating ?? "",
@@ -134,11 +134,11 @@ export default function Users() {
             name: manageForm.name.trim(),
             pin: manageForm.pin || undefined,
             can_launch_media: manageForm.can_launch_media,
-            can_manage_software: manageForm.can_manage_software,
-            can_edit_environments: manageForm.can_edit_environments,
-            can_edit_media: manageForm.can_edit_media,
-            can_manage_controllers: manageForm.can_manage_controllers,
-            can_edit_settings: manageForm.can_edit_settings,
+            can_manage_game: manageForm.can_manage_game,
+            can_manage_environment: manageForm.can_manage_environment,
+            can_manage_media: manageForm.can_manage_media,
+            can_manage_controllerMapping: manageForm.can_manage_controllerMapping,
+            can_manage_settings: manageForm.can_manage_settings,
             can_manage_users: manageForm.can_manage_users,
             is_admin: manageForm.is_admin,
             max_content_rating: manageForm.max_content_rating || null,
@@ -154,11 +154,11 @@ export default function Users() {
         };
         if (manageCanEditAdminFields) {
           patchBody.can_launch_media = manageForm.can_launch_media;
-          patchBody.can_manage_software = manageForm.can_manage_software;
-          patchBody.can_edit_environments = manageForm.can_edit_environments;
-          patchBody.can_edit_media = manageForm.can_edit_media;
-          patchBody.can_manage_controllers = manageForm.can_manage_controllers;
-          patchBody.can_edit_settings = manageForm.can_edit_settings;
+          patchBody.can_manage_game = manageForm.can_manage_game;
+          patchBody.can_manage_environment = manageForm.can_manage_environment;
+          patchBody.can_manage_media = manageForm.can_manage_media;
+          patchBody.can_manage_controllerMapping = manageForm.can_manage_controllerMapping;
+          patchBody.can_manage_settings = manageForm.can_manage_settings;
           patchBody.can_manage_users = manageForm.can_manage_users;
           patchBody.is_admin = manageForm.is_admin;
           patchBody.max_content_rating = manageForm.max_content_rating || null;

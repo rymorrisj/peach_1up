@@ -118,7 +118,7 @@ def list_game_items(
 def create_game_item_bundle(
     body: GameItemBundleCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     """Create a collection-of-one from a single media path."""
     try:
@@ -147,7 +147,7 @@ def import_from_path(
     request: Request,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     """Import a file or folder already on the server's filesystem — the same
     kind of real, absolute path GET /api/v1/filesystem/browse resolves — into
@@ -317,7 +317,7 @@ def trigger_scan(
     request: Request,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     global _scan_running, _scan_error, _scan_job_id
     _enforce_rate_limit("library-scan", request, _SCAN_RATE_LIMIT, _SCAN_RATE_WINDOW_SECONDS)
@@ -452,7 +452,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
 def import_scan_results(
     body: ScanImportBody,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     """
     Phase 2: import the user-selected paths from the Phase 1 preview. Each import
@@ -538,7 +538,7 @@ def update_game_item_bundle(
     collection_id: int,
     body: GameItemBundleUpdate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     return game_item_bundle_to_read(lib_svc.update_library_collection(collection_id, body, db), db)
 
@@ -626,7 +626,7 @@ def get_xiso_conversion_status(
 def issue_delete_token(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     collection = db.get(GameItemBundle, collection_id)
     if not collection:
@@ -640,7 +640,7 @@ def delete_game_item_bundle(
     collection_id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     lib_svc.delete_library_collection(collection_id, confirmation_token, db)
 
@@ -678,7 +678,7 @@ def reorder_game_item_bundle_items(
     collection_id: int,
     body: GameItemReorder,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     # Registered before the "/items/{leaf_id}" route below: {leaf_id} has no
     # type constraint in the path itself, so a literal "reorder" segment
@@ -693,7 +693,7 @@ def update_game_item(
     leaf_id: int,
     body: GameItemUpdate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     return GameItemRead.model_validate(
         lib_svc.update_library_leaf(collection_id, leaf_id, body, db)

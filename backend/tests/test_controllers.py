@@ -3,7 +3,7 @@
 list/get/create/duplicate are open to any authenticated user by design (confirmed
 with Ryan — not a gap). update/delete are gated by check_controller_edit_permission,
 a compound rule that is NOT a simple flag check: owner bypasses everything, OR the
-row's creator, OR (is_admin AND can_manage_controllers) together — the AND is
+row's creator, OR (is_admin AND can_manage_controllerMapping) together — the AND is
 genuine, so both flags must be proven independently insufficient and jointly
 sufficient. backend/api/routes/tags.py imports and reuses this exact function for
 controller_mapping tag assignments (see test_tags.py's
@@ -169,9 +169,9 @@ class TestDuplicate:
 # update/delete permission matrix — check_controller_edit_permission
 # (a) owner bypasses everything
 # (b) creator bypasses admin/flag entirely
-# (c) is_admin alone, no can_manage_controllers -> fails
-# (d) can_manage_controllers alone, no is_admin -> fails
-# (e) is_admin AND can_manage_controllers together, on someone else's mapping -> succeeds
+# (c) is_admin alone, no can_manage_controllerMapping -> fails
+# (d) can_manage_controllerMapping alone, no is_admin -> fails
+# (e) is_admin AND can_manage_controllerMapping together, on someone else's mapping -> succeeds
 # (f) unrelated user (not owner/creator, not admin+flag) -> 403
 # ---------------------------------------------------------------------------
 
@@ -187,7 +187,7 @@ class TestEditPermissionMatrix:
     def test_owner_succeeds_regardless_of_other_flags(self, client, method):
         c, db = client
         mapping = _make_mapping(db, created_by=999)
-        owner = _user(1, is_owner=True, is_admin=False, can_manage_controllers=False)
+        owner = _user(1, is_owner=True, is_admin=False, can_manage_controllerMapping=False)
         _override_user(c, owner)
         resp = self._call(c, method, mapping.id)
         assert resp.status_code in (200, 204), resp.text
@@ -195,7 +195,7 @@ class TestEditPermissionMatrix:
     @pytest.mark.parametrize("method", ["patch", "delete"])
     def test_creator_succeeds_regardless_of_admin_or_flag(self, client, method):
         c, db = client
-        creator = _user(5, is_owner=False, is_admin=False, can_manage_controllers=False)
+        creator = _user(5, is_owner=False, is_admin=False, can_manage_controllerMapping=False)
         mapping = _make_mapping(db, created_by=creator.id)
         _override_user(c, creator)
         resp = self._call(c, method, mapping.id)
@@ -205,7 +205,7 @@ class TestEditPermissionMatrix:
     def test_admin_alone_without_flag_fails(self, client, method):
         c, db = client
         mapping = _make_mapping(db, created_by=999)
-        user = _user(2, is_owner=False, is_admin=True, can_manage_controllers=False)
+        user = _user(2, is_owner=False, is_admin=True, can_manage_controllerMapping=False)
         _override_user(c, user)
         resp = self._call(c, method, mapping.id)
         assert resp.status_code == 403
@@ -214,7 +214,7 @@ class TestEditPermissionMatrix:
     def test_flag_alone_without_admin_fails(self, client, method):
         c, db = client
         mapping = _make_mapping(db, created_by=999)
-        user = _user(3, is_owner=False, is_admin=False, can_manage_controllers=True)
+        user = _user(3, is_owner=False, is_admin=False, can_manage_controllerMapping=True)
         _override_user(c, user)
         resp = self._call(c, method, mapping.id)
         assert resp.status_code == 403
@@ -223,7 +223,7 @@ class TestEditPermissionMatrix:
     def test_admin_and_flag_together_on_someone_elses_mapping_succeeds(self, client, method):
         c, db = client
         mapping = _make_mapping(db, created_by=999)
-        user = _user(4, is_owner=False, is_admin=True, can_manage_controllers=True)
+        user = _user(4, is_owner=False, is_admin=True, can_manage_controllerMapping=True)
         _override_user(c, user)
         resp = self._call(c, method, mapping.id)
         assert resp.status_code in (200, 204), resp.text
@@ -232,7 +232,7 @@ class TestEditPermissionMatrix:
     def test_unrelated_user_fails(self, client, method):
         c, db = client
         mapping = _make_mapping(db, created_by=999)
-        user = _user(6, is_owner=False, is_admin=False, can_manage_controllers=False)
+        user = _user(6, is_owner=False, is_admin=False, can_manage_controllerMapping=False)
         _override_user(c, user)
         resp = self._call(c, method, mapping.id)
         assert resp.status_code == 403

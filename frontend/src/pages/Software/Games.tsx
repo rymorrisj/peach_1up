@@ -13,7 +13,7 @@ import { ERA_LABELS } from '@/generated/constants'
 import { AddMediaModal } from './components/AddMediaModal'
 import { ScanModal } from './components/ScanModal'
 import { CollectionCard } from './components/CollectionCard'
-import type { SoftwareCollectionData } from './components/CollectionCard'
+import type { GameItemBundleData } from './components/CollectionCard'
 
 // Server-side pagination envelope (backend models/pagination.py). Typed locally
 // so the app builds before @shared/types is regenerated from the OpenAPI spec.
@@ -69,11 +69,11 @@ export default function Games() {
     return params.toString()
   }
 
-  const { data: collectionsPage, isLoading } = useQuery<Page<SoftwareCollectionData>>({
+  const { data: collectionsPage, isLoading } = useQuery<Page<GameItemBundleData>>({
     queryKey: ['library', filters.era, filters.profileFilter, offset],
     queryFn: () =>
-      apiFetch<Page<SoftwareCollectionData>>(
-        `/api/v1/software?${listParams({ limit: String(PAGE_SIZE), offset: String(offset) })}`,
+      apiFetch<Page<GameItemBundleData>>(
+        `/api/v1/game-items?${listParams({ limit: String(PAGE_SIZE), offset: String(offset) })}`,
       ),
     placeholderData: keepPreviousData,
   })
@@ -81,7 +81,7 @@ export default function Games() {
   const total = collectionsPage?.total ?? 0
 
   const handleSetDisplayDisk = async (collectionId: number, discId: number) => {
-    await apiFetch(`/api/v1/softwarecollection/${collectionId}`, {
+    await apiFetch(`/api/v1/game-item-bundle/${collectionId}`, {
       method: 'PATCH',
       body: JSON.stringify({ display_disk_id: discId }),
     })
@@ -110,7 +110,7 @@ export default function Games() {
     return () => window.removeEventListener('upload-complete', invalidate)
   }, [invalidate])
 
-  async function handleRemove(collection: SoftwareCollectionData) {
+  async function handleRemove(collection: GameItemBundleData) {
     const resolvedDeleteMedia = collection.delete_media_override ?? deleteMediaOnRemoval
     const confirmed = await confirm({
       title: `Remove "${collection.title}"?`,
@@ -122,13 +122,13 @@ export default function Games() {
     try {
       const checkedDeleteMedia = getCheckboxValue()
       if (checkedDeleteMedia !== resolvedDeleteMedia) {
-        await apiFetch(`/api/v1/softwarecollection/${collection.id}`, {
+        await apiFetch(`/api/v1/game-item-bundle/${collection.id}`, {
           method: 'PATCH',
           body: JSON.stringify({ delete_media_override: checkedDeleteMedia }),
         })
       }
-      const token = await issueToken(`/api/v1/softwarecollection/${collection.id}/confirm-delete`)
-      await consumeToken(`/api/v1/softwarecollection/${collection.id}`, token)
+      const token = await issueToken(`/api/v1/game-item-bundle/${collection.id}/confirm-delete`)
+      await consumeToken(`/api/v1/game-item-bundle/${collection.id}`, token)
       queryClient.invalidateQueries({ queryKey: ['library'] })
     } catch (err) {
       const msg = err instanceof ApiError ? err.detail : 'Remove failed.'

@@ -19,7 +19,7 @@ def _owner_user():
 
 def _no_permission_user():
     from backend.models.user import User
-    return User(id=2, name="Guest", is_owner=False, can_edit_environments=False)
+    return User(id=2, name="Guest", is_owner=False, can_manage_environment=False)
 
 
 @pytest.fixture
@@ -170,7 +170,7 @@ class TestCreateEnvironment:
         from backend.models.environment import EnvironmentItem
         assert db.get(EnvironmentItem, body["id"]) is not None
 
-    def test_requires_can_edit_environments_permission(self, client):
+    def test_requires_can_manage_environment_permission(self, client):
         c, _ = client
         from backend.core.dependencies import get_active_user
         c.app.dependency_overrides[get_active_user] = _no_permission_user
@@ -242,7 +242,7 @@ class TestDeleteEnvironment:
         from backend.models.environment import EnvironmentItem
         assert db.get(EnvironmentItem, env_id) is None
 
-    def test_requires_can_edit_environments_permission(self, client):
+    def test_requires_can_manage_environment_permission(self, client):
         c, db = client
         environment = _make_environment(db)
         from backend.core.dependencies import get_active_user
@@ -396,7 +396,7 @@ class TestHealthSummaryEndpoint:
             "environments", "library", "drives", "extensions", "emulators", "bios", "rom_packs",
         }
 
-    def test_requires_can_edit_environments_permission(self, client):
+    def test_requires_can_manage_environment_permission(self, client):
         c, _ = client
         from backend.core.dependencies import get_active_user
         c.app.dependency_overrides[get_active_user] = _no_permission_user

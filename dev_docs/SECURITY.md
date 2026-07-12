@@ -62,11 +62,11 @@ Permission flags on sub-accounts. The authoritative list is `UserBase` in
 | Flag                     | What it controls                                                                                                                                                                                                                                                                                |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `can_launch_media`       | Launch any permitted software collection (default: true)                                                                                                                                                                                                                                        |
-| `can_edit_environments`  | Register or modify Environments (the Windows OS install workspaces; was `can_edit_platforms`)                                                                                                                                                                                                   |
-| `can_manage_software`    | Create, edit, delete, or scan/import software collections and items, **and** create/modify/delete launch Profiles (the `Profile` model in `routes/profiles.py`). Also the gate on `POST /api/v1/software/scan`. Was `can_edit_library` (renamed once to `can_edit_software`, then to this name to reflect that it covers create/delete/scan-import, not just edits) |
-| `can_edit_media`         | Add, edit, or remove Media (the archival audio/text/image/video domain)                                                                                                                                                                                                                          |
-| `can_manage_controllers` | Create, edit, or delete controller mappings (System → Controllers)                                                                                                                                                                                                                              |
-| `can_edit_settings`      | Modify application settings                                                                                                                                                                                                                                                                     |
+| `can_manage_environment`  | Register or modify Environments (the Windows OS install workspaces; was `can_edit_platforms`)                                                                                                                                                                                                   |
+| `can_manage_game`    | Create, edit, delete, or scan/import software collections and items, **and** create/modify/delete launch Profiles (the `Profile` model in `routes/profiles.py`). Also the gate on `POST /api/v1/software/scan`. Was `can_edit_library` (renamed once to `can_edit_software`, then to this name to reflect that it covers create/delete/scan-import, not just edits) |
+| `can_manage_media`         | Add, edit, or remove Media (the archival audio/text/image/video domain)                                                                                                                                                                                                                          |
+| `can_manage_controllerMapping` | Create, edit, or delete controller mappings (System → Controllers)                                                                                                                                                                                                                              |
+| `can_manage_settings`      | Modify application settings                                                                                                                                                                                                                                                                     |
 | `can_manage_users`       | Lets a sub-account edit its own `name` and reset its own PIN only — no capability over any other account, no self-delete, no create/delete of any sub-account. Owner-only to grant, like every flag here. Checked in addition to (not instead of) the `is_admin` path on the same two endpoints |
 | `is_admin`               | Edit/reset-pin/unlock/force-logout an existing sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other flag in this table — each is checked independently. Creating or deleting a sub-account requires `is_owner`, not `is_admin`        |
 
@@ -473,15 +473,15 @@ check.
 ### Environment image path traversal relies on OS trust model
 
 `base_image_path` and `working_image_path` on Environment records may be set by any user
-with `can_edit_environments` permission and may point to any location on the host filesystem.
+with `can_manage_environment` permission and may point to any location on the host filesystem.
 The runtime allowlist check against `OS_PATH` and `LIBRARY_PATH` was intentionally
 removed to allow images on secondary drives, external volumes, and NAS shares outside
 the configured library directories.
 
-**Implications:** A user with `can_edit_environments` can cause the backend to read, copy,
+**Implications:** A user with `can_manage_environment` can cause the backend to read, copy,
 or perform existence checks on files at arbitrary paths on the host. Mitigating factors:
 
-- `can_edit_environments` is an explicit operator-granted permission, not a default for
+- `can_manage_environment` is an explicit operator-granted permission, not a default for
   sub-accounts.
 - The application runs as a local user, not a privileged service account.
 - Operations on image paths are limited to copy, read, and existence check — no shell
@@ -495,7 +495,7 @@ environment registration time.
 
 The Library Paths settings panel was removed from the UI in session \[B4\]. LIBRARY_PATH, PROFILES_PATH, and ROMS_PATH can no longer be set through the frontend. The `config/settings.yaml` hand-edit fallback documented here previously has also been removed — settings are now DB-backed via `app_settings`, and no equivalent file exists to hand-edit. **There is currently no file-based or UI-based way for a user to reconfigure these three paths.**
 
-The backend endpoint POST /api/v1/settings/library-path remains live and functional — it writes directly to `app_settings` via `set_path()`. It requires a `can_edit_settings`-permitted session, which in practice means calling the API directly (e.g. via curl with an authenticated cookie) rather than anything a typical user can do through the app.
+The backend endpoint POST /api/v1/settings/library-path remains live and functional — it writes directly to `app_settings` via `set_path()`. It requires a `can_manage_settings`-permitted session, which in practice means calling the API directly (e.g. via curl with an authenticated cookie) rather than anything a typical user can do through the app.
 
 ⚠ **Flag — needs a decision, not fixed here:** the previous mitigation for this gap (hand-edit a config file) no longer has any equivalent at all, which is a regression from before the settings.yaml removal, not just a doc-accuracy fix. Replacement options (restore a UI panel, or document a supported API/CLI workflow for advanced users) need to be decided before this doc can point users anywhere concrete.
 

@@ -15,7 +15,7 @@ import EnvironmentModal, {
   ERA_TO_EMULATOR,
 } from './EnvironmentModal'
 
-type Platform = components['schemas']['EnvironmentRead']
+type Platform = components['schemas']['EnvironmentItemRead']
 
 type EnvModalState = null | { mode: 'create' } | { mode: 'edit'; platform: Platform }
 
@@ -39,7 +39,7 @@ export default function Environments() {
 
   const { data: platforms, isLoading } = useQuery<Platform[]>({
     queryKey: ['platforms'],
-    queryFn: () => apiFetch<Platform[]>('/api/v1/environments'),
+    queryFn: () => apiFetch<Platform[]>('/api/v1/environment-items'),
   })
 
   const userPlatforms = (platforms ?? []).filter((p) => !p.is_system)
@@ -111,9 +111,9 @@ export default function Environments() {
         launch_commands: form.launch_commands,
       }
       if (modal?.mode === 'create') {
-        await apiFetch('/api/v1/environments', { method: 'POST', body: JSON.stringify(body) })
+        await apiFetch('/api/v1/environment-items', { method: 'POST', body: JSON.stringify(body) })
       } else if (modal?.mode === 'edit') {
-        await apiFetch(`/api/v1/environments/${modal.platform.id}`, {
+        await apiFetch(`/api/v1/environment-items/${modal.platform.id}`, {
           method: 'PATCH',
           body: JSON.stringify(body),
         })
@@ -136,11 +136,11 @@ export default function Environments() {
     if (!confirmed) return
     try {
       const { confirmation_token } = await apiFetch<{ confirmation_token: string }>(
-        `/api/v1/environments/${platform.id}/confirm-delete`,
+        `/api/v1/environment-items/${platform.id}/confirm-delete`,
         { method: 'POST' },
       )
       await apiFetch(
-        `/api/v1/environments/${platform.id}?confirmation_token=${encodeURIComponent(confirmation_token)}`,
+        `/api/v1/environment-items/${platform.id}?confirmation_token=${encodeURIComponent(confirmation_token)}`,
         { method: 'DELETE' },
       )
       await queryClient.invalidateQueries({ queryKey: ['platforms'] })
@@ -152,7 +152,7 @@ export default function Environments() {
   async function handleHealthCheck(platform: Platform) {
     setHealthLoading(platform.id)
     try {
-      await apiFetch(`/api/v1/environments/${platform.id}/health`, { method: 'POST' })
+      await apiFetch(`/api/v1/environment-items/${platform.id}/health`, { method: 'POST' })
       await queryClient.invalidateQueries({ queryKey: ['platforms'] })
     } catch {
       // Status update reflected via query invalidation

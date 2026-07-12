@@ -90,17 +90,17 @@ def health_check():
 # get_storage_stats/compute_live_status unchanged (backend/service/
 # environments/environments.py) — only the route location moved.
 @router.get("/health/summary", response_model=HealthSummary)
-def health_summary(db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
+def health_summary(db: Session = Depends(get_db), _: User = require_permission("can_manage_environment")):
     return env_svc.get_health_summary(db)
 
 
 @router.post("/health/recompute-all")
-def health_recompute_all(db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
+def health_recompute_all(db: Session = Depends(get_db), _: User = require_permission("can_manage_environment")):
     return env_svc.batch_health_check(db)
 
 
 @router.get("/health/storage-stats", response_model=StorageStats)
-def health_storage_stats(db: Session = Depends(get_db), _: User = require_permission("can_edit_environments")):
+def health_storage_stats(db: Session = Depends(get_db), _: User = require_permission("can_manage_environment")):
     return env_svc.get_storage_stats(db)
 
 
@@ -196,7 +196,7 @@ def _get_storage_footprint(db: Session, force_refresh: bool = False) -> dict:
 @router.get("/health/storage")
 def storage_footprint(
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_environments"),
+    _: User = require_permission("can_manage_environment"),
 ):
     return _get_storage_footprint(db)
 
@@ -204,7 +204,7 @@ def storage_footprint(
 @router.post("/health/storage/rescan")
 def rescan_file_sizes(
     db: Session = Depends(get_db),
-    _: User = require_permission("can_edit_environments"),
+    _: User = require_permission("can_manage_environment"),
 ):
     rows = db.execute(
         text(

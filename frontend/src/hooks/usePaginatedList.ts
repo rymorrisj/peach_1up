@@ -15,7 +15,7 @@ export interface Page<T> {
 }
 
 export interface UsePaginatedListOptions {
-  /** API path with no query string, e.g. "/api/v1/software". */
+  /** API path with no query string, e.g. "/api/v1/game-items". */
   path: string
   /** Requested page size (sent as `limit`). Defaults to 50. */
   pageSize?: number

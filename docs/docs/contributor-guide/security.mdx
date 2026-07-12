@@ -58,11 +58,11 @@ Permission flags on sub-accounts:
 | Flag                     | What it controls                                          |
 | ------------------------ | --------------------------------------------------------- |
 | `can_launch_media`       | Launch any permitted software collection (default: true)  |
-| `can_edit_environments`  | Register or modify Environments (Windows OS install workspaces; was `can_edit_platforms`) |
-| `can_manage_software`    | Add, edit, delete, or scan/import software collections and items, and create/modify/delete launch Profiles. Gates `POST /api/v1/software/scan`. Was `can_edit_library` |
-| `can_edit_media`         | Add, edit, or remove Media (the archival audio/text/image/video domain) |
-| `can_manage_controllers` | Create, edit, or delete controller mappings (System → Controllers) |
-| `can_edit_settings`      | Modify application settings                               |
+| `can_manage_environment`  | Register or modify Environments (Windows OS install workspaces; was `can_edit_platforms`) |
+| `can_manage_game`    | Add, edit, delete, or scan/import software collections and items, and create/modify/delete launch Profiles. Gates `POST /api/v1/software/scan`. Was `can_edit_library` |
+| `can_manage_media`         | Add, edit, or remove Media (the archival audio/text/image/video domain) |
+| `can_manage_controllerMapping` | Create, edit, or delete controller mappings (System → Controllers) |
+| `can_manage_settings`      | Modify application settings                               |
 | `can_manage_users`       | Lets a sub-account edit its own `name` and reset its own PIN only — no capability over any other account, no self-delete, no create/delete of any sub-account. Owner-only to grant, like every flag here. Checked in addition to (not instead of) the `is_admin` path on the same two endpoints |
 | `is_admin`               | Edit/reset-pin/unlock/force-logout an existing sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other flag in this table — each is checked independently. Creating or deleting a sub-account requires `is_owner`, not `is_admin` |
 
@@ -364,15 +364,15 @@ reaches the IMGMAKE command directly.
 ### Environment image path traversal relies on OS trust model
 
 `base_image_path` and `working_image_path` on Environment records may be set by any user
-with `can_edit_environments` permission and may point to any location on the host filesystem.
+with `can_manage_environment` permission and may point to any location on the host filesystem.
 The runtime allowlist check against `OS_PATH` and `LIBRARY_PATH` was intentionally
 removed to allow images on secondary drives, external volumes, and NAS shares outside
 the configured library directories.
 
-**Implications:** A user with `can_edit_environments` can cause the backend to read, copy,
+**Implications:** A user with `can_manage_environment` can cause the backend to read, copy,
 or perform existence checks on files at arbitrary paths on the host. Mitigating factors:
 
-- `can_edit_environments` is an explicit operator-granted permission, not a default for
+- `can_manage_environment` is an explicit operator-granted permission, not a default for
   sub-accounts.
 - The application runs as a local user, not a privileged service account.
 - Operations on image paths are limited to copy, read, and existence check — no shell
@@ -392,7 +392,7 @@ non-standard installs (library on a secondary drive, NAS share, or external volu
 no supported path to change them today.
 
 The backend endpoint POST /api/v1/settings/library-path remains live and functional and
-writes directly to `app_settings`, but it requires a `can_edit_settings` session — in
+writes directly to `app_settings`, but it requires a `can_manage_settings` session — in
 practice, calling the API directly (e.g. via curl with an authenticated cookie).
 
 Highest-risk case: ROMS_PATH defaults to {project_root}/library/system/roms/86box. Users who supply 86Box ROMs from a zip extracted to a non-default location (the common case) will silently use the wrong ROM path after a clean install. The 86Box backend will raise a ROM path error at launch time rather than silently proceeding, so the failure is visible — but the fix path is now undocumented short of calling the API directly.

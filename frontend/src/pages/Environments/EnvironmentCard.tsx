@@ -9,7 +9,7 @@ import LaunchHistory from '@/components/launches/LaunchHistory'
 import { useLaunch } from '@/hooks/useLaunch'
 import { apiFetch, ApiError } from '@/api/client'
 
-type PlatformBase = components['schemas']['EnvironmentRead']
+type PlatformBase = components['schemas']['EnvironmentItemRead']
 type Platform = PlatformBase & { installed_at?: string | null }
 
 const EMULATOR_LABELS: Record<string, string> = {
@@ -49,7 +49,7 @@ export default function EnvironmentCard({
     setMarkingInstalled(true)
     setMarkInstalledError(null)
     try {
-      await apiFetch(`/api/v1/environments/${platform.id}`, {
+      await apiFetch(`/api/v1/environment-items/${platform.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ installed_at: new Date().toISOString() }),
       })

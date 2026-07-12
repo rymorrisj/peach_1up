@@ -60,11 +60,11 @@ middleware chain. Read alongside `SECURITY.md` (policy rules) and `TECH.md` (sta
 | `is_owner` | `True` | always `False` | Bypasses all `require_permission` checks; owner-only operations, including create/delete sub-account (`is_owner` is also used directly as the gating flag on those two endpoints — see Flow 9, Flow 13) |
 | `is_admin` | `True` | `False` | Gates endpoints that check `is_admin` directly: edit/reset-pin/unlock/force-logout sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other `can_*` flag — `require_permission()` only special-cases `is_owner` for bypass; every other flag (including `is_admin` itself) is checked independently via `getattr(active_user, flag, False)`. On `reset-pin` specifically, an admin may target only regular/capped sub-accounts — the owner and every admin (including the caller's own record) are rejected with 403; only the owner may reset an owner-adjacent PIN |
 | `can_launch_media` | `True` | `True` | Launch any permitted software collection |
-| `can_manage_software` | `True` | `False` | Add/edit/delete software collections and items and their drives, run `POST /software/scan` and import-from-path, **and** create/modify/delete launch Profiles (`routes/profiles.py`). Was `can_edit_library` → `can_edit_software` → this name |
-| `can_edit_environments` | `True` | `False` | Register/modify Environments (Windows OS install workspaces). Was `can_edit_platforms` |
-| `can_edit_media` | `True` | `False` | Add/edit/delete Media (the archival audio/text/image/video domain) |
-| `can_manage_controllers` | `True` | `False` | Create/edit/delete controller mappings (System → Controllers) |
-| `can_edit_settings` | `True` | `False` | Modify application settings |
+| `can_manage_game` | `True` | `False` | Add/edit/delete software collections and items and their drives, run `POST /software/scan` and import-from-path, **and** create/modify/delete launch Profiles (`routes/profiles.py`). Was `can_edit_library` → `can_edit_software` → this name |
+| `can_manage_environment` | `True` | `False` | Register/modify Environments (Windows OS install workspaces). Was `can_edit_platforms` |
+| `can_manage_media` | `True` | `False` | Add/edit/delete Media (the archival audio/text/image/video domain) |
+| `can_manage_controllerMapping` | `True` | `False` | Create/edit/delete controller mappings (System → Controllers) |
+| `can_manage_settings` | `True` | `False` | Modify application settings |
 | `can_manage_users` | `True` (irrelevant — owner bypasses) | `False` | Lets a sub-account edit **its own** `name` via `PATCH /users/{id}` and reset **its own** PIN via `POST /users/{id}/reset-pin` — nothing else. Grants no capability over any other user's account, no delete, and none of the owner-only create/delete-sub-account operations. Owner-only to grant, like every permission flag. Gated by `require_admin_or_self_manage` in `dependencies.py`, which is checked in addition to (not instead of) the existing `is_admin`-targets-others path on those two endpoints |
 
 `require_permission(flag)` in `dependencies.py`: owner bypasses unconditionally; others must have the literal boolean flag set (`is_admin` included — it grants no other flag implicitly). Returns 403 on failure.
@@ -84,7 +84,7 @@ flowchart TD
     E --> F{require_permission flag}
     F --> G{active_user.is_owner?}
     G -- Yes --> PASS1[Pass — owner bypasses every\nrequire_permission check]
-    G -- No --> H["getattr(active_user, flag, False)\nflag is literal: can_manage_software,\ncan_edit_environments, can_edit_media,\ncan_manage_controllers, can_edit_settings,\ncan_launch_media, is_admin, or is_owner"]
+    G -- No --> H["getattr(active_user, flag, False)\nflag is literal: can_manage_game,\ncan_manage_environment, can_manage_media,\ncan_manage_controllerMapping, can_manage_settings,\ncan_launch_media, is_admin, or is_owner"]
     H -- True --> PASS2[Pass]
     H -- False --> Z403[403 Permission denied: requires flag\nis_admin grants no other flag implicitly]
 
@@ -172,7 +172,7 @@ User fills name + PIN + confirm PIN → clicks "Create Account"
     → return { user: UserRead }
   → Frontend: dispatch SET_ACTIVE_USER
   → Frontend: call POST /api/v1/settings/complete-first-run
-    → require_permission("can_edit_settings") → owner → pass
+    → require_permission("can_manage_settings") → owner → pass
     → write settings row first_run_complete="true"
     → set_first_run_complete() → _first_run_done_cache = true
   → Frontend: window.location.replace("/") → full reload → redirect to /software
@@ -488,12 +488,12 @@ MediaRestriction rows are managed by admin via `GET/PUT /api/v1/softwarecollecti
 Example: delete software collection
 
 Step 1 — POST /api/v1/softwarecollection/{collection_id}/confirm-delete
-  → require_permission("can_manage_software")
+  → require_permission("can_manage_game")
   → confirmation_tokens.issue("software", collection_id) → in-memory store, 60s TTL
   → return { confirmation_token, expires_in_seconds: 60 }
 
 Step 2 — DELETE /api/v1/softwarecollection/{collection_id}?confirmation_token=<token>
-  → require_permission("can_manage_software")
+  → require_permission("can_manage_game")
   → confirmation_tokens.consume(token, "software", collection_id) → validates type+id+expiry
   → FAIL → 400 "Invalid or expired confirmation token"
   → PASS → delete collection
@@ -514,7 +514,7 @@ Browser opens /first-run
     → first_run_complete=false, owner_exists=true
   → FirstRun renders "Setup Complete" screen (not the owner-creation form)
   → User clicks "Continue" → POST /api/v1/settings/complete-first-run
-    → require_permission("can_edit_settings") → must be authenticated as owner
+    → require_permission("can_manage_settings") → must be authenticated as owner
     → writes first_run_complete="true", sets in-memory cache
 ```
 
@@ -562,7 +562,7 @@ All gaps identified at audit time have been resolved.
 |-----|-----|
 | `GET /api/v1/users` had no auth guard | Added `Depends(get_active_user)` — `users.py`. **Superseded 2026-06-21** (see below): this re-introduced a different bug once Users moved to its own route, so the guard was removed again — `GET /api/v1/users` is now intentionally unauthenticated. |
 | Duplicate `GET /auth/me` in `AppShell` | Removed redundant call; `AppProvider` is the single source — `AppShell.tsx` |
-| `complete-first-run` implicit trust | Not a real gap — owner session from `setup-owner` satisfies `can_edit_settings`. Documented here for clarity. |
+| `complete-first-run` implicit trust | Not a real gap — owner session from `setup-owner` satisfies `can_manage_settings`. Documented here for clarity. |
 | No CSRF protection | `CSRFMiddleware` added (double-submit cookie pattern). `peach_csrf` non-HttpOnly cookie set on every token issue; `X-CSRF-Token` header required on all mutating non-auth requests. Auth endpoints (`/api/v1/auth/*`) exempt. — `security.py`, `main.py`, `auth.py`, `client.ts` |
 | `session-expired` fired on 403 (locked-account switch logged out active user) | `isSessionError` simplified to `res.status === 401` only — `client.ts` |
 | No session refresh / expiry warning | `POST /api/v1/auth/refresh` endpoint added; called on every app open in `AppContext`. — `auth.py`, `AppContext.tsx` |

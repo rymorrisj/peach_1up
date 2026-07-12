@@ -39,7 +39,7 @@ export default function FileUpload({ slug, onComplete, accept }: FileUploadProps
 
     // XHR is required here — fetch() does not expose upload progress events.
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', `${baseURL}/api/v1/environments/${slug}/install-media`)
+    xhr.open('POST', `${baseURL}/api/v1/environment-items/${slug}/install-media`)
     xhr.withCredentials = true
     xhr.setRequestHeader('X-CSRF-Token', getCsrfToken())
 

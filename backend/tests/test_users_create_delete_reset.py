@@ -75,11 +75,11 @@ def _set_active_user(app, user):
 # via UserCreate at all).
 _CAPABILITY_FLAGS = [
     "can_launch_media",
-    "can_edit_environments",
-    "can_manage_software",
-    "can_edit_media",
-    "can_manage_controllers",
-    "can_edit_settings",
+    "can_manage_environment",
+    "can_manage_game",
+    "can_manage_media",
+    "can_manage_controllerMapping",
+    "can_manage_settings",
     "can_manage_users",
 ]
 
@@ -88,7 +88,7 @@ class TestCreateUserCapabilityFlags:
     def test_all_capability_flags_persist_when_granted(self, http_client):
         """Round-trip: every capability flag granted at creation must persist
         as True. This is the exact gap the prior audit found under-threaded
-        (can_edit_media / can_manage_controllers were ungrantable)."""
+        (can_manage_media / can_manage_controllerMapping were ungrantable)."""
         c, db, app = http_client
         owner = _make_user(db, name="Owner", is_owner=True)
         _set_active_user(app, owner)

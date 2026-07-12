@@ -270,7 +270,7 @@ class TestUpdateUser:
         [
             {"is_admin": True},
             {"can_manage_users": True},
-            {"can_edit_settings": True},
+            {"can_manage_settings": True},
             {"session_token_ttl": 60},
             {"name": "New Name", "is_admin": True},
         ],
@@ -328,14 +328,14 @@ class TestUpdateUser:
 
         resp = app_client.patch(
             f"/api/v1/users/{sub.id}",
-            json={"is_admin": True, "can_edit_settings": True, "session_token_ttl": 120},
+            json={"is_admin": True, "can_manage_settings": True, "session_token_ttl": 120},
             cookies={"peach_token": self._cookie(mem_session, owner)},
         )
         assert resp.status_code == 200, resp.text
 
         refreshed = mem_session.get(User, sub.id)
         assert refreshed.is_admin is True
-        assert refreshed.can_edit_settings is True
+        assert refreshed.can_manage_settings is True
         assert refreshed.session_token_ttl == 120
 
     def test_admin_cannot_escalate_privilege_fields(self, app_client, mem_session):
@@ -350,14 +350,14 @@ class TestUpdateUser:
 
         resp = app_client.patch(
             f"/api/v1/users/{sub.id}",
-            json={"can_manage_controllers": True},
+            json={"can_manage_controllerMapping": True},
             cookies={"peach_token": self._cookie(mem_session, admin)},
         )
-        # P2.4: can_manage_controllers is a privilege field; only the owner may set it.
+        # P2.4: can_manage_controllerMapping is a privilege field; only the owner may set it.
         assert resp.status_code == 403
 
         refreshed = mem_session.get(User, sub.id)
-        assert refreshed.can_manage_controllers is False
+        assert refreshed.can_manage_controllerMapping is False
 
     def test_owner_as_edit_target_is_rejected(self, app_client, mem_session, owner):
         resp = app_client.patch(

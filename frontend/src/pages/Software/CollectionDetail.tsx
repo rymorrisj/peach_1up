@@ -15,16 +15,16 @@ import { SoftwareEntityDetail } from './components/SoftwareEntityDetail'
 import { FetchMetadataModal } from './components/FetchMetadataModal'
 import { DiscOrderList } from './components/DiscOrderList'
 import { ERA_LABELS } from '@/generated/constants'
-import type { SoftwareCollectionData } from './components/CollectionCard'
+import type { GameItemBundleData } from './components/CollectionCard'
 import type { EditForm as EditFormFields } from '@/hooks/useEditForm'
 import type { components } from '@shared/types'
 
 type User = components['schemas']['UserRead']
 type LaunchHistory = components['schemas']['LaunchHistoryRead']
 type LaunchProfile = components['schemas']['ProfileRead']
-type Platform = components['schemas']['EnvironmentRead']
+type Platform = components['schemas']['EnvironmentItemRead']
 
-function formFromCollection(c: SoftwareCollectionData): EditFormFields {
+function formFromCollection(c: GameItemBundleData): EditFormFields {
   const launchDisc = c.items.find(i => i.id === c.launch_disk_id) ?? c.items[0]
   return {
     title: c.title,
@@ -81,7 +81,7 @@ export default function CollectionDetail() {
 
   const { data: collection, isLoading } = useQuery({
     queryKey: ['library', 'by-slug', slug],
-    queryFn: () => apiFetch<SoftwareCollectionData>(`/api/v1/softwarecollection/by-slug/${slug}`),
+    queryFn: () => apiFetch<GameItemBundleData>(`/api/v1/game-item-bundle/by-slug/${slug}`),
     enabled: !!slug,
   })
   const collectionId = collection?.id
@@ -106,7 +106,7 @@ export default function CollectionDetail() {
 
   const { data: platforms = [] } = useQuery<Platform[]>({
     queryKey: ['platforms'],
-    queryFn: () => apiFetch<Platform[]>('/api/v1/environments'),
+    queryFn: () => apiFetch<Platform[]>('/api/v1/environment-items'),
   })
 
   const { data: restrictionsData, refetch: refetchRestrictions } = useQuery<{
@@ -114,13 +114,13 @@ export default function CollectionDetail() {
   }>({
     queryKey: ['restrictions', 'collection', collectionId],
     queryFn: () =>
-      apiFetch<{ restricted_user_ids: number[] }>(`/api/v1/softwarecollection/${collectionId}/restrictions`),
+      apiFetch<{ restricted_user_ids: number[] }>(`/api/v1/game-item-bundle/${collectionId}/restrictions`),
     enabled: isAdminOrOwner && collectionId != null,
   })
 
   const { data: launchHistory = [] } = useQuery<LaunchHistory[]>({
     queryKey: ['launches', 'collection', collectionId],
-    queryFn: () => apiFetch<LaunchHistory[]>(`/api/v1/softwarecollection/${collectionId}/launches`),
+    queryFn: () => apiFetch<LaunchHistory[]>(`/api/v1/game-item-bundle/${collectionId}/launches`),
     enabled: collectionId != null,
   })
 
@@ -166,9 +166,9 @@ export default function CollectionDetail() {
     return launchCommands === undefined ? (collection?.launch_commands ?? null) : launchCommands
   }
 
-  const saveMutation = useMutation<SoftwareCollectionData, Error, EditFormFields>({
+  const saveMutation = useMutation<GameItemBundleData, Error, EditFormFields>({
     mutationFn: async (f) => {
-      await apiFetch<SoftwareCollectionData>(`/api/v1/softwarecollection/${collectionId}`, {
+      await apiFetch<GameItemBundleData>(`/api/v1/game-item-bundle/${collectionId}`, {
         method: 'PATCH',
         body: JSON.stringify({
           title: f.title.trim() || undefined,
@@ -197,7 +197,7 @@ export default function CollectionDetail() {
         discOrder != null &&
         (discOrder.length !== currentOrderIds.length || discOrder.some((id, i) => id !== currentOrderIds[i]))
       if (reorderStaged && collectionId != null) {
-        await apiFetch(`/api/v1/softwarecollection/${collectionId}/items/reorder`, {
+        await apiFetch(`/api/v1/game-item-bundle/${collectionId}/items/reorder`, {
           method: 'PATCH',
           body: JSON.stringify({ disc_order: discOrder }),
         })
@@ -207,7 +207,7 @@ export default function CollectionDetail() {
         ? discOrder![0]
         : (collection?.launch_disk_id ?? collection?.items[0]?.id)
       if (launchDiscId != null && collectionId != null) {
-        await apiFetch(`/api/v1/softwarecollection/${collectionId}/items/${launchDiscId}`, {
+        await apiFetch(`/api/v1/game-item-bundle/${collectionId}/items/${launchDiscId}`, {
           method: 'PATCH',
           body: JSON.stringify({ executable_path: f.executable_path.trim() || null }),
         })
@@ -217,7 +217,7 @@ export default function CollectionDetail() {
       // fields, disc order, and launch-disc executable_path changes above) so
       // the form can resync deterministically in onSuccess rather than relying
       // on invalidateQueries' background refetch timing.
-      return apiFetch<SoftwareCollectionData>(`/api/v1/softwarecollection/by-slug/${slug}`)
+      return apiFetch<GameItemBundleData>(`/api/v1/game-item-bundle/by-slug/${slug}`)
     },
     onSuccess: (fresh) => {
       setDiscOrder(null)
@@ -237,7 +237,7 @@ export default function CollectionDetail() {
   const installedMutation = useMutation<void, Error, boolean>({
     mutationFn: (value) => {
       if (collectionId == null) return Promise.resolve()
-      return apiFetch(`/api/v1/softwarecollection/${collectionId}`, {
+      return apiFetch(`/api/v1/game-item-bundle/${collectionId}`, {
         method: 'PATCH',
         body: JSON.stringify({ installed: value }),
       })
@@ -268,7 +268,7 @@ export default function CollectionDetail() {
   const deleteMediaOverrideMutation = useMutation<void, Error, boolean>({
     mutationFn: (value) => {
       if (collectionId == null) return Promise.resolve()
-      return apiFetch(`/api/v1/softwarecollection/${collectionId}`, {
+      return apiFetch(`/api/v1/game-item-bundle/${collectionId}`, {
         method: 'PATCH',
         body: JSON.stringify({ delete_media_override: value }),
       })
@@ -316,12 +316,12 @@ export default function CollectionDetail() {
       // fire-and-forget) was toggled moments earlier and hasn't round-tripped
       // yet. Writing unconditionally makes this the single source of truth
       // delete_library_collection reads, regardless of cache freshness.
-      await apiFetch(`/api/v1/softwarecollection/${collectionId}`, {
+      await apiFetch(`/api/v1/game-item-bundle/${collectionId}`, {
         method: 'PATCH',
         body: JSON.stringify({ delete_media_override: checkedDeleteMedia }),
       })
-      const token = await issueDeleteToken(`/api/v1/softwarecollection/${collectionId}/confirm-delete`)
-      await consumeDeleteToken(`/api/v1/softwarecollection/${collectionId}`, token)
+      const token = await issueDeleteToken(`/api/v1/game-item-bundle/${collectionId}/confirm-delete`)
+      await consumeDeleteToken(`/api/v1/game-item-bundle/${collectionId}`, token)
       queryClient.invalidateQueries({ queryKey: ['library'] })
       navigate('/software')
     } catch (err) {
@@ -338,7 +338,7 @@ export default function CollectionDetail() {
     setFlagging(true)
     setFlagError(null)
     try {
-      await apiFetch(`/api/v1/softwarecollection/${collectionId}/flag-launch`, { method: 'POST' })
+      await apiFetch(`/api/v1/game-item-bundle/${collectionId}/flag-launch`, { method: 'POST' })
       queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
     } catch (err) {
       setFlagError(err instanceof ApiError ? err.detail : 'Failed to flag.')
@@ -721,7 +721,7 @@ export default function CollectionDetail() {
         // would otherwise show stale publisher/description/category/rating/
         // cover art fields until a full page reload even after the invalidated
         // query refetches in the background.
-        const fresh = await apiFetch<SoftwareCollectionData>(`/api/v1/softwarecollection/by-slug/${slug}`)
+        const fresh = await apiFetch<GameItemBundleData>(`/api/v1/game-item-bundle/by-slug/${slug}`)
         setFormState(formFromCollection(fresh))
       }}
       onBusyChange={setFetchMetadataBusy}
@@ -739,7 +739,7 @@ export default function CollectionDetail() {
         onSuccess={async () => {
           queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
           queryClient.invalidateQueries({ queryKey: ['library'] })
-          const fresh = await apiFetch<SoftwareCollectionData>(`/api/v1/softwarecollection/by-slug/${slug}`)
+          const fresh = await apiFetch<GameItemBundleData>(`/api/v1/game-item-bundle/by-slug/${slug}`)
           setFormState(formFromCollection(fresh))
           setFetchDiscId(null)
         }}

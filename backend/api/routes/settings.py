@@ -63,7 +63,7 @@ _SENSITIVE_KEYS = {
 # because changing it requires re-hashing the owner PIN (see patch_pin_pepper).
 _ENV_SECRET_KEYS = {"THEGAMESDB_API_KEY", "AI_API_KEY", "IGDB_CLIENT_ID", "IGDB_CLIENT_SECRET"}
 
-# The only keys a can_edit_settings user may write through the generic PATCH
+# The only keys a can_manage_settings user may write through the generic PATCH
 # endpoint. Anything not listed here is refused — notably ALLOW_NETWORK_ACCESS
 # (relaxes the network security boundary), reset_db (destructive), and any
 # rating_ordinals key (would silently reshape every user's content-rating cap).
@@ -80,7 +80,7 @@ _USER_WRITABLE_KEYS = _ALL_PATH_KEYS | _ENV_SECRET_KEYS | {
 
 
 @router.get("", response_model=dict)
-def get_all_settings(_: User = require_permission("can_edit_settings")):
+def get_all_settings(_: User = require_permission("can_manage_settings")):
     svc = get_settings()
     state = svc._require_init()
     return {
@@ -95,12 +95,12 @@ class LibraryDefaultsResult(BaseModel):
 
 
 @router.get("/library-defaults", response_model=LibraryDefaultsResult)
-def get_library_defaults(_: User = require_permission("can_manage_software")):
-    """Narrow, can_manage_software-gated read of the two boolean defaults that
+def get_library_defaults(_: User = require_permission("can_manage_game")):
+    """Narrow, can_manage_game-gated read of the two boolean defaults that
     library-editing surfaces (Library list, collection detail, Add Media) need
     to seed their own per-action checkboxes. GET /api/v1/settings (the full
-    payload) is can_edit_settings-gated — a sub-account can legitimately have
-    can_manage_software without can_edit_settings, and calling the full endpoint
+    payload) is can_manage_settings-gated — a sub-account can legitimately have
+    can_manage_game without can_manage_settings, and calling the full endpoint
     from those surfaces 403s for that account shape. This endpoint exists so
     those surfaces never need the broader permission just to read two flags.
     """
@@ -112,7 +112,7 @@ def get_library_defaults(_: User = require_permission("can_manage_software")):
 
 
 @router.patch("")
-def patch_settings(body: SettingsPatch, _: User = require_permission("can_edit_settings")):
+def patch_settings(body: SettingsPatch, _: User = require_permission("can_manage_settings")):
     if "PIN_PEPPER" in body.updates:
         raise HTTPException(
             status_code=400,
@@ -265,7 +265,7 @@ def get_owner_status(db: Session = Depends(get_db)):
 
 
 @router.post("/library-path")
-def set_library_path(body: LibraryPathBody, _: User = require_permission("can_edit_settings")):
+def set_library_path(body: LibraryPathBody, _: User = require_permission("can_manage_settings")):
     try:
         resolved = _check_traversal(body.path)
     except ValueError as exc:
@@ -284,7 +284,7 @@ def set_library_path(body: LibraryPathBody, _: User = require_permission("can_ed
 
 
 @router.post("/complete-first-run")
-def complete_first_run(db: Session = Depends(get_db), _: User = require_permission("can_edit_settings")):
+def complete_first_run(db: Session = Depends(get_db), _: User = require_permission("can_manage_settings")):
     from backend.api.middleware.security import set_first_run_complete
     from backend.models.settings import Settings as SettingsModel
     row = db.get(SettingsModel, "first_run_complete")

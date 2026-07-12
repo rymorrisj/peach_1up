@@ -56,7 +56,7 @@ describe('Software acceptance', () => {
       createMockLibraryItem({ id: 2, title: 'Ultima VII', era: 'dos', slug: 'ultima-vii' }),
     ]
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (typeof url === 'string' && url.includes('/api/v1/software')) {
+      if (typeof url === 'string' && url.includes('/api/v1/game-items')) {
         return Promise.resolve({ items, total: items.length, limit: 50, offset: 0 })
       }
       return Promise.resolve([])

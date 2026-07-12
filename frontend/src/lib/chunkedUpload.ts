@@ -69,7 +69,7 @@ export function chunkedUpload(
       chunks: Math.max(1, Math.ceil(f.size / chunkSize)),
     }))
 
-    const initRes = await fetch(`${baseURL}/api/v1/software/uploads/init`, {
+    const initRes = await fetch(`${baseURL}/api/v1/game-items/uploads/init`, {
       method: 'POST',
       credentials: 'include',
       headers: { ...headers(), 'Content-Type': 'application/json' },
@@ -91,7 +91,7 @@ export function chunkedUpload(
         const fd = new FormData()
         fd.append('chunk', blob, `${ci}.part`)
         const res = await fetch(
-          `${baseURL}/api/v1/software/uploads/${uploadId}/chunks/${fi}/${ci}`,
+          `${baseURL}/api/v1/game-items/uploads/${uploadId}/chunks/${fi}/${ci}`,
           { method: 'PUT', credentials: 'include', headers: headers(), body: fd, signal: controller.signal },
         )
         if (!res.ok) throw await asError(res)
@@ -100,7 +100,7 @@ export function chunkedUpload(
       }
     }
 
-    const completeRes = await fetch(`${baseURL}/api/v1/software/uploads/${uploadId}/complete`, {
+    const completeRes = await fetch(`${baseURL}/api/v1/game-items/uploads/${uploadId}/complete`, {
       method: 'POST',
       credentials: 'include',
       headers: headers(),
@@ -116,7 +116,7 @@ export function chunkedUpload(
     if (uploadId) {
       // Best-effort staging cleanup; ignore failures (orphan sweeper backstops).
       try {
-        await fetch(`${baseURL}/api/v1/software/uploads/${uploadId}`, {
+        await fetch(`${baseURL}/api/v1/game-items/uploads/${uploadId}`, {
           method: 'DELETE',
           credentials: 'include',
           headers: headers(),

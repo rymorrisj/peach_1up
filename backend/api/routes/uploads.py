@@ -64,7 +64,7 @@ def _setting_int(key: str, default: int) -> int:
 def init_upload(
     body: InitBody,
     request: Request,
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     client_ip = request.client.host if request.client else "unknown"
     rate_limit.enforce("library-upload", client_ip, _INIT_RATE_LIMIT, _INIT_RATE_WINDOW_SECONDS)
@@ -94,7 +94,7 @@ async def put_chunk(
     file_index: int,
     chunk_index: int,
     chunk: UploadFile,
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     chunk_max = _setting_int("UPLOAD_CHUNK_MAX_BYTES", DEFAULT_CHUNK_MAX_BYTES)
     try:
@@ -110,7 +110,7 @@ def complete_upload(
     upload_id: str,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     session = cu.get_session(upload_id)
     if session is None:
@@ -140,6 +140,6 @@ def complete_upload(
 @router.delete("/{upload_id}", status_code=204)
 def abort_upload(
     upload_id: str,
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     cu.abort(upload_id)

@@ -15,7 +15,7 @@ def _owner_user():
 
 def _no_permission_user():
     from backend.models.user import User
-    return User(id=2, name="Guest", is_owner=False, can_edit_media=False)
+    return User(id=2, name="Guest", is_owner=False, can_manage_media=False)
 
 
 @pytest.fixture
@@ -196,12 +196,12 @@ class TestCrossTableSlugUniqueness:
 
 # ---------------------------------------------------------------------------
 # Permission split — GET routes: any authenticated user. POST/PATCH/DELETE:
-# require can_edit_media, 403 without it.
+# require can_manage_media, 403 without it.
 # ---------------------------------------------------------------------------
 
 
 class TestPermissionSplit:
-    def test_get_routes_succeed_without_can_edit_media(self, client):
+    def test_get_routes_succeed_without_can_manage_media(self, client):
         c, db = client
         from backend.models.media import MediaItem, MediaItemBundle
 
@@ -227,7 +227,7 @@ class TestPermissionSplit:
             ("post", "/api/v1/media-item-bundles", {"title": "X", "media_kind": "audio"}),
         ],
     )
-    def test_create_routes_require_can_edit_media(self, client, method, path, json):
+    def test_create_routes_require_can_manage_media(self, client, method, path, json):
         c, _ = client
         from backend.core.dependencies import get_active_user
         c.app.dependency_overrides[get_active_user] = _no_permission_user
@@ -235,7 +235,7 @@ class TestPermissionSplit:
         resp = getattr(c, method)(path, json=json)
         assert resp.status_code == 403
 
-    def test_update_and_delete_require_can_edit_media(self, client):
+    def test_update_and_delete_require_can_manage_media(self, client):
         c, db = client
         from backend.models.media import MediaItem
 

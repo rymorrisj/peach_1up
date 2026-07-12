@@ -6,7 +6,7 @@ import TopBar from '@/components/layout/TopBar'
 import { ERA_COLOR, ERA_LABEL } from '@/types/era'
 import type { components } from '@shared/types'
 
-type Platform = components['schemas']['EnvironmentRead']
+type Platform = components['schemas']['EnvironmentItemRead']
 
 interface EraBreakdown {
   era: string
@@ -127,7 +127,7 @@ export default function Health() {
 
   const { data: platforms = [], isLoading, error: platformsError } = useQuery<Platform[]>({
     queryKey: ['platforms'],
-    queryFn: () => apiFetch<Platform[]>('/api/v1/environments'),
+    queryFn: () => apiFetch<Platform[]>('/api/v1/environment-items'),
     enabled: !permissionDenied,
     retry: retryUnlessForbidden,
   })

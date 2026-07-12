@@ -42,7 +42,7 @@ function setApiRoutes(overrides: Record<string, ApiHandler> = {}) {
     // Hook mount hydration reads the job list for a finished scan's preview
     // (scan/status itself is now stateless) — idle by default so it is a no-op.
     '/api/v1/jobs': () => [],
-    '/api/v1/software/scan/status': () => ({ running: false, error: null }),
+    '/api/v1/game-items/scan/status': () => ({ running: false, error: null }),
     ...overrides,
   }
 }
@@ -87,7 +87,7 @@ describe('useLibraryScan', () => {
     await act(async () => { result.current.handleScan() })
 
     expect(mockApiFetch).toHaveBeenCalledWith(
-      '/api/v1/software/scan',
+      '/api/v1/game-items/scan',
       expect.objectContaining({ method: 'POST' }),
     )
   })
@@ -101,8 +101,8 @@ describe('useLibraryScan', () => {
     // preview it now carries instead of the removed status-endpoint cache.
     const statusSeq = [RUNNING_STATUS, DONE_STATUS]
     setApiRoutes({
-      '/api/v1/software/scan': () => ({ started: true, directory: '/lib', job_id: 'job-1' }),
-      '/api/v1/software/scan/status': () => statusSeq.shift() ?? DONE_STATUS,
+      '/api/v1/game-items/scan': () => ({ started: true, directory: '/lib', job_id: 'job-1' }),
+      '/api/v1/game-items/scan/status': () => statusSeq.shift() ?? DONE_STATUS,
       '/api/v1/jobs/job-1': () => DONE_JOB,
     })
 
@@ -129,7 +129,7 @@ describe('useLibraryScan', () => {
 
   it('handleImport posts selected paths and calls onImported when items are imported', async () => {
     const IMPORT_RESULT = { imported: 1, skipped: 0, errors: [] }
-    setApiRoutes({ '/api/v1/software/scan/import': () => IMPORT_RESULT })
+    setApiRoutes({ '/api/v1/game-items/scan/import': () => IMPORT_RESULT })
 
     const onImported = vi.fn()
     const { result } = renderHook(
@@ -142,7 +142,7 @@ describe('useLibraryScan', () => {
     })
 
     expect(mockApiFetch).toHaveBeenCalledWith(
-      '/api/v1/software/scan/import',
+      '/api/v1/game-items/scan/import',
       expect.objectContaining({ method: 'POST' }),
     )
     expect(onImported).toHaveBeenCalledOnce()
@@ -152,7 +152,7 @@ describe('useLibraryScan', () => {
 
   it('handleImport does not call onImported when imported count is zero', async () => {
     const IMPORT_RESULT = { imported: 0, skipped: 2, errors: [] }
-    setApiRoutes({ '/api/v1/software/scan/import': () => IMPORT_RESULT })
+    setApiRoutes({ '/api/v1/game-items/scan/import': () => IMPORT_RESULT })
 
     const onImported = vi.fn()
     const { result } = renderHook(
@@ -178,7 +178,7 @@ describe('useLibraryScan', () => {
     const firstImportPromise = new Promise((resolve) => { resolveFirst = resolve })
     let callCount = 0
     setApiRoutes({
-      '/api/v1/software/scan/import': () => {
+      '/api/v1/game-items/scan/import': () => {
         callCount += 1
         // First call: stays pending until we manually settle it later.
         // Second call: resolves immediately with a successful result.
@@ -231,7 +231,7 @@ describe('useLibraryScan', () => {
 
   it('error state is set when the scan POST fails', async () => {
     setApiRoutes({
-      '/api/v1/software/scan': () => { throw new ApiError(503, 'Scan failed') },
+      '/api/v1/game-items/scan': () => { throw new ApiError(503, 'Scan failed') },
     })
 
     const { result } = renderHook(

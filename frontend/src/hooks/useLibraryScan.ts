@@ -134,7 +134,7 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
   }, [open])
 
   const scanMutation = useMutation<ScanTriggerResponse, Error>({
-    mutationFn: () => apiFetch<ScanTriggerResponse>('/api/v1/software/scan', { method: 'POST' }),
+    mutationFn: () => apiFetch<ScanTriggerResponse>('/api/v1/game-items/scan', { method: 'POST' }),
   })
 
   // Shared by the post-trigger poll (handleScan) and the post-cancel poll
@@ -146,7 +146,7 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
     const intervalId = setInterval(async () => {
       if (generationRef.current !== generation) { clearInterval(intervalId); return }
       try {
-        const s = await apiFetch<ScanStatusResponse>('/api/v1/software/scan/status', {
+        const s = await apiFetch<ScanStatusResponse>('/api/v1/game-items/scan/status', {
           ...(jobId ? { abortKey: scanStatusAbortKey(jobId) } : {}),
         })
         if (generationRef.current !== generation) { clearInterval(intervalId); return }
@@ -232,7 +232,7 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
     setCancelling(true)
 
     try {
-      await apiFetch(`/api/v1/software/scan/${jobId}/cancel`, { method: 'POST' })
+      await apiFetch(`/api/v1/game-items/scan/${jobId}/cancel`, { method: 'POST' })
     } catch (err) {
       if (generationRef.current !== generation) return
       // 404/409 mean the scan already reached a terminal state on its own
@@ -268,7 +268,7 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
       return { path, title: p?.title ?? path, era: p?.detected_era ?? undefined }
     })
     try {
-      result = await apiFetch<ImportResult>('/api/v1/software/scan/import', {
+      result = await apiFetch<ImportResult>('/api/v1/game-items/scan/import', {
         method: 'POST',
         body: JSON.stringify({ selected }),
         timeoutMs: IMPORT_TIMEOUT_MS,

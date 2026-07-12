@@ -22,12 +22,12 @@ def _require_drive_owner_permission(drive: Drive, active_user: User) -> None:
 
     Exactly one of game_item_bundle_id / app_item_bundle_id is ever set on a
     Drive (enforced by Drive.model_post_init) -- app-owned drives require
-    can_manage_apps, software-owned drives require can_manage_software
+    can_manage_app, game-owned drives require can_manage_game
     (unchanged from before Apps existed).
     """
     if active_user.is_owner:
         return
-    flag = "can_manage_apps" if drive.app_item_bundle_id is not None else "can_manage_software"
+    flag = "can_manage_app" if drive.app_item_bundle_id is not None else "can_manage_game"
     if not getattr(active_user, flag, False):
         raise HTTPException(status_code=403, detail=f"Permission denied: requires {flag}.")
 

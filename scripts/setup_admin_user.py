@@ -82,10 +82,12 @@ def run_setup(db_path: str | Path) -> bool:
             existing.pin_hash = pin_hash
             existing.pin_required = True
             existing.can_launch_media = True
-            existing.can_edit_environments = True
-            existing.can_manage_software = True
-            existing.can_edit_settings = True
-            existing.can_manage_apps = True
+            existing.can_manage_environment = True
+            existing.can_manage_game = True
+            existing.can_manage_media = True
+            existing.can_manage_settings = True
+            existing.can_manage_app = True
+            existing.can_manage_controllerMapping = True
             existing.is_admin = True
             existing.is_locked = False
             existing.failed_pin_attempts = 0
@@ -97,10 +99,12 @@ def run_setup(db_path: str | Path) -> bool:
                 pin_hash=pin_hash,
                 pin_required=True,
                 can_launch_media=True,
-                can_edit_environments=True,
-                can_manage_software=True,
-                can_edit_settings=True,
-                can_manage_apps=True,
+                can_manage_environment=True,
+                can_manage_game=True,
+                can_manage_media=True,
+                can_manage_settings=True,
+                can_manage_app=True,
+                can_manage_controllerMapping=True,
                 is_admin=True,
             ))
         db.commit()

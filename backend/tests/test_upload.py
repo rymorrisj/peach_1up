@@ -339,7 +339,7 @@ class TestSoftwareUploadRoute:
 # POST /api/v1/media-items/upload — generic Media-archive upload (doc 03).
 #
 # Repurposed from the old OS-image-only route: no era/media_type form fields
-# anymore, gated on can_edit_media, and stages bytes under MEDIA_PATH only —
+# anymore, gated on can_manage_media, and stages bytes under MEDIA_PATH only —
 # it never creates a MediaItem row itself (a separate POST /api/v1/media-items call
 # with the returned path does that; see media.py's module comment).
 # ---------------------------------------------------------------------------
@@ -401,12 +401,12 @@ class TestMediaArchiveUploadRoute:
         result_path = Path(resp.json()["path"]).resolve()
         assert result_path.is_relative_to(media_path.resolve())
 
-    def test_requires_can_edit_media_permission(self, client):
+    def test_requires_can_manage_media_permission(self, client):
         c, _ = client
         from backend.core.dependencies import get_active_user
         from backend.models.user import User
         c.app.dependency_overrides[get_active_user] = lambda: User(
-            id=2, name="Guest", is_owner=False, can_edit_media=False,
+            id=2, name="Guest", is_owner=False, can_manage_media=False,
         )
         resp = c.post(
             "/api/v1/media-items/upload",
@@ -419,7 +419,7 @@ class TestMediaArchiveUploadRoute:
 # POST /api/v1/environment-items/{slug}/install-media — OS install-media upload
 # (doc 04). This is where the old media_type='os' logic actually moved to:
 # slug-scoped to a real Environment row, era read from that row (not trusted
-# form input), gated on can_edit_environments, PC-era validated.
+# form input), gated on can_manage_environment, PC-era validated.
 # ---------------------------------------------------------------------------
 
 class TestEnvironmentInstallMediaRoute:
@@ -512,13 +512,13 @@ class TestEnvironmentInstallMediaRoute:
         result_path = Path(resp.json()["path"]).resolve()
         assert result_path.is_relative_to(os_path.resolve())
 
-    def test_requires_can_edit_environments_permission(self, client):
+    def test_requires_can_manage_environment_permission(self, client):
         c, _, db = client
         self._make_environment(db)
         from backend.core.dependencies import get_active_user
         from backend.models.user import User
         c.app.dependency_overrides[get_active_user] = lambda: User(
-            id=2, name="Guest", is_owner=False, can_edit_environments=False,
+            id=2, name="Guest", is_owner=False, can_manage_environment=False,
         )
         resp = c.post(
             "/api/v1/environment-items/win98-box/install-media",

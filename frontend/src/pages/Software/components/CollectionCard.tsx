@@ -7,7 +7,7 @@ type TagRead = components['schemas']['TagRead']
 
 // Leaf (per-disc) record within a collection. Renamed from the former
 // LibrarySetItemData; single-disc games are collections-of-one.
-export interface SoftwareItemData {
+export interface GameItemData {
   id: number
   software_collection_id: number
   disc_number: number
@@ -23,7 +23,7 @@ export interface SoftwareItemData {
   updated_at?: string | null
 }
 
-export interface SoftwareCollectionData {
+export interface GameItemBundleData {
   id: number
   slug: string | null
   title: string
@@ -53,7 +53,7 @@ export interface SoftwareCollectionData {
   launch_count: number
   created_at: string
   updated_at: string
-  items: SoftwareItemData[]
+  items: GameItemData[]
   tags: TagRead[]
 }
 
@@ -69,7 +69,7 @@ function eraHex(era: string) {
 }
 
 // Full placeholder for the front face when no cover art exists
-function ArtPlaceholder({ collection }: { collection: SoftwareCollectionData }) {
+function ArtPlaceholder({ collection }: { collection: GameItemBundleData }) {
   const style = ERA_PLACEHOLDER[collection.era] ?? ERA_PLACEHOLDER_DEFAULT
   const label = ERA_LABEL[collection.era] ?? (collection.era?.toUpperCase() ?? '—')
   return (
@@ -153,8 +153,8 @@ const LAYER_BASE =
   'transition-[transform,box-shadow] duration-[220ms] ease-[cubic-bezier(0.16,1,0.3,1)]'
 
 interface CollectionCardProps {
-  collection: SoftwareCollectionData
-  onRemove?: (collection: SoftwareCollectionData) => void
+  collection: GameItemBundleData
+  onRemove?: (collection: GameItemBundleData) => void
   onSetDisplayDisk?: (collectionId: number, discId: number) => void
 }
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.core.dependencies import require_software_or_environment_editor
+from backend.core.dependencies import require_game_or_environment_editor
 from backend.models.filesystem import BrowseResult, DrivesResult
 from backend.models.user import User
 from backend.service.utils.path_utils import allowed_browse_roots, is_within_roots
@@ -26,7 +26,7 @@ def _get_drive_label(letter: str) -> str:
 
 
 @router.get("/drives", response_model=DrivesResult)
-def list_drives(_: User = Depends(require_software_or_environment_editor)):
+def list_drives(_: User = Depends(require_game_or_environment_editor)):
     """Return available Windows drive letters. 404 on non-Windows."""
     if sys.platform != "win32":
         raise HTTPException(status_code=404, detail="Drive listing is only available on Windows.")
@@ -46,7 +46,7 @@ def browse(
     path: str | None = Query(default=None),
     show_files: bool = Query(default=True),
     extensions: str | None = Query(default=None),
-    _: User = Depends(require_software_or_environment_editor),
+    _: User = Depends(require_game_or_environment_editor),
 ):
     """Browse the filesystem within the configured allowed roots.
 

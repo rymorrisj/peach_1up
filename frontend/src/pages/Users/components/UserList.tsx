@@ -13,11 +13,11 @@ type ActionState = {
 function permissionSummary(user: User): string {
   const labels: string[] = [];
   if (user.can_launch_media) labels.push("launch");
-  if (user.can_manage_software) labels.push("software");
-  if (user.can_edit_environments) labels.push("environments");
-  if (user.can_edit_media) labels.push("media");
-  if (user.can_manage_controllers) labels.push("controllers");
-  if (user.can_edit_settings) labels.push("settings");
+  if (user.can_manage_game) labels.push("software");
+  if (user.can_manage_environment) labels.push("environments");
+  if (user.can_manage_media) labels.push("media");
+  if (user.can_manage_controllerMapping) labels.push("controllers");
+  if (user.can_manage_settings) labels.push("settings");
   if (user.can_manage_users) labels.push("self-manage");
   if (user.is_admin) labels.push("admin");
   return labels.length ? labels.join(", ") : "no permissions";

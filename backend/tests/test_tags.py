@@ -163,12 +163,12 @@ _ENTITY_FACTORIES = {
 
 # entity_type -> a User authorized to write an assignment for it.
 _ENTITY_AUTHORIZED_USER = {
-    "game_item_bundle": lambda: _user(1, can_manage_software=True),
-    "game_item": lambda: _user(1, can_manage_software=True),
-    "media_item": lambda: _user(1, can_edit_media=True),
-    "media_item_bundle": lambda: _user(1, can_edit_media=True),
-    "environment_item": lambda: _user(1, can_edit_environments=True),
-    "rom_pack_item": lambda: _user(1, can_edit_environments=True),
+    "game_item_bundle": lambda: _user(1, can_manage_game=True),
+    "game_item": lambda: _user(1, can_manage_game=True),
+    "media_item": lambda: _user(1, can_manage_media=True),
+    "media_item_bundle": lambda: _user(1, can_manage_media=True),
+    "environment_item": lambda: _user(1, can_manage_environment=True),
+    "rom_pack_item": lambda: _user(1, can_manage_environment=True),
     "controller_mapping": lambda: _user(1, is_owner=True),
 }
 
@@ -197,9 +197,9 @@ class TestDispatchOrder:
 
     def test_permission_check_precedes_existence_checks_no_leak(self, client):
         c, _ = client
-        # Neither the tag nor the entity exist, and the user lacks can_manage_software.
+        # Neither the tag nor the entity exist, and the user lacks can_manage_game.
         # If existence were checked first this would 404; it must 403 instead.
-        _override_user(c, _user(2, can_manage_software=False))
+        _override_user(c, _user(2, can_manage_game=False))
         resp = c.post(
             "/api/v1/tags/999999/assignments",
             json={"entity_type": "game_item", "entity_id": 999999},
@@ -209,7 +209,7 @@ class TestDispatchOrder:
     def test_tag_not_found_is_404(self, client):
         c, db = client
         collection = _make_software_collection(db)
-        _override_user(c, _user(1, can_manage_software=True))
+        _override_user(c, _user(1, can_manage_game=True))
         resp = c.post(
             "/api/v1/tags/999999/assignments",
             json={"entity_type": "game_item_bundle", "entity_id": collection.id},
@@ -220,7 +220,7 @@ class TestDispatchOrder:
     def test_entity_not_found_is_404(self, client):
         c, db = client
         tag = _make_tag(db)
-        _override_user(c, _user(1, can_manage_software=True))
+        _override_user(c, _user(1, can_manage_game=True))
         resp = c.post(
             f"/api/v1/tags/{tag.id}/assignments",
             json={"entity_type": "game_item_bundle", "entity_id": 999999},
@@ -291,14 +291,14 @@ class TestControllerMappingAssignmentReusesEditPermission:
         c, db = client
         tag = _make_tag(db)
         mapping = _make_controller_mapping(db, created_by=999)
-        user = _user(1, is_owner=True, is_admin=False, can_manage_controllers=False)
+        user = _user(1, is_owner=True, is_admin=False, can_manage_controllerMapping=False)
         resp = self._attempt(c, tag, mapping, user)
         assert resp.status_code == 204, resp.text
 
     def test_creator_succeeds_regardless_of_admin_or_flag(self, client):
         c, db = client
         tag = _make_tag(db)
-        creator = _user(5, is_owner=False, is_admin=False, can_manage_controllers=False)
+        creator = _user(5, is_owner=False, is_admin=False, can_manage_controllerMapping=False)
         mapping = _make_controller_mapping(db, created_by=creator.id)
         resp = self._attempt(c, tag, mapping, creator)
         assert resp.status_code == 204, resp.text
@@ -307,7 +307,7 @@ class TestControllerMappingAssignmentReusesEditPermission:
         c, db = client
         tag = _make_tag(db)
         mapping = _make_controller_mapping(db, created_by=999)
-        user = _user(2, is_owner=False, is_admin=True, can_manage_controllers=False)
+        user = _user(2, is_owner=False, is_admin=True, can_manage_controllerMapping=False)
         resp = self._attempt(c, tag, mapping, user)
         assert resp.status_code == 403
 
@@ -315,7 +315,7 @@ class TestControllerMappingAssignmentReusesEditPermission:
         c, db = client
         tag = _make_tag(db)
         mapping = _make_controller_mapping(db, created_by=999)
-        user = _user(3, is_owner=False, is_admin=False, can_manage_controllers=True)
+        user = _user(3, is_owner=False, is_admin=False, can_manage_controllerMapping=True)
         resp = self._attempt(c, tag, mapping, user)
         assert resp.status_code == 403
 
@@ -323,7 +323,7 @@ class TestControllerMappingAssignmentReusesEditPermission:
         c, db = client
         tag = _make_tag(db)
         mapping = _make_controller_mapping(db, created_by=999)
-        user = _user(4, is_owner=False, is_admin=True, can_manage_controllers=True)
+        user = _user(4, is_owner=False, is_admin=True, can_manage_controllerMapping=True)
         resp = self._attempt(c, tag, mapping, user)
         assert resp.status_code == 204, resp.text
 
@@ -331,7 +331,7 @@ class TestControllerMappingAssignmentReusesEditPermission:
         c, db = client
         tag = _make_tag(db)
         mapping = _make_controller_mapping(db, created_by=999)
-        user = _user(6, is_owner=False, is_admin=False, can_manage_controllers=False)
+        user = _user(6, is_owner=False, is_admin=False, can_manage_controllerMapping=False)
         resp = self._attempt(c, tag, mapping, user)
         assert resp.status_code == 403
 
@@ -346,7 +346,7 @@ class TestCreateTagAssignmentIdempotency:
         c, db = client
         tag = _make_tag(db)
         collection = _make_software_collection(db)
-        _override_user(c, _user(1, can_manage_software=True))
+        _override_user(c, _user(1, can_manage_game=True))
 
         body = {"entity_type": "game_item_bundle", "entity_id": collection.id}
         first = c.post(f"/api/v1/tags/{tag.id}/assignments", json=body)
@@ -377,7 +377,7 @@ class TestDeleteTagAssignment:
         c, db = client
         tag = _make_tag(db)
         collection = _make_software_collection(db)
-        _override_user(c, _user(1, can_manage_software=True))
+        _override_user(c, _user(1, can_manage_game=True))
 
         resp = c.request(
             "DELETE",

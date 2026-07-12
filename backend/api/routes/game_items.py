@@ -34,7 +34,7 @@ def update_game_item(
     leaf_id: int,
     body: GameItemUpdate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_software"),
+    _: User = require_permission("can_manage_game"),
 ):
     leaf = db.get(GameItem, leaf_id)
     if leaf is None:

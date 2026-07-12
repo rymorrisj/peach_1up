@@ -8,7 +8,7 @@ import { ERA_LABELS } from '@/generated/constants'
 import { ERA_COLOR } from '@/types/era'
 import type { components } from '@shared/types'
 
-type Platform = components['schemas']['EnvironmentRead']
+type Platform = components['schemas']['EnvironmentItemRead']
 
 type Tab = 'overview' | 'notes'
 
@@ -82,7 +82,7 @@ export default function EnvironmentDetail() {
 
   const { data: platform } = useQuery<Platform>({
     queryKey: ['platform', id],
-    queryFn: () => apiFetch<Platform>(`/api/v1/environments/${id}`),
+    queryFn: () => apiFetch<Platform>(`/api/v1/environment-items/${id}`),
     enabled: !!id,
   })
 
@@ -92,7 +92,7 @@ export default function EnvironmentDetail() {
     if (!platform) return
     setSaving(true); setSaveError(null); setSaved(false)
     try {
-      await apiFetch(`/api/v1/environments/${platform.id}`, {
+      await apiFetch(`/api/v1/environment-items/${platform.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ notes: notes.trim() || null }),
       })
@@ -124,7 +124,7 @@ export default function EnvironmentDetail() {
     if (!platform) return
     setEditSaving(true); setEditSaveError(null)
     try {
-      await apiFetch(`/api/v1/environments/${platform.id}`, {
+      await apiFetch(`/api/v1/environment-items/${platform.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           name: editForm.name.trim(),
@@ -153,7 +153,7 @@ export default function EnvironmentDetail() {
     if (!platform) return
     setLaunching(true)
     try {
-      await apiFetch(`/api/v1/environments/${platform.id}/launch`, {
+      await apiFetch(`/api/v1/environment-items/${platform.id}/launch`, {
         method: 'POST',
         timeoutMs: LAUNCH_TIMEOUT_MS,
       })

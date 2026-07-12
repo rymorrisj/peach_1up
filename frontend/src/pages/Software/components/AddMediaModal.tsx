@@ -25,7 +25,7 @@ interface StagedDisc {
 
 // A file or folder picked via the server-side file browser (real, absolute,
 // server-resolved path — never a browser File object), staged for import
-// via POST /api/v1/software/import-from-path. Unlike the drag-and-drop/file-
+// via POST /api/v1/game-items/import-from-path. Unlike the drag-and-drop/file-
 // input entries above, these can offer "delete original after import"
 // because the backend already knows the source's real path.
 interface BrowseImportEntry {
@@ -39,7 +39,7 @@ interface BrowseImportEntry {
 }
 
 // Shape of the inline (non-background) response body from
-// POST /api/v1/software/import-from-path — see path_import.import_inline /
+// POST /api/v1/game-items/import-from-path — see path_import.import_inline /
 // finalize_reassembled. delete_original_error is only ever present when
 // delete_original was true and the post-import cleanup failed; its presence
 // never means the import itself failed (the collection/item was already
@@ -408,7 +408,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       setBrowseImports((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'importing' } : e)))
       try {
         const title = entry.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim()
-        const res = await apiFetch<ImportFromPathResult>('/api/v1/software/import-from-path', {
+        const res = await apiFetch<ImportFromPathResult>('/api/v1/game-items/import-from-path', {
           method: 'POST',
           body: JSON.stringify({ source_path: entry.path, title, delete_original: entry.deleteOriginal }),
         })
