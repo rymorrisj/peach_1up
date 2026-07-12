@@ -1,8 +1,8 @@
 """Route-level tests for Media CRUD (backend/api/routes/media.py) and the
-MediaLink exactly-one-of(media_item_id, media_collection_id) invariant on
+MediaLink exactly-one-of(media_item_id, media_item_bundle_id) invariant on
 backend/models/media.py — the regression test for the @validates fix that
 replaced a model_validator(mode="after") which never fired on direct
-construction (same bug class as SoftwareCollection.item_type).
+construction (same bug class as GameItemBundle.item_type).
 """
 
 import pytest
@@ -52,7 +52,7 @@ def client(mem_db_session):
 
 
 def _make_software_collection(db, **overrides):
-    from backend.models.software import SoftwareCollection
+    from backend.models.game import GameItemBundle
 
     kwargs = dict(
         title="Doom",
@@ -61,7 +61,7 @@ def _make_software_collection(db, **overrides):
         slug="doom",
     )
     kwargs.update(overrides)
-    collection = SoftwareCollection(**kwargs)
+    collection = GameItemBundle(**kwargs)
     db.add(collection)
     db.commit()
     db.refresh(collection)
@@ -78,7 +78,7 @@ class TestMediaItemCrud:
         c, db = client
 
         create_resp = c.post(
-            "/api/v1/media",
+            "/api/v1/media-items",
             json={
                 "title": "Doom OST",
                 "media_kind": "audio",
@@ -90,19 +90,19 @@ class TestMediaItemCrud:
         assert item["slug"] == "doom-ost"
         item_id = item["id"]
 
-        get_resp = c.get(f"/api/v1/media/{item_id}")
+        get_resp = c.get(f"/api/v1/media-item/{item_id}")
         assert get_resp.status_code == 200
         assert get_resp.json()["title"] == "Doom OST"
 
-        list_resp = c.get("/api/v1/media")
+        list_resp = c.get("/api/v1/media-items")
         assert list_resp.status_code == 200
         assert any(i["id"] == item_id for i in list_resp.json()["items"])
 
-        patch_resp = c.patch(f"/api/v1/media/{item_id}", json={"title": "Doom OST (Remastered)"})
+        patch_resp = c.patch(f"/api/v1/media-item/{item_id}", json={"title": "Doom OST (Remastered)"})
         assert patch_resp.status_code == 200
         assert patch_resp.json()["title"] == "Doom OST (Remastered)"
 
-        del_resp = c.delete(f"/api/v1/media/{item_id}")
+        del_resp = c.delete(f"/api/v1/media-item/{item_id}")
         assert del_resp.status_code == 204
 
         from backend.models.media import MediaItem
@@ -110,52 +110,52 @@ class TestMediaItemCrud:
 
     def test_get_unknown_id_is_404(self, client):
         c, _ = client
-        resp = c.get("/api/v1/media/999")
+        resp = c.get("/api/v1/media-item/999")
         assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------
-# MediaCollection CRUD
+# MediaItemBundle CRUD
 # ---------------------------------------------------------------------------
 
 
-class TestMediaCollectionCrud:
+class TestMediaItemBundleCrud:
     def test_create_read_update_delete(self, client):
         c, db = client
 
         create_resp = c.post(
-            "/api/v1/media/collections",
+            "/api/v1/media-item-bundles",
             json={"title": "Doom OST Collection", "media_kind": "audio"},
         )
         assert create_resp.status_code == 201, create_resp.text
         collection = create_resp.json()
         collection_id = collection["id"]
 
-        get_resp = c.get(f"/api/v1/media/collections/{collection_id}")
+        get_resp = c.get(f"/api/v1/media-item-bundle/{collection_id}")
         assert get_resp.status_code == 200
         assert get_resp.json()["title"] == "Doom OST Collection"
 
         patch_resp = c.patch(
-            f"/api/v1/media/collections/{collection_id}",
+            f"/api/v1/media-item-bundle/{collection_id}",
             json={"title": "Renamed Collection"},
         )
         assert patch_resp.status_code == 200
         assert patch_resp.json()["title"] == "Renamed Collection"
 
-        del_resp = c.delete(f"/api/v1/media/collections/{collection_id}")
+        del_resp = c.delete(f"/api/v1/media-item-bundle/{collection_id}")
         assert del_resp.status_code == 204
 
-        from backend.models.media import MediaCollection
-        assert db.get(MediaCollection, collection_id) is None
+        from backend.models.media import MediaItemBundle
+        assert db.get(MediaItemBundle, collection_id) is None
 
     def test_get_unknown_id_is_404(self, client):
         c, _ = client
-        resp = c.get("/api/v1/media/collections/999")
+        resp = c.get("/api/v1/media-item-bundle/999")
         assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------
-# Cross-table slug uniqueness — MediaItem and MediaCollection share one slug
+# Cross-table slug uniqueness — MediaItem and MediaItemBundle share one slug
 # namespace (see _unique_media_slug in backend/api/routes/media.py).
 # ---------------------------------------------------------------------------
 
@@ -164,14 +164,14 @@ class TestCrossTableSlugUniqueness:
     def test_collection_title_colliding_with_item_slug_gets_suffixed(self, client):
         c, _ = client
         item_resp = c.post(
-            "/api/v1/media",
+            "/api/v1/media-items",
             json={"title": "Shared Name", "media_kind": "audio", "file_path": "/library/media/a.mp3"},
         )
         assert item_resp.status_code == 201
         assert item_resp.json()["slug"] == "shared-name"
 
         collection_resp = c.post(
-            "/api/v1/media/collections",
+            "/api/v1/media-item-bundles",
             json={"title": "Shared Name", "media_kind": "audio"},
         )
         assert collection_resp.status_code == 201
@@ -180,14 +180,14 @@ class TestCrossTableSlugUniqueness:
     def test_item_title_colliding_with_collection_slug_gets_suffixed(self, client):
         c, _ = client
         collection_resp = c.post(
-            "/api/v1/media/collections",
+            "/api/v1/media-item-bundles",
             json={"title": "Shared Name", "media_kind": "audio"},
         )
         assert collection_resp.status_code == 201
         assert collection_resp.json()["slug"] == "shared-name"
 
         item_resp = c.post(
-            "/api/v1/media",
+            "/api/v1/media-items",
             json={"title": "Shared Name", "media_kind": "audio", "file_path": "/library/media/a.mp3"},
         )
         assert item_resp.status_code == 201
@@ -203,10 +203,10 @@ class TestCrossTableSlugUniqueness:
 class TestPermissionSplit:
     def test_get_routes_succeed_without_can_edit_media(self, client):
         c, db = client
-        from backend.models.media import MediaItem, MediaCollection
+        from backend.models.media import MediaItem, MediaItemBundle
 
         item = MediaItem(title="X", media_kind="audio", file_path="/x.mp3", slug="x")
-        collection = MediaCollection(title="Y", media_kind="audio", slug="y")
+        collection = MediaItemBundle(title="Y", media_kind="audio", slug="y")
         db.add(item)
         db.add(collection)
         db.commit()
@@ -216,15 +216,15 @@ class TestPermissionSplit:
         from backend.core.dependencies import get_active_user
         c.app.dependency_overrides[get_active_user] = _no_permission_user
 
-        assert c.get("/api/v1/media").status_code == 200
-        assert c.get(f"/api/v1/media/{item.id}").status_code == 200
-        assert c.get(f"/api/v1/media/collections/{collection.id}").status_code == 200
+        assert c.get("/api/v1/media-items").status_code == 200
+        assert c.get(f"/api/v1/media-item/{item.id}").status_code == 200
+        assert c.get(f"/api/v1/media-item-bundle/{collection.id}").status_code == 200
 
     @pytest.mark.parametrize(
         "method,path,json",
         [
-            ("post", "/api/v1/media", {"title": "X", "media_kind": "audio", "file_path": "/x.mp3"}),
-            ("post", "/api/v1/media/collections", {"title": "X", "media_kind": "audio"}),
+            ("post", "/api/v1/media-items", {"title": "X", "media_kind": "audio", "file_path": "/x.mp3"}),
+            ("post", "/api/v1/media-item-bundles", {"title": "X", "media_kind": "audio"}),
         ],
     )
     def test_create_routes_require_can_edit_media(self, client, method, path, json):
@@ -247,8 +247,8 @@ class TestPermissionSplit:
         from backend.core.dependencies import get_active_user
         c.app.dependency_overrides[get_active_user] = _no_permission_user
 
-        assert c.patch(f"/api/v1/media/{item.id}", json={"title": "Y"}).status_code == 403
-        assert c.delete(f"/api/v1/media/{item.id}").status_code == 403
+        assert c.patch(f"/api/v1/media-item/{item.id}", json={"title": "Y"}).status_code == 403
+        assert c.delete(f"/api/v1/media-item/{item.id}").status_code == 403
 
 
 # ---------------------------------------------------------------------------
@@ -268,45 +268,45 @@ class TestLinkUnlink:
         collection = _make_software_collection(db)
 
         link_resp = c.post(
-            f"/api/v1/media/{item.id}/link",
-            json={"software_collection_id": collection.id, "link_note": "Theme song"},
+            f"/api/v1/media-item/{item.id}/link",
+            json={"game_item_bundle_id": collection.id, "link_note": "Theme song"},
         )
         assert link_resp.status_code == 201, link_resp.text
         assert link_resp.json()["media_item_id"] == item.id
 
-        get_resp = c.get(f"/api/v1/media/{item.id}")
+        get_resp = c.get(f"/api/v1/media-item/{item.id}")
         assert get_resp.status_code == 200
-        assert len(get_resp.json()["linked_software"]) == 1
+        assert len(get_resp.json()["linked_game"]) == 1
 
         unlink_resp = c.delete(
-            f"/api/v1/media/{item.id}/link",
-            params={"software_collection_id": collection.id},
+            f"/api/v1/media-item/{item.id}/link",
+            params={"game_item_bundle_id": collection.id},
         )
         assert unlink_resp.status_code == 204
 
-        get_resp2 = c.get(f"/api/v1/media/{item.id}")
-        assert get_resp2.json()["linked_software"] == []
+        get_resp2 = c.get(f"/api/v1/media-item/{item.id}")
+        assert get_resp2.json()["linked_game"] == []
 
     def test_link_and_unlink_media_collection(self, client):
         c, db = client
-        from backend.models.media import MediaCollection
+        from backend.models.media import MediaItemBundle
 
-        media_collection = MediaCollection(title="Y", media_kind="audio", slug="y")
+        media_collection = MediaItemBundle(title="Y", media_kind="audio", slug="y")
         db.add(media_collection)
         db.commit()
         db.refresh(media_collection)
         sw_collection = _make_software_collection(db)
 
         link_resp = c.post(
-            f"/api/v1/media/collections/{media_collection.id}/link",
-            json={"software_collection_id": sw_collection.id},
+            f"/api/v1/media-item-bundle/{media_collection.id}/link",
+            json={"game_item_bundle_id": sw_collection.id},
         )
         assert link_resp.status_code == 201, link_resp.text
-        assert link_resp.json()["media_collection_id"] == media_collection.id
+        assert link_resp.json()["media_item_bundle_id"] == media_collection.id
 
         unlink_resp = c.delete(
-            f"/api/v1/media/collections/{media_collection.id}/link",
-            params={"software_collection_id": sw_collection.id},
+            f"/api/v1/media-item-bundle/{media_collection.id}/link",
+            params={"game_item_bundle_id": sw_collection.id},
         )
         assert unlink_resp.status_code == 204
 
@@ -314,8 +314,8 @@ class TestLinkUnlink:
         c, db = client
         collection = _make_software_collection(db)
         resp = c.post(
-            "/api/v1/media/999/link",
-            json={"software_collection_id": collection.id},
+            "/api/v1/media-item/999/link",
+            json={"game_item_bundle_id": collection.id},
         )
         assert resp.status_code == 404
 
@@ -328,7 +328,7 @@ class TestLinkUnlink:
         db.commit()
         db.refresh(item)
 
-        resp = c.post(f"/api/v1/media/{item.id}/link", json={"software_collection_id": 999})
+        resp = c.post(f"/api/v1/media-item/{item.id}/link", json={"game_item_bundle_id": 999})
         assert resp.status_code == 404
 
     def test_unlink_missing_link_is_404(self, client):
@@ -342,8 +342,8 @@ class TestLinkUnlink:
         collection = _make_software_collection(db)
 
         resp = c.delete(
-            f"/api/v1/media/{item.id}/link",
-            params={"software_collection_id": collection.id},
+            f"/api/v1/media-item/{item.id}/link",
+            params={"game_item_bundle_id": collection.id},
         )
         assert resp.status_code == 404
 
@@ -359,11 +359,11 @@ class TestLinkUnlink:
 
 class TestMediaLinkExactlyOneTarget:
     def test_both_set_is_rejected(self, mem_db_session):
-        from backend.models.media import MediaLink, MediaItem, MediaCollection
+        from backend.models.media import MediaLink, MediaItem, MediaItemBundle
 
         db = mem_db_session
         item = MediaItem(title="X", media_kind="audio", file_path="/x.mp3", slug="x")
-        collection = MediaCollection(title="Y", media_kind="audio", slug="y")
+        collection = MediaItemBundle(title="Y", media_kind="audio", slug="y")
         db.add(item)
         db.add(collection)
         db.commit()
@@ -374,8 +374,8 @@ class TestMediaLinkExactlyOneTarget:
         with pytest.raises(ValueError):
             MediaLink(
                 media_item_id=item.id,
-                media_collection_id=collection.id,
-                software_collection_id=sw_collection.id,
+                media_item_bundle_id=collection.id,
+                game_item_bundle_id=sw_collection.id,
             )
 
     def test_neither_set_is_rejected(self, mem_db_session):
@@ -385,7 +385,7 @@ class TestMediaLinkExactlyOneTarget:
         sw_collection = _make_software_collection(db)
 
         with pytest.raises(ValueError):
-            MediaLink(software_collection_id=sw_collection.id)
+            MediaLink(game_item_bundle_id=sw_collection.id)
 
     def test_exactly_one_item_set_is_accepted(self, mem_db_session):
         from backend.models.media import MediaLink, MediaItem
@@ -397,22 +397,22 @@ class TestMediaLinkExactlyOneTarget:
         db.refresh(item)
         sw_collection = _make_software_collection(db)
 
-        link = MediaLink(media_item_id=item.id, software_collection_id=sw_collection.id)
+        link = MediaLink(media_item_id=item.id, game_item_bundle_id=sw_collection.id)
         db.add(link)
         db.flush()
         assert link.id is not None
 
     def test_exactly_one_collection_set_is_accepted(self, mem_db_session):
-        from backend.models.media import MediaLink, MediaCollection
+        from backend.models.media import MediaLink, MediaItemBundle
 
         db = mem_db_session
-        collection = MediaCollection(title="Y", media_kind="audio", slug="y")
+        collection = MediaItemBundle(title="Y", media_kind="audio", slug="y")
         db.add(collection)
         db.commit()
         db.refresh(collection)
         sw_collection = _make_software_collection(db)
 
-        link = MediaLink(media_collection_id=collection.id, software_collection_id=sw_collection.id)
+        link = MediaLink(media_item_bundle_id=collection.id, game_item_bundle_id=sw_collection.id)
         db.add(link)
         db.flush()
         assert link.id is not None

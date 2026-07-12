@@ -153,18 +153,18 @@ class TestDeleteUserCleanup:
 
     def test_media_restrictions_deleted_not_orphaned(self, http_client):
         from backend.models.media_restriction import MediaRestriction
-        from backend.models.software import SoftwareCollection
+        from backend.models.game import GameItemBundle
 
         c, db, app = http_client
         owner = _make_user(db, name="Owner", is_owner=True)
         sub = _make_user(db, name="Sub")
-        collection = SoftwareCollection(
+        collection = GameItemBundle(
             title="Doom", file_path="/library/games/dos/doom", era="dos", slug="doom",
         )
         db.add(collection)
         db.commit()
         db.refresh(collection)
-        restriction = MediaRestriction(user_id=sub.id, software_collection_id=collection.id)
+        restriction = MediaRestriction(user_id=sub.id, game_item_bundle_id=collection.id)
         db.add(restriction)
         db.commit()
         db.refresh(restriction)

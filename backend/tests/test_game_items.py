@@ -1,4 +1,4 @@
-"""Tests for _prepare_item in backend/service/library/items.py:
+"""Tests for _prepare_item in backend/service/games/items.py:
 
 - Folder rename-in-place: when a file's parent is a direct subfolder of
   games_root with a non-canonical name, the folder is renamed rather than a
@@ -45,14 +45,14 @@ def _patch_settings(monkeypatch, media_path: Path):
 
 
 def _call_prepare(path: str, title: str, session) -> dict:
-    from backend.service.library.items import _prepare_item
+    from backend.service.games.items import _prepare_item
     return _prepare_item(path, title, session)
 
 
 def _commit_row(row: dict, session):
     # Persist a collection-of-one (parent + leaf) so dedup queries against the
     # leaf's folder_path/media_path find it on re-import.
-    from backend.service.library.items import _persist_collection_of_one
+    from backend.service.games.items import _persist_collection_of_one
     collection = _persist_collection_of_one(row, session)
     session.commit()
     return collection
@@ -177,7 +177,7 @@ class TestPrepareDuplication:
         folder.mkdir()
         (folder / "doom.exe").write_bytes(b"fake exe")
 
-        from backend.service.library.items import _ItemAlreadyExists
+        from backend.service.games.items import _ItemAlreadyExists
 
         _patch_settings(monkeypatch, media_root)
         row = _call_prepare(str(folder), "Doom", mem_session)
@@ -196,7 +196,7 @@ class TestPrepareDuplication:
         src_file = src_folder / "doom.exe"
         src_file.write_bytes(b"fake exe")
 
-        from backend.service.library.items import _ItemAlreadyExists
+        from backend.service.games.items import _ItemAlreadyExists
 
         _patch_settings(monkeypatch, media_root)
         row = _call_prepare(str(src_file), "Doom", mem_session)
@@ -217,7 +217,7 @@ class TestPrepareDuplication:
         src_folder.mkdir()
         (src_folder / "doom.exe").write_bytes(b"fake exe")
 
-        from backend.service.library.items import _ItemAlreadyExists
+        from backend.service.games.items import _ItemAlreadyExists
 
         _patch_settings(monkeypatch, media_root)
         row = _call_prepare(str(src_folder / "doom.exe"), "Doom", mem_session)
@@ -237,7 +237,7 @@ class TestPrepareDuplication:
         src_file = media_root / "doom.exe"
         src_file.write_bytes(b"fake exe")
 
-        from backend.service.library.items import _ItemAlreadyExists
+        from backend.service.games.items import _ItemAlreadyExists
 
         _patch_settings(monkeypatch, media_root)
         row = _call_prepare(str(src_file), "Doom", mem_session)

@@ -57,7 +57,7 @@ def client(mem_db_session):
 
 
 def _make_environment(db, **overrides):
-    from backend.models.environment import Environment
+    from backend.models.environment import EnvironmentItem
 
     kwargs = dict(
         name="Win98 Box",
@@ -69,7 +69,7 @@ def _make_environment(db, **overrides):
         base_image_path=None,
     )
     kwargs.update(overrides)
-    environment = Environment(**kwargs)
+    environment = EnvironmentItem(**kwargs)
     db.add(environment)
     db.commit()
     db.refresh(environment)
@@ -88,7 +88,7 @@ class TestListAndGetEnvironment:
         # paths present, compute_live_status() must derive "unconfigured".
         _make_environment(db, status="healthy")
 
-        resp = c.get("/api/v1/environments")
+        resp = c.get("/api/v1/environment-items")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -106,14 +106,14 @@ class TestListAndGetEnvironment:
             working_image_path=str(tmp_path / "missing-working.img"),
         )
 
-        resp = c.get(f"/api/v1/environments/{environment.id}")
+        resp = c.get(f"/api/v1/environment-items/{environment.id}")
 
         assert resp.status_code == 200
         assert resp.json()["status"] == "degraded"
 
     def test_get_unknown_id_is_404(self, client):
         c, _ = client
-        resp = c.get("/api/v1/environments/999")
+        resp = c.get("/api/v1/environment-items/999")
         assert resp.status_code == 404
 
 
@@ -121,7 +121,7 @@ class TestCreateEnvironment:
     def test_rejects_non_pc_era(self, client):
         c, _ = client
         resp = c.post(
-            "/api/v1/environments",
+            "/api/v1/environment-items",
             json={"name": "PS1 Box", "era": "ps1", "emulator_slug": "duckstation"},
         )
         assert resp.status_code == 422
@@ -130,7 +130,7 @@ class TestCreateEnvironment:
     def test_rejects_nonexistent_base_image_path(self, client, tmp_path):
         c, _ = client
         resp = c.post(
-            "/api/v1/environments",
+            "/api/v1/environment-items",
             json={
                 "name": "Win98 Box",
                 "era": "win98",
@@ -152,7 +152,7 @@ class TestCreateEnvironment:
         # branch (triggered only when working_image_path is absent) never
         # fires — keeps this test hermetic instead of touching vm/86box code.
         resp = c.post(
-            "/api/v1/environments",
+            "/api/v1/environment-items",
             json={
                 "name": "Fresh Win98 Box",
                 "era": "win98",
@@ -167,8 +167,8 @@ class TestCreateEnvironment:
         assert body["slug"]
         assert body["status"] == "healthy"
 
-        from backend.models.environment import Environment
-        assert db.get(Environment, body["id"]) is not None
+        from backend.models.environment import EnvironmentItem
+        assert db.get(EnvironmentItem, body["id"]) is not None
 
     def test_requires_can_edit_environments_permission(self, client):
         c, _ = client
@@ -176,7 +176,7 @@ class TestCreateEnvironment:
         c.app.dependency_overrides[get_active_user] = _no_permission_user
 
         resp = c.post(
-            "/api/v1/environments",
+            "/api/v1/environment-items",
             json={"name": "Win98 Box", "era": "win98", "emulator_slug": "86box"},
         )
         assert resp.status_code == 403
@@ -185,20 +185,20 @@ class TestCreateEnvironment:
 class TestUpdateEnvironment:
     def test_unknown_id_is_404(self, client):
         c, _ = client
-        resp = c.patch("/api/v1/environments/999", json={"name": "New Name"})
+        resp = c.patch("/api/v1/environment-items/999", json={"name": "New Name"})
         assert resp.status_code == 404
 
     def test_rejects_switching_to_non_pc_era(self, client):
         c, db = client
         environment = _make_environment(db)
-        resp = c.patch(f"/api/v1/environments/{environment.id}", json={"era": "ps1"})
+        resp = c.patch(f"/api/v1/environment-items/{environment.id}", json={"era": "ps1"})
         assert resp.status_code == 422
 
     def test_rejects_nonexistent_working_image_path(self, client, tmp_path):
         c, db = client
         environment = _make_environment(db)
         resp = c.patch(
-            f"/api/v1/environments/{environment.id}",
+            f"/api/v1/environment-items/{environment.id}",
             json={"working_image_path": str(tmp_path / "missing.img")},
         )
         assert resp.status_code == 400
@@ -206,7 +206,7 @@ class TestUpdateEnvironment:
     def test_successful_update_persists_change(self, client):
         c, db = client
         environment = _make_environment(db)
-        resp = c.patch(f"/api/v1/environments/{environment.id}", json={"name": "Renamed Box"})
+        resp = c.patch(f"/api/v1/environment-items/{environment.id}", json={"name": "Renamed Box"})
         assert resp.status_code == 200
         assert resp.json()["name"] == "Renamed Box"
 
@@ -215,14 +215,14 @@ class TestDeleteEnvironment:
     def test_delete_without_token_is_422(self, client):
         c, db = client
         environment = _make_environment(db)
-        resp = c.delete(f"/api/v1/environments/{environment.id}")
+        resp = c.delete(f"/api/v1/environment-items/{environment.id}")
         assert resp.status_code == 422  # confirmation_token is a required query param
 
     def test_delete_with_invalid_token_is_400(self, client):
         c, db = client
         environment = _make_environment(db)
         resp = c.delete(
-            f"/api/v1/environments/{environment.id}",
+            f"/api/v1/environment-items/{environment.id}",
             params={"confirmation_token": "not-a-real-token"},
         )
         assert resp.status_code == 400
@@ -232,15 +232,15 @@ class TestDeleteEnvironment:
         environment = _make_environment(db)
         env_id = environment.id
 
-        token_resp = c.post(f"/api/v1/environments/{env_id}/confirm-delete")
+        token_resp = c.post(f"/api/v1/environment-items/{env_id}/confirm-delete")
         assert token_resp.status_code == 200, token_resp.text
         token = token_resp.json()["confirmation_token"]
 
-        del_resp = c.delete(f"/api/v1/environments/{env_id}", params={"confirmation_token": token})
+        del_resp = c.delete(f"/api/v1/environment-items/{env_id}", params={"confirmation_token": token})
         assert del_resp.status_code == 204
 
-        from backend.models.environment import Environment
-        assert db.get(Environment, env_id) is None
+        from backend.models.environment import EnvironmentItem
+        assert db.get(EnvironmentItem, env_id) is None
 
     def test_requires_can_edit_environments_permission(self, client):
         c, db = client
@@ -248,7 +248,7 @@ class TestDeleteEnvironment:
         from backend.core.dependencies import get_active_user
         c.app.dependency_overrides[get_active_user] = _no_permission_user
 
-        resp = c.post(f"/api/v1/environments/{environment.id}/confirm-delete")
+        resp = c.post(f"/api/v1/environment-items/{environment.id}/confirm-delete")
         assert resp.status_code == 403
 
 
@@ -262,10 +262,10 @@ class TestDeleteEnvironment:
 
 class TestComputeLiveStatusVocabulary:
     def _env(self, **overrides):
-        from backend.models.environment import Environment
+        from backend.models.environment import EnvironmentItem
         kwargs = dict(name="Box", era="win98", emulator_slug="86box")
         kwargs.update(overrides)
-        return Environment(**kwargs)
+        return EnvironmentItem(**kwargs)
 
     def test_default_persisted_status_is_unknown_before_any_health_check(self):
         environment = self._env()
@@ -423,10 +423,10 @@ class TestHealthRecomputeAllEndpoint:
         assert body["checked"] == 2
         assert {r["id"] for r in body["results"]} == {healthy_env.id, unconfigured_env.id}
 
-        from backend.models.environment import Environment
+        from backend.models.environment import EnvironmentItem
         db.expire_all()
-        assert db.get(Environment, healthy_env.id).status == "healthy"
-        assert db.get(Environment, unconfigured_env.id).status == "unconfigured"
+        assert db.get(EnvironmentItem, healthy_env.id).status == "healthy"
+        assert db.get(EnvironmentItem, unconfigured_env.id).status == "unconfigured"
 
 
 class TestStorageStatsEndpoint:

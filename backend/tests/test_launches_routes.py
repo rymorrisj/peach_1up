@@ -7,20 +7,20 @@ the security gates are actually wired at the endpoint, not the coordinator
 logic they call into (concurrent-launch guards, crash detection, etc. stay
 in those two files and are not duplicated here). Covers:
 
-    - can_launch_media gating on POST /softwarecollection/{id}/launch
+    - can_launch_media gating on POST /game-item-bundle/{id}/launch
       (launches.py:33)
-    - get_filtered_collection enforcement on launch (launches.py:36) — a
+    - get_filtered_collection enforcement on launch (launches.py:36), a
       capped/restricted user must get the same no-leak 404 as browsing
     - the fail-closed target_type filter on GET /launches (launches.py:94-99),
-      a prior fail-open bug — regression-locked here
-    - can_launch_media gating on POST /environments/{id}/launch
+      a prior fail-open bug, regression-locked here
+    - can_launch_media gating on POST /environment-items/{id}/launch
       (launches.py:50) and the missing-environment 404 branch
     - can_launch_media gating on POST /launches/{id}/stop (launches.py:117)
 
 Uses the same in-memory SQLModel SQLite DB + StaticPool +
 get_active_user/get_db dependency-override pattern as
 test_dependencies_content_rating.py / test_users_create_delete_reset.py /
-test_software_collections_routes.py.
+test_game_item_bundles_routes.py.
 """
 
 import pytest
@@ -60,11 +60,11 @@ def _make_user(db, **overrides):
 
 
 def _make_collection(db, **overrides):
-    from backend.models.software import SoftwareCollection
+    from backend.models.game import GameItemBundle
 
     kwargs = dict(title="Doom", file_path="/library/games/dos/doom", era="dos", slug="doom")
     kwargs.update(overrides)
-    collection = SoftwareCollection(**kwargs)
+    collection = GameItemBundle(**kwargs)
     db.add(collection)
     db.commit()
     db.refresh(collection)
@@ -84,11 +84,11 @@ def _make_launch_history(db, **overrides):
 
 
 def _make_environment(db, **overrides):
-    from backend.models import Environment
+    from backend.models import EnvironmentItem
 
     kwargs = dict(name="DOS Box", era="dos", emulator_slug="dosbox-x")
     kwargs.update(overrides)
-    env = Environment(**kwargs)
+    env = EnvironmentItem(**kwargs)
     db.add(env)
     db.commit()
     db.refresh(env)
@@ -165,7 +165,7 @@ def _stub_stop_launch(monkeypatch, *, stopped=True):
 
 
 # ---------------------------------------------------------------------------
-# can_launch_media gating — POST /softwarecollection/{id}/launch
+# can_launch_media gating — POST /game-item-bundle/{id}/launch
 # ---------------------------------------------------------------------------
 
 
@@ -177,7 +177,7 @@ class TestCanLaunchMediaGate:
         blocked_user = _make_user(db, can_launch_media=False)
         _set_active_user(app, blocked_user)
 
-        resp = c.post(f"/api/v1/softwarecollection/{collection.id}/launch")
+        resp = c.post(f"/api/v1/game-item-bundle/{collection.id}/launch")
 
         assert resp.status_code == 403, resp.text
         # The gate must reject before the coordinator is ever reached.
@@ -190,7 +190,7 @@ class TestCanLaunchMediaGate:
         permitted_user = _make_user(db, can_launch_media=True)
         _set_active_user(app, permitted_user)
 
-        resp = c.post(f"/api/v1/softwarecollection/{collection.id}/launch")
+        resp = c.post(f"/api/v1/game-item-bundle/{collection.id}/launch")
 
         assert resp.status_code == 202, resp.text
         assert resp.json()["launch_history_id"] == 77
@@ -214,7 +214,7 @@ class TestGetFilteredCollectionEnforcement:
         capped_user = _make_user(db, can_launch_media=True, max_content_rating="T")
         _set_active_user(app, capped_user)
 
-        resp = c.post(f"/api/v1/softwarecollection/{collection.id}/launch")
+        resp = c.post(f"/api/v1/game-item-bundle/{collection.id}/launch")
 
         assert resp.status_code == 404, resp.text
         # Filtered out before the coordinator is ever reached.
@@ -227,11 +227,11 @@ class TestGetFilteredCollectionEnforcement:
         collection = _make_collection(db)
         calls = _stub_launch_collection(monkeypatch)
         restricted_user = _make_user(db, can_launch_media=True)
-        db.add(MediaRestriction(user_id=restricted_user.id, software_collection_id=collection.id))
+        db.add(MediaRestriction(user_id=restricted_user.id, game_item_bundle_id=collection.id))
         db.commit()
         _set_active_user(app, restricted_user)
 
-        resp = c.post(f"/api/v1/softwarecollection/{collection.id}/launch")
+        resp = c.post(f"/api/v1/game-item-bundle/{collection.id}/launch")
 
         assert resp.status_code == 404, resp.text
         assert calls == []
@@ -243,7 +243,7 @@ class TestGetFilteredCollectionEnforcement:
         capped_user = _make_user(db, can_launch_media=True, max_content_rating="T")
         _set_active_user(app, capped_user)
 
-        resp = c.post(f"/api/v1/softwarecollection/{collection.id}/launch")
+        resp = c.post(f"/api/v1/game-item-bundle/{collection.id}/launch")
 
         assert resp.status_code == 202, resp.text
         assert calls == [(collection.id, None)]
@@ -262,8 +262,8 @@ class TestTargetTypeFailClosed:
 
     def test_unknown_target_type_is_rejected_not_passed_through(self, http_client):
         c, db, app = http_client
-        env_record = _make_launch_history(db, environment_id=1)
-        collection_record = _make_launch_history(db, software_collection_id=2)
+        env_record = _make_launch_history(db, environment_item_id=1)
+        collection_record = _make_launch_history(db, game_item_bundle_id=2)
         user = _make_user(db)
         _set_active_user(app, user)
 
@@ -276,18 +276,18 @@ class TestTargetTypeFailClosed:
 
     def test_known_target_type_filters_correctly(self, http_client):
         c, db, app = http_client
-        env_record = _make_launch_history(db, environment_id=1)
-        collection_record = _make_launch_history(db, software_collection_id=1)
+        env_record = _make_launch_history(db, environment_item_id=1)
+        collection_record = _make_launch_history(db, game_item_bundle_id=1)
         user = _make_user(db)
         _set_active_user(app, user)
 
-        env_resp = c.get("/api/v1/launches", params={"target_id": 1, "target_type": "environment"})
+        env_resp = c.get("/api/v1/launches", params={"target_id": 1, "target_type": "environment_item"})
         assert env_resp.status_code == 200, env_resp.text
         env_ids = {row["id"] for row in env_resp.json()}
         assert env_ids == {env_record.id}
 
         collection_resp = c.get(
-            "/api/v1/launches", params={"target_id": 1, "target_type": "software_collection"}
+            "/api/v1/launches", params={"target_id": 1, "target_type": "game_item_bundle"}
         )
         assert collection_resp.status_code == 200, collection_resp.text
         collection_ids = {row["id"] for row in collection_resp.json()}
@@ -295,7 +295,7 @@ class TestTargetTypeFailClosed:
 
 
 # ---------------------------------------------------------------------------
-# can_launch_media gating — POST /environments/{id}/launch
+# can_launch_media gating — POST /environment-items/{id}/launch
 # ---------------------------------------------------------------------------
 
 
@@ -307,7 +307,7 @@ class TestCanLaunchMediaGateEnvironment:
         blocked_user = _make_user(db, can_launch_media=False)
         _set_active_user(app, blocked_user)
 
-        resp = c.post(f"/api/v1/environments/{env.id}/launch")
+        resp = c.post(f"/api/v1/environment-items/{env.id}/launch")
 
         assert resp.status_code == 403, resp.text
         # The gate must reject before the coordinator is ever reached.
@@ -320,7 +320,7 @@ class TestCanLaunchMediaGateEnvironment:
         permitted_user = _make_user(db, can_launch_media=True)
         _set_active_user(app, permitted_user)
 
-        resp = c.post(f"/api/v1/environments/{env.id}/launch")
+        resp = c.post(f"/api/v1/environment-items/{env.id}/launch")
 
         assert resp.status_code == 202, resp.text
         assert resp.json()["launch_history_id"] == 88
@@ -332,7 +332,7 @@ class TestCanLaunchMediaGateEnvironment:
         permitted_user = _make_user(db, can_launch_media=True)
         _set_active_user(app, permitted_user)
 
-        resp = c.post("/api/v1/environments/999999/launch")
+        resp = c.post("/api/v1/environment-items/999999/launch")
 
         assert resp.status_code == 404, resp.text
         assert calls == []

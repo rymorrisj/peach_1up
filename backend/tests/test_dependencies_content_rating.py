@@ -3,8 +3,8 @@ layer (max_content_rating + block_unrated_media + MediaRestriction).
 
 Per dev_docs/v2/09_test_coverage.md item 1, this was the highest-risk
 zero-coverage gap in the codebase: the server-side enforcement of content
-rating ceilings on SoftwareCollection visibility. Functions under test:
-get_filtered_collections, get_filtered_collection, validate_max_content_rating,
+rating ceilings on GameItemBundle visibility. Functions under test:
+get_filtered_game_item_bundles, get_filtered_game_item_bundle, validate_max_content_rating,
 rating_change_requires_confirmation, normalize_content_rating,
 _load_rating_ordinals / _derive_rating_ordinals.
 """
@@ -217,7 +217,7 @@ class TestValidateMaxContentRating:
 
     def test_unknown_value_raises_value_error(self):
         """Regression lock: an unrecognised max_content_rating must be rejected
-        at write time. If it were allowed through, get_filtered_collections'
+        at write time. If it were allowed through, get_filtered_game_item_bundles'
         ordinal lookup would return None for it and skip the rating filter
         entirely — silently uncapping the account."""
         from backend.core.dependencies import validate_max_content_rating
@@ -227,7 +227,7 @@ class TestValidateMaxContentRating:
 
 
 # ---------------------------------------------------------------------------
-# get_filtered_collections / get_filtered_collection — DB-backed unit tests
+# get_filtered_game_item_bundles / get_filtered_game_item_bundle — DB-backed unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -248,11 +248,11 @@ def mem_db_session():
 
 
 def _make_collection(db, **overrides):
-    from backend.models.software import SoftwareCollection
+    from backend.models.game import GameItemBundle
 
     kwargs = dict(title="Doom", file_path="/library/games/dos/doom", era="dos", slug="doom")
     kwargs.update(overrides)
-    collection = SoftwareCollection(**kwargs)
+    collection = GameItemBundle(**kwargs)
     db.add(collection)
     db.commit()
     db.refresh(collection)
@@ -273,17 +273,17 @@ def _make_user(db, **overrides):
 
 class TestGetFilteredCollectionsOwnerBypass:
     def test_owner_sees_everything_including_unrated_and_restricted(self, mem_db_session):
-        from backend.core.dependencies import get_filtered_collections
+        from backend.core.dependencies import get_filtered_game_item_bundles
         from backend.models.media_restriction import MediaRestriction
         from backend.models.user import User
 
         owner = _make_user(mem_db_session, name="Owner", is_owner=True)
         unrated = _make_collection(mem_db_session, slug="unrated", content_rating=None)
         restricted = _make_collection(mem_db_session, slug="restricted", content_rating="E")
-        mem_db_session.add(MediaRestriction(user_id=owner.id, software_collection_id=restricted.id))
+        mem_db_session.add(MediaRestriction(user_id=owner.id, game_item_bundle_id=restricted.id))
         mem_db_session.commit()
 
-        results = get_filtered_collections(owner, mem_db_session).all()
+        results = get_filtered_game_item_bundles(owner, mem_db_session).all()
         ids = {c.id for c in results}
         assert unrated.id in ids
         assert restricted.id in ids
@@ -294,35 +294,35 @@ class TestGetFilteredCollectionsUnknownRatingDenies:
         """Regression lock for the previously-fixed uncap bug: a collection
         whose content_rating string doesn't resolve to any known ordinal must
         be EXCLUDED for a capped account, not treated as unrestricted."""
-        from backend.core.dependencies import get_filtered_collections
+        from backend.core.dependencies import get_filtered_game_item_bundles
 
         capped = _make_user(mem_db_session, max_content_rating="T")
         unknown_rated = _make_collection(mem_db_session, slug="mystery", content_rating="TOTALLY-UNKNOWN-RATING")
         allowed = _make_collection(mem_db_session, slug="allowed", content_rating="E")
 
-        results = get_filtered_collections(capped, mem_db_session).all()
+        results = get_filtered_game_item_bundles(capped, mem_db_session).all()
         ids = {c.id for c in results}
 
         assert unknown_rated.id not in ids
         assert allowed.id in ids
 
     def test_rating_above_ceiling_is_denied(self, mem_db_session):
-        from backend.core.dependencies import get_filtered_collections
+        from backend.core.dependencies import get_filtered_game_item_bundles
 
         capped = _make_user(mem_db_session, max_content_rating="T")
         over_rated = _make_collection(mem_db_session, slug="over", content_rating="M")
 
-        results = get_filtered_collections(capped, mem_db_session).all()
+        results = get_filtered_game_item_bundles(capped, mem_db_session).all()
         assert over_rated.id not in {c.id for c in results}
 
     def test_rating_at_or_below_ceiling_is_allowed(self, mem_db_session):
-        from backend.core.dependencies import get_filtered_collections
+        from backend.core.dependencies import get_filtered_game_item_bundles
 
         capped = _make_user(mem_db_session, max_content_rating="T")
         at_ceiling = _make_collection(mem_db_session, slug="at-ceiling", content_rating="T")
         below_ceiling = _make_collection(mem_db_session, slug="below", content_rating="E")
 
-        results = get_filtered_collections(capped, mem_db_session).all()
+        results = get_filtered_game_item_bundles(capped, mem_db_session).all()
         ids = {c.id for c in results}
         assert at_ceiling.id in ids
         assert below_ceiling.id in ids
@@ -330,40 +330,40 @@ class TestGetFilteredCollectionsUnknownRatingDenies:
     def test_null_or_empty_rating_is_governed_by_block_unrated_media_not_the_ceiling(self, mem_db_session):
         """Null/empty content_rating bypasses the ceiling filter's OR clause by
         design — it is gated separately by block_unrated_media."""
-        from backend.core.dependencies import get_filtered_collections
+        from backend.core.dependencies import get_filtered_game_item_bundles
 
         capped_allows_unrated = _make_user(
             mem_db_session, max_content_rating="E", block_unrated_media=False,
         )
         unrated = _make_collection(mem_db_session, slug="unrated", content_rating=None)
 
-        results = get_filtered_collections(capped_allows_unrated, mem_db_session).all()
+        results = get_filtered_game_item_bundles(capped_allows_unrated, mem_db_session).all()
         assert unrated.id in {c.id for c in results}
 
     def test_block_unrated_media_excludes_null_and_empty_ratings(self, mem_db_session):
-        from backend.core.dependencies import get_filtered_collections
+        from backend.core.dependencies import get_filtered_game_item_bundles
 
         capped = _make_user(mem_db_session, block_unrated_media=True)
         null_rated = _make_collection(mem_db_session, slug="null-rated", content_rating=None)
         empty_rated = _make_collection(mem_db_session, slug="empty-rated", content_rating="")
         rated = _make_collection(mem_db_session, slug="rated", content_rating="E")
 
-        results = get_filtered_collections(capped, mem_db_session).all()
+        results = get_filtered_game_item_bundles(capped, mem_db_session).all()
         ids = {c.id for c in results}
         assert null_rated.id not in ids
         assert empty_rated.id not in ids
         assert rated.id in ids
 
     def test_media_restriction_excludes_regardless_of_rating(self, mem_db_session):
-        from backend.core.dependencies import get_filtered_collections
+        from backend.core.dependencies import get_filtered_game_item_bundles
         from backend.models.media_restriction import MediaRestriction
 
         capped = _make_user(mem_db_session)
         restricted = _make_collection(mem_db_session, slug="restricted", content_rating="E")
-        mem_db_session.add(MediaRestriction(user_id=capped.id, software_collection_id=restricted.id))
+        mem_db_session.add(MediaRestriction(user_id=capped.id, game_item_bundle_id=restricted.id))
         mem_db_session.commit()
 
-        results = get_filtered_collections(capped, mem_db_session).all()
+        results = get_filtered_game_item_bundles(capped, mem_db_session).all()
         assert restricted.id not in {c.id for c in results}
 
 
@@ -386,7 +386,7 @@ class TestGetFilteredCollectionsUnresolvableOwnCeilingFailsClosed:
         # set: the custom map no longer contains "AO" at all.
         monkeypatch.setattr(deps, "_load_rating_ordinals", lambda: {"E": 0, "T": 1})
 
-        results = deps.get_filtered_collections(capped, mem_db_session).all()
+        results = deps.get_filtered_game_item_bundles(capped, mem_db_session).all()
         ids = {c.id for c in results}
 
         assert rated.id not in ids
@@ -397,55 +397,55 @@ class TestGetFilteredCollectionsUnresolvableOwnCeilingFailsClosed:
 
 class TestGetFilteredCollection:
     def test_visible_collection_returned_by_id(self, mem_db_session):
-        from backend.core.dependencies import get_filtered_collection
+        from backend.core.dependencies import get_filtered_game_item_bundle
 
         capped = _make_user(mem_db_session, max_content_rating="T")
         allowed = _make_collection(mem_db_session, slug="allowed", content_rating="E")
 
-        result = get_filtered_collection(allowed.id, capped, mem_db_session)
+        result = get_filtered_game_item_bundle(allowed.id, capped, mem_db_session)
         assert result.id == allowed.id
 
     def test_visible_collection_returned_by_slug(self, mem_db_session):
-        from backend.core.dependencies import get_filtered_collection
+        from backend.core.dependencies import get_filtered_game_item_bundle
 
         capped = _make_user(mem_db_session, max_content_rating="T")
         allowed = _make_collection(mem_db_session, slug="allowed", content_rating="E")
 
-        result = get_filtered_collection("allowed", capped, mem_db_session)
+        result = get_filtered_game_item_bundle("allowed", capped, mem_db_session)
         assert result.id == allowed.id
 
     def test_over_rated_collection_raises_404(self, mem_db_session):
         from fastapi import HTTPException
-        from backend.core.dependencies import get_filtered_collection
+        from backend.core.dependencies import get_filtered_game_item_bundle
 
         capped = _make_user(mem_db_session, max_content_rating="T")
         over_rated = _make_collection(mem_db_session, slug="over", content_rating="M")
 
         with pytest.raises(HTTPException) as exc_info:
-            get_filtered_collection(over_rated.id, capped, mem_db_session)
+            get_filtered_game_item_bundle(over_rated.id, capped, mem_db_session)
         assert exc_info.value.status_code == 404
 
     def test_nonexistent_collection_also_raises_404_same_as_filtered(self, mem_db_session):
         """404 must be indistinguishable between 'does not exist' and 'exists
         but filtered out' — that's the whole point of not leaking existence."""
         from fastapi import HTTPException
-        from backend.core.dependencies import get_filtered_collection
+        from backend.core.dependencies import get_filtered_game_item_bundle
 
         capped = _make_user(mem_db_session, max_content_rating="T")
 
         with pytest.raises(HTTPException) as exc_info:
-            get_filtered_collection(999999, capped, mem_db_session)
+            get_filtered_game_item_bundle(999999, capped, mem_db_session)
         assert exc_info.value.status_code == 404
 
     def test_unknown_rating_collection_raises_404_via_single_collection_lookup(self, mem_db_session):
         from fastapi import HTTPException
-        from backend.core.dependencies import get_filtered_collection
+        from backend.core.dependencies import get_filtered_game_item_bundle
 
         capped = _make_user(mem_db_session, max_content_rating="T")
         unknown_rated = _make_collection(mem_db_session, slug="mystery", content_rating="TOTALLY-UNKNOWN-RATING")
 
         with pytest.raises(HTTPException) as exc_info:
-            get_filtered_collection(unknown_rated.id, capped, mem_db_session)
+            get_filtered_game_item_bundle(unknown_rated.id, capped, mem_db_session)
         assert exc_info.value.status_code == 404
 
 
@@ -458,11 +458,11 @@ class TestGetFilteredCollection:
 def http_client(mem_db_session):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
-    from backend.api.routes import software_collections
+    from backend.api.routes import game_item_bundles
     from backend.core.database import get_db
 
     app = FastAPI()
-    app.include_router(software_collections.router)
+    app.include_router(game_item_bundles.router)
     app.dependency_overrides[get_db] = lambda: mem_db_session
 
     with TestClient(app) as c:
@@ -477,7 +477,7 @@ def _set_active_user(app, user):
 
 class TestSoftwareListRouteFiltering:
     def test_over_rated_item_absent_from_list_payload_no_error_leak(self, http_client):
-        """GET /api/v1/software for a capped sub-account: the over-rated item
+        """GET /api/v1/game-items for a capped sub-account: the over-rated item
         is simply missing from the page, not surfaced with a 403 or any
         other differentiated error — filtering, not denial-with-explanation."""
         c, db, app = http_client
@@ -486,7 +486,7 @@ class TestSoftwareListRouteFiltering:
         over_rated = _make_collection(db, slug="over-rated", content_rating="M")
         _set_active_user(app, capped)
 
-        resp = c.get("/api/v1/software")
+        resp = c.get("/api/v1/game-items")
         assert resp.status_code == 200, resp.text
         body = resp.json()
         ids = {item["id"] for item in body["items"]}
@@ -499,20 +499,20 @@ class TestSoftwareListRouteFiltering:
         unknown_rated = _make_collection(db, slug="mystery", content_rating="TOTALLY-UNKNOWN-RATING")
         _set_active_user(app, capped)
 
-        resp = c.get("/api/v1/software")
+        resp = c.get("/api/v1/game-items")
         assert resp.status_code == 200, resp.text
         ids = {item["id"] for item in resp.json()["items"]}
         assert unknown_rated.id not in ids
 
 
-class TestSoftwareCollectionDetailRouteNoLeak:
+class TestGameItemBundleDetailRouteNoLeak:
     def test_over_rated_collection_returns_404_not_403(self, http_client):
         c, db, app = http_client
         capped = _make_user(db, max_content_rating="T")
         over_rated = _make_collection(db, slug="over-rated", content_rating="M")
         _set_active_user(app, capped)
 
-        resp = c.get(f"/api/v1/softwarecollection/{over_rated.id}")
+        resp = c.get(f"/api/v1/game-item-bundle/{over_rated.id}")
         assert resp.status_code == 404
         assert resp.status_code != 403
 
@@ -524,8 +524,8 @@ class TestSoftwareCollectionDetailRouteNoLeak:
         over_rated = _make_collection(db, slug="over-rated", content_rating="M")
         _set_active_user(app, capped)
 
-        filtered_resp = c.get(f"/api/v1/softwarecollection/{over_rated.id}")
-        missing_resp = c.get("/api/v1/softwarecollection/999999")
+        filtered_resp = c.get(f"/api/v1/game-item-bundle/{over_rated.id}")
+        missing_resp = c.get("/api/v1/game-item-bundle/999999")
 
         assert filtered_resp.status_code == missing_resp.status_code == 404
         assert filtered_resp.json() == missing_resp.json()
@@ -536,6 +536,6 @@ class TestSoftwareCollectionDetailRouteNoLeak:
         allowed = _make_collection(db, slug="allowed", content_rating="E")
         _set_active_user(app, capped)
 
-        resp = c.get(f"/api/v1/softwarecollection/{allowed.id}")
+        resp = c.get(f"/api/v1/game-item-bundle/{allowed.id}")
         assert resp.status_code == 200, resp.text
         assert resp.json()["id"] == allowed.id

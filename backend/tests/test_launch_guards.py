@@ -95,13 +95,13 @@ def _make_profile(db, *, name, emulator_slug, user_id, era="ps1"):
 def _make_item(db, *, profile, era="ps1"):
     # Build a collection-of-one (parent + single leaf) and return the collection,
     # the sole game launch target after the set/item consolidation.
-    from backend.models.software import SoftwareCollection, SoftwareItem
-    collection = SoftwareCollection(
+    from backend.models.game import GameItemBundle, GameItem
+    collection = GameItemBundle(
         title=f"Game-{profile.id}", era=era, slug=f"game-{profile.id}", profile_id=profile.id
     )
     db.add(collection)
     db.flush()
-    leaf = SoftwareItem(software_collection_id=collection.id, disc_number=1, file_path="/tmp/game.bin")
+    leaf = GameItem(game_item_bundle_id=collection.id, disc_number=1, file_path="/tmp/game.bin")
     db.add(leaf)
     db.flush()
     collection.launch_disk_id = leaf.id
@@ -112,8 +112,8 @@ def _make_item(db, *, profile, era="ps1"):
 
 
 def _make_platform(db, *, profile, era="ps1"):
-    from backend.models.environment import Environment
-    platform = Environment(
+    from backend.models.environment import EnvironmentItem
+    platform = EnvironmentItem(
         name=f"Plat-{profile.id}",
         era=era,
         emulator_slug=profile.emulator_slug,

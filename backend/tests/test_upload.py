@@ -2,12 +2,12 @@
 
 - path_utils.sanitize_filename / resolve_under — the path-traversal fix.
 - upload_utils.begin_upload — collision-free destination allocation built on those.
-- POST /api/v1/software/uploads/{init,chunks,complete} — chunked software-media
+- POST /api/v1/game-items/uploads/{init,chunks,complete} — chunked software-media
   upload, chains into upload_finalize._ingest_media_entry et al.
-- POST /api/v1/media/upload — generic Media-archive upload (doc 03): stages
+- POST /api/v1/media-items/upload — generic Media-archive upload (doc 03): stages
   bytes under MEDIA_PATH only, no era/media_type — creating the MediaItem row
   is a separate call.
-- POST /api/v1/environments/{slug}/install-media — OS install-media upload
+- POST /api/v1/environment-items/{slug}/install-media — OS install-media upload
   (doc 04): the old media_type='os' logic, relocated and now slug-scoped with
   era read from the Environment record instead of trusted form input.
 """
@@ -146,7 +146,7 @@ class TestSoftwareUploadRoute:
     def client(self, tmp_path, mem_db_session, monkeypatch):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
-        from backend.api.routes import software_collections, uploads
+        from backend.api.routes import game_item_bundles, uploads
         from backend.core.database import get_db
         from backend.core.dependencies import get_active_user
         import backend.core.rate_limit as rl
@@ -166,7 +166,7 @@ class TestSoftwareUploadRoute:
 
         app = FastAPI()
         app.include_router(uploads.router)
-        app.include_router(software_collections.router)
+        app.include_router(game_item_bundles.router)
         app.dependency_overrides[get_active_user] = _owner_user
         app.dependency_overrides[get_db] = lambda: mem_db_session
 
@@ -178,7 +178,7 @@ class TestSoftwareUploadRoute:
         """Run the full init → PUT chunk → complete flow. Returns the complete response."""
         size = len(content)
         init = c.post(
-            "/api/v1/software/uploads/init",
+            "/api/v1/game-items/uploads/init",
             json={
                 "kind": "file",
                 "title": title,
@@ -189,10 +189,10 @@ class TestSoftwareUploadRoute:
             return init
         uid = init.json()["upload_id"]
         c.put(
-            f"/api/v1/software/uploads/{uid}/chunks/0/0",
+            f"/api/v1/game-items/uploads/{uid}/chunks/0/0",
             files={"chunk": (filename, content, "application/octet-stream")},
         )
-        return c.post(f"/api/v1/software/uploads/{uid}/complete")
+        return c.post(f"/api/v1/game-items/uploads/{uid}/complete")
 
     @staticmethod
     def _media_files(media_path: Path) -> list[Path]:
@@ -212,7 +212,7 @@ class TestSoftwareUploadRoute:
     def test_missing_file_field_is_422(self, client):
         c, _ = client
         resp = c.post(
-            "/api/v1/software/uploads/init",
+            "/api/v1/game-items/uploads/init",
             json={"kind": "file", "title": None, "files": []},
         )
         assert resp.status_code == 422
@@ -221,7 +221,7 @@ class TestSoftwareUploadRoute:
         c, media_path = client
         from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES
         resp = c.post(
-            "/api/v1/software/uploads/init",
+            "/api/v1/game-items/uploads/init",
             json={
                 "kind": "file",
                 "title": None,
@@ -262,10 +262,10 @@ class TestSoftwareUploadRoute:
         assert first.status_code == 201, first.text
         collection_id = first.json()["id"]
 
-        token_resp = c.post(f"/api/v1/softwarecollection/{collection_id}/confirm-delete")
+        token_resp = c.post(f"/api/v1/game-item-bundle/{collection_id}/confirm-delete")
         assert token_resp.status_code == 200, token_resp.text
         token = token_resp.json()["confirmation_token"]
-        del_resp = c.delete(f"/api/v1/softwarecollection/{collection_id}", params={"confirmation_token": token})
+        del_resp = c.delete(f"/api/v1/game-item-bundle/{collection_id}", params={"confirmation_token": token})
         assert del_resp.status_code == 204, del_resp.text
 
         files_after_remove = self._media_files(media_path)
@@ -336,11 +336,11 @@ class TestSoftwareUploadRoute:
 
 
 # ---------------------------------------------------------------------------
-# POST /api/v1/media/upload — generic Media-archive upload (doc 03).
+# POST /api/v1/media-items/upload — generic Media-archive upload (doc 03).
 #
 # Repurposed from the old OS-image-only route: no era/media_type form fields
 # anymore, gated on can_edit_media, and stages bytes under MEDIA_PATH only —
-# it never creates a MediaItem row itself (a separate POST /api/v1/media call
+# it never creates a MediaItem row itself (a separate POST /api/v1/media-items call
 # with the returned path does that; see media.py's module comment).
 # ---------------------------------------------------------------------------
 
@@ -372,7 +372,7 @@ class TestMediaArchiveUploadRoute:
     def test_missing_filename_is_422(self, client):
         c, _ = client
         resp = c.post(
-            "/api/v1/media/upload",
+            "/api/v1/media-items/upload",
             files={"file": ("", b"data", "application/octet-stream")},
         )
         assert resp.status_code == 422
@@ -380,7 +380,7 @@ class TestMediaArchiveUploadRoute:
     def test_successful_archive_upload(self, client):
         c, media_path = client
         resp = c.post(
-            "/api/v1/media/upload",
+            "/api/v1/media-items/upload",
             files={"file": ("soundtrack.zip", b"archive-bytes", "application/octet-stream")},
         )
         assert resp.status_code == 200, resp.text
@@ -394,7 +394,7 @@ class TestMediaArchiveUploadRoute:
     def test_traversal_filename_stays_inside_media_root(self, client):
         c, media_path = client
         resp = c.post(
-            "/api/v1/media/upload",
+            "/api/v1/media-items/upload",
             files={"file": ("../../../etc/passwd", b"payload", "application/octet-stream")},
         )
         assert resp.status_code == 200, resp.text
@@ -409,14 +409,14 @@ class TestMediaArchiveUploadRoute:
             id=2, name="Guest", is_owner=False, can_edit_media=False,
         )
         resp = c.post(
-            "/api/v1/media/upload",
+            "/api/v1/media-items/upload",
             files={"file": ("soundtrack.zip", b"data", "application/octet-stream")},
         )
         assert resp.status_code == 403
 
 
 # ---------------------------------------------------------------------------
-# POST /api/v1/environments/{slug}/install-media — OS install-media upload
+# POST /api/v1/environment-items/{slug}/install-media — OS install-media upload
 # (doc 04). This is where the old media_type='os' logic actually moved to:
 # slug-scoped to a real Environment row, era read from that row (not trusted
 # form input), gated on can_edit_environments, PC-era validated.
@@ -451,10 +451,10 @@ class TestEnvironmentInstallMediaRoute:
 
     @staticmethod
     def _make_environment(db, **overrides):
-        from backend.models.environment import Environment
+        from backend.models.environment import EnvironmentItem
         kwargs = dict(name="Win98 Box", era="win98", emulator_slug="86box", slug="win98-box")
         kwargs.update(overrides)
-        environment = Environment(**kwargs)
+        environment = EnvironmentItem(**kwargs)
         db.add(environment)
         db.commit()
         db.refresh(environment)
@@ -463,7 +463,7 @@ class TestEnvironmentInstallMediaRoute:
     def test_unknown_slug_is_404(self, client):
         c, _, _db = client
         resp = c.post(
-            "/api/v1/environments/not-a-slug/install-media",
+            "/api/v1/environment-items/not-a-slug/install-media",
             files={"file": ("win98.iso", b"data", "application/octet-stream")},
         )
         assert resp.status_code == 404
@@ -472,7 +472,7 @@ class TestEnvironmentInstallMediaRoute:
         c, _, db = client
         self._make_environment(db, era="ps1", emulator_slug="duckstation", slug="ps1-box")
         resp = c.post(
-            "/api/v1/environments/ps1-box/install-media",
+            "/api/v1/environment-items/ps1-box/install-media",
             files={"file": ("game.iso", b"data", "application/octet-stream")},
         )
         assert resp.status_code == 422
@@ -482,7 +482,7 @@ class TestEnvironmentInstallMediaRoute:
         c, _, db = client
         self._make_environment(db)
         resp = c.post(
-            "/api/v1/environments/win98-box/install-media",
+            "/api/v1/environment-items/win98-box/install-media",
             files={"file": ("", b"data", "application/octet-stream")},
         )
         assert resp.status_code == 422
@@ -491,7 +491,7 @@ class TestEnvironmentInstallMediaRoute:
         c, os_path, db = client
         self._make_environment(db)
         resp = c.post(
-            "/api/v1/environments/win98-box/install-media",
+            "/api/v1/environment-items/win98-box/install-media",
             files={"file": ("win98.iso", b"disk-bytes", "application/octet-stream")},
         )
         assert resp.status_code == 200, resp.text
@@ -505,7 +505,7 @@ class TestEnvironmentInstallMediaRoute:
         c, os_path, db = client
         self._make_environment(db)
         resp = c.post(
-            "/api/v1/environments/win98-box/install-media",
+            "/api/v1/environment-items/win98-box/install-media",
             files={"file": ("../../../etc/passwd", b"payload", "application/octet-stream")},
         )
         assert resp.status_code == 200, resp.text
@@ -521,7 +521,7 @@ class TestEnvironmentInstallMediaRoute:
             id=2, name="Guest", is_owner=False, can_edit_environments=False,
         )
         resp = c.post(
-            "/api/v1/environments/win98-box/install-media",
+            "/api/v1/environment-items/win98-box/install-media",
             files={"file": ("win98.iso", b"data", "application/octet-stream")},
         )
         assert resp.status_code == 403

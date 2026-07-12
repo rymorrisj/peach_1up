@@ -12,17 +12,17 @@ def _apply_schema_migrations() -> None:
     from sqlalchemy import inspect as sa_inspect, text
 
     engine = get_engine()
-    # Idempotent ADD COLUMN catch-ups for non-library tables. The library schema
-    # (library_collections / library_items leaf / launch_history / media_restrictions)
+    # Idempotent ADD COLUMN catch-ups for non-game tables. The game schema
+    # (game_item_bundles / game_items leaf / launch_history / media_restrictions)
     # is created directly by create_tables() in its consolidated shape — there is no
-    # legacy library DB to migrate, so no library data-reshape steps live here.
-    # Exception: library_items.original_name was added after that consolidated
+    # legacy game DB to migrate, so no game data-reshape steps live here.
+    # Exception: game_items.original_name was added after that consolidated
     # shape was set, so it still needs the same additive catch-up as any other
     # post-creation column on an existing DB.
     pending: list[tuple[str, str, str]] = [
-        ("environments", "installed_at", "DATETIME"),
-        ("environments", "hardware_profile", "TEXT DEFAULT 'standard'"),
-        ("environments", "machine_override", "TEXT"),
+        ("environment_items", "installed_at", "DATETIME"),
+        ("environment_items", "hardware_profile", "TEXT DEFAULT 'standard'"),
+        ("environment_items", "machine_override", "TEXT"),
         ("profiles", "use_drive", "INTEGER NOT NULL DEFAULT 1"),
         ("profiles", "container_enabled", "INTEGER"),
         ("profiles", "enable_dgvoodoo2", "INTEGER NOT NULL DEFAULT 0"),
@@ -32,8 +32,8 @@ def _apply_schema_migrations() -> None:
         ("users", "session_token_ttl", "INTEGER"),
         ("tags", "is_system", "INTEGER NOT NULL DEFAULT 0"),
         ("users", "can_manage_users", "INTEGER NOT NULL DEFAULT 0"),
-        ("software_items", "original_name", "VARCHAR"),
-        ("software_items", "folder_owned", "INTEGER"),
+        ("game_items", "original_name", "VARCHAR"),
+        ("game_items", "folder_owned", "INTEGER"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)
@@ -78,14 +78,14 @@ def _apply_schema_migrations() -> None:
             conn.commit()
             logger.info("Schema migration: enforced single-owner partial unique index on users")
 
-        # Backfill the index on software_items.file_path for DBs provisioned before
+        # Backfill the index on game_items.file_path for DBs provisioned before
         # index=True was added to the model. Name matches SQLAlchemy's own naming
         # convention for this column (ix_<table>_<column>) so this is a no-op on a
         # freshly created DB — create_all() already made the same-named index —
         # and a real backfill on an existing DB that predates it.
         conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS ix_software_items_file_path "
-            "ON software_items (file_path)"
+            "CREATE INDEX IF NOT EXISTS ix_game_items_file_path "
+            "ON game_items (file_path)"
         ))
         conn.commit()
-        logger.info("Schema migration: confirmed ix_software_items_file_path exists")
+        logger.info("Schema migration: confirmed ix_game_items_file_path exists")

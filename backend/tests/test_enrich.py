@@ -1,4 +1,4 @@
-"""Tests for backend.service.library.enrich:
+"""Tests for backend.service.games.enrich:
 
 - _is_forbidden_redirect_host: pure SSRF-guard function
 - _download_cover_art: scheme validation, path-traversal guard, byte cap (20 MB),
@@ -22,7 +22,7 @@ import pytest
 
 class TestIsForbiddenRedirectHost:
     def _call(self, host: str) -> bool:
-        from backend.service.library.enrich import _is_forbidden_redirect_host
+        from backend.service.games.enrich import _is_forbidden_redirect_host
 
         return _is_forbidden_redirect_host(host)
 
@@ -128,7 +128,7 @@ def tmp_lib(tmp_path, monkeypatch):
 class TestDownloadCoverArt:
     def test_non_https_url_raises_422(self, tmp_lib):
         from fastapi import HTTPException
-        from backend.service.library.enrich import _download_cover_art
+        from backend.service.games.enrich import _download_cover_art
 
         with pytest.raises(HTTPException) as exc_info:
             _download_cover_art("http://example.com/art.jpg", tmp_lib)
@@ -137,7 +137,7 @@ class TestDownloadCoverArt:
 
     def test_dest_dir_outside_library_path_raises_422(self, tmp_lib):
         """Path-traversal guard: destination must be inside LIBRARY_PATH."""
-        import backend.service.library.enrich as enrich_mod
+        import backend.service.games.enrich as enrich_mod
         from fastapi import HTTPException
 
         # A sibling directory that shares the same parent as tmp_lib is not
@@ -151,7 +151,7 @@ class TestDownloadCoverArt:
         assert "LIBRARY_PATH" in exc_info.value.detail
 
     def test_http_error_from_server_raises_502(self, tmp_lib, monkeypatch):
-        import backend.service.library.enrich as enrich_mod
+        import backend.service.games.enrich as enrich_mod
         from fastapi import HTTPException
 
         exc = real_httpx.HTTPStatusError(
@@ -165,7 +165,7 @@ class TestDownloadCoverArt:
         assert exc_info.value.status_code == 502
 
     def test_redirect_to_http_scheme_raises_422(self, tmp_lib, monkeypatch):
-        import backend.service.library.enrich as enrich_mod
+        import backend.service.games.enrich as enrich_mod
         from fastapi import HTTPException
 
         mock_httpx = _make_mock_httpx(url_scheme="http")
@@ -177,7 +177,7 @@ class TestDownloadCoverArt:
         assert "https" in exc_info.value.detail.lower() or "redirect" in exc_info.value.detail.lower()
 
     def test_redirect_to_private_ip_raises_422(self, tmp_lib, monkeypatch):
-        import backend.service.library.enrich as enrich_mod
+        import backend.service.games.enrich as enrich_mod
         from fastapi import HTTPException
 
         mock_httpx = _make_mock_httpx(url_scheme="https", url_host="192.168.1.10")
@@ -188,7 +188,7 @@ class TestDownloadCoverArt:
         assert exc_info.value.status_code == 422
 
     def test_non_image_content_type_raises_422(self, tmp_lib, monkeypatch):
-        import backend.service.library.enrich as enrich_mod
+        import backend.service.games.enrich as enrich_mod
         from fastapi import HTTPException
 
         mock_httpx = _make_mock_httpx(content_type="application/octet-stream")
@@ -201,7 +201,7 @@ class TestDownloadCoverArt:
 
     def test_body_exceeding_20mb_aborts_with_422(self, tmp_lib, monkeypatch):
         """Byte cap is enforced during streaming; the download aborts early."""
-        import backend.service.library.enrich as enrich_mod
+        import backend.service.games.enrich as enrich_mod
         from fastapi import HTTPException
 
         # 21 chunks of 1 MB each → 21 MB, exceeding the 20 MB cap
@@ -215,7 +215,7 @@ class TestDownloadCoverArt:
         assert "20 MB" in exc_info.value.detail
 
     def test_valid_jpeg_is_written_to_disk(self, tmp_lib, monkeypatch):
-        import backend.service.library.enrich as enrich_mod
+        import backend.service.games.enrich as enrich_mod
 
         image_data = b"\xff\xd8\xff"  # minimal JPEG header
         mock_httpx = _make_mock_httpx(content_type="image/jpeg", body_chunks=[image_data])
@@ -252,34 +252,34 @@ def mem_session():
 class TestEnrichEntity:
     def test_library_collection_not_found_raises_404(self, mem_session):
         from fastapi import HTTPException
-        from backend.service.library.enrich import enrich_entity
+        from backend.service.games.enrich import enrich_entity
 
         with pytest.raises(HTTPException) as exc_info:
-            enrich_entity("software_collection", 9999, title="New Title", db=mem_session)
+            enrich_entity("game_item_bundle", 9999, title="New Title", db=mem_session)
         assert exc_info.value.status_code == 404
 
     def test_library_item_not_found_raises_404(self, mem_session):
         from fastapi import HTTPException
-        from backend.service.library.enrich import enrich_entity
+        from backend.service.games.enrich import enrich_entity
 
         with pytest.raises(HTTPException) as exc_info:
-            enrich_entity("software_item", 9999, cover_art_url="https://cdn.example.com/a.jpg", db=mem_session)
+            enrich_entity("game_item", 9999, cover_art_url="https://cdn.example.com/a.jpg", db=mem_session)
         assert exc_info.value.status_code == 404
 
     def test_library_collection_with_cover_art_url_raises_422(self, mem_session):
         """Collections don't support direct cover art — must be applied to individual discs."""
         from fastapi import HTTPException
-        from backend.models.software import SoftwareCollection
-        from backend.service.library.enrich import enrich_entity
+        from backend.models.game import GameItemBundle
+        from backend.service.games.enrich import enrich_entity
 
-        c = SoftwareCollection(title="My Set", era="ps1", slug="my-set")
+        c = GameItemBundle(title="My Set", era="ps1", slug="my-set")
         mem_session.add(c)
         mem_session.commit()
         mem_session.refresh(c)
 
         with pytest.raises(HTTPException) as exc_info:
             enrich_entity(
-                "software_collection",
+                "game_item_bundle",
                 c.id,
                 cover_art_url="https://cdn.example.com/art.jpg",
                 db=mem_session,
@@ -290,22 +290,22 @@ class TestEnrichEntity:
     def test_library_item_with_metadata_fields_raises_422(self, mem_session):
         """Disc-level leaves (library_item) do not accept metadata fields."""
         from fastapi import HTTPException
-        from backend.models.software import SoftwareCollection, SoftwareItem
-        from backend.service.library.enrich import enrich_entity
+        from backend.models.game import GameItemBundle, GameItem
+        from backend.service.games.enrich import enrich_entity
 
-        c = SoftwareCollection(title="My Set", era="ps1", slug="my-set")
+        c = GameItemBundle(title="My Set", era="ps1", slug="my-set")
         mem_session.add(c)
         mem_session.commit()
         mem_session.refresh(c)
 
-        leaf = SoftwareItem(software_collection_id=c.id, file_path="/tmp/disc1.bin", disc_number=1)
+        leaf = GameItem(game_item_bundle_id=c.id, file_path="/tmp/disc1.bin", disc_number=1)
         mem_session.add(leaf)
         mem_session.commit()
         mem_session.refresh(leaf)
 
         with pytest.raises(HTTPException) as exc_info:
             enrich_entity(
-                "software_item",
+                "game_item",
                 leaf.id,
                 title="Should Not Work",
                 db=mem_session,
@@ -315,7 +315,7 @@ class TestEnrichEntity:
 
     def test_invalid_entity_type_raises_422(self, mem_session):
         from fastapi import HTTPException
-        from backend.service.library.enrich import enrich_entity
+        from backend.service.games.enrich import enrich_entity
 
         with pytest.raises(HTTPException) as exc_info:
             enrich_entity("unknown_type", 1, db=mem_session)

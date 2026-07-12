@@ -74,10 +74,10 @@ def _make_tag(db, **overrides):
 
 
 def _make_software_collection(db, **overrides):
-    from backend.models.software import SoftwareCollection
+    from backend.models.game import GameItemBundle
     kwargs = dict(title="Doom", file_path="/library/games/dos/doom", era="dos", slug="doom")
     kwargs.update(overrides)
-    row = SoftwareCollection(**kwargs)
+    row = GameItemBundle(**kwargs)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -85,11 +85,11 @@ def _make_software_collection(db, **overrides):
 
 
 def _make_software_item(db, **overrides):
-    from backend.models.software import SoftwareItem
+    from backend.models.game import GameItem
     collection = overrides.pop("collection", None) or _make_software_collection(db)
-    kwargs = dict(software_collection_id=collection.id, file_path="/library/games/dos/doom/doom.iso")
+    kwargs = dict(game_item_bundle_id=collection.id, file_path="/library/games/dos/doom/doom.iso")
     kwargs.update(overrides)
-    row = SoftwareItem(**kwargs)
+    row = GameItem(**kwargs)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -108,10 +108,10 @@ def _make_media_item(db, **overrides):
 
 
 def _make_media_collection(db, **overrides):
-    from backend.models.media import MediaCollection
+    from backend.models.media import MediaItemBundle
     kwargs = dict(title="Doom OST Collection", media_kind="audio", slug="doom-ost-collection")
     kwargs.update(overrides)
-    row = MediaCollection(**kwargs)
+    row = MediaItemBundle(**kwargs)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -119,10 +119,10 @@ def _make_media_collection(db, **overrides):
 
 
 def _make_environment(db, **overrides):
-    from backend.models.environment import Environment
+    from backend.models.environment import EnvironmentItem
     kwargs = dict(name="Win98 Box", era="win98", emulator_slug="86box", slug="win98-box")
     kwargs.update(overrides)
-    row = Environment(**kwargs)
+    row = EnvironmentItem(**kwargs)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -152,22 +152,22 @@ def _make_controller_mapping(db, **overrides):
 
 
 _ENTITY_FACTORIES = {
-    "software_collection": _make_software_collection,
-    "software_item": _make_software_item,
+    "game_item_bundle": _make_software_collection,
+    "game_item": _make_software_item,
     "media_item": _make_media_item,
-    "media_collection": _make_media_collection,
-    "environment": _make_environment,
+    "media_item_bundle": _make_media_collection,
+    "environment_item": _make_environment,
     "rom_pack_item": _make_rom_pack_item,
     "controller_mapping": _make_controller_mapping,
 }
 
 # entity_type -> a User authorized to write an assignment for it.
 _ENTITY_AUTHORIZED_USER = {
-    "software_collection": lambda: _user(1, can_manage_software=True),
-    "software_item": lambda: _user(1, can_manage_software=True),
+    "game_item_bundle": lambda: _user(1, can_manage_software=True),
+    "game_item": lambda: _user(1, can_manage_software=True),
     "media_item": lambda: _user(1, can_edit_media=True),
-    "media_collection": lambda: _user(1, can_edit_media=True),
-    "environment": lambda: _user(1, can_edit_environments=True),
+    "media_item_bundle": lambda: _user(1, can_edit_media=True),
+    "environment_item": lambda: _user(1, can_edit_environments=True),
     "rom_pack_item": lambda: _user(1, can_edit_environments=True),
     "controller_mapping": lambda: _user(1, is_owner=True),
 }
@@ -202,7 +202,7 @@ class TestDispatchOrder:
         _override_user(c, _user(2, can_manage_software=False))
         resp = c.post(
             "/api/v1/tags/999999/assignments",
-            json={"entity_type": "software_item", "entity_id": 999999},
+            json={"entity_type": "game_item", "entity_id": 999999},
         )
         assert resp.status_code == 403
 
@@ -212,7 +212,7 @@ class TestDispatchOrder:
         _override_user(c, _user(1, can_manage_software=True))
         resp = c.post(
             "/api/v1/tags/999999/assignments",
-            json={"entity_type": "software_collection", "entity_id": collection.id},
+            json={"entity_type": "game_item_bundle", "entity_id": collection.id},
         )
         assert resp.status_code == 404
         assert resp.json()["detail"] == "Tag not found."
@@ -223,10 +223,10 @@ class TestDispatchOrder:
         _override_user(c, _user(1, can_manage_software=True))
         resp = c.post(
             f"/api/v1/tags/{tag.id}/assignments",
-            json={"entity_type": "software_collection", "entity_id": 999999},
+            json={"entity_type": "game_item_bundle", "entity_id": 999999},
         )
         assert resp.status_code == 404
-        assert resp.json()["detail"] == "software_collection not found."
+        assert resp.json()["detail"] == "game_item_bundle not found."
 
 
 # ---------------------------------------------------------------------------
@@ -348,7 +348,7 @@ class TestCreateTagAssignmentIdempotency:
         collection = _make_software_collection(db)
         _override_user(c, _user(1, can_manage_software=True))
 
-        body = {"entity_type": "software_collection", "entity_id": collection.id}
+        body = {"entity_type": "game_item_bundle", "entity_id": collection.id}
         first = c.post(f"/api/v1/tags/{tag.id}/assignments", json=body)
         second = c.post(f"/api/v1/tags/{tag.id}/assignments", json=body)
         assert first.status_code == 204
@@ -359,7 +359,7 @@ class TestCreateTagAssignmentIdempotency:
             db.query(EntityTag)
             .filter(
                 EntityTag.tag_id == tag.id,
-                EntityTag.entity_type == "software_collection",
+                EntityTag.entity_type == "game_item_bundle",
                 EntityTag.entity_id == collection.id,
             )
             .count()
@@ -382,7 +382,7 @@ class TestDeleteTagAssignment:
         resp = c.request(
             "DELETE",
             f"/api/v1/tags/{tag.id}/assignments",
-            json={"entity_type": "software_collection", "entity_id": collection.id},
+            json={"entity_type": "game_item_bundle", "entity_id": collection.id},
         )
         assert resp.status_code == 404
         assert resp.json()["detail"] == "Tag not assigned to this entity."

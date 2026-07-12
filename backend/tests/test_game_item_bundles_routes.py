@@ -1,4 +1,4 @@
-"""Route-level (TestClient/HTTP) tests for backend/api/routes/software_collections.py.
+"""Route-level (TestClient/HTTP) tests for backend/api/routes/game_item_bundles.py.
 
 Per dev_docs/v2/09_test_coverage.md item 3 — the largest untested route file
 (699 lines) and a parental-control-adjacent surface. Prior to this file, only
@@ -11,10 +11,10 @@ the route's other untested surfaces:
     - PATCH .../items/reorder (can_manage_software gate)
     - POST .../flag-launch (can_launch_media gate)
 
-Does NOT duplicate the get_filtered_collections/get_filtered_collection
+Does NOT duplicate the get_filtered_game_item_bundles/get_filtered_game_item_bundle
 rating-filter coverage already in test_dependencies_content_rating.py
 (TestGetFilteredCollectionsUnknownRatingDenies, TestGetFilteredCollection,
-TestSoftwareListRouteFiltering, TestSoftwareCollectionDetailRouteNoLeak).
+TestSoftwareListRouteFiltering, TestGameItemBundleDetailRouteNoLeak).
 
 Uses the same in-memory SQLModel SQLite DB + StaticPool +
 get_active_user/get_db dependency-override pattern as
@@ -58,11 +58,11 @@ def _make_user(db, **overrides):
 
 
 def _make_collection(db, **overrides):
-    from backend.models.software import SoftwareCollection
+    from backend.models.game import GameItemBundle
 
     kwargs = dict(title="Doom", file_path="/library/games/dos/doom", era="dos", slug="doom")
     kwargs.update(overrides)
-    collection = SoftwareCollection(**kwargs)
+    collection = GameItemBundle(**kwargs)
     db.add(collection)
     db.commit()
     db.refresh(collection)
@@ -70,11 +70,11 @@ def _make_collection(db, **overrides):
 
 
 def _make_item(db, collection_id, **overrides):
-    from backend.models.software import SoftwareItem
+    from backend.models.game import GameItem
 
-    kwargs = dict(software_collection_id=collection_id, disc_number=1, file_path="/library/games/dos/doom/doom.exe")
+    kwargs = dict(game_item_bundle_id=collection_id, disc_number=1, file_path="/library/games/dos/doom/doom.exe")
     kwargs.update(overrides)
-    item = SoftwareItem(**kwargs)
+    item = GameItem(**kwargs)
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -85,11 +85,11 @@ def _make_item(db, collection_id, **overrides):
 def http_client(mem_db_session):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
-    from backend.api.routes import software_collections
+    from backend.api.routes import game_item_bundles
     from backend.core.database import get_db
 
     app = FastAPI()
-    app.include_router(software_collections.router)
+    app.include_router(game_item_bundles.router)
     app.dependency_overrides[get_db] = lambda: mem_db_session
 
     with TestClient(app) as c:
@@ -130,7 +130,7 @@ class TestRestrictionsEndpoint:
         non_admin = _make_user(db, can_manage_software=True, is_admin=False)
         _set_active_user(app, non_admin)
 
-        resp = c.get(f"/api/v1/softwarecollection/{collection.id}/restrictions")
+        resp = c.get(f"/api/v1/game-item-bundle/{collection.id}/restrictions")
         assert resp.status_code == 403, resp.text
 
     def test_admin_gets_restriction_list(self, http_client):
@@ -139,12 +139,12 @@ class TestRestrictionsEndpoint:
         c, db, app = http_client
         collection = _make_collection(db)
         restricted_user = _make_user(db, name="Kid")
-        db.add(MediaRestriction(user_id=restricted_user.id, software_collection_id=collection.id))
+        db.add(MediaRestriction(user_id=restricted_user.id, game_item_bundle_id=collection.id))
         db.commit()
         admin = _make_user(db, name="Admin", is_admin=True)
         _set_active_user(app, admin)
 
-        resp = c.get(f"/api/v1/softwarecollection/{collection.id}/restrictions")
+        resp = c.get(f"/api/v1/game-item-bundle/{collection.id}/restrictions")
         assert resp.status_code == 200, resp.text
         assert resp.json() == {"restricted_user_ids": [restricted_user.id]}
 
@@ -155,7 +155,7 @@ class TestRestrictionsEndpoint:
         _set_active_user(app, non_admin)
 
         resp = c.put(
-            f"/api/v1/softwarecollection/{collection.id}/restrictions",
+            f"/api/v1/game-item-bundle/{collection.id}/restrictions",
             json={"user_ids": [non_admin.id]},
         )
         assert resp.status_code == 403, resp.text
@@ -174,14 +174,14 @@ class TestRestrictionsEndpoint:
         _set_active_user(app, admin)
 
         first = c.put(
-            f"/api/v1/softwarecollection/{collection.id}/restrictions",
+            f"/api/v1/game-item-bundle/{collection.id}/restrictions",
             json={"user_ids": [user_a.id]},
         )
         assert first.status_code == 200, first.text
         assert first.json() == {"restricted_user_ids": [user_a.id]}
 
         second = c.put(
-            f"/api/v1/softwarecollection/{collection.id}/restrictions",
+            f"/api/v1/game-item-bundle/{collection.id}/restrictions",
             json={"user_ids": [user_b.id]},
         )
         assert second.status_code == 200, second.text
@@ -189,7 +189,7 @@ class TestRestrictionsEndpoint:
 
         db.expire_all()
         rows = db.query(MediaRestriction).filter(
-            MediaRestriction.software_collection_id == collection.id
+            MediaRestriction.game_item_bundle_id == collection.id
         ).all()
         persisted_ids = {r.user_id for r in rows}
         assert persisted_ids == {user_b.id}
@@ -205,7 +205,7 @@ class TestImportFromPath:
     def client(self, tmp_path, mem_db_session, monkeypatch):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
-        from backend.api.routes import software_collections
+        from backend.api.routes import game_item_bundles
         from backend.core.database import get_db
 
         source_dir = tmp_path / "incoming"
@@ -220,10 +220,10 @@ class TestImportFromPath:
         # _enforce_rate_limit calls rate_limit.check_and_record directly (not
         # rate_limit.enforce), and its module-level counters persist across
         # test methods within the same process — bypass it at the source.
-        monkeypatch.setattr(software_collections, "_enforce_rate_limit", lambda *a, **kw: None)
+        monkeypatch.setattr(game_item_bundles, "_enforce_rate_limit", lambda *a, **kw: None)
 
         app = FastAPI()
-        app.include_router(software_collections.router)
+        app.include_router(game_item_bundles.router)
         app.dependency_overrides[get_db] = lambda: mem_db_session
 
         with TestClient(app) as c:
@@ -237,7 +237,7 @@ class TestImportFromPath:
         _set_active_user(app, non_permitted)
 
         resp = c.post(
-            "/api/v1/software/import-from-path",
+            "/api/v1/game-items/import-from-path",
             json={"source_path": str(source_file), "title": "Game"},
         )
         assert resp.status_code == 403, resp.text
@@ -250,7 +250,7 @@ class TestImportFromPath:
         _set_active_user(app, permitted)
 
         resp = c.post(
-            "/api/v1/software/import-from-path",
+            "/api/v1/game-items/import-from-path",
             json={"source_path": str(source_file), "title": "Game"},
         )
         assert resp.status_code == 201, resp.text
@@ -267,7 +267,7 @@ class TestScanImport:
     def client(self, tmp_path, mem_db_session, monkeypatch):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
-        from backend.api.routes import software_collections
+        from backend.api.routes import game_item_bundles
         from backend.core.database import get_db
 
         # No SOFTWARE_PATH configured on purpose: _prepare_item's loose-file
@@ -278,7 +278,7 @@ class TestScanImport:
         monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings({}))
 
         app = FastAPI()
-        app.include_router(software_collections.router)
+        app.include_router(game_item_bundles.router)
         app.dependency_overrides[get_db] = lambda: mem_db_session
 
         with TestClient(app) as c:
@@ -292,13 +292,13 @@ class TestScanImport:
         _set_active_user(app, non_permitted)
 
         resp = c.post(
-            "/api/v1/software/scan/import",
+            "/api/v1/game-items/scan/import",
             json={"selected": [{"path": str(source_file), "title": "Game"}]},
         )
         assert resp.status_code == 403, resp.text
 
     def test_permitted_user_succeeds_and_imports(self, client, tmp_path):
-        from backend.models.software import SoftwareCollection
+        from backend.models.game import GameItemBundle
 
         c, db, app = client
         source_file = tmp_path / "game.iso"
@@ -307,7 +307,7 @@ class TestScanImport:
         _set_active_user(app, permitted)
 
         resp = c.post(
-            "/api/v1/software/scan/import",
+            "/api/v1/game-items/scan/import",
             json={"selected": [{"path": str(source_file), "title": "Game"}]},
         )
         assert resp.status_code == 200, resp.text
@@ -315,7 +315,7 @@ class TestScanImport:
         assert body["imported"] == 1
         assert body["errors"] == []
 
-        created = db.query(SoftwareCollection).filter(SoftwareCollection.title == "Game").first()
+        created = db.query(GameItemBundle).filter(GameItemBundle.title == "Game").first()
         assert created is not None
 
 
@@ -334,13 +334,13 @@ class TestItemsReorder:
         _set_active_user(app, non_permitted)
 
         resp = c.patch(
-            f"/api/v1/softwarecollection/{collection.id}/items/reorder",
+            f"/api/v1/game-item-bundle/{collection.id}/items/reorder",
             json={"disc_order": [item2.id, item1.id]},
         )
         assert resp.status_code == 403, resp.text
 
     def test_permitted_user_reorder_persists_in_db(self, http_client):
-        from backend.models.software import SoftwareCollection, SoftwareItem
+        from backend.models.game import GameItemBundle, GameItem
 
         c, db, app = http_client
         collection = _make_collection(db)
@@ -350,18 +350,18 @@ class TestItemsReorder:
         _set_active_user(app, permitted)
 
         resp = c.patch(
-            f"/api/v1/softwarecollection/{collection.id}/items/reorder",
+            f"/api/v1/game-item-bundle/{collection.id}/items/reorder",
             json={"disc_order": [item2.id, item1.id]},
         )
         assert resp.status_code == 200, resp.text
 
         db.expire_all()
-        reloaded_item2 = db.get(SoftwareItem, item2.id)
-        reloaded_item1 = db.get(SoftwareItem, item1.id)
+        reloaded_item2 = db.get(GameItem, item2.id)
+        reloaded_item1 = db.get(GameItem, item1.id)
         assert reloaded_item2.disc_number == 1
         assert reloaded_item1.disc_number == 2
 
-        reloaded_collection = db.get(SoftwareCollection, collection.id)
+        reloaded_collection = db.get(GameItemBundle, collection.id)
         assert reloaded_collection.launch_disk_id == item2.id
 
 
@@ -372,32 +372,32 @@ class TestItemsReorder:
 
 class TestFlagLaunch:
     def test_non_permitted_user_gets_403(self, http_client):
-        from backend.models.software import SoftwareCollection
+        from backend.models.game import GameItemBundle
 
         c, db, app = http_client
         collection = _make_collection(db, launch_review_flagged=False)
         non_permitted = _make_user(db, can_launch_media=False, is_admin=False)
         _set_active_user(app, non_permitted)
 
-        resp = c.post(f"/api/v1/softwarecollection/{collection.id}/flag-launch")
+        resp = c.post(f"/api/v1/game-item-bundle/{collection.id}/flag-launch")
         assert resp.status_code == 403, resp.text
 
         db.expire_all()
-        reloaded = db.get(SoftwareCollection, collection.id)
+        reloaded = db.get(GameItemBundle, collection.id)
         assert reloaded.launch_review_flagged is False
 
     def test_permitted_user_flag_persists(self, http_client):
-        from backend.models.software import SoftwareCollection
+        from backend.models.game import GameItemBundle
 
         c, db, app = http_client
         collection = _make_collection(db, launch_review_flagged=False)
         permitted = _make_user(db, can_launch_media=True, is_admin=False)
         _set_active_user(app, permitted)
 
-        resp = c.post(f"/api/v1/softwarecollection/{collection.id}/flag-launch")
+        resp = c.post(f"/api/v1/game-item-bundle/{collection.id}/flag-launch")
         assert resp.status_code == 200, resp.text
         assert resp.json()["launch_review_flagged"] is True
 
         db.expire_all()
-        reloaded = db.get(SoftwareCollection, collection.id)
+        reloaded = db.get(GameItemBundle, collection.id)
         assert reloaded.launch_review_flagged is True
