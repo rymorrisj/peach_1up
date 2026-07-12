@@ -1,6 +1,11 @@
 from backend.models.bios import BiosRequirement
 from backend.models.drive import Drive, DriveBase, DriveRead
 from backend.models.filesystem import BrowseResult, DirEntry, DriveEntry, DrivesResult, FileEntry
+from backend.models.app import (
+    AppCollection, AppCollectionCreate, AppCollectionRead, AppCollectionUpdate,
+    AppItem, AppItemRead, AppItemUpdate,
+    app_to_read, apps_to_read_bulk,
+)
 from backend.models.software import (
     ImportErrorItem, ImportResult,
     SoftwareCollection, SoftwareCollectionCreate, SoftwareCollectionRead, SoftwareCollectionUpdate,

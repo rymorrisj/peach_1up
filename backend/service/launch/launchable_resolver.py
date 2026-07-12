@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+    from backend.models.app import AppCollection
     from backend.models.drive import Drive
     from backend.models.software import SoftwareCollection
 
@@ -32,6 +33,12 @@ class LaunchableEntity:
     launch_commands: list[str] | None = None
     launch_review_flagged: bool = False
 
+    # Which table collection_id points into. "software" (SoftwareCollection,
+    # the default) or "app" (AppCollection) — lets downstream code (drive
+    # hydration, the coordinator's history write) pick the right sibling model
+    # without a second resolution path duplicating everything above it.
+    source_type: str = "software"
+
     # Environment hydration fields (DOS pattern-1 copy gate).
     installed: bool = False
     requires_install: bool = False
@@ -50,7 +57,9 @@ class LaunchableEntity:
     disc_paths: list[str] = field(default_factory=list)
 
     # ORM back-reference for collection.installed write-back after loose-file copy.
-    _db_collection: "SoftwareCollection | None" = None
+    # Holds a SoftwareCollection when source_type == "software", an
+    # AppCollection when source_type == "app".
+    _db_collection: "SoftwareCollection | AppCollection | None" = None
 
 
 def resolve_launchable(
@@ -98,5 +107,68 @@ def resolve_launchable(
         media_type=str(launch_leaf.file_type) if launch_leaf.file_type is not None else None,
         drive=c.drive,
         disc_paths=[leaf.file_path for leaf in all_leaves],
+        _db_collection=c,
+    )
+
+
+def resolve_launchable_app(
+    app_collection_id: int,
+    db: "Session",
+) -> LaunchableEntity:
+    """Resolve an AppCollection into a LaunchableEntity via its launch item.
+
+    Apps are always PC (item_type is fixed, not derived/stored) and always
+    carry a non-null environment_id, so era is read off the linked
+    Environment rather than the collection itself (see backend/models/app.py
+    for why era is not duplicated onto AppCollection). drive is always None
+    here: AppCollection.drive_id exists for schema parity with
+    SoftwareCollection, but Drive ownership (the FAT16 DOS write-path) is not
+    wired up for Apps this session — drive_hydration.hydrate_drive_for_entity
+    skips its auto-create branch for source_type == "app" accordingly.
+
+    Raises ValueError if the collection, its Environment, or its launch item
+    is not found, or if no launch item is configured.
+    """
+    from backend.models.app import AppCollection, AppItem
+    from backend.models.environment import Environment
+
+    c = db.get(AppCollection, app_collection_id)
+    if c is None:
+        raise ValueError(f"AppCollection {app_collection_id} not found")
+    environment = db.get(Environment, c.environment_id)
+    if environment is None:
+        raise ValueError(f"AppCollection {app_collection_id}: Environment {c.environment_id} not found")
+    if not c.launch_disk_id:
+        raise ValueError(f"AppCollection {app_collection_id} has no launch item configured")
+    launch_item = db.get(AppItem, c.launch_disk_id)
+    if launch_item is None:
+        raise ValueError(
+            f"AppCollection {app_collection_id}: launch item {c.launch_disk_id} not found"
+        )
+    all_items = (
+        db.query(AppItem)
+        .filter(AppItem.app_collection_id == c.id)
+        .order_by(AppItem.id)
+        .all()
+    )
+
+    return LaunchableEntity(
+        collection_id=c.id,
+        profile_id=c.profile_id,
+        era=environment.era,
+        item_type="pc",
+        environment_id=c.environment_id,
+        slug=c.slug,
+        media_path=launch_item.file_path,
+        folder_path=launch_item.folder_path,
+        executable_path=launch_item.executable_path,
+        launch_commands=c.launch_commands,
+        launch_review_flagged=False,
+        installed=c.installed,
+        requires_install=c.requires_install,
+        media_type=str(launch_item.file_type) if launch_item.file_type is not None else None,
+        drive=None,
+        disc_paths=[item.file_path for item in all_items],
+        source_type="app",
         _db_collection=c,
     )

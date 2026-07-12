@@ -6,6 +6,7 @@ from sqlmodel import SQLModel
 from backend.api.routes.controllers import check_controller_edit_permission
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
+from backend.models.app import AppCollection, AppItem
 from backend.models.controller_mapping import ControllerMapping
 from backend.models.environment import Environment
 from backend.models.media import MediaCollection, MediaItem
@@ -25,6 +26,8 @@ _ASSIGNMENT_TARGETS: dict[str, type] = {
     "environment": Environment,
     "rom_pack_item": RomPackItem,
     "controller_mapping": ControllerMapping,
+    "app_collection": AppCollection,
+    "app_item": AppItem,
 }
 
 # entity_type -> permission flag required to write the assignment.
@@ -37,6 +40,8 @@ _ASSIGNMENT_PERMISSIONS: dict[str, str] = {
     "media_collection": "can_edit_media",
     "environment": "can_edit_environments",
     "rom_pack_item": "can_edit_environments",
+    "app_collection": "can_manage_apps",
+    "app_item": "can_manage_apps",
 }
 
 

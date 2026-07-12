@@ -85,6 +85,7 @@ def run_setup(db_path: str | Path) -> bool:
             existing.can_edit_environments = True
             existing.can_manage_software = True
             existing.can_edit_settings = True
+            existing.can_manage_apps = True
             existing.is_admin = True
             existing.is_locked = False
             existing.failed_pin_attempts = 0
@@ -99,6 +100,7 @@ def run_setup(db_path: str | Path) -> bool:
                 can_edit_environments=True,
                 can_manage_software=True,
                 can_edit_settings=True,
+                can_manage_apps=True,
                 is_admin=True,
             ))
         db.commit()

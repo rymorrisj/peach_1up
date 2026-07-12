@@ -74,6 +74,7 @@ def _finalize_launch(
     *,
     network_blocked: bool,
     collection_id: int | None = None,
+    app_collection_id: int | None = None,
     profile_id: int | None = None,
     emulator_slug: str | None = None,
     user_id: int | None = None,
@@ -99,6 +100,7 @@ def _finalize_launch(
             process_handle=proc,
             job_handle=job,
             software_collection_id=collection_id,
+            app_collection_id=app_collection_id,
             profile_id=profile_id,
             launch_history_id=history.id,
             emulator_slug=emulator_slug,
@@ -298,6 +300,7 @@ def _build_spec_for_entity(
         disc_paths=[Path(p) for p in entity.disc_paths],
         collection_id=entity.collection_id,
         launch_review_flagged=bool(entity.launch_review_flagged),
+        source_type=entity.source_type,
     )
 
 
@@ -377,9 +380,11 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
             status_code=409,
             detail="Launch rejected: a launch for this profile or emulator is already active.",
         )
+    is_app = spec.source_type == "app"
     try:
         history = LaunchHistory(
-            software_collection_id=spec.collection_id,
+            software_collection_id=spec.collection_id if not is_app else None,
+            app_collection_id=spec.collection_id if is_app else None,
             environment_id=spec.platform_id,
             profile_id=spec.profile_id,
             emulator_slug=spec.emulator_slug,
@@ -433,7 +438,8 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
         _finalize_launch(
             history, result, db,
             network_blocked=network_blocked,
-            collection_id=spec.collection_id,
+            collection_id=spec.collection_id if not is_app else None,
+            app_collection_id=spec.collection_id if is_app else None,
             profile_id=spec.profile_id,
             emulator_slug=spec.emulator_slug,
             user_id=spec.user_id,
@@ -458,9 +464,16 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
                     status_code=500,
                     detail=f"Launch failed: the emulator process exited immediately (exit code {exit_code}).",
                 )
-            # Every collection launch gets the async 3s short-lived crash-review
-            # window (keyed on collection_id) in addition to the inline check above.
-            if spec.collection_id is not None:
+            # Every software collection launch gets the async 3s short-lived
+            # crash-review window (keyed on collection_id) in addition to the
+            # inline check above. Apps are excluded: the review-flag machinery
+            # (monitor._flag_short_lived_item) writes to SoftwareCollection.
+            # launch_review_flagged, a field AppCollection deliberately does
+            # not have (see backend/models/app.py), and software_collection_id
+            # / app_collection_id are separate id spaces that can collide on
+            # the same integer -- keying off collection_id alone here would
+            # risk flagging an unrelated SoftwareCollection row.
+            if spec.collection_id is not None and not is_app:
                 register_short_lived_check(spec.collection_id, proc, launch_time)
 
         return LaunchResult(
@@ -539,6 +552,27 @@ async def launch_collection(collection_id: int, profile_id: int | None, db: Sess
     from backend.service.launch.launchable_resolver import resolve_launchable
     try:
         entity = resolve_launchable(collection_id, db=db)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return await _launch_entity(entity, profile_id, db)
+
+
+async def launch_app_collection(app_collection_id: int, profile_id: int | None, db: Session) -> LaunchResult:
+    """App entry point. Mirrors launch_collection but resolves an AppCollection.
+
+    Reuses _launch_entity unchanged: entity.item_type is always "pc" and
+    entity.environment_id is always non-null for an App (see
+    launchable_resolver.resolve_launchable_app), so _resolve_environment_for_pc_entity
+    always takes its direct-lookup branch here -- there is no era-fallback
+    path to reach, since Apps have no missing-environment state.
+    """
+    exited = process_registry.cleanup_exited()
+    if exited:
+        await asyncio.to_thread(write_session_ends, exited)
+
+    from backend.service.launch.launchable_resolver import resolve_launchable_app
+    try:
+        entity = resolve_launchable_app(app_collection_id, db=db)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return await _launch_entity(entity, profile_id, db)
@@ -627,7 +661,11 @@ def stop_launch(history_id: int, active_user, db: Session) -> dict:
             record.software_collection_id is not None
             and entry.software_collection_id == record.software_collection_id
         )
-        if by_history or by_collection:
+        by_app_collection = (
+            record.app_collection_id is not None
+            and entry.app_collection_id == record.app_collection_id
+        )
+        if by_history or by_collection or by_app_collection:
             process_registry.terminate(pid)
             stopped = True
             break

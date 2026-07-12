@@ -7,6 +7,7 @@ from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, get_filtered_collection, require_permission
 from backend.core.logger import get_logger
 from backend.models import Environment, LaunchHistory
+from backend.models.app import AppCollection
 from backend.models.launch_history import LaunchHistoryRead
 from backend.models.user import User
 from backend.service.launch import coordinator as svc
@@ -35,6 +36,28 @@ async def launch_collection(
     # get_filtered_collection enforces the caller's restriction/rating filters and 404s otherwise.
     collection = get_filtered_collection(collection_id, active_user, db)
     result = await svc.launch_collection(collection.id, body.profile_id, db)
+    return LaunchResponse(
+        launch_history_id=result.history_id,
+        warnings=result.warnings,
+        launch_review_flagged=result.launch_review_flagged,
+    )
+
+
+@router.post("/appcollection/{collection_id}/launch", status_code=202, response_model=LaunchResponse)
+async def launch_app_collection(
+    collection_id: int,
+    body: LaunchRequest = LaunchRequest(),
+    db: Session = Depends(get_db),
+    active_user: User = require_permission("can_launch_media"),
+):
+    # No restriction/rating filter here: App restriction logic (mirroring
+    # get_filtered_collection for Software) is explicitly out of scope this
+    # session -- Apps have no content_rating concept to filter on (doc
+    # backend/models/app.py). Existence is still checked directly (404, not
+    # a bare 500) before ever reaching the coordinator.
+    if not db.get(AppCollection, collection_id):
+        raise HTTPException(status_code=404, detail="App collection not found.")
+    result = await svc.launch_app_collection(collection_id, body.profile_id, db)
     return LaunchResponse(
         launch_history_id=result.history_id,
         warnings=result.warnings,
@@ -95,6 +118,8 @@ def list_launches(
             q = q.filter(LaunchHistory.environment_id == target_id)
         elif target_type == "software_collection":
             q = q.filter(LaunchHistory.software_collection_id == target_id)
+        elif target_type == "app_collection":
+            q = q.filter(LaunchHistory.app_collection_id == target_id)
         else:
             raise HTTPException(status_code=422, detail=f"Unknown target_type: {target_type!r}")
     return q.order_by(LaunchHistory.started_at.desc()).limit(50).all()

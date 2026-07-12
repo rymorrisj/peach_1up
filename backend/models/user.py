@@ -14,6 +14,7 @@ class UserBase(SQLModel):
     can_edit_environments: bool = False
     can_manage_software: bool = False
     can_edit_media: bool = False
+    can_manage_apps: bool = False
     can_manage_controllers: bool = False
     can_edit_settings: bool = False
     can_manage_users: bool = False

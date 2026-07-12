@@ -55,9 +55,20 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
 
     drive = entity.drive
 
-    # Auto-create a drive for DOS collections that don't have one yet.
+    # Auto-create a drive for DOS collections that don't have one yet. Apps
+    # are excluded (source_type == "app"): AppCollection.drive_id exists for
+    # schema parity with SoftwareCollection, but Drive ownership is not wired
+    # up for Apps this session -- entity.drive is always None for them (see
+    # launchable_resolver.resolve_launchable_app), and collection.launch_disk_id
+    # here would otherwise be looked up against the wrong table (SoftwareItem
+    # vs AppItem share no id space).
     collection = entity._db_collection
-    if drive is None and entity.era in _DRIVE_ERAS and collection is not None:
+    if (
+        drive is None
+        and entity.era in _DRIVE_ERAS
+        and entity.source_type == "software"
+        and collection is not None
+    ):
         launch_leaf = db.get(SoftwareItem, collection.launch_disk_id) if collection.launch_disk_id else None
         if launch_leaf is not None:
             drive = create_drive_for_collection(collection, launch_leaf, db)

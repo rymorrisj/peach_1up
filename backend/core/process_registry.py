@@ -14,6 +14,7 @@ class ProcessEntry:
     job_handle: Any | None
     software_collection_id: int | None
     profile_id: int | None
+    app_collection_id: int | None = None
     launch_history_id: int | None = None
     emulator_slug: str | None = None
     user_id: int | None = None
