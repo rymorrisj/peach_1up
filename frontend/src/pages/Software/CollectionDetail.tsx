@@ -19,9 +19,9 @@ import type { GameItemBundleData } from './components/CollectionCard'
 import type { EditForm as EditFormFields } from '@/hooks/useEditForm'
 import type { components } from '@shared/types'
 
-type User = components['schemas']['UserRead']
+type User = components['schemas']['UserItemRead']
 type LaunchHistory = components['schemas']['LaunchHistoryRead']
-type LaunchProfile = components['schemas']['ProfileRead']
+type LaunchProfile = components['schemas']['ProfileItemRead']
 type Platform = components['schemas']['EnvironmentItemRead']
 
 function formFromCollection(c: GameItemBundleData): EditFormFields {
@@ -37,7 +37,7 @@ function formFromCollection(c: GameItemBundleData): EditFormFields {
     content_rating: c.content_rating ?? '',
     era: c.era && c.era !== 'unknown' ? c.era : '',
     environment_id: c.environment_id?.toString() ?? '',
-    profile_id: c.profile_id?.toString() ?? '',
+    profile_item_id: c.profile_item_id?.toString() ?? '',
     executable_path: launchDisc?.executable_path ?? '',
   }
 }
@@ -95,13 +95,13 @@ export default function CollectionDetail() {
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users'],
-    queryFn: () => apiFetch<User[]>('/api/v1/users'),
+    queryFn: () => apiFetch<User[]>('/api/v1/user-items'),
     enabled: isAdminOrOwner,
   })
 
   const { data: profiles = [] } = useQuery<LaunchProfile[]>({
     queryKey: ['profiles'],
-    queryFn: async () => (await apiFetch<{ items: LaunchProfile[] }>('/api/v1/profiles?limit=200')).items,
+    queryFn: async () => (await apiFetch<{ items: LaunchProfile[] }>('/api/v1/profile-items?limit=200')).items,
   })
 
   const { data: platforms = [] } = useQuery<Platform[]>({
@@ -110,11 +110,11 @@ export default function CollectionDetail() {
   })
 
   const { data: restrictionsData, refetch: refetchRestrictions } = useQuery<{
-    restricted_user_ids: number[]
+    restricted_user_item_ids: number[]
   }>({
     queryKey: ['restrictions', 'collection', collectionId],
     queryFn: () =>
-      apiFetch<{ restricted_user_ids: number[] }>(`/api/v1/game-item-bundle/${collectionId}/restrictions`),
+      apiFetch<{ restricted_user_item_ids: number[] }>(`/api/v1/game-item-bundle/${collectionId}/restrictions`),
     enabled: isAdminOrOwner && collectionId != null,
   })
 
@@ -180,7 +180,7 @@ export default function CollectionDetail() {
           content_rating: f.content_rating || null,
           era: f.era || null,
           environment_id: f.environment_id ? parseInt(f.environment_id, 10) : null,
-          profile_id: f.profile_id ? parseInt(f.profile_id, 10) : null,
+          profile_item_id: f.profile_item_id ? parseInt(f.profile_item_id, 10) : null,
           launch_commands: resolveLaunchCommands(),
         }),
       })
@@ -431,9 +431,9 @@ export default function CollectionDetail() {
   const currentLaunchDisc =
     sortedItems.find((i) => i.id === displayedOrder[0]) ?? sortedItems[0]
 
-  const effectiveProfileId = form.profile_id
-    ? parseInt(form.profile_id, 10)
-    : (collection.profile_id ?? null)
+  const effectiveProfileId = form.profile_item_id
+    ? parseInt(form.profile_item_id, 10)
+    : (collection.profile_item_id ?? null)
   const hasProfile = effectiveProfileId != null
 
   const resolvedDeleteMedia = collection.delete_media_override ?? deleteMediaOnRemoval

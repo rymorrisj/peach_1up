@@ -21,7 +21,7 @@ class LaunchableEntity:
 
     collection_id: int
 
-    profile_id: int | None
+    profile_item_id: int | None
     era: str
     item_type: str
     environment_item_id: int | None
@@ -92,7 +92,7 @@ def resolve_launchable(
 
     return LaunchableEntity(
         collection_id=c.id,
-        profile_id=c.profile_id,
+        profile_item_id=c.profile_item_id,
         era=c.era,
         item_type=c.item_type,
         environment_item_id=c.environment_item_id,
@@ -154,7 +154,7 @@ def resolve_launchable_app(
 
     return LaunchableEntity(
         collection_id=c.id,
-        profile_id=c.profile_id,
+        profile_item_id=c.profile_item_id,
         era=environment.era,
         item_type="pc",
         environment_item_id=c.environment_item_id,

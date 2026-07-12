@@ -221,7 +221,7 @@ class TestBuildMediaBrokerConfig:
     def test_returns_none_when_container_disabled(self, tmp_path):
         from backend.service.utils.emulator_catalog import build_media_broker_config
         result = build_media_broker_config(
-            "flycast", "flycast.exe", tmp_path / "game.chd", user_id=1, container_enabled=False)
+            "flycast", "flycast.exe", tmp_path / "game.chd", user_item_id=1, container_enabled=False)
         assert result is None
 
     def test_builds_grant_and_inherit_broker_files_when_enabled(self, tmp_path, monkeypatch):
@@ -231,10 +231,10 @@ class TestBuildMediaBrokerConfig:
         media_path = tmp_path / "media" / "game.chd"
         base_config = SandboxConfig(moniker="flycast", exe_path="flycast.exe")
         monkeypatch.setattr(emulator_catalog, "get_container_config",
-                            lambda slug, exe_path, user_id=None: base_config)
+                            lambda slug, exe_path, user_item_id=None: base_config)
 
         result = emulator_catalog.build_media_broker_config(
-            "flycast", "flycast.exe", media_path, user_id=1, container_enabled=True)
+            "flycast", "flycast.exe", media_path, user_item_id=1, container_enabled=True)
 
         assert result is base_config
         assert len(result.broker_files) == 2

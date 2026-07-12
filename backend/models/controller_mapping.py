@@ -41,7 +41,7 @@ class ControllerMappingItem(ControllerMappingItemBase, table=True):
     slug: Optional[str] = Field(default=None, sa_column=Column(String, unique=True, index=True))
     created_by: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("user_items.id", ondelete="SET NULL"), nullable=True),
     )
     created_at: Optional[datetime] = Field(
         default=None,

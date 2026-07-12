@@ -65,7 +65,7 @@ class TestFilesystemAllowlist:
         from fastapi.testclient import TestClient
         from backend.api.routes import filesystem
         from backend.core.dependencies import get_active_user
-        from backend.models.user import User
+        from backend.models.user import UserItem
 
         library_path = tmp_path / "library"
         library_path.mkdir()
@@ -87,7 +87,7 @@ class TestFilesystemAllowlist:
 
         app = FastAPI()
         app.include_router(filesystem.router)
-        app.dependency_overrides[get_active_user] = lambda: User(id=1, name="Owner", is_owner=True)
+        app.dependency_overrides[get_active_user] = lambda: UserItem(id=1, name="Owner", is_owner=True)
 
         with TestClient(app) as client:
             yield client, library_path

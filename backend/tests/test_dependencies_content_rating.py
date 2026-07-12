@@ -260,11 +260,11 @@ def _make_collection(db, **overrides):
 
 
 def _make_user(db, **overrides):
-    from backend.models.user import User
+    from backend.models.user import UserItem
 
     kwargs = dict(name="Kid", is_owner=False, is_admin=False)
     kwargs.update(overrides)
-    user = User(**kwargs)
+    user = UserItem(**kwargs)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -275,12 +275,12 @@ class TestGetFilteredCollectionsOwnerBypass:
     def test_owner_sees_everything_including_unrated_and_restricted(self, mem_db_session):
         from backend.core.dependencies import get_filtered_game_item_bundles
         from backend.models.media_restriction import MediaRestriction
-        from backend.models.user import User
+        from backend.models.user import UserItem
 
         owner = _make_user(mem_db_session, name="Owner", is_owner=True)
         unrated = _make_collection(mem_db_session, slug="unrated", content_rating=None)
         restricted = _make_collection(mem_db_session, slug="restricted", content_rating="E")
-        mem_db_session.add(MediaRestriction(user_id=owner.id, game_item_bundle_id=restricted.id))
+        mem_db_session.add(MediaRestriction(user_item_id=owner.id, game_item_bundle_id=restricted.id))
         mem_db_session.commit()
 
         results = get_filtered_game_item_bundles(owner, mem_db_session).all()
@@ -360,7 +360,7 @@ class TestGetFilteredCollectionsUnknownRatingDenies:
 
         capped = _make_user(mem_db_session)
         restricted = _make_collection(mem_db_session, slug="restricted", content_rating="E")
-        mem_db_session.add(MediaRestriction(user_id=capped.id, game_item_bundle_id=restricted.id))
+        mem_db_session.add(MediaRestriction(user_item_id=capped.id, game_item_bundle_id=restricted.id))
         mem_db_session.commit()
 
         results = get_filtered_game_item_bundles(capped, mem_db_session).all()

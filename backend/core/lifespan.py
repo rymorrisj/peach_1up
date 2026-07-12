@@ -26,7 +26,7 @@ from backend.core.startup_tasks import (
     _sync_first_run_from_db,
 )
 from backend.service.launch.history import write_session_ends as _write_session_ends
-import backend.models.user  # noqa: F401 — registers User with SQLModel.metadata
+import backend.models.user  # noqa: F401 — registers UserItem with SQLModel.metadata
 import backend.models.media_restriction  # noqa: F401 — registers MediaRestriction with SQLModel.metadata
 import backend.models.tag  # noqa: F401 — registers Tag and EntityTag with SQLModel.metadata
 

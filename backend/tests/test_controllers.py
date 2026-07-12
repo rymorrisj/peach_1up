@@ -14,10 +14,10 @@ import pytest
 
 
 def _user(id, **overrides):
-    from backend.models.user import User
-    kwargs = dict(id=id, name=f"User{id}")
+    from backend.models.user import UserItem
+    kwargs = dict(id=id, name=f"UserItem{id}")
     kwargs.update(overrides)
-    return User(**kwargs)
+    return UserItem(**kwargs)
 
 
 @pytest.fixture

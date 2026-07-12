@@ -13,7 +13,7 @@ from backend.models.media import MediaItemBundle, MediaItem
 from backend.models.rom_pack import RomPackItem
 from backend.models.game import GameItemBundle, GameItem
 from backend.models.tag import EntityTag, Tag, TagCreate, TagRead
-from backend.models.user import User
+from backend.models.user import UserItem
 
 router = APIRouter(prefix="/api/v1/tags", tags=["tags"])
 
@@ -61,7 +61,7 @@ def _tag_read(tag: Tag, db: Session) -> TagRead:
 
 
 @router.get("", response_model=list[TagRead])
-def list_tags(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+def list_tags(db: Session = Depends(get_db), _: UserItem = Depends(get_active_user)):
     tags = db.query(Tag).order_by(Tag.name).all()
     return [_tag_read(t, db) for t in tags]
 
@@ -70,7 +70,7 @@ def list_tags(db: Session = Depends(get_db), _: User = Depends(get_active_user))
 def create_tag(
     body: TagCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_game"),
+    _: UserItem = require_permission("can_manage_game"),
 ):
     name = body.name.strip()
     if not name:
@@ -88,7 +88,7 @@ def create_tag(
 def delete_tag(
     tag_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_game"),
+    _: UserItem = require_permission("can_manage_game"),
 ):
     tag = db.get(Tag, tag_id)
     if not tag:
@@ -99,7 +99,7 @@ def delete_tag(
     db.commit()
 
 
-def _require_flag_permission(entity_type: str, active_user: User) -> None:
+def _require_flag_permission(entity_type: str, active_user: UserItem) -> None:
     """Plain-flag permission check for entity_types with a simple can_edit_* rule.
 
     controller_mapping is handled separately by the caller once the entity is
@@ -112,7 +112,7 @@ def _require_flag_permission(entity_type: str, active_user: User) -> None:
         raise HTTPException(status_code=403, detail=f"Permission denied: requires {flag}.")
 
 
-def _resolve_assignment_entity(tag_id: int, body: TagAssignmentBody, active_user: User, db: Session):
+def _resolve_assignment_entity(tag_id: int, body: TagAssignmentBody, active_user: UserItem, db: Session):
     """Shared validation for both assignment routes.
 
     Order: unknown entity_type -> 422, plain-flag permission -> 403 (before any
@@ -145,7 +145,7 @@ def create_tag_assignment(
     tag_id: int,
     body: TagAssignmentBody,
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
     _resolve_assignment_entity(tag_id, body, active_user, db)
     exists = (
@@ -167,7 +167,7 @@ def delete_tag_assignment(
     tag_id: int,
     body: TagAssignmentBody,
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
     _resolve_assignment_entity(tag_id, body, active_user, db)
     link = (

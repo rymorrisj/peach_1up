@@ -1,7 +1,7 @@
 import React, { createContext } from 'react'
 import type { components } from '@shared/types'
 
-type User = components['schemas']['UserRead']
+type User = components['schemas']['UserItemRead']
 
 type Theme = 'dark' | 'light'
 

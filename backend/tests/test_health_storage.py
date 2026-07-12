@@ -36,8 +36,8 @@ def mem_db_session():
 
 
 def _owner_user():
-    from backend.models.user import User
-    return User(id=1, name="Owner", is_owner=True)
+    from backend.models.user import UserItem
+    return UserItem(id=1, name="Owner", is_owner=True)
 
 
 @pytest.fixture

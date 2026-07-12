@@ -21,9 +21,9 @@ def mem_session():
 @pytest.fixture
 def user(mem_session):
     from backend.core.identity import generate_identity_secret
-    from backend.models.user import User
+    from backend.models.user import UserItem
 
-    u = User(name="Test User", is_owner=True, is_admin=True, identity_token_secret=generate_identity_secret())
+    u = UserItem(name="Test UserItem", is_owner=True, is_admin=True, identity_token_secret=generate_identity_secret())
     mem_session.add(u)
     mem_session.commit()
     mem_session.refresh(u)
@@ -104,9 +104,9 @@ class TestIssueSession:
 
     def test_backfills_missing_identity_secret(self, mem_session):
         from backend.core.identity import issue_session
-        from backend.models.user import User
+        from backend.models.user import UserItem
 
-        u = User(name="NoSecret", is_owner=False)
+        u = UserItem(name="NoSecret", is_owner=False)
         mem_session.add(u)
         mem_session.commit()
         mem_session.refresh(u)

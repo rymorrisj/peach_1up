@@ -361,7 +361,7 @@ def launch(spec: "LaunchSpec") -> tuple:
     container_enabled = resolve_container_enabled("86box", spec.container_enabled)
 
     if container_enabled:
-        sandbox_config = get_emulator_container_config("86box", box86_path, user_id=spec.user_id)
+        sandbox_config = get_emulator_container_config("86box", box86_path, user_item_id=spec.user_item_id)
         if spec.base_image_path is not None:
             sandbox_config.broker_files.append(
                 BrokerFile(path=str(spec.base_image_path), access="r", mode="grant"))

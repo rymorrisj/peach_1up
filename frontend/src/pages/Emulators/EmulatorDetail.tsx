@@ -12,7 +12,7 @@ import { RomPackTab } from './components/RomPackTab'
 import { ExtensionsTab } from './components/ExtensionsTab'
 import { LimitationsTab } from './components/LimitationsTab'
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
-type LaunchProfile = components['schemas']['ProfileRead']
+type LaunchProfile = components['schemas']['ProfileItemRead']
 type BiosItem = components['schemas']['BiosItem']
 
 
@@ -44,7 +44,7 @@ export default function EmulatorDetail() {
 
   const { data: profiles = [] } = useQuery<LaunchProfile[]>({
     queryKey: ['profiles'],
-    queryFn: async () => (await apiFetch<{ items: LaunchProfile[] }>('/api/v1/profiles?limit=200')).items,
+    queryFn: async () => (await apiFetch<{ items: LaunchProfile[] }>('/api/v1/profile-items?limit=200')).items,
   })
 
   const entry = catalog.find((e) => e.slug === slug)
@@ -52,7 +52,7 @@ export default function EmulatorDetail() {
   const emulatorBiosPlatform = slug ? EMULATOR_BIOS_PLATFORM[slug] : undefined
 
   // Lookup-only consumer of GET /api/v1/bios (now Page[BiosItem]) —
-  // unwraps .items, capped at limit=200 (same pattern as the /api/v1/profiles
+  // unwraps .items, capped at limit=200 (same pattern as the /api/v1/profile-items
   // lookup consumers), not expected to exceed that at current catalog scale.
   const { data: allBios = [] } = useQuery<BiosItem[]>({
     queryKey: ['bios-requirements'],

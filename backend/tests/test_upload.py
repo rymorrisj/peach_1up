@@ -133,8 +133,8 @@ def mem_db_session():
 
 
 def _owner_user():
-    from backend.models.user import User
-    return User(id=1, name="Owner", is_owner=True)
+    from backend.models.user import UserItem
+    return UserItem(id=1, name="Owner", is_owner=True)
 
 
 # ---------------------------------------------------------------------------
@@ -404,8 +404,8 @@ class TestMediaArchiveUploadRoute:
     def test_requires_can_manage_media_permission(self, client):
         c, _ = client
         from backend.core.dependencies import get_active_user
-        from backend.models.user import User
-        c.app.dependency_overrides[get_active_user] = lambda: User(
+        from backend.models.user import UserItem
+        c.app.dependency_overrides[get_active_user] = lambda: UserItem(
             id=2, name="Guest", is_owner=False, can_manage_media=False,
         )
         resp = c.post(
@@ -516,8 +516,8 @@ class TestEnvironmentInstallMediaRoute:
         c, _, db = client
         self._make_environment(db)
         from backend.core.dependencies import get_active_user
-        from backend.models.user import User
-        c.app.dependency_overrides[get_active_user] = lambda: User(
+        from backend.models.user import UserItem
+        c.app.dependency_overrides[get_active_user] = lambda: UserItem(
             id=2, name="Guest", is_owner=False, can_manage_environment=False,
         )
         resp = c.post(

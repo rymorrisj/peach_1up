@@ -21,7 +21,7 @@ from backend.models.game import (
 )
 from backend.models.media_restriction import MediaRestriction
 from backend.models.pagination import Page
-from backend.models.user import User
+from backend.models.user import UserItem
 from backend.service.games import items as lib_svc
 from backend.service.games import path_import
 from backend.service.utils import confirmation_tokens
@@ -59,7 +59,7 @@ def _enforce_rate_limit(bucket: str, request: Request, limit: int, window_second
 
 
 class RestrictionsBody(BaseModel):
-    user_ids: list[int]
+    user_item_ids: list[int]
 
 
 class ScanImportItem(BaseModel):
@@ -87,7 +87,7 @@ def list_game_items(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
     q = get_filtered_game_item_bundles(active_user, db)
     if era:
@@ -97,9 +97,9 @@ def list_game_items(
     if environment_item_id is not None:
         q = q.filter(GameItemBundle.environment_item_id == environment_item_id)
     if profile_assigned is True:
-        q = q.filter(GameItemBundle.profile_id.isnot(None))
+        q = q.filter(GameItemBundle.profile_item_id.isnot(None))
     elif profile_assigned is False:
-        q = q.filter(GameItemBundle.profile_id.is_(None))
+        q = q.filter(GameItemBundle.profile_item_id.is_(None))
     if tag:
         from backend.models.tag import Tag, EntityTag
         subq = (
@@ -118,7 +118,7 @@ def list_game_items(
 def create_game_item_bundle(
     body: GameItemBundleCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_game"),
+    _: UserItem = require_permission("can_manage_game"),
 ):
     """Create a collection-of-one from a single media path."""
     try:
@@ -126,7 +126,7 @@ def create_game_item_bundle(
             body.file_path,
             body.title,
             db,
-            override_profile_id=body.profile_id,
+            override_profile_item_id=body.profile_item_id,
         )
         return game_item_bundle_to_read(collection, db)
     except lib_svc._ItemAlreadyExists:
@@ -147,7 +147,7 @@ def import_from_path(
     request: Request,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_game"),
+    _: UserItem = require_permission("can_manage_game"),
 ):
     """Import a file or folder already on the server's filesystem — the same
     kind of real, absolute path GET /api/v1/filesystem/browse resolves — into
@@ -317,7 +317,7 @@ def trigger_scan(
     request: Request,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_game"),
+    _: UserItem = require_permission("can_manage_game"),
 ):
     global _scan_running, _scan_error, _scan_job_id
     _enforce_rate_limit("library-scan", request, _SCAN_RATE_LIMIT, _SCAN_RATE_WINDOW_SECONDS)
@@ -452,7 +452,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
 def import_scan_results(
     body: ScanImportBody,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_game"),
+    _: UserItem = require_permission("can_manage_game"),
 ):
     """
     Phase 2: import the user-selected paths from the Phase 1 preview. Each import
@@ -519,7 +519,7 @@ def import_scan_results(
 def get_game_item_bundle_by_slug(
     slug: str,
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
     return game_item_bundle_to_read(get_filtered_game_item_bundle(slug, active_user, db), db)
 
@@ -528,7 +528,7 @@ def get_game_item_bundle_by_slug(
 def get_game_item_bundle(
     collection_id: int,
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
     return game_item_bundle_to_read(get_filtered_game_item_bundle(collection_id, active_user, db), db)
 
@@ -538,7 +538,7 @@ def update_game_item_bundle(
     collection_id: int,
     body: GameItemBundleUpdate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_game"),
+    _: UserItem = require_permission("can_manage_game"),
 ):
     return game_item_bundle_to_read(lib_svc.update_library_collection(collection_id, body, db), db)
 
@@ -547,7 +547,7 @@ def update_game_item_bundle(
 def flag_launch(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_launch_media"),
+    _: UserItem = require_permission("can_launch_media"),
 ):
     collection = db.get(GameItemBundle, collection_id)
     if not collection:
@@ -578,7 +578,7 @@ def start_xiso_conversion(
     collection_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    active_user: User = require_permission("can_launch_media"),
+    active_user: UserItem = require_permission("can_launch_media"),
 ):
     """Convert the collection's current launch disc from a raw Xbox DVD rip to xiso.
 
@@ -612,7 +612,7 @@ def start_xiso_conversion(
 @router.get("/game-item-bundle/{collection_id}/convert-xiso/status")
 def get_xiso_conversion_status(
     collection_id: int,
-    _: User = require_permission("can_launch_media"),
+    _: UserItem = require_permission("can_launch_media"),
 ):
     status = install_registry.get_status(_xiso_convert_key(collection_id))
     return {
@@ -626,7 +626,7 @@ def get_xiso_conversion_status(
 def issue_delete_token(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_game"),
+    _: UserItem = require_permission("can_manage_game"),
 ):
     collection = db.get(GameItemBundle, collection_id)
     if not collection:
@@ -640,7 +640,7 @@ def delete_game_item_bundle(
     collection_id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_game"),
+    _: UserItem = require_permission("can_manage_game"),
 ):
     lib_svc.delete_library_collection(collection_id, confirmation_token, db)
 
@@ -649,12 +649,12 @@ def delete_game_item_bundle(
 def get_restrictions(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("is_admin"),
+    _: UserItem = require_permission("is_admin"),
 ):
     if not db.get(GameItemBundle, collection_id):
         raise HTTPException(status_code=404, detail="Software collection not found.")
     rows = db.query(MediaRestriction).filter(MediaRestriction.game_item_bundle_id == collection_id).all()
-    return {"restricted_user_ids": [r.user_id for r in rows]}
+    return {"restricted_user_item_ids": [r.user_item_id for r in rows]}
 
 
 @router.put("/game-item-bundle/{collection_id}/restrictions")
@@ -662,15 +662,15 @@ def set_restrictions(
     collection_id: int,
     body: RestrictionsBody,
     db: Session = Depends(get_db),
-    _: User = require_permission("is_admin"),
+    _: UserItem = require_permission("is_admin"),
 ):
     if not db.get(GameItemBundle, collection_id):
         raise HTTPException(status_code=404, detail="Software collection not found.")
     db.query(MediaRestriction).filter(MediaRestriction.game_item_bundle_id == collection_id).delete()
-    for user_id in body.user_ids:
-        db.add(MediaRestriction(user_id=user_id, game_item_bundle_id=collection_id))
+    for user_item_id in body.user_item_ids:
+        db.add(MediaRestriction(user_item_id=user_item_id, game_item_bundle_id=collection_id))
     db.commit()
-    return {"restricted_user_ids": body.user_ids}
+    return {"restricted_user_item_ids": body.user_item_ids}
 
 
 @router.patch("/game-item-bundle/{collection_id}/items/reorder", response_model=GameItemBundleRead)
@@ -678,7 +678,7 @@ def reorder_game_item_bundle_items(
     collection_id: int,
     body: GameItemReorder,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_game"),
+    _: UserItem = require_permission("can_manage_game"),
 ):
     # Registered before the "/items/{leaf_id}" route below: {leaf_id} has no
     # type constraint in the path itself, so a literal "reorder" segment
@@ -693,7 +693,7 @@ def update_game_item(
     leaf_id: int,
     body: GameItemUpdate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_game"),
+    _: UserItem = require_permission("can_manage_game"),
 ):
     return GameItemRead.model_validate(
         lib_svc.update_library_leaf(collection_id, leaf_id, body, db)

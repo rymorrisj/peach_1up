@@ -94,7 +94,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     container_enabled = resolve_container_enabled(spec.slug, spec.container_enabled)
     sandbox_config = build_media_broker_config(
-        spec.slug, spec.executable_path, spec.media_path, spec.user_id, container_enabled)
+        spec.slug, spec.executable_path, spec.media_path, spec.user_item_id, container_enabled)
 
     logger.debug("console.launch: slug=%s args=%s", spec.slug, args)
     cwd = str(Path(spec.executable_path).parent) if spec.slug == "project64" else None

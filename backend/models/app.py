@@ -153,9 +153,9 @@ class AppItemBundle(SQLModel, table=True):
     environment_item_id: int = Field(
         sa_column=Column(Integer, ForeignKey("environment_items.id", ondelete="RESTRICT"), nullable=False)
     )
-    profile_id: Optional[int] = Field(
+    profile_item_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("profile_items.id", ondelete="SET NULL"), nullable=True),
     )
     drive_id: Optional[int] = Field(
         default=None,
@@ -199,7 +199,7 @@ class AppItemBundleCreate(SQLModel):
     title: str
     file_path: str
     environment_item_id: int
-    profile_id: Optional[int] = None
+    profile_item_id: Optional[int] = None
 
 
 class AppItemBundleUpdate(SQLModel):
@@ -215,7 +215,7 @@ class AppItemBundleUpdate(SQLModel):
     requires_install: Optional[bool] = None
     delete_media_override: Optional[bool] = None
     environment_item_id: Optional[int] = None
-    profile_id: Optional[int] = None
+    profile_item_id: Optional[int] = None
     display_disk_id: Optional[int] = None
     launch_disk_id: Optional[int] = None
 
@@ -246,7 +246,7 @@ class AppItemBundleRead(SQLModel):
     requires_install: bool = False
     delete_media_override: Optional[bool] = None
     environment_item_id: int
-    profile_id: Optional[int] = None
+    profile_item_id: Optional[int] = None
     drive_id: Optional[int] = None
     launch_disk_id: Optional[int] = None
     display_disk_id: Optional[int] = None

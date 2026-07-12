@@ -8,8 +8,8 @@ class MediaRestriction(SQLModel, table=True):
     __tablename__ = "media_restrictions"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: int = Field(
-        sa_column=Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_item_id: int = Field(
+        sa_column=Column(Integer, ForeignKey("user_items.id", ondelete="CASCADE"), nullable=False, index=True)
     )
     game_item_bundle_id: Optional[int] = Field(
         default=None,

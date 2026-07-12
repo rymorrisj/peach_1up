@@ -9,7 +9,7 @@ import { EditForm } from './EditForm'
 import { AdvancedSection } from './AdvancedSection'
 import type { components } from '@shared/types'
 
-type User = components['schemas']['UserRead']
+type User = components['schemas']['UserItemRead']
 type LaunchHistory = components['schemas']['LaunchHistoryRead']
 
 interface RestrictionsProps {

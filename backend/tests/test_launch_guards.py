@@ -83,9 +83,9 @@ def _patch_backend_router(monkeypatch, dispatch_fn, executable_path="/fake/exe")
     monkeypatch.setattr(router_mod, "get_executable_path", lambda era, slug=None: executable_path)
 
 
-def _make_profile(db, *, name, emulator_slug, user_id, era="ps1"):
-    from backend.models.profile import Profile
-    profile = Profile(name=name, slug=name.lower(), emulator_slug=emulator_slug, era=era, user_id=user_id)
+def _make_profile(db, *, name, emulator_slug, user_item_id, era="ps1"):
+    from backend.models.profile import ProfileItem
+    profile = ProfileItem(name=name, slug=name.lower(), emulator_slug=emulator_slug, era=era, user_item_id=user_item_id)
     db.add(profile)
     db.commit()
     db.refresh(profile)
@@ -97,7 +97,7 @@ def _make_item(db, *, profile, era="ps1"):
     # the sole game launch target after the set/item consolidation.
     from backend.models.game import GameItemBundle, GameItem
     collection = GameItemBundle(
-        title=f"Game-{profile.id}", era=era, slug=f"game-{profile.id}", profile_id=profile.id
+        title=f"Game-{profile.id}", era=era, slug=f"game-{profile.id}", profile_item_id=profile.id
     )
     db.add(collection)
     db.flush()
@@ -117,7 +117,7 @@ def _make_platform(db, *, profile, era="ps1"):
         name=f"Plat-{profile.id}",
         era=era,
         emulator_slug=profile.emulator_slug,
-        profile_id=profile.id,
+        profile_item_id=profile.id,
         working_image_path=f"/tmp/wp-{profile.id}.img",
         config_path=f"/tmp/cfg-{profile.id}.cfg",
     )
@@ -146,7 +146,7 @@ class TestSameProfileRejected:
     def test_second_launch_item_same_profile_rejected(self, mem_session, monkeypatch):
         from backend.service.launch.coordinator import launch_collection
 
-        profile = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_id=1)
+        profile = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_item_id=1)
         item = _make_item(mem_session, profile=profile)
 
         calls = []
@@ -177,8 +177,8 @@ class TestSameEmulatorUserDifferentProfileRejected:
     def test_second_launch_environment_same_emulator_user_rejected(self, mem_session, monkeypatch):
         from backend.service.launch.coordinator import launch_environment
 
-        profile1 = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_id=1)
-        profile2 = _make_profile(mem_session, name="P2", emulator_slug="duckstation", user_id=1)
+        profile1 = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_item_id=1)
+        profile2 = _make_profile(mem_session, name="P2", emulator_slug="duckstation", user_item_id=1)
         platform1 = _make_platform(mem_session, profile=profile1)
         platform2 = _make_platform(mem_session, profile=profile2)
 
@@ -209,8 +209,8 @@ class TestDifferentKeysSucceed:
     def test_unrelated_launch_succeeds_while_another_is_active(self, mem_session, monkeypatch):
         from backend.service.launch.coordinator import launch_environment
 
-        profile1 = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_id=1)
-        profile2 = _make_profile(mem_session, name="P2", emulator_slug="flycast", user_id=2, era="dreamcast")
+        profile1 = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_item_id=1)
+        profile2 = _make_profile(mem_session, name="P2", emulator_slug="flycast", user_item_id=2, era="dreamcast")
         platform1 = _make_platform(mem_session, profile=profile1)
         platform2 = _make_platform(mem_session, profile=profile2, era="dreamcast")
 
@@ -239,7 +239,7 @@ class TestRollbackOnImmediateExit:
     def test_reservation_released_after_immediate_crash(self, mem_session, monkeypatch):
         from backend.service.launch.coordinator import launch_collection
 
-        profile = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_id=1)
+        profile = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_item_id=1)
         item = _make_item(mem_session, profile=profile)
 
         dispatch_results = [
@@ -273,7 +273,7 @@ class TestCleanExitZeroNotTreatedAsCrash:
     def test_immediate_clean_exit_does_not_raise(self, mem_session, monkeypatch):
         from backend.service.launch.coordinator import launch_collection
 
-        profile = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_id=1)
+        profile = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_item_id=1)
         item = _make_item(mem_session, profile=profile)
 
         def fake_dispatch(spec):
@@ -290,7 +290,7 @@ class TestCleanExitZeroNotTreatedAsCrash:
         """Non-zero exit within the same window is unchanged: still a 500."""
         from backend.service.launch.coordinator import launch_collection
 
-        profile = _make_profile(mem_session, name="P2", emulator_slug="flycast", user_id=2, era="dreamcast")
+        profile = _make_profile(mem_session, name="P2", emulator_slug="flycast", user_item_id=2, era="dreamcast")
         item = _make_item(mem_session, profile=profile, era="dreamcast")
 
         def fake_dispatch(spec):
@@ -311,30 +311,30 @@ class TestReservationRaceClosed:
     def test_second_reservation_for_same_profile_fails_without_registration(self):
         from backend.core import process_registry
 
-        reservation1 = process_registry.try_reserve(profile_id=42, emulator_slug="duckstation", user_id=1)
+        reservation1 = process_registry.try_reserve(profile_item_id=42, emulator_slug="duckstation", user_item_id=1)
         assert reservation1 is not None
 
         # No registration happened in between -- this is the exact TOCTOU
         # window a naive "check, then separately mark" implementation would
         # leave open. A real reservation must close it.
-        reservation2 = process_registry.try_reserve(profile_id=42, emulator_slug="other-slug", user_id=99)
+        reservation2 = process_registry.try_reserve(profile_item_id=42, emulator_slug="other-slug", user_item_id=99)
         assert reservation2 is None
 
         process_registry.release(reservation1)
 
         # Once released, the key is free again.
-        reservation3 = process_registry.try_reserve(profile_id=42, emulator_slug="duckstation", user_id=1)
+        reservation3 = process_registry.try_reserve(profile_item_id=42, emulator_slug="duckstation", user_item_id=1)
         assert reservation3 is not None
         process_registry.release(reservation3)
 
     def test_second_reservation_for_same_emulator_user_fails(self):
         from backend.core import process_registry
 
-        reservation1 = process_registry.try_reserve(profile_id=1, emulator_slug="flycast", user_id=7)
+        reservation1 = process_registry.try_reserve(profile_item_id=1, emulator_slug="flycast", user_item_id=7)
         assert reservation1 is not None
 
         # Different profile_id, same (emulator_slug, user_id) -- must also collide.
-        reservation2 = process_registry.try_reserve(profile_id=2, emulator_slug="flycast", user_id=7)
+        reservation2 = process_registry.try_reserve(profile_item_id=2, emulator_slug="flycast", user_item_id=7)
         assert reservation2 is None
 
         process_registry.release(reservation1)
@@ -351,7 +351,7 @@ class TestRegistrationFailureKillsProcessAndReleasesReservation:
         from backend.core import process_registry
         from backend.service.launch.coordinator import launch_collection
 
-        profile = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_id=1)
+        profile = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_item_id=1)
         item = _make_item(mem_session, profile=profile)
 
         crashing_proc = _make_proc(poll_return=None)

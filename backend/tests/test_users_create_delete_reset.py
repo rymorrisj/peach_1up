@@ -34,11 +34,11 @@ def mem_db_session():
 
 
 def _make_user(db, **overrides):
-    from backend.models.user import User
+    from backend.models.user import UserItem
 
     kwargs = dict(name="User", is_owner=False, is_admin=False)
     kwargs.update(overrides)
-    user = User(**kwargs)
+    user = UserItem(**kwargs)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -70,9 +70,9 @@ def _set_active_user(app, user):
 # create_user — capability flag round-trip
 # ---------------------------------------------------------------------------
 
-# The 7 capability flags UserCreate exposes (excludes is_admin, which is a
+# The 7 capability flags UserItemCreate exposes (excludes is_admin, which is a
 # role flag rather than a capability, and is_owner, which is not settable
-# via UserCreate at all).
+# via UserItemCreate at all).
 _CAPABILITY_FLAGS = [
     "can_launch_media",
     "can_manage_environment",
@@ -94,7 +94,7 @@ class TestCreateUserCapabilityFlags:
         _set_active_user(app, owner)
 
         body = {"name": "Kid", **{flag: True for flag in _CAPABILITY_FLAGS}, "is_admin": True}
-        resp = c.post("/api/v1/users", json=body)
+        resp = c.post("/api/v1/user-items", json=body)
 
         assert resp.status_code == 201, resp.text
         payload = resp.json()
@@ -110,7 +110,7 @@ class TestCreateUserCapabilityFlags:
         _set_active_user(app, owner)
 
         body = {"name": "Kid", **{flag: False for flag in _CAPABILITY_FLAGS}, "is_admin": False}
-        resp = c.post("/api/v1/users", json=body)
+        resp = c.post("/api/v1/user-items", json=body)
 
         assert resp.status_code == 201, resp.text
         payload = resp.json()
@@ -126,30 +126,30 @@ class TestCreateUserCapabilityFlags:
 
 class TestDeleteUserCleanup:
     def test_profiles_reassigned_to_owner_on_delete(self, http_client):
-        from backend.models.profile import Profile
+        from backend.models.profile import ProfileItem
 
         c, db, app = http_client
         owner = _make_user(db, name="Owner", is_owner=True)
         sub = _make_user(db, name="Sub")
-        profile = Profile(
+        profile = ProfileItem(
             name="My Profile",
             slug="my-profile",
             emulator_slug="dosbox-x",
             era="dos",
-            user_id=sub.id,
+            user_item_id=sub.id,
         )
         db.add(profile)
         db.commit()
         db.refresh(profile)
         _set_active_user(app, owner)
 
-        resp = c.delete(f"/api/v1/users/{sub.id}")
+        resp = c.delete(f"/api/v1/user-items/{sub.id}")
         assert resp.status_code == 204, resp.text
 
         db.expire_all()
-        reloaded = db.get(Profile, profile.id)
+        reloaded = db.get(ProfileItem, profile.id)
         assert reloaded is not None
-        assert reloaded.user_id == owner.id
+        assert reloaded.user_item_id == owner.id
 
     def test_media_restrictions_deleted_not_orphaned(self, http_client):
         from backend.models.media_restriction import MediaRestriction
@@ -164,14 +164,14 @@ class TestDeleteUserCleanup:
         db.add(collection)
         db.commit()
         db.refresh(collection)
-        restriction = MediaRestriction(user_id=sub.id, game_item_bundle_id=collection.id)
+        restriction = MediaRestriction(user_item_id=sub.id, game_item_bundle_id=collection.id)
         db.add(restriction)
         db.commit()
         db.refresh(restriction)
         restriction_id = restriction.id
         _set_active_user(app, owner)
 
-        resp = c.delete(f"/api/v1/users/{sub.id}")
+        resp = c.delete(f"/api/v1/user-items/{sub.id}")
         assert resp.status_code == 204, resp.text
 
         db.expire_all()
@@ -192,7 +192,7 @@ class TestResetPinLockedGuard:
         locked = _make_user(db, name="Locked", can_manage_users=True, is_locked=True)
         _set_active_user(app, locked)
 
-        resp = c.post(f"/api/v1/users/{locked.id}/reset-pin", json={"pin": "123456"})
+        resp = c.post(f"/api/v1/user-items/{locked.id}/reset-pin", json={"pin": "123456"})
 
         assert resp.status_code == 403, resp.text
         assert "locked" in resp.json()["detail"].lower()
@@ -206,7 +206,7 @@ class TestResetPinLockedGuard:
         locked = _make_user(db, name="Locked", is_locked=True, failed_pin_attempts=4)
         _set_active_user(app, admin)
 
-        resp = c.post(f"/api/v1/users/{locked.id}/reset-pin", json={"pin": "123456"})
+        resp = c.post(f"/api/v1/user-items/{locked.id}/reset-pin", json={"pin": "123456"})
 
         assert resp.status_code == 200, resp.text
         payload = resp.json()
@@ -219,7 +219,7 @@ class TestResetPinLockedGuard:
         locked = _make_user(db, name="Locked", is_locked=True, failed_pin_attempts=4)
         _set_active_user(app, owner)
 
-        resp = c.post(f"/api/v1/users/{locked.id}/reset-pin", json={"pin": "123456"})
+        resp = c.post(f"/api/v1/user-items/{locked.id}/reset-pin", json={"pin": "123456"})
 
         assert resp.status_code == 200, resp.text
         assert resp.json()["is_locked"] is False
@@ -233,7 +233,7 @@ class TestResetPinLockedGuard:
         locked_admin = _make_user(db, name="Admin", is_admin=True, is_locked=True, failed_pin_attempts=4)
         _set_active_user(app, locked_admin)
 
-        resp = c.post(f"/api/v1/users/{locked_admin.id}/reset-pin", json={"pin": "123456"})
+        resp = c.post(f"/api/v1/user-items/{locked_admin.id}/reset-pin", json={"pin": "123456"})
 
         assert resp.status_code == 403, resp.text
 
@@ -245,6 +245,6 @@ class TestResetPinLockedGuard:
         other_admin = _make_user(db, name="OtherAdmin", is_admin=True, is_locked=True, failed_pin_attempts=4)
         _set_active_user(app, admin)
 
-        resp = c.post(f"/api/v1/users/{other_admin.id}/reset-pin", json={"pin": "123456"})
+        resp = c.post(f"/api/v1/user-items/{other_admin.id}/reset-pin", json={"pin": "123456"})
 
         assert resp.status_code == 403, resp.text

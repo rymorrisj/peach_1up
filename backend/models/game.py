@@ -153,9 +153,9 @@ class GameItemBundle(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("environment_items.id", ondelete="SET NULL"), nullable=True),
     )
-    profile_id: Optional[int] = Field(
+    profile_item_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("profile_items.id", ondelete="SET NULL"), nullable=True),
     )
     drive_id: Optional[int] = Field(
         default=None,
@@ -221,7 +221,7 @@ class GameItemBundleCreate(SQLModel):
     title: str
     file_path: str
     era: EraValue = "unknown"
-    profile_id: Optional[int] = None
+    profile_item_id: Optional[int] = None
     environment_item_id: Optional[int] = None
 
 
@@ -242,7 +242,7 @@ class GameItemBundleUpdate(SQLModel):
     requires_install: Optional[bool] = None
     delete_media_override: Optional[bool] = None
     environment_item_id: Optional[int] = None
-    profile_id: Optional[int] = None
+    profile_item_id: Optional[int] = None
     display_disk_id: Optional[int] = None
     launch_disk_id: Optional[int] = None
 
@@ -278,7 +278,7 @@ class GameItemBundleRead(SQLModel):
     launch_review_flagged: bool = False
     delete_media_override: Optional[bool] = None
     environment_item_id: Optional[int] = None
-    profile_id: Optional[int] = None
+    profile_item_id: Optional[int] = None
     drive_id: Optional[int] = None
     launch_disk_id: Optional[int] = None
     display_disk_id: Optional[int] = None

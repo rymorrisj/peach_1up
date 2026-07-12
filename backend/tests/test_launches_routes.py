@@ -48,11 +48,11 @@ def mem_db_session():
 
 
 def _make_user(db, **overrides):
-    from backend.models.user import User
+    from backend.models.user import UserItem
 
-    kwargs = dict(name="User", is_owner=False, is_admin=False)
+    kwargs = dict(name="UserItem", is_owner=False, is_admin=False)
     kwargs.update(overrides)
-    user = User(**kwargs)
+    user = UserItem(**kwargs)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -125,8 +125,8 @@ def _stub_launch_collection(monkeypatch, *, history_id=1):
 
     calls = []
 
-    async def _fake_launch_collection(collection_id, profile_id, db):
-        calls.append((collection_id, profile_id))
+    async def _fake_launch_collection(collection_id, profile_item_id, db):
+        calls.append((collection_id, profile_item_id))
         return LaunchResult(history_id=history_id)
 
     monkeypatch.setattr(launches_mod.svc, "launch_collection", _fake_launch_collection)
@@ -141,8 +141,8 @@ def _stub_launch_environment(monkeypatch, *, history_id=1):
 
     calls = []
 
-    async def _fake_launch_environment(platform, profile_id, db):
-        calls.append((platform.id, profile_id))
+    async def _fake_launch_environment(platform, profile_item_id, db):
+        calls.append((platform.id, profile_item_id))
         return LaunchResult(history_id=history_id)
 
     monkeypatch.setattr(launches_mod.svc, "launch_environment", _fake_launch_environment)
@@ -227,7 +227,7 @@ class TestGetFilteredCollectionEnforcement:
         collection = _make_collection(db)
         calls = _stub_launch_collection(monkeypatch)
         restricted_user = _make_user(db, can_launch_media=True)
-        db.add(MediaRestriction(user_id=restricted_user.id, game_item_bundle_id=collection.id))
+        db.add(MediaRestriction(user_item_id=restricted_user.id, game_item_bundle_id=collection.id))
         db.commit()
         _set_active_user(app, restricted_user)
 

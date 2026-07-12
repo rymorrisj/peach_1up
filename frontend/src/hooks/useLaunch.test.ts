@@ -37,7 +37,7 @@ describe('useLaunch', () => {
       '/api/v1/game-item-bundle/7/launch',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ profile_id: 3 }),
+        body: JSON.stringify({ profile_item_id: 3 }),
       }),
     )
   })

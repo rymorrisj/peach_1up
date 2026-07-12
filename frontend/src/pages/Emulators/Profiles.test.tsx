@@ -11,7 +11,7 @@ import Profiles from '@/pages/Emulators/Profiles'
 import { apiFetch } from '@/api/client'
 import type { components } from '@shared/types'
 
-type LaunchProfile = components['schemas']['ProfileRead']
+type LaunchProfile = components['schemas']['ProfileItemRead']
 type CatalogEntry = components['schemas']['CatalogEntryResponse']
 
 vi.mock('@/api/client', () => ({
@@ -86,7 +86,7 @@ const EMULATORS: CatalogEntry[] = [
 
 function mockApi() {
   vi.mocked(apiFetch).mockImplementation((url) => {
-    if (typeof url === 'string' && url.includes('/api/v1/profiles')) {
+    if (typeof url === 'string' && url.includes('/api/v1/profile-items')) {
       return Promise.resolve({ items: [PROFILE_ONE, PROFILE_TWO], total: 2, limit: 50, offset: 0 })
     }
     if (typeof url === 'string' && url.includes('/api/v1/emulator-items')) {
@@ -185,9 +185,10 @@ describe('Profiles (Emulators sibling tab) — CRUD via modal', () => {
     )
     expect(profilesSource).not.toMatch(/navigate\(/)
     // Scoped to an actual navigate() call target, not any string containing
-    // `/profiles/${` — the legitimate REST calls apiFetch(`/api/v1/profiles/${...}`)
-    // in handleSubmit/handleDelete also match that bare substring and are not
-    // the retired P2 navigation pattern this guard is checking for.
+    // `/profiles/${` — this guards the retired UI route pattern specifically
+    // (the REST calls in handleSubmit/handleDelete now hit
+    // `/api/v1/profile-items/${...}` and no longer risk matching this bare
+    // substring at all).
     expect(profilesSource).not.toMatch(/navigate\(\s*[`'"]\/(?:emulators\/)?profiles\/\$\{/)
   })
 })

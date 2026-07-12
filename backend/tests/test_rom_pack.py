@@ -21,13 +21,13 @@ import pytest
 
 
 def _owner_user():
-    from backend.models.user import User
-    return User(id=1, name="Owner", is_owner=True)
+    from backend.models.user import UserItem
+    return UserItem(id=1, name="Owner", is_owner=True)
 
 
 def _no_permission_user():
-    from backend.models.user import User
-    return User(id=2, name="Guest", is_owner=False, is_admin=False)
+    from backend.models.user import UserItem
+    return UserItem(id=2, name="Guest", is_owner=False, is_admin=False)
 
 
 @pytest.fixture

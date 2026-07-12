@@ -8,18 +8,18 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from backend.core import jobs
 from backend.core.dependencies import get_active_user
-from backend.models.user import User
+from backend.models.user import UserItem
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
 
 
 @router.get("")
-def list_jobs(_: User = Depends(get_active_user)):
+def list_jobs(_: UserItem = Depends(get_active_user)):
     return jobs.list_recent()
 
 
 @router.get("/{job_id}")
-def get_job(job_id: str, _: User = Depends(get_active_user)):
+def get_job(job_id: str, _: UserItem = Depends(get_active_user)):
     job = jobs.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found.")

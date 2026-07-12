@@ -25,7 +25,7 @@ _COLLECTION_COLUMNS = {
     "title", "era", "slug", "sort_title", "category", "description", "publisher",
     "year", "external_game_id", "metadata_source", "content_rating",
     "launch_commands", "launch_review_flagged", "installed", "requires_install",
-    "environment_item_id", "profile_id", "last_launched_at", "launch_count",
+    "environment_item_id", "profile_item_id", "last_launched_at", "launch_count",
 }
 _LEAF_COLUMNS = {
     "file_path", "executable_path", "cover_art_path", "file_type",
@@ -155,7 +155,7 @@ def _prepare_item(
     db: Session,
     *,
     used_slugs: set[str] | None = None,
-    override_profile_id: int | None = None,
+    override_profile_item_id: int | None = None,
     detected_era: str | None = None,
     user_override_era: str | None = None,
     _undo_stack: list | None = None,
@@ -241,7 +241,7 @@ def _prepare_item(
         "requires_install": False,
         "detection_reason": None,
         "environment_item_id": None,
-        "profile_id": None,
+        "profile_item_id": None,
         "last_launched_at": None,
         "launch_count": 0,
         "file_size_bytes": None,
@@ -495,19 +495,19 @@ def _prepare_item(
     if row["era"] and row["era"] != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(row["era"])
         if _emulator_slug and _profile_era:
-            _def_environment_item_id, _def_profile_id = lookup_environment_and_profile(
+            _def_environment_item_id, _def_profile_item_id = lookup_environment_and_profile(
                 _emulator_slug, _profile_era, db
             )
-            if _def_profile_id is not None:
-                row["profile_id"] = _def_profile_id
+            if _def_profile_item_id is not None:
+                row["profile_item_id"] = _def_profile_item_id
             # Environment is strictly PC (doc 02 A5) — a console era must never
             # get environment_item_id populated, even if a system Environment happens
             # to exist for its emulator_slug (e.g. a seeded DuckStation/PS1 row).
             if _def_environment_item_id is not None and row["era"] in PC_ERAS:
                 row["environment_item_id"] = _def_environment_item_id
 
-    if override_profile_id is not None:
-        row["profile_id"] = override_profile_id
+    if override_profile_item_id is not None:
+        row["profile_item_id"] = override_profile_item_id
 
     row["content_rating"] = detect_rating(row["file_path"]) or None
 
@@ -565,7 +565,7 @@ def _ingest_media_entry(
     title: str,
     db: Session,
     *,
-    override_profile_id: int | None = None,
+    override_profile_item_id: int | None = None,
 ) -> GameItemBundle:
     """
     Single shared ingest pipeline: prepare → persist a collection-of-one.
@@ -582,7 +582,7 @@ def _ingest_media_entry(
     # itself (after it already moved a file) would leave the move applied with
     # no DB row and no rollback: an orphaned move.
     try:
-        row = _prepare_item(media_path, title, db, override_profile_id=override_profile_id, _undo_stack=_undo_ops)
+        row = _prepare_item(media_path, title, db, override_profile_item_id=override_profile_item_id, _undo_stack=_undo_ops)
         collection = _persist_collection_of_one(row, db)
     except IntegrityError as exc:
         db.rollback()
@@ -696,11 +696,11 @@ def _create_multi_disc_collection(
     detected_era: str = _scan.era if _scan.era is not None else "unknown"
 
     detected_environment_item_id: int | None = None
-    detected_profile_id: int | None = None
+    detected_profile_item_id: int | None = None
     if detected_era and detected_era != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(detected_era)
         if _emulator_slug and _profile_era:
-            _looked_up_environment_item_id, detected_profile_id = lookup_environment_and_profile(
+            _looked_up_environment_item_id, detected_profile_item_id = lookup_environment_and_profile(
                 _emulator_slug, _profile_era, db
             )
             # Environment is strictly PC (doc 02 A5) — never populate environment_item_id
@@ -732,7 +732,7 @@ def _create_multi_disc_collection(
         era=detected_era,
         slug=slug,
         environment_item_id=detected_environment_item_id,
-        profile_id=detected_profile_id,
+        profile_item_id=detected_profile_item_id,
         content_rating=detect_rating(str(disc_files[0])) or None,
     )
     _enforce_environment_binding(collection)
@@ -797,7 +797,7 @@ def create_library_collection(body: GameItemBundleCreate, db: Session) -> tuple[
     try:
         return (
             _ingest_media_entry(
-                body.file_path, body.title, db, override_profile_id=body.profile_id
+                body.file_path, body.title, db, override_profile_item_id=body.profile_item_id
             ),
             False,
         )

@@ -14,6 +14,6 @@ export interface EditForm {
   content_rating: string
   era: string
   environment_id: string
-  profile_id: string
+  profile_item_id: string
   executable_path: string
 }

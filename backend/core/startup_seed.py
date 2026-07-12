@@ -122,11 +122,11 @@ def _seed_system_environments(db) -> bool:
 
 def _seed_default_profiles(db) -> bool:
     try:
-        from backend.models import Profile
+        from backend.models import ProfileItem
         added = 0
         for data in _DEFAULT_PROFILES:
-            if not db.query(Profile).filter(Profile.slug == data["slug"]).first():
-                db.add(Profile(**data))
+            if not db.query(ProfileItem).filter(ProfileItem.slug == data["slug"]).first():
+                db.add(ProfileItem(**data))
                 added += 1
         if added:
             db.flush()
@@ -140,7 +140,7 @@ def _seed_default_profiles(db) -> bool:
 
 # DOS environment. Seeded to provide a Platform record with a
 # linked bundled profile so item launches resolve the right emulator/settings
-# via Platform.profile_id. Per-item drives are created lazily by drive_hydration
+# via Platform.profile_item_id. Per-item drives are created lazily by drive_hydration
 # at launch time; no shared working image is mounted by DOSBox-X item launches.
 _DOSBOX_ENVIRONMENTS = [
     {"slug": "dos",   "name": "DOS",          "era": "dos",   "profile_slug": "dos-default",   "image_rel": "os/dos/dos.img"},
@@ -151,12 +151,12 @@ def _seed_dosbox_environments(db) -> bool:
     """Seed the DOS environment platform.
 
     Must run after _seed_default_profiles so the bundled dos-default
-    profile exists to link via profile_id. working_image_path is
+    profile exists to link via profile_item_id. working_image_path is
     preset to a canonical path under library/system/os/ but is not mounted by
     DOSBox-X item launches; per-item drives are created lazily by drive_hydration.
     """
     try:
-        from backend.models import EnvironmentItem, Profile
+        from backend.models import EnvironmentItem, ProfileItem
         from backend.core.settings import get_base_path
 
         os_root = get_base_path() / "library" / "system"
@@ -164,7 +164,7 @@ def _seed_dosbox_environments(db) -> bool:
         for env in _DOSBOX_ENVIRONMENTS:
             if db.query(EnvironmentItem).filter(EnvironmentItem.slug == env["slug"]).first():
                 continue
-            profile = db.query(Profile).filter(Profile.slug == env["profile_slug"]).first()
+            profile = db.query(ProfileItem).filter(ProfileItem.slug == env["profile_slug"]).first()
             if profile is None:
                 logger.error(
                     "Cannot seed '%s' environment: bundled profile '%s' not found",
@@ -177,7 +177,7 @@ def _seed_dosbox_environments(db) -> bool:
                 name=env["name"],
                 era=env["era"],
                 emulator_slug="dosbox-x",
-                profile_id=profile.id,
+                profile_item_id=profile.id,
                 working_image_path=image_path,
                 is_system=True,
                 status="unconfigured",

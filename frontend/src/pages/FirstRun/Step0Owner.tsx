@@ -2,7 +2,7 @@ import { useState } from "react";
 import { apiFetch, ApiError } from "@/api/client";
 import { useAppContext } from "@/context/useAppContext";
 import type { components } from "@shared/types";
-type UserRead = components["schemas"]["UserRead"];
+type UserRead = components["schemas"]["UserItemRead"];
 
 interface Step0OwnerProps {
   onNext: () => void;

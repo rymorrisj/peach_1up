@@ -23,15 +23,15 @@ def _apply_schema_migrations() -> None:
         ("environment_items", "installed_at", "DATETIME"),
         ("environment_items", "hardware_profile", "TEXT DEFAULT 'standard'"),
         ("environment_items", "machine_override", "TEXT"),
-        ("profiles", "use_drive", "INTEGER NOT NULL DEFAULT 1"),
-        ("profiles", "container_enabled", "INTEGER"),
-        ("profiles", "enable_dgvoodoo2", "INTEGER NOT NULL DEFAULT 0"),
-        ("users", "identity_token_secret", "TEXT"),
-        ("users", "session_token_hash", "TEXT"),
-        ("users", "session_token_expires_at", "DATETIME"),
-        ("users", "session_token_ttl", "INTEGER"),
+        ("profile_items", "use_drive", "INTEGER NOT NULL DEFAULT 1"),
+        ("profile_items", "container_enabled", "INTEGER"),
+        ("profile_items", "enable_dgvoodoo2", "INTEGER NOT NULL DEFAULT 0"),
+        ("user_items", "identity_token_secret", "TEXT"),
+        ("user_items", "session_token_hash", "TEXT"),
+        ("user_items", "session_token_expires_at", "DATETIME"),
+        ("user_items", "session_token_ttl", "INTEGER"),
         ("tags", "is_system", "INTEGER NOT NULL DEFAULT 0"),
-        ("users", "can_manage_users", "INTEGER NOT NULL DEFAULT 0"),
+        ("user_items", "can_manage_users", "INTEGER NOT NULL DEFAULT 0"),
         ("game_items", "original_name", "VARCHAR"),
         ("game_items", "folder_owned", "INTEGER"),
     ]
@@ -57,10 +57,10 @@ def _apply_schema_migrations() -> None:
         # without it, two concurrent setup-owner requests can both pass the
         # SELECT COUNT and both INSERT an owner row (TOCTOU). The pre-check stays
         # for clean error messages; this index is the guarantee.
-        users_indexes = {ix["name"] for ix in inspector.get_indexes("users")}
+        users_indexes = {ix["name"] for ix in inspector.get_indexes("user_items")}
         if "idx_single_owner" not in users_indexes:
             owner_count = conn.execute(
-                text("SELECT COUNT(*) FROM users WHERE is_owner = 1")
+                text("SELECT COUNT(*) FROM user_items WHERE is_owner = 1")
             ).scalar()
             if owner_count and owner_count > 1:
                 # Fail loud: the DB already holds multiple owner rows (a prior
@@ -73,10 +73,10 @@ def _apply_schema_migrations() -> None:
                     "manually, then restart."
                 )
             conn.execute(text(
-                "CREATE UNIQUE INDEX idx_single_owner ON users (is_owner) WHERE is_owner = 1"
+                "CREATE UNIQUE INDEX idx_single_owner ON user_items (is_owner) WHERE is_owner = 1"
             ))
             conn.commit()
-            logger.info("Schema migration: enforced single-owner partial unique index on users")
+            logger.info("Schema migration: enforced single-owner partial unique index on user_items")
 
         # Backfill the index on game_items.file_path for DBs provisioned before
         # index=True was added to the model. Name matches SQLAlchemy's own naming

@@ -6,7 +6,7 @@ from sqlalchemy import Column, DateTime, func
 from sqlmodel import Field, SQLModel
 
 
-class UserBase(SQLModel):
+class UserItemBase(SQLModel):
     name: str
     is_owner: bool = False
     pin_required: bool = False
@@ -29,13 +29,13 @@ class UserBase(SQLModel):
     @classmethod
     def _check_max_content_rating(cls, v: Optional[str]) -> Optional[str]:
         # An unrecognised ceiling silently uncaps the user (see
-        # get_filtered_collections), so reject it wherever a User is validated.
+        # get_filtered_collections), so reject it wherever a UserItem is validated.
         from backend.core.dependencies import validate_max_content_rating
         return validate_max_content_rating(v)
 
 
-class User(UserBase, table=True):
-    __tablename__ = "users"
+class UserItem(UserItemBase, table=True):
+    __tablename__ = "user_items"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     pin_hash: Optional[str] = None
@@ -54,7 +54,7 @@ class User(UserBase, table=True):
     )
 
 
-class UserRead(UserBase):
+class UserItemRead(UserItemBase):
     id: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

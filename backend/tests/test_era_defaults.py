@@ -35,22 +35,22 @@ class TestDefaultsForEra:
 
 
 class TestLookupPlatformAndProfile:
-    def _make_db(self, platform_id=None, profile_id=None):
+    def _make_db(self, platform_id=None, profile_item_id=None):
         platform = MagicMock()
         platform.id = platform_id
 
         profile = MagicMock()
-        profile.id = profile_id
+        profile.id = profile_item_id
 
         db = MagicMock()
         db.query.return_value.filter.return_value.first.side_effect = [
             platform if platform_id is not None else None,
-            profile if profile_id is not None else None,
+            profile if profile_item_id is not None else None,
         ]
         return db
 
     def test_returns_ids_when_both_found(self):
-        db = self._make_db(platform_id=3, profile_id=7)
+        db = self._make_db(platform_id=3, profile_item_id=7)
         pid, rid = lookup_environment_and_profile("dosbox-x", "dos", db)
         assert pid == 3
         assert rid == 7

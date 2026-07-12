@@ -9,7 +9,7 @@ from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.core.logger import get_logger
 from backend.models.environment import EnvironmentItem, EnvironmentItemCreate, EnvironmentItemRead, EnvironmentItemUpdate
-from backend.models.user import User
+from backend.models.user import UserItem
 from backend.service.environments import environments as plat_svc
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 
 @router.get("", response_model=list[EnvironmentItemRead])
-def list_environment_items(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+def list_environment_items(db: Session = Depends(get_db), _: UserItem = Depends(get_active_user)):
     platforms = db.query(EnvironmentItem).all()
     result = []
     for p in platforms:
@@ -43,12 +43,12 @@ def list_environment_items(db: Session = Depends(get_db), _: User = Depends(get_
 
 
 @router.post("", response_model=EnvironmentItemRead, status_code=201)
-def create_environment_item(body: EnvironmentItemCreate, db: Session = Depends(get_db), _: User = require_permission("can_manage_environment")):
+def create_environment_item(body: EnvironmentItemCreate, db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_environment")):
     return plat_svc.create_environment_item(body, db)
 
 
 @router.get("/{id}", response_model=EnvironmentItemRead)
-def get_environment_item(id: int, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+def get_environment_item(id: int, db: Session = Depends(get_db), _: UserItem = Depends(get_active_user)):
     platform = db.get(EnvironmentItem, id)
     if not platform:
         raise HTTPException(status_code=404, detail="Environment not found.")
@@ -60,12 +60,12 @@ def get_environment_item(id: int, db: Session = Depends(get_db), _: User = Depen
 
 
 @router.patch("/{id}", response_model=EnvironmentItemRead)
-def update_environment_item(id: int, body: EnvironmentItemUpdate, db: Session = Depends(get_db), _: User = require_permission("can_manage_environment")):
+def update_environment_item(id: int, body: EnvironmentItemUpdate, db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_environment")):
     return plat_svc.update_environment_item(id, body, db)
 
 
 @router.post("/{id}/confirm-delete")
-def issue_delete_token(id: int, db: Session = Depends(get_db), _: User = require_permission("can_manage_environment")):
+def issue_delete_token(id: int, db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_environment")):
     if not db.get(EnvironmentItem, id):
         raise HTTPException(status_code=404, detail="Environment not found.")
     return {"confirmation_token": confirmation_tokens.issue("environment_item", id, "delete"), "expires_in_seconds": TOKEN_TTL}
@@ -76,13 +76,13 @@ def delete_environment_item(
     id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_environment"),
+    _: UserItem = require_permission("can_manage_environment"),
 ):
     plat_svc.delete_environment_item(id, confirmation_token, db)
 
 
 @router.post("/{id}/health")
-def environment_item_health(id: int, db: Session = Depends(get_db), _: User = require_permission("can_manage_environment")):
+def environment_item_health(id: int, db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_environment")):
     platform = db.get(EnvironmentItem, id)
     if not platform:
         raise HTTPException(status_code=404, detail="Environment not found.")
@@ -94,7 +94,7 @@ async def upload_install_media(
     slug: str,
     file: UploadFile,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_environment"),
+    _: UserItem = require_permission("can_manage_environment"),
 ):
     """Stream-write an uploaded OS install/disk image for the named EnvironmentItem.
 

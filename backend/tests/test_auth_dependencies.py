@@ -32,20 +32,20 @@ def app_client(mem_session):
     from fastapi.testclient import TestClient
     from backend.core.database import get_db
     from backend.core.dependencies import get_active_user, require_permission, require_self_or_admin
-    from backend.models.user import User
+    from backend.models.user import UserItem
 
     app = FastAPI()
 
     @app.get("/whoami")
-    def whoami(user: User = Depends(get_active_user)):
+    def whoami(user: UserItem = Depends(get_active_user)):
         return {"id": user.id, "name": user.name}
 
     @app.get("/needs-flag")
-    def needs_flag(user: User = require_permission("can_manage_game")):
+    def needs_flag(user: UserItem = require_permission("can_manage_game")):
         return {"id": user.id}
 
-    @app.get("/users/{user_id}/private")
-    def private(user_id: int, user: User = Depends(require_self_or_admin)):
+    @app.get("/users/{user_item_id}/private")
+    def private(user_item_id: int, user: UserItem = Depends(require_self_or_admin)):
         return {"id": user.id}
 
     app.dependency_overrides[get_db] = lambda: mem_session
@@ -56,12 +56,12 @@ def app_client(mem_session):
 
 @pytest.fixture
 def make_user(mem_session):
-    from backend.models.user import User
+    from backend.models.user import UserItem
 
     def _make(**kwargs):
         defaults = dict(name="User", is_owner=False, is_admin=False, can_manage_game=False)
         defaults.update(kwargs)
-        u = User(**defaults)
+        u = UserItem(**defaults)
         mem_session.add(u)
         mem_session.commit()
         mem_session.refresh(u)

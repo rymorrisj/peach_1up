@@ -10,7 +10,7 @@ from backend.core.identity import parse_session_cookie, validate_session
 from backend.core.logger import get_logger
 from backend.models.game import GameItemBundle
 from backend.models.media_restriction import MediaRestriction
-from backend.models.user import User
+from backend.models.user import UserItem
 
 _log = get_logger(__name__)
 
@@ -127,7 +127,7 @@ def validate_max_content_rating(value: str | None) -> str | None:
     return value
 
 
-def get_active_user(request: Request, db: Session = Depends(get_db)) -> User:
+def get_active_user(request: Request, db: Session = Depends(get_db)) -> UserItem:
     cookie = request.cookies.get("peach_token")
     if not cookie:
         raise HTTPException(status_code=401, detail="Not authenticated.")
@@ -140,30 +140,30 @@ def get_active_user(request: Request, db: Session = Depends(get_db)) -> User:
     return user
 
 
-def require_self_or_admin(request: Request, active_user: User = Depends(get_active_user)) -> User:
-    user_id = int(request.path_params.get("user_id", 0))
-    if active_user.id != user_id and not active_user.is_admin:
+def require_self_or_admin(request: Request, active_user: UserItem = Depends(get_active_user)) -> UserItem:
+    user_item_id = int(request.path_params.get("user_item_id", 0))
+    if active_user.id != user_item_id and not active_user.is_admin:
         raise HTTPException(status_code=403, detail="Permission denied.")
     return active_user
 
 
-def require_admin_or_self_manage(request: Request, active_user: User = Depends(get_active_user)) -> User:
+def require_admin_or_self_manage(request: Request, active_user: UserItem = Depends(get_active_user)) -> UserItem:
     """Allow owner/admin to target any user, or a user with can_manage_users to target themselves.
 
-    Used by PATCH /users/{id} and POST /users/{id}/reset-pin so a sub-account can edit
+    Used by PATCH /user-items/{id} and POST /user-items/{id}/reset-pin so a sub-account can edit
     its own name/PIN without granting any capability over other users' accounts.
     can_manage_users never widens access to other targets and never bypasses the
     owner-target guard each caller still applies after this dependency passes.
     """
     if active_user.is_owner or active_user.is_admin:
         return active_user
-    user_id = int(request.path_params.get("user_id", 0))
-    if active_user.id == user_id and active_user.can_manage_users:
+    user_item_id = int(request.path_params.get("user_item_id", 0))
+    if active_user.id == user_item_id and active_user.can_manage_users:
         return active_user
     raise HTTPException(status_code=403, detail="Permission denied.")
 
 
-def require_game_or_environment_editor(active_user: User = Depends(get_active_user)) -> User:
+def require_game_or_environment_editor(active_user: UserItem = Depends(get_active_user)) -> UserItem:
     """Allow owners and anyone who can edit the game library or environments (e.g. filesystem browsing)."""
     if active_user.is_owner or active_user.can_manage_game or active_user.can_manage_environment:
         return active_user
@@ -179,10 +179,10 @@ def require_permission(flag: str):
     Owner accounts bypass all permission checks. Usage::
 
         @router.post("/items")
-        def create_item(_: User = require_permission("can_manage_game"), ...):
+        def create_item(_: UserItem = require_permission("can_manage_game"), ...):
             ...
     """
-    def _check(active_user: User = Depends(get_active_user)) -> User:
+    def _check(active_user: UserItem = Depends(get_active_user)) -> UserItem:
         if active_user.is_owner:
             return active_user
         if not getattr(active_user, flag, False):
@@ -195,7 +195,7 @@ def require_permission(flag: str):
     return Depends(_check)
 
 
-def get_filtered_game_item_bundles(active_user: User, db: Session):
+def get_filtered_game_item_bundles(active_user: UserItem, db: Session):
     """Return a GameItemBundle query filtered to what *active_user* may see.
 
     Owner sees all collections. For non-owners:
@@ -216,7 +216,7 @@ def get_filtered_game_item_bundles(active_user: User, db: Session):
         return q
 
     restricted_ids = db.query(MediaRestriction.game_item_bundle_id).filter(
-        MediaRestriction.user_id == active_user.id
+        MediaRestriction.user_item_id == active_user.id
     ).scalar_subquery()
     q = q.filter(GameItemBundle.id.not_in(restricted_ids))
 
@@ -243,7 +243,7 @@ def get_filtered_game_item_bundles(active_user: User, db: Session):
     return q
 
 
-def get_filtered_game_item_bundle(id_or_slug: int | str, active_user: User, db: Session) -> GameItemBundle:
+def get_filtered_game_item_bundle(id_or_slug: int | str, active_user: UserItem, db: Session) -> GameItemBundle:
     """Return a single GameItemBundle if *active_user* is allowed to see it.
 
     Reuses get_filtered_game_item_bundles' owner-bypass and restriction/rating filters,

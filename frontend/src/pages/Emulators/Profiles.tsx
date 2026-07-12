@@ -51,10 +51,10 @@ export default function Profiles() {
     hasNextPage,
     prevPage,
     nextPage,
-  } = usePaginatedList<LaunchProfile>({ path: '/api/v1/profiles' })
+  } = usePaginatedList<LaunchProfile>({ path: '/api/v1/profile-items' })
 
   function invalidateProfiles() {
-    return queryClient.invalidateQueries({ queryKey: ['paginated-list', '/api/v1/profiles'] })
+    return queryClient.invalidateQueries({ queryKey: ['paginated-list', '/api/v1/profile-items'] })
   }
 
   const { data: emulators = [] } = useQuery<EmulatorEntry[]>({
@@ -142,9 +142,9 @@ export default function Profiles() {
       if (form.notes.trim()) body.notes = form.notes.trim()
 
       if (modal?.mode === 'create') {
-        await apiFetch('/api/v1/profiles', { method: 'POST', body: JSON.stringify(body) })
+        await apiFetch('/api/v1/profile-items', { method: 'POST', body: JSON.stringify(body) })
       } else if (modal?.mode === 'edit') {
-        await apiFetch(`/api/v1/profiles/${modal.profile.slug}`, {
+        await apiFetch(`/api/v1/profile-items/${modal.profile.slug}`, {
           method: 'PATCH',
           body: JSON.stringify(body),
         })
@@ -167,7 +167,7 @@ export default function Profiles() {
     })
     if (!confirmed) return
     try {
-      await apiFetch(`/api/v1/profiles/${profile.slug}`, { method: 'DELETE' })
+      await apiFetch(`/api/v1/profile-items/${profile.slug}`, { method: 'DELETE' })
       await invalidateProfiles()
     } catch (err) {
       alert(err instanceof ApiError ? err.detail : 'Delete failed.')

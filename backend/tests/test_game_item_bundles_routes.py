@@ -46,11 +46,11 @@ def mem_db_session():
 
 
 def _make_user(db, **overrides):
-    from backend.models.user import User
+    from backend.models.user import UserItem
 
-    kwargs = dict(name="User", is_owner=False, is_admin=False)
+    kwargs = dict(name="UserItem", is_owner=False, is_admin=False)
     kwargs.update(overrides)
-    user = User(**kwargs)
+    user = UserItem(**kwargs)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -139,14 +139,14 @@ class TestRestrictionsEndpoint:
         c, db, app = http_client
         collection = _make_collection(db)
         restricted_user = _make_user(db, name="Kid")
-        db.add(MediaRestriction(user_id=restricted_user.id, game_item_bundle_id=collection.id))
+        db.add(MediaRestriction(user_item_id=restricted_user.id, game_item_bundle_id=collection.id))
         db.commit()
         admin = _make_user(db, name="Admin", is_admin=True)
         _set_active_user(app, admin)
 
         resp = c.get(f"/api/v1/game-item-bundle/{collection.id}/restrictions")
         assert resp.status_code == 200, resp.text
-        assert resp.json() == {"restricted_user_ids": [restricted_user.id]}
+        assert resp.json() == {"restricted_user_item_ids": [restricted_user.id]}
 
     def test_non_admin_gets_403_on_put(self, http_client):
         c, db, app = http_client
@@ -156,7 +156,7 @@ class TestRestrictionsEndpoint:
 
         resp = c.put(
             f"/api/v1/game-item-bundle/{collection.id}/restrictions",
-            json={"user_ids": [non_admin.id]},
+            json={"user_item_ids": [non_admin.id]},
         )
         assert resp.status_code == 403, resp.text
 
@@ -175,23 +175,23 @@ class TestRestrictionsEndpoint:
 
         first = c.put(
             f"/api/v1/game-item-bundle/{collection.id}/restrictions",
-            json={"user_ids": [user_a.id]},
+            json={"user_item_ids": [user_a.id]},
         )
         assert first.status_code == 200, first.text
-        assert first.json() == {"restricted_user_ids": [user_a.id]}
+        assert first.json() == {"restricted_user_item_ids": [user_a.id]}
 
         second = c.put(
             f"/api/v1/game-item-bundle/{collection.id}/restrictions",
-            json={"user_ids": [user_b.id]},
+            json={"user_item_ids": [user_b.id]},
         )
         assert second.status_code == 200, second.text
-        assert second.json() == {"restricted_user_ids": [user_b.id]}
+        assert second.json() == {"restricted_user_item_ids": [user_b.id]}
 
         db.expire_all()
         rows = db.query(MediaRestriction).filter(
             MediaRestriction.game_item_bundle_id == collection.id
         ).all()
-        persisted_ids = {r.user_id for r in rows}
+        persisted_ids = {r.user_item_id for r in rows}
         assert persisted_ids == {user_b.id}
 
 

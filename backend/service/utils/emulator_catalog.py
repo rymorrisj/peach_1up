@@ -350,7 +350,7 @@ def get_container_enabled(slug: str) -> bool:
     return bool(toml_val)
 
 
-def get_container_config(slug: str, exe_path: str, user_id: int | None = None) -> "SandboxConfig | None":
+def get_container_config(slug: str, exe_path: str, user_item_id: int | None = None) -> "SandboxConfig | None":
     """Return a SandboxConfig for *slug*, or None if container_enabled is false.
 
     Calls app_container.get_container_config() internally.  Returns None
@@ -366,7 +366,7 @@ def get_container_config(slug: str, exe_path: str, user_id: int | None = None) -
     from backend.service.utils.platform.windows.app_container import (
         get_container_config as _build_config,
     )
-    return _build_config(slug, exe_path, user_id=user_id)
+    return _build_config(slug, exe_path, user_item_id=user_item_id)
 
 
 def is_container_permanently_excluded(slug: str) -> bool:
@@ -419,7 +419,7 @@ def build_media_broker_config(
     slug: str,
     exe_path: str,
     media_path: Path,
-    user_id: int | None,
+    user_item_id: int | None,
     container_enabled: bool,
 ) -> "SandboxConfig | None":
     """Build a SandboxConfig granting read-only broker access to *media_path*.
@@ -433,7 +433,7 @@ def build_media_broker_config(
     if not container_enabled:
         return None
     from backend.service.utils.platform.windows.sandbox import BrokerFile
-    sandbox_config = get_container_config(slug, exe_path, user_id=user_id)
+    sandbox_config = get_container_config(slug, exe_path, user_item_id=user_item_id)
     sandbox_config.broker_files.append(
         BrokerFile(path=str(media_path.parent), access="r", mode="grant"))
     sandbox_config.broker_files.append(

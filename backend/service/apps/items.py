@@ -53,7 +53,7 @@ def create_app_item_bundle(body: AppItemBundleCreate, db: Session) -> AppItemBun
         title=title,
         slug=slug,
         environment_item_id=body.environment_item_id,
-        profile_id=body.profile_id,
+        profile_item_id=body.profile_item_id,
     )
     db.add(collection)
     db.flush()

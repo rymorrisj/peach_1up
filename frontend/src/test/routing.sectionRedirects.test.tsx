@@ -83,7 +83,7 @@ function mockApiGenerically() {
       return Promise.resolve({ id: 'test-user', email: 'test@example.com', username: 'test' })
     }
 
-    if (url.includes('/api/v1/profiles')) {
+    if (url.includes('/api/v1/profile-items')) {
       return Promise.resolve({ items: [], total: 0, limit: 200, offset: 0 })
     }
 

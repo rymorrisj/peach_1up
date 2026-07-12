@@ -8,7 +8,7 @@ from backend.core import rate_limit
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
 from backend.models.game import GameItemRead, game_item_bundle_to_read
-from backend.models.user import User
+from backend.models.user import UserItem
 from backend.service.games import enrich as enrich_svc
 
 router = APIRouter(prefix="/api/v1/game-items", tags=["games"])
@@ -49,7 +49,7 @@ class EnrichBody(BaseModel):
 def search_metadata(
     request: Request,
     name: str = Query(...),
-    _: User = require_permission("is_owner"),
+    _: UserItem = require_permission("is_owner"),
 ):
     _enforce_rate_limit("library-metadata", request, _METADATA_RATE_LIMIT, _METADATA_RATE_WINDOW_SECONDS)
 
@@ -84,7 +84,7 @@ def get_metadata_details(
     request: Request,
     game_id: int = Query(...),
     db: Session = Depends(get_db),
-    _: User = require_permission("is_owner"),
+    _: UserItem = require_permission("is_owner"),
 ):
     _enforce_rate_limit("library-metadata", request, _METADATA_RATE_LIMIT, _METADATA_RATE_WINDOW_SECONDS)
 
@@ -126,7 +126,7 @@ def enrich_library_entity(
     request: Request,
     body: EnrichBody,
     db: Session = Depends(get_db),
-    _: User = require_permission("is_owner"),
+    _: UserItem = require_permission("is_owner"),
 ):
     _enforce_rate_limit("library-enrich", request, _ENRICH_RATE_LIMIT, _ENRICH_RATE_WINDOW_SECONDS)
 

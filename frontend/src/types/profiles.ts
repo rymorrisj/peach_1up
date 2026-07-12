@@ -1,7 +1,7 @@
 import type { components } from '@shared/types'
 import type { EmulatorCatalogSlug } from '@/generated/constants'
 
-export type LaunchProfile = components['schemas']['ProfileRead']
+export type LaunchProfile = components['schemas']['ProfileItemRead']
 export type EmulatorEntry = components['schemas']['CatalogEntryResponse']
 
 export interface ProfileForm {

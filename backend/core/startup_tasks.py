@@ -57,12 +57,12 @@ def _flag_corrupt_platform_working_paths(db) -> None:
 def _ensure_owner_user() -> None:
     """Log a warning if no owner account exists; first-run web flow handles creation."""
     from backend.core.database import get_engine
-    from backend.models.user import User
+    from backend.models.user import UserItem
     from sqlalchemy.orm import sessionmaker
 
     session_factory = sessionmaker(bind=get_engine())
     with session_factory() as db:
-        has_owner = db.query(User).filter(User.is_owner.is_(True)).count() > 0
+        has_owner = db.query(UserItem).filter(UserItem.is_owner.is_(True)).count() > 0
 
     if not has_owner:
         logger.warning(

@@ -4,7 +4,7 @@ import UserSwitcher from '@/components/UserSwitcher'
 import { apiFetch } from '@/api/client'
 import type { components } from '@shared/types'
 
-type UserRead = components['schemas']['UserRead']
+type UserRead = components['schemas']['UserItemRead']
 
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),

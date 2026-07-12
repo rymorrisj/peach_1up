@@ -77,7 +77,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     container_enabled = resolve_container_enabled("flycast", spec.container_enabled)
     sandbox_config = build_media_broker_config(
-        "flycast", spec.executable_path, spec.media_path, spec.user_id, container_enabled)
+        "flycast", spec.executable_path, spec.media_path, spec.user_item_id, container_enabled)
 
     return launch_under_job_object(
         executable_path=spec.executable_path,

@@ -11,8 +11,8 @@ from backend.core import install_registry, process_registry
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
 from backend.core.logger import get_logger
-from backend.models.profile import Profile
-from backend.models.user import User
+from backend.models.profile import ProfileItem
+from backend.models.user import UserItem
 from backend.service.utils.emulator_catalog import (
     get_emulator,
     get_install_path,
@@ -206,23 +206,23 @@ def list_attribution():
 
 
 def _active_emulator_scopes(db: Session) -> set[tuple[str, Optional[int]]]:
-    """(emulator_slug, user_id) pairs for every profile with a currently running process.
+    """(emulator_slug, user_item_id) pairs for every profile with a currently running process.
 
     Sourced from process_registry (in-memory, live processes only) joined
-    against Profile so AppContainer reset and emulator delete can refuse to
+    against ProfileItem so AppContainer reset and emulator delete can refuse to
     act on an emulator that's actively running underneath an in-flight launch.
     """
-    profile_ids = {
-        e.profile_id for e in process_registry.get_all().values() if e.profile_id is not None
+    profile_item_ids = {
+        e.profile_item_id for e in process_registry.get_all().values() if e.profile_item_id is not None
     }
-    if not profile_ids:
+    if not profile_item_ids:
         return set()
-    rows = db.query(Profile.emulator_slug, Profile.user_id).filter(Profile.id.in_(profile_ids)).all()
+    rows = db.query(ProfileItem.emulator_slug, ProfileItem.user_item_id).filter(ProfileItem.id.in_(profile_item_ids)).all()
     return {(slug, uid) for slug, uid in rows}
 
 
 @router.get("/sandbox-state/confirm-token")
-def get_sandbox_reset_token(_: User = require_permission("is_admin")):
+def get_sandbox_reset_token(_: UserItem = require_permission("is_admin")):
     token = install_registry.generate_confirm_token("sandbox-state")
     return {"token": token}
 
@@ -231,12 +231,12 @@ def get_sandbox_reset_token(_: User = require_permission("is_admin")):
 def reset_sandbox_state(
     body: SandboxResetRequest,
     db: Session = Depends(get_db),
-    _: User = require_permission("is_admin"),
+    _: UserItem = require_permission("is_admin"),
 ):
     if not install_registry.consume_confirm_token("sandbox-state", body.confirmation_token):
         raise HTTPException(status_code=403, detail="Invalid or expired confirmation token.")
 
-    from backend.models.profile import Profile
+    from backend.models.profile import ProfileItem
     from backend.service.utils.platform.windows.app_container import reset_container as _reset_container
 
     catalog = load_catalog()
@@ -247,16 +247,16 @@ def reset_sandbox_state(
     for entry in catalog:
         if entry.get("container_enabled", False):
             slug = entry["slug"]
-            # Monikers are now scoped per profile.user_id — sweep every user
+            # Monikers are now scoped per profile.user_item_id — sweep every user
             # scope on record for this emulator, plus the "shared" scope used
-            # by profiles with no user_id, to match the old per-slug sweep.
-            user_ids: set[int | None] = {
-                row[0] for row in db.query(Profile.user_id).filter(Profile.emulator_slug == slug).distinct()
+            # by profiles with no user_item_id, to match the old per-slug sweep.
+            user_item_ids: set[int | None] = {
+                row[0] for row in db.query(ProfileItem.user_item_id).filter(ProfileItem.emulator_slug == slug).distinct()
             }
-            user_ids.add(None)
-            for user_id in user_ids:
-                scope_label = str(user_id) if user_id is not None else "shared"
-                if (slug, user_id) in active_scopes:
+            user_item_ids.add(None)
+            for user_item_id in user_item_ids:
+                scope_label = str(user_item_id) if user_item_id is not None else "shared"
+                if (slug, user_item_id) in active_scopes:
                     logger.warning(
                         "Skipped AppContainer reset for %s (user=%s): emulator is actively running",
                         slug, scope_label,
@@ -264,7 +264,7 @@ def reset_sandbox_state(
                     skipped.append(f"{slug}:{scope_label}")
                     continue
                 try:
-                    _reset_container(slug, user_id)
+                    _reset_container(slug, user_item_id)
                     reset_count += 1
                 except Exception as exc:
                     logger.warning(
@@ -276,7 +276,7 @@ def reset_sandbox_state(
 
 
 @router.get("/xemu/asset-paths", response_model=XemuAssetPathsResponse)
-def get_xemu_asset_paths(_: User = require_permission("is_admin")):
+def get_xemu_asset_paths(_: UserItem = require_permission("is_admin")):
     import tomllib
 
     xemu_toml = _xemu_toml_path()
@@ -297,7 +297,7 @@ def get_xemu_asset_paths(_: User = require_permission("is_admin")):
 
 
 @router.patch("/xemu/asset-paths", response_model=XemuAssetPathsResponse)
-def patch_xemu_asset_paths(body: XemuAssetPathsPatch, _: User = require_permission("is_admin")):
+def patch_xemu_asset_paths(body: XemuAssetPathsPatch, _: UserItem = require_permission("is_admin")):
     import tomllib
     from backend.service.utils.path_utils import normalise_path
 
@@ -342,7 +342,7 @@ def patch_xemu_asset_paths(body: XemuAssetPathsPatch, _: User = require_permissi
 
 
 @router.post("/{slug}/install")
-async def install_emulator(slug: str, background_tasks: BackgroundTasks, _: User = require_permission("is_admin")):
+async def install_emulator(slug: str, background_tasks: BackgroundTasks, _: UserItem = require_permission("is_admin")):
     try:
         entry = get_emulator(slug)
     except ValueError:
@@ -440,7 +440,7 @@ async def _run_clone(slug: str) -> None:
 
 
 @router.get("/{slug}/status", response_model=EmulatorStatusData)
-def get_emulator_status(slug: str, _: User = require_permission("is_admin")):
+def get_emulator_status(slug: str, _: UserItem = require_permission("is_admin")):
     try:
         entry = get_emulator(slug)
     except ValueError:
@@ -470,7 +470,7 @@ def get_confirm_token(slug: str):
 
 
 @router.patch("/{slug}/sandbox")
-def patch_sandbox(slug: str, body: SandboxPatchRequest, _: User = require_permission("is_admin")):
+def patch_sandbox(slug: str, body: SandboxPatchRequest, _: UserItem = require_permission("is_admin")):
     try:
         entry = get_emulator(slug)
     except ValueError:
@@ -494,14 +494,14 @@ def delete_emulator(
     slug: str,
     body: DeleteRequest,
     db: Session = Depends(get_db),
-    _: User = require_permission("is_admin"),
+    _: UserItem = require_permission("is_admin"),
 ):
     try:
         get_emulator(slug)
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
 
-    if any(active_slug == slug for active_slug, _user_id in _active_emulator_scopes(db)):
+    if any(active_slug == slug for active_slug, _user_item_id in _active_emulator_scopes(db)):
         raise HTTPException(
             status_code=409,
             detail=f"Cannot delete '{slug}': it has an active running session. Stop it first.",

@@ -1,7 +1,7 @@
 import { Button } from '@/ui'
 import type { components } from '@shared/types'
 
-type User = components['schemas']['UserRead']
+type User = components['schemas']['UserItemRead']
 
 interface RestrictionsSectionProps {
   users: User[]

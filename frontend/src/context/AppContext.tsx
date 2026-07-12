@@ -4,7 +4,7 @@ import type { components } from '@shared/types'
 import { AppContext, initialState, appReducer, applyTheme } from './_AppContext'
 import type { BackgroundJob } from './_AppContext'
 
-type User = components['schemas']['UserRead']
+type User = components['schemas']['UserItemRead']
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState, (init) => {

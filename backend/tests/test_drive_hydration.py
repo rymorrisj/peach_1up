@@ -51,7 +51,7 @@ def _make_entity(
 
     return LaunchableEntity(
         collection_id=1,
-        profile_id=None,
+        profile_item_id=None,
         era=era,
         item_type=derive_item_type(era),
         environment_item_id=environment_item_id,

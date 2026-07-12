@@ -30,9 +30,9 @@ class EnvironmentItem(EnvironmentItemBase, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     slug: Optional[str] = Field(default=None, unique=True)
-    profile_id: Optional[int] = Field(
+    profile_item_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("profile_items.id", ondelete="SET NULL"), nullable=True),
     )
     last_health_check: Optional[datetime] = None
     created_at: Optional[datetime] = Field(
@@ -47,14 +47,14 @@ class EnvironmentItem(EnvironmentItemBase, table=True):
 
 class EnvironmentItemCreate(EnvironmentItemBase):
     slug: Optional[str] = None
-    profile_id: Optional[int] = None
+    profile_item_id: Optional[int] = None
 
 
 class EnvironmentItemUpdate(SQLModel):
     name: Optional[str] = None
     era: Optional[EraValue] = None
     emulator_slug: Optional[EmulatorCatalogSlug] = None
-    profile_id: Optional[int] = None
+    profile_item_id: Optional[int] = None
     base_image_path: Optional[str] = None
     working_image_path: Optional[str] = None
     config_path: Optional[str] = None
@@ -73,7 +73,7 @@ class EnvironmentItemUpdate(SQLModel):
 class EnvironmentItemRead(EnvironmentItemBase):
     id: int
     slug: Optional[str] = None
-    profile_id: Optional[int] = None
+    profile_item_id: Optional[int] = None
     last_health_check: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

@@ -10,7 +10,7 @@ from backend.core import rate_limit
 from backend.core.database import get_db
 from backend.core.identity import clear_session, extend_session, generate_identity_secret, issue_session, parse_session_cookie, validate_session
 from backend.core.logger import get_logger
-from backend.models.user import User, UserRead
+from backend.models.user import UserItem, UserItemRead
 
 logger = get_logger(__name__)
 
@@ -21,7 +21,7 @@ _CSRF_COOKIE_NAME = "peach_csrf"
 
 # Bounds total /auth/switch attempts per source IP, independent of the
 # per-user PIN lockout counter — without this, a remote actor can enumerate
-# users via GET /api/v1/users and brute-force/lock any account (including
+# users via GET /api/v1/user-items and brute-force/lock any account (including
 # owner) with unlimited unauthenticated requests. This is a household
 # device where several sub-accounts share one source IP (same LAN/localhost),
 # so the budget has to absorb normal multi-account traffic — the per-account
@@ -33,7 +33,7 @@ _SWITCH_RATE_WINDOW_SECONDS = 60.0
 
 
 class SwitchRequest(BaseModel):
-    user_id: int
+    user_item_id: int
     pin: str = ""
 
 
@@ -44,7 +44,7 @@ class SetupOwnerRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
-    user: UserRead
+    user: UserItemRead
 
 
 def _cookies_secure() -> bool:
@@ -52,11 +52,11 @@ def _cookies_secure() -> bool:
     return bool(get_settings().get("ALLOW_NETWORK_ACCESS", False))
 
 
-def _set_auth_cookie(response: Response, user_id: int, token: str, session_token_ttl) -> None:
+def _set_auth_cookie(response: Response, user_item_id: int, token: str, session_token_ttl) -> None:
     max_age = (session_token_ttl * 60) if session_token_ttl is not None else (30 * 24 * 60 * 60)
     response.set_cookie(
         key=_COOKIE_NAME,
-        value=f"{user_id}.{token}",
+        value=f"{user_item_id}.{token}",
         httponly=True,
         samesite="lax",
         secure=_cookies_secure(),
@@ -77,7 +77,7 @@ def _set_csrf_cookie(response: Response, session_token_ttl) -> None:
     )
 
 
-def _record_failed_pin_attempt(db: Session, user: User) -> None:
+def _record_failed_pin_attempt(db: Session, user: UserItem) -> None:
     """Atomically increment failed_pin_attempts and lock the account at the threshold.
 
     A single UPDATE (not read-then-write on the ORM attribute) so concurrent
@@ -85,13 +85,13 @@ def _record_failed_pin_attempt(db: Session, user: User) -> None:
     the >= 4 threshold.
     """
     stmt = (
-        update(User)
-        .where(User.id == user.id)
+        update(UserItem)
+        .where(UserItem.id == user.id)
         .values(
-            failed_pin_attempts=User.failed_pin_attempts + 1,
+            failed_pin_attempts=UserItem.failed_pin_attempts + 1,
             is_locked=case(
-                (User.failed_pin_attempts + 1 >= 4, True),
-                else_=User.is_locked,
+                (UserItem.failed_pin_attempts + 1 >= 4, True),
+                else_=UserItem.is_locked,
             ),
         )
     )
@@ -107,7 +107,7 @@ def _verify_pin(pin: str, pin_hash: str) -> bool:
     return verify_pin(pin, pin_hash)
 
 
-def _complete_login(response: Response, db: Session, user: User) -> dict:
+def _complete_login(response: Response, db: Session, user: UserItem) -> dict:
     user.failed_pin_attempts = 0
     db.commit()
     token, _expires_at = issue_session(db, user)
@@ -116,7 +116,7 @@ def _complete_login(response: Response, db: Session, user: User) -> dict:
     return {"user": user}
 
 
-def _get_session_user(request: Request, db: Session) -> tuple[User, str]:
+def _get_session_user(request: Request, db: Session) -> tuple[UserItem, str]:
     cookie = request.cookies.get(_COOKIE_NAME)
     if not cookie:
         raise HTTPException(status_code=401, detail="Not authenticated.")
@@ -136,7 +136,7 @@ def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depen
     # to the INSERT before either commits (TOCTOU). The idx_single_owner partial
     # unique index is the actual guarantee — the losing racer's commit raises
     # IntegrityError, caught below and mapped to the same 409.
-    has_owner = db.query(User).filter(User.is_owner.is_(True)).count() > 0
+    has_owner = db.query(UserItem).filter(UserItem.is_owner.is_(True)).count() > 0
     if has_owner:
         raise HTTPException(status_code=409, detail="Owner account already exists.")
 
@@ -150,7 +150,7 @@ def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depen
     from backend.service.utils.pin_hashing import hash_pin
     pin_hash = hash_pin(body.pin)
 
-    owner = User(
+    owner = UserItem(
         name=body.name.strip(),
         is_owner=True,
         is_admin=True,
@@ -200,7 +200,7 @@ def switch_user(body: SwitchRequest, request: Request, response: Response, db: S
             headers={"Retry-After": str(int(retry_after) + 1)},
         )
 
-    user = db.get(User, body.user_id)
+    user = db.get(UserItem, body.user_item_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found.")
 
@@ -233,7 +233,7 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
         if parsed is not None:
             # Only clear the session if the presented token actually validates —
             # otherwise a guessed/garbage token paired with someone else's
-            # user_id could force-clear an arbitrary account with no proof of
+            # user_item_id could force-clear an arbitrary account with no proof of
             # possession of their real token.
             user = validate_session(db, parsed[0], parsed[1])
             if user is not None:
@@ -243,7 +243,7 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     return {"success": True}
 
 
-@router.get("/me", response_model=UserRead)
+@router.get("/me", response_model=UserItemRead)
 def me(request: Request, db: Session = Depends(get_db)):
     user, _ = _get_session_user(request, db)
     return user

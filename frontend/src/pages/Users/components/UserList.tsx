@@ -2,7 +2,7 @@ import { Lock, Unlock, Trash2, KeyRound, Pencil } from "lucide-react";
 import { Button } from "@/ui";
 import type { components } from "@shared/types";
 
-type User = components["schemas"]["UserRead"];
+type User = components["schemas"]["UserItemRead"];
 
 type ActionState = {
   userId: number;

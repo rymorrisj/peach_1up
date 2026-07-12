@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from backend.core import process_registry
 from backend.core.logger import get_logger
 from backend.core.process_registry import ProcessEntry
-from backend.models import EnvironmentItem, LaunchHistory, Profile
+from backend.models import EnvironmentItem, LaunchHistory, ProfileItem
 from backend.service.launch.drive_hydration import hydrate_drive_for_entity
 from backend.service.launch.history import write_session_ends
 from backend.service.launch.launch_spec import LaunchSpec
@@ -75,9 +75,9 @@ def _finalize_launch(
     network_blocked: bool,
     collection_id: int | None = None,
     app_collection_id: int | None = None,
-    profile_id: int | None = None,
+    profile_item_id: int | None = None,
     emulator_slug: str | None = None,
-    user_id: int | None = None,
+    user_item_id: int | None = None,
 ) -> None:
     proc = result[0] if isinstance(result, tuple) else result
     job = result[1] if isinstance(result, tuple) and len(result) > 1 else None
@@ -101,10 +101,10 @@ def _finalize_launch(
             job_handle=job,
             software_collection_id=collection_id,
             app_collection_id=app_collection_id,
-            profile_id=profile_id,
+            profile_item_id=profile_item_id,
             launch_history_id=history.id,
             emulator_slug=emulator_slug,
-            user_id=user_id,
+            user_item_id=user_item_id,
         )
         try:
             process_registry.register(proc.pid, entry)
@@ -148,31 +148,31 @@ def _finalize_launch(
         )
 
 
-def _resolve_profile_for_item(entity_profile_id: int | None, profile_id: int | None, db: Session) -> Profile:
-    profile: Profile | None = None
-    if profile_id:
-        profile = db.get(Profile, profile_id)
+def _resolve_profile_for_item(entity_profile_id: int | None, profile_item_id: int | None, db: Session) -> ProfileItem:
+    profile: ProfileItem | None = None
+    if profile_item_id:
+        profile = db.get(ProfileItem, profile_item_id)
         if not profile:
             raise HTTPException(status_code=404, detail="Profile not found.")
     if profile is None and entity_profile_id:
-        profile = db.get(Profile, entity_profile_id)
+        profile = db.get(ProfileItem, entity_profile_id)
     if profile is None:
         raise HTTPException(status_code=422, detail="No profile associated with this library item.")
     return profile
 
 
-def _resolve_profile_for_environment(platform: EnvironmentItem, profile_id: int | None, db: Session) -> Profile:
-    profile: Profile | None = None
-    if profile_id:
-        profile = db.get(Profile, profile_id)
+def _resolve_profile_for_environment(platform: EnvironmentItem, profile_item_id: int | None, db: Session) -> ProfileItem:
+    profile: ProfileItem | None = None
+    if profile_item_id:
+        profile = db.get(ProfileItem, profile_item_id)
         if not profile:
             raise HTTPException(status_code=404, detail="Profile not found.")
-    if profile is None and platform.profile_id:
-        profile = db.get(Profile, platform.profile_id)
+    if profile is None and platform.profile_item_id:
+        profile = db.get(ProfileItem, platform.profile_item_id)
     if profile is None:
-        profile = db.query(Profile).filter(
-            Profile.era == platform.era,
-            Profile.is_bundled.is_(True),
+        profile = db.query(ProfileItem).filter(
+            ProfileItem.era == platform.era,
+            ProfileItem.is_bundled.is_(True),
         ).first()
     if profile is None:
         raise HTTPException(status_code=422, detail="No profile found for this environment's era.")
@@ -181,7 +181,7 @@ def _resolve_profile_for_environment(platform: EnvironmentItem, profile_id: int 
 
 def _build_spec_for_entity(
     entity: "LaunchableEntity",
-    profile: Profile,
+    profile: ProfileItem,
     platform: EnvironmentItem | None,
     drive: "Drive | None",
     effective_media_path: str,
@@ -282,11 +282,11 @@ def _build_spec_for_entity(
         auto_run_media=entity.launch_commands is None,
         run_from_c=run_from_c,
         c_run_command=c_run_command,
-        profile_id=profile.id,
+        profile_item_id=profile.id,
         profile_launch_commands=list(profile.launch_commands or []),
         use_drive=bool(profile.use_drive),
         container_enabled=profile.container_enabled,
-        user_id=profile.user_id,
+        user_item_id=profile.user_item_id,
         drive_id=drive_id,
         drive_image_path=drive_image_path,
         drive_size_mb=drive_size_mb,
@@ -306,7 +306,7 @@ def _build_spec_for_entity(
 
 def _build_spec_for_environment(
     platform: EnvironmentItem,
-    profile: Profile,
+    profile: ProfileItem,
     resolved_install_path: str | None = None,
     resolved_rom_path: str | None = None,
 ) -> LaunchSpec:
@@ -335,8 +335,8 @@ def _build_spec_for_environment(
         executable_path=resolved_install_path,
         enable_networking=bool(profile.enable_networking),
         enable_dgvoodoo2=bool(profile.enable_dgvoodoo2),
-        profile_id=profile.id,
-        user_id=profile.user_id,
+        profile_item_id=profile.id,
+        user_item_id=profile.user_item_id,
         vm_dir=vm_dir,
         config_path=config_path,
         working_image_path=Path(platform.working_image_path) if platform.working_image_path else None,
@@ -372,9 +372,9 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
     # Reserve both guard keys before any spawn work starts. The check and the
     # reservation happen atomically under process_registry's lock, so a
     # concurrent second request for the same profile or (emulator_slug,
-    # user_id) cannot slip through the gap between "nothing's running" and
+    # user_item_id) cannot slip through the gap between "nothing's running" and
     # "this launch is now registered."
-    reservation = process_registry.try_reserve(spec.profile_id, spec.emulator_slug, spec.user_id)
+    reservation = process_registry.try_reserve(spec.profile_item_id, spec.emulator_slug, spec.user_item_id)
     if reservation is None:
         raise HTTPException(
             status_code=409,
@@ -386,7 +386,7 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
             game_item_bundle_id=spec.collection_id if not is_app else None,
             app_item_bundle_id=spec.collection_id if is_app else None,
             environment_item_id=spec.platform_id,
-            profile_id=spec.profile_id,
+            profile_item_id=spec.profile_item_id,
             emulator_slug=spec.emulator_slug,
             started_at=datetime.now(timezone.utc),
             network_blocked=False,
@@ -440,9 +440,9 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
             network_blocked=network_blocked,
             collection_id=spec.collection_id if not is_app else None,
             app_collection_id=spec.collection_id if is_app else None,
-            profile_id=spec.profile_id,
+            profile_item_id=spec.profile_item_id,
             emulator_slug=spec.emulator_slug,
-            user_id=spec.user_id,
+            user_item_id=spec.user_item_id,
         )
 
         if proc is not None and not is_environment:
@@ -493,7 +493,7 @@ def _resolve_environment_for_pc_entity(entity: "LaunchableEntity", db: Session) 
     """Resolve the Environment for a PC SoftwareCollection launch (doc 02 A5).
 
     Resolves directly via the collection's own environment_item_id FK instead of
-    the old EnvironmentItem.profile_id reverse-lookup. Falls back to the
+    the old EnvironmentItem.profile_item_id reverse-lookup. Falls back to the
     era-matched system Environment only when environment_item_id is still null —
     a runtime fallback for the backfill transition window, not a migration.
     """
@@ -503,13 +503,13 @@ def _resolve_environment_for_pc_entity(entity: "LaunchableEntity", db: Session) 
     return lookup_system_environment_by_era(entity.era, db)
 
 
-async def _launch_entity(entity: "LaunchableEntity", profile_id: int | None, db: Session) -> LaunchResult:
+async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None, db: Session) -> LaunchResult:
     """Internal shared entry point for collection launches.
 
     Expects the caller (launch_collection) to have already called
     process_registry.cleanup_exited() and write_session_ends.
     """
-    profile = _resolve_profile_for_item(entity.profile_id, profile_id, db)
+    profile = _resolve_profile_for_item(entity.profile_item_id, profile_item_id, db)
 
     # Environment is strictly PC (doc 02 A5): console entities never touch
     # Environment at all, not even to check for one.
@@ -543,7 +543,7 @@ async def _launch_entity(entity: "LaunchableEntity", profile_id: int | None, db:
     return await launch(spec, db)
 
 
-async def launch_collection(collection_id: int, profile_id: int | None, db: Session) -> LaunchResult:
+async def launch_collection(collection_id: int, profile_item_id: int | None, db: Session) -> LaunchResult:
     """Sole game entry point. Resolves the collection's launch disc and launches."""
     exited = process_registry.cleanup_exited()
     if exited:
@@ -554,10 +554,10 @@ async def launch_collection(collection_id: int, profile_id: int | None, db: Sess
         entity = resolve_launchable(collection_id, db=db)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return await _launch_entity(entity, profile_id, db)
+    return await _launch_entity(entity, profile_item_id, db)
 
 
-async def launch_app_collection(app_collection_id: int, profile_id: int | None, db: Session) -> LaunchResult:
+async def launch_app_collection(app_collection_id: int, profile_item_id: int | None, db: Session) -> LaunchResult:
     """App entry point. Mirrors launch_collection but resolves an AppCollection.
 
     Reuses _launch_entity unchanged: entity.item_type is always "pc" and
@@ -575,16 +575,16 @@ async def launch_app_collection(app_collection_id: int, profile_id: int | None, 
         entity = resolve_launchable_app(app_collection_id, db=db)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return await _launch_entity(entity, profile_id, db)
+    return await _launch_entity(entity, profile_item_id, db)
 
 
-async def launch_environment(platform: EnvironmentItem, profile_id: int | None, db: Session) -> LaunchResult:
-    logger.info("launch_environment entry: platform_id=%d era=%s profile_id=%s", platform.id, platform.era, profile_id)
+async def launch_environment(platform: EnvironmentItem, profile_item_id: int | None, db: Session) -> LaunchResult:
+    logger.info("launch_environment entry: platform_id=%d era=%s profile_item_id=%s", platform.id, platform.era, profile_item_id)
     exited = process_registry.cleanup_exited()
     if exited:
         await asyncio.to_thread(write_session_ends, exited)
 
-    profile = _resolve_profile_for_environment(platform, profile_id, db)
+    profile = _resolve_profile_for_environment(platform, profile_item_id, db)
 
     resolved_install_path: str | None = None
     resolved_rom_path: str | None = None
@@ -645,10 +645,10 @@ def stop_launch(history_id: int, active_user, db: Session) -> dict:
         raise HTTPException(status_code=404, detail="Launch record not found.")
 
     if not active_user.is_owner and not active_user.is_admin:
-        if record.profile_id is not None:
-            from backend.models.profile import Profile as _Profile
-            prof = db.get(_Profile, record.profile_id)
-            if prof is not None and prof.user_id is not None and prof.user_id != active_user.id:
+        if record.profile_item_id is not None:
+            from backend.models.profile import ProfileItem as _ProfileItem
+            prof = db.get(_ProfileItem, record.profile_item_id)
+            if prof is not None and prof.user_item_id is not None and prof.user_item_id != active_user.id:
                 raise HTTPException(
                     status_code=403,
                     detail="Permission denied: you can only stop your own launches.",

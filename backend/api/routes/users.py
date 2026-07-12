@@ -11,12 +11,12 @@ from backend.core.dependencies import (
 )
 from backend.core.identity import clear_session, generate_identity_secret
 from backend.core.logger import get_logger
-from backend.models.user import User, UserRead
+from backend.models.user import UserItem, UserItemRead
 from backend.service.utils.pin_hashing import hash_pin
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/users", tags=["users"])
+router = APIRouter(prefix="/api/v1/user-items", tags=["users"])
 
 # session_token_ttl is in minutes. Ceiling = 1 year; floor = 1 minute.
 _TTL_MIN = 1
@@ -37,7 +37,7 @@ _OWNER_ONLY_FIELDS = {
 }
 
 
-class UserCreate(BaseModel):
+class UserItemCreate(BaseModel):
     name: str
     pin: str | None = None
     can_launch_media: bool = True
@@ -58,7 +58,7 @@ class UserCreate(BaseModel):
         return validate_max_content_rating(v)
 
 
-class UserPatch(BaseModel):
+class UserItemPatch(BaseModel):
     name: str | None = None
     can_launch_media: bool | None = None
     can_manage_environment: bool | None = None
@@ -89,40 +89,40 @@ def _validate_pin(pin: str) -> None:
         raise HTTPException(status_code=422, detail="PIN must be 4–6 digits.")
 
 
-@router.get("", response_model=list[UserRead])
+@router.get("", response_model=list[UserItemRead])
 def list_users(db: Session = Depends(get_db)):
     # Intentionally unauthenticated: this is the account list the switch-user
     # screen needs to render before anyone is signed in (mirrors /auth/switch,
-    # which also requires no prior session). UserRead excludes pin_hash and
+    # which also requires no prior session). UserItemRead excludes pin_hash and
     # all other secrets, so this only ever exposes names/flags, never proof
     # of identity.
-    return db.query(User).all()
+    return db.query(UserItem).all()
 
 
-@router.get("/{user_id}", response_model=UserRead)
+@router.get("/{user_item_id}", response_model=UserItemRead)
 def get_user(
-    user_id: int,
+    user_item_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_active_user),
+    _: UserItem = Depends(get_active_user),
 ):
-    user = db.get(User, user_id)
+    user = db.get(UserItem, user_item_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     return user
 
 
-@router.post("", response_model=UserRead, status_code=201)
+@router.post("", response_model=UserItemRead, status_code=201)
 def create_user(
-    body: UserCreate,
+    body: UserItemCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("is_owner"),
+    _: UserItem = require_permission("is_owner"),
 ):
     pin_hash: str | None = None
     if body.pin is not None:
         _validate_pin(body.pin)
         pin_hash = hash_pin(body.pin)
 
-    user = User(
+    user = UserItem(
         name=body.name,
         is_owner=False,
         pin_required=body.pin is not None,
@@ -146,14 +146,14 @@ def create_user(
     return user
 
 
-@router.patch("/{user_id}", response_model=UserRead)
+@router.patch("/{user_item_id}", response_model=UserItemRead)
 def update_user(
-    user_id: int,
-    body: UserPatch,
+    user_item_id: int,
+    body: UserItemPatch,
     db: Session = Depends(get_db),
-    active_user: User = Depends(require_admin_or_self_manage),
+    active_user: UserItem = Depends(require_admin_or_self_manage),
 ):
-    user = db.get(User, user_id)
+    user = db.get(UserItem, user_item_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     if user.is_owner:
@@ -161,7 +161,7 @@ def update_user(
 
     updates = body.model_dump(exclude_none=True)
     if active_user.is_owner:
-        pass  # Owner may set any field UserPatch exposes (is_owner is not one).
+        pass  # Owner may set any field UserItemPatch exposes (is_owner is not one).
     elif active_user.is_admin:
         # Admins manage sub-accounts but must not escalate privilege: is_admin
         # and the can_* capability flags are owner-only. Reject rather than
@@ -191,40 +191,40 @@ def update_user(
     return user
 
 
-@router.delete("/{user_id}", status_code=204)
+@router.delete("/{user_item_id}", status_code=204)
 def delete_user(
-    user_id: int,
+    user_item_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("is_owner"),
+    _: UserItem = require_permission("is_owner"),
 ):
-    user = db.get(User, user_id)
+    user = db.get(UserItem, user_item_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     if user.is_owner:
         raise HTTPException(status_code=403, detail="Owner account cannot be deleted.")
 
-    owner = db.query(User).filter(User.is_owner.is_(True)).first()
+    owner = db.query(UserItem).filter(UserItem.is_owner.is_(True)).first()
     owner_id = owner.id if owner else None
 
     from backend.models.media_restriction import MediaRestriction
-    from backend.models.profile import Profile
-    db.query(MediaRestriction).filter(MediaRestriction.user_id == user_id).delete(synchronize_session=False)
-    db.query(Profile).filter(Profile.user_id == user_id).update(
-        {Profile.user_id: owner_id}, synchronize_session=False
+    from backend.models.profile import ProfileItem
+    db.query(MediaRestriction).filter(MediaRestriction.user_item_id == user_item_id).delete(synchronize_session=False)
+    db.query(ProfileItem).filter(ProfileItem.user_item_id == user_item_id).update(
+        {ProfileItem.user_item_id: owner_id}, synchronize_session=False
     )
 
     db.delete(user)
     db.commit()
 
 
-@router.post("/{user_id}/reset-pin", response_model=UserRead)
+@router.post("/{user_item_id}/reset-pin", response_model=UserItemRead)
 def reset_pin(
-    user_id: int,
+    user_item_id: int,
     body: ResetPinBody,
     db: Session = Depends(get_db),
-    active_user: User = Depends(require_admin_or_self_manage),
+    active_user: UserItem = Depends(require_admin_or_self_manage),
 ):
-    user = db.get(User, user_id)
+    user = db.get(UserItem, user_item_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     if user.is_owner:
@@ -243,13 +243,13 @@ def reset_pin(
     return user
 
 
-@router.post("/{user_id}/unlock", response_model=UserRead)
+@router.post("/{user_item_id}/unlock", response_model=UserItemRead)
 def unlock_user(
-    user_id: int,
+    user_item_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("is_admin"),
+    _: UserItem = require_permission("is_admin"),
 ):
-    user = db.get(User, user_id)
+    user = db.get(UserItem, user_item_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     if user.is_owner:
@@ -261,13 +261,13 @@ def unlock_user(
     return user
 
 
-@router.post("/{user_id}/force-logout", response_model=UserRead)
+@router.post("/{user_item_id}/force-logout", response_model=UserItemRead)
 def force_logout(
-    user_id: int,
+    user_item_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("is_admin"),
+    _: UserItem = require_permission("is_admin"),
 ):
-    user = db.get(User, user_id)
+    user = db.get(UserItem, user_item_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     if user.is_owner:

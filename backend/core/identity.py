@@ -73,10 +73,10 @@ def clear_session(db, user) -> None:
     db.commit()
 
 
-def validate_session(db, user_id: int, presented_token: str):
-    from backend.models.user import User
+def validate_session(db, user_item_id: int, presented_token: str):
+    from backend.models.user import UserItem
 
-    user = db.get(User, user_id)
+    user = db.get(UserItem, user_item_id)
     if user is None:
         return None
     if user.session_token_hash is None:
@@ -95,12 +95,12 @@ def validate_session(db, user_id: int, presented_token: str):
 
 
 def parse_session_cookie(cookie: str) -> Optional[tuple[int, str]]:
-    """Split the ``peach_token`` cookie value into ``(user_id, token)``.
+    """Split the ``peach_token`` cookie value into ``(user_item_id, token)``.
 
-    Returns None if the cookie has no separator or a non-numeric user_id —
+    Returns None if the cookie has no separator or a non-numeric user_item_id —
     callers must treat that as unauthenticated, never as a lookup of 0/None.
     """
-    user_id_str, sep, token = cookie.partition(".")
-    if not sep or not user_id_str.isdigit():
+    user_item_id_str, sep, token = cookie.partition(".")
+    if not sep or not user_item_id_str.isdigit():
         return None
-    return int(user_id_str), token
+    return int(user_item_id_str), token

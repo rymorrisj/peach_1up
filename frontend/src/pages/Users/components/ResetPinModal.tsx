@@ -1,7 +1,7 @@
 import { Button, FormField, Input, Modal } from "@/ui";
 import type { components } from "@shared/types";
 
-type User = components["schemas"]["UserRead"];
+type User = components["schemas"]["UserItemRead"];
 
 export type ResetPinTarget = {
   user: User;

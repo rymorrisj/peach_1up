@@ -39,14 +39,14 @@ class LaunchSpec:
     c_run_command: str | None = None
 
     # Profile plain fields (consumed by dosbox; ignored by other backends)
-    profile_id: int | None = None
+    profile_item_id: int | None = None
     profile_launch_commands: list[str] = field(default_factory=list)
     use_drive: bool = True
     container_enabled: bool | None = None
 
     # Owning user of the launching profile — scopes the AppContainer moniker
     # per-user. None means the profile has no associated user (e.g. bundled).
-    user_id: int | None = None
+    user_item_id: int | None = None
 
     # Drive plain fields (consumed by dosbox only)
     drive_id: int | None = None

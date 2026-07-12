@@ -8,7 +8,7 @@ from backend.models.app import (
     AppItem, AppItemRead, AppItemUpdate, app_item_bundle_to_read, app_item_bundles_to_read_bulk,
 )
 from backend.models.pagination import Page
-from backend.models.user import User
+from backend.models.user import UserItem
 from backend.service.apps import items as app_svc
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
@@ -29,7 +29,7 @@ def list_apps(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
     q = db.query(AppItemBundle)
     if environment_item_id is not None:
@@ -54,7 +54,7 @@ def list_apps(
 def create_app_item_bundle(
     body: AppItemBundleCreate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_app"),
+    _: UserItem = require_permission("can_manage_app"),
 ):
     collection = app_svc.create_app_item_bundle(body, db)
     return app_item_bundle_to_read(collection, db)
@@ -69,7 +69,7 @@ def create_app_item_bundle(
 def get_app_item_bundle(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_active_user),
+    _: UserItem = Depends(get_active_user),
 ):
     collection = db.get(AppItemBundle, collection_id)
     if not collection:
@@ -82,7 +82,7 @@ def update_app_item_bundle(
     collection_id: int,
     body: AppItemBundleUpdate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_app"),
+    _: UserItem = require_permission("can_manage_app"),
 ):
     return app_item_bundle_to_read(app_svc.update_app_item_bundle(collection_id, body, db), db)
 
@@ -91,7 +91,7 @@ def update_app_item_bundle(
 def issue_delete_token(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_app"),
+    _: UserItem = require_permission("can_manage_app"),
 ):
     collection = db.get(AppItemBundle, collection_id)
     if not collection:
@@ -105,7 +105,7 @@ def delete_app_item_bundle(
     collection_id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_app"),
+    _: UserItem = require_permission("can_manage_app"),
 ):
     app_svc.delete_app_item_bundle(collection_id, confirmation_token, db)
 
@@ -126,7 +126,7 @@ def _visible_leaf(leaf_id: int, db: Session) -> AppItem:
 def get_app_item(
     leaf_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_active_user),
+    _: UserItem = Depends(get_active_user),
 ):
     return AppItemRead.model_validate(_visible_leaf(leaf_id, db))
 
@@ -136,7 +136,7 @@ def update_app_item(
     leaf_id: int,
     body: AppItemUpdate,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_app"),
+    _: UserItem = require_permission("can_manage_app"),
 ):
     leaf = db.get(AppItem, leaf_id)
     if leaf is None:
@@ -148,7 +148,7 @@ def update_app_item(
 def delete_app_item(
     leaf_id: int,
     db: Session = Depends(get_db),
-    _: User = require_permission("can_manage_app"),
+    _: UserItem = require_permission("can_manage_app"),
 ):
     leaf = db.get(AppItem, leaf_id)
     if leaf is None:

@@ -8,7 +8,7 @@ from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.models.bios import BiosItem
 from backend.models.pagination import Page
-from backend.models.user import User
+from backend.models.user import UserItem
 from backend.service.utils.bios_placement import PlacementError, place_bios_asset
 from backend.service.utils.emulator_catalog import check_bios_presence, load_bios_requirements
 
@@ -28,7 +28,7 @@ class BiosPlaceResult(BaseModel):
 def list_bios_requirements(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    _: User = Depends(get_active_user),
+    _: UserItem = Depends(get_active_user),
 ):
     result = []
     for entry in load_bios_requirements():
@@ -57,7 +57,7 @@ async def place_bios(
     slug: str,
     source_path: Optional[str] = Form(None),
     files: list[UploadFile] = File(default=[]),
-    _: User = require_permission("is_admin"),
+    _: UserItem = require_permission("is_admin"),
 ):
     """Copy a BIOS/ROM asset the user already has into its required location.
 

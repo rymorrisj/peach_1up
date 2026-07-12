@@ -52,7 +52,7 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
           : `/api/v1/game-item-bundle/${targetId}/launch`
       return apiFetch<LaunchResponse>(path, {
         method: 'POST',
-        body: JSON.stringify({ profile_id: profileId }),
+        body: JSON.stringify({ profile_item_id: profileId }),
         timeoutMs: LAUNCH_TIMEOUT_MS,
       })
     },

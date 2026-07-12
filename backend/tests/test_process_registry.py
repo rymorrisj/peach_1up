@@ -29,7 +29,7 @@ def _make_entry(proc=None, job_handle=None):
         process_handle=proc,
         job_handle=job_handle,
         software_collection_id=None,
-        profile_id=None,
+        profile_item_id=None,
     )
 
 

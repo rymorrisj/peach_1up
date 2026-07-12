@@ -9,7 +9,7 @@ from backend.core.logger import get_logger
 from backend.models.app import AppItemBundle
 from backend.models.drive import Drive, DriveRead
 from backend.models.game import GameItemBundle
-from backend.models.user import User
+from backend.models.user import UserItem
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/v1/drives", tags=["drives"])
 logger = get_logger(__name__)
 
 
-def _require_drive_owner_permission(drive: Drive, active_user: User) -> None:
+def _require_drive_owner_permission(drive: Drive, active_user: UserItem) -> None:
     """Gate a drive mutation on the permission matching its owning collection.
 
     Exactly one of game_item_bundle_id / app_item_bundle_id is ever set on a
@@ -33,12 +33,12 @@ def _require_drive_owner_permission(drive: Drive, active_user: User) -> None:
 
 
 @router.get("", response_model=list[DriveRead])
-def list_drives(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+def list_drives(db: Session = Depends(get_db), _: UserItem = Depends(get_active_user)):
     return db.query(Drive).all()
 
 
 @router.get("/{drive_id}", response_model=DriveRead)
-def get_drive(drive_id: int, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+def get_drive(drive_id: int, db: Session = Depends(get_db), _: UserItem = Depends(get_active_user)):
     drive = db.get(Drive, drive_id)
     if not drive:
         raise HTTPException(status_code=404, detail="Drive not found.")
@@ -49,7 +49,7 @@ def get_drive(drive_id: int, db: Session = Depends(get_db), _: User = Depends(ge
 def issue_delete_token(
     drive_id: int,
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
     drive = db.get(Drive, drive_id)
     if not drive:
@@ -63,7 +63,7 @@ def delete_drive(
     drive_id: int,
     confirmation_token: str = Query(...),
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
     drive = db.get(Drive, drive_id)
     if not drive:

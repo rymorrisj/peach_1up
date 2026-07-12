@@ -9,7 +9,7 @@ from backend.core.database import get_db
 from backend.core.dependencies import require_permission
 from backend.core.settings import get_settings
 from backend.models.settings import SettingsPatch
-from backend.models.user import User
+from backend.models.user import UserItem
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
@@ -80,7 +80,7 @@ _USER_WRITABLE_KEYS = _ALL_PATH_KEYS | _ENV_SECRET_KEYS | {
 
 
 @router.get("", response_model=dict)
-def get_all_settings(_: User = require_permission("can_manage_settings")):
+def get_all_settings(_: UserItem = require_permission("can_manage_settings")):
     svc = get_settings()
     state = svc._require_init()
     return {
@@ -95,7 +95,7 @@ class LibraryDefaultsResult(BaseModel):
 
 
 @router.get("/library-defaults", response_model=LibraryDefaultsResult)
-def get_library_defaults(_: User = require_permission("can_manage_game")):
+def get_library_defaults(_: UserItem = require_permission("can_manage_game")):
     """Narrow, can_manage_game-gated read of the two boolean defaults that
     library-editing surfaces (Library list, collection detail, Add Media) need
     to seed their own per-action checkboxes. GET /api/v1/settings (the full
@@ -112,7 +112,7 @@ def get_library_defaults(_: User = require_permission("can_manage_game")):
 
 
 @router.patch("")
-def patch_settings(body: SettingsPatch, _: User = require_permission("can_manage_settings")):
+def patch_settings(body: SettingsPatch, _: UserItem = require_permission("can_manage_settings")):
     if "PIN_PEPPER" in body.updates:
         raise HTTPException(
             status_code=400,
@@ -144,21 +144,21 @@ class PinPepperBody(BaseModel):
 
 
 @router.get("/pin-pepper/status")
-def get_pin_pepper_status(_: User = require_permission("is_owner")):
+def get_pin_pepper_status(_: UserItem = require_permission("is_owner")):
     """Whether a pepper is currently configured. Never returns the pepper value itself."""
     from backend.service.utils.env_secrets import get_env_secret
     return {"enabled": bool(get_env_secret("PIN_PEPPER"))}
 
 
 @router.get("/thegamesdb-api-key/status")
-def get_thegamesdb_api_key_status(_: User = require_permission("is_owner")):
+def get_thegamesdb_api_key_status(_: UserItem = require_permission("is_owner")):
     """Whether a TheGamesDB API key is currently configured. Never returns the key value itself."""
     from backend.service.utils.env_secrets import get_env_secret
     return {"enabled": bool(get_env_secret("THEGAMESDB_API_KEY"))}
 
 
 @router.get("/igdb-status")
-def get_igdb_status(_: User = require_permission("is_owner")):
+def get_igdb_status(_: UserItem = require_permission("is_owner")):
     """Whether both IGDB credentials are configured. Never returns their values."""
     from backend.service.utils.env_secrets import get_env_secret
     return {"enabled": bool(get_env_secret("IGDB_CLIENT_ID")) and bool(get_env_secret("IGDB_CLIENT_SECRET"))}
@@ -168,7 +168,7 @@ def get_igdb_status(_: User = require_permission("is_owner")):
 def patch_pin_pepper(
     body: PinPepperBody,
     db: Session = Depends(get_db),
-    _: User = require_permission("is_owner"),
+    _: UserItem = require_permission("is_owner"),
 ):
     """Enable, disable, or rotate the Argon2id PIN pepper.
 
@@ -197,7 +197,7 @@ def patch_pin_pepper(
     if new_pepper == current_pepper:
         return {"pepper_enabled": bool(new_pepper), "owner_rehashed": False, "sub_accounts_reset": []}
 
-    owner = db.query(User).filter(User.is_owner.is_(True)).first()
+    owner = db.query(UserItem).filter(UserItem.is_owner.is_(True)).first()
     owner_rehashed = False
     if owner is not None and owner.pin_hash is not None:
         if not body.owner_pin or not verify_pin(body.owner_pin, owner.pin_hash, pepper=current_pepper):
@@ -209,7 +209,7 @@ def patch_pin_pepper(
         owner_rehashed = True
 
     affected: list[str] = []
-    others = db.query(User).filter(User.is_owner.is_(False), User.pin_hash.isnot(None)).all()
+    others = db.query(UserItem).filter(UserItem.is_owner.is_(False), UserItem.pin_hash.isnot(None)).all()
     for user in others:
         user.pin_hash = None
         user.pin_required = True
@@ -238,7 +238,7 @@ def get_first_run_status(request: Request, db: Session = Depends(get_db)):
     svc = get_settings()
     row = db.get(SettingsModel, "first_run_complete")
     first_run_complete = row is not None and row.value == "true"
-    owner_exists = db.query(User).filter(User.is_owner.is_(True)).count() > 0
+    owner_exists = db.query(UserItem).filter(UserItem.is_owner.is_(True)).count() > 0
 
     return {
         "first_run_complete": first_run_complete,
@@ -260,12 +260,12 @@ def get_first_run_status(request: Request, db: Session = Depends(get_db)):
 def get_owner_status(db: Session = Depends(get_db)):
     """Unauthenticated — checked once at app load so the frontend can detect
     a missing/locked owner row and render the recovery fallback page."""
-    owner = db.query(User).filter(User.is_owner.is_(True)).first()
+    owner = db.query(UserItem).filter(UserItem.is_owner.is_(True)).first()
     return {"owner_broken": owner is None or owner.is_locked}
 
 
 @router.post("/library-path")
-def set_library_path(body: LibraryPathBody, _: User = require_permission("can_manage_settings")):
+def set_library_path(body: LibraryPathBody, _: UserItem = require_permission("can_manage_settings")):
     try:
         resolved = _check_traversal(body.path)
     except ValueError as exc:
@@ -284,7 +284,7 @@ def set_library_path(body: LibraryPathBody, _: User = require_permission("can_ma
 
 
 @router.post("/complete-first-run")
-def complete_first_run(db: Session = Depends(get_db), _: User = require_permission("can_manage_settings")):
+def complete_first_run(db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_settings")):
     from backend.api.middleware.security import set_first_run_complete
     from backend.models.settings import Settings as SettingsModel
     row = db.get(SettingsModel, "first_run_complete")

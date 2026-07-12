@@ -5,7 +5,7 @@ import { apiFetch, ApiError } from '@/api/client'
 interface UseCollectionRestrictionsOptions {
   collectionId: number | undefined
   isAdminOrOwner: boolean
-  restrictionsData: { restricted_user_ids: number[] } | undefined
+  restrictionsData: { restricted_user_item_ids: number[] } | undefined
   refetchRestrictions: () => void
 }
 
@@ -22,7 +22,7 @@ export function useCollectionRestrictions({
 
   useEffect(() => {
     if (restrictionsData && !restrictionsDirty) {
-      setRestrictedIds(new Set(restrictionsData.restricted_user_ids))
+      setRestrictedIds(new Set(restrictionsData.restricted_user_item_ids))
     }
   }, [restrictionsData, restrictionsDirty])
 
@@ -41,7 +41,7 @@ export function useCollectionRestrictions({
       if (!collectionId) return Promise.resolve()
       return apiFetch(`/api/v1/game-item-bundle/${collectionId}/restrictions`, {
         method: 'PUT',
-        body: JSON.stringify({ user_ids: userIds }),
+        body: JSON.stringify({ user_item_ids: userIds }),
       })
     },
     onSuccess: () => {

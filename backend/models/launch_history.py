@@ -32,9 +32,9 @@ class LaunchHistory(LaunchHistoryBase, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("environment_items.id", ondelete="CASCADE"), nullable=True),
     )
-    profile_id: Optional[int] = Field(
+    profile_item_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True),
+        sa_column=Column(Integer, ForeignKey("profile_items.id", ondelete="SET NULL"), nullable=True),
     )
     started_at: Optional[datetime] = Field(
         default=None,
@@ -50,7 +50,7 @@ class LaunchHistoryRead(LaunchHistoryBase):
     game_item_bundle_id: Optional[int] = None
     app_item_bundle_id: Optional[int] = None
     environment_item_id: Optional[int] = None
-    profile_id: Optional[int] = None
+    profile_item_id: Optional[int] = None
     started_at: datetime
     ended_at: Optional[datetime] = None
     exit_code: Optional[int] = None

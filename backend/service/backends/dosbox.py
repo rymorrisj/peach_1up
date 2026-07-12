@@ -641,7 +641,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     if container_enabled:
         from backend.service.utils.platform.windows.app_container import get_container_config as _build_cfg
-        sandbox_config = _build_cfg("dosbox-x", spec.executable_path, user_id=spec.user_id)
+        sandbox_config = _build_cfg("dosbox-x", spec.executable_path, user_item_id=spec.user_item_id)
         sandbox_config.broker_files.append(
             BrokerFile(path=str(get_base_path() / "library"), access="r", mode="grant"))
         sandbox_config.broker_files.append(

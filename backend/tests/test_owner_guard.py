@@ -47,9 +47,9 @@ class TestOwnerStatus:
         assert resp.json() == {"owner_broken": True}
 
     def test_locked_owner_reports_broken(self, app_client, mem_session):
-        from backend.models.user import User
+        from backend.models.user import UserItem
 
-        mem_session.add(User(name="Owner", is_owner=True, is_locked=True))
+        mem_session.add(UserItem(name="Owner", is_owner=True, is_locked=True))
         mem_session.commit()
 
         resp = app_client.get("/api/v1/settings/owner-status")
@@ -58,9 +58,9 @@ class TestOwnerStatus:
         assert resp.json() == {"owner_broken": True}
 
     def test_present_unlocked_owner_reports_healthy(self, app_client, mem_session):
-        from backend.models.user import User
+        from backend.models.user import UserItem
 
-        mem_session.add(User(name="Owner", is_owner=True, is_locked=False))
+        mem_session.add(UserItem(name="Owner", is_owner=True, is_locked=False))
         mem_session.commit()
 
         resp = app_client.get("/api/v1/settings/owner-status")

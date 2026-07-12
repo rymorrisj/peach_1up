@@ -15,7 +15,7 @@ import {
 import { ResetPinModal, type ResetPinTarget } from "./components/ResetPinModal";
 import type { components } from "@shared/types";
 
-type User = components["schemas"]["UserRead"];
+type User = components["schemas"]["UserItemRead"];
 
 const EMPTY_MANAGE_USER_FORM: ManageUserForm = {
   name: "",
@@ -48,7 +48,7 @@ export default function Users() {
 
   const { data: users, isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["users"],
-    queryFn: () => apiFetch<User[]>("/api/v1/users"),
+    queryFn: () => apiFetch<User[]>("/api/v1/user-items"),
   });
 
   const [manageOpen, setManageOpen] = useState(false);
@@ -128,7 +128,7 @@ export default function Users() {
     setManageError(null);
     try {
       if (manageMode === "create") {
-        await apiFetch("/api/v1/users", {
+        await apiFetch("/api/v1/user-items", {
           method: "POST",
           body: JSON.stringify({
             name: manageForm.name.trim(),
@@ -169,12 +169,12 @@ export default function Users() {
               : null;
           }
         }
-        await apiFetch(`/api/v1/users/${manageTargetId}`, {
+        await apiFetch(`/api/v1/user-items/${manageTargetId}`, {
           method: "PATCH",
           body: JSON.stringify(patchBody),
         });
         if (manageForm.pin) {
-          await apiFetch(`/api/v1/users/${manageTargetId}/reset-pin`, {
+          await apiFetch(`/api/v1/user-items/${manageTargetId}/reset-pin`, {
             method: "POST",
             body: JSON.stringify({ pin: manageForm.pin }),
           });
@@ -204,7 +204,7 @@ export default function Users() {
     }
     setResetPinTarget((p) => p && { ...p, submitting: true, error: null });
     try {
-      await apiFetch(`/api/v1/users/${resetPinTarget.user.id}/reset-pin`, {
+      await apiFetch(`/api/v1/user-items/${resetPinTarget.user.id}/reset-pin`, {
         method: "POST",
         body: JSON.stringify({ pin: resetPinTarget.pin }),
       });
@@ -219,7 +219,7 @@ export default function Users() {
   async function handleUnlock(user: User) {
     setActionState({ userId: user.id, action: "unlock", submitting: true });
     try {
-      await apiFetch(`/api/v1/users/${user.id}/unlock`, { method: "POST" });
+      await apiFetch(`/api/v1/user-items/${user.id}/unlock`, { method: "POST" });
       await queryClient.invalidateQueries({ queryKey: ["users"] });
     } catch {
       // error silently — list will not change
@@ -233,7 +233,7 @@ export default function Users() {
       return;
     setActionState({ userId: user.id, action: "delete", submitting: true });
     try {
-      await apiFetch(`/api/v1/users/${user.id}`, { method: "DELETE" });
+      await apiFetch(`/api/v1/user-items/${user.id}`, { method: "DELETE" });
       await queryClient.invalidateQueries({ queryKey: ["users"] });
     } catch {
       // error silently

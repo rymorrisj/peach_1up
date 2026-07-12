@@ -6,7 +6,7 @@ import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal'
 import type { EditForm as EditFormFields } from '@/hooks/useEditForm'
 import type { components } from '@shared/types'
 
-type LaunchProfile = components['schemas']['ProfileRead']
+type LaunchProfile = components['schemas']['ProfileItemRead']
 type Platform = components['schemas']['EnvironmentItemRead']
 
 type EditableItem = {
@@ -52,7 +52,7 @@ export function EditForm({
   const isRomEra = ROM_ERAS.has(item.era)
   const showLaunchFile = item.media_path !== undefined || item.folder_path !== undefined
   const eraLabel = ERA_LABELS[item.era] ?? (item.era === 'unknown' ? 'Unknown' : item.era)
-  const effectiveProfileId = form.profile_id ? parseInt(form.profile_id, 10) : null
+  const effectiveProfileId = form.profile_item_id ? parseInt(form.profile_item_id, 10) : null
   const eraProfiles = profiles.filter((p) => p.era === item.era)
   const otherProfiles = profiles.filter((p) => p.era !== item.era)
   const chosenProfile = profiles.find((p) => p.id === effectiveProfileId) ?? null
@@ -243,8 +243,8 @@ export function EditForm({
       <FormField label="Launch Profile" htmlFor="detail-profile">
         <select
           id="detail-profile"
-          value={form.profile_id}
-          onChange={(e) => setField('profile_id', e.target.value)}
+          value={form.profile_item_id}
+          onChange={(e) => setField('profile_item_id', e.target.value)}
           className={SELECT_CLASS}
         >
           <option value="">— No profile —</option>

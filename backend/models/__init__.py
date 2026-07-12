@@ -24,10 +24,10 @@ from backend.models.media import (
     item_to_read as media_item_to_read,
     items_to_read_bulk as media_items_to_read_bulk,
 )
-from backend.models.profile import Profile, ProfileBase, ProfileCreate, ProfileUpdate, ProfileRead
+from backend.models.profile import ProfileItem, ProfileItemBase, ProfileItemCreate, ProfileItemUpdate, ProfileItemRead
 from backend.models.launch_history import LaunchHistory, LaunchHistoryBase, LaunchHistoryRead
 from backend.models.settings import Settings, SettingsPatch
-from backend.models.user import User, UserBase, UserRead
+from backend.models.user import UserItem, UserItemBase, UserItemRead
 from backend.models.media_restriction import MediaRestriction
 from backend.models.tag import EntityTag, Tag, TagCreate, TagRead, get_tags_for_entity
 from backend.models.emulator_install import EmulatorInstall

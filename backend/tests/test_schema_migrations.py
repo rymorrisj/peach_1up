@@ -13,7 +13,7 @@ def test_migrations_idempotent_against_already_migrated_db(tmp_path, monkeypatch
     db_path = tmp_path / "test.db"
     engine = create_engine(f"sqlite:///{db_path}")
     # create_all() builds every table per the *current* model definitions, so
-    # the new users.identity_token_secret / session_token_hash /
+    # the new user_items.identity_token_secret / session_token_hash /
     # session_token_expires_at / session_token_ttl columns already exist —
     # exactly the "DB with the new columns already present" scenario.
     SQLModel.metadata.create_all(engine)
@@ -34,14 +34,14 @@ def test_migrations_add_missing_user_columns_to_legacy_db(tmp_path, monkeypatch)
 
     db_path = tmp_path / "legacy.db"
     engine = create_engine(f"sqlite:///{db_path}")
-    # Build every table in its current shape, then roll just `users` back to
+    # Build every table in its current shape, then roll just `user_items` back to
     # a pre-migration shape — simulates upgrading a real, populated DB where
-    # every other table is already current and only users lacks the new columns.
+    # every other table is already current and only user_items lacks the new columns.
     SQLModel.metadata.create_all(engine)
     with engine.connect() as conn:
-        conn.execute(text("DROP TABLE users"))
+        conn.execute(text("DROP TABLE user_items"))
         conn.execute(text(
-            "CREATE TABLE users ("
+            "CREATE TABLE user_items ("
             "id INTEGER PRIMARY KEY, name TEXT NOT NULL, is_owner BOOLEAN, "
             "pin_required BOOLEAN, can_launch_media BOOLEAN, can_edit_platforms BOOLEAN, "
             "can_edit_library BOOLEAN, can_manage_profiles BOOLEAN, can_edit_settings BOOLEAN, "
@@ -59,7 +59,7 @@ def test_migrations_add_missing_user_columns_to_legacy_db(tmp_path, monkeypatch)
 
     _apply_schema_migrations()
 
-    columns = {c["name"] for c in sa_inspect(engine).get_columns("users")}
+    columns = {c["name"] for c in sa_inspect(engine).get_columns("user_items")}
     assert "identity_token_secret" in columns
     assert "session_token_hash" in columns
     assert "session_token_expires_at" in columns

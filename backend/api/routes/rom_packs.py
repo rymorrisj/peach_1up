@@ -7,7 +7,7 @@ from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, require_permission
 from backend.models.pagination import Page
 from backend.models.rom_pack import RomPackItem, RomPackItemRead
-from backend.models.user import User
+from backend.models.user import UserItem
 from backend.service.utils.emulator_catalog import get_emulator, get_install_path, load_catalog
 from backend.service.utils.emulator_installer import record_rom_pack_item
 
@@ -46,7 +46,7 @@ def list_rom_packs(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _: User = Depends(get_active_user),
+    _: UserItem = Depends(get_active_user),
 ):
     entries = _rom_pack_catalog_entries()
     rows_by_slug = {r.slug: r for r in db.query(RomPackItem).all()}
@@ -56,7 +56,7 @@ def list_rom_packs(
 
 
 @router.get("/{slug}", response_model=RomPackItemRead)
-def get_rom_pack(slug: str, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+def get_rom_pack(slug: str, db: Session = Depends(get_db), _: UserItem = Depends(get_active_user)):
     try:
         entry = get_emulator(slug)
     except ValueError:
@@ -68,7 +68,7 @@ def get_rom_pack(slug: str, db: Session = Depends(get_db), _: User = Depends(get
 
 
 @router.post("/{slug}/verify", response_model=RomPackItemRead)
-def verify_rom_pack(slug: str, db: Session = Depends(get_db), _: User = require_permission("is_admin")):
+def verify_rom_pack(slug: str, db: Session = Depends(get_db), _: UserItem = require_permission("is_admin")):
     """Re-check on-disk presence and sync the owned rom_pack_items row.
 
     Does not perform the clone itself — that remains

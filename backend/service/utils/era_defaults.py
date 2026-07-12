@@ -19,9 +19,9 @@ def lookup_environment_and_profile(
     profile_era: str,
     db: Session,
 ) -> tuple[int | None, int | None]:
-    """Return (environment_id, profile_id) for the given emulator and era, querying system records only."""
+    """Return (environment_id, profile_item_id) for the given emulator and era, querying system records only."""
     from backend.models.environment import EnvironmentItem
-    from backend.models.profile import Profile
+    from backend.models.profile import ProfileItem
 
     platform = (
         db.query(EnvironmentItem)
@@ -29,8 +29,8 @@ def lookup_environment_and_profile(
         .first()
     )
     profile = (
-        db.query(Profile)
-        .filter(Profile.era == profile_era)
+        db.query(ProfileItem)
+        .filter(ProfileItem.era == profile_era)
         .first()
     )
     return (platform.id if platform else None, profile.id if profile else None)

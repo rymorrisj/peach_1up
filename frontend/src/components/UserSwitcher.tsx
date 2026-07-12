@@ -6,7 +6,7 @@ import { useAppContext } from "@/context/useAppContext";
 import { Button, Input } from "@/ui";
 import { cn } from "@/lib/utils";
 import type { components } from "@shared/types";
-type User = components["schemas"]["UserRead"];
+type User = components["schemas"]["UserItemRead"];
 
 interface SwitchResponse {
   user: User;
@@ -62,7 +62,7 @@ function PinModal({ user, onSuccess, onClose }: PinModalProps) {
     try {
       const resp = await apiFetch<SwitchResponse>("/api/v1/auth/switch", {
         method: "POST",
-        body: JSON.stringify({ user_id: user.id, pin }),
+        body: JSON.stringify({ user_item_id: user.id, pin }),
       });
       onSuccess(resp.user);
     } catch (err) {
@@ -163,7 +163,7 @@ export default function UserSwitcher() {
 
   const { data: users } = useQuery<User[]>({
     queryKey: ["users"],
-    queryFn: () => apiFetch<User[]>("/api/v1/users"),
+    queryFn: () => apiFetch<User[]>("/api/v1/user-items"),
     enabled: !!state.activeUser,
   });
 
@@ -185,7 +185,7 @@ export default function UserSwitcher() {
     // PIN-free non-owner — switch directly
     apiFetch<SwitchResponse>("/api/v1/auth/switch", {
       method: "POST",
-      body: JSON.stringify({ user_id: user.id, pin: "" }),
+      body: JSON.stringify({ user_item_id: user.id, pin: "" }),
     })
       .then(({ user: switched }) => {
         dispatch({ type: "SET_ACTIVE_USER", payload: switched });

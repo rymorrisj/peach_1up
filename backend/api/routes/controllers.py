@@ -10,13 +10,13 @@ from backend.models.controller_mapping import (
     ControllerMappingItemUpdate,
     mapping_to_read,
 )
-from backend.models.user import User
+from backend.models.user import UserItem
 from backend.service.utils.slug_generator import unique_slug
 
 router = APIRouter(prefix="/api/v1/controllers", tags=["controllers"])
 
 
-def check_controller_edit_permission(mapping: ControllerMappingItem, active_user: User) -> None:
+def check_controller_edit_permission(mapping: ControllerMappingItem, active_user: UserItem) -> None:
     """Bespoke compound-permission rule for editing an existing mapping.
 
     require_permission(flag) (dependencies.py:176) only supports "owner-bypass
@@ -43,8 +43,8 @@ def check_controller_edit_permission(mapping: ControllerMappingItem, active_user
 def require_controller_edit(
     request: Request,
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
-) -> User:
+    active_user: UserItem = Depends(get_active_user),
+) -> UserItem:
     """FastAPI dependency for PATCH/DELETE /controllers/{id}.
 
     Mirrors the request.path_params pattern used by require_self_or_admin.
@@ -60,13 +60,13 @@ def require_controller_edit(
 
 
 @router.get("", response_model=list[ControllerMappingItemRead])
-def list_mappings(db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+def list_mappings(db: Session = Depends(get_db), _: UserItem = Depends(get_active_user)):
     mappings = db.query(ControllerMappingItem).order_by(ControllerMappingItem.name).all()
     return [mapping_to_read(m, db) for m in mappings]
 
 
 @router.get("/{id}", response_model=ControllerMappingItemRead)
-def get_mapping(id: int, db: Session = Depends(get_db), _: User = Depends(get_active_user)):
+def get_mapping(id: int, db: Session = Depends(get_db), _: UserItem = Depends(get_active_user)):
     mapping = db.get(ControllerMappingItem, id)
     if not mapping:
         raise HTTPException(status_code=404, detail="Controller mapping not found.")
@@ -77,7 +77,7 @@ def get_mapping(id: int, db: Session = Depends(get_db), _: User = Depends(get_ac
 def create_mapping(
     body: ControllerMappingItemCreate,
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
     mapping = ControllerMappingItem(
         name=body.name,
@@ -100,7 +100,7 @@ def create_mapping(
 def duplicate_mapping(
     id: int,
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
     source = db.get(ControllerMappingItem, id)
     if not source:
@@ -128,7 +128,7 @@ def update_mapping(
     id: int,
     body: ControllerMappingItemUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_controller_edit),
+    _: UserItem = Depends(require_controller_edit),
 ):
     mapping = db.get(ControllerMappingItem, id)
     if not mapping:
@@ -145,7 +145,7 @@ def update_mapping(
 def delete_mapping(
     id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_controller_edit),
+    _: UserItem = Depends(require_controller_edit),
 ):
     mapping = db.get(ControllerMappingItem, id)
     if not mapping:
