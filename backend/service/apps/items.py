@@ -205,6 +205,14 @@ def delete_app_collection(collection_id: int, token: str, db: Session) -> None:
     if not collection:
         raise HTTPException(status_code=404, detail="App collection not found.")
 
+    # Remove the collection-owned drive row and its on-disk FAT16 image before
+    # deleting the collection, so the image file is never orphaned (the FK
+    # cascade only drops the DB row, not the file). Mirrors
+    # library/items.py::delete_library_collection. No-op for collections
+    # without a drive (the common case pre-DOS-era Apps).
+    from backend.service.utils.drive_utils import delete_drive_for_collection
+    delete_drive_for_collection(collection, db)
+
     if _should_delete_media(collection):
         _delete_leaf_media_folders(collection)
 

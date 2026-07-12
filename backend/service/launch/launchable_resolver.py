@@ -120,11 +120,11 @@ def resolve_launchable_app(
     Apps are always PC (item_type is fixed, not derived/stored) and always
     carry a non-null environment_id, so era is read off the linked
     Environment rather than the collection itself (see backend/models/app.py
-    for why era is not duplicated onto AppCollection). drive is always None
-    here: AppCollection.drive_id exists for schema parity with
-    SoftwareCollection, but Drive ownership (the FAT16 DOS write-path) is not
-    wired up for Apps this session — drive_hydration.hydrate_drive_for_entity
-    skips its auto-create branch for source_type == "app" accordingly.
+    for why era is not duplicated onto AppCollection). drive is resolved from
+    AppCollection.drive, the Drive row keyed by app_collection_id, mirroring
+    how resolve_launchable reads SoftwareCollection.drive (see
+    backend/models/drive.py for the exactly-one-of ownership rule enforced
+    on Drive).
 
     Raises ValueError if the collection, its Environment, or its launch item
     is not found, or if no launch item is configured.
@@ -167,7 +167,7 @@ def resolve_launchable_app(
         installed=c.installed,
         requires_install=c.requires_install,
         media_type=str(launch_item.file_type) if launch_item.file_type is not None else None,
-        drive=None,
+        drive=c.drive,
         disc_paths=[item.file_path for item in all_items],
         source_type="app",
         _db_collection=c,

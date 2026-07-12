@@ -11,6 +11,7 @@ from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_enti
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+    from backend.models.drive import Drive
 
 # ---------------------------------------------------------------------------
 # Leaf entity: AppItem (one file/part within an app collection). Mirrors
@@ -182,6 +183,14 @@ class AppCollection(SQLModel, table=True):
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
             "order_by": "AppItem.id",
+        },
+    )
+
+    drive: Optional["Drive"] = Relationship(
+        back_populates="app_collection",
+        sa_relationship_kwargs={
+            "foreign_keys": "Drive.app_collection_id",
+            "uselist": False,
         },
     )
 

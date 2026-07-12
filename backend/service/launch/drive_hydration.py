@@ -55,21 +55,27 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
 
     drive = entity.drive
 
-    # Auto-create a drive for DOS collections that don't have one yet. Apps
-    # are excluded (source_type == "app"): AppCollection.drive_id exists for
-    # schema parity with SoftwareCollection, but Drive ownership is not wired
-    # up for Apps this session -- entity.drive is always None for them (see
-    # launchable_resolver.resolve_launchable_app), and collection.launch_disk_id
-    # here would otherwise be looked up against the wrong table (SoftwareItem
-    # vs AppItem share no id space).
+    # Auto-create a drive for DOS collections/apps that don't have one yet.
+    # entity.era already resolves correctly for both source types (era column
+    # for Software, the linked Environment's era for Apps -- see
+    # launchable_resolver.resolve_launchable_app), so the DOS-era gate below
+    # is source-type-agnostic. Only the launch-leaf lookup differs, since
+    # SoftwareItem and AppItem are separate tables with non-overlapping id
+    # spaces -- collection.launch_disk_id must be resolved against whichever
+    # table entity.source_type actually points into.
     collection = entity._db_collection
     if (
         drive is None
         and entity.era in _DRIVE_ERAS
-        and entity.source_type == "software"
         and collection is not None
+        and collection.launch_disk_id
     ):
-        launch_leaf = db.get(SoftwareItem, collection.launch_disk_id) if collection.launch_disk_id else None
+        if entity.source_type == "app":
+            from backend.models.app import AppItem
+
+            launch_leaf = db.get(AppItem, collection.launch_disk_id)
+        else:
+            launch_leaf = db.get(SoftwareItem, collection.launch_disk_id)
         if launch_leaf is not None:
             drive = create_drive_for_collection(collection, launch_leaf, db)
 
