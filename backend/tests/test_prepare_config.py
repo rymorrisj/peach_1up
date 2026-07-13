@@ -31,9 +31,10 @@ _FAKE_PROFILE = {
 
 _CDROM_SECTION = "Floppy and CD-ROM drives"
 _CDROM_KEY = "cdrom_02_image_path"
+_GAME_CDROM_KEY = "cdrom_01_image_path"
 
 
-def _run(tmp_path: Path, monkeypatch, *, mbr: bool, iso: bool = False):
+def _run(tmp_path: Path, monkeypatch, *, mbr: bool, iso: bool = False, media_path: Path | None = None):
     """Set up a _prepare_config scenario and return (cfg_path, img_path, iso_path)."""
     import backend.service.backends.box86 as box86_mod
     monkeypatch.setattr(box86_mod, "get_86box_profile", lambda _: _FAKE_PROFILE)
@@ -65,6 +66,7 @@ def _run(tmp_path: Path, monkeypatch, *, mbr: bool, iso: bool = False):
         hardware_profile="standard",
         platform_name="test-platform",
         base_image_path=iso_path,
+        media_path=media_path,
     )
     return cfg, img, iso_path
 
@@ -142,3 +144,100 @@ class TestPrepareConfigCaseC:
             and parser.has_option(_CDROM_SECTION, _CDROM_KEY)
         )
         assert not has_cdrom
+
+
+# ---------------------------------------------------------------------------
+# Game/app media (cdrom_01) — independent of base_image_path/cdrom_02
+# ---------------------------------------------------------------------------
+
+class TestPrepareConfigGameMedia:
+    def test_iso_media_is_mounted_on_cdrom_01(self, tmp_path, monkeypatch):
+        media = tmp_path / "game.iso"
+        media.write_bytes(b"\x00" * 2048)
+        cfg, _, _ = _run(tmp_path, monkeypatch, mbr=True, media_path=media)
+        parser = _parse(cfg)
+        assert parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
+        expected = str(media.resolve()).replace("\\", "/")
+        assert parser.get(_CDROM_SECTION, _GAME_CDROM_KEY) == expected
+        assert parser.get(_CDROM_SECTION, "cdrom_01_parameters") == "1, atapi"
+        assert parser.get(_CDROM_SECTION, "cdrom_01_ide_channel") == "1:0"
+
+    def test_cue_media_is_mounted_on_cdrom_01(self, tmp_path, monkeypatch):
+        media = tmp_path / "game.cue"
+        media.write_bytes(b"")
+        cfg, _, _ = _run(tmp_path, monkeypatch, mbr=True, media_path=media)
+        parser = _parse(cfg)
+        assert parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
+
+    def test_no_media_path_writes_nothing_on_cdrom_01(self, tmp_path, monkeypatch):
+        cfg, _, _ = _run(tmp_path, monkeypatch, mbr=True, media_path=None)
+        parser = _parse(cfg)
+        has_cdrom_01 = (
+            parser.has_section(_CDROM_SECTION)
+            and parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
+        )
+        assert not has_cdrom_01
+
+    def test_non_disc_media_is_skipped(self, tmp_path, monkeypatch):
+        media = tmp_path / "install.exe"
+        media.write_bytes(b"")
+        cfg, _, _ = _run(tmp_path, monkeypatch, mbr=True, media_path=media)
+        parser = _parse(cfg)
+        has_cdrom_01 = (
+            parser.has_section(_CDROM_SECTION)
+            and parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
+        )
+        assert not has_cdrom_01
+
+    def test_directory_media_is_skipped(self, tmp_path, monkeypatch):
+        media = tmp_path / "loose_game_dir"
+        media.mkdir()
+        cfg, _, _ = _run(tmp_path, monkeypatch, mbr=True, media_path=media)
+        parser = _parse(cfg)
+        has_cdrom_01 = (
+            parser.has_section(_CDROM_SECTION)
+            and parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
+        )
+        assert not has_cdrom_01
+
+    def test_cdrom_01_cleared_when_switching_from_media_to_no_media(self, tmp_path, monkeypatch):
+        """A later launch of a different (or no) game must not inherit a
+        prior launch's cdrom_01 entry — same reset guarantee cdrom_02
+        already has for base_image_path."""
+        import backend.service.backends.box86 as box86_mod
+        monkeypatch.setattr(box86_mod, "get_86box_profile", lambda _: _FAKE_PROFILE)
+
+        media = tmp_path / "game.iso"
+        media.write_bytes(b"\x00" * 2048)
+        cfg, img, _ = _run(tmp_path, monkeypatch, mbr=True, media_path=media)
+        assert _parse(cfg).has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
+
+        rom_dir = tmp_path / "roms"
+        box86_mod._prepare_config(
+            working_image_path=img,
+            config_path=cfg,
+            rom_path=rom_dir,
+            hardware_profile="standard",
+            platform_name="test-platform",
+            base_image_path=None,
+            media_path=None,
+        )
+        parser = _parse(cfg)
+        has_cdrom_01 = (
+            parser.has_section(_CDROM_SECTION)
+            and parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
+        )
+        assert not has_cdrom_01
+
+    def test_game_media_coexists_with_base_image_on_cdrom_02(self, tmp_path, monkeypatch):
+        """cdrom_01 (game media) and cdrom_02 (base OS-install ISO) are
+        independent slots and can both be populated in the same launch."""
+        media = tmp_path / "game.iso"
+        media.write_bytes(b"\x00" * 2048)
+        cfg, _, iso_path = _run(tmp_path, monkeypatch, mbr=False, iso=True, media_path=media)
+        parser = _parse(cfg)
+        assert parser.has_option(_CDROM_SECTION, _GAME_CDROM_KEY)
+        assert parser.has_option(_CDROM_SECTION, _CDROM_KEY)
+        expected_base = str(iso_path.resolve()).replace("\\", "/")
+        assert parser.get(_CDROM_SECTION, _CDROM_KEY) == expected_base
+        assert parser.get(_CDROM_SECTION, "cdrom_01_ide_channel") != parser.get(_CDROM_SECTION, "cdrom_02_ide_channel")

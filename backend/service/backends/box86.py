@@ -54,6 +54,7 @@ def _prepare_config(
     hardware_profile: str,
     platform_name: str,
     base_image_path: Optional[Path],
+    media_path: Optional[Path] = None,
 ) -> None:
     """Patch all required 86Box config keys before every launch.
 
@@ -61,7 +62,10 @@ def _prepare_config(
     function manages, and writes back without BOM. All other sections and keys
     that 86Box has written are preserved unchanged.
 
-    Idempotent: calling twice with the same inputs produces the same file.
+    Idempotent: calling twice with the same inputs produces the same file —
+    still true after the cdrom_01 addition below, which clears/resets itself
+    on every call exactly like the pre-existing cdrom_02 block does, so a
+    launch of game/app B never inherits game/app A's media from a prior call.
 
     Args:
         working_image_path: Resolved path to the working disk image.
@@ -70,6 +74,16 @@ def _prepare_config(
         hardware_profile: Profile slug for machine/CPU/GPU selection.
         platform_name: Human-readable platform name for error messages.
         base_image_path: Optional path to a base ISO used for CD-ROM boot.
+            Mounted as cdrom_02 (secondary IDE slave, "0:1") — unrelated to
+            and untouched by the media_path handling below.
+        media_path: Optional path to the launching game/app's own disc media.
+            Mounted as cdrom_01 (secondary IDE master, "1:0" — distinct from
+            both hdd_01's "0:0" and cdrom_02's "0:1", which already occupy
+            the primary IDE channel) only when it resolves to an .iso/.cue
+            file. Any other file_type (directory, hdd, exe, rom, unknown, or
+            a console disc format like .bin/.chd/.gdi/.cdi — none of which
+            are PC-relevant in an 86Box config) is not disc media and is
+            skipped, not mounted.
 
     Raises:
         FileNotFoundError: If the config file or disk image does not exist.
@@ -147,6 +161,36 @@ def _prepare_config(
         if parser.has_section(cdrom_section) and parser.has_option(cdrom_section, "cdrom_02_image_path"):
             parser.remove_option(cdrom_section, "cdrom_02_image_path")
 
+    # Game/app media (distinct from base_image_path above, untouched) — mounted
+    # as cdrom_01 only for .iso/.cue, the only PC-relevant disc formats an
+    # 86Box config can use. Any other file_type (directory, hdd, exe, rom,
+    # unknown, or a console-only container like .bin/.chd/.gdi/.cdi) is not
+    # disc media for this backend and is skipped, not mounted.
+    media_is_iso = (
+        media_path is not None
+        and media_path.suffix.lower() in {".iso", ".cue"}
+        and media_path.exists()
+    )
+    if media_is_iso:
+        _ensure_section(parser, cdrom_section)
+        media_fwd = str(media_path.resolve()).replace("\\", "/")
+        parser.set(cdrom_section, "cdrom_01_image_path", media_fwd)
+        parser.set(cdrom_section, "cdrom_01_parameters", "1, atapi")
+        # Secondary IDE channel, master slot ("1:0") — deliberately NOT "0:1"
+        # (that would collide with cdrom_02 above) or "0:0" (collides with
+        # hdd_01). hdd_01 + cdrom_02 already occupy the entire primary IDE
+        # channel (0:0 / 0:1); the secondary channel is free.
+        parser.set(cdrom_section, "cdrom_01_ide_channel", "1:0")
+    else:
+        if parser.has_section(cdrom_section) and parser.has_option(cdrom_section, "cdrom_01_image_path"):
+            parser.remove_option(cdrom_section, "cdrom_01_image_path")
+        if media_path is not None:
+            logger.debug(
+                "Not mounting cdrom_01 for platform '%s': media_path '%s' is not an "
+                ".iso/.cue file.",
+                platform_name, media_path,
+            )
+
     _ensure_section(parser, "Paths")
     parser.set("Paths", "rompath", str(rom_path.resolve()))
 
@@ -203,26 +247,6 @@ def resolve_rom_path(box86_binary: Path) -> Path:
         f"Expected a versioned subdirectory at {expected_path}. "
         f"Download the 86Box ROM pack from: {rom_pack_url}"
     )
-
-
-def _inject_media(attachment: dict) -> None:
-    """Inject a media path into an 86Box config file atomically.
-
-    Args:
-        attachment: Dict from ``build_86box_attachment`` — must contain
-            ``config_path``, ``section``, ``key``, and ``value``.
-
-    Raises:
-        FileNotFoundError: If the config file does not exist.
-        OSError: If reading, writing, or the atomic rename fails.
-    """
-    config_path = Path(attachment["config_path"])
-    if not config_path.exists():
-        raise FileNotFoundError(
-            f"86Box config file not found: {config_path}. "
-            "Ensure the platform config_path is set correctly."
-        )
-    patch_ini(config_path, {attachment["section"]: {attachment["key"]: attachment["value"]}})
 
 
 def launch(spec: "LaunchSpec") -> tuple:
@@ -294,6 +318,17 @@ def launch(spec: "LaunchSpec") -> tuple:
 
     effective_rom_path = spec.resolved_rom_path or resolve_rom_path(Path(box86_path))
 
+    # The launching game/app's own media, distinct from base_image_path
+    # (the Environment's OS-install disc). spec.media_path is already the
+    # resolved launch disc (see _build_spec_for_entity /
+    # resolve_launchable[_app]); disc_paths[0] is only consulted as a
+    # fallback if media_path is unset but disc paths exist. None for a bare
+    # Environment launch (no game/app attached), which is the common case
+    # this backend also serves.
+    game_media_path = spec.media_path
+    if game_media_path is None and spec.disc_paths:
+        game_media_path = spec.disc_paths[0]
+
     _prepare_config(
         working_image_path=spec.working_image_path,
         config_path=spec.config_path,
@@ -301,6 +336,7 @@ def launch(spec: "LaunchSpec") -> tuple:
         hardware_profile=spec.hardware_profile,
         platform_name=spec.platform_name or "",
         base_image_path=spec.base_image_path,
+        media_path=game_media_path,
     )
 
     if spec.enable_networking:

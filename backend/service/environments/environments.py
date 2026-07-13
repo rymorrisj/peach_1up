@@ -155,22 +155,6 @@ def delete_environment_item(platform_id: int, token: str, db: Session) -> None:
     if not platform:
         raise HTTPException(status_code=404, detail="Environment not found.")
 
-    # AppItemBundle.environment_item_id is NOT NULL (ondelete="RESTRICT") -- an App
-    # without a verified Environment must never exist. GameItemBundle has
-    # no equivalent guard because its environment_item_id is nullable (ondelete
-    # SET NULL); Apps have no such fallback state, so the block must happen
-    # here rather than relying on the DB to reject the DELETE.
-    from backend.models.app import AppItemBundle
-    app_count = db.query(AppItemBundle).filter(AppItemBundle.environment_item_id == platform_id).count()
-    if app_count:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Environment is in use by {app_count} app(s) and cannot be deleted. "
-                "Delete or reassign those apps first."
-            ),
-        )
-
     # working_image_path is the app-managed working copy created at
     # registration/provisioning time (P2-4) — safe to remove. base_image_path
     # is the user's original source image and is never modified or deleted by

@@ -5,7 +5,9 @@ from fastapi import HTTPException
 from sqlalchemy import select as _select
 from sqlalchemy.orm import Session
 
-from backend.models.app import AppItemBundle, AppItemBundleCreate, AppItemBundleUpdate, AppItem, AppItemUpdate
+from backend.models.app import (
+    AppItemBundle, AppItemBundleCreate, AppItemBundleUpdate, AppItem, AppItemUpdate, derive_is_pc,
+)
 from backend.models.environment import EnvironmentItem
 from backend.service.utils.confirmation_tokens import consume as _consume
 from backend.service.utils.file_types import file_type_from_path
@@ -26,14 +28,31 @@ def _generate_app_slug(name: str, db: Session) -> str:
     )
 
 
+def _enforce_environment_binding(collection: AppItemBundle) -> None:
+    """Environment is strictly PC (doc 02 A5): console apps may never carry an
+    environment_item_id. Mirrors backend/service/games/items.py's
+    _enforce_environment_binding exactly.
+
+    PC apps may have a null environment_item_id at this point (backfilled
+    later / pre-launch-gated, same as PC Games); only the
+    console+non-null combination is rejected here.
+    """
+    if not collection.is_pc and collection.environment_item_id is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="Console apps cannot have an environment_item_id; Environment is strictly PC.",
+        )
+
+
 def create_app_item_bundle(body: AppItemBundleCreate, db: Session) -> AppItemBundle:
     """Create an App collection-of-one from a single file or folder path.
 
-    No era/smart-media detection runs here (unlike Software ingest) — Apps
-    have no era of their own to detect; the caller supplies environment_item_id
-    explicitly, and this is validated only for existence, not "health".
+    No smart-media era detection runs here (unlike Software ingest) — the
+    caller supplies era explicitly. environment_item_id is validated for
+    existence only when provided (required for PC apps, forbidden for
+    console apps — see _enforce_environment_binding).
     """
-    if not db.get(EnvironmentItem, body.environment_item_id):
+    if body.environment_item_id is not None and not db.get(EnvironmentItem, body.environment_item_id):
         raise HTTPException(status_code=404, detail="Environment not found.")
 
     try:
@@ -52,9 +71,11 @@ def create_app_item_bundle(body: AppItemBundleCreate, db: Session) -> AppItemBun
     collection = AppItemBundle(
         title=title,
         slug=slug,
+        era=body.era,
         environment_item_id=body.environment_item_id,
         profile_item_id=body.profile_item_id,
     )
+    _enforce_environment_binding(collection)
     db.add(collection)
     db.flush()
 
@@ -88,7 +109,7 @@ def update_app_item_bundle(collection_id: int, body: AppItemBundleUpdate, db: Se
         raise HTTPException(status_code=404, detail="App collection not found.")
 
     fields = body.model_dump(exclude_unset=True)
-    if "environment_item_id" in fields and not db.get(EnvironmentItem, fields["environment_item_id"]):
+    if fields.get("environment_item_id") is not None and not db.get(EnvironmentItem, fields["environment_item_id"]):
         raise HTTPException(status_code=404, detail="Environment not found.")
     for disk_field in ("display_disk_id", "launch_disk_id"):
         if fields.get(disk_field) is not None:
@@ -101,6 +122,12 @@ def update_app_item_bundle(collection_id: int, body: AppItemBundleUpdate, db: Se
                 raise HTTPException(status_code=422, detail="Item does not belong to this collection.")
     for key, value in fields.items():
         setattr(collection, key, value)
+    if "era" in fields:
+        # setattr bypasses AppItemBundle._validate_is_pc (no validate_assignment)
+        # — re-derive explicitly whenever era changes, mirrors
+        # update_library_collection's identical re-derivation for GameItemBundle.
+        collection.is_pc = derive_is_pc(collection.era)
+    _enforce_environment_binding(collection)
     db.commit()
     db.refresh(collection)
     return collection

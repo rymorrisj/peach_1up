@@ -3,9 +3,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from pydantic import model_validator
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy.orm import validates
 from sqlmodel import Field, Relationship, SQLModel
 
+from backend.constants import PC_ERAS
 from backend.constants_generated import EraValue, FileType
 from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_entity
 
@@ -95,22 +97,17 @@ class AppItemUpdate(SQLModel):
 
 
 # ---------------------------------------------------------------------------
-# Parent entity: AppItemBundle. Mirrors GameItemBundle deliberately (see
-# backend/models/game.py) but is always PC, there is no console case, no
-# era-driven launch fallback, and no item_type column. environment_item_id is
-# required and non-nullable: an App with no verified Environment is not a
-# creatable entity, unlike PC Games where environment_item_id may start null
-# and be backfilled later.
-#
-# era is deliberately NOT stored here. GameItemBundle stores era
-# redundantly alongside environment_item_id because console GameItemBundles
-# have no Environment to derive it from (era is the only source of truth for
-# those rows) and because item_type is validated against era on every write.
-# Neither condition applies to Apps: they are always PC, always carry a
-# non-null environment_item_id, and have no item_type. Storing era again here
-# would just be a second, independently-driftable copy of a value the linked
-# Environment already owns, derive it at read time instead (see
-# app_item_bundle_to_read/app_item_bundles_to_read_bulk below).
+# Parent entity: AppItemBundle. Mirrors GameItemBundle (see
+# backend/models/game.py): era is the source of truth, is_pc is
+# derived-and-validated from era on every write (same @validates +
+# model_post_init pattern as GameItemBundle.item_type, see
+# derive_is_pc/_validate_is_pc/model_post_init below), and
+# environment_item_id is nullable — required for PC apps, forbidden for
+# console apps, enforced in the service layer
+# (backend/service/apps/items.py::_enforce_environment_binding), same shape
+# as GameItemBundle's _enforce_environment_binding rule. Consoles can host
+# Apps (utility software, tools) exactly as they can host Games; there is no
+# PC-only restriction on this entity.
 #
 # content_rating is dropped rather than carried over. SECURITY.md's rationale
 # for MediaRestriction (manual per-user restriction, no automatic rating
@@ -123,6 +120,14 @@ class AppItemUpdate(SQLModel):
 # ---------------------------------------------------------------------------
 
 
+def derive_is_pc(era: EraValue) -> bool:
+    """era is the source of truth for is_pc: PC eras -> True, everything else -> False.
+
+    Mirrors backend/models/game.py's derive_item_type exactly, as a bool.
+    """
+    return era in PC_ERAS
+
+
 class AppItemBundle(SQLModel, table=True):
     __tablename__ = "app_item_bundles"
 
@@ -130,6 +135,13 @@ class AppItemBundle(SQLModel, table=True):
     slug: Optional[str] = Field(default=None, index=True, unique=True)
     title: str
     sort_title: Optional[str] = None
+    era: EraValue = Field(sa_column=Column(String, nullable=False))
+    # Derived-and-validated from era on write (see _validate_is_pc below);
+    # default=None only so construction can omit it before the validator
+    # fills it in, the stored column is NOT NULL. Mirrors
+    # GameItemBundle.item_type exactly, as a bool instead of a "pc"/"console"
+    # string since Apps have no other item_type consumer today.
+    is_pc: bool = Field(default=None, sa_column=Column(Boolean, nullable=False))
     category: Optional[str] = None
     description: Optional[str] = None
     publisher: Optional[str] = None
@@ -142,16 +154,13 @@ class AppItemBundle(SQLModel, table=True):
     # explicitly overrides it for this bundle only.
     delete_media_override: Optional[bool] = None
 
-    # Required, non-nullable: an App without a verified Environment is
-    # meaningless and must never exist in a creatable state (doc 02 A5's
-    # "environment required" backfill window does not apply here, there is
-    # no legacy Apps data to migrate). RESTRICT (not SET NULL, which would
-    # violate this column's NOT NULL constraint) so deleting an in-use
-    # Environment fails loudly at the DB layer; the service layer
-    # (environments.delete_platform) checks for referencing AppItemBundles
-    # up front and returns a clean 409 before that constraint is ever hit.
-    environment_item_id: int = Field(
-        sa_column=Column(Integer, ForeignKey("environment_items.id", ondelete="RESTRICT"), nullable=False)
+    # Nullable: required for PC apps, forbidden for console apps, enforced
+    # in the service layer (_enforce_environment_binding), same shape as
+    # GameItemBundle.environment_item_id. SET NULL (not RESTRICT) so
+    # deleting an in-use Environment behaves the same as it does for Games.
+    environment_item_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("environment_items.id", ondelete="SET NULL"), nullable=True),
     )
     profile_item_id: Optional[int] = Field(
         default=None,
@@ -194,17 +203,35 @@ class AppItemBundle(SQLModel, table=True):
         },
     )
 
+    @validates("is_pc")
+    def _validate_is_pc(self, key: str, value: Optional[bool]) -> Optional[bool]:
+        derived = derive_is_pc(self.era)
+        if value is not None and value != derived:
+            raise ValueError(
+                f"is_pc {value!r} conflicts with era {self.era!r} "
+                f"(era implies {derived!r}). is_pc is derived from era, not independently settable."
+            )
+        return value
+
+    def model_post_init(self, __context: object) -> None:
+        # Same double-write caveat as GameItemBundle.model_post_init (see
+        # backend/models/game.py) — is_pc can only be reliably derived here,
+        # not by returning a different value from _validate_is_pc above.
+        self.is_pc = derive_is_pc(self.era)
+
 
 class AppItemBundleCreate(SQLModel):
     title: str
     file_path: str
-    environment_item_id: int
+    era: EraValue = "unknown"
+    environment_item_id: Optional[int] = None
     profile_item_id: Optional[int] = None
 
 
 class AppItemBundleUpdate(SQLModel):
     title: Optional[str] = None
     sort_title: Optional[str] = None
+    era: Optional[EraValue] = None
     category: Optional[str] = None
     description: Optional[str] = None
     publisher: Optional[str] = None
@@ -219,23 +246,14 @@ class AppItemBundleUpdate(SQLModel):
     display_disk_id: Optional[int] = None
     launch_disk_id: Optional[int] = None
 
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_null_environment(cls, data: object) -> object:
-        # environment_item_id is NOT NULL at the DB level; reject an explicit
-        # null here with a clear 422 instead of letting it fall through to an
-        # IntegrityError. Omitting the field entirely (leaving it unset) is
-        # fine and simply means "no change."
-        if isinstance(data, dict) and "environment_item_id" in data and data["environment_item_id"] is None:
-            raise ValueError("environment_item_id cannot be cleared; every App requires an Environment.")
-        return data
-
 
 class AppItemBundleRead(SQLModel):
     id: int
     slug: Optional[str] = None
     title: str
     sort_title: Optional[str] = None
+    era: EraValue
+    is_pc: bool
     category: Optional[str] = None
     description: Optional[str] = None
     publisher: Optional[str] = None
@@ -245,7 +263,7 @@ class AppItemBundleRead(SQLModel):
     installed: bool = False
     requires_install: bool = False
     delete_media_override: Optional[bool] = None
-    environment_item_id: int
+    environment_item_id: Optional[int] = None
     profile_item_id: Optional[int] = None
     drive_id: Optional[int] = None
     launch_disk_id: Optional[int] = None
@@ -256,9 +274,6 @@ class AppItemBundleRead(SQLModel):
     updated_at: datetime
     items: list[AppItemRead] = []
     tags: list[TagRead] = []
-    # Derived from the linked Environment at read time, never stored (see the
-    # module docstring above the AppItemBundle class for the reasoning).
-    era: Optional[EraValue] = None
 
 
 # ---------------------------------------------------------------------------
@@ -302,22 +317,16 @@ def _leaf_to_read(leaf: AppItem) -> Optional[AppItemRead]:
             return None
 
 
-def _eras_for_environments(environment_ids: set[int], db: "Session") -> dict[int, EraValue]:
-    from backend.models.environment import EnvironmentItem
-
-    if not environment_ids:
-        return {}
-    rows = db.query(EnvironmentItem.id, EnvironmentItem.era).filter(EnvironmentItem.id.in_(environment_ids)).all()
-    return {row[0]: row[1] for row in rows}
-
-
 def app_item_bundle_to_read(c: "AppItemBundle", db: "Session") -> AppItemBundleRead:
-    """Build an AppItemBundleRead, nesting ordered leaves, tags, and the
-    Environment-derived era."""
+    """Build an AppItemBundleRead, nesting ordered leaves and tags.
+
+    era/is_pc come straight off the AppItemBundle row via model_validate
+    (see AppItemBundle.era/is_pc) — no Environment lookup needed, mirrors
+    GameItemBundleRead.
+    """
     read = AppItemBundleRead.model_validate(c)
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
     read.tags = get_tags_for_entity("app_item_bundle", c.id, db)
-    read.era = _eras_for_environments({c.environment_item_id}, db).get(c.environment_item_id)
     return read
 
 
@@ -343,13 +352,11 @@ def app_item_bundles_to_read_bulk(bundles: list["AppItemBundle"], db: "Session")
         leaves_by_bundle.setdefault(leaf.app_item_bundle_id, []).append(leaf_read)
 
     tag_map = get_tags_for_entities("app_item_bundle", bundle_ids, db)
-    era_map = _eras_for_environments({c.environment_item_id for c in bundles}, db)
 
     reads: list[AppItemBundleRead] = []
     for c in bundles:
         read = AppItemBundleRead.model_validate(c)
         read.items = leaves_by_bundle.get(c.id, [])
         read.tags = tag_map.get(c.id, [])
-        read.era = era_map.get(c.environment_item_id)
         reads.append(read)
     return reads

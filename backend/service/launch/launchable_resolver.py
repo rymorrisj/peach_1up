@@ -117,27 +117,23 @@ def resolve_launchable_app(
 ) -> LaunchableEntity:
     """Resolve an AppItemBundle into a LaunchableEntity via its launch item.
 
-    Apps are always PC (item_type is fixed, not derived/stored) and always
-    carry a non-null environment_item_id, so era is read off the linked
-    Environment rather than the collection itself (see backend/models/app.py
-    for why era is not duplicated onto AppItemBundle). drive is resolved from
-    AppItemBundle.drive, the Drive row keyed by app_item_bundle_id, mirroring
-    how resolve_launchable reads GameItemBundle.drive (see
-    backend/models/drive.py for the exactly-one-of ownership rule enforced
-    on Drive).
+    era and item_type (pc/console, derived from AppItemBundle.is_pc) are read
+    directly off the collection row, mirroring resolve_launchable
+    (GameItemBundle) exactly — not looked up via the linked Environment.
+    Environment existence for PC apps is validated at launch time by
+    _launch_entity's existing PC gate (coordinator.py), not here, same as
+    GameItemBundle. drive is resolved from AppItemBundle.drive, the Drive row
+    keyed by app_item_bundle_id, mirroring how resolve_launchable reads
+    GameItemBundle.drive (see backend/models/drive.py for the exactly-one-of
+    ownership rule enforced on Drive).
 
-    Raises ValueError if the collection, its Environment, or its launch item
-    is not found, or if no launch item is configured.
+    Raises ValueError if the collection or its launch item is not found.
     """
     from backend.models.app import AppItemBundle, AppItem
-    from backend.models.environment import EnvironmentItem
 
     c = db.get(AppItemBundle, app_item_bundle_id)
     if c is None:
         raise ValueError(f"AppItemBundle {app_item_bundle_id} not found")
-    environment = db.get(EnvironmentItem, c.environment_item_id)
-    if environment is None:
-        raise ValueError(f"AppItemBundle {app_item_bundle_id}: Environment {c.environment_item_id} not found")
     if not c.launch_disk_id:
         raise ValueError(f"AppItemBundle {app_item_bundle_id} has no launch item configured")
     launch_item = db.get(AppItem, c.launch_disk_id)
@@ -155,8 +151,8 @@ def resolve_launchable_app(
     return LaunchableEntity(
         collection_id=c.id,
         profile_item_id=c.profile_item_id,
-        era=environment.era,
-        item_type="pc",
+        era=c.era,
+        item_type="pc" if c.is_pc else "console",
         environment_item_id=c.environment_item_id,
         slug=c.slug,
         media_path=launch_item.file_path,
