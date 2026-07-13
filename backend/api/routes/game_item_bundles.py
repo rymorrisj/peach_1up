@@ -19,7 +19,6 @@ from backend.models.game import (
     GameItemBundleUpdate, GameItem, GameItemRead, GameItemReorder, GameItemUpdate,
     ScanStatus, game_item_bundle_to_read, game_item_bundles_to_read_bulk,
 )
-from backend.models.media_restriction import MediaRestriction
 from backend.models.pagination import Page
 from backend.models.user import UserItem
 from backend.service.games import items as lib_svc
@@ -56,10 +55,6 @@ def _enforce_rate_limit(bucket: str, request: Request, limit: int, window_second
             detail="Too many requests, please slow down.",
             headers={"Retry-After": str(int(retry_after) + 1)},
         )
-
-
-class RestrictionsBody(BaseModel):
-    user_item_ids: list[int]
 
 
 class ScanImportItem(BaseModel):
@@ -643,34 +638,6 @@ def delete_game_item_bundle(
     _: UserItem = require_permission("can_manage_game"),
 ):
     lib_svc.delete_library_collection(collection_id, confirmation_token, db)
-
-
-@router.get("/game-item-bundle/{collection_id}/restrictions")
-def get_restrictions(
-    collection_id: int,
-    db: Session = Depends(get_db),
-    _: UserItem = require_permission("is_admin"),
-):
-    if not db.get(GameItemBundle, collection_id):
-        raise HTTPException(status_code=404, detail="Software collection not found.")
-    rows = db.query(MediaRestriction).filter(MediaRestriction.game_item_bundle_id == collection_id).all()
-    return {"restricted_user_item_ids": [r.user_item_id for r in rows]}
-
-
-@router.put("/game-item-bundle/{collection_id}/restrictions")
-def set_restrictions(
-    collection_id: int,
-    body: RestrictionsBody,
-    db: Session = Depends(get_db),
-    _: UserItem = require_permission("is_admin"),
-):
-    if not db.get(GameItemBundle, collection_id):
-        raise HTTPException(status_code=404, detail="Software collection not found.")
-    db.query(MediaRestriction).filter(MediaRestriction.game_item_bundle_id == collection_id).delete()
-    for user_item_id in body.user_item_ids:
-        db.add(MediaRestriction(user_item_id=user_item_id, game_item_bundle_id=collection_id))
-    db.commit()
-    return {"restricted_user_item_ids": body.user_item_ids}
 
 
 @router.patch("/game-item-bundle/{collection_id}/items/reorder", response_model=GameItemBundleRead)

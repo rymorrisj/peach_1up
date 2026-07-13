@@ -1,14 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from backend.api.routes.game_item_bundles import RestrictionsBody
 from backend.core.database import get_db
 from backend.core.dependencies import get_active_user, get_filtered_app_item, get_filtered_app_items, require_permission
 from backend.models.app import (
     AppItemBundle, AppItemBundleCreate, AppItemBundleRead, AppItemBundleUpdate,
     AppItem, AppItemRead, AppItemUpdate, app_item_bundle_to_read, app_item_bundles_to_read_bulk,
 )
-from backend.models.media_restriction import MediaRestriction
 from backend.models.pagination import Page
 from backend.models.user import UserItem
 from backend.service.apps import items as app_svc
@@ -107,34 +105,6 @@ def delete_app_item_bundle(
     _: UserItem = require_permission("can_manage_app"),
 ):
     app_svc.delete_app_item_bundle(collection_id, confirmation_token, db)
-
-
-@router.get("/app-item-bundle/{collection_id}/restrictions")
-def get_app_restrictions(
-    collection_id: int,
-    db: Session = Depends(get_db),
-    _: UserItem = require_permission("is_admin"),
-):
-    if not db.get(AppItemBundle, collection_id):
-        raise HTTPException(status_code=404, detail="App collection not found.")
-    rows = db.query(MediaRestriction).filter(MediaRestriction.app_item_bundle_id == collection_id).all()
-    return {"restricted_user_item_ids": [r.user_item_id for r in rows]}
-
-
-@router.put("/app-item-bundle/{collection_id}/restrictions")
-def set_app_restrictions(
-    collection_id: int,
-    body: RestrictionsBody,
-    db: Session = Depends(get_db),
-    _: UserItem = require_permission("is_admin"),
-):
-    if not db.get(AppItemBundle, collection_id):
-        raise HTTPException(status_code=404, detail="App collection not found.")
-    db.query(MediaRestriction).filter(MediaRestriction.app_item_bundle_id == collection_id).delete()
-    for user_item_id in body.user_item_ids:
-        db.add(MediaRestriction(user_item_id=user_item_id, app_item_bundle_id=collection_id))
-    db.commit()
-    return {"restricted_user_item_ids": body.user_item_ids}
 
 
 # ---------------------------------------------------------------------------

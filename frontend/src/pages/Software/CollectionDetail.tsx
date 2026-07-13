@@ -114,7 +114,7 @@ export default function CollectionDetail() {
   }>({
     queryKey: ['restrictions', 'collection', collectionId],
     queryFn: () =>
-      apiFetch<{ restricted_user_item_ids: number[] }>(`/api/v1/game-item-bundle/${collectionId}/restrictions`),
+      apiFetch<{ restricted_user_item_ids: number[] }>(`/api/v1/restrictions/game/${collectionId}`),
     enabled: isAdminOrOwner && collectionId != null,
   })
 

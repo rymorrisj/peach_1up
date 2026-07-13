@@ -4,7 +4,6 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
-from backend.api.routes.game_item_bundles import RestrictionsBody
 from backend.core.database import get_db
 from backend.core.dependencies import (
     get_active_user, get_filtered_media_item, get_filtered_media_item_bundle,
@@ -17,7 +16,6 @@ from backend.models.media import (
     MediaLink, MediaLinkCreate, MediaLinkRead,
     media_item_bundle_to_read, media_item_bundle_to_read_bulk, item_to_read, items_to_read_bulk,
 )
-from backend.models.media_restriction import MediaRestriction
 from backend.models.pagination import Page
 from backend.models.game import GameItemBundle
 from backend.models.user import UserItem
@@ -150,34 +148,6 @@ def get_media_item_bundle(
     collection_id: int, db: Session = Depends(get_db), active_user: UserItem = Depends(get_active_user)
 ):
     return media_item_bundle_to_read(get_filtered_media_item_bundle(collection_id, active_user, db), db)
-
-
-@router.get("/media-item-bundle/{collection_id}/restrictions")
-def get_media_restrictions(
-    collection_id: int,
-    db: Session = Depends(get_db),
-    _: UserItem = require_permission("is_admin"),
-):
-    if not db.get(MediaItemBundle, collection_id):
-        raise HTTPException(status_code=404, detail="Media collection not found.")
-    rows = db.query(MediaRestriction).filter(MediaRestriction.media_item_bundle_id == collection_id).all()
-    return {"restricted_user_item_ids": [r.user_item_id for r in rows]}
-
-
-@router.put("/media-item-bundle/{collection_id}/restrictions")
-def set_media_restrictions(
-    collection_id: int,
-    body: RestrictionsBody,
-    db: Session = Depends(get_db),
-    _: UserItem = require_permission("is_admin"),
-):
-    if not db.get(MediaItemBundle, collection_id):
-        raise HTTPException(status_code=404, detail="Media collection not found.")
-    db.query(MediaRestriction).filter(MediaRestriction.media_item_bundle_id == collection_id).delete()
-    for user_item_id in body.user_item_ids:
-        db.add(MediaRestriction(user_item_id=user_item_id, media_item_bundle_id=collection_id))
-    db.commit()
-    return {"restricted_user_item_ids": body.user_item_ids}
 
 
 @router.patch("/media-item-bundle/{collection_id}", response_model=MediaItemBundleRead)

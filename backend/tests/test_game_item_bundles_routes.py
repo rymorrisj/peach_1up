@@ -5,7 +5,6 @@ Per dev_docs/v2/09_test_coverage.md item 3 — the largest untested route file
 /confirm-delete and DELETE were exercised (test_upload.py). This file covers
 the route's other untested surfaces:
 
-    - GET/PUT .../restrictions (is_admin gate)
     - POST /software/import-from-path (can_manage_game gate)
     - POST /software/scan/import (can_manage_game gate)
     - PATCH .../items/reorder (can_manage_game gate)
@@ -116,83 +115,6 @@ class _FakeSettings:
 
     def get(self, key, default=None):
         return self._extra.get(key, default)
-
-
-# ---------------------------------------------------------------------------
-# GET/PUT .../restrictions — is_admin gate
-# ---------------------------------------------------------------------------
-
-
-class TestRestrictionsEndpoint:
-    def test_non_admin_gets_403_on_get(self, http_client):
-        c, db, app = http_client
-        collection = _make_collection(db)
-        non_admin = _make_user(db, can_manage_game=True, is_admin=False)
-        _set_active_user(app, non_admin)
-
-        resp = c.get(f"/api/v1/game-item-bundle/{collection.id}/restrictions")
-        assert resp.status_code == 403, resp.text
-
-    def test_admin_gets_restriction_list(self, http_client):
-        from backend.models.media_restriction import MediaRestriction
-
-        c, db, app = http_client
-        collection = _make_collection(db)
-        restricted_user = _make_user(db, name="Kid")
-        db.add(MediaRestriction(user_item_id=restricted_user.id, game_item_bundle_id=collection.id))
-        db.commit()
-        admin = _make_user(db, name="Admin", is_admin=True)
-        _set_active_user(app, admin)
-
-        resp = c.get(f"/api/v1/game-item-bundle/{collection.id}/restrictions")
-        assert resp.status_code == 200, resp.text
-        assert resp.json() == {"restricted_user_item_ids": [restricted_user.id]}
-
-    def test_non_admin_gets_403_on_put(self, http_client):
-        c, db, app = http_client
-        collection = _make_collection(db)
-        non_admin = _make_user(db, can_manage_game=True, is_admin=False)
-        _set_active_user(app, non_admin)
-
-        resp = c.put(
-            f"/api/v1/game-item-bundle/{collection.id}/restrictions",
-            json={"user_item_ids": [non_admin.id]},
-        )
-        assert resp.status_code == 403, resp.text
-
-    def test_admin_put_delete_then_reinsert_persists(self, http_client):
-        """set_restrictions deletes all existing rows for the collection then
-        reinserts the new list — confirm a second PUT with a different set
-        actually replaces (not merges with) the first."""
-        from backend.models.media_restriction import MediaRestriction
-
-        c, db, app = http_client
-        collection = _make_collection(db)
-        user_a = _make_user(db, name="A")
-        user_b = _make_user(db, name="B")
-        admin = _make_user(db, name="Admin", is_admin=True)
-        _set_active_user(app, admin)
-
-        first = c.put(
-            f"/api/v1/game-item-bundle/{collection.id}/restrictions",
-            json={"user_item_ids": [user_a.id]},
-        )
-        assert first.status_code == 200, first.text
-        assert first.json() == {"restricted_user_item_ids": [user_a.id]}
-
-        second = c.put(
-            f"/api/v1/game-item-bundle/{collection.id}/restrictions",
-            json={"user_item_ids": [user_b.id]},
-        )
-        assert second.status_code == 200, second.text
-        assert second.json() == {"restricted_user_item_ids": [user_b.id]}
-
-        db.expire_all()
-        rows = db.query(MediaRestriction).filter(
-            MediaRestriction.game_item_bundle_id == collection.id
-        ).all()
-        persisted_ids = {r.user_item_id for r in rows}
-        assert persisted_ids == {user_b.id}
 
 
 # ---------------------------------------------------------------------------
