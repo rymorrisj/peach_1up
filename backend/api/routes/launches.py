@@ -4,10 +4,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user, get_filtered_game_item_bundle, require_permission
+from backend.core.dependencies import (
+    get_active_user, get_filtered_app_item, get_filtered_game_item_bundle, require_permission,
+)
 from backend.core.logger import get_logger
 from backend.models import EnvironmentItem, LaunchHistory
-from backend.models.app import AppItemBundle
 from backend.models.launch_history import LaunchHistoryRead
 from backend.models.user import UserItem
 from backend.service.launch import coordinator as svc
@@ -50,14 +51,11 @@ async def launch_app_collection(
     db: Session = Depends(get_db),
     active_user: UserItem = require_permission("can_launch_media"),
 ):
-    # No restriction/rating filter here: App restriction logic (mirroring
-    # get_filtered_game_item_bundle for Software) is explicitly out of scope this
-    # session -- Apps have no content_rating concept to filter on (doc
-    # backend/models/app.py). Existence is still checked directly (404, not
-    # a bare 500) before ever reaching the coordinator.
-    if not db.get(AppItemBundle, collection_id):
-        raise HTTPException(status_code=404, detail="App collection not found.")
-    result = await svc.launch_app_collection(collection_id, body.profile_item_id, db)
+    # get_filtered_app_item enforces the caller's manual-blocklist restriction and 404s
+    # otherwise. No rating/ceiling filter — Apps have no content_rating concept
+    # (backend/models/app.py).
+    collection = get_filtered_app_item(collection_id, active_user, db)
+    result = await svc.launch_app_collection(collection.id, body.profile_item_id, db)
     return LaunchResponse(
         launch_history_id=result.history_id,
         warnings=result.warnings,

@@ -4,8 +4,12 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
+from backend.api.routes.game_item_bundles import RestrictionsBody
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user, require_permission
+from backend.core.dependencies import (
+    get_active_user, get_filtered_media_item, get_filtered_media_item_bundle,
+    get_filtered_media_item_bundles, get_filtered_media_items, require_permission,
+)
 from backend.core.logger import get_logger
 from backend.models.media import (
     MediaItemBundle, MediaItemBundleCreate, MediaItemBundleRead, MediaItemBundleUpdate,
@@ -13,6 +17,7 @@ from backend.models.media import (
     MediaLink, MediaLinkCreate, MediaLinkRead,
     media_item_bundle_to_read, media_item_bundle_to_read_bulk, item_to_read, items_to_read_bulk,
 )
+from backend.models.media_restriction import MediaRestriction
 from backend.models.pagination import Page
 from backend.models.game import GameItemBundle
 from backend.models.user import UserItem
@@ -45,9 +50,9 @@ def list_media_items(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _: UserItem = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
-    q = db.query(MediaItem).order_by(MediaItem.id)
+    q = get_filtered_media_items(active_user, db).order_by(MediaItem.id)
     total = q.count()
     rows = q.offset(offset).limit(limit).all()
     return Page(items=items_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
@@ -72,11 +77,10 @@ def create_media_item(
 
 
 @router.get("/media-item/{item_id}", response_model=MediaItemRead)
-def get_media_item(item_id: int, db: Session = Depends(get_db), _: UserItem = Depends(get_active_user)):
-    item = db.get(MediaItem, item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Media item not found.")
-    return item_to_read(item, db)
+def get_media_item(
+    item_id: int, db: Session = Depends(get_db), active_user: UserItem = Depends(get_active_user)
+):
+    return item_to_read(get_filtered_media_item(item_id, active_user, db), db)
 
 
 @router.patch("/media-item/{item_id}", response_model=MediaItemRead)
@@ -133,9 +137,9 @@ def list_media_item_bundles(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _: UserItem = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
-    q = db.query(MediaItemBundle).order_by(MediaItemBundle.id)
+    q = get_filtered_media_item_bundles(active_user, db).order_by(MediaItemBundle.id)
     total = q.count()
     rows = q.offset(offset).limit(limit).all()
     return Page(items=media_item_bundle_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
@@ -143,12 +147,37 @@ def list_media_item_bundles(
 
 @router.get("/media-item-bundle/{collection_id}", response_model=MediaItemBundleRead)
 def get_media_item_bundle(
-    collection_id: int, db: Session = Depends(get_db), _: UserItem = Depends(get_active_user)
+    collection_id: int, db: Session = Depends(get_db), active_user: UserItem = Depends(get_active_user)
 ):
-    collection = db.get(MediaItemBundle, collection_id)
-    if not collection:
+    return media_item_bundle_to_read(get_filtered_media_item_bundle(collection_id, active_user, db), db)
+
+
+@router.get("/media-item-bundle/{collection_id}/restrictions")
+def get_media_restrictions(
+    collection_id: int,
+    db: Session = Depends(get_db),
+    _: UserItem = require_permission("is_admin"),
+):
+    if not db.get(MediaItemBundle, collection_id):
         raise HTTPException(status_code=404, detail="Media collection not found.")
-    return media_item_bundle_to_read(collection, db)
+    rows = db.query(MediaRestriction).filter(MediaRestriction.media_item_bundle_id == collection_id).all()
+    return {"restricted_user_item_ids": [r.user_item_id for r in rows]}
+
+
+@router.put("/media-item-bundle/{collection_id}/restrictions")
+def set_media_restrictions(
+    collection_id: int,
+    body: RestrictionsBody,
+    db: Session = Depends(get_db),
+    _: UserItem = require_permission("is_admin"),
+):
+    if not db.get(MediaItemBundle, collection_id):
+        raise HTTPException(status_code=404, detail="Media collection not found.")
+    db.query(MediaRestriction).filter(MediaRestriction.media_item_bundle_id == collection_id).delete()
+    for user_item_id in body.user_item_ids:
+        db.add(MediaRestriction(user_item_id=user_item_id, media_item_bundle_id=collection_id))
+    db.commit()
+    return {"restricted_user_item_ids": body.user_item_ids}
 
 
 @router.patch("/media-item-bundle/{collection_id}", response_model=MediaItemBundleRead)

@@ -8,7 +8,9 @@ from backend.constants_generated import CONTENT_RATINGS
 from backend.core.database import get_db
 from backend.core.identity import parse_session_cookie, validate_session
 from backend.core.logger import get_logger
+from backend.models.app import AppItemBundle
 from backend.models.game import GameItemBundle
+from backend.models.media import MediaItem, MediaItemBundle
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import UserItem
 
@@ -195,6 +197,30 @@ def require_permission(flag: str):
     return Depends(_check)
 
 
+def _restricted_bundle_ids(restriction_column, active_user: UserItem, db: Session):
+    """Subquery of *_item_bundle ids MediaRestriction blocklists for *active_user*.
+
+    Shared membership check behind every domain's (Game/Media/App) filtered-query
+    helper, parameterized only by which MediaRestriction FK column to key off
+    (e.g. ``MediaRestriction.game_item_bundle_id``). Owner bypass is each caller's
+    responsibility, checked before this is ever invoked.
+
+    The ``restriction_column.isnot(None)`` guard is required, not defensive
+    boilerplate: MediaRestriction is one shared table for all three domains, so a
+    user's rows include NULLs in this column whenever they also have a
+    restriction targeting a *different* domain (e.g. filtering on
+    media_item_bundle_id while the same user also has a Game restriction row,
+    which leaves media_item_bundle_id NULL on that row). SQL's ``NOT IN``
+    against a list containing NULL evaluates to UNKNOWN for every row, not
+    TRUE — so without this filter, one cross-domain restriction row would
+    silently blank out this user's entire query for every other domain.
+    """
+    return db.query(restriction_column).filter(
+        MediaRestriction.user_item_id == active_user.id,
+        restriction_column.isnot(None),
+    ).scalar_subquery()
+
+
 def get_filtered_game_item_bundles(active_user: UserItem, db: Session):
     """Return a GameItemBundle query filtered to what *active_user* may see.
 
@@ -215,9 +241,7 @@ def get_filtered_game_item_bundles(active_user: UserItem, db: Session):
     if active_user.is_owner:
         return q
 
-    restricted_ids = db.query(MediaRestriction.game_item_bundle_id).filter(
-        MediaRestriction.user_item_id == active_user.id
-    ).scalar_subquery()
+    restricted_ids = _restricted_bundle_ids(MediaRestriction.game_item_bundle_id, active_user, db)
     q = q.filter(GameItemBundle.id.not_in(restricted_ids))
 
     if active_user.block_unrated_media:
@@ -260,3 +284,118 @@ def get_filtered_game_item_bundle(id_or_slug: int | str, active_user: UserItem, 
     if collection is None:
         raise HTTPException(status_code=404, detail="Software collection not found.")
     return collection
+
+
+# ---------------------------------------------------------------------------
+# App: mirrors Game exactly, manual blocklist only, no content_rating concept
+# (AppItemBundle has no such column — see backend/models/app.py). The
+# "/app-items" list route already returns AppItemBundle rows (same shape as
+# Game's "/game-items"), so get_filtered_app_items/_app_item follow that same
+# naming, despite the function bodies operating on AppItemBundle, not AppItem.
+# ---------------------------------------------------------------------------
+
+
+def get_filtered_app_items(active_user: UserItem, db: Session):
+    """Return an AppItemBundle query filtered to what *active_user* may see.
+
+    Owner sees all collections. Manual blocklist only (MediaRestriction) — Apps have
+    no content_rating/max_content_rating concept to filter on.
+    """
+    q = db.query(AppItemBundle)
+    if active_user.is_owner:
+        return q
+    restricted_ids = _restricted_bundle_ids(MediaRestriction.app_item_bundle_id, active_user, db)
+    return q.filter(AppItemBundle.id.not_in(restricted_ids))
+
+
+def get_filtered_app_item(id_or_slug: int | str, active_user: UserItem, db: Session) -> AppItemBundle:
+    """Return a single AppItemBundle if *active_user* is allowed to see it.
+
+    Raises 404 whether the collection doesn't exist or is filtered out, so
+    existence isn't leaked to callers who shouldn't see it.
+    """
+    q = get_filtered_app_items(active_user, db)
+    if isinstance(id_or_slug, int):
+        q = q.filter(AppItemBundle.id == id_or_slug)
+    else:
+        q = q.filter(AppItemBundle.slug == id_or_slug)
+    collection = q.first()
+    if collection is None:
+        raise HTTPException(status_code=404, detail="App collection not found.")
+    return collection
+
+
+# ---------------------------------------------------------------------------
+# Media: restriction is scoped to MediaItemBundle (mirrors Game/App), but
+# unlike Game/App, individual MediaItem rows can stand alone with no parent
+# bundle (media_item_bundle_id is nullable). Media also exposes its own
+# top-level "/media-items" list + "/media-item/{id}" detail routes for that
+# leaf entity — Game/App leaves have no such bulk route, so there was no
+# equivalent naming slot for them. get_filtered_media_item_bundles/_bundle
+# below is the direct Game/App mirror (bundle-level, used by
+# "/media-item-bundles" + "/media-item-bundle/{id}"); get_filtered_media_items/
+# _media_item is the leaf-level pair (used by "/media-items" +
+# "/media-item/{id}"), null-safe for standalone items.
+# ---------------------------------------------------------------------------
+
+
+def get_filtered_media_item_bundles(active_user: UserItem, db: Session):
+    """Return a MediaItemBundle query filtered to what *active_user* may see.
+
+    Owner sees all collections. Manual blocklist only — Media has no
+    content_rating/max_content_rating concept to filter on.
+    """
+    q = db.query(MediaItemBundle)
+    if active_user.is_owner:
+        return q
+    restricted_ids = _restricted_bundle_ids(MediaRestriction.media_item_bundle_id, active_user, db)
+    return q.filter(MediaItemBundle.id.not_in(restricted_ids))
+
+
+def get_filtered_media_item_bundle(id_or_slug: int | str, active_user: UserItem, db: Session) -> MediaItemBundle:
+    """Return a single MediaItemBundle if *active_user* is allowed to see it.
+
+    Raises 404 whether the collection doesn't exist or is filtered out, so
+    existence isn't leaked to callers who shouldn't see it.
+    """
+    q = get_filtered_media_item_bundles(active_user, db)
+    if isinstance(id_or_slug, int):
+        q = q.filter(MediaItemBundle.id == id_or_slug)
+    else:
+        q = q.filter(MediaItemBundle.slug == id_or_slug)
+    item = q.first()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Media collection not found.")
+    return item
+
+
+def get_filtered_media_items(active_user: UserItem, db: Session):
+    """Return a MediaItem query filtered to what *active_user* may see.
+
+    Owner sees all items. Non-owners: items with no parent bundle
+    (media_item_bundle_id is None) always pass through, since there is no
+    bundle-level restriction to check for them. Items belonging to a
+    restricted MediaItemBundle are excluded.
+    """
+    q = db.query(MediaItem)
+    if active_user.is_owner:
+        return q
+    restricted_ids = _restricted_bundle_ids(MediaRestriction.media_item_bundle_id, active_user, db)
+    return q.filter(
+        or_(
+            MediaItem.media_item_bundle_id.is_(None),
+            MediaItem.media_item_bundle_id.not_in(restricted_ids),
+        )
+    )
+
+
+def get_filtered_media_item(item_id: int, active_user: UserItem, db: Session) -> MediaItem:
+    """Return a single MediaItem if *active_user* is allowed to see it.
+
+    Raises 404 whether the item doesn't exist or is filtered out, so
+    existence isn't leaked to callers who shouldn't see it.
+    """
+    item = get_filtered_media_items(active_user, db).filter(MediaItem.id == item_id).first()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Media item not found.")
+    return item

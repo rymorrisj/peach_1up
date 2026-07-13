@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from backend.api.routes.game_item_bundles import RestrictionsBody
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user, require_permission
+from backend.core.dependencies import get_active_user, get_filtered_app_item, get_filtered_app_items, require_permission
 from backend.models.app import (
     AppItemBundle, AppItemBundleCreate, AppItemBundleRead, AppItemBundleUpdate,
     AppItem, AppItemRead, AppItemUpdate, app_item_bundle_to_read, app_item_bundles_to_read_bulk,
 )
+from backend.models.media_restriction import MediaRestriction
 from backend.models.pagination import Page
 from backend.models.user import UserItem
 from backend.service.apps import items as app_svc
@@ -31,7 +33,7 @@ def list_apps(
     db: Session = Depends(get_db),
     active_user: UserItem = Depends(get_active_user),
 ):
-    q = db.query(AppItemBundle)
+    q = get_filtered_app_items(active_user, db)
     if environment_item_id is not None:
         q = q.filter(AppItemBundle.environment_item_id == environment_item_id)
     if category:
@@ -69,12 +71,9 @@ def create_app_item_bundle(
 def get_app_item_bundle(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: UserItem = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
-    collection = db.get(AppItemBundle, collection_id)
-    if not collection:
-        raise HTTPException(status_code=404, detail="App collection not found.")
-    return app_item_bundle_to_read(collection, db)
+    return app_item_bundle_to_read(get_filtered_app_item(collection_id, active_user, db), db)
 
 
 @router.patch("/app-item-bundle/{collection_id}", response_model=AppItemBundleRead)
@@ -110,15 +109,46 @@ def delete_app_item_bundle(
     app_svc.delete_app_item_bundle(collection_id, confirmation_token, db)
 
 
+@router.get("/app-item-bundle/{collection_id}/restrictions")
+def get_app_restrictions(
+    collection_id: int,
+    db: Session = Depends(get_db),
+    _: UserItem = require_permission("is_admin"),
+):
+    if not db.get(AppItemBundle, collection_id):
+        raise HTTPException(status_code=404, detail="App collection not found.")
+    rows = db.query(MediaRestriction).filter(MediaRestriction.app_item_bundle_id == collection_id).all()
+    return {"restricted_user_item_ids": [r.user_item_id for r in rows]}
+
+
+@router.put("/app-item-bundle/{collection_id}/restrictions")
+def set_app_restrictions(
+    collection_id: int,
+    body: RestrictionsBody,
+    db: Session = Depends(get_db),
+    _: UserItem = require_permission("is_admin"),
+):
+    if not db.get(AppItemBundle, collection_id):
+        raise HTTPException(status_code=404, detail="App collection not found.")
+    db.query(MediaRestriction).filter(MediaRestriction.app_item_bundle_id == collection_id).delete()
+    for user_item_id in body.user_item_ids:
+        db.add(MediaRestriction(user_item_id=user_item_id, app_item_bundle_id=collection_id))
+    db.commit()
+    return {"restricted_user_item_ids": body.user_item_ids}
+
+
 # ---------------------------------------------------------------------------
 # Single-item read / update
 # ---------------------------------------------------------------------------
 
 
-def _visible_leaf(leaf_id: int, db: Session) -> AppItem:
+def _visible_leaf(leaf_id: int, active_user: UserItem, db: Session) -> AppItem:
+    """Return a leaf whose parent bundle the caller is allowed to see, else 404."""
     leaf = db.get(AppItem, leaf_id)
     if leaf is None:
         raise HTTPException(status_code=404, detail="App item not found.")
+    # Enforces the caller's restriction filter on the owning bundle.
+    get_filtered_app_item(leaf.app_item_bundle_id, active_user, db)
     return leaf
 
 
@@ -126,9 +156,9 @@ def _visible_leaf(leaf_id: int, db: Session) -> AppItem:
 def get_app_item(
     leaf_id: int,
     db: Session = Depends(get_db),
-    _: UserItem = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
-    return AppItemRead.model_validate(_visible_leaf(leaf_id, db))
+    return AppItemRead.model_validate(_visible_leaf(leaf_id, active_user, db))
 
 
 @router.patch("/app-item/{leaf_id}", response_model=AppItemRead)
