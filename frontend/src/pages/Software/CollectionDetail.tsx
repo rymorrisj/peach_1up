@@ -33,7 +33,7 @@ function formFromCollection(c: GameItemBundleData): EditFormFields {
     publisher: c.publisher ?? '',
     year: c.year?.toString() ?? '',
     category: c.category ?? '',
-    cover_art_path: '',
+    cover_art_path: launchDisc?.cover_art_path ?? '',
     content_rating: c.content_rating ?? '',
     era: c.era && c.era !== 'unknown' ? c.era : '',
     environment_id: c.environment_id?.toString() ?? '',
@@ -209,7 +209,10 @@ export default function CollectionDetail() {
       if (launchDiscId != null && collectionId != null) {
         await apiFetch(`/api/v1/game-item-bundle/${collectionId}/items/${launchDiscId}`, {
           method: 'PATCH',
-          body: JSON.stringify({ executable_path: f.executable_path.trim() || null }),
+          body: JSON.stringify({
+            executable_path: f.executable_path.trim() || null,
+            cover_art_path: f.cover_art_path.trim() || null,
+          }),
         })
       }
 

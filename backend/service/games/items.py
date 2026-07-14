@@ -951,7 +951,7 @@ def update_library_collection(
 
 
 _PATH_FIELDS = {"executable_path", "cover_art_path"}
-_EXISTENCE_FIELDS = {"executable_path"}
+_EXISTENCE_FIELDS = {"executable_path", "cover_art_path"}
 
 
 def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, db: Session) -> GameItem:

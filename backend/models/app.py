@@ -84,8 +84,10 @@ class AppItemRead(SQLModel):
             from backend.service.utils import settings as _s
 
             lib_root = Path(_s.get("LIBRARY_PATH"))
-            rel = Path(self.cover_art_path).resolve().relative_to(lib_root.resolve())
-            self.cover_art_url = "/media/" + rel.as_posix()
+            resolved = Path(self.cover_art_path).resolve()
+            rel = resolved.relative_to(lib_root.resolve())
+            if resolved.exists():
+                self.cover_art_url = "/media/" + rel.as_posix()
         except ValueError:
             pass
         return self

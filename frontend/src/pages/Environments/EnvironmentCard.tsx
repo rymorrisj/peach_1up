@@ -169,7 +169,7 @@ export default function EnvironmentCard({
         </p>
       )}
 
-      <LaunchHistory targetId={platform.id} targetType="environment" />
+      <LaunchHistory targetId={platform.id} targetType="environment_item" />
     </div>
   )
 }

@@ -80,7 +80,10 @@ def _compute_cover_art_url(cover_art_path: Optional[str]) -> Optional[str]:
         from backend.service.utils import settings as _s
 
         lib_root = Path(_s.get("LIBRARY_PATH"))
-        rel = Path(cover_art_path).resolve().relative_to(lib_root.resolve())
+        resolved = Path(cover_art_path).resolve()
+        rel = resolved.relative_to(lib_root.resolve())
+        if not resolved.exists():
+            return None
         return "/media/" + rel.as_posix()
     except ValueError:
         return None
