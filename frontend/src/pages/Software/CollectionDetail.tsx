@@ -285,6 +285,9 @@ export default function CollectionDetail() {
       queryClient.invalidateQueries({ queryKey: ['library'] })
     },
   })
+  const deleteMediaOverrideError = deleteMediaOverrideMutation.isError
+    ? (deleteMediaOverrideMutation.error instanceof ApiError ? deleteMediaOverrideMutation.error.detail : 'Failed to update.')
+    : null
 
   const {
     confirm: confirmDelete,
@@ -471,6 +474,9 @@ export default function CollectionDetail() {
             />
             Delete all files/folders when you delete this in Peach 1UP?
           </label>
+          {deleteMediaOverrideError && (
+            <p role="alert" className="text-xs text-red-600 dark:text-red-400">{deleteMediaOverrideError}</p>
+          )}
           <Button
             variant="destructive"
             size="sm"
