@@ -12,13 +12,15 @@ interface FormFieldProps {
 export function FormField({ label, htmlFor, error, hint, required, children }: FormFieldProps) {
   return (
     <div>
-      <label
-        htmlFor={htmlFor}
-        className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300"
-      >
-        {label}
+      <div className="mb-1 flex items-center">
+        <label
+          htmlFor={htmlFor}
+          className="block text-sm font-medium text-neutral-700 dark:text-neutral-300"
+        >
+          {label}
+        </label>
         {required && <span aria-hidden="true" className="ml-1 text-error">*</span>}
-      </label>
+      </div>
       {children}
       {hint && !error && (
         <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">{hint}</p>

@@ -28,7 +28,7 @@ export function AdvancedSection({
         className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300"
       >
         <span>Advanced</span>
-        <span>{advancedOpen ? '▲' : '▼'}</span>
+        <span aria-hidden="true">{advancedOpen ? '▲' : '▼'}</span>
       </button>
 
       {advancedOpen && (
