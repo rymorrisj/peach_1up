@@ -1,10 +1,6 @@
-import EmptyState from '@/components/common/EmptyState'
+import { EntityListPage } from './templates/EntityListPage'
+import { appDomainConfig } from './configs/appConfig'
 
-// Pure placeholder — no model, no list/detail behavior (dev_docs/v2/08, decision 8).
 export default function Apps() {
-  return (
-    <div className="p-6">
-      <EmptyState heading="Apps" subtext="Coming soon." />
-    </div>
-  )
+  return <EntityListPage config={appDomainConfig} />
 }

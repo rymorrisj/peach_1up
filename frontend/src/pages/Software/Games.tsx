@@ -14,15 +14,7 @@ import { AddMediaModal } from './components/AddMediaModal'
 import { ScanModal } from './components/ScanModal'
 import { CollectionCard } from './components/CollectionCard'
 import type { GameItemBundleData } from './components/CollectionCard'
-
-// Server-side pagination envelope (backend models/pagination.py). Typed locally
-// so the app builds before @shared/types is regenerated from the OpenAPI spec.
-interface Page<T> {
-  items: T[]
-  total: number
-  limit: number
-  offset: number
-}
+import type { Page } from './types'
 
 const PAGE_SIZE = 50
 

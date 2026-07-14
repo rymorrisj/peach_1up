@@ -358,7 +358,7 @@ export default function CollectionDetail() {
     try {
       await apiFetch(`/api/v1/tags/${tagId}/assignments`, {
         method: 'DELETE',
-        body: JSON.stringify({ entity_type: 'software_collection', entity_id: collectionId }),
+        body: JSON.stringify({ entity_type: 'game_item_bundle', entity_id: collectionId }),
       })
       queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
     } catch (err) {
@@ -372,7 +372,7 @@ export default function CollectionDetail() {
     try {
       await apiFetch(`/api/v1/tags/${tagId}/assignments`, {
         method: 'POST',
-        body: JSON.stringify({ entity_type: 'software_collection', entity_id: collectionId }),
+        body: JSON.stringify({ entity_type: 'game_item_bundle', entity_id: collectionId }),
       })
       queryClient.invalidateQueries({ queryKey: ['library', 'by-slug', slug] })
     } catch (err) {
@@ -381,6 +381,7 @@ export default function CollectionDetail() {
   }
 
   const restrictions = useCollectionRestrictions({
+    domain: 'game',
     collectionId,
     isAdminOrOwner,
     restrictionsData,

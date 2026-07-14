@@ -11,9 +11,17 @@ import type { components } from '@shared/types'
 
 type LaunchResponse = components['schemas']['LaunchResponse']
 
+type LaunchTargetType = 'collection' | 'app' | 'environment'
+
+const LAUNCH_PATH: Record<LaunchTargetType, (id: number) => string> = {
+  collection: (id) => `/api/v1/game-item-bundle/${id}/launch`,
+  app: (id) => `/api/v1/app-item-bundle/${id}/launch`,
+  environment: (id) => `/api/v1/environment-items/${id}/launch`,
+}
+
 interface UseLaunchOptions {
   targetId: number
-  targetType: string
+  targetType: LaunchTargetType
   onSettled?: () => void
 }
 
@@ -44,13 +52,9 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
 
   const launchMutation = useMutation<LaunchResponse, Error, number | null>({
     mutationFn: (profileId) => {
-      // Two launch targets remain: an environment (platform) or a library
-      // collection. A collection launch is keyed on the collection id.
-      const path =
-        targetType === 'environment'
-          ? `/api/v1/environment-items/${targetId}/launch`
-          : `/api/v1/game-item-bundle/${targetId}/launch`
-      return apiFetch<LaunchResponse>(path, {
+      const buildPath = LAUNCH_PATH[targetType]
+      if (!buildPath) throw new Error(`useLaunch: unhandled targetType "${targetType}"`)
+      return apiFetch<LaunchResponse>(buildPath(targetId), {
         method: 'POST',
         body: JSON.stringify({ profile_item_id: profileId }),
         timeoutMs: LAUNCH_TIMEOUT_MS,

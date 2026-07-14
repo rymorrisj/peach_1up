@@ -23,11 +23,11 @@ describe('useLaunch', () => {
   beforeEach(() => vi.clearAllMocks())
   afterEach(() => vi.useRealTimers())
 
-  it('launch() sends POST to library endpoint with the given profileId', async () => {
+  it('launch() sends POST to the game-item-bundle endpoint with the given profileId', async () => {
     mockApiFetch.mockResolvedValueOnce({ launch_history_id: 1, warnings: [] })
 
     const { result } = renderHook(
-      () => useLaunch({ targetId: 7, targetType: 'library' }),
+      () => useLaunch({ targetId: 7, targetType: 'collection' }),
       { wrapper: createWrapper() },
     )
 
@@ -42,6 +42,25 @@ describe('useLaunch', () => {
     )
   })
 
+  it('launch() sends POST to the app-item-bundle endpoint for targetType "app"', async () => {
+    mockApiFetch.mockResolvedValueOnce({ launch_history_id: 2, warnings: [] })
+
+    const { result } = renderHook(
+      () => useLaunch({ targetId: 9, targetType: 'app' }),
+      { wrapper: createWrapper() },
+    )
+
+    await act(async () => { result.current.launch(null) })
+
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      '/api/v1/app-item-bundle/9/launch',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ profile_item_id: null }),
+      }),
+    )
+  })
+
   it('launchWarnings is populated from the launch response', async () => {
     mockApiFetch.mockResolvedValueOnce({
       launch_history_id: 1,
@@ -49,7 +68,7 @@ describe('useLaunch', () => {
     })
 
     const { result } = renderHook(
-      () => useLaunch({ targetId: 1, targetType: 'library' }),
+      () => useLaunch({ targetId: 1, targetType: 'collection' }),
       { wrapper: createWrapper() },
     )
 
@@ -68,7 +87,7 @@ describe('useLaunch', () => {
       .mockResolvedValueOnce({ ended_at: '2024-01-01T00:00:00Z' })
 
     const { result } = renderHook(
-      () => useLaunch({ targetId: 1, targetType: 'library' }),
+      () => useLaunch({ targetId: 1, targetType: 'collection' }),
       { wrapper: createWrapper() },
     )
 
@@ -91,7 +110,7 @@ describe('useLaunch', () => {
       .mockResolvedValueOnce({ ended_at: '2024-01-01T00:00:00Z' })
 
     const { result } = renderHook(
-      () => useLaunch({ targetId: 1, targetType: 'library', onSettled }),
+      () => useLaunch({ targetId: 1, targetType: 'collection', onSettled }),
       { wrapper: createWrapper() },
     )
 

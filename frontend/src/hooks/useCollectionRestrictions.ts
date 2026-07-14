@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 
+export type RestrictionDomain = 'game' | 'media' | 'app'
+
 interface UseCollectionRestrictionsOptions {
+  domain: RestrictionDomain
   collectionId: number | undefined
   isAdminOrOwner: boolean
   restrictionsData: { restricted_user_item_ids: number[] } | undefined
@@ -10,6 +13,7 @@ interface UseCollectionRestrictionsOptions {
 }
 
 export function useCollectionRestrictions({
+  domain,
   collectionId,
   isAdminOrOwner,
   restrictionsData,
@@ -39,7 +43,7 @@ export function useCollectionRestrictions({
   const saveMutation = useMutation<void, Error, number[]>({
     mutationFn: (userIds) => {
       if (!collectionId) return Promise.resolve()
-      return apiFetch(`/api/v1/restrictions/game/${collectionId}`, {
+      return apiFetch(`/api/v1/restrictions/${domain}/${collectionId}`, {
         method: 'PUT',
         body: JSON.stringify({ user_item_ids: userIds }),
       })

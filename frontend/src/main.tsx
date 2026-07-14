@@ -7,6 +7,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import AppShell from '@/components/layout/AppShell'
 import Software, { softwareTabRoutes } from '@/pages/Software'
 import CollectionDetail from '@/pages/Software/CollectionDetail'
+import MediaDetail from '@/pages/Software/MediaDetail'
+import AppDetail from '@/pages/Software/AppDetail'
 import Settings from '@/pages/Settings'
 import Users from '@/pages/Users'
 import Emulators, { emulatorsTabRoutes } from '@/pages/Emulators'
@@ -103,6 +105,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                     {softwareTabRoutes}
                   </Route>
                   <Route path="/software/games/:slug" element={<CollectionDetail />} />
+                  <Route path="/software/media/:id" element={<MediaDetail />} />
+                  <Route path="/software/apps/:id" element={<AppDetail />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/users" element={<Users />} />
                   <Route path="/environments" element={<Environments />} />

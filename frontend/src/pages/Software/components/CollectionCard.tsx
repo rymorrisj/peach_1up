@@ -1,9 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 import { ERA_LABEL, ERA_PLACEHOLDER, ERA_PLACEHOLDER_DEFAULT } from '@/types/era'
-import type { components } from '@shared/types'
-
-type TagRead = components['schemas']['TagRead']
+import type { EntityBundleBase } from '../types'
 
 // Leaf (per-disc) record within a collection. Renamed from the former
 // LibrarySetItemData; single-disc games are collections-of-one.
@@ -23,14 +21,10 @@ export interface GameItemData {
   updated_at?: string | null
 }
 
-export interface GameItemBundleData {
-  id: number
-  slug: string | null
-  title: string
+export interface GameItemBundleData extends EntityBundleBase {
   sort_title: string | null
   era: string
   category: string | null
-  description: string | null
   publisher: string | null
   developer: string | null
   genres: string[]
@@ -51,10 +45,15 @@ export interface GameItemBundleData {
   display_disk_id: number | null
   last_launched_at: string | null
   launch_count: number
-  created_at: string
-  updated_at: string
   items: GameItemData[]
-  tags: TagRead[]
+}
+
+// Game's cover art lives on the leaf item (keyed by display/launch disk id),
+// not the bundle itself — this is the CoverArtResolver<GameItemBundleData>.
+export function getGameCoverArt(bundle: GameItemBundleData): string | null {
+  const effectiveDisplayId = bundle.display_disk_id ?? bundle.launch_disk_id
+  const displayDisc = bundle.items.find((d) => d.id === effectiveDisplayId) ?? bundle.items[0]
+  return displayDisc?.cover_art_url ?? null
 }
 
 // Literal hex tints per era key (lowercase) for chip borders/backgrounds

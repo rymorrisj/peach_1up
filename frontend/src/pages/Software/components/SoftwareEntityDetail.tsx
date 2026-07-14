@@ -1,9 +1,9 @@
 import type { ComponentProps, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Button } from '@/ui'
 import TopBar from '@/components/layout/TopBar'
 import { RestrictionsSection } from './RestrictionsSection'
 import { LaunchHistorySection } from './LaunchHistory'
+import { LaunchSection } from './LaunchSection'
 import { TagsSection } from './TagsSection'
 import { EditForm } from './EditForm'
 import { AdvancedSection } from './AdvancedSection'
@@ -24,7 +24,8 @@ interface RestrictionsProps {
 
 interface SoftwareEntityDetailProps {
   title: string
-  eraLabel: string
+  /** Omitted entirely when not supplied (e.g. Media has no era concept) */
+  eraLabel?: string
   eraDetectionReason?: string
   launchCount?: number
   lastLaunchedAt?: string | null
@@ -45,15 +46,16 @@ interface SoftwareEntityDetailProps {
   fetchMetadataAction?: ReactNode
   /** Extra content between the form sections and launch (e.g. disc list for sets) */
   beforeLaunch?: ReactNode
-  onLaunch: () => void
-  launching: boolean
+  /** When omitted, the Launch section doesn't render at all (e.g. Media has no launch capability) */
+  onLaunch?: () => void
+  launching?: boolean
   launchDisabled?: boolean
   launchButtonLabel?: string
   /** Note rendered directly below the launch button */
   launchNote?: ReactNode
-  launchSuccess: boolean
-  launchWarnings: string[]
-  launchError: string | null
+  launchSuccess?: boolean
+  launchWarnings?: string[]
+  launchError?: string | null
   /** Rendered directly below the launch error (e.g. a "Convert with extract-xiso" action) */
   launchErrorAction?: ReactNode
   /** When provided, renders the Restrictions section after launch */
@@ -79,7 +81,7 @@ export function SoftwareEntityDetail({
   onLaunch,
   launching,
   launchDisabled,
-  launchButtonLabel = 'Launch',
+  launchButtonLabel,
   launchNote,
   launchSuccess,
   launchWarnings,
@@ -106,14 +108,16 @@ export function SoftwareEntityDetail({
           {/* ── Meta (read-only) ── */}
           <section className="space-y-1 text-sm text-neutral-600 dark:text-neutral-300">
             {metaBefore}
-            <div>
-              <span className="font-medium">Era:</span> {eraLabel}
-              {eraDetectionReason && (
-                <span className="ml-1 text-xs text-neutral-400 dark:text-neutral-500 italic">
-                  — {eraDetectionReason}
-                </span>
-              )}
-            </div>
+            {eraLabel && (
+              <div>
+                <span className="font-medium">Era:</span> {eraLabel}
+                {eraDetectionReason && (
+                  <span className="ml-1 text-xs text-neutral-400 dark:text-neutral-500 italic">
+                    — {eraDetectionReason}
+                  </span>
+                )}
+              </div>
+            )}
             {launchCount != null && launchCount > 0 && (
               <div>
                 <span className="font-medium">Launches:</span> {launchCount}
@@ -135,43 +139,20 @@ export function SoftwareEntityDetail({
 
           {beforeLaunch}
 
-          {/* ── Launch ── */}
-          <section className="space-y-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Launch
-            </h2>
-
-            <Button
-              onClick={onLaunch}
-              loading={launching}
-              disabled={launchDisabled ?? launching}
-              className="w-full justify-center py-3 text-base"
-            >
-              {launchButtonLabel}
-            </Button>
-
-            {launchNote}
-
-            {launchSuccess && (
-              <p className="text-center text-sm text-green-600 dark:text-green-400">
-                Launch started. The emulator should open shortly.
-              </p>
-            )}
-
-            {launchWarnings.map((w, i) => (
-              <p key={i} className="text-center text-xs text-amber-600 dark:text-amber-400">
-                ⚠ {w}
-              </p>
-            ))}
-
-            {launchError && (
-              <p role="alert" className="text-center text-sm text-red-600 dark:text-red-400">
-                ❌ {launchError}
-              </p>
-            )}
-
-            {launchError && launchErrorAction}
-          </section>
+          {/* ── Launch (omitted entirely when onLaunch isn't supplied, e.g. Media) ── */}
+          {onLaunch && (
+            <LaunchSection
+              onLaunch={onLaunch}
+              launching={launching}
+              launchDisabled={launchDisabled}
+              launchButtonLabel={launchButtonLabel}
+              launchNote={launchNote}
+              launchSuccess={launchSuccess}
+              launchWarnings={launchWarnings}
+              launchError={launchError}
+              launchErrorAction={launchErrorAction}
+            />
+          )}
 
           {restrictions && (
             <RestrictionsSection
