@@ -46,10 +46,7 @@ app.add_middleware(RequestLoggingMiddleware)
 for _router in ROUTERS:
     app.include_router(_router)
 
-from backend.service.utils import settings as _peach_settings
 from backend.service.utils.path_utils import normalise_path
-
-_library_root = Path(_peach_settings.get("LIBRARY_PATH")).resolve()
 
 
 @app.get("/media/{file_path:path}", include_in_schema=False)
@@ -60,11 +57,18 @@ async def serve_media(file_path: str, request: Request):
     client_host = request.client.host if request.client else "unknown"
     if client_host not in _LOCALHOST_ORIGINS and not allow_network:
         return Response(status_code=403, content="Remote access is disabled.")
+    # Read LIBRARY_PATH fresh on every request rather than caching it at import
+    # time: it can change at runtime (e.g. the first-run wizard or Settings
+    # page call POST /api/v1/settings/library-path with no server restart),
+    # and a stale cached root here would 404 every request even though
+    # cover_art_url (computed fresh per-read in models/game.py) points at the
+    # new, correct location.
+    library_root = Path(svc.get("LIBRARY_PATH")).resolve()
     try:
-        resolved = normalise_path(str(_library_root / file_path))
+        resolved = normalise_path(str(library_root / file_path))
     except ValueError:
         return Response(status_code=404)
-    if not resolved.is_relative_to(_library_root) or not resolved.exists():
+    if not resolved.is_relative_to(library_root) or not resolved.exists():
         return Response(status_code=404)
     return FileResponse(resolved)
 

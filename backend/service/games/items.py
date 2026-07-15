@@ -59,7 +59,23 @@ def _is_slug_unique_violation(exc: IntegrityError) -> bool:
     return _SLUG_UNIQUE_VIOLATION_MARKER in str(exc.orig)
 
 
-def _reconcile_folder_to_slug(folder: Path, slug: str, *, undo_stack: list | None = None) -> Path:
+def _folder_is_db_tracked(folder: Path, db: Session) -> bool:
+    """True if *folder* is a live GameItem's owned directory, or contains one.
+
+    Same domain _prepare_item's dir-ingest branch already checks for a live
+    duplicate (folder_path exact match, or file_path under it) — reused here
+    so a target occupied on disk is only treated as a real collision when
+    something in the DB actually still points at it.
+    """
+    path_str = str(folder)
+    if db.query(GameItem).filter(GameItem.folder_path == path_str).first() is not None:
+        return True
+    return db.query(GameItem).filter(GameItem.file_path.like(path_str + "/%")).first() is not None
+
+
+def _reconcile_folder_to_slug(
+    folder: Path, slug: str, db: Session, *, undo_stack: list | None = None
+) -> Path:
     """Rename *folder* so its basename is literally *slug*, in the same parent.
 
     Every ingest path that owns a dedicated on-disk directory must call this
@@ -68,11 +84,21 @@ def _reconcile_folder_to_slug(folder: Path, slug: str, *, undo_stack: list | Non
     existence vs. DB row) produced the directory's original name. No-ops if
     *folder* is already named *slug*.
 
+    If the target path is already occupied on disk but nothing in the DB
+    tracks it (an orphaned leftover directory, e.g. from a previous failed or
+    partial import), that's not a real collision — a fresh slug is generated
+    via unique_slug and the rename proceeds against that instead, the same
+    disambiguation _prepare_item's file-ingest branch already applies to a
+    dest-path collision that turns out not to be a tracked duplicate. Only a
+    target that IS DB-tracked is a genuine collision, since silently picking
+    a different slug there would just rename next to someone else's live data
+    instead of surfacing the conflict.
+
     Raises:
         HTTPException(400): slug produces an invalid/escaping target path
             (defense-in-depth — slugify() already guarantees [a-z0-9-] only).
-        HTTPException(409): a different directory already occupies the target
-            path — a real collision, not a self-rename.
+        HTTPException(409): the target path is DB-tracked by a different item,
+            a real collision, not a self-rename or an orphaned directory.
         HTTPException(500): the OS-level rename itself failed (permissions,
             file lock, AV scan). Fails loud rather than leaving the DB slug
             and on-disk folder name silently mismatched.
@@ -84,10 +110,19 @@ def _reconcile_folder_to_slug(folder: Path, slug: str, *, undo_stack: list | Non
     if target == folder.resolve():
         return folder
     if target.exists():
-        raise HTTPException(
-            status_code=409,
-            detail=f"A folder named '{slug}' already exists in the media library.",
+        if _folder_is_db_tracked(target, db):
+            raise HTTPException(
+                status_code=409,
+                detail=f"A folder named '{slug}' already exists in the media library.",
+            )
+        slug = unique_slug(
+            slug,
+            lambda s: (folder.parent / s).exists() or _folder_is_db_tracked(folder.parent / s, db),
         )
+        try:
+            target = resolve_under(folder.parent, slug)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"Slug-based folder name is invalid: {exc}")
     try:
         folder.rename(target)
     except OSError as exc:
@@ -498,7 +533,8 @@ def _prepare_item(
     # start from different source strings and different uniqueness checks, so
     # without this step the folder name and row["slug"] can diverge.
     if _owned_folder_root is not None:
-        slug_folder = _reconcile_folder_to_slug(_owned_folder_root, row["slug"], undo_stack=_undo_stack)
+        slug_folder = _reconcile_folder_to_slug(_owned_folder_root, row["slug"], db, undo_stack=_undo_stack)
+        row["slug"] = slug_folder.name
         if slug_folder != _owned_folder_root:
             _rewrite_paths_after_folder_rename(
                 row, ("folder_path", "file_path", "executable_path", "cover_art_path"),
@@ -755,7 +791,8 @@ def _create_multi_disc_collection(
     original_dir = staging_dir
     staged_dir = staging_dir
     if staging_dir is not None:
-        staged_dir = _reconcile_folder_to_slug(staging_dir, slug)
+        staged_dir = _reconcile_folder_to_slug(staging_dir, slug, db)
+        slug = staged_dir.name
         if staged_dir != staging_dir:
             disc_files = [
                 staged_dir / f.relative_to(staging_dir) if f.is_relative_to(staging_dir) else f

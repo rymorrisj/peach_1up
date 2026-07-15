@@ -77,6 +77,15 @@ export const EMPTY_ENV_FORM: EnvironmentForm = {
 
 export { ERA_TO_EMULATOR }
 
+// Whether an item's era makes it PC-launchable (Environment-driven) rather
+// than console (fixed era-to-emulator mapping, no per-item Environment
+// picker). Same membership check AppEditForm's handleEraChange already uses
+// to keep is_pc in sync with era, pulled out so Games' Platform-field gating
+// (era-based) can share it without duplicating the check.
+export function isPcEra(era: string): boolean {
+  return era in ERA_TO_EMULATOR
+}
+
 interface EnvironmentModalProps {
   open: boolean
   mode: 'create' | 'edit'

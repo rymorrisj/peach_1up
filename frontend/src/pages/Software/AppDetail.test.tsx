@@ -141,24 +141,30 @@ describe('AppDetail', () => {
       expect(screen.getByLabelText('Platform')).toBeInTheDocument()
     })
 
-    it('hides the Platform field for a console era', async () => {
+    it('shows the Platform field disabled with an explanatory note for a console era', async () => {
       mockApi(minimalApp({ era: 'ps1', is_pc: false }))
       renderPage()
 
       await screen.findByLabelText('Title')
-      expect(screen.queryByLabelText('Platform')).not.toBeInTheDocument()
+      const platformSelect = screen.getByLabelText('Platform')
+      expect(platformSelect).toBeInTheDocument()
+      expect(platformSelect).toBeDisabled()
+      expect(screen.getByText('Determined automatically by platform type, no environment needed.')).toBeInTheDocument()
     })
 
-    it('clears environment_item_id in local state when era changes to console', async () => {
+    it('clears environment_item_id and disables the field when era changes to console', async () => {
       const user = userEvent.setup()
       mockApi(minimalApp({ era: 'winxp', is_pc: true, environment_item_id: 5 }), oneEnvironment)
       renderPage()
 
       await screen.findByLabelText('Title')
       expect(screen.getByLabelText('Platform')).toHaveValue('5')
+      expect(screen.getByLabelText('Platform')).not.toBeDisabled()
 
       await user.selectOptions(screen.getByLabelText('Era'), 'ps1')
-      expect(screen.queryByLabelText('Platform')).not.toBeInTheDocument()
+      const platformSelect = screen.getByLabelText('Platform')
+      expect(platformSelect).toBeDisabled()
+      expect(platformSelect).toHaveValue('')
     })
 
     it('sends the expected PATCH bodies on save', async () => {

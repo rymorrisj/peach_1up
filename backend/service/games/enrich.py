@@ -156,7 +156,7 @@ def enrich_entity(
         for key, value in metadata_fields.items():
             setattr(entity, key, value)
         if genre is not None:
-            from backend.models.metadata_lookup import set_genres_for_collection
+            from backend.models.metadata_lookup import set_genres_for_game_item_bundle
             # No provider hint here — metadata_source is a display string (e.g.
             # "TheGamesDB"), not the internal provider key genres are cached
             # under. Genre rows already exist by this point (created moments
@@ -164,7 +164,7 @@ def enrich_entity(
             # matches purely by name; only a genre name that was never
             # resolved through a provider would fall through to a fresh
             # "manual"-provider row here.
-            set_genres_for_collection(db, entity_id, genre)
+            set_genres_for_game_item_bundle(db, entity_id, genre)
 
     elif entity_type == "game_item":
         # Leaf: per-disc cover art only — no metadata fields (those go on the collection).

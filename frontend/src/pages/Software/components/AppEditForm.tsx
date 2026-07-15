@@ -2,6 +2,7 @@ import { Button, FormField, Input, Textarea } from '@/ui'
 import PathInput from '@/components/common/PathInput'
 import { ERA_LABELS } from '@/generated/constants'
 import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal'
+import { PlatformField } from './PlatformField'
 import type { SoftwareAppForm } from '../types/appForm'
 import type { components } from '@shared/types'
 
@@ -103,23 +104,13 @@ export function AppEditForm({
         </select>
       </FormField>
 
-      {form.is_pc && (
-        <FormField label="Platform" htmlFor="detail-environment">
-          <select
-            id="detail-environment"
-            value={form.environment_item_id}
-            onChange={(e) => setField('environment_item_id', e.target.value)}
-            className={SELECT_CLASS}
-          >
-            <option value="">No platform selected</option>
-            {platforms.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </FormField>
-      )}
+      <PlatformField
+        isPcLaunchable={form.is_pc}
+        value={form.environment_item_id}
+        onChange={(v) => setField('environment_item_id', v)}
+        platforms={platforms}
+        disabledNote="Determined automatically by platform type, no environment needed."
+      />
 
       <div className="flex items-center gap-3">
         <Button onClick={handleSave} loading={saving}>

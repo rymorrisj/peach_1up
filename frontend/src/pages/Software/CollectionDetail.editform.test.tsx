@@ -302,6 +302,48 @@ describe('CollectionDetail edit form (field-level)', () => {
     expect(patch[0].body).toMatchObject({ environment_item_id: 5 })
   })
 
+  it('shows the platform field disabled with an explanatory note for a console era', async () => {
+    setupApi([
+      { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ era: 'ps1' }) },
+      { match: '/api/v1/environment-items', respond: () => [
+        { id: 5, name: 'My DOS PC', era: 'dos', emulator_slug: 'dosbox-x', status: 'healthy', is_system: false, hardware_profile: 'standard' },
+      ] },
+    ])
+    renderPage()
+    await waitForLoaded()
+
+    const select = screen.getByLabelText('Platform')
+    expect(select).toBeInTheDocument()
+    expect(select).toBeDisabled()
+    expect(screen.getByText('Determined automatically by era, no environment needed.')).toBeInTheDocument()
+  })
+
+  it('clears environment_item_id and disables the platform field when era changes to a console era', async () => {
+    const user = userEvent.setup()
+    const calls = setupApi([
+      { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ era: 'dos', environment_item_id: 5 }) },
+      { match: '/api/v1/environment-items', respond: () => [
+        { id: 5, name: 'My DOS PC', era: 'dos', emulator_slug: 'dosbox-x', status: 'healthy', is_system: false, hardware_profile: 'standard' },
+      ] },
+      { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
+      { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
+    ])
+    renderPage()
+    await waitForLoaded()
+
+    const platformSelect = screen.getByLabelText('Platform')
+    expect(platformSelect).toHaveValue('5')
+    expect(platformSelect).not.toBeDisabled()
+
+    await user.selectOptions(screen.getByLabelText('Era'), 'ps1')
+    expect(platformSelect).toBeDisabled()
+    expect(platformSelect).toHaveValue('')
+
+    await saveAndWait(user)
+    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
+    expect(patch[0].body).toMatchObject({ era: 'ps1', environment_item_id: null })
+  })
+
   it('edits the launch profile (a matching-era option) and sends it as a parsed integer on save', async () => {
     const user = userEvent.setup()
     const calls = setupApi([

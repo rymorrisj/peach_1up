@@ -2,7 +2,8 @@ import { Button, FormField, Input, Textarea } from '@/ui'
 import PathInput from '@/components/common/PathInput'
 import FileBrowser from '@/components/common/FileBrowser'
 import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
-import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal'
+import { ERA_TO_EMULATOR, isPcEra } from '@/pages/Environments/EnvironmentModal'
+import { PlatformField } from './PlatformField'
 import type { SoftwareGameForm as EditFormFields } from '../types/gameForm'
 import type { components } from '@shared/types'
 
@@ -59,6 +60,17 @@ export function EditForm({
   const expectedEmulator = (ERA_TO_EMULATOR as Record<string, string | undefined>)[item.era]
   const profileEraMismatch =
     chosenProfile && expectedEmulator != null && chosenProfile.emulator_slug !== expectedEmulator
+  const isPcLaunchable = isPcEra(form.era)
+
+  // Console items have no per-item Environment (fixed era-to-emulator
+  // mapping), so switching away from a PC era clears any previously
+  // selected environment_item_id rather than leaving a stale value that
+  // would 422 against the console+environment backend rule on save.
+  // Mirrors AppEditForm's handleEraChange for the same reason.
+  function handleEraChange(era: string) {
+    setField('era', era)
+    if (!isPcEra(era)) setField('environment_item_id', '')
+  }
 
   return (
     <section className="space-y-4">
@@ -201,7 +213,7 @@ export function EditForm({
           <select
             id="detail-era"
             value={form.era}
-            onChange={(e) => setField('era', e.target.value)}
+            onChange={(e) => handleEraChange(e.target.value)}
             className={SELECT_CLASS}
           >
             <option value="">— No era —</option>
@@ -223,21 +235,13 @@ export function EditForm({
           ) : null}
         </FormField>
 
-        <FormField label="Platform" htmlFor="detail-platform">
-          <select
-            id="detail-platform"
-            value={form.environment_item_id}
-            onChange={(e) => setField('environment_item_id', e.target.value)}
-            className={SELECT_CLASS}
-          >
-            <option value="">— No platform —</option>
-            {platforms.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </FormField>
+        <PlatformField
+          isPcLaunchable={isPcLaunchable}
+          value={form.environment_item_id}
+          onChange={(v) => setField('environment_item_id', v)}
+          platforms={platforms}
+          disabledNote="Determined automatically by era, no environment needed."
+        />
       </div>
 
       <FormField label="Launch Profile" htmlFor="detail-profile">

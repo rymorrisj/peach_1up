@@ -52,7 +52,7 @@ function formatDate(iso: string | null | undefined) {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-function isHealthy(p: Platform) {
+export function isHealthy(p: Platform) {
   return p.status === 'ok' || p.status === 'healthy' || p.status === 'unknown'
 }
 
