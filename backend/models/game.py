@@ -291,11 +291,12 @@ class GameItemBundleRead(SQLModel):
     items: list[GameItemRead] = []
     drive: Optional[DriveRead] = None
     tags: list[TagRead] = []
-    # Pre-launch UX gate (doc 02 A5 part B): set to "no_environment" when this
-    # is a PC bundle with no resolvable Environment (neither environment_item_id
-    # nor an era-matched system Environment fallback). Always None for console
-    # items. Computed at read time in game_item_bundle_to_read /
-    # game_item_bundles_to_read_bulk, not stored.
+    # Pre-launch UX gate. Computed at read time (not stored) in
+    # game_item_bundle_to_read / game_item_bundles_to_read_bulk via the shared
+    # compute_launch_blocked_reason. "no_profile" when the bundle has no launch
+    # profile (pc or console); "no_environment" when this is a PC bundle with no
+    # resolvable Environment (neither environment_item_id nor an era-matched
+    # system Environment fallback); None when the item would clear both gates.
     launch_blocked_reason: Optional[str] = None
 
 
@@ -390,18 +391,19 @@ def _leaves_for_bundle(bundle_id: int, db: "Session") -> list[GameItem]:
 
 
 def _launch_blocked_reason(c: "GameItemBundle", system_eras: set[str]) -> Optional[str]:
-    """Returns "no_environment" iff *c* is a PC bundle with no resolvable
-    Environment (neither its own environment_item_id nor an era-matched is_system
-    Environment fallback -- see coordinator._resolve_environment_for_pc_entity,
-    the launch-time counterpart of this same resolution). None for console
-    items and any PC item with a resolvable Environment."""
-    if c.item_type != "pc":
-        return None
-    if c.environment_item_id is not None:
-        return None
-    if c.era in system_eras:
-        return None
-    return "no_environment"
+    """Thin adapter over the shared compute_launch_blocked_reason (see
+    backend/service/utils/era_defaults.py). Returns "no_profile" when the bundle
+    has no profile (pc or console), "no_environment" for a PC bundle with no
+    resolvable Environment, else None. is_pc is derived from item_type."""
+    from backend.service.utils.era_defaults import compute_launch_blocked_reason
+
+    return compute_launch_blocked_reason(
+        is_pc=c.item_type == "pc",
+        era=c.era,
+        profile_item_id=c.profile_item_id,
+        environment_item_id=c.environment_item_id,
+        system_eras=system_eras,
+    )
 
 
 def game_item_bundle_to_read(c: "GameItemBundle", db: "Session") -> GameItemBundleRead:

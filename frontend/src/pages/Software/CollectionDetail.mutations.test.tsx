@@ -606,22 +606,23 @@ describe('CollectionDetail (mutation path)', () => {
     })
   })
 
-  // ── Profile-gated launch ──
-  // NB: CollectionDetail.tsx has no `launch_blocked_reason` field anywhere in
-  // the frontend (grepped — none found); the actual gating mechanism is
-  // `hasProfile` (effectiveProfileId != null), driving launchDisabled/
-  // launchButtonLabel. Testing that mechanism instead — see summary.
+  // ── Launch gating (backend-driven) ──
+  // Launch gating is now driven solely by the backend-computed
+  // launch_blocked_reason on the bundle (see launchGateFromReason in
+  // Software/types.ts), not the old client-side hasProfile check. A bundle with
+  // no profile is returned by the backend with launch_blocked_reason:
+  // "no_profile", which disables the button and shows the assign-a-profile note.
   describe('Profile-gated launch', () => {
-    it('disables launch and shows the assign-a-profile note when no profile is set', async () => {
+    it('disables launch and shows the assign-a-profile note when the backend reports no_profile', async () => {
       setupApi(adminUser, [
-        { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ profile_item_id: null }) },
+        { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ profile_item_id: null, launch_blocked_reason: 'no_profile' }) },
       ])
       renderPage()
       await waitForLoaded()
 
       const launchButton = screen.getByRole('button', { name: 'Assign a profile to launch' })
       expect(launchButton).toBeDisabled()
-      expect(screen.getByText('Select a launch profile above to enable launch.')).toBeInTheDocument()
+      expect(screen.getByText('Assign a launch profile to enable launch.')).toBeInTheDocument()
     })
 
     it('launches with the assigned profile when one is set', async () => {

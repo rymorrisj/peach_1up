@@ -48,6 +48,44 @@ export function resolveLeafCoverArt<TLeaf extends { id: number; cover_art_url: s
   return item?.cover_art_url ?? null
 }
 
+// Single source of truth for turning the backend-computed launch_blocked_reason
+// into the launch button's disabled state, label, and note. Shared by
+// gameConfig and appConfig so both domains present identical UX and neither
+// keeps its own client-side block condition. The backend reason is authoritative:
+// null means "not blocked". *isLaunching* only adds the transient in-flight
+// disable on top of the reason.
+export interface LaunchGate {
+  launchDisabled: boolean
+  launchButtonLabel: string
+  launchNote: string | null
+}
+
+export function launchGateFromReason(
+  reason: string | null | undefined,
+  isLaunching: boolean,
+): LaunchGate {
+  switch (reason) {
+    case 'no_profile':
+      return {
+        launchDisabled: true,
+        launchButtonLabel: 'Assign a profile to launch',
+        launchNote: 'Assign a launch profile to enable launch.',
+      }
+    case 'no_environment':
+      return {
+        launchDisabled: true,
+        launchButtonLabel: 'Configure an Environment to launch',
+        launchNote: 'Create an Environment for this era to enable launch.',
+      }
+    default:
+      return {
+        launchDisabled: isLaunching,
+        launchButtonLabel: 'Launch',
+        launchNote: null,
+      }
+  }
+}
+
 // Per-domain wiring an EntityListPage/EntityDetailPage consumes so the
 // generic components carry no built-in knowledge of any one domain.
 // Only 'game' and 'app' can launch — Media supplies no launch config at all,

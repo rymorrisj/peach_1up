@@ -18,6 +18,7 @@ import { getGameCoverArt } from '../components/CollectionCard'
 import type { GameItemBundleData } from '../components/CollectionCard'
 import { ERA_LABELS } from '@/generated/constants'
 import type { EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
+import { launchGateFromReason } from '../types'
 import type { components } from '@shared/types'
 
 type LaunchHistory = components['schemas']['LaunchHistoryRead']
@@ -243,7 +244,11 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
   const effectiveProfileId = form.profile_item_id
     ? parseInt(form.profile_item_id, 10)
     : (collection.profile_item_id ?? null)
-  const hasProfile = effectiveProfileId != null
+  // Launch gating is driven solely by the backend-computed launch_blocked_reason
+  // now, no parallel client-side profile check. effectiveProfileId is still used
+  // as the launch payload so a saved profile override is honored, but it no
+  // longer decides whether the button is enabled.
+  const launchGate = launchGateFromReason(collection.launch_blocked_reason, isLaunching)
 
   const storageKey = `fetch_metadata_${window.location.pathname}`
   const activeDisc = fetchDiscId != null ? sortedItems.find((d) => d.id === fetchDiscId) : undefined
@@ -446,12 +451,12 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
       </>
     ),
 
-    onLaunch: () => { if (effectiveProfileId != null) launch(effectiveProfileId) },
-    launchDisabled: !hasProfile || isLaunching,
-    launchButtonLabel: hasProfile ? 'Launch' : 'Assign a profile to launch',
-    launchNote: !hasProfile ? (
+    onLaunch: () => launch(effectiveProfileId),
+    launchDisabled: launchGate.launchDisabled,
+    launchButtonLabel: launchGate.launchButtonLabel,
+    launchNote: launchGate.launchNote ? (
       <p className="text-center text-xs text-neutral-400 dark:text-neutral-500">
-        Select a launch profile above to enable launch.
+        {launchGate.launchNote}
       </p>
     ) : undefined,
     launchErrorAction: launchErrorType === 'xbox_dvd_rip' ? (

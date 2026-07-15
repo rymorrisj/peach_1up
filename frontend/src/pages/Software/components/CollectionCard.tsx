@@ -45,6 +45,9 @@ export interface GameItemBundleData extends EntityBundleBase {
   display_disk_id: number | null
   last_launched_at: string | null
   launch_count: number
+  // Backend-computed pre-launch gate: "no_profile" | "no_environment" | null.
+  // The single source of truth for launch gating (see launchGateFromReason).
+  launch_blocked_reason: string | null
   items: GameItemData[]
 }
 

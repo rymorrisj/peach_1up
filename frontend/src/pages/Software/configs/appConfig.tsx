@@ -4,10 +4,11 @@ import { useEditForm } from '@/hooks/useEditForm'
 import { formFromCollection, type SoftwareAppForm } from '../types/appForm'
 import { AppEditForm } from '../components/AppEditForm'
 import type { EntityBundleBase, EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
-import { resolveLeafCoverArt } from '../types'
+import { resolveLeafCoverArt, launchGateFromReason } from '../types'
 import type { components } from '@shared/types'
 
 type Platform = components['schemas']['EnvironmentItemRead']
+type LaunchHistory = components['schemas']['LaunchHistoryRead']
 
 export interface AppItemLeaf {
   id: number
@@ -32,6 +33,9 @@ export interface AppItemBundleData extends EntityBundleBase {
   display_disk_id: number | null
   last_launched_at: string | null
   launch_count: number
+  // Backend-computed pre-launch gate: "no_profile" | "no_environment" | null.
+  // The single source of truth for launch gating (see launchGateFromReason).
+  launch_blocked_reason: string | null
   items: AppItemLeaf[]
 }
 
@@ -44,12 +48,23 @@ export interface AppItemBundleData extends EntityBundleBase {
 function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): EntityDetailExtras {
   const collection = ctx.entity
   const collectionId = ctx.entityId
-  const { detailQueryKey, refetchEntity } = ctx
+  const { detailQueryKey, refetchEntity, isLaunching } = ctx
   const queryClient = useQueryClient()
 
   const { data: platforms = [] } = useQuery<Platform[]>({
     queryKey: ['platforms'],
     queryFn: () => apiFetch<Platform[]>('/api/v1/environment-items'),
+  })
+
+  // App has no dedicated collection-launches route like Game's
+  // /game-item-bundle/{id}/launches, so this uses the generic scoped launches
+  // endpoint filtered to this app bundle. Same query-key prefix ('launches') as
+  // Game so a bulk-delete elsewhere invalidates it too.
+  const { data: launchHistory = [] } = useQuery<LaunchHistory[]>({
+    queryKey: ['launches', 'app', collectionId],
+    queryFn: () =>
+      apiFetch<LaunchHistory[]>(`/api/v1/launches?target_id=${collectionId}&target_type=app_item_bundle`),
+    enabled: collectionId != null,
   })
 
   const { form, setFormField, resyncFromCollection } = useEditForm({ collection, formFromCollection })
@@ -86,7 +101,22 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
     return {}
   }
 
+  // Launch gating mirrors Game: driven solely by the backend launch_blocked_reason,
+  // no client-side profile/environment check. Apps have no in-form profile picker,
+  // so onLaunch launches with the stored profile (default null payload).
+  const launchGate = launchGateFromReason(collection.launch_blocked_reason, isLaunching)
+
   return {
+    launchCount: collection.launch_count,
+    lastLaunchedAt: collection.last_launched_at,
+    launchHistory,
+    launchDisabled: launchGate.launchDisabled,
+    launchButtonLabel: launchGate.launchButtonLabel,
+    launchNote: launchGate.launchNote ? (
+      <p className="text-center text-xs text-neutral-400 dark:text-neutral-500">
+        {launchGate.launchNote}
+      </p>
+    ) : undefined,
     editFormContent: (
       <AppEditForm
         form={form}
