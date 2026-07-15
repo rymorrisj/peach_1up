@@ -147,7 +147,7 @@ These are confirmed issues in this build. Do not report these as bugs — they a
 xemu runs on QEMU TCG which requires a kernel call that AppContainer blocks. xemu runs under Job Object isolation only. This is a permanent platform constraint, not a pending fix. The Emulators page shows a warning banner instead of a sandbox toggle for xemu.
 
 **Library path configuration — no UI, no workaround**
-The library path settings panel is not available in the UI for this build, and settings are DB-backed now (`app_settings` table) — the previous workaround of hand-editing `config/settings.yaml` no longer applies. There is currently no user-facing way to change LIBRARY_PATH, PROFILES_PATH, or ROMS_PATH. The 86Box ROM path is the most common case — if 86Box fails to launch with a ROM path error, place the ROM pack at the default location, `{install directory}/library/system/roms/86box`.
+The library path settings panel is not available in the UI for this build, and settings are DB-backed now (`settings` table) — the previous workaround of hand-editing `config/settings.yaml` no longer applies. There is currently no user-facing way to change LIBRARY_PATH, PROFILES_PATH, or ROMS_PATH. The 86Box ROM path is the most common case — if 86Box fails to launch with a ROM path error, place the ROM pack at the default location, `{install directory}/library/system/roms/86box`.
 
 **86Box AppContainer — untested**
 86Box runs under Job Object isolation only for this alpha. AppContainer has not been validated for 86Box yet.

@@ -21,7 +21,7 @@ from sqlmodel import Field, SQLModel
 
 
 class MediaRestriction(SQLModel, table=True):
-    __tablename__ = "media_restrictions"
+    __tablename__ = "restrictions"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_item_id: int = Field(

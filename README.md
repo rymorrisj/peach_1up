@@ -108,7 +108,7 @@ and `.env`, which are preserved.
 ## Configuration
 
 Runtime settings (binary paths, operational flags, per-emulator overrides) are
-stored in the `app_settings` table inside the SQLite database at
+stored in the `settings` table inside the SQLite database at
 `database/data/peach1up.db` — there is no settings file to edit. Most are
 configurable from the Settings page in the app. Secrets (PIN pepper,
 TheGamesDB API key, etc.) live separately in a root `.env` file — see

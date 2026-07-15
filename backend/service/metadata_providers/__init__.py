@@ -1,7 +1,7 @@
 """Provider-agnostic metadata search/fetch abstraction.
 
 software_metadata.py talks to this package only, never to a concrete provider
-client — get_active_provider() reads the metadata_provider app_settings key
+client — get_active_provider() reads the metadata_provider settings key
 and returns the matching implementation. Adding a provider means adding a
 module here plus one branch in get_active_provider(); no route or enrich.py
 changes are needed.
@@ -48,7 +48,7 @@ class MetadataProvider(Protocol):
 
 
 def get_active_provider() -> MetadataProvider:
-    """Return the MetadataProvider selected by the metadata_provider app_settings key.
+    """Return the MetadataProvider selected by the metadata_provider settings key.
 
     Raises:
         ValueError: If the stored value is not a recognised provider name.

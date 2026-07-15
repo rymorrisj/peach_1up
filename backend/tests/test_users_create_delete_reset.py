@@ -151,7 +151,7 @@ class TestDeleteUserCleanup:
         assert reloaded is not None
         assert reloaded.user_item_id == owner.id
 
-    def test_media_restrictions_deleted_not_orphaned(self, http_client):
+    def test_restrictions_deleted_not_orphaned(self, http_client):
         from backend.models.media_restriction import MediaRestriction
         from backend.models.game import GameItemBundle
 

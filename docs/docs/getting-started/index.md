@@ -124,7 +124,7 @@ with `./start.sh` as shown above.
 
 ## Configuration
 
-Runtime settings and binary paths are stored in the `app_settings` table inside the SQLite
+Runtime settings and binary paths are stored in the `settings` table inside the SQLite
 database (`database/data/peach1up.db`), not in a config file — most are configurable from the
 Settings page in the app. A root `.env` file (see `.env.template`) holds secrets (PIN pepper,
 TheGamesDB API key, etc.) and is never committed.

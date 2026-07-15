@@ -1,22 +1,22 @@
 """Settings management for Peach 1UP.
 
 Single source for binary path resolution and persisted settings state,
-backed by the app_settings DB table (SQLite). Call init() once at startup
+backed by the settings DB table (SQLite). Call init() once at startup
 (via main.py, before the FastAPI app is built) before any other access to
 this module.
 
-This module talks to app_settings through backend.core.database's shared
+This module talks to settings through backend.core.database's shared
 SQLAlchemy engine. main.py calls init_settings() at import time, before
 backend.core.database's lifespan-scoped create_tables() has run across the
 full model metadata — get_engine() lazily creates the engine on first use
 (rather than requiring init_db() to run first) and ensure_settings_table()
-creates just the app_settings table, scoped narrowly enough to be safe to
+creates just the settings table, scoped narrowly enough to be safe to
 call before the rest of backend.models.* has registered with SQLModel's
 metadata. The later, full create_tables() call in the lifespan handler
 no-ops on a table that already exists.
 
 The legacy settings.yaml / %APPDATA%\\Peach1UP\\paths.yaml files (and their
-one-time migration into app_settings/.env) have been fully retired — this
+one-time migration into settings/.env) have been fully retired — this
 module is now DB-only, with secrets in .env (see env_secrets.py).
 """
 
@@ -113,7 +113,7 @@ def _persist(key: str, value) -> None:
 
 
 def init() -> None:
-    """Load .env and app_settings into module-level state.
+    """Load .env and settings into module-level state.
 
     Must be called exactly once before any other function in this module.
 
@@ -138,7 +138,7 @@ def init() -> None:
 
     # Resolve relative path values against project root so all downstream
     # consumers always receive absolute paths regardless of how the value
-    # originally reached app_settings.
+    # originally reached settings.
     for _pkey in _PATH_KEYS:
         _pval = state.get(_pkey)
         if _pval and isinstance(_pval, str):
@@ -151,7 +151,7 @@ def init() -> None:
             state[_key] = _default
 
     # Snapshot .env values after load_dotenv() so path resolution never calls
-    # os.getenv() at call time. app_settings values are already in state;
+    # os.getenv() at call time. settings values are already in state;
     # these .env values take precedence when non-empty.
     _env: dict[str, str] = {}
     for _pkey in _PATH_KEYS:
@@ -211,7 +211,7 @@ def get(key: str, default=None):
 
 
 def set_flag(key: str, value) -> None:
-    """Persist a value to app_settings.
+    """Persist a value to settings.
 
     Args:
         key: Settings key to set (e.g. ``'suppress_confirmations'``).
@@ -226,7 +226,7 @@ def set_flag(key: str, value) -> None:
 
 
 def add_suppression(suppression_id: str) -> None:
-    """Add a confirmation suppression ID and persist to app_settings.
+    """Add a confirmation suppression ID and persist to settings.
 
     Idempotent — adding an ID that already exists is a no-op.
 
@@ -255,7 +255,7 @@ def is_suppressed(suppression_id: str) -> bool:
 
 
 def set_path(key: str, value: str) -> None:
-    """Write a path value to app_settings and update state.
+    """Write a path value to settings and update state.
 
     Covers all keys in ``_PATH_KEYS``: ``LIBRARY_PATH``, ``SOFTWARE_PATH``,
     ``MEDIA_PATH``, ``OS_PATH``, ``ROMS_PATH``, ``PROFILES_PATH``.
@@ -289,7 +289,7 @@ def reset_db_completed() -> None:
 
     Called by the lifespan handler immediately after deleting peach1up.db
     for a reset_db cycle. Settings live in the same SQLite file as library
-    data, so deleting it also empties app_settings — without this, a
+    data, so deleting it also empties settings — without this, a
     reset_db wipe would silently drop every configured setting. Re-persisting
     the state that was already loaded before the delete restores it.
 

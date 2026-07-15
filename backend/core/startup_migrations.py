@@ -13,7 +13,7 @@ def _apply_schema_migrations() -> None:
 
     engine = get_engine()
     # Idempotent ADD COLUMN catch-ups for non-game tables. The game schema
-    # (game_item_bundles / game_items leaf / launch_history / media_restrictions)
+    # (game_item_bundles / game_items leaf / launch_history / restrictions)
     # is created directly by create_tables() in its consolidated shape — there is no
     # legacy game DB to migrate, so no game data-reshape steps live here.
     # Exception: game_items.original_name was added after that consolidated

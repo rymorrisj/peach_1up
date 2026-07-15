@@ -50,7 +50,7 @@ def _check_traversal(path_str: str) -> Path:
 
 
 # Still "sensitive" in the sense of being scrubbed from GET-all, even though
-# none of the four live in app_settings any more — they're .env-backed (see
+# none of the four live in settings any more — they're .env-backed (see
 # env_secrets.py). Kept as a real filter (not dead code) as defense in depth
 # in case a future source ever merges into `state`.
 _SENSITIVE_KEYS = {
@@ -70,7 +70,7 @@ _ENV_SECRET_KEYS = {"THEGAMESDB_API_KEY", "AI_API_KEY", "IGDB_CLIENT_ID", "IGDB_
 # PIN_PEPPER is handled by its own dedicated route and is intentionally absent.
 # Path keys and _ENV_SECRET_KEYS are each routed through their own dedicated
 # write path below (set_path() / set_env_secret()) rather than written to
-# app_settings state raw.
+# settings state raw.
 _USER_WRITABLE_KEYS = _ALL_PATH_KEYS | _ENV_SECRET_KEYS | {
     "suppress_confirmations",
     "delete_media_on_removal",

@@ -97,7 +97,7 @@ the account is locked.
   or unrecognised rating is denied rather than passed through.
 - Enforcement is server-side. Deny wins over any permission flag with no override path.
 - Rating scale is freetext on `SoftwareCollection.content_rating`. Recommended: ESRB (E, E10+, T, M, AO) or
-  PEGI (3, 7, 12, 16, 18). Ordinal comparison map configured via the `rating_ordinals` key in `app_settings`.
+  PEGI (3, 7, 12, 16, 18). Ordinal comparison map configured via the `rating_ordinals` key in `settings`.
 
 ---
 
@@ -121,7 +121,7 @@ the account is locked.
   least one validation layer between input and execution.
 - Emulator binary paths are **never taken from request input**, query parameters, or
   profile fields. Paths resolve through three tiers: (1) user override stored in the
-  `app_settings` DB table, (2) bundled project `emulators/{slug}/` directory,
+  `settings` DB table, (2) bundled project `emulators/{slug}/` directory,
   (3) catalog-detected known installation paths from the `config/emulators/*.toml`
   descriptors. No registry scanning. This rule has no exceptions.
 - CLI arguments passed to emulator processes come from validated `Profile` config fields
@@ -136,7 +136,7 @@ the account is locked.
 **Mandatory.**
 
 - Emulator binary paths are never derived from request input. Paths resolve through
-  three tiers: `app_settings` DB user override, bundled `emulators/{slug}/` project
+  three tiers: `settings` DB user override, bundled `emulators/{slug}/` project
   directory, or catalog-detected system installation paths from the `config/emulators/*.toml`
   descriptors. No registry scanning.
 - Arguments are constructed from validated `Profile` fields only. No string interpolation
@@ -386,13 +386,13 @@ environment registration time.
 
 The Library Paths settings panel has been removed from the UI, and the earlier
 `config/settings.yaml` hand-edit fallback no longer exists either. Settings are now
-DB-backed in the `app_settings` table. LIBRARY_PATH, SOFTWARE_PATH, PROFILES_PATH, and
+DB-backed in the `settings` table. LIBRARY_PATH, SOFTWARE_PATH, PROFILES_PATH, and
 ROMS_PATH cannot currently be reconfigured through the frontend or any file. Users with
 non-standard installs (library on a secondary drive, NAS share, or external volume) have
 no supported path to change them today.
 
 The backend endpoint POST /api/v1/settings/library-path remains live and functional and
-writes directly to `app_settings`, but it requires a `can_manage_settings` session — in
+writes directly to `settings`, but it requires a `can_manage_settings` session — in
 practice, calling the API directly (e.g. via curl with an authenticated cookie).
 
 Highest-risk case: ROMS_PATH defaults to {project_root}/library/system/roms/86box. Users who supply 86Box ROMs from a zip extracted to a non-default location (the common case) will silently use the wrong ROM path after a clean install. The 86Box backend will raise a ROM path error at launch time rather than silently proceeding, so the failure is visible — but the fix path is now undocumented short of calling the API directly.

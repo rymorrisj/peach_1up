@@ -39,12 +39,12 @@ _BASE_RATING_ORDINALS: dict[str, int] = _derive_rating_ordinals()
 
 # Scheme grouping (ESRB, PEGI, ...) is not part of the ordinal override key —
 # rating_ordinals only remaps severity within a scheme — so this always comes
-# from the base CONTENT_RATINGS list, never the app_settings override.
+# from the base CONTENT_RATINGS list, never the settings override.
 _BASE_RATING_SCHEMES: dict[str, str] = {entry["value"]: entry["scheme"] for entry in CONTENT_RATINGS}
 
 
 def _load_rating_ordinals() -> dict[str, int]:
-    """Return the rating ordinal map from app_settings (key: rating_ordinals) or defaults.
+    """Return the rating ordinal map from settings (key: rating_ordinals) or defaults.
 
     Falls back to _BASE_RATING_ORDINALS when settings are unavailable
     (RuntimeError before init) or malformed (TypeError/ValueError) — the

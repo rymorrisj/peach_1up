@@ -51,7 +51,7 @@ def get_engine():
 
 
 def ensure_settings_table() -> None:
-    """Create only the app_settings table, safe to call at import time (T1)
+    """Create only the settings table, safe to call at import time (T1)
     before the rest of backend.models.* has registered with SQLModel.metadata.
 
     Scoped to a single table via ``tables=[...]`` so it never touches (or

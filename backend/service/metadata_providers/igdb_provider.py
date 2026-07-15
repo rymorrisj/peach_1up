@@ -3,7 +3,7 @@
 Auth: IGDB requires a Twitch Developer app. Client ID/secret live in .env
 (env_secrets.py, same pattern as THEGAMESDB_API_KEY). The resulting app
 access token is a short-lived, silently re-mintable derivative of the client
-secret — not a root secret — so it's cached in app_settings
+secret — not a root secret — so it's cached in settings
 (igdb_access_token / igdb_access_token_expires_at) instead, and losing it on
 reset_db is harmless (the next call just mints a new one).
 

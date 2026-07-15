@@ -46,7 +46,7 @@ class TestRatingOrdinals:
 
     def test_load_rating_ordinals_falls_back_to_base_when_settings_unavailable(self):
         """_load_rating_ordinals must fail closed to the restrictive default
-        vocabulary, never raise, when app_settings isn't reachable yet."""
+        vocabulary, never raise, when settings isn't reachable yet."""
         from backend.core.dependencies import _BASE_RATING_ORDINALS, _load_rating_ordinals
 
         # No monkeypatch here: backend.core.settings.get_settings() raises
@@ -54,7 +54,7 @@ class TestRatingOrdinals:
         # the fallback path for real rather than simulating it.
         assert _load_rating_ordinals() == _BASE_RATING_ORDINALS
 
-    def test_load_rating_ordinals_uses_app_settings_override_when_present(self, monkeypatch):
+    def test_load_rating_ordinals_uses_settings_override_when_present(self, monkeypatch):
         import backend.core.settings as settings_mod
 
         class _Settings:

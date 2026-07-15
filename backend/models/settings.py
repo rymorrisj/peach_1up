@@ -6,7 +6,7 @@ from sqlmodel import Field, SQLModel
 
 # How long launch history rows are kept before the retention sweep deletes them.
 # "never" (default) preserves the current unbounded behaviour. Stored as a plain
-# string in app_settings under the launch_history_retention key, same convention
+# string in settings under the launch_history_retention key, same convention
 # as metadata_provider. The window -> timedelta mapping lives in
 # backend/service/launch/history.py.
 LaunchHistoryRetention = Literal["never", "1_week", "1_month", "6_months"]
@@ -16,7 +16,7 @@ LAUNCH_HISTORY_RETENTION_VALUES: frozenset[str] = frozenset(get_args(LaunchHisto
 
 
 class Settings(SQLModel, table=True):
-    __tablename__ = "app_settings"
+    __tablename__ = "settings"
 
     key: str = Field(primary_key=True)
     value: Optional[str] = None

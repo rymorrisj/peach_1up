@@ -1,7 +1,7 @@
 """Read/write helpers for secrets stored in the project's .env file.
 
 PIN_PEPPER, THEGAMESDB_API_KEY, AI_API_KEY, IGDB_CLIENT_ID, and IGDB_CLIENT_SECRET
-are deliberately kept out of app_settings (unlike every other former settings.yaml key, which
+are deliberately kept out of settings (unlike every other former settings.yaml key, which
 now lives in the DB — see backend/service/utils/settings.py). A secret must
 not round-trip through the same SQLite file that the reset_db dev flag can
 delete, and .env is already gitignored and documented as the secrets home

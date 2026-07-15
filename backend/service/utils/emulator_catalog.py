@@ -170,7 +170,7 @@ def get_install_path(slug: str) -> Path | None:
     install_scope = entry.get("install_scope", "portable")
     binary = entry.get("binary", "")
 
-    # Check the app_settings user override first — user path always wins.
+    # Check the settings user override first — user path always wins.
     if install_type != "rom_pack":
         settings_key = get_settings_key(slug)
         try:

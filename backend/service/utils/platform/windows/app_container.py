@@ -120,7 +120,7 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
         message=f"Cannot resolve path_key '{path_key}' for emulator '{slug}'",
         stage=SandboxStage.CONFIG_VALIDATION,
         suggestions=[
-            f"Add '{path_key}' to app_settings or define it as a derived "
+            f"Add '{path_key}' to settings or define it as a derived "
             "path in app_container._resolve_path_key()",
         ],
     )
