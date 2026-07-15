@@ -2,6 +2,7 @@ import { screen, waitFor, render } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
+import { ToastProvider } from '@/ui/ToastProvider'
 import { apiFetch } from '@/api/client'
 import { EntityDetailPage } from './EntityDetailPage'
 import { gameDomainConfig } from '../configs/gameConfig'
@@ -76,11 +77,13 @@ function renderAt(path: string, routePattern: string, element: React.ReactElemen
   return render(
     <MemoryRouter initialEntries={[path]}>
       <QueryClientProvider client={queryClient}>
-        <AppProvider>
-          <Routes>
-            <Route path={routePattern} element={element} />
-          </Routes>
-        </AppProvider>
+        <ToastProvider>
+          <AppProvider>
+            <Routes>
+              <Route path={routePattern} element={element} />
+            </Routes>
+          </AppProvider>
+        </ToastProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   )

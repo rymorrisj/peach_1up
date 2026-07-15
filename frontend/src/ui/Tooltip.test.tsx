@@ -19,10 +19,10 @@ describe('Tooltip', () => {
         <button>Hover me</button>
       </Tooltip>,
     )
-    expect(screen.queryByText('Helpful hint')).not.toBeInTheDocument()
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
     await user.hover(screen.getByRole('button', { name: 'Hover me' }))
     await waitFor(() => {
-      expect(screen.getByText('Helpful hint')).toBeInTheDocument()
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Helpful hint')
     })
   })
 
@@ -35,7 +35,7 @@ describe('Tooltip', () => {
     )
     await user.tab()
     await waitFor(() => {
-      expect(screen.getByText('Helpful hint')).toBeInTheDocument()
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Helpful hint')
     })
   })
 })

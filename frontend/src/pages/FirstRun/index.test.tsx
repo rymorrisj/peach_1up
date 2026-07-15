@@ -53,10 +53,17 @@ function renderWizard() {
 }
 
 describe('FirstRun wizard', () => {
-  let replaceSpy: ReturnType<typeof vi.spyOn>
+  // jsdom's window.location.replace is non-configurable, so it can't be
+  // spied on directly with vi.spyOn — replace the whole location object.
+  let replaceSpy: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    replaceSpy = vi.spyOn(window.location, 'replace').mockImplementation(() => {})
+    replaceSpy = vi.fn()
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, replace: replaceSpy },
+      writable: true,
+      configurable: true,
+    })
     mockFirstRunApi()
   })
 

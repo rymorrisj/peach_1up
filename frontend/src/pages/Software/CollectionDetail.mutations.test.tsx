@@ -4,6 +4,7 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
+import { ToastProvider } from '@/ui/ToastProvider'
 import CollectionDetail from '@/pages/Software/CollectionDetail'
 import { apiFetch, ApiError } from '@/api/client'
 import { createMockLibraryItem } from '@/test/helpers'
@@ -140,13 +141,15 @@ function renderPage(slug = 'doom') {
   return render(
     <MemoryRouter initialEntries={[`/software/games/${slug}`]}>
       <QueryClientProvider client={queryClient}>
-        <AppProvider>
-          <Routes>
-            <Route path="/software/games/:slug" element={<CollectionDetail />} />
-            <Route path="/software" element={<div>Software list</div>} />
-          </Routes>
-          <LocationProbe />
-        </AppProvider>
+        <ToastProvider>
+          <AppProvider>
+            <Routes>
+              <Route path="/software/games/:slug" element={<CollectionDetail />} />
+              <Route path="/software" element={<div>Software list</div>} />
+            </Routes>
+            <LocationProbe />
+          </AppProvider>
+        </ToastProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   )

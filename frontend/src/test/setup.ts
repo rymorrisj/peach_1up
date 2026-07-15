@@ -1,5 +1,16 @@
 import '@testing-library/jest-dom'
 
+// jsdom does not implement ResizeObserver, which Radix UI's popper positioning
+// (used by Tooltip, Select, etc.) requires during layout effects.
+class MockResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
+}
+
 // jsdom does not implement HTMLDialogElement.showModal() / close(). Re-applied
 // in beforeEach (not just assigned once at module load) because these are
 // vi.fn() mocks: any test file that calls vi.resetAllMocks()/vi.clearAllMocks()
