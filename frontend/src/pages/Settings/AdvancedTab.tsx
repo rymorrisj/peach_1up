@@ -398,6 +398,78 @@ function PinPepperSection() {
   )
 }
 
+const RETENTION_OPTIONS: { value: 'never' | '1_week' | '1_month' | '6_months'; label: string }[] = [
+  { value: 'never', label: 'Keep forever' },
+  { value: '1_week', label: '1 week' },
+  { value: '1_month', label: '1 month' },
+  { value: '6_months', label: '6 months' },
+]
+
+function LaunchHistoryRetentionSection() {
+  const queryClient = useQueryClient()
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const { data: settings } = useQuery<Record<string, unknown>>({
+    queryKey: ['settings'],
+    queryFn: () => apiFetch('/api/v1/settings'),
+  })
+
+  const active = (settings?.launch_history_retention as string | undefined) ?? 'never'
+
+  async function handleSelect(value: string) {
+    if (value === active) return
+    setSaving(true)
+    setError(null)
+    try {
+      await apiFetch('/api/v1/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ updates: { launch_history_retention: value } }),
+      })
+      await queryClient.invalidateQueries({ queryKey: ['settings'] })
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : 'Failed to update retention.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+        Launch History Retention
+      </h2>
+      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        How long launch session history is kept. Older records are deleted automatically. "Keep
+        forever" preserves everything. This runs in the background and does not affect launches.
+      </p>
+      <div className="space-y-2">
+        {RETENTION_OPTIONS.map((opt) => (
+          <label
+            key={opt.value}
+            className="flex items-center gap-3 text-sm text-neutral-900 dark:text-neutral-100"
+          >
+            <input
+              type="radio"
+              name="launch-history-retention"
+              checked={active === opt.value}
+              disabled={saving}
+              onChange={() => void handleSelect(opt.value)}
+              className="h-4 w-4 accent-[#ff8a5c]"
+            />
+            {opt.label}
+          </label>
+        ))}
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          ❌ {error}
+        </p>
+      )}
+    </section>
+  )
+}
+
 function DeleteOriginalOnUploadSection() {
   const queryClient = useQueryClient()
   const [saving, setSaving] = useState(false)
@@ -551,6 +623,7 @@ export default function AdvancedTab() {
       <PinPepperSection />
       <DeleteMediaOnRemovalSection />
       <DeleteOriginalOnUploadSection />
+      <LaunchHistoryRetentionSection />
 
       <section className="space-y-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">

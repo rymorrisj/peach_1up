@@ -76,6 +76,7 @@ _USER_WRITABLE_KEYS = _ALL_PATH_KEYS | _ENV_SECRET_KEYS | {
     "delete_media_on_removal",
     "delete_original_on_upload",
     "metadata_provider",
+    "launch_history_retention",
 }
 
 
@@ -126,6 +127,17 @@ def patch_settings(body: SettingsPatch, _: UserItem = require_permission("can_ma
             status_code=403,
             detail=f"These settings cannot be changed here: {', '.join(disallowed)}.",
         )
+    if "launch_history_retention" in body.updates:
+        from backend.models.settings import LAUNCH_HISTORY_RETENTION_VALUES
+        value = body.updates["launch_history_retention"]
+        if value not in LAUNCH_HISTORY_RETENTION_VALUES:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Invalid launch_history_retention: "
+                    f"{value!r}. Expected one of {sorted(LAUNCH_HISTORY_RETENTION_VALUES)}."
+                ),
+            )
     svc = get_settings()
     for key, value in body.updates.items():
         if key in _ALL_PATH_KEYS:

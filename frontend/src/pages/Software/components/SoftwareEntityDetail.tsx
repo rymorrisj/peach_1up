@@ -65,6 +65,8 @@ interface SoftwareEntityDetailProps {
   restrictions?: RestrictionsProps
   /** Launch session history — renders when non-empty */
   launchHistory?: LaunchHistory[]
+  /** Owner/admin only: enables bulk-select + delete on the session history. */
+  launchHistoryCanDelete?: boolean
 }
 
 export function SoftwareEntityDetail({
@@ -93,6 +95,7 @@ export function SoftwareEntityDetail({
   launchErrorAction,
   restrictions,
   launchHistory,
+  launchHistoryCanDelete,
 }: SoftwareEntityDetailProps) {
   return (
     <div className="flex flex-col min-h-full">
@@ -171,7 +174,7 @@ export function SoftwareEntityDetail({
             />
           )}
 
-          <LaunchHistorySection history={launchHistory ?? []} />
+          <LaunchHistorySection history={launchHistory ?? []} canDelete={launchHistoryCanDelete} />
 
         </div>
       </div>

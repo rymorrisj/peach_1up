@@ -165,6 +165,15 @@ def require_admin_or_self_manage(request: Request, active_user: UserItem = Depen
     raise HTTPException(status_code=403, detail="Permission denied.")
 
 
+def require_owner_or_admin(active_user: UserItem = Depends(get_active_user)) -> UserItem:
+    """Allow only owner or admin accounts. Used where a capability is reserved to
+    household administrators with no per-flag equivalent, e.g. deleting launch
+    history for any user."""
+    if active_user.is_owner or active_user.is_admin:
+        return active_user
+    raise HTTPException(status_code=403, detail="Permission denied: requires owner or admin.")
+
+
 def require_game_or_environment_editor(active_user: UserItem = Depends(get_active_user)) -> UserItem:
     """Allow owners and anyone who can edit the game library or environments (e.g. filesystem browsing)."""
     if active_user.is_owner or active_user.can_manage_game or active_user.can_manage_environment:

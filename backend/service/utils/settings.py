@@ -56,6 +56,9 @@ _DEFAULTS: dict = {
     "delete_original_on_upload": False,
     "UPLOAD_TMP_TTL_SECONDS": DEFAULT_UPLOAD_TMP_TTL_SECONDS,
     "metadata_provider": "thegamesdb",
+    # Retention window for launch history. "never" preserves the pre-existing
+    # unbounded behaviour. See models/settings.py LaunchHistoryRetention.
+    "launch_history_retention": "never",
 }
 
 # Path keys whose values are resolved to absolute paths at load time.

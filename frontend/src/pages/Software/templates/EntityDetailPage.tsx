@@ -200,6 +200,7 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
           : undefined
       }
       launchHistory={extras.launchHistory as SoftwareEntityDetailProps['launchHistory']}
+      launchHistoryCanDelete={isAdminOrOwner}
     />
     {extras.afterContent}
     </>

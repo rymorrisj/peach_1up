@@ -5,13 +5,15 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import (
-    get_active_user, get_filtered_app_item, get_filtered_game_item_bundle, require_permission,
+    get_active_user, get_filtered_app_item, get_filtered_game_item_bundle,
+    require_owner_or_admin, require_permission,
 )
 from backend.core.logger import get_logger
 from backend.models import EnvironmentItem, LaunchHistory
 from backend.models.launch_history import LaunchHistoryRead
 from backend.models.user import UserItem
 from backend.service.launch import coordinator as svc
+from backend.service.launch.history import scope_launch_query, user_can_view_launch
 
 logger = get_logger(__name__)
 
@@ -92,15 +94,13 @@ async def launch_environment(
 def list_collection_launches(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: UserItem = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
-    return (
-        db.query(LaunchHistory)
-        .filter(LaunchHistory.game_item_bundle_id == collection_id)
-        .order_by(LaunchHistory.started_at.desc())
-        .limit(20)
-        .all()
-    )
+    # Scoped: owner/admin see all, other users see only launches attributable to
+    # them (their profiles) or unattributed shared launches. See scope_launch_query.
+    q = db.query(LaunchHistory).filter(LaunchHistory.game_item_bundle_id == collection_id)
+    q = scope_launch_query(q, active_user)
+    return q.order_by(LaunchHistory.started_at.desc()).limit(20).all()
 
 
 @router.get("/launches", response_model=list[LaunchHistoryRead])
@@ -108,7 +108,7 @@ def list_launches(
     target_id: Optional[int] = Query(default=None),
     target_type: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
-    _: UserItem = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
     q = db.query(LaunchHistory)
     if target_id is not None and target_type is not None:
@@ -120,16 +120,44 @@ def list_launches(
             q = q.filter(LaunchHistory.app_item_bundle_id == target_id)
         else:
             raise HTTPException(status_code=422, detail=f"Unknown target_type: {target_type!r}")
+    q = scope_launch_query(q, active_user)
     return q.order_by(LaunchHistory.started_at.desc()).limit(50).all()
+
+
+class BulkDeleteLaunchesBody(BaseModel):
+    ids: list[int] = []
+
+
+@router.delete("/launches", status_code=200)
+def delete_launches(
+    body: BulkDeleteLaunchesBody,
+    db: Session = Depends(get_db),
+    _: UserItem = Depends(require_owner_or_admin),
+):
+    """Delete launch history rows by id. Owner/admin only. An empty id list is a
+    no-op (returns deleted=0), not an error. Serves both the single-record and
+    multi-record ("delete these N checked") UI flows from one endpoint."""
+    if not body.ids:
+        return {"deleted": 0}
+    deleted = (
+        db.query(LaunchHistory)
+        .filter(LaunchHistory.id.in_(body.ids))
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return {"deleted": deleted}
+
 
 @router.get("/launches/{history_id}")
 def get_launch(
     history_id: int,
     db: Session = Depends(get_db),
-    _: UserItem = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
     record = db.get(LaunchHistory, history_id)
-    if not record:
+    # Return 404 (not 403) when the record exists but isn't the caller's, so a
+    # non-admin can't probe which launch ids exist for other users.
+    if not record or not user_can_view_launch(record, active_user, db):
         raise HTTPException(status_code=404, detail="Launch record not found.")
     return record
 
