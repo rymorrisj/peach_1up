@@ -1,7 +1,9 @@
+import type { ReactNode } from 'react'
 import type { components } from '@shared/types'
 import type { RestrictionDomain } from '@/hooks/useCollectionRestrictions'
 
 export type TagRead = components['schemas']['TagRead']
+type UserItemRead = components['schemas']['UserItemRead']
 
 // Server-side pagination envelope (backend models/pagination.py), shared by
 // every /api/v1/*-item(s)/*-bundle(s) list route across all three domains.
@@ -54,7 +56,10 @@ export interface EntityDomainConfig<TBundle extends EntityBundleBase> {
   domain: RestrictionDomain
   routeBase: string // e.g. '/software/games'
   listApiPath: string // e.g. '/api/v1/game-items'
-  bundleApiPath: (id: number) => string // e.g. id => `/api/v1/game-item-bundle/${id}`
+  // Fetches the bundle by whatever config.identifierParam selects (a numeric
+  // id as a string for 'id', a slug for 'slug') — always a string since it's
+  // only ever interpolated into a URL, never used arithmetically.
+  bundleApiPath: (identifier: string) => string // e.g. id => `/api/v1/game-item-bundle/${id}`
   tagEntityType: string // e.g. 'game_item_bundle' — must match backend _ASSIGNMENT_TARGETS
   entityLabel: string // singular, e.g. 'game'
   entityLabelPlural: string // e.g. 'games'
@@ -64,4 +69,62 @@ export interface EntityDomainConfig<TBundle extends EntityBundleBase> {
   // PC-scoped only (bundle.is_pc), not every app in the domain is launchable.
   // Defaults to "launchable" whenever launchTargetType is set.
   isLaunchable?: (bundle: TBundle) => boolean
+  // Route param this domain's detail page is keyed by. Defaults to the
+  // numeric ':id' (App/Media's existing routes). Game has no numeric-id
+  // lookup endpoint and is routed/fetched by slug instead.
+  identifierParam?: 'id' | 'slug'
+  // Back-link label on the loading/not-found guard screens ("← {label}").
+  // Defaults to 'Back', matching App/Media's current text exactly.
+  backLabel?: string
+  // Whether to show entity.description as a read-only paragraph in the meta
+  // section. Defaults to true (App/Media's only surface for description
+  // today). Game suppresses this — its own edit-form slot already edits and
+  // displays description, so this would otherwise duplicate it.
+  showDescriptionMeta?: boolean
+  // Filters the user list passed into the Restrictions section. Defaults to
+  // identity (App/Media's current, unfiltered behavior). Game excludes
+  // owners, since owners are never restrictable.
+  filterRestrictionUsers?: (users: UserItemRead[]) => UserItemRead[]
+  // Domain-specific stateful "extras" — additional hooks plus the derived
+  // JSX slots that don't fit the shared shape (disc reorder, edit form,
+  // delete flow, xiso convert, metadata enrich, DOS-install, etc. for Game).
+  // Called unconditionally on every render, exactly like a custom hook, so
+  // it must tolerate `entity` being undefined internally (pre-load). Omitted
+  // entirely for App/Media, so their rendered output is unaffected.
+  renderExtras?: (ctx: EntityDetailExtrasContext<TBundle>) => EntityDetailExtras
+}
+
+export interface EntityDetailExtrasContext<TBundle extends EntityBundleBase> {
+  entity: TBundle | undefined
+  entityId: number | undefined
+  detailQueryKey: unknown[]
+  isOwner: boolean
+  launch: (profileId?: number | null) => void
+  isLaunching: boolean
+  launchErrorType: string | undefined
+  refetchEntity: () => Promise<TBundle>
+}
+
+// JSX-shaped slots use ReactNode directly. editForm/advancedSection/
+// launchHistory stay `unknown` here since this file has no business knowing
+// EditForm/AdvancedSection/LaunchHistorySection's real shapes — EntityDetailPage
+// casts them once, at the single point it spreads into SoftwareEntityDetail,
+// which already owns those real types.
+export interface EntityDetailExtras {
+  eraLabel?: string
+  launchCount?: number
+  lastLaunchedAt?: string | null
+  topControl?: ReactNode
+  metaAfter?: ReactNode
+  editForm?: unknown
+  advancedSection?: unknown
+  fetchMetadataAction?: ReactNode
+  beforeLaunch?: ReactNode
+  launchDisabled?: boolean
+  launchButtonLabel?: string
+  launchNote?: ReactNode
+  launchErrorAction?: ReactNode
+  launchHistory?: unknown[]
+  onLaunch?: () => void
+  afterContent?: ReactNode
 }

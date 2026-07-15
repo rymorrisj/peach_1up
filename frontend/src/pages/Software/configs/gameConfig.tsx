@@ -1,0 +1,570 @@
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, ApiError } from '@/api/client'
+import { Button } from '@/ui'
+import ConfirmModal from '@/components/common/ConfirmModal'
+import { useXisoConvert } from '@/hooks/useXisoConvert'
+import { useDiscOrder } from '@/hooks/useDiscOrder'
+import { useInstalledToggle } from '@/hooks/useInstalledToggle'
+import { useFlagLaunch } from '@/hooks/useFlagLaunch'
+import { useDeleteCollection } from '@/hooks/useDeleteCollection'
+import { useEditForm, type EditForm as EditFormFields } from '@/hooks/useEditForm'
+import { resolveLaunchCommands } from '@/hooks/resolveLaunchCommands'
+import { FetchMetadataModal } from '../components/FetchMetadataModal'
+import { DiscOrderList } from '../components/DiscOrderList'
+import { getGameCoverArt } from '../components/CollectionCard'
+import type { GameItemBundleData } from '../components/CollectionCard'
+import { ERA_LABELS } from '@/generated/constants'
+import type { EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
+import type { components } from '@shared/types'
+
+type LaunchHistory = components['schemas']['LaunchHistoryRead']
+type LaunchProfile = components['schemas']['ProfileItemRead']
+type Platform = components['schemas']['EnvironmentItemRead']
+
+// Game's detail route/fetch is keyed by slug (no numeric-id lookup endpoint
+// on the backend), so bundleApiPath here means "by-slug", not "by-id".
+function gameBundleApiPath(slug: string): string {
+  return `/api/v1/game-item-bundle/by-slug/${slug}`
+}
+
+function formIsReady<T>(form: T | null): form is T {
+  return form != null
+}
+
+// Composes every game-only concern (disc reorder, DOS-install, xiso convert,
+// edit form, launch_commands, flag launch, delete flow, metadata enrich) into
+// the slot shape EntityDetailPage renders. Called unconditionally on every
+// render of EntityDetailPage when mounted with gameDomainConfig — every hook
+// below must tolerate `collection`/`collectionId` being undefined (pre-load),
+// exactly like CollectionDetail.tsx's pre-composition body did.
+function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>): EntityDetailExtras {
+  const collection = ctx.entity
+  const collectionId = ctx.entityId
+  const { detailQueryKey, isOwner, launch, isLaunching, launchErrorType, refetchEntity } = ctx
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
+  const { data: settings } = useQuery<Record<string, unknown>>({
+    queryKey: ['settings'],
+    queryFn: () => apiFetch('/api/v1/settings'),
+    enabled: isOwner,
+  })
+  const activeProvider = (settings?.metadata_provider as string | undefined) ?? 'thegamesdb'
+  const activeProviderLabel = activeProvider === 'igdb' ? 'IGDB' : 'TheGamesDB'
+
+  const { data: theGamesDbStatus } = useQuery({
+    queryKey: ['thegamesdb-api-key-status'],
+    queryFn: () => apiFetch<{ enabled: boolean }>('/api/v1/settings/thegamesdb-api-key/status'),
+    enabled: isOwner && activeProvider === 'thegamesdb',
+    staleTime: 30_000,
+  })
+  const { data: igdbStatus } = useQuery({
+    queryKey: ['igdb-status'],
+    queryFn: () => apiFetch<{ enabled: boolean }>('/api/v1/settings/igdb-status'),
+    enabled: isOwner && activeProvider === 'igdb',
+    staleTime: 30_000,
+  })
+  const activeProviderStatus = activeProvider === 'igdb' ? igdbStatus : theGamesDbStatus
+  const metadataProviderEnabled = isOwner && (activeProviderStatus?.enabled !== false)
+
+  const [fetchMetadataOpen, setFetchMetadataOpen] = useState(false)
+  const [fetchDiscId, setFetchDiscId] = useState<number | null>(null)
+  // Two independent instances of <FetchMetadataModal> mount below (one for
+  // the whole collection, one per-disc) — each needs its own busy flag so a
+  // per-disc fetch doesn't show as loading on the collection-level button
+  // (and vice versa). Not currently reachable since fetchMetadataOpen and
+  // fetchDiscId are mutually exclusive, but the flags must stay independent.
+  const [collectionMetadataBusy, setCollectionMetadataBusy] = useState(false)
+  const [discMetadataBusy, setDiscMetadataBusy] = useState(false)
+
+  const { data: libraryDefaults } = useQuery<{ delete_media_on_removal: boolean; delete_original_on_upload: boolean }>({
+    queryKey: ['settings', 'library-defaults'],
+    queryFn: () => apiFetch('/api/v1/settings/library-defaults'),
+    staleTime: 60_000,
+  })
+  const deleteMediaOnRemoval = Boolean(libraryDefaults?.delete_media_on_removal)
+  const resolvedDeleteMedia = collection?.delete_media_override ?? deleteMediaOnRemoval
+
+  const { data: profiles = [] } = useQuery<LaunchProfile[]>({
+    queryKey: ['profiles'],
+    queryFn: async () => (await apiFetch<{ items: LaunchProfile[] }>('/api/v1/profile-items?limit=200')).items,
+  })
+
+  const { data: platforms = [] } = useQuery<Platform[]>({
+    queryKey: ['platforms'],
+    queryFn: () => apiFetch<Platform[]>('/api/v1/environment-items'),
+  })
+
+  const { data: launchHistory = [] } = useQuery<LaunchHistory[]>({
+    queryKey: ['launches', 'collection', collectionId],
+    queryFn: () => apiFetch<LaunchHistory[]>(`/api/v1/game-item-bundle/${collectionId}/launches`),
+    enabled: collectionId != null,
+  })
+
+  const [execBrowserOpen, setExecBrowserOpen] = useState(false)
+  // undefined = not yet loaded; null = never configured (preserve, media may
+  // auto-run); [] = explicitly cleared (persist as empty → no auto-run).
+  // Using undefined as the load sentinel keeps null distinguishable from [].
+  const [launchCommands, setLaunchCommandsState] = useState<string[] | null | undefined>(undefined)
+
+  const {
+    localInstalled,
+    setLocalInstalled,
+    handleToggleInstalled,
+    isPending: installedPending,
+    installedError,
+    confirmOpen: installedConfirmOpen,
+    confirmOptions: installedConfirmOptions,
+    handleConfirm: handleInstalledConfirm,
+    handleCancel: handleInstalledCancel,
+  } = useInstalledToggle({ collectionId, detailQueryKey })
+
+  const { form, setFormField, resyncFromCollection } = useEditForm({ collection })
+
+  useEffect(() => {
+    if (collection && !form) {
+      setLaunchCommandsState(collection.launch_commands ?? null)
+      setLocalInstalled(collection.installed)
+    }
+  }, [collection, form])
+
+  const { discOrder, setDiscOrder, displayedOrder, isReorderStaged, reset: resetDiscOrder } = useDiscOrder({
+    discs: collection?.items ?? [],
+    onLaunchDiscChange: (executable_path) => setFormField('executable_path', executable_path),
+  })
+
+  const saveMutation = useMutation<GameItemBundleData, Error, EditFormFields>({
+    mutationFn: async (f) => {
+      await apiFetch<GameItemBundleData>(`/api/v1/game-item-bundle/${collectionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: f.title.trim() || undefined,
+          sort_title: f.sort_title.trim() || null,
+          description: f.description.trim() || null,
+          publisher: f.publisher.trim() || null,
+          year: f.year ? parseInt(f.year, 10) : null,
+          category: f.category.trim() || null,
+          content_rating: f.content_rating || null,
+          era: f.era || null,
+          environment_item_id : f.environment_item_id  ? parseInt(f.environment_item_id , 10) : null,
+          profile_item_id: f.profile_item_id ? parseInt(f.profile_item_id, 10) : null,
+          launch_commands: resolveLaunchCommands(launchCommands, collection?.launch_commands),
+        }),
+      })
+
+      // Persist a staged reorder (if any) before deciding which disc gets the
+      // executable_path edit below — otherwise an edit made after reordering
+      // would land on the disc that *was* the launch disc before this save,
+      // not the one the user just dragged to the top.
+      const currentOrderIds = (collection?.items ?? [])
+        .slice()
+        .sort((a, b) => a.disc_number - b.disc_number)
+        .map((i) => i.id)
+      const reorderStaged = isReorderStaged(currentOrderIds)
+      if (reorderStaged && collectionId != null) {
+        await apiFetch(`/api/v1/game-item-bundle/${collectionId}/items/reorder`, {
+          method: 'PATCH',
+          body: JSON.stringify({ disc_order: discOrder }),
+        })
+      }
+
+      const launchDiscId = reorderStaged
+        ? discOrder![0]
+        : (collection?.launch_disk_id ?? collection?.items[0]?.id)
+      if (launchDiscId != null && collectionId != null) {
+        await apiFetch(`/api/v1/game-item-bundle/${collectionId}/items/${launchDiscId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            executable_path: f.executable_path.trim() || null,
+            cover_art_path: f.cover_art_path.trim() || null,
+          }),
+        })
+      }
+
+      // Fetch fresh, fully up-to-date collection data (reflecting the collection
+      // fields, disc order, and launch-disc executable_path changes above) so
+      // the form can resync deterministically in onSuccess rather than relying
+      // on invalidateQueries' background refetch timing.
+      return refetchEntity()
+    },
+    onSuccess: (fresh) => {
+      resetDiscOrder()
+      resyncFromCollection(fresh)
+      queryClient.invalidateQueries({ queryKey: detailQueryKey })
+    },
+  })
+
+  const {
+    deleteMediaOverrideMutate,
+    deleteMediaOverrideError,
+    deleteConfirmOpen,
+    deleteConfirmOptions,
+    handleDeleteConfirm,
+    handleDeleteCancel,
+    deleting,
+    deleteError,
+    handleDelete,
+  } = useDeleteCollection({
+    collectionId,
+    title: collection?.title,
+    resolvedDeleteMedia,
+    detailQueryKey,
+    onDeleted: () => navigate('/software'),
+  })
+
+  const { flagging, flagError, handleFlagLaunch } = useFlagLaunch({ collectionId, detailQueryKey })
+
+  const xisoConvert = useXisoConvert(collectionId ?? 0)
+
+  if (!collection || !formIsReady(form)) {
+    // Mirrors the pre-composition `!collection || !form` guard — while the
+    // collection is loaded but the form hasn't seeded yet (one render tick),
+    // render no game-only slots at all rather than a partial form. Every
+    // hook above still ran unconditionally, satisfying Rules of Hooks.
+    return {}
+  }
+
+  const eraLabel = ERA_LABELS[collection.era] ?? (collection.era === 'unknown' ? 'Unknown' : collection.era)
+  const sortedItems = collection.items.slice().sort((a, b) => a.disc_number - b.disc_number)
+  // Single-disc games are collections-of-one — suppress the disc list entirely.
+  const isMultiDisc = sortedItems.length > 1
+  const showDiscSwapWarning = (collection.era === 'ps1' || collection.era === 'ps2') && isMultiDisc
+
+  // Staged order takes precedence over the server's disc_number order once
+  // the user has dragged/moved a disc, so the "Launch File" field below and
+  // the "Launch target" badge in the disc list both reflect the not-yet-saved
+  // choice consistently.
+  const currentLaunchDisc =
+    sortedItems.find((i) => i.id === displayedOrder[0]) ?? sortedItems[0]
+
+  const effectiveProfileId = form.profile_item_id
+    ? parseInt(form.profile_item_id, 10)
+    : (collection.profile_item_id ?? null)
+  const hasProfile = effectiveProfileId != null
+
+  const storageKey = `fetch_metadata_${window.location.pathname}`
+  const activeDisc = fetchDiscId != null ? sortedItems.find((d) => d.id === fetchDiscId) : undefined
+
+  return {
+    eraLabel,
+    launchCount: collection.launch_count,
+    lastLaunchedAt: collection.last_launched_at,
+    launchHistory,
+
+    topControl: (
+      <section className="space-y-3 rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 dark:border-surface-700 dark:bg-surface-900">
+        <label
+          htmlFor="delete-media-override"
+          className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
+        >
+          <input
+            type="checkbox"
+            id="delete-media-override"
+            checked={resolvedDeleteMedia}
+            onChange={(e) => deleteMediaOverrideMutate(e.target.checked)}
+            className="h-4 w-4"
+          />
+          Delete all files/folders when you delete this in Peach 1UP?
+        </label>
+        {deleteMediaOverrideError && (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">{deleteMediaOverrideError}</p>
+        )}
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={handleDelete}
+          loading={deleting}
+        >
+          Delete this collection
+        </Button>
+        {deleteError && (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">{deleteError}</p>
+        )}
+      </section>
+    ),
+
+    metaAfter: (
+      <>
+        {isMultiDisc && (
+          <div>
+            <span className="font-medium">Discs:</span> {collection.items.length}
+          </div>
+        )}
+        {collection.genres.length > 0 && (
+          <div>
+            <span className="font-medium">Genre:</span> {collection.genres.join(', ')}
+          </div>
+        )}
+        {collection.developer && (
+          <div>
+            <span className="font-medium">Developer:</span> {collection.developer}
+          </div>
+        )}
+        {collection.era === 'dos' && (
+          <div className="flex items-center gap-2">
+            <span className="font-medium shrink-0">Installed:</span>
+            <span className="text-neutral-500 dark:text-neutral-400">
+              {localInstalled ? '● Yes' : '○ No'}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleToggleInstalled}
+              loading={installedPending}
+            >
+              {localInstalled ? 'Mark as not installed' : 'Mark as installed'}
+            </Button>
+          </div>
+        )}
+      </>
+    ),
+
+    editForm: {
+      item: {
+        era: form.era || collection.era,
+        media_path: currentLaunchDisc?.media_path,
+        folder_path: currentLaunchDisc?.folder_path,
+      },
+      form,
+      setField: setFormField,
+      handleSave: () => saveMutation.mutate(form),
+      saving: saveMutation.isPending,
+      saveError: saveMutation.isError
+        ? (saveMutation.error instanceof ApiError ? saveMutation.error.detail : 'Failed to save.')
+        : null,
+      saveSuccess: saveMutation.isSuccess,
+      execBrowserOpen,
+      setExecBrowserOpen,
+      profiles,
+      platforms,
+    },
+
+    advancedSection: {
+      item: { launch_review_flagged: collection.launch_review_flagged },
+      flagging,
+      flagError,
+      onFlagLaunch: handleFlagLaunch,
+      launchCommands: launchCommands ?? null,
+      setLaunchCommands: setLaunchCommandsState,
+    },
+
+    fetchMetadataAction: isOwner ? (
+      <section className="space-y-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+          Metadata
+        </h2>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setFetchMetadataOpen(true)}
+            disabled={!metadataProviderEnabled || collectionMetadataBusy}
+            loading={collectionMetadataBusy}
+            title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured — set them in Settings > Advanced` : undefined}
+          >
+            Fetch Metadata
+          </Button>
+          {!isMultiDisc && sortedItems[0] && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setFetchDiscId(sortedItems[0].id)}
+              disabled={!metadataProviderEnabled || discMetadataBusy}
+              loading={discMetadataBusy && fetchDiscId === sortedItems[0].id}
+              title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured` : 'Fetch cover art for this disc'}
+            >
+              Cover Art
+            </Button>
+          )}
+          {!metadataProviderEnabled && (
+            <span className="text-xs text-neutral-400">
+              Requires {activeProviderLabel} credentials (Settings &gt; Advanced)
+            </span>
+          )}
+        </div>
+      </section>
+    ) : null,
+
+    beforeLaunch: (
+      <>
+        {/* Disc list is shown only for multi-disc collections. Drag (or use
+            the up/down buttons) to reorder — staged locally, persisted only
+            when "Save Changes" above is pressed. */}
+        {isMultiDisc && (
+          <section className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+              Discs
+            </h2>
+            <DiscOrderList
+              discs={sortedItems}
+              order={displayedOrder}
+              onReorder={setDiscOrder}
+              disabled={saveMutation.isPending}
+              renderActions={(disc) =>
+                isOwner ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFetchDiscId(disc.id)}
+                    disabled={!metadataProviderEnabled || discMetadataBusy}
+                    loading={discMetadataBusy && fetchDiscId === disc.id}
+                    title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured` : 'Fetch cover art for this disc'}
+                    className="shrink-0"
+                  >
+                    Cover Art
+                  </Button>
+                ) : null
+              }
+            />
+            {discOrder != null && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Disc order changed — press "Save Changes" above to persist it.
+              </p>
+            )}
+          </section>
+        )}
+
+        {showDiscSwapWarning && (
+          <div
+            role="note"
+            className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3"
+          >
+            <div className="flex items-center gap-2 font-medium text-sm text-amber-600 dark:text-amber-400 mb-1">
+              <span aria-hidden="true">⚠</span>
+              Manual disc swap required
+            </div>
+            <p className="text-xs text-amber-700/80 dark:text-amber-400/80 leading-relaxed">
+              Discs must be swapped manually using the emulator's own disc-swap menu (e.g.{' '}
+              <span className="font-mono">System → Change Disc</span>) once the game is running.
+              Peach 1UP does not automate disc swapping for console platforms.
+            </p>
+          </div>
+        )}
+      </>
+    ),
+
+    onLaunch: () => { if (effectiveProfileId != null) launch(effectiveProfileId) },
+    launchDisabled: !hasProfile || isLaunching,
+    launchButtonLabel: hasProfile ? 'Launch' : 'Assign a profile to launch',
+    launchNote: !hasProfile ? (
+      <p className="text-center text-xs text-neutral-400 dark:text-neutral-500">
+        Select a launch profile above to enable launch.
+      </p>
+    ) : undefined,
+    launchErrorAction: launchErrorType === 'xbox_dvd_rip' ? (
+      <div className="mt-2 space-y-1 text-center">
+        {xisoConvert.status === 'complete' ? (
+          <p className="text-xs text-green-600 dark:text-green-400">
+            Conversion complete. Click Launch to try again. The original rip was kept as{' '}
+            {'<filename>.old'} in the same folder — delete it manually to free up disk space.
+          </p>
+        ) : (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={xisoConvert.convert}
+            loading={xisoConvert.isConverting}
+          >
+            {xisoConvert.isConverting
+              ? 'Converting… this can take a while for large images'
+              : 'Convert with extract-xiso'}
+          </Button>
+        )}
+        {xisoConvert.error && (
+          <p className="text-xs text-red-600 dark:text-red-400">{xisoConvert.error}</p>
+        )}
+      </div>
+    ) : undefined,
+
+    afterContent: (
+      <>
+        <FetchMetadataModal
+          open={fetchMetadataOpen}
+          onClose={() => setFetchMetadataOpen(false)}
+          entityType="software_collection"
+          entityId={collection.id}
+          entityTitle={collection.title}
+          currentContentRating={collection.content_rating}
+          storageKey={storageKey}
+          activeProviderLabel={activeProviderLabel}
+          onSuccess={async () => {
+            queryClient.invalidateQueries({ queryKey: detailQueryKey })
+            queryClient.invalidateQueries({ queryKey: ['library'] })
+            // Fetch fresh data directly and resync the edit form — the form is only
+            // built from `collection` once (see the formIsReady guard above), so it
+            // would otherwise show stale publisher/description/category/rating/
+            // cover art fields until a full page reload even after the invalidated
+            // query refetches in the background.
+            const fresh = await refetchEntity()
+            resyncFromCollection(fresh)
+          }}
+          onBusyChange={setCollectionMetadataBusy}
+        />
+
+        {fetchDiscId != null && activeDisc != null && (
+          <FetchMetadataModal
+            open={fetchDiscId != null}
+            onClose={() => setFetchDiscId(null)}
+            entityType="software_item"
+            entityId={fetchDiscId}
+            entityTitle={activeDisc.media_path.split(/[\\/]/).pop() ?? collection.title}
+            storageKey={`${storageKey}#disc-${fetchDiscId}`}
+            activeProviderLabel={activeProviderLabel}
+            onSuccess={async () => {
+              queryClient.invalidateQueries({ queryKey: detailQueryKey })
+              queryClient.invalidateQueries({ queryKey: ['library'] })
+              const fresh = await refetchEntity()
+              resyncFromCollection(fresh)
+              setFetchDiscId(null)
+            }}
+            onBusyChange={setDiscMetadataBusy}
+          />
+        )}
+
+        <ConfirmModal
+          open={installedConfirmOpen}
+          title={installedConfirmOptions?.title ?? ''}
+          consequence={installedConfirmOptions?.consequence ?? ''}
+          destructive={installedConfirmOptions?.destructive}
+          onConfirm={handleInstalledConfirm}
+          onCancel={handleInstalledCancel}
+        />
+
+        <ConfirmModal
+          open={deleteConfirmOpen}
+          title={deleteConfirmOptions?.title ?? ''}
+          consequence={deleteConfirmOptions?.consequence ?? ''}
+          destructive={deleteConfirmOptions?.destructive}
+          checkbox={deleteConfirmOptions?.checkbox}
+          onConfirm={handleDeleteConfirm}
+          onCancel={handleDeleteCancel}
+        />
+
+        {installedError && (
+          <p role="alert" className="sr-only">{installedError}</p>
+        )}
+      </>
+    ),
+  }
+}
+
+// Game's cover art lives on the leaf item (display/launch disk id
+// indirection) — see getGameCoverArt in CollectionCard.tsx, reused as-is.
+export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
+  domain: 'game',
+  routeBase: '/software/games',
+  listApiPath: '/api/v1/game-items',
+  bundleApiPath: gameBundleApiPath,
+  tagEntityType: 'game_item_bundle',
+  entityLabel: 'game',
+  entityLabelPlural: 'games',
+  coverArt: getGameCoverArt,
+  launchTargetType: 'collection',
+  identifierParam: 'slug',
+  backLabel: 'Back to Software',
+  showDescriptionMeta: false,
+  filterRestrictionUsers: (users) => users.filter((u) => !u.is_owner),
+  renderExtras: useGameDetailExtras,
+}

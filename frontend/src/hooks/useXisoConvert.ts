@@ -10,6 +10,13 @@ interface ConvertStatusResponse {
   output_path: string | null
 }
 
+const POLL_INTERVAL_MS = 3000
+// extract-xiso runs on multi-GB rips and can legitimately take a while, but
+// the poll still needs a ceiling, without one a backend that never reports
+// complete or error (crashed worker, lost job) polls every 3s forever until
+// unmount. 200 attempts at 3s is about 10 minutes.
+const MAX_POLL_ATTEMPTS = 200
+
 /** Drives POST/{id}/convert-xiso then polls its status endpoint until the
  * background conversion finishes — mirrors useLaunch's poll-for-completion
  * shape since a multi-GB rip conversion is not instant either. */
@@ -17,6 +24,7 @@ export function useXisoConvert(collectionId: number) {
   const [status, setStatus] = useState<ConvertStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const attemptsRef = useRef(0)
 
   useEffect(() => () => {
     if (pollRef.current) clearInterval(pollRef.current)
@@ -28,7 +36,15 @@ export function useXisoConvert(collectionId: number) {
     onSuccess: () => {
       setStatus('converting')
       setError(null)
+      attemptsRef.current = 0
       pollRef.current = setInterval(async () => {
+        attemptsRef.current += 1
+        if (attemptsRef.current > MAX_POLL_ATTEMPTS) {
+          setStatus('error')
+          setError('Conversion is taking longer than expected — check the destination folder for completion.')
+          if (pollRef.current) clearInterval(pollRef.current)
+          return
+        }
         try {
           const res = await apiFetch<ConvertStatusResponse>(
             `/api/v1/game-item-bundle/${collectionId}/convert-xiso/status`,
@@ -44,7 +60,7 @@ export function useXisoConvert(collectionId: number) {
         } catch {
           // transient poll errors are non-fatal
         }
-      }, 3000)
+      }, POLL_INTERVAL_MS)
     },
     onError: (err) => {
       setStatus('error')

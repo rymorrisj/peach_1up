@@ -43,7 +43,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
     })
     if (!confirmed) return
     try {
-      await apiFetch(config.bundleApiPath(entity.id), { method: 'DELETE' })
+      await apiFetch(config.bundleApiPath(String(entity.id)), { method: 'DELETE' })
       invalidate()
     } catch (err) {
       alert(err instanceof ApiError ? err.detail : 'Remove failed.')

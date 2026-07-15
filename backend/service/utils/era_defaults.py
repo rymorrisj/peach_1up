@@ -19,7 +19,7 @@ def lookup_environment_and_profile(
     profile_era: str,
     db: Session,
 ) -> tuple[int | None, int | None]:
-    """Return (environment_id, profile_item_id) for the given emulator and era, querying system records only."""
+    """Return (environment_item_id, profile_item_id) for the given emulator and era, querying system records only."""
     from backend.models.environment import EnvironmentItem
     from backend.models.profile import ProfileItem
 
@@ -39,7 +39,7 @@ def lookup_environment_and_profile(
 def lookup_system_environment_by_era(era: str, db: Session):
     """Return the is_system Environment whose era matches *era*, or None.
 
-    Runtime fallback for a PC SoftwareCollection whose environment_id is still
+    Runtime fallback for a PC SoftwareCollection whose environment_item_id is still
     null (doc 02 A5, transition window before existing rows are backfilled).
     Era-matched rather than emulator_slug-matched (unlike
     lookup_environment_and_profile above) because the caller already knows the
