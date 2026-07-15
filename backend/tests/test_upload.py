@@ -158,7 +158,11 @@ class TestSoftwareUploadRoute:
         monkeypatch.setattr(
             settings_mod,
             "get_settings",
-            lambda: _FakeSettings({"SOFTWARE_PATH": str(media_path)}),
+            # LIBRARY_PATH backs chunked-upload staging (library/tmp_chunks/,
+            # a sibling of software/, not nested inside it) — set here too so
+            # staging lands inside this test's own tmp_path sandbox instead of
+            # the real process cwd.
+            lambda: _FakeSettings({"SOFTWARE_PATH": str(media_path), "LIBRARY_PATH": str(tmp_path)}),
         )
         # The in-memory rate limiter is module-level and persists across test
         # methods; bypass it so the 10-inits-per-60s bucket never trips.
@@ -290,7 +294,9 @@ class TestSoftwareUploadRoute:
         c, media_path = client
         from backend.service.utils import media_dup_index
 
-        root = media_path.resolve()
+        # Dedup is checked against the games domain root (media_path/game),
+        # not media_path itself — see path_utils.library_domain_root.
+        root = (media_path / "game").resolve()
         rglob_calls_on_root = []
         original_rglob = media_dup_index.Path.rglob
 

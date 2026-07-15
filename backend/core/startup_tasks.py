@@ -75,6 +75,9 @@ def _ensure_default_paths() -> None:
     lib = base / "library"
     for d in [
         lib / "software",
+        lib / "software" / "game",
+        lib / "software" / "media",
+        lib / "software" / "apps",
         lib / "media",
         lib / "system",
         lib / "system" / "bios",
@@ -144,20 +147,20 @@ def _heal_interrupted_rom_pack_clones() -> None:
 
 def _sweep_upload_tmp() -> None:
     """Reap tmp_chunks staging dirs left behind by uploads interrupted before
-    complete/abort (crash or restart lost the in-memory session)."""
+    complete/abort (crash or restart lost the in-memory session). Staging is
+    domain-independent (library/tmp_chunks/, not nested under any one
+    domain's root), so this sweeps LIBRARY_PATH's tmp_chunks, not SOFTWARE_PATH's."""
     try:
-        from pathlib import Path
-
         from backend.core.settings import get_settings
         from backend.service.games.chunked_uploads import sweep_orphans
         from backend.service.utils.upload_utils import DEFAULT_UPLOAD_TMP_TTL_SECONDS
 
-        software_path = get_settings().get("SOFTWARE_PATH", "") or ""
-        if not software_path:
+        library_path = get_settings().get("LIBRARY_PATH", "") or ""
+        if not library_path:
             return
         ttl = int(get_settings().get("UPLOAD_TMP_TTL_SECONDS", DEFAULT_UPLOAD_TMP_TTL_SECONDS)
                   or DEFAULT_UPLOAD_TMP_TTL_SECONDS)
-        removed = sweep_orphans(Path(software_path), ttl)
+        removed = sweep_orphans(ttl)
         if removed:
             logger.info("Startup: swept %d orphaned upload tmp dir(s)", removed)
     except Exception as exc:

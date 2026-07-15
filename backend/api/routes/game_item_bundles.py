@@ -195,8 +195,10 @@ def import_from_path(
         )
 
     from backend.core.settings import get_settings
+    from backend.service.utils.path_utils import library_domain_root
     svc = get_settings()
-    media_root = Path(svc.get_env_var("SOFTWARE_PATH")).resolve()
+    # Games-only route today, so the destination domain is always "game".
+    media_root = library_domain_root("game")
     try:
         threshold = int(svc.get("UPLOAD_BACKGROUND_THRESHOLD_BYTES", DEFAULT_BACKGROUND_THRESHOLD_BYTES)
                          or DEFAULT_BACKGROUND_THRESHOLD_BYTES)
@@ -249,7 +251,11 @@ def cancel_scan(job_id: str):
     return updated
 
 
-def _resolve_scan_directory() -> Path:
+def _resolve_scan_directory(domain: str) -> Path:
+    """Resolve the scan root for one library domain ("game", "media", or
+    "apps"). Only "game" is reachable today (this route is games-only), but
+    the resolver itself is domain-aware so a future Media/Apps scan endpoint
+    can call it correctly without any change here."""
     try:
         from backend.core.settings import get_settings
         software_path = get_settings().get("SOFTWARE_PATH", "") or ""
@@ -260,9 +266,13 @@ def _resolve_scan_directory() -> Path:
             status_code=400,
             detail="No software library path is configured. Set SOFTWARE_PATH in Settings before scanning.",
         )
-    resolved = Path(software_path).resolve()
+    from backend.service.utils.path_utils import library_domain_root
+    resolved = library_domain_root(domain)
     if not resolved.is_dir():
-        raise HTTPException(status_code=400, detail="Software library path does not exist or is not a directory.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"The '{domain}' library directory does not exist or is not a directory: {resolved}",
+        )
     return resolved
 
 
@@ -319,7 +329,8 @@ def trigger_scan(
     with _scan_lock:
         if _scan_running:
             raise HTTPException(status_code=409, detail="A scan is already running.")
-    resolved = _resolve_scan_directory()
+    # This route is games-only today (mounted at /api/v1/game-items/scan).
+    resolved = _resolve_scan_directory("game")
     _check_known_items_findable(db)
     # Fast stat-only pre-pass classifies the scan so the UI knows immediately
     # whether to keep the inline modal (small) or drop to the nav bell (large).

@@ -70,7 +70,11 @@ class TestPrepareFolderRename:
         """games_root/My Game (1993)/doom.exe → folder renamed to games_root/doom/."""
         media_root = tmp_path / "media"
         media_root.mkdir()
-        src_folder = media_root / "My Game (1993)"
+        # SOFTWARE_PATH is media_root; games_root_str-derived paths resolve to
+        # library_domain_root("game") = media_root/game — see path_utils.py.
+        games_root = media_root / "game"
+        games_root.mkdir()
+        src_folder = games_root / "My Game (1993)"
         src_folder.mkdir()
         src_file = src_folder / "doom.exe"
         src_file.write_bytes(b"fake exe")
@@ -78,7 +82,7 @@ class TestPrepareFolderRename:
         _patch_settings(monkeypatch, media_root)
         row = _call_prepare(str(src_file), "Doom", mem_session)
 
-        canonical = media_root / "doom"
+        canonical = games_root / "doom"
         assert canonical.is_dir(), "Canonical folder must exist after rename"
         assert not src_folder.exists(), "Original folder must be gone after rename"
         assert (canonical / "doom.exe").is_file()
@@ -90,7 +94,9 @@ class TestPrepareFolderRename:
         no rename and no move should occur."""
         media_root = tmp_path / "media"
         media_root.mkdir()
-        src_folder = media_root / "doom"
+        games_root = media_root / "game"
+        games_root.mkdir()
+        src_folder = games_root / "doom"
         src_folder.mkdir()
         src_file = src_folder / "doom.exe"
         src_file.write_bytes(b"fake exe")
@@ -108,9 +114,11 @@ class TestPrepareFolderRename:
         skipped and the file is moved there instead."""
         media_root = tmp_path / "media"
         media_root.mkdir()
-        existing_canonical = media_root / "doom"
+        games_root = media_root / "game"
+        games_root.mkdir()
+        existing_canonical = games_root / "doom"
         existing_canonical.mkdir()
-        src_folder = media_root / "My Doom Game"
+        src_folder = games_root / "My Doom Game"
         src_folder.mkdir()
         src_file = src_folder / "doom.exe"
         src_file.write_bytes(b"fake exe")
@@ -127,13 +135,15 @@ class TestPrepareFolderRename:
         is not eligible for rename — a new folder is created and the file moved."""
         media_root = tmp_path / "media"
         media_root.mkdir()
-        src_file = media_root / "doom.exe"
+        games_root = media_root / "game"
+        games_root.mkdir()
+        src_file = games_root / "doom.exe"
         src_file.write_bytes(b"fake exe")
 
         _patch_settings(monkeypatch, media_root)
         row = _call_prepare(str(src_file), "Doom", mem_session)
 
-        canonical = media_root / "doom"
+        canonical = games_root / "doom"
         assert canonical.is_dir()
         assert (canonical / "doom.exe").is_file()
         assert not src_file.exists(), "Loose file must have been moved into the canonical folder"
@@ -144,7 +154,9 @@ class TestPrepareFolderRename:
         rename path — only direct subfolders of games_root qualify."""
         media_root = tmp_path / "media"
         media_root.mkdir()
-        deep_folder = media_root / "outer" / "inner"
+        games_root = media_root / "game"
+        games_root.mkdir()
+        deep_folder = games_root / "outer" / "inner"
         deep_folder.mkdir(parents=True)
         src_file = deep_folder / "doom.exe"
         src_file.write_bytes(b"fake exe")
@@ -155,7 +167,7 @@ class TestPrepareFolderRename:
         # canonical dest_folder is games_root/doom which doesn't conflict.
         row = _call_prepare(str(src_file), "Doom", mem_session)
 
-        canonical = media_root / "doom"
+        canonical = games_root / "doom"
         assert canonical.is_dir()
         assert (canonical / "doom.exe").is_file()
         # The deeply-nested original folder's content was moved, not renamed.
@@ -173,7 +185,9 @@ class TestPrepareDuplication:
         """Importing the same directory twice raises _ItemAlreadyExists."""
         media_root = tmp_path / "media"
         media_root.mkdir()
-        folder = media_root / "doom"
+        games_root = media_root / "game"
+        games_root.mkdir()
+        folder = games_root / "doom"
         folder.mkdir()
         (folder / "doom.exe").write_bytes(b"fake exe")
 

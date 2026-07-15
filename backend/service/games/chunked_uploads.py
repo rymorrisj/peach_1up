@@ -1,11 +1,15 @@
 """Chunked-upload transport & storage.
 
 Single responsibility: accept a file (or folder of files) as an ordered series
-of chunks staged under ``SOFTWARE_PATH/tmp_chunks/<upload_id>/``, then reassemble
-them into their permanent location under ``SOFTWARE_PATH``. Ingest (dedup, era
-detection, DB persistence) is NOT done here — that is upload_finalize's job,
-which funnels into the shared ingester. Cleanup of the staging area is owned
-entirely by this module (success, abort, and orphan sweep).
+of chunks staged under ``library/tmp_chunks/<upload_id>/``, then reassemble
+them into their permanent location under whichever domain root the caller
+passes to ``reassemble``. Staging lives under the shared library root rather
+than any one domain's root because at staging time the upload's eventual
+destination domain (game/media/apps) is not yet known, and reassembly is what
+resolves it. Ingest (dedup, era detection, DB persistence) is NOT done here
+— that is upload_finalize's job, which funnels into the shared ingester.
+Cleanup of the staging area is owned entirely by this module (success, abort,
+and orphan sweep).
 
 Sessions are in-memory (matching _scan_state / install_registry). A crash loses
 the session but leaves the tmp dir on disk; sweep_orphans() reaps those.
@@ -44,11 +48,15 @@ class ReassembledUpload:
     total_bytes: int
 
 
-def tmp_root(media_root: Path) -> Path:
-    return media_root / TMP_CHUNKS_DIRNAME
+def tmp_root() -> Path:
+    """Shared pre-domain staging root, library/tmp_chunks/, a sibling of
+    software/ rather than nested inside it, since staging happens before the
+    upload's eventual destination domain (game/media/apps) is known."""
+    from backend.service.utils.path_utils import library_root
+    return library_root() / TMP_CHUNKS_DIRNAME
 
 
-def init_session(media_root: Path, kind: str, title: str, files: list[dict]) -> str:
+def init_session(kind: str, title: str, files: list[dict]) -> str:
     """Validate the declared manifest, create the staging dir, and return an
     unguessable upload_id. Raises ValueError on a malformed manifest."""
     import uuid
@@ -74,7 +82,7 @@ def init_session(media_root: Path, kind: str, title: str, files: list[dict]) -> 
         raise ValueError("Upload exceeds the maximum allowed size.")
 
     upload_id = uuid.uuid4().hex
-    root = tmp_root(media_root)
+    root = tmp_root()
     root.mkdir(parents=True, exist_ok=True)
     session_dir = resolve_under(root, upload_id)
     session_dir.mkdir(parents=True, exist_ok=False)
@@ -149,8 +157,9 @@ def total_size(upload_id: str) -> int:
 
 def reassemble(upload_id: str, media_root: Path) -> ReassembledUpload:
     """Concatenate every file's chunks in order into a permanent slug dir under
-    SOFTWARE_PATH, then drop the staging dir and session. On any failure the
-    partial destination and the staging dir are both removed before re-raising.
+    *media_root* (the caller's resolved domain root), then drop the staging
+    dir and session. On any failure the partial destination and the staging
+    dir are both removed before re-raising.
     """
     with _lock:
         session = _sessions.get(upload_id)
@@ -214,11 +223,11 @@ def _discard(upload_id: str, session_dir: Path) -> None:
     shutil.rmtree(session_dir, ignore_errors=True)
 
 
-def sweep_orphans(media_root: Path, ttl_seconds: float) -> int:
+def sweep_orphans(ttl_seconds: float) -> int:
     """Remove staging dirs on disk older than ttl_seconds with no live session —
     reaps interrupted uploads (crash/restart lost the in-memory session). Returns
     the number of dirs removed."""
-    root = tmp_root(media_root)
+    root = tmp_root()
     if not root.is_dir():
         return 0
     with _lock:

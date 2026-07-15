@@ -48,8 +48,12 @@ class InitBody(BaseModel):
 
 
 def _software_root() -> Path:
-    from backend.core.settings import get_settings
-    return Path(get_settings().get_env_var("SOFTWARE_PATH")).resolve()
+    # This router is games-only today (mounted at /api/v1/game-items/uploads),
+    # so the destination domain is always "game" — see
+    # service.utils.path_utils.library_domain_root for the domain-aware
+    # resolver every consumer of SOFTWARE_PATH now goes through.
+    from backend.service.utils.path_utils import library_domain_root
+    return library_domain_root("game")
 
 
 def _setting_int(key: str, default: int) -> int:
@@ -74,7 +78,6 @@ def init_upload(
         raise HTTPException(status_code=422, detail="A title is required for folder and set uploads.")
     try:
         upload_id = cu.init_session(
-            _software_root(),
             body.kind,
             title,
             [{"name": f.name, "size": f.size, "chunks": f.chunks} for f in body.files],

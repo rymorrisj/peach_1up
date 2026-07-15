@@ -261,11 +261,12 @@ def _prepare_item(
 
     if media_src.is_dir():
         if games_root_str:
-            media_root = Path(games_root_str).resolve()
+            from backend.service.utils.path_utils import library_domain_root
+            media_root = library_domain_root("game")
             if not (media_src == media_root or media_src.is_relative_to(media_root)):
                 raise HTTPException(
                     status_code=400,
-                    detail="Folder is outside the media library (library/media/).",
+                    detail="Folder is outside the games library (library/software/game/).",
                 )
 
         existing = db.query(GameItem).filter(
@@ -335,7 +336,8 @@ def _prepare_item(
 
     elif media_src.is_file():
         if games_root_str:
-            _games_root = Path(games_root_str).resolve()
+            from backend.service.utils.path_utils import library_domain_root
+            _games_root = library_domain_root("game")
             _src_parent = media_src.parent
 
             # Slugify the destination folder name (matches the shared slugify()
@@ -345,7 +347,7 @@ def _prepare_item(
             # canonical folder name is deterministic from the stem, and an
             # existing folder at that path is a real target to rename into or
             # move into (handled below), not a collision to suffix away from.
-            dest_folder = Path(games_root_str) / slugify(media_src.stem)
+            dest_folder = _games_root / slugify(media_src.stem)
             dest = dest_folder / media_src.name
 
             # Duplicate check: source path or destination copy already tracked.
@@ -823,13 +825,15 @@ def _delete_leaf_media_folders(collection: GameItemBundle) -> None:
     files behind for legacy folder_owned=None rows) — over-deleting a shared
     directory is worse than under-deleting an unowned one.
 
-    Every resolved path is required to fall under SOFTWARE_PATH before removal;
-    a path that fails this check is refused and logged loudly rather than
-    silently skipped, since silently continuing past a failed containment
-    check on a delete path is worse than doing nothing.
+    Every resolved path is required to fall under the game library root
+    (library/software/game/) before removal; a path that fails this check is
+    refused and logged loudly rather than silently skipped, since silently
+    continuing past a failed containment check on a delete path is worse than
+    doing nothing.
     """
     from backend.core.logger import get_logger
     from backend.core.settings import get_settings
+    from backend.service.utils.path_utils import library_domain_root
 
     log = get_logger(__name__)
     svc = get_settings()
@@ -841,7 +845,7 @@ def _delete_leaf_media_folders(collection: GameItemBundle) -> None:
             collection.id,
         )
         return
-    media_root = Path(media_root_str).resolve()
+    media_root = library_domain_root("game")
 
     def _under_root(path: Path) -> bool:
         return path == media_root or path.is_relative_to(media_root)
@@ -858,7 +862,7 @@ def _delete_leaf_media_folders(collection: GameItemBundle) -> None:
             if not _under_root(folder):
                 log.error(
                     "Refusing to delete media folder '%s' for library item %s: "
-                    "it does not resolve under SOFTWARE_PATH ('%s').",
+                    "it does not resolve under the game library root ('%s').",
                     folder, leaf.id, media_root,
                 )
                 continue
@@ -879,7 +883,7 @@ def _delete_leaf_media_folders(collection: GameItemBundle) -> None:
             if not _under_root(file_path):
                 log.error(
                     "Refusing to delete media file '%s' for library item %s: "
-                    "it does not resolve under SOFTWARE_PATH ('%s').",
+                    "it does not resolve under the game library root ('%s').",
                     file_path, leaf.id, media_root,
                 )
                 continue

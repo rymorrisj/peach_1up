@@ -134,3 +134,46 @@ def allowed_browse_roots() -> list[Path]:
 
 def is_within_roots(resolved: Path, roots: list[Path]) -> bool:
     return any(resolved == r or resolved.is_relative_to(r) for r in roots)
+
+
+# Matches the on-disk folder names exactly (the games folder is the singular
+# "game", not "games") so a domain key can be joined onto SOFTWARE_PATH with
+# no further translation.
+_LIBRARY_DOMAINS: frozenset[str] = frozenset({"game", "media", "apps"})
+
+
+def library_root() -> Path:
+    """Return LIBRARY_PATH: the shared root one level above every domain
+    subtree (software/, media/, system/...). Used for state that exists before
+    a file's eventual destination domain is even known, e.g. chunked-upload
+    staging, so that staging area is not nested inside any one domain's root.
+    """
+    from backend.core.settings import get_settings
+    return Path(get_settings().get_env_var("LIBRARY_PATH")).resolve()
+
+
+def library_domain_root(domain: str) -> Path:
+    """Return the on-disk root for one Software-library domain: "game",
+    "media", or "apps". Each is a fixed subdirectory of SOFTWARE_PATH,
+    library/software/game/, library/software/media/, library/software/apps/,
+    matching the real on-disk layout.
+
+    Single place upload, scan, and any other consumer that used to read
+    SOFTWARE_PATH directly and treat it as one flat root should resolve a
+    domain-scoped destination from instead.
+
+    Note: "media" here is the Software section's Media tab (MediaItemBundle,
+    under SOFTWARE_PATH), a distinct concept from the MEDIA_PATH setting,
+    which roots the older, unrelated archival Media/Archive domain at
+    library/media/.
+
+    Raises:
+        ValueError: if domain is not one of "game", "media", "apps".
+    """
+    if domain not in _LIBRARY_DOMAINS:
+        raise ValueError(
+            f"Unknown library domain '{domain}'. Valid domains: {', '.join(sorted(_LIBRARY_DOMAINS))}"
+        )
+    from backend.core.settings import get_settings
+    software_path = get_settings().get_env_var("SOFTWARE_PATH")
+    return Path(software_path).resolve() / domain
