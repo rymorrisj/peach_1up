@@ -281,6 +281,18 @@ describe('CollectionDetail (mutation path)', () => {
       })
       expect(screen.getByRole('button', { name: 'Mark as not installed' })).toBeInTheDocument()
     })
+
+    it('is hidden entirely for a non-DOS era', async () => {
+      setupApi(adminUser, [
+        { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ era: 'win95', installed: true }) },
+      ])
+      renderPage()
+      await waitForLoaded()
+
+      expect(screen.queryByText('Installed:')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Mark as installed' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Mark as not installed' })).not.toBeInTheDocument()
+    })
   })
 
   // ── Delete-media-on-removal override (immediate PATCH, no confirm) ──
@@ -396,6 +408,35 @@ describe('CollectionDetail (mutation path)', () => {
       // (delete), not a fallback that skipped straight there.
       expect(calls.some((c) => c.url === '/api/v1/game-item-bundle/1/confirm-delete' && c.method === 'POST')).toBe(true)
       expect(calls.some((c) => c.url.startsWith('/api/v1/game-item-bundle/1?confirmation_token=') && c.method === 'DELETE')).toBe(true)
+    })
+
+    it('sends the checkbox value the user toggled in the dialog, not the default', async () => {
+      const user = userEvent.setup()
+      const calls = setupApi(adminUser, [
+        { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ delete_media_override: null }) },
+        { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
+        { match: '/api/v1/game-item-bundle/1/confirm-delete', method: 'POST', respond: () => ({ confirmation_token: 'tok-456' }) },
+        { match: /^\/api\/v1\/game-item-bundle\/1\?confirmation_token=tok-456$/, method: 'DELETE', respond: () => undefined },
+      ])
+      renderPage()
+      await waitForLoaded()
+
+      // delete_media_override is null and library-defaults' delete_media_on_removal
+      // is false (setupApi's baseline), so resolvedDeleteMedia — the checkbox's
+      // defaultChecked — is false. Toggle it on before confirming.
+      await user.click(screen.getByRole('button', { name: 'Delete this collection' }))
+      await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+      const checkbox = screen.getByRole('checkbox', { name: /also delete media files from disk/i })
+      expect(checkbox).not.toBeChecked()
+      await user.click(checkbox)
+      await user.click(screen.getByRole('button', { name: 'Confirm' }))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location-probe')).toHaveTextContent('/software')
+      })
+
+      const patch = calls.find((c) => c.url === '/api/v1/game-item-bundle/1' && c.method === 'PATCH' && 'delete_media_override' in (c.body as object))
+      expect(patch?.body).toEqual({ delete_media_override: true })
     })
   })
 

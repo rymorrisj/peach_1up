@@ -146,7 +146,7 @@ the account is locked.
 - A launch cooldown is enforced between successive requests to prevent rapid-fire
   spawning.
 - All spawned processes are tracked and recorded in `LaunchHistory` (emulator, profile,
-  the launch target as `software_collection_id` or `environment_id`, start time, exit code).
+  the launch target as `software_collection_id` or `environment_item_id`, start time, exit code).
 - On Windows, every spawned process is assigned to a Job Object. If Job Object creation
   or assignment fails, the launch is aborted — there is no unsandboxed fallback.
 - On Linux, process isolation is a design target for a future release. No hardened sandbox

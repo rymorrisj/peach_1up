@@ -183,8 +183,8 @@ describe('CollectionDetail (read path)', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /restrictions/i })).toBeInTheDocument()
+      expect(screen.getByRole('checkbox', { name: 'Bob' })).toBeChecked()
     })
-    expect(screen.getByRole('checkbox', { name: 'Bob' })).toBeChecked()
 
     const calledUrls = vi.mocked(apiFetch).mock.calls.map((c) => c[0])
     expect(calledUrls).toContain('/api/v1/restrictions/game/1')
