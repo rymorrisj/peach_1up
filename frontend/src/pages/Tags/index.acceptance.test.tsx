@@ -47,8 +47,9 @@ function renderPage() {
 }
 
 const EXISTING_TAGS: TagRead[] = [
-  { id: 1, name: 'adventure', color: 'sky', item_count: 8 },
-  { id: 2, name: 'strategy', color: 'violet', item_count: 3 },
+  { id: 1, name: 'adventure', color: 'sky', item_count: 8, is_system: false },
+  { id: 2, name: 'strategy', color: 'violet', item_count: 3, is_system: false },
+  { id: 3, name: 'Game', color: 'sky', item_count: 0, is_system: true },
 ]
 
 describe('Tags acceptance', () => {
@@ -86,12 +87,20 @@ describe('Tags acceptance', () => {
     expect(createBtn).not.toBeDisabled()
   })
 
-  it('always shows the system tags section regardless of user tags', async () => {
-    vi.mocked(apiFetch).mockResolvedValue([])
+  it('shows the system tags section with is_system tags from the API', async () => {
+    vi.mocked(apiFetch).mockImplementation((url) => {
+      if (typeof url === 'string' && url.startsWith('/api/v1/tags')) {
+        return Promise.resolve(EXISTING_TAGS)
+      }
+      return Promise.resolve([])
+    })
     renderPage()
     await waitFor(() => {
       expect(screen.getByText('System tags')).toBeInTheDocument()
-      expect(screen.getByText('Era')).toBeInTheDocument()
+      // The seeded system tag renders from the API, not a hardcoded constant.
+      expect(screen.getAllByText('Game').length).toBeGreaterThanOrEqual(1)
     })
+    // System tags are read-only: no delete control is rendered for them.
+    expect(screen.queryByLabelText('Delete tag Game')).not.toBeInTheDocument()
   })
 })

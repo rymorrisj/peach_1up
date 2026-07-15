@@ -13,6 +13,7 @@ from backend.core.startup_seed import (
     _seed_default_profiles,
     _seed_dosbox_environments,
     _seed_system_environments,
+    _seed_system_tags,
 )
 from backend.core.startup_tasks import (
     _cleanup_stale_sessions,
@@ -73,12 +74,13 @@ async def lifespan(app: FastAPI):
         _profiles_seeded = _seed_default_profiles(db)
         # Must follow profile seeding — links to the bundled dos profile.
         _dosbox_envs_seeded = _seed_dosbox_environments(db)
+        _tags_seeded = _seed_system_tags(db)
         _cleanup_stale_sessions(db)
         _flag_corrupt_platform_working_paths(db)
         db.commit()
 
-    app.state.seed_warnings = not (_platforms_seeded and _profiles_seeded and _dosbox_envs_seeded)
-    if not _platforms_seeded or not _profiles_seeded or not _dosbox_envs_seeded:
+    app.state.seed_warnings = not (_platforms_seeded and _profiles_seeded and _dosbox_envs_seeded and _tags_seeded)
+    if not _platforms_seeded or not _profiles_seeded or not _dosbox_envs_seeded or not _tags_seeded:
         raise RuntimeError(
             "Startup aborted: required seed data could not be created — see logs above."
         )

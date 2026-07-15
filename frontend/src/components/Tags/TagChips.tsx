@@ -25,7 +25,10 @@ export default function TagChips({ tags, onRemove }: Props) {
               style={{ background: hex }}
             />
             {tag.name}
-            {onRemove && (
+            {/* System tags are read-only: never offer a remove control for
+                them, even if one was assigned before the lock existed. The
+                backend also rejects unassigning a system tag with a 403. */}
+            {onRemove && !tag.is_system && (
               <button
                 type="button"
                 aria-label={`Remove tag ${tag.name}`}

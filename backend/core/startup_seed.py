@@ -102,6 +102,66 @@ _DEFAULT_PROFILES = [
 ]
 
 
+# System tags seeded so the is_system delete guard in the tags route is
+# actually reachable and the frontend "System tags" section renders real
+# API data instead of hardcoded constants. Names and grouping are migrated
+# verbatim from frontend/src/pages/Tags/index.tsx (SYSTEM_HARDWARE_TAGS,
+# SYSTEM_CONTENT_TAGS, and the ERA_LABELS-derived era pills). Era names are
+# pulled from the shared ERA_LABELS constant rather than re-listed here so
+# they cannot drift from the generated source of truth. Colors are drawn from
+# the TagColor swatch set to preserve the original hardware/content/era visual
+# grouping (amber/sky/coral); they are not new categories.
+_SYSTEM_HARDWARE_TAG_NAMES = [
+    "MT-32",
+    "Sound Blaster 16",
+    "AdLib",
+    "Voodoo 1",
+    "Voodoo 3",
+    "Gravis Ultrasound",
+]
+
+_SYSTEM_CONTENT_TAG_NAMES = [
+    "Game",
+    "Application",
+    "Utility",
+    "Demo",
+    "ROM Pack",
+]
+
+
+def _seed_system_tags(db) -> bool:
+    """Seed the read-only system tags (is_system=True).
+
+    Idempotent check-before-insert keyed on the unique tag name, matching the
+    environment/profile seeders. Runs on every startup; existing tags are left
+    untouched so this is safe to re-run.
+    """
+    try:
+        from backend.models.tag import Tag
+        from backend.constants_generated import ERA_LABELS
+
+        # (name, color) pairs. Era names come from ERA_LABELS so they track the
+        # generated constant; hardware/content are the verbatim frontend labels.
+        specs: list[tuple[str, str]] = (
+            [(label, "coral") for label in ERA_LABELS.values()]
+            + [(name, "amber") for name in _SYSTEM_HARDWARE_TAG_NAMES]
+            + [(name, "sky") for name in _SYSTEM_CONTENT_TAG_NAMES]
+        )
+        added = 0
+        for name, color in specs:
+            if not db.query(Tag).filter(Tag.name == name).first():
+                db.add(Tag(name=name, color=color, is_system=True))
+                added += 1
+        if added:
+            db.flush()
+            logger.info("Seeded %d system tag(s)", added)
+        return True
+    except Exception as exc:
+        db.rollback()
+        logger.error("System tag seeding failed: %s", exc)
+        return False
+
+
 def _seed_system_environments(db) -> bool:
     try:
         from backend.models import EnvironmentItem

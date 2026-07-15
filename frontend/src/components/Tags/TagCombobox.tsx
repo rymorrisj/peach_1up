@@ -21,8 +21,11 @@ export default function TagCombobox({ assignedTagIds, onAssign }: Props) {
   })
 
   const assignedSet = new Set(assignedTagIds)
+  // System tags are read-only, they can be filtered by but never assigned to an
+  // entity, so they are excluded from the assignable options here. The backend
+  // enforces the same rule with a 403 on the assignment routes.
   const filtered = allTags.filter(
-    (t) => !assignedSet.has(t.id) && t.name.toLowerCase().includes(input.toLowerCase()),
+    (t) => !t.is_system && !assignedSet.has(t.id) && t.name.toLowerCase().includes(input.toLowerCase()),
   )
 
   function handleSelect(tag: TagRead) {

@@ -37,8 +37,9 @@ function renderPage() {
 }
 
 const SAMPLE_TAGS: TagRead[] = [
-  { id: 1, name: 'cozy-evening', color: 'coral', item_count: 4 },
-  { id: 2, name: 'classic', color: 'amber', item_count: 12 },
+  { id: 1, name: 'cozy-evening', color: 'coral', item_count: 4, is_system: false },
+  { id: 2, name: 'classic', color: 'amber', item_count: 12, is_system: false },
+  { id: 3, name: 'MT-32', color: 'amber', item_count: 0, is_system: true },
 ]
 
 describe('Tags page', () => {
@@ -87,5 +88,22 @@ describe('Tags page', () => {
     await waitFor(() => {
       expect(screen.getByText('System tags')).toBeInTheDocument()
     })
+  })
+
+  it('renders is_system tags from the API without a delete control', async () => {
+    vi.mocked(apiFetch).mockImplementation((url) => {
+      if (typeof url === 'string' && url.startsWith('/api/v1/tags')) {
+        return Promise.resolve(SAMPLE_TAGS)
+      }
+      return Promise.resolve([])
+    })
+    renderPage()
+    await waitFor(() => {
+      // The seeded system tag renders in the System section...
+      expect(screen.getAllByText('MT-32').length).toBeGreaterThanOrEqual(1)
+    })
+    // ...but has no delete affordance, unlike user tags.
+    expect(screen.queryByLabelText('Delete tag MT-32')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Delete tag cozy-evening')).toBeInTheDocument()
   })
 })

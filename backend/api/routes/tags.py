@@ -117,8 +117,10 @@ def _resolve_assignment_entity(tag_id: int, body: TagAssignmentBody, active_user
 
     Order: unknown entity_type -> 422, plain-flag permission -> 403 (before any
     existence checks, so an unauthorized caller doesn't learn whether a tag/entity
-    exists), tag/entity existence -> 404, then the bespoke controller_mapping
-    permission (needs the fetched row) -> 403. Returns the resolved entity.
+    exists), tag existence -> 404, system-tag lock -> 403 (system tags are
+    read-only, no user may assign or unassign them), entity existence -> 404,
+    then the bespoke controller_mapping permission (needs the fetched row) -> 403.
+    Returns the resolved entity.
     """
     model = _ASSIGNMENT_TARGETS.get(body.entity_type)
     if model is None:
@@ -127,8 +129,11 @@ def _resolve_assignment_entity(tag_id: int, body: TagAssignmentBody, active_user
     if body.entity_type != "controller_mapping":
         _require_flag_permission(body.entity_type, active_user)
 
-    if not db.get(Tag, tag_id):
+    tag = db.get(Tag, tag_id)
+    if not tag:
         raise HTTPException(status_code=404, detail="Tag not found.")
+    if tag.is_system:
+        raise HTTPException(status_code=403, detail="System tags cannot be assigned or unassigned.")
 
     entity = db.get(model, body.entity_id)
     if not entity:
