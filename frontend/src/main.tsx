@@ -1,8 +1,10 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
+import { ToastProvider, useToast } from '@/ui/ToastProvider'
+import type { ToastVariant } from '@/ui/Toast'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import AppShell from '@/components/layout/AppShell'
 import Software, { softwareTabRoutes } from '@/pages/Software'
@@ -34,6 +36,33 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// Bridges window-level toast events (fired by non-React code such as the api
+// client on api-error, or AppContext's background-job watcher) into the
+// ToastProvider queue. Kept out of AppContext/api client so neither has to
+// depend on the ToastProvider hook directly.
+function ToastEventBridge() {
+  const { showToast } = useToast()
+
+  useEffect(() => {
+    function handleApiError(e: Event) {
+      const message = (e as CustomEvent<string>).detail ?? 'An unexpected error occurred.'
+      showToast(message, 'error')
+    }
+    function handleAppToast(e: Event) {
+      const { message, variant } = (e as CustomEvent<{ message: string; variant?: ToastVariant }>).detail
+      showToast(message, variant ?? 'info')
+    }
+    window.addEventListener('api-error', handleApiError)
+    window.addEventListener('app-toast', handleAppToast)
+    return () => {
+      window.removeEventListener('api-error', handleApiError)
+      window.removeEventListener('app-toast', handleAppToast)
+    }
+  }, [showToast])
+
+  return null
+}
 
 function RequireAuth() {
   const { state } = useAppContext()
@@ -93,6 +122,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+      <ToastEventBridge />
       <AppProvider>
         <BrowserRouter>
           <Routes>
@@ -127,6 +158,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           </Routes>
         </BrowserRouter>
       </AppProvider>
+      </ToastProvider>
     </QueryClientProvider>
     </ErrorBoundary>
   </React.StrictMode>,

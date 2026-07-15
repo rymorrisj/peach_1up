@@ -43,15 +43,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('session-expired', handleSessionExpired)
   }, [])
 
-  useEffect(() => {
-    function handleApiError(e: Event) {
-      const message = (e as CustomEvent<string>).detail ?? 'An unexpected error occurred.'
-      dispatch({ type: 'ADD_TOAST', payload: { id: crypto.randomUUID(), message } })
-    }
-    window.addEventListener('api-error', handleApiError)
-    return () => window.removeEventListener('api-error', handleApiError)
-  }, [])
-
   // Poll background jobs (upload finalize, large scans) while any is processing
   // or cancelling — 'cancelling' still needs polling to observe the eventual
   // 'cancelled' transition once the job loop actually stops. Keyed on the
@@ -88,13 +79,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       for (const job of justFinished) {
         const result = job.result as { title?: string; delete_original_error?: string } | undefined
         if (result?.delete_original_error) {
-          dispatch({
-            type: 'ADD_TOAST',
-            payload: {
-              id: crypto.randomUUID(),
-              message: `"${result.title ?? job.message}" was added, but the original file could not be deleted: ${result.delete_original_error}`,
-            },
-          })
+          window.dispatchEvent(
+            new CustomEvent('app-toast', {
+              detail: {
+                message: `"${result.title ?? job.message}" was added, but the original file could not be deleted: ${result.delete_original_error}`,
+                variant: 'error',
+              },
+            }),
+          )
         }
       }
     }

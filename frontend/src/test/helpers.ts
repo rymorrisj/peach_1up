@@ -3,6 +3,7 @@ import { render } from '@testing-library/react'
 import type { RenderResult } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
+import { ToastProvider } from '@/ui/ToastProvider'
 import type { components } from '@shared/types'
 type LibraryCollection = components['schemas']['GameItemBundleRead']
 
@@ -21,7 +22,11 @@ export function renderWithProviders(ui: React.ReactElement): RenderResult {
     React.createElement(
       QueryClientProvider,
       { client: queryClient },
-      React.createElement(AppProvider, null, ui),
+      React.createElement(
+        ToastProvider,
+        null,
+        React.createElement(AppProvider, null, ui),
+      ),
     ),
   )
 }

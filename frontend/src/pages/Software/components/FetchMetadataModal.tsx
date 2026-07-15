@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Button, Modal } from '@/ui'
+import { useToast } from '@/ui/ToastProvider'
 import { apiFetch } from '@/api/client'
-import { useAppContext } from '@/context/useAppContext'
 
 interface SearchResult {
   game_id: number
@@ -57,7 +57,7 @@ export function FetchMetadataModal({
   onBusyChange,
   activeProviderLabel,
 }: FetchMetadataModalProps) {
-  const { dispatch } = useAppContext()
+  const { showToast } = useToast()
 
   const [query, setQuery] = useState(entityTitle)
   const [searching, setSearching] = useState(false)
@@ -185,13 +185,7 @@ export function FetchMetadataModal({
         body: JSON.stringify(payload),
       })
       sessionStorage.removeItem(storageKey)
-      dispatch({
-        type: 'ADD_TOAST',
-        payload: {
-          id: crypto.randomUUID(),
-          message: `Metadata applied: ${details.title ?? entityTitle}`,
-        },
-      })
+      showToast(`Metadata applied: ${details.title ?? entityTitle}`, 'success')
       onSuccess()
       onClose()
     } catch (err) {

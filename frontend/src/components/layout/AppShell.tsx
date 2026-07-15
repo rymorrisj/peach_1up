@@ -1,10 +1,8 @@
 import { useEffect } from 'react'
-import { createPortal } from 'react-dom'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { X } from 'lucide-react'
 import Sidebar from '@/components/layout/Sidebar'
 import HelpBar from '@/components/layout/HelpBar'
-import ToastItem from '@/components/common/ToastItem'
 import { useAppContext } from '@/context/useAppContext'
 
 export default function AppShell() {
@@ -42,31 +40,6 @@ export default function AppShell() {
         </main>
         <HelpBar />
       </div>
-      {createPortal(
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '1rem',
-            right: '1rem',
-            zIndex: 9999,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.5rem',
-            width: '20rem',
-            pointerEvents: state.toasts.length > 0 ? 'auto' : 'none',
-          }}
-        >
-          {state.toasts.map((toast) => (
-            <ToastItem
-              key={toast.id}
-              id={toast.id}
-              message={toast.message}
-              onDismiss={(id) => dispatch({ type: 'DISMISS_TOAST', payload: id })}
-            />
-          ))}
-        </div>,
-        document.body
-      )}
     </div>
   )
 }

@@ -5,11 +5,6 @@ type User = components['schemas']['UserItemRead']
 
 type Theme = 'dark' | 'light'
 
-export interface Toast {
-  id: string
-  message: string
-}
-
 export interface BackgroundJob {
   id: string
   kind: 'upload' | 'scan'
@@ -27,7 +22,6 @@ export interface AppState {
   activeUser: User | null
   authChecked: boolean
   showUnauthModal: boolean
-  toasts: Toast[]
   backgroundJobs: BackgroundJob[]
 }
 
@@ -38,8 +32,6 @@ export type AppAction =
   | { type: 'SET_ACTIVE_USER'; payload: User | null }
   | { type: 'LOGOUT' }
   | { type: 'DISMISS_UNAUTH_MODAL' }
-  | { type: 'ADD_TOAST'; payload: Toast }
-  | { type: 'DISMISS_TOAST'; payload: string }
   | { type: 'UPSERT_JOB'; payload: BackgroundJob }
   | { type: 'SET_JOBS'; payload: BackgroundJob[] }
   | { type: 'DISMISS_JOB'; payload: string }
@@ -51,7 +43,6 @@ export const initialState: AppState = {
   activeUser: null,
   authChecked: false,
   showUnauthModal: false,
-  toasts: [],
   backgroundJobs: [],
 }
 
@@ -78,10 +69,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, activeUser: null, authChecked: true, showUnauthModal: true }
     case 'DISMISS_UNAUTH_MODAL':
       return { ...state, showUnauthModal: false }
-    case 'ADD_TOAST':
-      return { ...state, toasts: [...state.toasts, action.payload] }
-    case 'DISMISS_TOAST':
-      return { ...state, toasts: state.toasts.filter((t) => t.id !== action.payload) }
     case 'UPSERT_JOB': {
       const exists = state.backgroundJobs.some((j) => j.id === action.payload.id)
       return {
