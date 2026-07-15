@@ -350,15 +350,48 @@ def _prepare_item(
             dest_folder = _games_root / slugify(media_src.stem)
             dest = dest_folder / media_src.name
 
-            # Duplicate check: source path or destination copy already tracked.
-            # file_path is always written as str(Path(...).resolve()) by this same
-            # function, so an exact match against the same two candidate strings
-            # finds any prior duplicate without re-resolving the whole table.
+            # Duplicate check, source side: file_path is always written as
+            # str(Path(...).resolve()) by this same function, so an exact match
+            # against media_src itself means this literal path is already tracked.
             existing_leaf = db.query(GameItem).filter(
-                GameItem.file_path.in_([str(media_src), str(dest)])
+                GameItem.file_path == str(media_src)
             ).first()
             if existing_leaf:
                 raise _ItemAlreadyExists(_collection_for_leaf(existing_leaf, db))
+
+            # Duplicate check, destination side: dest is derived from the
+            # filename stem alone, so an existing tracked leaf at dest does not
+            # by itself mean the incoming file is a duplicate, it only means
+            # some file already occupies that slugified name. Two different
+            # files that happen to share a generic stem (setup.exe, disc.iso)
+            # would otherwise collide here and get incorrectly flagged as
+            # already-in-library. Disambiguate on content, using the same
+            # hash-backed lookup find_existing_duplicate/media_dup_index already
+            # use for "is this content already in the library", instead of a
+            # second, independent duplicate check.
+            dest_leaf = db.query(GameItem).filter(
+                GameItem.file_path == str(dest)
+            ).first()
+            if dest_leaf is not None:
+                from backend.service.utils.upload_utils import find_existing_duplicate
+
+                duplicate = find_existing_duplicate(
+                    _games_root, media_src, media_src.stat().st_size
+                )
+                if duplicate is not None:
+                    # Genuinely the same content, reuse behavior applies.
+                    raise _ItemAlreadyExists(_collection_for_leaf(dest_leaf, db))
+                # Different content, same slugified stem: a naming collision,
+                # not a duplicate. Give the incoming file its own destination
+                # instead of raising or overwriting dest_leaf's file.
+                dest_folder = _games_root / unique_slug(
+                    media_src.stem,
+                    lambda s: (_games_root / s).exists()
+                    or db.query(GameItem).filter(
+                        GameItem.file_path == str(_games_root / s / media_src.name)
+                    ).first() is not None,
+                )
+                dest = dest_folder / media_src.name
 
             # If the file already lives in a direct subfolder of games_root that
             # only needs renaming to match the canonical slug, rename in place
