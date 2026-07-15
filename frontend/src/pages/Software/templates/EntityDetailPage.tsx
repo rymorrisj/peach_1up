@@ -173,6 +173,7 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
           : undefined
       }
       editForm={extras.editForm as SoftwareEntityDetailProps['editForm']}
+      editFormContent={extras.editFormContent}
       advancedSection={extras.advancedSection as SoftwareEntityDetailProps['advancedSection']}
       fetchMetadataAction={extras.fetchMetadataAction}
       beforeLaunch={extras.beforeLaunch}

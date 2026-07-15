@@ -40,6 +40,9 @@ interface SoftwareEntityDetailProps {
   tags?: ComponentProps<typeof TagsSection>
   /** Edit form props — renders EditForm when provided */
   editForm?: ComponentProps<typeof EditForm>
+  /** Pre-rendered edit form content, for domains whose edit form isn't
+   * EditForm (Media, App), rendered in the same slot position as editForm */
+  editFormContent?: ReactNode
   /** Advanced section props — renders AdvancedSection when provided */
   advancedSection?: ComponentProps<typeof AdvancedSection>
   /** Optional action rendered between EditForm and AdvancedSection (e.g. Fetch Metadata button) */
@@ -75,6 +78,7 @@ export function SoftwareEntityDetail({
   metaAfter,
   tags,
   editForm,
+  editFormContent,
   advancedSection,
   fetchMetadataAction,
   beforeLaunch,
@@ -132,6 +136,7 @@ export function SoftwareEntityDetail({
           {tags && <TagsSection {...tags} />}
 
           {editForm && <EditForm {...editForm} />}
+          {editFormContent}
 
           {fetchMetadataAction}
 

@@ -1,0 +1,121 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, ApiError } from '@/api/client'
+import { useEditForm } from '@/hooks/useEditForm'
+import { formFromCollection, type SoftwareAppForm } from '../types/appForm'
+import { AppEditForm } from '../components/AppEditForm'
+import type { EntityBundleBase, EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
+import { resolveLeafCoverArt } from '../types'
+import type { components } from '@shared/types'
+
+type Platform = components['schemas']['EnvironmentItemRead']
+
+export interface AppItemLeaf {
+  id: number
+  app_item_bundle_id: number
+  file_path: string
+  executable_path: string | null
+  cover_art_path: string | null
+  cover_art_url: string | null
+}
+
+export interface AppItemBundleData extends EntityBundleBase {
+  era: string
+  is_pc: boolean
+  category: string | null
+  publisher: string | null
+  developer: string | null
+  year: number | null
+  installed: boolean
+  environment_item_id: number | null
+  profile_item_id: number | null
+  launch_disk_id: number | null
+  display_disk_id: number | null
+  last_launched_at: string | null
+  launch_count: number
+  items: AppItemLeaf[]
+}
+
+// Minimal edit form: title, description, cover_art_path, era, environment_item_id
+// (is_pc is derived from era, kept in sync by AppEditForm rather than edited
+// directly, see types/appForm.ts). Save is a two-step PATCH mirroring Game's
+// bundle-fields-then-leaf-fields sequence, since App keeps cover_art_path on
+// its (single, collection-of-one) leaf item, not the bundle, confirmed
+// against backend/models/app.py rather than assumed.
+function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): EntityDetailExtras {
+  const collection = ctx.entity
+  const collectionId = ctx.entityId
+  const { detailQueryKey, refetchEntity } = ctx
+  const queryClient = useQueryClient()
+
+  const { data: platforms = [] } = useQuery<Platform[]>({
+    queryKey: ['platforms'],
+    queryFn: () => apiFetch<Platform[]>('/api/v1/environment-items'),
+  })
+
+  const { form, setFormField, resyncFromCollection } = useEditForm({ collection, formFromCollection })
+
+  const saveMutation = useMutation<AppItemBundleData, Error, SoftwareAppForm>({
+    mutationFn: async (f) => {
+      await apiFetch<AppItemBundleData>(`/api/v1/app-item-bundle/${collectionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: f.title.trim() || undefined,
+          description: f.description.trim() || null,
+          era: f.era || null,
+          environment_item_id: f.environment_item_id ? parseInt(f.environment_item_id, 10) : null,
+        }),
+      })
+
+      const leafId = collection?.display_disk_id ?? collection?.launch_disk_id ?? collection?.items[0]?.id
+      if (leafId != null) {
+        await apiFetch(`/api/v1/app-item/${leafId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ cover_art_path: f.cover_art_path.trim() || null }),
+        })
+      }
+
+      return refetchEntity()
+    },
+    onSuccess: (fresh) => {
+      resyncFromCollection(fresh)
+      queryClient.invalidateQueries({ queryKey: detailQueryKey })
+    },
+  })
+
+  if (!collection || form == null) {
+    return {}
+  }
+
+  return {
+    editFormContent: (
+      <AppEditForm
+        form={form}
+        setField={setFormField}
+        handleSave={() => saveMutation.mutate(form)}
+        saving={saveMutation.isPending}
+        saveError={saveMutation.isError
+          ? (saveMutation.error instanceof ApiError ? saveMutation.error.detail : 'Failed to save.')
+          : null}
+        saveSuccess={saveMutation.isSuccess}
+        platforms={platforms}
+      />
+    ),
+  }
+}
+
+// App's cover art lives on the leaf item (same indirection as Game — see
+// resolveLeafCoverArt). Launch is domain-enabled ('app' targetType) but
+// per-entity gated to PC apps only via isLaunchable (bundle.is_pc).
+export const appDomainConfig: EntityDomainConfig<AppItemBundleData> = {
+  domain: 'app',
+  routeBase: '/software/apps',
+  listApiPath: '/api/v1/app-items',
+  bundleApiPath: (id) => `/api/v1/app-item-bundle/${id}`,
+  tagEntityType: 'app_item_bundle',
+  entityLabel: 'app',
+  entityLabelPlural: 'apps',
+  coverArt: (bundle) => resolveLeafCoverArt(bundle.items, bundle.display_disk_id, bundle.launch_disk_id),
+  launchTargetType: 'app',
+  isLaunchable: (bundle) => bundle.is_pc,
+  renderExtras: useAppDetailExtras,
+}

@@ -1,0 +1,140 @@
+import { Button, FormField, Input, Textarea } from '@/ui'
+import PathInput from '@/components/common/PathInput'
+import { ERA_LABELS } from '@/generated/constants'
+import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal'
+import type { SoftwareAppForm } from '../types/appForm'
+import type { components } from '@shared/types'
+
+type Platform = components['schemas']['EnvironmentItemRead']
+
+const SELECT_CLASS =
+  'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
+
+interface AppEditFormProps {
+  form: SoftwareAppForm
+  setField: <K extends keyof SoftwareAppForm>(key: K, value: SoftwareAppForm[K]) => void
+  handleSave: () => void
+  saving: boolean
+  saveError: string | null
+  saveSuccess: boolean
+  platforms: Platform[]
+}
+
+export function AppEditForm({
+  form,
+  setField,
+  handleSave,
+  saving,
+  saveError,
+  saveSuccess,
+  platforms,
+}: AppEditFormProps) {
+  // is_pc is derived from era on the backend, not independently settable
+  // (see appForm.ts), so changing era here keeps is_pc in sync locally and
+  // clears environment_item_id when the new era is console, rather than
+  // leaving a stale value that would 422 against the console+environment
+  // rule (_enforce_environment_binding) on save.
+  function handleEraChange(era: string) {
+    const isPc = era in ERA_TO_EMULATOR
+    setField('era', era)
+    setField('is_pc', isPc)
+    if (!isPc) setField('environment_item_id', '')
+  }
+
+  return (
+    <section className="space-y-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+        Details
+      </h2>
+
+      <FormField label="Title" htmlFor="detail-title" required>
+        <Input
+          id="detail-title"
+          value={form.title}
+          onChange={(e) => setField('title', e.target.value)}
+          placeholder="App title"
+        />
+      </FormField>
+
+      <FormField label="Description" htmlFor="detail-description">
+        <Textarea
+          id="detail-description"
+          value={form.description}
+          onChange={(e) => setField('description', e.target.value)}
+          placeholder="Short description…"
+          rows={3}
+        />
+      </FormField>
+
+      <FormField label="Cover Art Path" htmlFor="detail-cover">
+        <PathInput
+          id="detail-cover"
+          mode="file"
+          accept=".png,.jpg,.jpeg,.webp"
+          value={form.cover_art_path}
+          onChange={(v) => setField('cover_art_path', v)}
+          placeholder="C:\Images\cover.png"
+        />
+      </FormField>
+
+      <FormField
+        label="Era"
+        htmlFor="detail-era"
+        hint={
+          form.era
+            ? (form.is_pc
+              ? 'PC app, an Environment is required before this can launch.'
+              : 'Console app, no Environment needed.')
+            : undefined
+        }
+      >
+        <select
+          id="detail-era"
+          value={form.era}
+          onChange={(e) => handleEraChange(e.target.value)}
+          className={SELECT_CLASS}
+        >
+          <option value="">No era selected</option>
+          {Object.entries(ERA_LABELS).map(([key, label]) => (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </FormField>
+
+      {form.is_pc && (
+        <FormField label="Platform" htmlFor="detail-environment">
+          <select
+            id="detail-environment"
+            value={form.environment_item_id}
+            onChange={(e) => setField('environment_item_id', e.target.value)}
+            className={SELECT_CLASS}
+          >
+            <option value="">No platform selected</option>
+            {platforms.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </FormField>
+      )}
+
+      <div className="flex items-center gap-3">
+        <Button onClick={handleSave} loading={saving}>
+          Save Changes
+        </Button>
+        {saveSuccess && (
+          <span className="text-sm text-green-600 dark:text-green-400">Saved ✓</span>
+        )}
+      </div>
+
+      {saveError && (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          ❌ {saveError}
+        </p>
+      )}
+    </section>
+  )
+}

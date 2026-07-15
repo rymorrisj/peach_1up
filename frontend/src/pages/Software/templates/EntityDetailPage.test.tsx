@@ -9,10 +9,12 @@ import { appDomainConfig } from '../configs/appConfig'
 import { mediaDomainConfig } from '../configs/mediaConfig'
 
 // Basic smoke coverage for the shared template: it must render for each
-// domain config without throwing, and configs that don't declare
-// renderExtras (App, Media) must render exactly as before this file grew
-// the slot mechanism, no game-only content leaking through. Not exhaustive
-// behavior coverage, that's CollectionDetail*.test.tsx's job for Game.
+// domain config without throwing. App and Media now declare their own
+// renderExtras (minimal edit forms, see AppEditForm.tsx/MediaEditForm.tsx),
+// but still render no game-only content (Advanced section, launch_commands).
+// Not exhaustive behavior coverage, that's CollectionDetail*.test.tsx's job
+// for Game and AppDetail.test.tsx/MediaDetail.test.tsx's job for their own
+// edit forms.
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
   ApiError: class ApiError extends Error {
@@ -115,33 +117,34 @@ describe('EntityDetailPage', () => {
     })
   })
 
-  it('renders for appConfig without throwing, and app-only content stays absent (no renderExtras declared)', async () => {
+  it('renders for appConfig without throwing, with its minimal edit form and no game-only content', async () => {
     mockApi([
       {
         match: '/api/v1/app-item-bundle/1',
         respond: () => ({
           id: 1, slug: 'my-app', title: 'My App', description: null, tags: [],
-          is_pc: true, category: null, publisher: null, developer: null, year: null,
+          era: 'winxp', is_pc: true, category: null, publisher: null, developer: null, year: null,
           installed: false, environment_item_id: null, profile_item_id: null,
           launch_disk_id: 100, display_disk_id: 100, last_launched_at: null, launch_count: 0,
           items: [{ id: 100, app_item_bundle_id: 1, file_path: '/apps/myapp.exe', executable_path: null, cover_art_path: null, cover_art_url: null }],
         }),
       },
+      { match: '/api/v1/environment-items', respond: () => [] },
     ])
     renderAt('/software/apps/1', '/software/apps/:id', <EntityDetailPage config={appDomainConfig} />)
 
     await waitFor(() => {
       expect(screen.getByText('My App')).toBeInTheDocument()
     })
-    // Slot mechanism no-ops for a config with no renderExtras: no game-only
-    // sections (edit form, advanced/launch_commands) leak through.
-    expect(screen.queryByRole('button', { name: 'Save Changes' })).not.toBeInTheDocument()
+    // App now declares renderExtras (AppEditForm), so its own edit form
+    // shows, but not Game's Advanced section (launch_commands, review flag).
+    expect(screen.getByRole('button', { name: 'Save Changes' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Advanced' })).not.toBeInTheDocument()
     // The shared launch section (one of the four generic pieces) still works.
     expect(screen.getByRole('button', { name: /launch/i })).toBeInTheDocument()
   })
 
-  it('renders for mediaConfig without throwing, and media-only/launch content stays absent (no renderExtras, no launchTargetType)', async () => {
+  it('renders for mediaConfig without throwing, with its minimal edit form and no launch/game-only content', async () => {
     mockApi([
       {
         match: '/api/v1/media-item-bundle/1',
@@ -157,7 +160,10 @@ describe('EntityDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByText('My Video')).toBeInTheDocument()
     })
-    expect(screen.queryByRole('button', { name: 'Save Changes' })).not.toBeInTheDocument()
+    // Media now declares renderExtras (MediaEditForm), so its own edit form
+    // shows, but not Game's Advanced section, and still no launch (Media
+    // has no launchTargetType).
+    expect(screen.getByRole('button', { name: 'Save Changes' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Advanced' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /launch/i })).not.toBeInTheDocument()
   })

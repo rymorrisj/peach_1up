@@ -9,7 +9,8 @@ import { useDiscOrder } from '@/hooks/useDiscOrder'
 import { useInstalledToggle } from '@/hooks/useInstalledToggle'
 import { useFlagLaunch } from '@/hooks/useFlagLaunch'
 import { useDeleteCollection } from '@/hooks/useDeleteCollection'
-import { useEditForm, type EditForm as EditFormFields } from '@/hooks/useEditForm'
+import { useEditForm } from '@/hooks/useEditForm'
+import { formFromCollection, type SoftwareGameForm as EditFormFields } from '../types/gameForm'
 import { resolveLaunchCommands } from '@/hooks/resolveLaunchCommands'
 import { FetchMetadataModal } from '../components/FetchMetadataModal'
 import { DiscOrderList } from '../components/DiscOrderList'
@@ -121,7 +122,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
     handleCancel: handleInstalledCancel,
   } = useInstalledToggle({ collectionId, detailQueryKey })
 
-  const { form, setFormField, resyncFromCollection } = useEditForm({ collection })
+  const { form, setFormField, resyncFromCollection } = useEditForm({ collection, formFromCollection })
 
   useEffect(() => {
     if (collection && !form) {

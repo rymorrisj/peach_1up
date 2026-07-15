@@ -3,7 +3,7 @@ import PathInput from '@/components/common/PathInput'
 import FileBrowser from '@/components/common/FileBrowser'
 import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
 import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal'
-import type { EditForm as EditFormFields } from '@/hooks/useEditForm'
+import type { SoftwareGameForm as EditFormFields } from '../types/gameForm'
 import type { components } from '@shared/types'
 
 type LaunchProfile = components['schemas']['ProfileItemRead']

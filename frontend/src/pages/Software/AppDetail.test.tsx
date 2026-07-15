@@ -1,4 +1,5 @@
 import { screen, waitFor, render } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
@@ -9,6 +10,8 @@ import { apiFetch } from '@/api/client'
 // existing CollectionDetail*.test.tsx depth, planned separately for a full
 // audit before beta). This just catches a render-breaks-completely
 // regression, same apiFetch-mocking approach as CollectionDetail's tests.
+// The edit-form cases below are similarly basic: render, field edit, save
+// PATCH body, not the field-by-field depth of CollectionDetail.editform.test.tsx.
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
   ApiError: class ApiError extends Error {
@@ -49,6 +52,7 @@ function minimalApp(overrides?: Record<string, unknown>) {
     title: 'My App',
     description: null,
     tags: [],
+    era: 'winxp',
     is_pc: true,
     category: null,
     publisher: null,
@@ -68,14 +72,32 @@ function minimalApp(overrides?: Record<string, unknown>) {
   }
 }
 
-function mockApi(app: unknown) {
-  vi.mocked(apiFetch).mockImplementation((url: unknown) => {
+const oneEnvironment = [
+  { id: 5, name: 'My XP Box', era: 'winxp', emulator_slug: '86box', status: 'healthy', is_system: false },
+]
+
+interface RecordedCall {
+  url: string
+  method?: string
+  body?: unknown
+}
+
+function mockApi(app: unknown, environments: unknown[] = []) {
+  const calls: RecordedCall[] = []
+  vi.mocked(apiFetch).mockImplementation((url: unknown, init?: unknown) => {
     if (typeof url !== 'string') return Promise.resolve([])
+    const method = (init as { method?: string } | undefined)?.method
+    const bodyRaw = (init as { body?: string } | undefined)?.body
+    calls.push({ url, method, body: bodyRaw ? JSON.parse(bodyRaw) : undefined })
     if (url === '/api/v1/auth/me') return Promise.resolve(plainUser)
     if (url === '/api/v1/auth/refresh') return Promise.resolve({ user: plainUser })
-    if (url === '/api/v1/app-item-bundle/1') return Promise.resolve(app)
+    if (url === '/api/v1/app-item-bundle/1' && (!method || method === 'GET')) return Promise.resolve(app)
+    if (url === '/api/v1/app-item-bundle/1' && method === 'PATCH') return Promise.resolve({})
+    if (url === '/api/v1/app-item/100' && method === 'PATCH') return Promise.resolve({})
+    if (url === '/api/v1/environment-items') return Promise.resolve(environments)
     return Promise.resolve([])
   })
+  return calls
 }
 
 function renderPage() {
@@ -104,6 +126,66 @@ describe('AppDetail', () => {
 
     await waitFor(() => {
       expect(screen.getByText('My App')).toBeInTheDocument()
+    })
+  })
+
+  describe('edit form', () => {
+    it('renders the edit form pre-filled from the entity, showing Platform for a PC era', async () => {
+      mockApi(minimalApp({ title: 'My App', era: 'winxp' }), oneEnvironment)
+      renderPage()
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('Title')).toHaveValue('My App')
+      })
+      expect(screen.getByLabelText('Era')).toHaveValue('winxp')
+      expect(screen.getByLabelText('Platform')).toBeInTheDocument()
+    })
+
+    it('hides the Platform field for a console era', async () => {
+      mockApi(minimalApp({ era: 'ps1', is_pc: false }))
+      renderPage()
+
+      await screen.findByLabelText('Title')
+      expect(screen.queryByLabelText('Platform')).not.toBeInTheDocument()
+    })
+
+    it('clears environment_item_id in local state when era changes to console', async () => {
+      const user = userEvent.setup()
+      mockApi(minimalApp({ era: 'winxp', is_pc: true, environment_item_id: 5 }), oneEnvironment)
+      renderPage()
+
+      await screen.findByLabelText('Title')
+      expect(screen.getByLabelText('Platform')).toHaveValue('5')
+
+      await user.selectOptions(screen.getByLabelText('Era'), 'ps1')
+      expect(screen.queryByLabelText('Platform')).not.toBeInTheDocument()
+    })
+
+    it('sends the expected PATCH bodies on save', async () => {
+      const user = userEvent.setup()
+      const calls = mockApi(minimalApp({ era: 'winxp', is_pc: true }), oneEnvironment)
+      renderPage()
+
+      const title = await screen.findByLabelText('Title')
+      await user.clear(title)
+      await user.type(title, 'Renamed App')
+      await user.selectOptions(screen.getByLabelText('Platform'), '5')
+      await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+      await waitFor(() => {
+        const bundlePatch = calls.find((c) => c.url === '/api/v1/app-item-bundle/1' && c.method === 'PATCH')
+        expect(bundlePatch).toBeTruthy()
+        expect(bundlePatch?.body).toMatchObject({
+          title: 'Renamed App',
+          era: 'winxp',
+          environment_item_id: 5,
+        })
+        expect(bundlePatch?.body).not.toHaveProperty('is_pc')
+
+        const leafPatch = calls.find((c) => c.url === '/api/v1/app-item/100' && c.method === 'PATCH')
+        expect(leafPatch).toBeTruthy()
+        expect(leafPatch?.body).toMatchObject({ cover_art_path: null })
+      })
     })
   })
 })

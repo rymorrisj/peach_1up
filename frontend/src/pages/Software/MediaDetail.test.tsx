@@ -1,4 +1,5 @@
 import { screen, waitFor, render } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppProvider } from '@/context/AppContext'
@@ -9,6 +10,8 @@ import { apiFetch } from '@/api/client'
 // existing CollectionDetail*.test.tsx depth, planned separately for a full
 // audit before beta). This just catches a render-breaks-completely
 // regression, same apiFetch-mocking approach as CollectionDetail's tests.
+// The edit-form cases below are similarly basic: render, field edit, save
+// PATCH body, not the field-by-field depth of CollectionDetail.editform.test.tsx.
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
   ApiError: class ApiError extends Error {
@@ -59,14 +62,26 @@ function minimalMedia(overrides?: Record<string, unknown>) {
   }
 }
 
+interface RecordedCall {
+  url: string
+  method?: string
+  body?: unknown
+}
+
 function mockApi(media: unknown) {
-  vi.mocked(apiFetch).mockImplementation((url: unknown) => {
+  const calls: RecordedCall[] = []
+  vi.mocked(apiFetch).mockImplementation((url: unknown, init?: unknown) => {
     if (typeof url !== 'string') return Promise.resolve([])
+    const method = (init as { method?: string } | undefined)?.method
+    const bodyRaw = (init as { body?: string } | undefined)?.body
+    calls.push({ url, method, body: bodyRaw ? JSON.parse(bodyRaw) : undefined })
     if (url === '/api/v1/auth/me') return Promise.resolve(plainUser)
     if (url === '/api/v1/auth/refresh') return Promise.resolve({ user: plainUser })
-    if (url === '/api/v1/media-item-bundle/1') return Promise.resolve(media)
+    if (url === '/api/v1/media-item-bundle/1' && (!method || method === 'GET')) return Promise.resolve(media)
+    if (url === '/api/v1/media-item-bundle/1' && method === 'PATCH') return Promise.resolve({})
     return Promise.resolve([])
   })
+  return calls
 }
 
 function renderPage() {
@@ -95,6 +110,47 @@ describe('MediaDetail', () => {
 
     await waitFor(() => {
       expect(screen.getByText('My Video')).toBeInTheDocument()
+    })
+  })
+
+  describe('edit form', () => {
+    it('renders the edit form pre-filled from the entity', async () => {
+      mockApi(minimalMedia({ title: 'My Video', description: 'A cool video' }))
+      renderPage()
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('Title')).toHaveValue('My Video')
+      })
+      expect(screen.getByLabelText('Description')).toHaveValue('A cool video')
+    })
+
+    it('updates local state when a field is edited', async () => {
+      const user = userEvent.setup()
+      mockApi(minimalMedia())
+      renderPage()
+
+      const title = await screen.findByLabelText('Title')
+      await user.clear(title)
+      await user.type(title, 'Renamed Video')
+
+      expect(title).toHaveValue('Renamed Video')
+    })
+
+    it('sends the expected PATCH body on save', async () => {
+      const user = userEvent.setup()
+      const calls = mockApi(minimalMedia())
+      renderPage()
+
+      const title = await screen.findByLabelText('Title')
+      await user.clear(title)
+      await user.type(title, 'Renamed Video')
+      await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+      await waitFor(() => {
+        const patch = calls.find((c) => c.url === '/api/v1/media-item-bundle/1' && c.method === 'PATCH')
+        expect(patch).toBeTruthy()
+        expect(patch?.body).toMatchObject({ title: 'Renamed Video', description: null, cover_art_path: null })
+      })
     })
   })
 })

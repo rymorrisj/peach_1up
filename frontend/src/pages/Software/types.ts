@@ -117,6 +117,11 @@ export interface EntityDetailExtras {
   topControl?: ReactNode
   metaAfter?: ReactNode
   editForm?: unknown
+  // Pre-rendered edit-form JSX for domains whose form isn't Game's EditForm
+  // component (Media, App). Rendered in the same slot position as editForm,
+  // generalized as ReactNode since each domain's form component differs and
+  // gameConfig.tsx/EditForm.tsx stay untouched (see SoftwareEntityDetail.tsx).
+  editFormContent?: ReactNode
   advancedSection?: unknown
   fetchMetadataAction?: ReactNode
   beforeLaunch?: ReactNode
