@@ -4,11 +4,19 @@ import { Navigate } from 'react-router-dom'
 import { apiFetch, ApiError } from '@/api/client'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import Step0Owner from './Step0Owner'
+import StepEmulators from './StepEmulators'
+import StepBios from './StepBios'
 import type { FirstRunStatus } from './types'
+
+// Local step index for the two informational screens shown after the owner
+// account exists. Not a generalized Stepper, this wizard is fixed at three
+// screens and isn't expected to grow.
+type WizardStep = 'owner' | 'emulators' | 'bios'
 
 export default function FirstRun() {
   const [completeError, setCompleteError] = useState<string | null>(null)
   const [finishing, setFinishing] = useState(false)
+  const [step, setStep] = useState<WizardStep | null>(null)
   const { data, isLoading } = useQuery({
     queryKey: ['first-run-status'],
     queryFn: () => apiFetch<FirstRunStatus>('/api/v1/settings/first-run-status'),
@@ -24,46 +32,24 @@ export default function FirstRun() {
 
   if (data?.first_run_complete) return <Navigate to="/software" replace />
 
-  async function completeSetup() {
+  // Owner already exists (e.g. the wizard was reloaded mid-flow) — resume at
+  // the informational steps instead of re-showing owner creation.
+  const currentStep: WizardStep = step ?? (data?.owner_exists ? 'emulators' : 'owner')
+
+  async function completeSetup(target: string = '/') {
     setFinishing(true)
     setCompleteError(null)
     try {
       await apiFetch('/api/v1/settings/complete-first-run', { method: 'POST' })
-      window.location.replace('/')
+      // Hard reload (not a client-side navigate) is deliberate: it forces
+      // AppProvider's auth check and every route guard's first-run-status
+      // query to refetch fresh instead of reading the now-stale cached
+      // "incomplete" result, which would otherwise bounce back here.
+      window.location.replace(target)
     } catch (err) {
       setCompleteError(err instanceof ApiError ? err.detail : 'Setup could not be completed.')
       setFinishing(false)
     }
-  }
-
-  // Owner already exists but first_run not yet flagged — just finish it
-  if (data?.owner_exists) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-white dark:bg-surface-950 px-6 py-12">
-        <div className="w-full max-w-2xl">
-          <h2 className="mb-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-            Setup Complete
-          </h2>
-          <p className="mb-8 text-sm text-neutral-500 dark:text-neutral-400">
-            Your account is ready.
-          </p>
-          {completeError && (
-            <p role="alert" className="mb-4 text-sm text-[#ff6a55]">
-              {completeError}
-            </p>
-          )}
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={completeSetup}
-              className="rounded-md bg-[#ff8a5c] px-6 py-2.5 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff8a5c]"
-            >
-              Continue
-            </button>
-          </div>
-        </div>
-      </main>
-    )
   }
 
   return (
@@ -74,7 +60,23 @@ export default function FirstRun() {
             {completeError}
           </p>
         )}
-        <Step0Owner onNext={completeSetup} />
+        {currentStep === 'owner' && <Step0Owner onNext={() => setStep('emulators')} />}
+        {currentStep === 'emulators' && (
+          <StepEmulators
+            emulators={data?.emulators ?? []}
+            onNext={() => setStep('bios')}
+            onSkip={() => completeSetup()}
+            onFinishAndGoTo={completeSetup}
+          />
+        )}
+        {currentStep === 'bios' && (
+          <StepBios
+            onBack={() => setStep('emulators')}
+            onFinish={() => completeSetup()}
+            onFinishAndGoTo={completeSetup}
+            finishing={finishing}
+          />
+        )}
       </div>
     </main>
   )
