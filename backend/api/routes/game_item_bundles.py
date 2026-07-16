@@ -252,10 +252,10 @@ def cancel_scan(job_id: str):
 
 
 def _resolve_scan_directory(domain: str) -> Path:
-    """Resolve the scan root for one library domain ("game", "media", or
-    "apps"). Only "game" is reachable today (this route is games-only), but
-    the resolver itself is domain-aware so a future Media/Apps scan endpoint
-    can call it correctly without any change here."""
+    """Resolve the scan root for one library domain ("game" or "apps"). Only
+    "game" is reachable today (this route is games-only), but the resolver
+    itself is domain-aware so a future Apps scan endpoint can call it
+    correctly without any change here."""
     try:
         from backend.core.settings import get_settings
         software_path = get_settings().get("SOFTWARE_PATH", "") or ""

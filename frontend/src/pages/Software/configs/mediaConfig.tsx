@@ -70,6 +70,23 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
   }
 }
 
+// Best-effort media_kind inference from the uploaded file's extension. The
+// chunked upload transport never asks for media_kind (it only moves bytes),
+// and unlike Game/App this domain's finalize deliberately does not create a
+// DB row (see backend/service/uploads/software_media.py), media_kind is a
+// human/DB-facing field the upload step doesn't know about, so it has to be
+// guessed here for the follow-up create call. Unrecognized extensions fall
+// back to "text" (the closest thing to a generic-document catch-all in
+// MediaKind) rather than blocking the upload; the user can correct it from
+// the detail page's edit form afterward.
+function inferMediaKind(fileName: string): 'audio' | 'text' | 'image' | 'video' {
+  const ext = fileName.slice(fileName.lastIndexOf('.') + 1).toLowerCase()
+  if (['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'wma'].includes(ext)) return 'audio'
+  if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'tiff', 'tif'].includes(ext)) return 'image'
+  if (['mp4', 'mkv', 'avi', 'mov', 'webm', 'wmv', 'm4v'].includes(ext)) return 'video'
+  return 'text'
+}
+
 // Media had no creation UI at all before this. Mode is 'upload' only
 // (no scan support exists on the backend for this domain, unlike Game), and
 // no multi-disc/folder/browse-import sub-features since archival media
@@ -77,17 +94,30 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
 // standalone-item-first, not a multi-disc collection concept like Game.
 export const mediaUploadModalConfig: LibraryModalConfig = {
   mode: 'upload',
-  // PROVISIONAL CONTRACT. See chunkedUpload.ts. No live backend endpoint
-  // exists for this target_type yet: the real Media upload route today
-  // (POST /api/v1/media-items/upload) is a single-shot, non-chunked,
-  // two-step stage-then-create flow, not this chunked init/chunks/complete
-  // shape. Load-bearing assumption, revisit once the discovery session
-  // confirms whether Media gets a chunked endpoint or this modal needs a
-  // non-chunked upload path for this target_type instead.
-  targetType: 'media_item_bundle',
+  // Resolved: dev_docs/v2/03_media_archive.md's "archival Media domain" and
+  // this Software Media sub-tab turned out to be the same shipped entity
+  // (MediaItem/MediaItemBundle, backend/models/media.py), there is no
+  // second Media domain. Its chunked endpoint
+  // (/api/v1/uploads/software-media/*) mirrors the existing single-shot
+  // POST /api/v1/media-items/upload contract exactly: finalize only stages
+  // bytes and returns {path, slug, size_bytes}, it does not create the row.
+  // createFromUpload below makes that second call.
+  uploadDomain: 'software_media',
   modalTitle: 'Add Media',
   entityLabel: 'media item',
   entityLabelPlural: 'media',
+  createFromUpload: async (body, fileName) => {
+    const title = fileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim() || fileName
+    await apiFetch('/api/v1/media-items', {
+      method: 'POST',
+      body: JSON.stringify({
+        title,
+        media_kind: inferMediaKind(fileName),
+        file_path: body.path,
+        file_size_bytes: body.size_bytes ?? null,
+      }),
+    })
+  },
 }
 
 // Media has no launch capability at all (no launchTargetType), and its cover

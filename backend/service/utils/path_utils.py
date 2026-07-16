@@ -138,8 +138,15 @@ def is_within_roots(resolved: Path, roots: list[Path]) -> bool:
 
 # Matches the on-disk folder names exactly (the games folder is the singular
 # "game", not "games") so a domain key can be joined onto SOFTWARE_PATH with
-# no further translation.
-_LIBRARY_DOMAINS: frozenset[str] = frozenset({"game", "media", "apps"})
+# no further translation. "media" is deliberately NOT a member: MediaItem/
+# MediaItemBundle (backend/models/media.py) is the Software section's Media
+# sub-tab AND the only Media domain that exists in this codebase, per doc
+# dev_docs/v2/03_media_archive.md's "new archival Media domain" and the
+# Software Media sub-tab were never two separate things, they shipped as one.
+# That domain roots at MEDIA_PATH (library/media/), not SOFTWARE_PATH/media/,
+# and is resolved directly in backend/service/uploads/software_media.py, it
+# has no reason to ever go through this SOFTWARE_PATH-scoped resolver.
+_LIBRARY_DOMAINS: frozenset[str] = frozenset({"game", "apps"})
 
 
 def library_root() -> Path:
@@ -153,22 +160,16 @@ def library_root() -> Path:
 
 
 def library_domain_root(domain: str) -> Path:
-    """Return the on-disk root for one Software-library domain: "game",
-    "media", or "apps". Each is a fixed subdirectory of SOFTWARE_PATH,
-    library/software/game/, library/software/media/, library/software/apps/,
-    matching the real on-disk layout.
+    """Return the on-disk root for one Software-library domain: "game" or
+    "apps". Each is a fixed subdirectory of SOFTWARE_PATH, library/software/game/,
+    library/software/apps/, matching the real on-disk layout.
 
     Single place upload, scan, and any other consumer that used to read
     SOFTWARE_PATH directly and treat it as one flat root should resolve a
     domain-scoped destination from instead.
 
-    Note: "media" here is the Software section's Media tab (MediaItemBundle,
-    under SOFTWARE_PATH), a distinct concept from the MEDIA_PATH setting,
-    which roots the older, unrelated archival Media/Archive domain at
-    library/media/.
-
     Raises:
-        ValueError: if domain is not one of "game", "media", "apps".
+        ValueError: if domain is not one of "game", "apps".
     """
     if domain not in _LIBRARY_DOMAINS:
         raise ValueError(

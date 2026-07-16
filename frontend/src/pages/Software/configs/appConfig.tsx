@@ -140,14 +140,15 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
 // GameItem does, so a bundle is always a single uploaded item here.
 export const appUploadModalConfig: LibraryModalConfig = {
   mode: 'upload',
-  // PROVISIONAL CONTRACT. See chunkedUpload.ts. No live backend endpoint
-  // exists for this target_type at all today: apps.py's only creation route
-  // (POST /api/v1/app-items) takes a pre-existing file_path and has zero
-  // upload/file-transport mechanism of its own. This is the most speculative,
-  // most load-bearing provisional-contract assumption in this refactor.
-  // App uploads cannot function until the backend actually implements a
-  // chunked (or any) upload path for "app_item".
-  targetType: 'app_item',
+  // Resolved: backend/service/uploads/software_apps.py now implements a real
+  // chunked upload path (/api/v1/uploads/software-apps/*) whose finalize
+  // creates the AppItemBundle + AppItem row directly, same shape as Game.
+  // era is left "unknown" (no detection, matching apps.py's existing
+  // create_app_item_bundle), editable from the detail page after upload.
+  // The backend also accepts kind="folder" (multi-part installs), but the
+  // upload UI here stays single-file-only for now, supportsFolderMode is
+  // deliberately not set.
+  uploadDomain: 'software_apps',
   modalTitle: 'Add App',
   entityLabel: 'app',
   entityLabelPlural: 'apps',

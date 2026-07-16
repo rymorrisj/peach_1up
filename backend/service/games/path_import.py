@@ -4,7 +4,7 @@ GET /api/v1/filesystem/browse already resolves real, absolute, server-known
 paths for "Locate file/folder..." (ROM pack install) and the manual
 launch-target override. This module lets Add Media accept the same kind of
 path as an import source, alongside (not instead of) the browser-upload
-transport in chunked_uploads.py — the browser-upload path is used when the
+transport in service.uploads.core, the browser-upload path is used when the
 source lives on the user's machine; this one is used when it already lives on
 the server's filesystem, so no chunked transfer is needed.
 
@@ -12,9 +12,9 @@ stage_from_source always copies (never moves) the source into a fresh
 directory under SOFTWARE_PATH, so the source is untouched until ingest has fully
 succeeded. Only then, if the caller opted in, is the original deleted — never
 before a confirmed successful write into the library. stage_from_source builds
-the same ReassembledUpload shape service.games.chunked_uploads produces from
-staged chunks, so upload_finalize.finalize_reassembled (dedup, multi-disc
-detection, cleanup-on-failure) is reused unmodified.
+the same ReassembledUpload shape service.uploads.core produces from staged
+chunks, so software_games.finalize_reassembled (dedup, multi-disc detection,
+cleanup-on-failure) is reused unmodified.
 """
 from __future__ import annotations
 
@@ -25,8 +25,8 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from backend.core.logger import get_logger
-from backend.service.games import chunked_uploads as cu
-from backend.service.games import upload_finalize
+from backend.service.uploads import core as cu
+from backend.service.uploads import software_games as upload_finalize
 from backend.service.utils.path_utils import resolve_under, sanitize_filename
 from backend.service.utils.slug_generator import unique_slug
 from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES

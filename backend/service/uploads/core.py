@@ -1,15 +1,19 @@
-"""Chunked-upload transport & storage.
+"""Chunked-upload transport & storage. Shared across every upload domain
+(software_games, software_media, software_apps), this module has no
+knowledge of any one domain, only bytes-on-disk.
 
 Single responsibility: accept a file (or folder of files) as an ordered series
 of chunks staged under ``library/tmp_chunks/<upload_id>/``, then reassemble
 them into their permanent location under whichever domain root the caller
 passes to ``reassemble``. Staging lives under the shared library root rather
 than any one domain's root because at staging time the upload's eventual
-destination domain (game/media/apps) is not yet known, and reassembly is what
-resolves it. Ingest (dedup, era detection, DB persistence) is NOT done here
-— that is upload_finalize's job, which funnels into the shared ingester.
-Cleanup of the staging area is owned entirely by this module (success, abort,
-and orphan sweep).
+destination domain is not yet known (the client can pick any registered
+domain's route without this module caring), and reassembly is what resolves
+it. Ingest (dedup, era detection, DB persistence) is NOT done here, that is
+each domain's own finalize module's job (see backend.service.uploads.registry
+and software_games.py / software_media.py / software_apps.py). Cleanup of the
+staging area is owned entirely by this module (success, abort, and orphan
+sweep).
 
 Sessions are in-memory (matching _scan_state / install_registry). A crash loses
 the session but leaves the tmp dir on disk; sweep_orphans() reaps those.
@@ -41,7 +45,7 @@ _sessions: dict[str, dict] = {}
 
 @dataclass
 class ReassembledUpload:
-    kind: str  # "file" | "folder"
+    kind: str  # "file" | "folder" | "set"
     title: str
     dest_dir: Path
     paths: list[Path]
@@ -49,9 +53,9 @@ class ReassembledUpload:
 
 
 def tmp_root() -> Path:
-    """Shared pre-domain staging root, library/tmp_chunks/, a sibling of
-    software/ rather than nested inside it, since staging happens before the
-    upload's eventual destination domain (game/media/apps) is known."""
+    """Shared pre-domain staging root, library/tmp_chunks/, a sibling of every
+    domain root rather than nested inside one, since staging happens before
+    the upload's eventual destination domain is known."""
     from backend.service.utils.path_utils import library_root
     return library_root() / TMP_CHUNKS_DIRNAME
 
@@ -184,7 +188,7 @@ def reassemble(upload_id: str, media_root: Path) -> ReassembledUpload:
             if dest_path.exists():
                 raise HTTPException(
                     status_code=409,
-                    detail=f"Two uploaded files are both named '{slot['name']}' — rename one and retry.",
+                    detail=f"Two uploaded files are both named '{slot['name']}', rename one and retry.",
                 )
             src_dir = resolve_under(session_dir, str(file_index))
             with dest_path.open("wb") as out:
@@ -224,8 +228,8 @@ def _discard(upload_id: str, session_dir: Path) -> None:
 
 
 def sweep_orphans(ttl_seconds: float) -> int:
-    """Remove staging dirs on disk older than ttl_seconds with no live session —
-    reaps interrupted uploads (crash/restart lost the in-memory session). Returns
+    """Remove staging dirs on disk older than ttl_seconds with no live session,
+    reaping interrupted uploads (crash/restart lost the in-memory session). Returns
     the number of dirs removed."""
     root = tmp_root()
     if not root.is_dir():

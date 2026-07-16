@@ -583,9 +583,9 @@ export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
 // behavior is identical to before this extraction.
 export const gameUploadModalConfig: LibraryModalConfig = {
   mode: 'upload',
-  // PROVISIONAL CONTRACT. See chunkedUpload.ts. This is the only target_type
-  // with a real, live backend endpoint today (/api/v1/game-items/uploads/*).
-  targetType: 'game_item_bundle',
+  // Migrated off the old games-only /api/v1/game-items/uploads/* path onto
+  // the route-per-domain shape: /api/v1/uploads/software-games/*.
+  uploadDomain: 'software_games',
   modalTitle: 'Add Media',
   entityLabel: 'game',
   entityLabelPlural: 'games',
@@ -596,7 +596,7 @@ export const gameUploadModalConfig: LibraryModalConfig = {
 
 export const gameScanModalConfig: LibraryModalConfig = {
   mode: 'scan',
-  targetType: 'game_item_bundle',
+  uploadDomain: 'software_games',
   modalTitle: 'Scan Library',
   entityLabel: 'game',
   entityLabelPlural: 'games',

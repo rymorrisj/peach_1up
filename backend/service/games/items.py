@@ -376,7 +376,7 @@ def _prepare_item(
             _src_parent = media_src.parent
 
             # Slugify the destination folder name (matches the shared slugify()
-            # every other ingest path uses — chunked_uploads.reassemble(),
+            # every other ingest path uses, service.uploads.core.reassemble(),
             # path_import.stage_from_source(), and the is_dir() branch below).
             # This is deliberately the plain slug, not unique_slug(): the
             # canonical folder name is deterministic from the stem, and an
@@ -741,7 +741,7 @@ def _create_multi_disc_collection(
     Each disc file becomes both file_path and executable_path for its leaf.
 
     staging_dir, when given, is the shared directory the caller staged every
-    disc_files entry into (chunked_uploads.reassemble() / path_import's
+    disc_files entry into (service.uploads.core.reassemble() / path_import's
     stage_from_source(), named via unique_slug() against filesystem
     existence) — it is renamed to match this collection's DB slug (generated
     below against DB uniqueness, a different domain) so the two never
@@ -786,7 +786,7 @@ def _create_multi_disc_collection(
     # the staging_dir docstring param above for why this is keyed off the
     # caller-supplied directory rather than disc_files[0].parent. original_dir
     # is kept so a failure below can rename back to it: the caller
-    # (upload_finalize.finalize_reassembled) still references the pre-rename
+    # (service.uploads.software_games.finalize_reassembled) still references the pre-rename
     # path in its own cleanup-on-failure rmtree.
     original_dir = staging_dir
     staged_dir = staging_dir
@@ -828,7 +828,7 @@ def _create_multi_disc_collection(
                 folder_path=str(disc_file.parent),
                 # All disc files of a "set" upload are written together into one
                 # unique-slugged staging directory dedicated to this collection
-                # (see upload_finalize.finalize_reassembled) — safe to rmtree.
+                # (see service.uploads.software_games.finalize_reassembled), safe to rmtree.
                 folder_owned=True,
             )
             db.add(leaf)

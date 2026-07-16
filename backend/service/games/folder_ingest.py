@@ -2,9 +2,9 @@
 
 Extracted from the upload-folder route so both the (removed) synchronous route
 path and the chunked/background finalizer share one implementation. This is a
-helper imported by upload_finalize (the orchestration entry point); it funnels
-into the shared collection ingester in service.games.items. Every upload —
-single disc or multi-disc — becomes a GameItemBundle (single-disc is a
+helper imported by service.uploads.software_games (the orchestration entry
+point); it funnels into the shared collection ingester in service.games.items. Every upload,
+single disc or multi-disc, becomes a GameItemBundle (single-disc is a
 collection-of-one).
 """
 from __future__ import annotations

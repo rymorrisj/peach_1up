@@ -3,7 +3,7 @@ import type { DragEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { UploadCloud, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { chunkedUpload } from '@/lib/chunkedUpload'
-import type { UploadTargetType } from '@/lib/chunkedUpload'
+import type { ChunkedUploadResult, UploadDomain } from '@/lib/chunkedUpload'
 import { apiFetch, ApiError } from '@/api/client'
 import { useAppContext } from '@/context/useAppContext'
 import { useConfirm } from '@/hooks/useConfirm'
@@ -25,11 +25,11 @@ export interface LibraryModalConfig {
   // layout, two LibraryModal instances, one of each mode, unchanged from
   // before this extraction).
   mode: 'upload' | 'scan' | 'both'
-  // PROVISIONAL CONTRACT: sent as target_type to the generalized upload
-  // endpoint instead of a route-based domain segment. Only "game_item_bundle"
-  // has a live backend endpoint today (see chunkedUpload.ts), subject to
-  // change once the backend discovery session locks the real contract.
-  targetType: UploadTargetType
+  // Which route-per-domain endpoint this modal instance uploads to
+  // (/api/v1/uploads/software-games|software-media|software-apps, see
+  // chunkedUpload.ts). All three now have a live backend endpoint; this
+  // value only picks the URL, it is never sent in a request body.
+  uploadDomain: UploadDomain
   modalTitle: string
   entityLabel: string
   entityLabelPlural: string
@@ -45,6 +45,16 @@ export interface LibraryModalConfig {
   // (see AddMediaModal's former import-from-path flow), only supply
   // importFromPathApiPath when a domain actually has one.
   importFromPathApiPath?: string
+  // Only software_media's finalize does not create a DB row (it stages bytes
+  // and returns {path, slug, size_bytes}, see
+  // backend/service/uploads/software_media.py). When set, this runs after a
+  // successful *inline* (non-background) finalize and before onComplete(),
+  // to make the actual POST that creates the row. Undefined for every other
+  // domain, whose finalize already creates the row server-side. Only reached
+  // from the single-file upload flow (startUpload) today, software_media's
+  // allowed_kinds is {"file"} only, so supportsMultiDisc/supportsFolderMode
+  // must stay unset for a domain that sets this.
+  createFromUpload?: (body: ChunkedUploadResult['body'], fileName: string) => Promise<void>
 }
 
 interface UploadEntry {
@@ -254,9 +264,9 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
     const title = entry.file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim()
     const { promise } = chunkedUpload('file', title, [entry.file], (pct) => {
       setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, progress: pct } : e)))
-    }, config.targetType)
+    }, config.uploadDomain)
     promise
-      .then((res) => {
+      .then(async (res) => {
         // Over the server threshold: finalize runs as a background job surfaced
         // in the nav bell. The item appears in the grid once that job finishes.
         if (res.status === 202 && res.body.job_id) {
@@ -266,6 +276,16 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
           })
           setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'success', progress: 100 } : e)))
           return
+        }
+        if (config.createFromUpload) {
+          try {
+            await config.createFromUpload(res.body, entry.file.name)
+          } catch (err) {
+            setEntries((prev) => prev.map((e) => (e.id === entry.id
+              ? { ...e, status: 'error', error: err instanceof Error ? err.message : 'Failed to save.' }
+              : e)))
+            return
+          }
         }
         const status = res.body.reused_existing_media ? 'reused' : 'success'
         setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status, progress: 100 } : e)))
@@ -341,7 +361,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
     setSetProgress(0)
     setSetBackground(false)
 
-    const { promise } = chunkedUpload('set', title, stagedDiscs.map((d) => d.file), setSetProgress, config.targetType)
+    const { promise } = chunkedUpload('set', title, stagedDiscs.map((d) => d.file), setSetProgress, config.uploadDomain)
     try {
       const res = await promise
       if (res.status === 202 && res.body.job_id) {
@@ -370,7 +390,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
     setFolderProgress(0)
     setFolderBackground(false)
 
-    const { promise } = chunkedUpload('folder', title, folderFiles, setFolderProgress, config.targetType)
+    const { promise } = chunkedUpload('folder', title, folderFiles, setFolderProgress, config.uploadDomain)
     try {
       const res = await promise
       if (res.status === 202 && res.body.job_id) {

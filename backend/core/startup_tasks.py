@@ -153,7 +153,7 @@ def _sweep_upload_tmp() -> None:
     domain's root), so this sweeps LIBRARY_PATH's tmp_chunks, not SOFTWARE_PATH's."""
     try:
         from backend.core.settings import get_settings
-        from backend.service.games.chunked_uploads import sweep_orphans
+        from backend.service.uploads.core import sweep_orphans
         from backend.service.utils.upload_utils import DEFAULT_UPLOAD_TMP_TTL_SECONDS
 
         library_path = get_settings().get("LIBRARY_PATH", "") or ""

@@ -27,11 +27,22 @@ from backend.core.startup_tasks import (
     _sync_first_run_from_db,
 )
 from backend.service.launch.history import write_session_ends as _write_session_ends
+from backend.service.uploads import software_apps, software_games, software_media
 import backend.models.user  # noqa: F401 — registers UserItem with SQLModel.metadata
 import backend.models.media_restriction  # noqa: F401 — registers MediaRestriction with SQLModel.metadata
 import backend.models.tag  # noqa: F401 — registers Tag and EntityTag with SQLModel.metadata
 
 logger = get_logger(__name__)
+
+
+def _register_upload_domains() -> None:
+    # Explicit, not import-time decorator side effects, so a missing or
+    # duplicate registration fails loudly here instead of depending on
+    # which module happened to be imported first. See
+    # backend/service/uploads/registry.py.
+    software_games.register()
+    software_media.register()
+    software_apps.register()
 
 
 @asynccontextmanager
@@ -43,6 +54,7 @@ async def lifespan(app: FastAPI):
     # (dictConfig on the "uvicorn"/"uvicorn.error"/"uvicorn.access" loggers)
     # runs before lifespan startup and would otherwise overwrite this.
     configure_uvicorn_logging()
+    _register_upload_domains()
     _ensure_default_paths()
     from backend.service.utils.settings import validate_configured_paths, get_path_warnings
     validate_configured_paths()
