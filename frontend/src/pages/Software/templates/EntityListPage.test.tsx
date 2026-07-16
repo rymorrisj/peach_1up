@@ -66,6 +66,15 @@ function mockApi(entities: unknown[]): RecordedCall[] {
     if (u.startsWith('/api/v1/app-items')) {
       return Promise.resolve({ items: entities, total: entities.length, limit: 50, offset: 0 })
     }
+    if (u === '/api/v1/settings/library-defaults') {
+      return Promise.resolve({ delete_media_on_removal: false, delete_original_on_upload: false })
+    }
+    // App's real backend requires a confirmation_token on delete (see
+    // appConfig.tsx's deleteConfig comment), so removal is a two-step
+    // issue-then-consume flow, not a plain DELETE.
+    if (method === 'POST' && u.endsWith('/confirm-delete')) {
+      return Promise.resolve({ confirmation_token: 'test-confirmation-token' })
+    }
     if (method === 'DELETE' && u.startsWith('/api/v1/app-item-bundle/')) {
       return Promise.resolve(undefined)
     }
@@ -101,7 +110,7 @@ describe('EntityListPage', () => {
     })
   })
 
-  it('constructs the delete URL from bundleApiPath(String(entity.id))', async () => {
+  it('constructs the delete URL from bundleApiPath(String(entity.id)) with the issued confirmation token', async () => {
     const user = userEvent.setup()
     const calls = mockApi([minimalApp()])
     renderPage()
@@ -115,8 +124,10 @@ describe('EntityListPage', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm' }))
 
     await waitFor(() => {
+      const issued = calls.find((c) => c.method === 'POST' && c.url.endsWith('/confirm-delete'))
+      expect(issued?.url).toBe('/api/v1/app-item-bundle/42/confirm-delete')
       const del = calls.find((c) => c.method === 'DELETE')
-      expect(del?.url).toBe('/api/v1/app-item-bundle/42')
+      expect(del?.url).toBe('/api/v1/app-item-bundle/42?confirmation_token=test-confirmation-token')
     })
   })
 })

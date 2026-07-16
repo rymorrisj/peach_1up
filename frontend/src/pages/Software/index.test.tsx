@@ -72,16 +72,23 @@ describe('Software page', () => {
       return Promise.resolve([])
     })
     renderPage()
+    // Post-EntityListPage-cutover copy: EntityListPage's generic empty state
+    // is "No {entityLabelPlural} yet" (see templates/EntityListPage.tsx),
+    // replacing the old bespoke Games.tsx-only "Your software library is
+    // empty" heading.
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /your software library is empty/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /no games yet/i })).toBeInTheDocument()
     })
   })
 
-  it('renders the "+ Add Media" button', async () => {
+  it('renders the "+ Add game" button', async () => {
     vi.mocked(apiFetch).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
     renderPage()
+    // Post-EntityListPage-cutover copy: the TopBar add button label is now
+    // generic "+ Add {entityLabel}" (see templates/EntityListPage.tsx),
+    // replacing the old bespoke Games.tsx-only "+ Add Media" label.
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /add media/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /add game/i })).toBeInTheDocument()
     })
   })
 })

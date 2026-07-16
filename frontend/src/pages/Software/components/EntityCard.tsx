@@ -1,22 +1,74 @@
 import { Link } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
-import type { CoverArtResolver, EntityBundleBase } from '../types'
+import type { CoverArtResolver, EntityBundleBase, EntityMultiDiscLeaf } from '../types'
+
+// Per-entity multi-disc data, computed by EntityListPage from
+// config.multiDisc for bundles with more than one leaf item. Undefined for
+// every domain without a multiDisc config (Media, App today), which renders
+// none of the strip markup below at all.
+export interface EntityCardMultiDiscProps {
+  discs: EntityMultiDiscLeaf[]
+  displayDiskId: number | null
+  launchDiskId: number | null
+  onSetDisplayDisk: (discId: number) => void
+}
 
 interface EntityCardProps<TBundle extends EntityBundleBase> {
   entity: TBundle
   routeBase: string
   coverArt: CoverArtResolver<TBundle>
   onRemove?: (entity: TBundle) => void
+  multiDisc?: EntityCardMultiDiscProps
+}
+
+// Compact, hover-revealed strip of disc buttons, ported (trimmed down) from
+// CollectionCard.tsx's disc strip. Click promotes a disc to be the display
+// cover; the current display disc is shown disabled, the launch disc (if it
+// differs) is marked with a play glyph.
+function MultiDiscStrip({ discs, displayDiskId, launchDiskId, onSetDisplayDisk }: EntityCardMultiDiscProps) {
+  return (
+    <div
+      className="absolute bottom-0 left-0 right-0 z-10 flex gap-1 overflow-x-auto bg-gradient-to-t from-black/80 to-transparent px-2 pb-2 pt-4 opacity-0 transition-opacity duration-[180ms] ease-out group-hover:opacity-100"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {discs
+        .slice()
+        .sort((a, b) => a.disc_number - b.disc_number)
+        .map((disc) => {
+          const isDisplay = disc.id === displayDiskId
+          const isLaunch = disc.id === launchDiskId
+          return (
+            <button
+              key={disc.id}
+              type="button"
+              onClick={(e) => { e.preventDefault(); if (!isDisplay) onSetDisplayDisk(disc.id) }}
+              disabled={isDisplay}
+              title={isDisplay ? 'Displayed' : isLaunch ? 'Set as display cover (launches this disc)' : 'Set as display cover'}
+              className={`shrink-0 rounded border font-mono text-[9px] px-1.5 py-0.5 transition-colors duration-[120ms] ${
+                isDisplay
+                  ? 'cursor-default border-[#ff8a5c]/60 bg-[#ff8a5c]/10 text-[#ff8a5c]/90'
+                  : 'cursor-pointer border-neutral-700 bg-black/40 text-neutral-400 hover:border-neutral-500 hover:text-neutral-200'
+              }`}
+            >
+              {isLaunch && !isDisplay ? '▶ ' : ''}{disc.disc_number}
+            </button>
+          )
+        })}
+    </div>
+  )
 }
 
 // Simple, era/disc-agnostic card for domains without Game's multi-disc stack
-// visuals (Media, App). Routes by numeric id, not slug — Media/App bundles
-// have no by-slug lookup endpoint on the backend, unlike Game.
+// visuals (Media, App). Routes by numeric id, not slug, Media/App bundles
+// have no by-slug lookup endpoint on the backend, unlike Game. The `multiDisc`
+// prop is a slot only, no domain populates it today (see EntityMultiDiscConfig
+// in types.ts), so the strip below never renders in current usage.
 export function EntityCard<TBundle extends EntityBundleBase>({
   entity,
   routeBase,
   coverArt,
   onRemove,
+  multiDisc,
 }: EntityCardProps<TBundle>) {
   const to = `${routeBase}/${entity.id}`
   const art = coverArt(entity)
@@ -40,6 +92,7 @@ export function EntityCard<TBundle extends EntityBundleBase>({
               </p>
             </div>
           )}
+          {multiDisc && <MultiDiscStrip {...multiDisc} />}
         </div>
         <span className="min-w-0 truncate font-sans text-sm font-semibold tracking-tight text-neutral-100">
           {entity.title}

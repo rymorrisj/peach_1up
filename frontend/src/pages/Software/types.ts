@@ -87,6 +87,78 @@ export function launchGateFromReason(
   }
 }
 
+// Filter bar support for EntityListPage, presence-gated the same pattern as
+// uploadConfig: a domain that omits `filters` entirely gets no filter bar and
+// no change to its list query params. Modeled on Games.tsx's Filters state
+// (era + profileFilter), the only domain with backend support for either
+// param today (GET /api/v1/game-items, see game_item_bundles.py:list_game_items).
+// Apps' list endpoint (GET /api/v1/app-items) has neither param, and Media has
+// no era/profile concept at all, so both leave this unset.
+export interface EntityFilterConfig {
+  // Renders an "All eras" + ERA_LABELS select, synced to the `?era=` URL
+  // search param (survives navigation/back-button, mirrors Games.tsx) and
+  // serialized as `?era=` on the list request.
+  era?: boolean
+  // Renders an "All / Profile assigned / No profile" select, serialized as
+  // `?profile_assigned=true|false` on the list request. Not URL-synced,
+  // matching Games.tsx (era is the only URL-synced filter there).
+  profileAssigned?: boolean
+}
+
+// Leaf shape the multi-disc disc-selector strip needs, a subset of
+// Game/App's leaf item fields, kept minimal so any domain with a
+// disc/part-numbered leaf collection can supply it.
+export interface EntityMultiDiscLeaf {
+  id: number
+  disc_number: number
+  cover_art_url: string | null
+}
+
+// Config-gated multi-disc display-disk selection, ported from Games.tsx's
+// onSetDisplayDisk (CollectionCard.tsx). Presence on EntityDomainConfig gates
+// EntityCard's disc-selector strip entirely, a domain that omits `multiDisc`
+// renders the plain single-thumbnail card with no strip, no behavior change.
+// No domain opts into this yet (Media/App have no multi-disc concept); this
+// is slot-readiness for a future domain, ported only so the capability exists.
+export interface EntityMultiDiscConfig<TBundle> {
+  // Extracts this bundle's leaf items for the strip. Bundles with 0 or 1 item
+  // never render the strip regardless of this config being present.
+  items: (bundle: TBundle) => EntityMultiDiscLeaf[]
+  displayDiskId: (bundle: TBundle) => number | null
+  launchDiskId: (bundle: TBundle) => number | null
+  // Persists the new display disk (mirrors Games.tsx's handleSetDisplayDisk).
+  // Should only perform the write. EntityListPage invalidates the list query
+  // itself afterward, the same way it already does for uploadConfig's
+  // onComplete, so this callback doesn't need to know the query key.
+  onSetDisplayDisk: (entityId: number, discId: number) => Promise<void>
+}
+
+// Config-gated delete-media-override + two-step confirm-token delete flow,
+// ported from Games.tsx's handleRemove / useDeleteCollection. This is *not*
+// simply "on for every domain": Game and App's backends both expose the full
+// contract (POST .../confirm-delete issues a token, DELETE
+// .../{id}?confirmation_token=... consumes it, plus a delete_media_override
+// field on the bundle's PATCH schema, see game_item_bundles.py/apps.py and
+// GameItemBundleUpdate/AppItemBundleUpdate). Media's backend has neither:
+// delete_media_item_bundle is a plain DELETE with no confirmation_token
+// parameter at all, and MediaItemBundleUpdate has no delete_media_override
+// field. A domain without deleteConfig keeps EntityListPage's original plain
+// confirm+DELETE behavior (Media's correct, unchanged path); a domain that
+// supplies it gets Game's full two-step UX (App opts in, see appConfig.tsx).
+export interface EntityDeleteConfig<TBundle> {
+  // Base path for this entity keyed by its numeric id, e.g.
+  // id => `/api/v1/app-item-bundle/${id}`. Deliberately independent of
+  // config.bundleApiPath, whose identifier may not be the numeric id (Game's
+  // is slug-keyed for GET/PATCH); confirm-delete/DELETE are always id-keyed.
+  bundleByIdApiPath: (id: number) => string
+  // Reads this entity's persisted delete_media_override (null/undefined =
+  // inherit the global delete_media_on_removal default from
+  // /api/v1/settings/library-defaults). Domains without such a field on their
+  // model should omit deleteConfig entirely rather than supply a resolver
+  // that always returns null.
+  resolveDeleteMediaOverride: (entity: TBundle) => boolean | null
+}
+
 // Per-domain wiring an EntityListPage/EntityDetailPage consumes so the
 // generic components carry no built-in knowledge of any one domain.
 // Only 'game' and 'app' can launch — Media supplies no launch config at all,
@@ -137,6 +209,36 @@ export interface EntityDomainConfig<TBundle extends EntityBundleBase> {
   // (see gameConfig.tsx's gameUploadModalConfig/gameScanModalConfig) rather
   // than going through EntityListPage.
   uploadConfig?: LibraryModalConfig
+  // Second modal slot, structurally alongside uploadConfig, renders a
+  // "Scan Directory" button and a second <LibraryModal> instance (mode:
+  // 'scan') when present. Slot-readiness only: no domain supplies this yet,
+  // Scan itself is not wired for Media or App this pass, and Games.tsx (the
+  // only domain with a working Scan today) stays on its own bespoke
+  // two-button/two-modal layout, untouched.
+  scanConfig?: LibraryModalConfig
+  // Era/profile filter bar, see EntityFilterConfig. Omitted for Media/App.
+  filters?: EntityFilterConfig
+  // Multi-disc display-disk selector, see EntityMultiDiscConfig. Omitted for
+  // every domain today (slot-readiness only).
+  multiDisc?: EntityMultiDiscConfig<TBundle>
+  // Delete-media-override + two-step confirm-token delete flow, see
+  // EntityDeleteConfig. Omitted means EntityListPage's original plain
+  // confirm+DELETE behavior (Media's correct path, backend has no token
+  // contract or override field).
+  deleteConfig?: EntityDeleteConfig<TBundle>
+  // Full custom card renderer for a domain whose grid card departs from
+  // EntityCard's generic layout. Game's CollectionCard has stacked-disc
+  // background layers, an era-tinted placeholder with publisher/year, a
+  // stack-count badge, and a display-vs-launch-disc divergence badge, none
+  // of which EntityCard renders (EntityCard is deliberately the simple,
+  // era-agnostic card Media/App use). When set, EntityListPage renders this
+  // instead of <EntityCard> for every entity in the grid. Omitted for Media
+  // and App, whose rendering via EntityCard is unchanged.
+  renderCard?: (props: {
+    entity: TBundle
+    onRemove: (entity: TBundle) => void
+    onSetDisplayDisk?: (entityId: number, discId: number) => void
+  }) => ReactNode
 }
 
 export interface EntityDetailExtrasContext<TBundle extends EntityBundleBase> {

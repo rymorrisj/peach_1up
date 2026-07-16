@@ -14,7 +14,7 @@ import { formFromCollection, type SoftwareGameForm as EditFormFields } from '../
 import { resolveLaunchCommands } from '@/hooks/resolveLaunchCommands'
 import { FetchMetadataModal } from '../components/FetchMetadataModal'
 import { DiscOrderList } from '../components/DiscOrderList'
-import { getGameCoverArt } from '../components/CollectionCard'
+import { CollectionCard, getGameCoverArt } from '../components/CollectionCard'
 import type { GameItemBundleData } from '../components/CollectionCard'
 import { ERA_LABELS } from '@/generated/constants'
 import type { EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
@@ -498,7 +498,11 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
           activeProviderLabel={activeProviderLabel}
           onSuccess={async () => {
             queryClient.invalidateQueries({ queryKey: detailQueryKey })
-            queryClient.invalidateQueries({ queryKey: ['library'] })
+            // Matches EntityListPage's own invalidate() key for the game list
+            // (config.domain, 'list') — was the pre-cutover Games.tsx-only
+            // ['library'] key, which stopped matching anything once Games.tsx
+            // moved onto EntityListPage's ['game', 'list', ...] list query.
+            queryClient.invalidateQueries({ queryKey: ['game', 'list'] })
             // Fetch fresh data directly and resync the edit form — the form is only
             // built from `collection` once (see the formIsReady guard above), so it
             // would otherwise show stale publisher/description/category/rating/
@@ -521,7 +525,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
             activeProviderLabel={activeProviderLabel}
             onSuccess={async () => {
               queryClient.invalidateQueries({ queryKey: detailQueryKey })
-              queryClient.invalidateQueries({ queryKey: ['library'] })
+              queryClient.invalidateQueries({ queryKey: ['game', 'list'] })
               const fresh = await refetchEntity()
               resyncFromCollection(fresh)
               setFetchDiscId(null)
@@ -557,30 +561,13 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
   }
 }
 
-// Game's cover art lives on the leaf item (display/launch disk id
-// indirection) — see getGameCoverArt in CollectionCard.tsx, reused as-is.
-export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
-  domain: 'game',
-  routeBase: '/software/games',
-  listApiPath: '/api/v1/game-items',
-  bundleApiPath: gameBundleApiPath,
-  tagEntityType: 'game_item_bundle',
-  entityLabel: 'game',
-  entityLabelPlural: 'games',
-  coverArt: getGameCoverArt,
-  launchTargetType: 'collection',
-  identifierParam: 'slug',
-  backLabel: 'Back to Software',
-  showDescriptionMeta: false,
-  filterRestrictionUsers: (users) => users.filter((u) => !u.is_owner),
-  renderExtras: useGameDetailExtras,
-}
-
 // Games.tsx keeps its existing two-button/two-modal layout (Add Media, Scan
 // Directory) unchanged, both now point at the shared LibraryModal instead of
 // the former games-only AddMediaModal/ScanModal, with every sub-feature
 // (multi-disc, folder upload, browse-server-path import) still enabled so
-// behavior is identical to before this extraction.
+// behavior is identical to before this extraction. Declared above
+// gameDomainConfig (which now references both) to avoid a temporal-dead-zone
+// reference at module init.
 export const gameUploadModalConfig: LibraryModalConfig = {
   mode: 'upload',
   // Migrated off the old games-only /api/v1/game-items/uploads/* path onto
@@ -600,4 +587,65 @@ export const gameScanModalConfig: LibraryModalConfig = {
   modalTitle: 'Scan Library',
   entityLabel: 'game',
   entityLabelPlural: 'games',
+}
+
+// Game's cover art lives on the leaf item (display/launch disk id
+// indirection) — see getGameCoverArt in CollectionCard.tsx, reused as-is.
+export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
+  domain: 'game',
+  routeBase: '/software/games',
+  listApiPath: '/api/v1/game-items',
+  bundleApiPath: gameBundleApiPath,
+  tagEntityType: 'game_item_bundle',
+  entityLabel: 'game',
+  entityLabelPlural: 'games',
+  coverArt: getGameCoverArt,
+  launchTargetType: 'collection',
+  identifierParam: 'slug',
+  backLabel: 'Back to Software',
+  showDescriptionMeta: false,
+  filterRestrictionUsers: (users) => users.filter((u) => !u.is_owner),
+  renderExtras: useGameDetailExtras,
+  // Era/profile filter bar (EntityListPage.tsx). Confirmed backend support:
+  // GET /api/v1/game-items (game_item_bundles.py:list_game_items) accepts
+  // both `era` and `profile_assigned` query params today.
+  filters: { era: true, profileAssigned: true },
+  // Games.tsx's own two-button/two-modal layout (Add Media, Scan Directory),
+  // now driven through EntityListPage instead of the former bespoke page.
+  uploadConfig: gameUploadModalConfig,
+  scanConfig: gameScanModalConfig,
+  // Multi-disc display-disk selection — data side. Mirrors Games.tsx's former
+  // handleSetDisplayDisk exactly (same endpoint/body). EntityListPage gates
+  // all use of this behind `config.multiDisc` being present, and invalidates
+  // the list query itself after the write completes.
+  multiDisc: {
+    items: (bundle) => bundle.items.map((i) => ({
+      id: i.id,
+      disc_number: i.disc_number,
+      cover_art_url: i.cover_art_url,
+    })),
+    displayDiskId: (bundle) => bundle.display_disk_id,
+    launchDiskId: (bundle) => bundle.launch_disk_id,
+    onSetDisplayDisk: async (entityId, discId) => {
+      await apiFetch(`/api/v1/game-item-bundle/${entityId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ display_disk_id: discId }),
+      })
+    },
+  },
+  // Delete-media-override + two-step confirm-token delete flow, ported from
+  // Games.tsx's handleRemove (same endpoints, same PATCH-then-confirm-token
+  // sequence — see EntityListPage.tsx's handleRemove, deleteConfig branch).
+  deleteConfig: {
+    bundleByIdApiPath: (id) => `/api/v1/game-item-bundle/${id}`,
+    resolveDeleteMediaOverride: (bundle) => bundle.delete_media_override,
+  },
+  // Game's grid card is CollectionCard (stacked-disc layers, era placeholder,
+  // stack-count/divergence badges, hover play button) — not EntityCard's
+  // generic layout. Ported as-is from Games.tsx/CollectionCard.tsx so the
+  // grid's visuals and disc-strip interaction are pixel-for-pixel identical
+  // to the pre-cutover page, not just data-plumbing-equivalent.
+  renderCard: ({ entity, onRemove, onSetDisplayDisk }) => (
+    <CollectionCard collection={entity} onRemove={onRemove} onSetDisplayDisk={onSetDisplayDisk} />
+  ),
 }

@@ -28,6 +28,11 @@ export interface AppItemBundleData extends EntityBundleBase {
   developer: string | null
   year: number | null
   installed: boolean
+  // None = inherit the global delete_media_on_removal setting; true/false
+  // overrides it. Present on the backend's AppItemBundleRead (see
+  // backend/models/app.py) but previously unused by the frontend, added for
+  // EntityListPage's deleteConfig (see appDomainConfig below).
+  delete_media_override: boolean | null
   environment_item_id: number | null
   profile_item_id: number | null
   launch_disk_id: number | null
@@ -170,4 +175,16 @@ export const appDomainConfig: EntityDomainConfig<AppItemBundleData> = {
   isLaunchable: (bundle) => bundle.is_pc,
   renderExtras: useAppDetailExtras,
   uploadConfig: appUploadModalConfig,
+  // App's backend mirrors Game's full delete contract (confirm-delete token
+  // issue/consume, delete_media_override on AppItemBundleUpdate, see
+  // backend/api/routes/apps.py and backend/models/app.py), unlike Media,
+  // whose delete_media_item_bundle route takes no confirmation_token at all.
+  // Wiring this also fixes a real bug: apps.py's DELETE route declares
+  // `confirmation_token: str = Query(...)` (required, no default), so
+  // EntityListPage's previous plain `DELETE /app-item-bundle/{id}` (no query
+  // param) would 422 on every attempt to remove an app from this list page.
+  deleteConfig: {
+    bundleByIdApiPath: (id) => `/api/v1/app-item-bundle/${id}`,
+    resolveDeleteMediaOverride: (bundle) => bundle.delete_media_override,
+  },
 }

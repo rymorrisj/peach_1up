@@ -192,8 +192,12 @@ describe.skip('Section redirects (dev_docs/v2/08_emulator_profiles_navigation.md
     mockApiGenerically()
     renderAt('/software')
     await expectFinalPath('/software/games')
+    // Post-EntityListPage-cutover copy: EntityListPage's generic empty state
+    // is "No {entityLabelPlural} yet" (see templates/EntityListPage.tsx),
+    // replacing the old bespoke Games.tsx-only "Your software library is
+    // empty" heading.
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /your software library is empty/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /no games yet/i })).toBeInTheDocument()
     })
   })
 })

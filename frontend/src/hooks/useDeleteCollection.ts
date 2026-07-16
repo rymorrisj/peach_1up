@@ -49,8 +49,12 @@ export function useDeleteCollection({
       // Also invalidate the grid/list query, its own delete-confirm modal seeds
       // its checkbox from this same collection's delete_media_override, and
       // without this it can read stale data if the user navigates back there
-      // shortly after toggling the item-level checkbox here.
-      queryClient.invalidateQueries({ queryKey: ['library'] })
+      // shortly after toggling the item-level checkbox here. This hook is
+      // Game-only (hardcodes /api/v1/game-item-bundle/ below), so the list
+      // key matches EntityListPage's invalidate() for gameDomainConfig
+      // (['game', 'list', ...]) — was ['library'], the pre-cutover Games.tsx
+      // list query key, dead since Games.tsx moved onto EntityListPage.
+      queryClient.invalidateQueries({ queryKey: ['game', 'list'] })
     },
   })
   const deleteMediaOverrideError = deleteMediaOverrideMutation.isError
@@ -89,7 +93,7 @@ export function useDeleteCollection({
       })
       const token = await issueDeleteToken(`/api/v1/game-item-bundle/${collectionId}/confirm-delete`)
       await consumeDeleteToken(`/api/v1/game-item-bundle/${collectionId}`, token)
-      queryClient.invalidateQueries({ queryKey: ['library'] })
+      queryClient.invalidateQueries({ queryKey: ['game', 'list'] })
       onDeleted()
     } catch (err) {
       setDeleteError(err instanceof ApiError ? err.detail : 'Delete failed.')

@@ -50,7 +50,13 @@ export function useCollectionRestrictions({
     },
     onSuccess: () => {
       setRestrictionsDirty(false)
-      queryClient.invalidateQueries({ queryKey: ['library'] })
+      // Matches EntityListPage's own invalidate() key for this domain
+      // (config.domain, 'list'). Was a hardcoded ['library'] key that only
+      // ever matched the pre-cutover Games.tsx list query, so this was
+      // already a no-op for Media/App (both already list under
+      // [domain, 'list']) before this fix, and dead for Game too now that
+      // Games.tsx has moved onto the same EntityListPage pattern.
+      queryClient.invalidateQueries({ queryKey: [domain, 'list'] })
       refetchRestrictions()
     },
   })

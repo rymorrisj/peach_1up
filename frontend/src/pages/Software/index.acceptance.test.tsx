@@ -71,8 +71,12 @@ describe('Software acceptance', () => {
       expect(screen.getAllByText('Ultima VII').length).toBeGreaterThanOrEqual(1)
     })
 
-    // User clicks the Add Media button
-    await user.click(screen.getByRole('button', { name: /add media/i }))
+    // User clicks the Add button. Post-EntityListPage-cutover copy: the
+    // TopBar button label is now generic "+ Add {entityLabel}" (see
+    // templates/EntityListPage.tsx), replacing the old bespoke Games.tsx-only
+    // "+ Add Media" label. The modal it opens still has "Add Media" as its
+    // title (gameUploadModalConfig.modalTitle), matched separately below.
+    await user.click(screen.getByRole('button', { name: /add game/i }))
 
     // The modal should be open and contain the drag-and-drop upload zone
     await waitFor(() => {
@@ -84,10 +88,11 @@ describe('Software acceptance', () => {
   it('shows the empty state when the library has no items', async () => {
     vi.mocked(apiFetch).mockResolvedValue([])
     renderPage()
+    // Post-EntityListPage-cutover copy, see the comment in the test above.
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /your software library is empty/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /no games yet/i })).toBeInTheDocument()
     })
-    // Add Media CTA inside the empty state is also present
-    expect(screen.getAllByRole('button', { name: /add media/i }).length).toBeGreaterThanOrEqual(1)
+    // Add CTA inside the empty state is also present
+    expect(screen.getAllByRole('button', { name: /add game/i }).length).toBeGreaterThanOrEqual(1)
   })
 })
