@@ -9,7 +9,7 @@ export interface GameItemData {
   id: number
   software_collection_id: number
   disc_number: number
-  media_path: string
+  file_path: string
   executable_path: string | null
   cover_art_path: string | null
   cover_art_url: string | null

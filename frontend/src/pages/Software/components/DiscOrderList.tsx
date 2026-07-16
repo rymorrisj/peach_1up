@@ -55,7 +55,7 @@ export function DiscOrderList({ discs, order, onReorder, disabled, renderActions
   return (
     <ul className="space-y-1.5">
       {ordered.map((disc, idx) => {
-        const filename = disc.media_path.split(/[\\/]/).pop() ?? disc.media_path
+        const filename = disc.file_path.split(/[\\/]/).pop() ?? disc.file_path
         const isLaunch = idx === 0
         return (
           <li

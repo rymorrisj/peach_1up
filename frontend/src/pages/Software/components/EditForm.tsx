@@ -13,7 +13,7 @@ type Platform = components['schemas']['EnvironmentItemRead']
 type EditableItem = {
   era: string
   detection_reason?: string | null
-  media_path?: string | null
+  file_path?: string | null
   folder_path?: string | null
 }
 
@@ -51,7 +51,7 @@ export function EditForm({
 }: EditFormProps) {
   const ROM_ERAS = new Set(['nes', 'n64', 'ps1', 'ps2', 'xbox', 'dreamcast'])
   const isRomEra = ROM_ERAS.has(item.era)
-  const showLaunchFile = item.media_path !== undefined || item.folder_path !== undefined
+  const showLaunchFile = item.file_path !== undefined || item.folder_path !== undefined
   const eraLabel = ERA_LABELS[item.era] ?? (item.era === 'unknown' ? 'Unknown' : item.era)
   const effectiveProfileId = form.profile_item_id ? parseInt(form.profile_item_id, 10) : null
   const eraProfiles = profiles.filter((p) => p.era === item.era)

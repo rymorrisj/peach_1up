@@ -330,7 +330,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
     editForm: {
       item: {
         era: form.era || collection.era,
-        media_path: currentLaunchDisc?.media_path,
+        file_path: currentLaunchDisc?.file_path,
         folder_path: currentLaunchDisc?.folder_path,
       },
       form,
@@ -515,7 +515,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
             onClose={() => setFetchDiscId(null)}
             entityType="software_item"
             entityId={fetchDiscId}
-            entityTitle={activeDisc.media_path.split(/[\\/]/).pop() ?? collection.title}
+            entityTitle={activeDisc.file_path.split(/[\\/]/).pop() ?? collection.title}
             storageKey={`${storageKey}#disc-${fetchDiscId}`}
             activeProviderLabel={activeProviderLabel}
             onSuccess={async () => {

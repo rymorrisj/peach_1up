@@ -11,4 +11,9 @@ export default defineConfig({
     },
   },
   base: '/',
+  server: {
+    proxy: {
+      '/media': 'http://localhost:8000',
+    },
+  },
 })
