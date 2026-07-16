@@ -12,6 +12,7 @@ from backend.models.user import UserItem
 from backend.service.apps import items as app_svc
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
+from backend.service.utils.sort_utils import apply_bundle_sort
 
 router = APIRouter(prefix="/api/v1", tags=["apps"])
 
@@ -28,6 +29,7 @@ def list_apps(
     category: str | None = None,
     tag: str | None = None,
     profile_assigned: bool | None = None,
+    sort: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -54,7 +56,7 @@ def list_apps(
         )
         q = q.filter(AppItemBundle.id.in_(subq))
     total = q.count()
-    rows = q.order_by(AppItemBundle.id).offset(offset).limit(limit).all()
+    rows = apply_bundle_sort(q, AppItemBundle, sort).offset(offset).limit(limit).all()
     return Page(items=app_item_bundles_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 

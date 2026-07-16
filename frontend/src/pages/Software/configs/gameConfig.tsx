@@ -18,7 +18,7 @@ import { CollectionCard, getGameCoverArt } from '../components/CollectionCard'
 import type { GameItemBundleData } from '../components/CollectionCard'
 import { ERA_LABELS } from '@/generated/constants'
 import type { EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
-import { launchGateFromReason } from '../types'
+import { launchGateFromReason, SOFTWARE_SORT_OPTIONS } from '../types'
 import type { LibraryModalConfig } from '../components/LibraryModal'
 import type { components } from '@shared/types'
 
@@ -610,6 +610,10 @@ export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
   // support: GET /api/v1/game-items (game_item_bundles.py:list_game_items)
   // accepts `era`, `profile_assigned`, and `tag` query params today.
   filters: { era: true, profileAssigned: true, tag: true },
+  // Sort control (EntityListPage.tsx). Confirmed backend support: GET
+  // /api/v1/game-items (game_item_bundles.py:list_game_items) accepts `sort`
+  // ("title" | "date_added") today, same shared value set as App and Media.
+  sortOptions: SOFTWARE_SORT_OPTIONS,
   // Games.tsx's own two-button/two-modal layout (Add Media, Scan Directory),
   // now driven through EntityListPage instead of the former bespoke page.
   uploadConfig: gameUploadModalConfig,

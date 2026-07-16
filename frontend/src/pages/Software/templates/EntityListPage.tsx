@@ -28,11 +28,12 @@ interface SoftwarePaths {
 }
 
 // Only 'era' is URL-synced (mirrors Games.tsx's Filters.era ↔ ?era= param);
-// profileFilter and tagFilter are in-memory only, same as Games.tsx.
+// profileFilter, tagFilter, and sort are in-memory only, same as Games.tsx.
 interface ListFilters {
   era: string
   profileFilter: 'all' | 'assigned' | 'unassigned'
   tagFilter: string
+  sort: string
 }
 
 interface EntityListPageProps<TBundle extends EntityBundleBase> {
@@ -40,13 +41,13 @@ interface EntityListPageProps<TBundle extends EntityBundleBase> {
 }
 
 // Generic paginated grid page. Add-content, Scan, the era/profile filter bar,
-// multi-disc display-disk selection, and the delete-media-override/
+// sort control, multi-disc display-disk selection, and the delete-media-override/
 // confirm-token delete flow are all opt-in per domain via config
-// (uploadConfig/scanConfig/filters/multiDisc/deleteConfig respectively), a
-// domain that supplies none of them renders and behaves exactly as this page
-// did before those fields existed. Media and Apps supply uploadConfig only
-// (via mediaConfig.tsx/appConfig.tsx), so none of the new branches below
-// change what they render.
+// (uploadConfig/scanConfig/filters/sortOptions/multiDisc/deleteConfig
+// respectively), a domain that supplies none of them renders and behaves
+// exactly as this page did before those fields existed. Media and Apps supply
+// uploadConfig only (via mediaConfig.tsx/appConfig.tsx), so none of the new
+// branches below change what they render.
 export function EntityListPage<TBundle extends EntityBundleBase>({ config }: EntityListPageProps<TBundle>) {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -57,6 +58,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
     era: config.filters?.era ? (searchParams.get('era') ?? '') : '',
     profileFilter: 'all',
     tagFilter: '',
+    sort: '',
   })
   const {
     confirm, isOpen: confirmOpen, options: confirmOptions, handleConfirm, handleCancel, getCheckboxValue,
@@ -82,11 +84,12 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
       else if (filters.profileFilter === 'unassigned') params.set('profile_assigned', 'false')
     }
     if (config.filters?.tag && filters.tagFilter) params.set('tag', filters.tagFilter)
+    if (config.sortOptions && filters.sort) params.set('sort', filters.sort)
     return params.toString()
   }
 
   const { data: page, isLoading } = useQuery<Page<TBundle>>({
-    queryKey: [config.domain, 'list', offset, filters.era, filters.profileFilter, filters.tagFilter],
+    queryKey: [config.domain, 'list', offset, filters.era, filters.profileFilter, filters.tagFilter, filters.sort],
     queryFn: () =>
       apiFetch<Page<TBundle>>(
         `${config.listApiPath}?${listParams({ limit: String(PAGE_SIZE), offset: String(offset) })}`,
@@ -236,9 +239,9 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
           />
         ) : (
           <>
-            {config.filters ? (
+            {(config.filters || config.sortOptions) ? (
               <div className="mb-6 flex flex-wrap items-center gap-3">
-                {config.filters.era && (
+                {config.filters?.era && (
                   <select
                     value={filters.era}
                     onChange={(e) => {
@@ -256,7 +259,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
                     ))}
                   </select>
                 )}
-                {config.filters.profileAssigned && (
+                {config.filters?.profileAssigned && (
                   <select
                     value={filters.profileFilter}
                     onChange={(e) => {
@@ -271,7 +274,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
                     <option value="unassigned">No profile</option>
                   </select>
                 )}
-                {config.filters.tag && (
+                {config.filters?.tag && (
                   <select
                     value={filters.tagFilter}
                     onChange={(e) => {
@@ -291,7 +294,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
                   <button
                     type="button"
                     onClick={() => {
-                      setFilters({ era: '', profileFilter: 'all', tagFilter: '' })
+                      setFilters((f) => ({ era: '', profileFilter: 'all', tagFilter: '', sort: f.sort }))
                       setOffset(0)
                       setSearchParams((p) => { p.delete('era'); return p })
                     }}
@@ -299,6 +302,22 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
                   >
                     Clear filters
                   </button>
+                )}
+                {config.sortOptions && (
+                  <select
+                    value={filters.sort}
+                    onChange={(e) => {
+                      setFilters((f) => ({ ...f, sort: e.target.value }))
+                      setOffset(0)
+                    }}
+                    className={SELECT_CLASS}
+                    style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--fg-1)' }}
+                  >
+                    <option value="">Default order</option>
+                    {config.sortOptions.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
                 )}
                 <span className="ml-auto" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)' }}>
                   {total} {total === 1 ? config.entityLabel : config.entityLabelPlural}

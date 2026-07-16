@@ -5,7 +5,7 @@ import { formFromCollection, type SoftwareAppForm } from '../types/appForm'
 import { AppEditForm } from '../components/AppEditForm'
 import type { LibraryModalConfig } from '../components/LibraryModal'
 import type { EntityBundleBase, EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
-import { resolveLeafCoverArt, launchGateFromReason } from '../types'
+import { resolveLeafCoverArt, launchGateFromReason, SOFTWARE_SORT_OPTIONS } from '../types'
 import type { components } from '@shared/types'
 
 type Platform = components['schemas']['EnvironmentItemRead']
@@ -179,6 +179,10 @@ export const appDomainConfig: EntityDomainConfig<AppItemBundleData> = {
   // `era`, `profile_assigned`, and `tag` query params, mirroring Game's
   // list_game_items exactly.
   filters: { era: true, profileAssigned: true, tag: true },
+  // Sort control (EntityListPage.tsx). Backend support added alongside this:
+  // GET /api/v1/app-items (apps.py:list_apps) now accepts `sort`
+  // ("title" | "date_added"), mirroring Game's list_game_items exactly.
+  sortOptions: SOFTWARE_SORT_OPTIONS,
   uploadConfig: appUploadModalConfig,
   // App's backend mirrors Game's full delete contract (confirm-delete token
   // issue/consume, delete_media_override on AppItemBundleUpdate, see

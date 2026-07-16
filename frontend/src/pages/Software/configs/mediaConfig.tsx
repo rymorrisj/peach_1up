@@ -5,6 +5,7 @@ import { formFromCollection, type SoftwareMediaForm } from '../types/mediaForm'
 import { MediaEditForm } from '../components/MediaEditForm'
 import type { LibraryModalConfig } from '../components/LibraryModal'
 import type { EntityBundleBase, EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
+import { SOFTWARE_SORT_OPTIONS } from '../types'
 
 export interface MediaItemLeaf {
   id: number
@@ -140,4 +141,8 @@ export const mediaDomainConfig: EntityDomainConfig<MediaItemBundleData> = {
   // into the tag filter only. This is Media's first `filters` config; it
   // previously omitted the field entirely and rendered no filter bar at all.
   filters: { tag: true },
+  // Sort control (EntityListPage.tsx). GET /api/v1/media-item-bundles
+  // (media.py:list_media_item_bundles) accepts the same `sort`
+  // ("title" | "date_added") param as Game/App.
+  sortOptions: SOFTWARE_SORT_OPTIONS,
 }

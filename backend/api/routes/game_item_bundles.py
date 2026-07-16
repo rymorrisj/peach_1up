@@ -26,6 +26,7 @@ from backend.service.games import path_import
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
 from backend.service.utils.path_utils import allowed_browse_roots, is_within_roots, normalise_path
+from backend.service.utils.sort_utils import apply_bundle_sort
 from backend.service.utils.upload_utils import DEFAULT_BACKGROUND_THRESHOLD_BYTES, DEFAULT_MAX_BYTES
 
 router = APIRouter(prefix="/api/v1", tags=["games"])
@@ -79,6 +80,7 @@ def list_game_items(
     environment_item_id: int | None = None,
     tag: str | None = None,
     profile_assigned: bool | None = None,
+    sort: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -105,7 +107,7 @@ def list_game_items(
         )
         q = q.filter(GameItemBundle.id.in_(subq))
     total = q.count()
-    rows = q.order_by(GameItemBundle.id).offset(offset).limit(limit).all()
+    rows = apply_bundle_sort(q, GameItemBundle, sort).offset(offset).limit(limit).all()
     return Page(items=game_item_bundles_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
 
 

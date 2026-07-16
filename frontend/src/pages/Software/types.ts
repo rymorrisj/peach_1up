@@ -113,6 +113,18 @@ export interface EntityFilterConfig {
   tag?: boolean
 }
 
+// Universal sort options for EntityListPage's list pages. title (alphabetical)
+// and date_added (recently added first) are the only two fields confirmed
+// present on every domain's bundle model (title, created_at on Game/App/Media
+// — see backend/service/utils/sort_utils.py, which enforces this exact same
+// value set server-side). Declared once and reused by all three domain
+// configs rather than each declaring its own list, since there is no
+// domain-specific sort field today; adding one would need its own proposal.
+export const SOFTWARE_SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'title', label: 'Title (A-Z)' },
+  { value: 'date_added', label: 'Recently added' },
+]
+
 // Leaf shape the multi-disc disc-selector strip needs, a subset of
 // Game/App's leaf item fields, kept minimal so any domain with a
 // disc/part-numbered leaf collection can supply it.
@@ -226,6 +238,11 @@ export interface EntityDomainConfig<TBundle extends EntityBundleBase> {
   scanConfig?: LibraryModalConfig
   // Era/profile filter bar, see EntityFilterConfig. Omitted for Media.
   filters?: EntityFilterConfig
+  // Sort control for EntityListPage's list query, presence-gated the same way
+  // uploadConfig/filters are: a domain that omits this renders no sort
+  // control and sends no `?sort=` param, identical to pre-sort behavior. All
+  // three Software domains supply SOFTWARE_SORT_OPTIONS verbatim today.
+  sortOptions?: { value: string; label: string }[]
   // Multi-disc display-disk selector, see EntityMultiDiscConfig. Omitted for
   // every domain today (slot-readiness only).
   multiDisc?: EntityMultiDiscConfig<TBundle>
