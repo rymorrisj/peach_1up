@@ -12,7 +12,7 @@ import { useConfirmToken } from '@/hooks/useConfirmToken'
 import { ERA_LABELS } from '@/generated/constants'
 import { EntityCard } from '../components/EntityCard'
 import { LibraryModal } from '../components/LibraryModal'
-import type { EntityBundleBase, EntityDomainConfig, Page } from '../types'
+import type { EntityBundleBase, EntityDomainConfig, Page, TagRead } from '../types'
 
 const PAGE_SIZE = 50
 
@@ -28,10 +28,11 @@ interface SoftwarePaths {
 }
 
 // Only 'era' is URL-synced (mirrors Games.tsx's Filters.era ↔ ?era= param);
-// profileFilter is in-memory only, same as Games.tsx.
+// profileFilter and tagFilter are in-memory only, same as Games.tsx.
 interface ListFilters {
   era: string
   profileFilter: 'all' | 'assigned' | 'unassigned'
+  tagFilter: string
 }
 
 interface EntityListPageProps<TBundle extends EntityBundleBase> {
@@ -55,6 +56,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
   const [filters, setFilters] = useState<ListFilters>({
     era: config.filters?.era ? (searchParams.get('era') ?? '') : '',
     profileFilter: 'all',
+    tagFilter: '',
   })
   const {
     confirm, isOpen: confirmOpen, options: confirmOptions, handleConfirm, handleCancel, getCheckboxValue,
@@ -79,11 +81,12 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
       if (filters.profileFilter === 'assigned') params.set('profile_assigned', 'true')
       else if (filters.profileFilter === 'unassigned') params.set('profile_assigned', 'false')
     }
+    if (config.filters?.tag && filters.tagFilter) params.set('tag', filters.tagFilter)
     return params.toString()
   }
 
   const { data: page, isLoading } = useQuery<Page<TBundle>>({
-    queryKey: [config.domain, 'list', offset, filters.era, filters.profileFilter],
+    queryKey: [config.domain, 'list', offset, filters.era, filters.profileFilter, filters.tagFilter],
     queryFn: () =>
       apiFetch<Page<TBundle>>(
         `${config.listApiPath}?${listParams({ limit: String(PAGE_SIZE), offset: String(offset) })}`,
@@ -92,6 +95,20 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
   })
   const entities = page?.items ?? []
   const total = page?.total ?? 0
+
+  // Same tag list source TagsSection/TagCombobox use for assignment
+  // (GET /api/v1/tags, TagRead[] with is_system/item_count). Unlike
+  // TagCombobox, system tags are not excluded here: filtering by a
+  // system-assigned tag is a valid read, only *assignment* of system tags is
+  // blocked (backend 403s that, not filtering). Only fetched for domains that
+  // opt into the tag filter, same avoid-extra-round-trip pattern as
+  // settingsData/libraryDefaults above.
+  const { data: allTags = [] } = useQuery<TagRead[]>({
+    queryKey: ['tags'],
+    queryFn: () => apiFetch<TagRead[]>('/api/v1/tags'),
+    enabled: Boolean(config.filters?.tag),
+  })
+  const tagOptions = [...allTags].sort((a, b) => a.name.localeCompare(b.name))
 
   // Only fetched for domains that actually render the upload/scan modal,
   // avoids an extra settings round-trip for domains with neither.
@@ -179,7 +196,8 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
   }
 
   const addButtonLabel = `+ Add ${config.entityLabel}`
-  const hasActiveFilters = Boolean(config.filters) && (filters.era !== '' || filters.profileFilter !== 'all')
+  const hasActiveFilters = Boolean(config.filters) &&
+    (filters.era !== '' || filters.profileFilter !== 'all' || filters.tagFilter !== '')
 
   // MEDIA_PATH and SOFTWARE_PATH are independently configurable backend
   // settings (see backend/api/routes/settings.py), not one derived from the
@@ -253,11 +271,27 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
                     <option value="unassigned">No profile</option>
                   </select>
                 )}
+                {config.filters.tag && (
+                  <select
+                    value={filters.tagFilter}
+                    onChange={(e) => {
+                      setFilters((f) => ({ ...f, tagFilter: e.target.value }))
+                      setOffset(0)
+                    }}
+                    className={SELECT_CLASS}
+                    style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--fg-1)' }}
+                  >
+                    <option value="">All tags</option>
+                    {tagOptions.map((t) => (
+                      <option key={t.id} value={t.name}>{t.name}</option>
+                    ))}
+                  </select>
+                )}
                 {hasActiveFilters && (
                   <button
                     type="button"
                     onClick={() => {
-                      setFilters({ era: '', profileFilter: 'all' })
+                      setFilters({ era: '', profileFilter: 'all', tagFilter: '' })
                       setOffset(0)
                       setSearchParams((p) => { p.delete('era'); return p })
                     }}

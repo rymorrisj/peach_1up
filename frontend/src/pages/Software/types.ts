@@ -103,6 +103,14 @@ export interface EntityFilterConfig {
   // `?profile_assigned=true|false` on the list request. Not URL-synced,
   // matching Games.tsx (era is the only URL-synced filter there).
   profileAssigned?: boolean
+  // Renders an "All tags" + tag-name select, serialized as `?tag=` on the
+  // list request. Not URL-synced, same as profileAssigned. The backend
+  // `tag` param (list_game_items/list_apps/list_media_item_bundles) matches
+  // a single tag by exact `Tag.name`, not id, and not a multi-value list, so
+  // this is a single-select control, not a multi-select typeahead. Shared by
+  // all three domains since tags (unlike era/profile) are the one filter
+  // dimension genuinely common across Game, App, and Media.
+  tag?: boolean
 }
 
 // Leaf shape the multi-disc disc-selector strip needs, a subset of

@@ -174,11 +174,11 @@ export const appDomainConfig: EntityDomainConfig<AppItemBundleData> = {
   launchTargetType: 'app',
   isLaunchable: (bundle) => bundle.is_pc,
   renderExtras: useAppDetailExtras,
-  // Era/profile filter bar (EntityListPage.tsx). Backend support added
+  // Era/profile/tag filter bar (EntityListPage.tsx). Backend support added
   // alongside this: GET /api/v1/app-items (apps.py:list_apps) now accepts
-  // both `era` and `profile_assigned` query params, mirroring Game's
+  // `era`, `profile_assigned`, and `tag` query params, mirroring Game's
   // list_game_items exactly.
-  filters: { era: true, profileAssigned: true },
+  filters: { era: true, profileAssigned: true, tag: true },
   uploadConfig: appUploadModalConfig,
   // App's backend mirrors Game's full delete contract (confirm-delete token
   // issue/consume, delete_media_override on AppItemBundleUpdate, see

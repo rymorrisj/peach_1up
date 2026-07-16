@@ -134,4 +134,10 @@ export const mediaDomainConfig: EntityDomainConfig<MediaItemBundleData> = {
   coverArt: (bundle) => bundle.cover_art_url ?? null,
   renderExtras: useMediaDetailExtras,
   uploadConfig: mediaUploadModalConfig,
+  // Media has no era/profile concept, but tags are shared across every
+  // domain (GET /api/v1/media-item-bundles, media.py:list_media_item_bundles,
+  // accepts `tag` the same way Game/App's list endpoints do), so it opts
+  // into the tag filter only. This is Media's first `filters` config; it
+  // previously omitted the field entirely and rendered no filter bar at all.
+  filters: { tag: true },
 }

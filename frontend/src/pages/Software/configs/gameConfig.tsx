@@ -606,10 +606,10 @@ export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
   showDescriptionMeta: false,
   filterRestrictionUsers: (users) => users.filter((u) => !u.is_owner),
   renderExtras: useGameDetailExtras,
-  // Era/profile filter bar (EntityListPage.tsx). Confirmed backend support:
-  // GET /api/v1/game-items (game_item_bundles.py:list_game_items) accepts
-  // both `era` and `profile_assigned` query params today.
-  filters: { era: true, profileAssigned: true },
+  // Era/profile/tag filter bar (EntityListPage.tsx). Confirmed backend
+  // support: GET /api/v1/game-items (game_item_bundles.py:list_game_items)
+  // accepts `era`, `profile_assigned`, and `tag` query params today.
+  filters: { era: true, profileAssigned: true, tag: true },
   // Games.tsx's own two-button/two-modal layout (Add Media, Scan Directory),
   // now driven through EntityListPage instead of the former bespoke page.
   uploadConfig: gameUploadModalConfig,
