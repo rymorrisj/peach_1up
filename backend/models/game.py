@@ -296,7 +296,10 @@ class GameItemBundleRead(SQLModel):
     # compute_launch_blocked_reason. "no_profile" when the bundle has no launch
     # profile (pc or console); "no_environment" when this is a PC bundle with no
     # resolvable Environment (neither environment_item_id nor an era-matched
-    # system Environment fallback); None when the item would clear both gates.
+    # system Environment fallback); "environment_era_mismatch" when a resolved
+    # Environment's era does not match the bundle's era; "environment_not_installed"
+    # when a resolved, era-matched Environment has not had its OS installed yet;
+    # None when the item clears every gate.
     launch_blocked_reason: Optional[str] = None
 
 
@@ -390,33 +393,38 @@ def _leaves_for_bundle(bundle_id: int, db: "Session") -> list[GameItem]:
     )
 
 
-def _launch_blocked_reason(c: "GameItemBundle", system_eras: set[str]) -> Optional[str]:
+def _launch_blocked_reason(c: "GameItemBundle", environment) -> Optional[str]:
     """Thin adapter over the shared compute_launch_blocked_reason (see
     backend/service/utils/era_defaults.py). Returns "no_profile" when the bundle
     has no profile (pc or console), "no_environment" for a PC bundle with no
-    resolvable Environment, else None. is_pc is derived from item_type."""
+    resolvable Environment, "environment_era_mismatch" or
+    "environment_not_installed" for a resolvable-but-unlaunchable Environment,
+    else None. is_pc is derived from item_type. *environment* is the already
+    -resolved EnvironmentItem (or None) for this bundle."""
     from backend.service.utils.era_defaults import compute_launch_blocked_reason
 
     return compute_launch_blocked_reason(
         is_pc=c.item_type == "pc",
         era=c.era,
         profile_item_id=c.profile_item_id,
-        environment_item_id=c.environment_item_id,
-        system_eras=system_eras,
+        environment=environment,
     )
 
 
 def game_item_bundle_to_read(c: "GameItemBundle", db: "Session") -> GameItemBundleRead:
     """Build a GameItemBundleRead, nesting ordered leaves, tags, and genres."""
     from backend.models.metadata_lookup import get_genres_for_game_item_bundle
-    from backend.service.utils.era_defaults import system_environment_eras
+    from backend.service.utils.era_defaults import resolve_environment_for_launch_gate
 
     read = GameItemBundleRead.model_validate(c)
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
     read.tags = get_tags_for_entity("game_item_bundle", c.id, db)
     read.genres = get_genres_for_game_item_bundle(c.id, db)
-    needed_eras = {c.era} if c.item_type == "pc" and c.environment_item_id is None else set()
-    read.launch_blocked_reason = _launch_blocked_reason(c, system_environment_eras(needed_eras, db))
+    environment = (
+        resolve_environment_for_launch_gate(c.environment_item_id, c.era, db)
+        if c.item_type == "pc" else None
+    )
+    read.launch_blocked_reason = _launch_blocked_reason(c, environment)
     return read
 
 
@@ -428,7 +436,7 @@ def game_item_bundles_to_read_bulk(
     from sqlalchemy import select as _select
 
     from backend.models.metadata_lookup import get_genres_for_game_item_bundles
-    from backend.service.utils.era_defaults import system_environment_eras
+    from backend.service.utils.era_defaults import resolve_environments_for_launch_gate_bulk
 
     if not bundles:
         return []
@@ -450,12 +458,10 @@ def game_item_bundles_to_read_bulk(
     tag_map = get_tags_for_entities("game_item_bundle", bundle_ids, db)
     genre_map = get_genres_for_game_item_bundles(bundle_ids, db)
 
-    # One batched query for every era that might need the system-Environment
-    # fallback, instead of a per-bundle lookup (N+1).
-    needed_eras = {
-        c.era for c in bundles if c.item_type == "pc" and c.environment_item_id is None
-    }
-    system_eras = system_environment_eras(needed_eras, db)
+    # Batched Environment resolution (explicit id + era-matched system
+    # fallback) for every PC bundle, instead of a per-bundle lookup (N+1).
+    pc_bundles = [c for c in bundles if c.item_type == "pc"]
+    environment_by_bundle_id = resolve_environments_for_launch_gate_bulk(pc_bundles, db)
 
     reads: list[GameItemBundleRead] = []
     for c in bundles:
@@ -463,6 +469,6 @@ def game_item_bundles_to_read_bulk(
         read.items = leaves_by_bundle.get(c.id, [])
         read.tags = tag_map.get(c.id, [])
         read.genres = genre_map.get(c.id, [])
-        read.launch_blocked_reason = _launch_blocked_reason(c, system_eras)
+        read.launch_blocked_reason = _launch_blocked_reason(c, environment_by_bundle_id.get(c.id))
         reads.append(read)
     return reads

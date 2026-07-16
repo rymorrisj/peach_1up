@@ -82,7 +82,6 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     install_types: list[str] = data["install_types"]
     item_types: list[str] = data["item_types"]
     media_kinds: list[str] = data["media_kinds"]
-    environment_statuses: list[str] = data["environment_statuses"]
     era_backends: dict[str, str] = data["era_backends"]
 
     lines: list[str] = [HEADER_PY, "from enum import Enum\n", "from typing import Literal\n\n\n"]
@@ -172,10 +171,6 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     lines.append(_py_literal_type("MediaKind", list(media_kinds)))
     lines.append("\n")
 
-    # EnvironmentStatus literal
-    lines.append(_py_literal_type("EnvironmentStatus", list(environment_statuses)))
-    lines.append("\n")
-
     # ERA_BACKENDS
     lines.append("ERA_BACKENDS: dict[str, str] = {\n")
     for era, backend in era_backends.items():
@@ -197,7 +192,6 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     install_types: list[str] = data["install_types"]
     item_types: list[str] = data["item_types"]
     media_kinds: list[str] = data["media_kinds"]
-    environment_statuses: list[str] = data["environment_statuses"]
     era_backends: dict[str, str] = data["era_backends"]
 
     lines: list[str] = [HEADER_TS, "\n"]
@@ -292,10 +286,6 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
 
     # MediaKind union
     lines.append(_ts_union_type("MediaKind", list(media_kinds)))
-    lines.append("\n")
-
-    # EnvironmentStatus union
-    lines.append(_ts_union_type("EnvironmentStatus", list(environment_statuses)))
     lines.append("\n")
 
     # ERA_BACKENDS

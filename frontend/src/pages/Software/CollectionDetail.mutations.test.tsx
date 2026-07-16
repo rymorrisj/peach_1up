@@ -199,8 +199,8 @@ describe('CollectionDetail (mutation path)', () => {
     it('persists a staged disc reorder on save', async () => {
       const user = userEvent.setup()
       const items = [
-        { id: 100, software_collection_id: 1, disc_number: 1, media_path: '/media/doom/disc1.iso', executable_path: null, cover_art_path: null, cover_art_url: null, media_type: null, folder_path: null, detection_reason: null, file_size_bytes: null },
-        { id: 200, software_collection_id: 1, disc_number: 2, media_path: '/media/doom/disc2.iso', executable_path: null, cover_art_path: null, cover_art_url: null, media_type: null, folder_path: null, detection_reason: null, file_size_bytes: null },
+        { id: 100, game_item_bundle_id: 1, disc_number: 1, file_path: '/media/doom/disc1.iso', executable_path: null, cover_art_path: null, cover_art_url: null, file_type: null, folder_path: null, detection_reason: null, file_size_bytes: null },
+        { id: 200, game_item_bundle_id: 1, disc_number: 2, file_path: '/media/doom/disc2.iso', executable_path: null, cover_art_path: null, cover_art_url: null, file_type: null, folder_path: null, detection_reason: null, file_size_bytes: null },
       ]
       const calls = setupApi(adminUser, [
         { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ items, launch_disk_id: 100, display_disk_id: 100 }) },

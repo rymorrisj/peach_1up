@@ -24,10 +24,10 @@ def list_environment_items(db: Session = Depends(get_db), _: UserItem = Depends(
     result = []
     for p in platforms:
         data = EnvironmentItemRead.model_validate(p)
-        # Recomputed live, not read from the persisted status column, so this
-        # always reflects current disk state — same freshness the Emulators
-        # page already gets from get_install_path() on every request.
-        data.status = plat_svc.compute_live_status(p)
+        # Recomputed live, never persisted, so this always reflects current
+        # disk state — same freshness the Emulators page already gets from
+        # get_install_path() on every request.
+        data.is_present = plat_svc.compute_environment_presence(p)
         if p.working_image_path:
             try:
                 data.working_image_size_bytes = Path(p.working_image_path).stat().st_size
@@ -55,7 +55,7 @@ def get_environment_item(id: int, db: Session = Depends(get_db), _: UserItem = D
     data = EnvironmentItemRead.model_validate(platform)
     # Recomputed live, matching list_environment_items, so the detail page can't
     # disagree with the list page for the same platform on the same load.
-    data.status = plat_svc.compute_live_status(platform)
+    data.is_present = plat_svc.compute_environment_presence(platform)
     return data
 
 

@@ -106,7 +106,7 @@ describe('EntityDetailPage', () => {
           launch_review_flagged: false, delete_media_override: null, environment_item_id: null,
           profile_item_id: null, drive_id: null, launch_disk_id: 100, display_disk_id: 100,
           last_launched_at: null, launch_count: 0,
-          items: [{ id: 100, software_collection_id: 1, disc_number: 1, media_path: '/games/doom/disc1.iso', executable_path: null, cover_art_path: null, cover_art_url: null, media_type: null, folder_path: null, detection_reason: null, file_size_bytes: null }],
+          items: [{ id: 100, game_item_bundle_id: 1, disc_number: 1, file_path: '/games/doom/disc1.iso', executable_path: null, cover_art_path: null, cover_art_url: null, file_type: null, folder_path: null, detection_reason: null, file_size_bytes: null }],
         }),
       },
       { match: '/api/v1/settings/library-defaults', respond: () => ({ delete_media_on_removal: false, delete_original_on_upload: false }) },

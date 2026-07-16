@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -59,41 +58,31 @@ def _probe_image_integrity(path: Path) -> bool:
     return True
 
 
-def _compute_status(era: str, working: str | None, base: str | None) -> str:
+def _environment_files_present(era: str, working: str | None, base: str | None) -> bool:
     if era in DOS_WIN_ERAS:
-        # DOS launches mount the per-item drive instead of
-        # working_image_path (see _PROVISIONABLE_ERAS comment above), so a
-        # missing working image pre-first-launch is expected/healthy for
-        # these eras, not "degraded" — evaluated independently of
-        # _PROVISIONABLE_ERAS, which now also covers these eras for the
-        # launch-provisioning gate. Only base_image_path (optional,
-        # Advanced-only field for these eras) is evaluated here.
-        if not base:
-            return "unconfigured"
-        return "healthy" if Path(base).is_file() else "error"
+        # DOS launches mount the per-item drive instead of working_image_path
+        # (see _PROVISIONABLE_ERAS comment above), so only base_image_path
+        # (optional, Advanced-only field for these eras) is evaluated here.
+        return bool(base and Path(base).is_file())
 
-    if not working and not base:
-        return "unconfigured"
     working_ok = bool(working and Path(working).is_file())
     base_ok = bool(base and Path(base).is_file())
-    if not working_ok:
-        return "degraded" if base_ok else "error"
-    if not base_ok:
-        return "degraded"
-    if not _probe_image_integrity(Path(working)):
-        return "degraded"
-    return "healthy"
+    if not (working_ok and base_ok):
+        return False
+    return _probe_image_integrity(Path(working))
 
 
-def compute_live_status(platform: EnvironmentItem) -> str:
-    """Uncached status for *platform*, safe to call on every read (list/summary
-    endpoints) as well as before persisting (health-check endpoints) — a single
-    implementation for both so the two paths can't drift apart again."""
+def compute_environment_presence(platform: EnvironmentItem) -> bool:
+    """Uncached, boolean presence check for *platform*, safe to call on every
+    read (list/detail/summary endpoints) — nothing is persisted or cached, so
+    this can never go stale the way the old persisted status column did.
+    Same philosophy as check_bios_presence/validate_bios_from_descriptor:
+    a live check of on-disk (or installed-binary) state, not a stored flag."""
     if platform.is_system:
         from backend.service.utils.emulator_catalog import get_install_path as _get_install_path
         install_path = _get_install_path(platform.emulator_slug) if platform.emulator_slug else None
-        return "ok" if install_path is not None else "missing"
-    return _compute_status(platform.era, platform.working_image_path, platform.base_image_path)
+        return install_path is not None
+    return _environment_files_present(platform.era, platform.working_image_path, platform.base_image_path)
 
 
 def create_environment_item(body: EnvironmentItemCreate, db: Session) -> EnvironmentItem:
@@ -138,10 +127,6 @@ def create_environment_item(body: EnvironmentItemCreate, db: Session) -> Environ
                 platform.id, platform.era, platform.slug, exc,
             )
 
-    platform.status = compute_live_status(platform)
-    platform.last_health_check = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(platform)
     return platform
 
 
@@ -216,36 +201,31 @@ def update_environment_item(platform_id: int, body: EnvironmentItemUpdate, db: S
 
 
 def check_environment_item_health(platform: EnvironmentItem, db: Session) -> dict:
-    status = compute_live_status(platform)
-    platform.status = status
-    platform.last_health_check = datetime.now(timezone.utc)
-    db.commit()
+    """Live recompute, nothing persisted (status/last_health_check no longer
+    exist on the model) — this is now a read, not a write, but the route stays
+    for the frontend's per-Environment "Check now" action."""
+    present = compute_environment_presence(platform)
 
     if platform.is_system:
         from backend.service.utils.emulator_catalog import get_install_path as _get_install_path
         install_path = _get_install_path(platform.emulator_slug) if platform.emulator_slug else None
         return {
-            "status": status,
+            "is_present": present,
             "binary_exists": install_path is not None,
             "binary_path": str(install_path) if install_path else None,
         }
 
     return {
-        "status": status,
+        "is_present": present,
         "working_image_exists": bool(platform.working_image_path and Path(platform.working_image_path).is_file()),
         "base_image_exists": bool(platform.base_image_path and Path(platform.base_image_path).is_file()),
     }
 
 
 def batch_health_check(db: Session) -> dict:
+    """Live recompute over all user Environments, nothing persisted."""
     platforms = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()
-    results = []
-    for platform in platforms:
-        status = compute_live_status(platform)
-        platform.status = status
-        platform.last_health_check = datetime.now(timezone.utc)
-        results.append({"id": platform.id, "status": status})
-    db.commit()
+    results = [{"id": platform.id, "is_present": compute_environment_presence(platform)} for platform in platforms]
     return {"results": results, "checked": len(results)}
 
 
@@ -260,13 +240,10 @@ def get_health_summary(db: Session) -> dict:
     )
 
     user_platforms = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()
-    # Computed live (not read from the persisted status column) so this always
-    # matches what list_platforms/GET /platforms shows on the same page load —
-    # see compute_live_status.
-    live_statuses = [compute_live_status(p) for p in user_platforms]
-    platform_healthy = sum(1 for s in live_statuses if s in ("ok", "healthy"))
-    platform_unconfigured = sum(1 for s in live_statuses if s == "unconfigured")
-    platform_degraded = len(user_platforms) - platform_healthy - platform_unconfigured
+    # Computed live (nothing persisted) so this always matches what
+    # list_environment_items shows on the same page load — see
+    # compute_environment_presence.
+    platform_present = sum(1 for p in user_platforms if compute_environment_presence(p))
 
     # "library total" = number of games (collections); a multi-disc set counts once.
     library_count = db.query(GameItemBundle).count()
@@ -311,9 +288,7 @@ def get_health_summary(db: Session) -> dict:
     return {
         "environments": {
             "total": len(user_platforms),
-            "healthy": platform_healthy,
-            "degraded": platform_degraded,
-            "unconfigured": platform_unconfigured,
+            "present": platform_present,
         },
         "library": {"total": library_count},
         "drives": {"total": drive_count},

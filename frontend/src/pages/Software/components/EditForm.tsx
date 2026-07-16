@@ -237,6 +237,7 @@ export function EditForm({
 
         <PlatformField
           isPcLaunchable={isPcLaunchable}
+          itemEra={form.era}
           value={form.environment_item_id}
           onChange={(v) => setField('environment_item_id', v)}
           platforms={platforms}

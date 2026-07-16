@@ -285,7 +285,7 @@ describe('CollectionDetail edit form (field-level)', () => {
     const calls = setupApi([
       { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection() },
       { match: '/api/v1/environment-items', respond: () => [
-        { id: 5, name: 'My DOS PC', era: 'dos', emulator_slug: 'dosbox-x', status: 'healthy', is_system: false, hardware_profile: 'standard' },
+        { id: 5, name: 'My DOS PC', era: 'dos', emulator_slug: 'dosbox-x', is_present: true, is_system: false, hardware_profile: 'standard' },
       ] },
       { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
       { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
@@ -306,7 +306,7 @@ describe('CollectionDetail edit form (field-level)', () => {
     setupApi([
       { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ era: 'ps1' }) },
       { match: '/api/v1/environment-items', respond: () => [
-        { id: 5, name: 'My DOS PC', era: 'dos', emulator_slug: 'dosbox-x', status: 'healthy', is_system: false, hardware_profile: 'standard' },
+        { id: 5, name: 'My DOS PC', era: 'dos', emulator_slug: 'dosbox-x', is_present: true, is_system: false, hardware_profile: 'standard' },
       ] },
     ])
     renderPage()
@@ -323,7 +323,7 @@ describe('CollectionDetail edit form (field-level)', () => {
     const calls = setupApi([
       { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ era: 'dos', environment_item_id: 5 }) },
       { match: '/api/v1/environment-items', respond: () => [
-        { id: 5, name: 'My DOS PC', era: 'dos', emulator_slug: 'dosbox-x', status: 'healthy', is_system: false, hardware_profile: 'standard' },
+        { id: 5, name: 'My DOS PC', era: 'dos', emulator_slug: 'dosbox-x', is_present: true, is_system: false, hardware_profile: 'standard' },
       ] },
       { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
       { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
@@ -418,7 +418,7 @@ describe('CollectionDetail edit form (field-level)', () => {
         method: 'GET',
         respond: () => fullCollection({
           items: [
-            { id: 100, game_item_bundle_id: 1, disc_number: 1, media_path: '/media/doom/disc1.iso', executable_path: null, cover_art_url: null },
+            { id: 100, game_item_bundle_id: 1, disc_number: 1, file_path: '/media/doom/disc1.iso', executable_path: null, cover_art_url: null },
           ],
         }),
       },

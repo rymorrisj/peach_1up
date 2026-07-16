@@ -507,11 +507,34 @@ def _resolve_environment_for_pc_entity(entity: "LaunchableEntity", db: Session) 
     the old EnvironmentItem.profile_item_id reverse-lookup. Falls back to the
     era-matched system Environment only when environment_item_id is still null —
     a runtime fallback for the backfill transition window, not a migration.
+
+    Last line of defense against era mismatch: the read-time gate
+    (compute_launch_blocked_reason) and the frontend PlatformField both filter
+    on era match already, but neither is trusted alone (fail-loud standard,
+    CLAUDE.md). A win98 item bound to a win95-era Environment previously
+    launched silently here because only presence, not era, was ever checked —
+    this raises instead of resolving a mismatched Environment.
     """
     if entity.environment_item_id is not None:
-        return db.get(EnvironmentItem, entity.environment_item_id)
-    from backend.service.utils.era_defaults import lookup_system_environment_by_era
-    return lookup_system_environment_by_era(entity.era, db)
+        environment = db.get(EnvironmentItem, entity.environment_item_id)
+    else:
+        from backend.service.utils.era_defaults import lookup_system_environment_by_era
+        environment = lookup_system_environment_by_era(entity.era, db)
+
+    if environment is not None and environment.era != entity.era:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error_type": "environment_era_mismatch",
+                "message": (
+                    f"This item's era ({entity.era}) does not match its Environment's "
+                    f"era ({environment.era}). Select an Environment for the correct era "
+                    "before launching."
+                ),
+                "collection_id": entity.collection_id,
+            },
+        )
+    return environment
 
 
 async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None, db: Session) -> LaunchResult:

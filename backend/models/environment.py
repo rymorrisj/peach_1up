@@ -3,7 +3,7 @@ from typing import Optional
 
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, SQLModel
-from backend.constants_generated import EmulatorCatalogSlug, EnvironmentStatus, EraValue, HardwareProfile
+from backend.constants_generated import EmulatorCatalogSlug, EraValue, HardwareProfile
 
 
 class EnvironmentItemBase(SQLModel):
@@ -13,12 +13,19 @@ class EnvironmentItemBase(SQLModel):
     base_image_path: Optional[str] = None
     working_image_path: Optional[str] = None
     config_path: Optional[str] = None
-    status: EnvironmentStatus = Field(default="unknown", sa_column=Column(String, nullable=False))
     notes: Optional[str] = None
     is_system: bool = False
     download_url: Optional[str] = None
     supported_eras: Optional[str] = None
     default_flags: Optional[str] = None
+    # Whether the OS itself has been installed into this Environment (distinct
+    # from any software-item-level installed flag, e.g. GameItemBundle.installed
+    # -- different entity). Already existed as a "Mark as Installed" affordance
+    # in EnvironmentCard.tsx before this change; now also read as the
+    # environment_is_installed() launch gate (era_defaults.py) instead of a new
+    # duplicate is_installed boolean. Meaningful for Win9x/WinXP under 86Box;
+    # DOS/DOSBox-X environments have no install step and are always treated as
+    # installed regardless of this value (see environment_is_installed).
     installed_at: Optional[datetime] = None
     hardware_profile: HardwareProfile = Field(default="standard", sa_column=Column(String, nullable=False))
     machine_override: Optional[str] = None
@@ -34,7 +41,6 @@ class EnvironmentItem(EnvironmentItemBase, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("profile_items.id", ondelete="SET NULL"), nullable=True),
     )
-    last_health_check: Optional[datetime] = None
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=False),
@@ -58,7 +64,6 @@ class EnvironmentItemUpdate(SQLModel):
     base_image_path: Optional[str] = None
     working_image_path: Optional[str] = None
     config_path: Optional[str] = None
-    status: Optional[EnvironmentStatus] = None
     notes: Optional[str] = None
     slug: Optional[str] = None
     download_url: Optional[str] = None
@@ -74,11 +79,15 @@ class EnvironmentItemRead(EnvironmentItemBase):
     id: int
     slug: Optional[str] = None
     profile_item_id: Optional[int] = None
-    last_health_check: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     working_image_size_bytes: Optional[int] = None
     base_image_size_bytes: Optional[int] = None
+    # Live presence check, computed fresh on every read (list/get), never
+    # persisted — same philosophy as check_bios_presence: does the on-disk
+    # state needed to actually launch through this Environment exist right
+    # now. See compute_environment_presence.
+    is_present: bool = False
 
 
 class StorageStats(SQLModel):
@@ -90,9 +99,7 @@ class StorageStats(SQLModel):
 
 class EnvironmentItemHealthCounts(SQLModel):
     total: int
-    healthy: int
-    degraded: int
-    unconfigured: int
+    present: int
 
 
 class CountTotal(SQLModel):

@@ -1,5 +1,5 @@
 """Route-level tests for Environment CRUD (backend/api/routes/environments.py),
-the EnvironmentStatus vocabulary as computed by compute_live_status
+the live presence check computed by compute_environment_presence
 (backend/service/environments/environments.py), and the consolidated health
 aggregate endpoints now living in backend/api/routes/health.py.
 
@@ -64,7 +64,6 @@ def _make_environment(db, **overrides):
         era="win98",
         emulator_slug="86box",
         slug="win98-box",
-        status="healthy",
         working_image_path=None,
         base_image_path=None,
     )
@@ -82,26 +81,25 @@ def _make_environment(db, **overrides):
 
 
 class TestListAndGetEnvironment:
-    def test_list_returns_live_status_not_stale_persisted_column(self, client):
+    def test_list_returns_live_presence_not_a_stale_flag(self, client):
         c, db = client
-        # Persisted column says "healthy", but with no working/base image
-        # paths present, compute_live_status() must derive "unconfigured".
-        _make_environment(db, status="healthy")
+        # No working/base image paths present, so is_present must be computed
+        # False live -- there is no persisted column to fall back on anymore.
+        _make_environment(db)
 
         resp = c.get("/api/v1/environment-items")
 
         assert resp.status_code == 200
         body = resp.json()
         assert len(body) == 1
-        assert body[0]["status"] == "unconfigured"
+        assert body[0]["is_present"] is False
 
-    def test_get_by_id_returns_live_status(self, client, tmp_path):
+    def test_get_by_id_returns_live_presence(self, client, tmp_path):
         c, db = client
         base_image = tmp_path / "base.img"
         base_image.write_bytes(b"x" * 512)
         environment = _make_environment(
             db,
-            status="healthy",
             base_image_path=str(base_image),
             working_image_path=str(tmp_path / "missing-working.img"),
         )
@@ -109,7 +107,7 @@ class TestListAndGetEnvironment:
         resp = c.get(f"/api/v1/environment-items/{environment.id}")
 
         assert resp.status_code == 200
-        assert resp.json()["status"] == "degraded"
+        assert resp.json()["is_present"] is False
 
     def test_get_unknown_id_is_404(self, client):
         c, _ = client
@@ -141,7 +139,7 @@ class TestCreateEnvironment:
         assert resp.status_code == 400
         assert "does not exist" in resp.json()["detail"]
 
-    def test_successful_create_auto_slugs_and_computes_status(self, client, tmp_path):
+    def test_successful_create_auto_slugs(self, client, tmp_path):
         c, db = client
         base_image = tmp_path / "base.img"
         working_image = tmp_path / "working.img"
@@ -165,7 +163,6 @@ class TestCreateEnvironment:
         assert resp.status_code == 201, resp.text
         body = resp.json()
         assert body["slug"]
-        assert body["status"] == "healthy"
 
         from backend.models.environment import EnvironmentItem
         assert db.get(EnvironmentItem, body["id"]) is not None
@@ -253,112 +250,96 @@ class TestDeleteEnvironment:
 
 
 # ---------------------------------------------------------------------------
-# EnvironmentStatus vocabulary via compute_live_status — all 7 values.
-# "unknown" is never returned by compute_live_status itself (it is only the
-# model's default persisted value before any health check has run), so it is
-# asserted directly against a fresh, uncommitted Environment instance instead.
+# compute_environment_presence — a live boolean check, nothing persisted.
 # ---------------------------------------------------------------------------
 
 
-class TestComputeLiveStatusVocabulary:
+class TestComputeEnvironmentPresence:
     def _env(self, **overrides):
         from backend.models.environment import EnvironmentItem
         kwargs = dict(name="Box", era="win98", emulator_slug="86box")
         kwargs.update(overrides)
         return EnvironmentItem(**kwargs)
 
-    def test_default_persisted_status_is_unknown_before_any_health_check(self):
-        environment = self._env()
-        assert environment.status == "unknown"
-
-    def test_unconfigured_when_no_image_paths(self):
-        from backend.service.environments.environments import compute_live_status
+    def test_not_present_when_no_image_paths(self):
+        from backend.service.environments.environments import compute_environment_presence
         environment = self._env(working_image_path=None, base_image_path=None)
-        assert compute_live_status(environment) == "unconfigured"
+        assert compute_environment_presence(environment) is False
 
-    def test_healthy_when_working_and_base_present_and_valid(self, tmp_path):
-        from backend.service.environments.environments import compute_live_status
+    def test_present_when_working_and_base_present_and_valid(self, tmp_path):
+        from backend.service.environments.environments import compute_environment_presence
         working = tmp_path / "working.img"
         base = tmp_path / "base.img"
         working.write_bytes(b"w" * 1024)
         base.write_bytes(b"b" * 1024)
         environment = self._env(working_image_path=str(working), base_image_path=str(base))
-        assert compute_live_status(environment) == "healthy"
+        assert compute_environment_presence(environment) is True
 
-    def test_degraded_when_working_missing_but_base_present(self, tmp_path):
-        from backend.service.environments.environments import compute_live_status
+    def test_not_present_when_working_missing_but_base_present(self, tmp_path):
+        from backend.service.environments.environments import compute_environment_presence
         base = tmp_path / "base.img"
         base.write_bytes(b"b" * 1024)
         environment = self._env(
             working_image_path=str(tmp_path / "missing-working.img"),
             base_image_path=str(base),
         )
-        assert compute_live_status(environment) == "degraded"
+        assert compute_environment_presence(environment) is False
 
-    def test_degraded_when_working_present_but_base_missing(self, tmp_path):
-        from backend.service.environments.environments import compute_live_status
+    def test_not_present_when_working_present_but_base_missing(self, tmp_path):
+        from backend.service.environments.environments import compute_environment_presence
         working = tmp_path / "working.img"
         working.write_bytes(b"w" * 1024)
         environment = self._env(working_image_path=str(working), base_image_path=None)
-        assert compute_live_status(environment) == "degraded"
+        assert compute_environment_presence(environment) is False
 
-    def test_degraded_when_working_image_fails_integrity_probe(self, tmp_path):
-        from backend.service.environments.environments import compute_live_status
+    def test_not_present_when_working_image_fails_integrity_probe(self, tmp_path):
+        from backend.service.environments.environments import compute_environment_presence
         working = tmp_path / "working.img"
         base = tmp_path / "base.img"
         working.write_bytes(b"")  # zero-byte -> fails _probe_image_integrity
         base.write_bytes(b"b" * 1024)
         environment = self._env(working_image_path=str(working), base_image_path=str(base))
-        assert compute_live_status(environment) == "degraded"
+        assert compute_environment_presence(environment) is False
 
-    def test_error_when_working_and_base_both_set_but_missing_on_disk(self, tmp_path):
-        from backend.service.environments.environments import compute_live_status
-        environment = self._env(
-            working_image_path=str(tmp_path / "missing-working.img"),
-            base_image_path=None,
-        )
-        assert compute_live_status(environment) == "error"
-
-    def test_dos_era_unconfigured_without_base_image(self):
+    def test_dos_era_not_present_without_base_image(self):
         # DOS launches mount the per-item drive instead of working_image_path,
-        # so a missing working image is expected/healthy pre-first-launch for
-        # this era; only base_image_path is evaluated.
-        from backend.service.environments.environments import compute_live_status
+        # so only base_image_path is evaluated for this era.
+        from backend.service.environments.environments import compute_environment_presence
         environment = self._env(era="dos", emulator_slug="dosbox-x", working_image_path=None, base_image_path=None)
-        assert compute_live_status(environment) == "unconfigured"
+        assert compute_environment_presence(environment) is False
 
-    def test_dos_era_healthy_when_base_image_present(self, tmp_path):
-        from backend.service.environments.environments import compute_live_status
+    def test_dos_era_present_when_base_image_present(self, tmp_path):
+        from backend.service.environments.environments import compute_environment_presence
         base = tmp_path / "base.img"
         base.write_bytes(b"b" * 512)
         environment = self._env(era="dos", emulator_slug="dosbox-x", base_image_path=str(base))
-        assert compute_live_status(environment) == "healthy"
+        assert compute_environment_presence(environment) is True
 
-    def test_dos_era_error_when_base_image_missing_on_disk(self, tmp_path):
-        from backend.service.environments.environments import compute_live_status
+    def test_dos_era_not_present_when_base_image_missing_on_disk(self, tmp_path):
+        from backend.service.environments.environments import compute_environment_presence
         environment = self._env(
             era="dos",
             emulator_slug="dosbox-x",
             base_image_path=str(tmp_path / "missing-base.img"),
         )
-        assert compute_live_status(environment) == "error"
+        assert compute_environment_presence(environment) is False
 
-    def test_system_environment_ok_when_binary_installed(self, monkeypatch):
+    def test_system_environment_present_when_binary_installed(self, monkeypatch):
         from pathlib import Path
         from backend.service.environments import environments as env_svc
         from backend.service.utils import emulator_catalog
 
         monkeypatch.setattr(emulator_catalog, "get_install_path", lambda slug: Path("/fake/duckstation"))
         environment = self._env(era="ps1", emulator_slug="duckstation", is_system=True)
-        assert env_svc.compute_live_status(environment) == "ok"
+        assert env_svc.compute_environment_presence(environment) is True
 
-    def test_system_environment_missing_when_binary_not_installed(self, monkeypatch):
+    def test_system_environment_not_present_when_binary_not_installed(self, monkeypatch):
         from backend.service.environments import environments as env_svc
         from backend.service.utils import emulator_catalog
 
         monkeypatch.setattr(emulator_catalog, "get_install_path", lambda slug: None)
         environment = self._env(era="ps1", emulator_slug="duckstation", is_system=True)
-        assert env_svc.compute_live_status(environment) == "missing"
+        assert env_svc.compute_environment_presence(environment) is False
 
 
 # ---------------------------------------------------------------------------
@@ -377,15 +358,15 @@ def _empty_catalog(monkeypatch):
 
 
 class TestHealthSummaryEndpoint:
-    def test_unconfigured_environment_buckets_separately_from_degraded(self, client):
+    def test_not_present_environment_excluded_from_present_count(self, client):
         c, db = client
-        _make_environment(db, status="healthy")  # no image paths -> "unconfigured"
+        _make_environment(db)  # no image paths -> not present
 
         resp = c.get("/api/v1/health/summary")
 
         assert resp.status_code == 200
         body = resp.json()
-        assert body["environments"] == {"total": 1, "healthy": 0, "degraded": 0, "unconfigured": 1}
+        assert body["environments"] == {"total": 1, "present": 0}
 
     def test_response_includes_all_summary_sections(self, client):
         c, _ = client
@@ -405,28 +386,24 @@ class TestHealthSummaryEndpoint:
 
 
 class TestHealthRecomputeAllEndpoint:
-    def test_recomputes_and_persists_live_status_for_all_environments(self, client, tmp_path):
+    def test_recomputes_presence_for_all_environments_without_persisting(self, client, tmp_path):
         c, db = client
         base = tmp_path / "base.img"
         working = tmp_path / "working.img"
         base.write_bytes(b"b" * 1024)
         working.write_bytes(b"w" * 1024)
-        healthy_env = _make_environment(
-            db, slug="a", status="ok", base_image_path=str(base), working_image_path=str(working),
+        present_env = _make_environment(
+            db, slug="a", base_image_path=str(base), working_image_path=str(working),
         )
-        unconfigured_env = _make_environment(db, slug="b", status="ok")
+        absent_env = _make_environment(db, slug="b")
 
         resp = c.post("/api/v1/health/recompute-all")
 
         assert resp.status_code == 200
         body = resp.json()
         assert body["checked"] == 2
-        assert {r["id"] for r in body["results"]} == {healthy_env.id, unconfigured_env.id}
-
-        from backend.models.environment import EnvironmentItem
-        db.expire_all()
-        assert db.get(EnvironmentItem, healthy_env.id).status == "healthy"
-        assert db.get(EnvironmentItem, unconfigured_env.id).status == "unconfigured"
+        results_by_id = {r["id"]: r["is_present"] for r in body["results"]}
+        assert results_by_id == {present_env.id: True, absent_env.id: False}
 
 
 class TestStorageStatsEndpoint:

@@ -176,8 +176,10 @@ export default function EnvironmentDetail() {
 
   const eraKey = platform.era.toUpperCase()
   const eraColor = ERA_COLOR[eraKey] ?? 'var(--fg-3)'
-  const statusColor = platform.status === 'ready' ? 'var(--success)' : platform.status === 'degraded' ? 'var(--error)' : 'var(--fg-3)'
-  const statusLabel = platform.status === 'ready' ? 'Ready' : platform.status === 'degraded' ? 'Degraded' : (platform.status ?? 'Unknown')
+  // Live presence check, computed fresh on every read (is_present), not a
+  // persisted status column -- see compute_environment_presence.
+  const statusColor = platform.is_present ? 'var(--success)' : 'var(--error)'
+  const statusLabel = platform.is_present ? 'Present' : 'Not present'
   const BTN: React.CSSProperties = { border: 'none', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, padding: '9px 14px', borderRadius: 'var(--r-2)', cursor: 'pointer' }
 
   return (
@@ -307,7 +309,7 @@ export default function EnvironmentDetail() {
               </div>
               {[
                 { label: 'emulator', value: platform.emulator_slug },
-                { label: 'last check', value: platform.last_health_check ? new Date(platform.last_health_check + 'Z').toLocaleDateString() : '—' },
+                { label: 'installed', value: platform.installed_at ? new Date(platform.installed_at + 'Z').toLocaleDateString() : 'Not yet' },
               ].map(({ label, value }) => (
                 <div key={label} className="mb-3 last:mb-0">
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15, lineHeight: 1, color: 'var(--fg-1)' }}>{value}</div>

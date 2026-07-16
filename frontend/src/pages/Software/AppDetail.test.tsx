@@ -73,7 +73,10 @@ function minimalApp(overrides?: Record<string, unknown>) {
 }
 
 const oneEnvironment = [
-  { id: 5, name: 'My XP Box', era: 'winxp', emulator_slug: '86box', status: 'healthy', is_system: false },
+  {
+    id: 5, name: 'My XP Box', era: 'winxp', emulator_slug: '86box', is_system: false,
+    is_present: true, installed_at: '2026-01-01T00:00:00Z',
+  },
 ]
 
 interface RecordedCall {

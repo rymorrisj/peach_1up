@@ -87,8 +87,9 @@ def health_check():
 # router (formerly GET/POST /api/v1/environments/health, /health-all,
 # /storage-stats) so System/Health has one data source instead of being
 # split across two routers. Reuses get_health_summary/batch_health_check/
-# get_storage_stats/compute_live_status unchanged (backend/service/
-# environments/environments.py) — only the route location moved.
+# get_storage_stats/compute_environment_presence (backend/service/
+# environments/environments.py), now a live boolean presence check instead
+# of a persisted status column, nothing else about the route location changed.
 @router.get("/health/summary", response_model=HealthSummary)
 def health_summary(db: Session = Depends(get_db), _: UserItem = require_permission("can_manage_environment")):
     return env_svc.get_health_summary(db)

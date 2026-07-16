@@ -30,7 +30,7 @@ interface StorageFootprint {
 }
 
 interface HealthSummary {
-  environments: { total: number; healthy: number; degraded: number; unconfigured: number }
+  environments: { total: number; present: number }
   library:    { total: number }
   drives:     { total: number }
   extensions: { total: number }
@@ -47,13 +47,12 @@ function formatBytes(n: number) {
   return `${n} B`
 }
 
-function formatDate(iso: string | null | undefined) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-}
-
+// Live presence check (compute_environment_presence, computed fresh on
+// every read, nothing persisted or cached) -- replaces the old stale
+// isHealthy(status), which treated the never-updated "unknown" default as
+// healthy and so never actually gated anything.
 export function isHealthy(p: Platform) {
-  return p.status === 'ok' || p.status === 'healthy' || p.status === 'unknown'
+  return p.is_present
 }
 
 function StatusDot({ healthy }: { healthy: boolean }) {
@@ -294,12 +293,11 @@ export default function Health() {
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.4, color: 'var(--fg-3)' }}>
                       Backend: {p.emulator_slug}
                       {p.working_image_path && ` · Working image: ${p.working_image_path}`}
-                      {' · '}Last check: {formatDate(p.last_health_check)}
                     </div>
-                    {!ok && p.status && (
+                    {!ok && (
                       <div className="mt-1.5 flex items-center gap-1.5" style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: 'var(--warning)' }}>
                         <span>⚠</span>
-                        <span>{p.status}</span>
+                        <span>{p.is_system ? 'Emulator not installed' : 'Working image not present'}</span>
                       </div>
                     )}
                   </div>
@@ -307,7 +305,7 @@ export default function Health() {
                     <StatusDot healthy={ok} />
                     {ok ? 'Ready' : 'Degraded'}
                   </div>
-                  {p.is_system && p.status === 'missing' && p.emulator_slug && (
+                  {p.is_system && !ok && p.emulator_slug && (
                     <button
                       type="button"
                       onClick={() => navigate(`/emulators/${p.emulator_slug}`)}

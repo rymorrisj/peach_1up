@@ -32,6 +32,10 @@ def _cleanup_stale_sessions(db) -> None:
 
 
 def _flag_corrupt_platform_working_paths(db) -> None:
+    """Log-only, no persisted flag. status/last_health_check were removed from
+    EnvironmentItem in favor of a live presence check (compute_environment_presence),
+    which already reports these rows as not-present on every read since a .cfg
+    path is never a real image file — nothing further needs to be stored here."""
     try:
         from backend.models import EnvironmentItem
         corrupt = (
@@ -46,9 +50,6 @@ def _flag_corrupt_platform_working_paths(db) -> None:
                 p.id,
                 p.name,
             )
-            if p.status != "degraded":
-                p.status = "degraded"
-        db.flush()
     except Exception as exc:
         db.rollback()
         logger.warning("Corrupt working_image_path check failed: %s", exc)

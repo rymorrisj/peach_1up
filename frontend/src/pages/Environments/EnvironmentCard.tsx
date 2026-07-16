@@ -1,13 +1,12 @@
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/ui'
+import ConfirmModal from '@/components/common/ConfirmModal'
+import EmulatorStatus from '@/components/emulators/EmulatorStatus'
 import { ERA_LABELS } from '@/generated/constants'
 import type { components } from '@shared/types'
-import EmulatorStatus from '@/components/emulators/EmulatorStatus'
 import LaunchHistory from '@/components/launches/LaunchHistory'
 import { useLaunch } from '@/hooks/useLaunch'
-import { apiFetch, ApiError } from '@/api/client'
+import { useEnvironmentInstalledToggle } from '@/hooks/useEnvironmentInstalledToggle'
 
 type PlatformBase = components['schemas']['EnvironmentItemRead']
 type Platform = PlatformBase & { installed_at?: string | null }
@@ -34,7 +33,6 @@ export default function EnvironmentCard({
 }: EnvironmentCardProps) {
   const platform = platformBase as Platform
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const eraLabel = ERA_LABELS[platform.era] ?? platform.era
   const emulatorLabel = EMULATOR_LABELS[platform.emulator_slug] ?? platform.emulator_slug
   const { launch, stop, isLaunching, error: launchError, launchWarnings } = useLaunch({
@@ -42,24 +40,15 @@ export default function EnvironmentCard({
     targetType: 'environment',
   })
 
-  const [markingInstalled, setMarkingInstalled] = useState(false)
-  const [markInstalledError, setMarkInstalledError] = useState<string | null>(null)
-
-  async function handleMarkInstalled() {
-    setMarkingInstalled(true)
-    setMarkInstalledError(null)
-    try {
-      await apiFetch(`/api/v1/environment-items/${platform.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ installed_at: new Date().toISOString() }),
-      })
-      await queryClient.invalidateQueries({ queryKey: ['platforms'] })
-    } catch (err) {
-      setMarkInstalledError(err instanceof ApiError ? err.detail : 'Failed to mark as installed.')
-    } finally {
-      setMarkingInstalled(false)
-    }
-  }
+  const {
+    handleToggleInstalled,
+    isPending: installedPending,
+    installedError: markInstalledError,
+    confirmOpen: installedConfirmOpen,
+    confirmOptions: installedConfirmOptions,
+    handleConfirm: handleInstalledConfirm,
+    handleCancel: handleInstalledCancel,
+  } = useEnvironmentInstalledToggle({ environmentId: platform.id })
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-surface-800">
@@ -85,7 +74,7 @@ export default function EnvironmentCard({
             )}
           </div>
         </div>
-        <EmulatorStatus status={platform.status} />
+        <EmulatorStatus status={platform.is_present ? 'ok' : 'missing'} />
       </div>
 
       {(platform.base_image_path || platform.working_image_path) && (
@@ -123,9 +112,9 @@ export default function EnvironmentCard({
           <Button
             size="sm"
             variant="secondary"
-            onClick={handleMarkInstalled}
-            loading={markingInstalled}
-            disabled={markingInstalled}
+            onClick={() => handleToggleInstalled(false)}
+            loading={installedPending}
+            disabled={installedPending}
           >
             Mark as Installed
           </Button>
@@ -170,6 +159,15 @@ export default function EnvironmentCard({
       )}
 
       <LaunchHistory targetId={platform.id} targetType="environment_item" />
+
+      <ConfirmModal
+        open={installedConfirmOpen}
+        title={installedConfirmOptions?.title ?? ''}
+        consequence={installedConfirmOptions?.consequence ?? ''}
+        destructive={installedConfirmOptions?.destructive}
+        onConfirm={handleInstalledConfirm}
+        onCancel={handleInstalledCancel}
+      />
     </div>
   )
 }

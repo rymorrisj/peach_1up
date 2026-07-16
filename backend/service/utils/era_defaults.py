@@ -36,6 +36,77 @@ def lookup_environment_and_profile(
     return (platform.id if platform else None, profile.id if profile else None)
 
 
+def environment_is_installed(env) -> bool:
+    """Whether *env* (an EnvironmentItem) satisfies the "OS installed" gate.
+
+    Reads the pre-existing installed_at timestamp (set by the "Mark as
+    Installed" action in EnvironmentCard.tsx) rather than a new dedicated
+    boolean -- installed_at already recorded exactly this concept before this
+    change, and adding a second field for the same fact would recreate the
+    same kind of duplicate-state drift this task exists to fix.
+
+    DOS/DOSBox-X environments have no install step (DOSBox-X boots straight
+    to a DOS prompt against the per-item drive), so they are always treated
+    as installed regardless of installed_at -- checked here, at read time,
+    rather than forced true at creation, so the rule can't drift if an
+    environment's era is ever changed after creation.
+    """
+    if env.era in DOS_WIN_ERAS:
+        return True
+    return env.installed_at is not None
+
+
+def resolve_environment_for_launch_gate(environment_item_id: int | None, era: str, db: Session):
+    """Resolve the Environment compute_launch_blocked_reason should gate
+    against for a single item: environment_item_id if set, else the
+    era-matched is_system fallback. Mirrors
+    coordinator._resolve_environment_for_pc_entity exactly, so the read-time
+    gate and the actual launch-time resolution can never disagree."""
+    from backend.models.environment import EnvironmentItem
+
+    if environment_item_id is not None:
+        return db.get(EnvironmentItem, environment_item_id)
+    return lookup_system_environment_by_era(era, db)
+
+
+def resolve_environments_for_launch_gate_bulk(items: list, db: Session) -> dict[int, object]:
+    """Batch form of resolve_environment_for_launch_gate for read-bulk builders.
+
+    *items* is any list of objects with .id, .era, .environment_item_id
+    (GameItemBundle or AppItemBundle rows). Returns {item.id: EnvironmentItem|None}
+    in two queries total instead of one per item.
+    """
+    from backend.models.environment import EnvironmentItem
+
+    if not items:
+        return {}
+
+    explicit_ids = {i.environment_item_id for i in items if i.environment_item_id is not None}
+    fallback_eras = {i.era for i in items if i.environment_item_id is None}
+
+    by_id: dict[int, EnvironmentItem] = {}
+    if explicit_ids:
+        for row in db.query(EnvironmentItem).filter(EnvironmentItem.id.in_(explicit_ids)).all():
+            by_id[row.id] = row
+
+    by_era: dict[str, EnvironmentItem] = {}
+    if fallback_eras:
+        for row in (
+            db.query(EnvironmentItem)
+            .filter(EnvironmentItem.era.in_(fallback_eras), EnvironmentItem.is_system == True)
+            .all()
+        ):
+            by_era[row.era] = row
+
+    result: dict[int, EnvironmentItem | None] = {}
+    for i in items:
+        if i.environment_item_id is not None:
+            result[i.id] = by_id.get(i.environment_item_id)
+        else:
+            result[i.id] = by_era.get(i.era)
+    return result
+
+
 def lookup_system_environment_by_era(era: str, db: Session):
     """Return the is_system Environment whose era matches *era*, or None.
 
@@ -59,8 +130,7 @@ def compute_launch_blocked_reason(
     is_pc: bool,
     era: str,
     profile_item_id: int | None,
-    environment_item_id: int | None,
-    system_eras: set[str],
+    environment,
 ) -> str | None:
     """Read-time mirror of the coordinator's precomputable pre-launch gates.
 
@@ -72,41 +142,36 @@ def compute_launch_blocked_reason(
        (coordinator._resolve_profile_for_item). An item with no profile_item_id
        would 422 "No profile associated" -> "no_profile".
     2. Environment is a PC-only gate resolved after the profile
-       (coordinator._resolve_environment_for_pc_entity). A PC item with neither
-       its own environment_item_id nor an era-matched is_system Environment
-       fallback would 422 -> "no_environment". Console items never touch
-       Environment, so they can only be blocked by the profile gate.
+       (coordinator._resolve_environment_for_pc_entity). *environment* is the
+       already-resolved EnvironmentItem (or None) from
+       resolve_environment_for_launch_gate / resolve_environments_for_launch_gate_bulk
+       -- environment_item_id if set, else the era-matched is_system fallback,
+       exactly mirroring the coordinator's own resolution order. No resolvable
+       Environment at all -> "no_environment".
+    3. Era match is the authoritative gate, added after a real incident where a
+       win98 item was bound to a win95-era Environment and silently launched
+       because the bound profile happened to carry the correct backend
+       (86Box). A resolved Environment whose era does not match the item's
+       era -> "environment_era_mismatch", checked before is_installed so the
+       more specific, more dangerous mismatch is reported first.
+    4. is_installed gates Win9x/WinXp Environments that have never had the OS
+       installed inside them (DOS/DOSBox-X environments always pass this,
+       see environment_is_installed) -> "environment_not_installed".
 
     Returns the reason for the first gate that would block, or None if the item
-    clears both. Only these two gates are determinable from stored state; the
+    clears all of them. These gates are determinable from stored state; the
     coordinator's other hard blocks (emulator not installed, media resolution,
     provisioning, 8.3 path, concurrency, spawn/timeout/crash) are runtime
-    conditions that cannot be known without attempting the launch. *system_eras*
-    is the set of eras that have a matching is_system Environment, computed once
-    by system_environment_eras for the batch.
+    conditions that cannot be known without attempting the launch.
     """
     if profile_item_id is None:
         return "no_profile"
     if not is_pc:
         return None
-    if environment_item_id is not None:
-        return None
-    if era in system_eras:
-        return None
-    return "no_environment"
-
-
-def system_environment_eras(eras: set[str], db: Session) -> set[str]:
-    """Batch form of lookup_system_environment_by_era: which of *eras* have a
-    matching is_system EnvironmentItem. One query for N collections instead of N
-    queries -- used by the read-time launch-blocked gate (collections_to_read_bulk)."""
-    from backend.models.environment import EnvironmentItem
-
-    if not eras:
-        return set()
-    rows = (
-        db.query(EnvironmentItem.era)
-        .filter(EnvironmentItem.era.in_(eras), EnvironmentItem.is_system == True)
-        .all()
-    )
-    return {row[0] for row in rows}
+    if environment is None:
+        return "no_environment"
+    if environment.era != era:
+        return "environment_era_mismatch"
+    if not environment_is_installed(environment):
+        return "environment_not_installed"
+    return None
