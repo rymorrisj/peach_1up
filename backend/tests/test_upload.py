@@ -149,6 +149,7 @@ class TestSoftwareUploadRoute:
         from backend.api.routes import game_item_bundles, uploads
         from backend.core.database import get_db
         from backend.core.dependencies import get_active_user
+        from backend.core.lifespan import _register_upload_domains
         import backend.core.rate_limit as rl
 
         media_path = tmp_path / "media"
@@ -168,8 +169,14 @@ class TestSoftwareUploadRoute:
         # methods; bypass it so the 10-inits-per-60s bucket never trips.
         monkeypatch.setattr(rl, "enforce", lambda *a, **kw: None)
 
+        # This app is bare with no lifespan attached, so the real startup
+        # path (backend.core.lifespan.lifespan) never runs, and the
+        # software-games route depends on registry state that lifespan
+        # would normally populate. Register directly here instead.
+        _register_upload_domains()
+
         app = FastAPI()
-        app.include_router(uploads.router)
+        app.include_router(uploads.software_games_router)
         app.include_router(game_item_bundles.router)
         app.dependency_overrides[get_active_user] = _owner_user
         app.dependency_overrides[get_db] = lambda: mem_db_session
@@ -182,7 +189,7 @@ class TestSoftwareUploadRoute:
         """Run the full init → PUT chunk → complete flow. Returns the complete response."""
         size = len(content)
         init = c.post(
-            "/api/v1/game-items/uploads/init",
+            "/api/v1/uploads/software-games/init",
             json={
                 "kind": "file",
                 "title": title,
@@ -193,10 +200,10 @@ class TestSoftwareUploadRoute:
             return init
         uid = init.json()["upload_id"]
         c.put(
-            f"/api/v1/game-items/uploads/{uid}/chunks/0/0",
+            f"/api/v1/uploads/software-games/{uid}/chunks/0/0",
             files={"chunk": (filename, content, "application/octet-stream")},
         )
-        return c.post(f"/api/v1/game-items/uploads/{uid}/complete")
+        return c.post(f"/api/v1/uploads/software-games/{uid}/complete")
 
     @staticmethod
     def _media_files(media_path: Path) -> list[Path]:
@@ -216,7 +223,7 @@ class TestSoftwareUploadRoute:
     def test_missing_file_field_is_422(self, client):
         c, _ = client
         resp = c.post(
-            "/api/v1/game-items/uploads/init",
+            "/api/v1/uploads/software-games/init",
             json={"kind": "file", "title": None, "files": []},
         )
         assert resp.status_code == 422
@@ -225,7 +232,7 @@ class TestSoftwareUploadRoute:
         c, media_path = client
         from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES
         resp = c.post(
-            "/api/v1/game-items/uploads/init",
+            "/api/v1/uploads/software-games/init",
             json={
                 "kind": "file",
                 "title": None,

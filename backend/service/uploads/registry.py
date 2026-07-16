@@ -38,12 +38,14 @@ _domains: dict[str, UploadDomain] = {}
 
 
 def register_domain(domain: UploadDomain) -> None:
-    # Idempotent by design, not a strict once-only guard: backend.main.app's
-    # lifespan (and therefore _register_upload_domains()) runs once per
-    # ``with TestClient(app)`` entry, and many existing tests construct a
-    # fresh TestClient per test function against the same module-level app,
-    # so this runs many times within one pytest process. Re-registering the
-    # same static config is harmless; only overwrite, never raise.
+    # Idempotent by design, not a strict once-only guard: there is no
+    # conftest.py in this test suite, so each fixture builds its own bare
+    # FastAPI() instance with no lifespan attached, meaning
+    # backend.core.lifespan.lifespan (and therefore _register_upload_domains())
+    # never fires meaningfully on these test apps. Any fixture whose routes
+    # depend on registry state must call the registration function directly
+    # instead. Re-registering the same static config across test functions or
+    # classes is harmless; only overwrite, never raise.
     _domains[domain.name] = domain
 
 
