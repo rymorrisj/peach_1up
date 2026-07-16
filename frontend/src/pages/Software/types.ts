@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { components } from '@shared/types'
 import type { RestrictionDomain } from '@/hooks/useCollectionRestrictions'
+import type { LibraryModalConfig } from './components/LibraryModal'
 
 export type TagRead = components['schemas']['TagRead']
 type UserItemRead = components['schemas']['UserItemRead']
@@ -130,6 +131,12 @@ export interface EntityDomainConfig<TBundle extends EntityBundleBase> {
   // it must tolerate `entity` being undefined internally (pre-load). Omitted
   // entirely for App/Media, so their rendered output is unaffected.
   renderExtras?: (ctx: EntityDetailExtrasContext<TBundle>) => EntityDetailExtras
+  // Drives the "+ Add {entityLabel}" affordance EntityListPage renders in its
+  // TopBar. Omitted entirely for domains with no creation UI. Game does not
+  // use this. Games.tsx is a bespoke page that wires LibraryModal directly
+  // (see gameConfig.tsx's gameUploadModalConfig/gameScanModalConfig) rather
+  // than going through EntityListPage.
+  uploadConfig?: LibraryModalConfig
 }
 
 export interface EntityDetailExtrasContext<TBundle extends EntityBundleBase> {

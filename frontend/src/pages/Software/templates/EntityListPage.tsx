@@ -8,19 +8,30 @@ import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useConfirm } from '@/hooks/useConfirm'
 import { EntityCard } from '../components/EntityCard'
+import { LibraryModal } from '../components/LibraryModal'
 import type { EntityBundleBase, EntityDomainConfig, Page } from '../types'
 
 const PAGE_SIZE = 50
+
+interface SoftwarePaths {
+  library_path: string | null
+  software_path: string | null
+  media_path: string | null
+}
 
 interface EntityListPageProps<TBundle extends EntityBundleBase> {
   config: EntityDomainConfig<TBundle>
 }
 
 // Generic paginated grid page for domains that don't need Game's era/profile
-// filter bar or add/scan import flows (out of scope here — see Media/Apps).
+// filter bar. Add-content is opt-in per domain via config.uploadConfig, Media
+// and Apps supply one (via mediaConfig.tsx/appConfig.tsx), rendering a
+// "+ Add {label}" button and the shared LibraryModal; a domain that omits it
+// renders no add affordance at all.
 export function EntityListPage<TBundle extends EntityBundleBase>({ config }: EntityListPageProps<TBundle>) {
   const queryClient = useQueryClient()
   const [offset, setOffset] = useState(0)
+  const [addOpen, setAddOpen] = useState(false)
   const {
     confirm, isOpen: confirmOpen, options: confirmOptions, handleConfirm, handleCancel,
   } = useConfirm()
@@ -32,6 +43,15 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
   })
   const entities = page?.items ?? []
   const total = page?.total ?? 0
+
+  // Only fetched for domains that actually render the upload modal, avoids
+  // an extra settings round-trip for domains with no uploadConfig.
+  const { data: settingsData } = useQuery<{ paths: SoftwarePaths }>({
+    queryKey: ['first-run-status'],
+    queryFn: () => apiFetch('/api/v1/settings/first-run-status'),
+    staleTime: 60_000,
+    enabled: Boolean(config.uploadConfig),
+  })
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: [config.domain, 'list'] })
 
@@ -50,9 +70,18 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
     }
   }
 
+  const addButtonLabel = `+ Add ${config.entityLabel}`
+
   return (
     <div className="flex flex-col min-h-full">
-      <TopBar />
+      <TopBar>
+        {config.uploadConfig && (
+          <>
+            <span style={{ flex: 1 }} />
+            <Button onClick={() => setAddOpen(true)}>{addButtonLabel}</Button>
+          </>
+        )}
+      </TopBar>
 
       <div className="p-6">
         {isLoading ? (
@@ -64,6 +93,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
           <EmptyState
             heading={`No ${config.entityLabelPlural} yet`}
             subtext={`Nothing in your ${config.entityLabelPlural} library yet.`}
+            cta={config.uploadConfig ? { label: addButtonLabel, onClick: () => setAddOpen(true) } : undefined}
           />
         ) : (
           <>
@@ -109,6 +139,16 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
           </>
         )}
       </div>
+
+      {config.uploadConfig && (
+        <LibraryModal
+          open={addOpen}
+          onClose={() => setAddOpen(false)}
+          onComplete={invalidate}
+          mediaPath={settingsData?.paths?.media_path ?? settingsData?.paths?.software_path ?? null}
+          config={config.uploadConfig}
+        />
+      )}
 
       <ConfirmModal
         open={confirmOpen}

@@ -3,6 +3,7 @@ import { apiFetch, ApiError } from '@/api/client'
 import { useEditForm } from '@/hooks/useEditForm'
 import { formFromCollection, type SoftwareMediaForm } from '../types/mediaForm'
 import { MediaEditForm } from '../components/MediaEditForm'
+import type { LibraryModalConfig } from '../components/LibraryModal'
 import type { EntityBundleBase, EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
 
 export interface MediaItemLeaf {
@@ -69,6 +70,26 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
   }
 }
 
+// Media had no creation UI at all before this. Mode is 'upload' only
+// (no scan support exists on the backend for this domain, unlike Game), and
+// no multi-disc/folder/browse-import sub-features since archival media
+// (audio, text, image, video, per dev_docs/v2/03_media_archive.md) is
+// standalone-item-first, not a multi-disc collection concept like Game.
+export const mediaUploadModalConfig: LibraryModalConfig = {
+  mode: 'upload',
+  // PROVISIONAL CONTRACT. See chunkedUpload.ts. No live backend endpoint
+  // exists for this target_type yet: the real Media upload route today
+  // (POST /api/v1/media-items/upload) is a single-shot, non-chunked,
+  // two-step stage-then-create flow, not this chunked init/chunks/complete
+  // shape. Load-bearing assumption, revisit once the discovery session
+  // confirms whether Media gets a chunked endpoint or this modal needs a
+  // non-chunked upload path for this target_type instead.
+  targetType: 'media_item_bundle',
+  modalTitle: 'Add Media',
+  entityLabel: 'media item',
+  entityLabelPlural: 'media',
+}
+
 // Media has no launch capability at all (no launchTargetType), and its cover
 // art lives directly on the bundle rather than a leaf item (see discovery:
 // cover_art_url is bundle-level for Media, leaf-level for Game/App).
@@ -82,4 +103,5 @@ export const mediaDomainConfig: EntityDomainConfig<MediaItemBundleData> = {
   entityLabelPlural: 'media',
   coverArt: (bundle) => bundle.cover_art_url ?? null,
   renderExtras: useMediaDetailExtras,
+  uploadConfig: mediaUploadModalConfig,
 }

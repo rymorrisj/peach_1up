@@ -10,8 +10,8 @@ import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useConfirm } from '@/hooks/useConfirm'
 import { useConfirmToken } from '@/hooks/useConfirmToken'
 import { ERA_LABELS } from '@/generated/constants'
-import { AddMediaModal } from './components/AddMediaModal'
-import { ScanModal } from './components/ScanModal'
+import { LibraryModal } from './components/LibraryModal'
+import { gameUploadModalConfig, gameScanModalConfig } from './configs/gameConfig'
 import { CollectionCard } from './components/CollectionCard'
 import type { GameItemBundleData } from './components/CollectionCard'
 import type { Page } from './types'
@@ -245,17 +245,19 @@ export default function Games() {
         )}
       </div>
 
-      <AddMediaModal
+      <LibraryModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onAdded={invalidate}
+        onComplete={invalidate}
         mediaPath={settingsData?.paths?.software_path ?? null}
+        config={gameUploadModalConfig}
       />
-      <ScanModal
+      <LibraryModal
         open={scanOpen}
         onClose={() => setScanOpen(false)}
-        onImported={invalidate}
+        onComplete={invalidate}
         mediaPath={settingsData?.paths?.software_path ?? null}
+        config={gameScanModalConfig}
       />
       <ConfirmModal
         open={confirmOpen}

@@ -2,15 +2,22 @@ import { getCsrfToken } from '@/api/client'
 
 const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000'
 
-// 8 MB — well under the server's 64 MB per-chunk cap, so the declared manifest
+// 8 MB, well under the server's 64 MB per-chunk cap, so the declared manifest
 // (chunk counts) always matches the chunks we actually PUT.
 const DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024
+
+// PROVISIONAL CONTRACT (subject to change once the backend discovery session
+// locks the real contract). Today only "game_item_bundle" is backed by a real
+// endpoint (/api/v1/game-items/uploads/*, games-only). "media_item_bundle" and
+// "app_item" are forward-built against the documented-but-unconfirmed shared
+// upload endpoint and have no live backend counterpart yet.
+export type UploadTargetType = 'game_item_bundle' | 'media_item_bundle' | 'app_item'
 
 export interface ChunkedUploadResult {
   /** 201 when finalized inline, 202 when a background job was created. */
   status: number
   body: {
-    result_type?: 'software_collection'
+    target_type?: UploadTargetType
     title?: string
     disc_count?: number
     reused_existing_media?: boolean
@@ -38,20 +45,34 @@ async function asError(res: Response): Promise<Error> {
   }
 }
 
+// PROVISIONAL CONTRACT: a single domain-agnostic upload endpoint
+// (/api/v1/uploads/*) with target_type carried in the init body/URL instead of
+// a route segment (e.g. the old games-only /api/v1/game-items/uploads/*).
+// Chunk assembly and the begin/stream/finalize step shape are otherwise
+// unchanged from the pre-existing game-items flow. Adjust this base path (and
+// the init body shape) once the backend discovery session confirms the real
+// contract.
+const UPLOADS_BASE = `${baseURL}/api/v1/uploads`
+
 /**
  * Upload one file (kind "file"), a folder of files (kind "folder"), or an
  * explicitly ordered multi-disc set (kind "set") to the chunked upload
- * endpoints, reporting 0–100 progress across all chunks. Small uploads
+ * endpoints, reporting 0-100 progress across all chunks. Small uploads
  * resolve with status 201 and the created item/set; uploads over the
- * server's background threshold resolve with 202 and a `job_id` to track in the
- * nav bell. On abort or any error the server-side staging dir is cleaned up via
- * DELETE.
+ * server's background threshold resolve with 202 and a `job_id` to track in
+ * the nav bell. On abort or any error the server-side staging dir is cleaned
+ * up via DELETE.
+ *
+ * `targetType` selects which domain the finished upload is ingested into
+ * (game_item_bundle, media_item_bundle, app_item), see the PROVISIONAL
+ * CONTRACT note above.
  */
 export function chunkedUpload(
   kind: 'file' | 'folder' | 'set',
   title: string,
   files: File[],
   onProgress: (pct: number) => void,
+  targetType: UploadTargetType,
   chunkSize: number = DEFAULT_CHUNK_SIZE,
 ): ChunkedUploadHandle {
   const controller = new AbortController()
@@ -69,11 +90,12 @@ export function chunkedUpload(
       chunks: Math.max(1, Math.ceil(f.size / chunkSize)),
     }))
 
-    const initRes = await fetch(`${baseURL}/api/v1/game-items/uploads/init`, {
+    const initRes = await fetch(`${UPLOADS_BASE}/init`, {
       method: 'POST',
       credentials: 'include',
       headers: { ...headers(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind, title, files: manifest }),
+      // target_type replaces the old route-based domain (game-items/uploads).
+      body: JSON.stringify({ kind, title, files: manifest, target_type: targetType }),
       signal: controller.signal,
     })
     if (!initRes.ok) throw await asError(initRes)
@@ -91,7 +113,7 @@ export function chunkedUpload(
         const fd = new FormData()
         fd.append('chunk', blob, `${ci}.part`)
         const res = await fetch(
-          `${baseURL}/api/v1/game-items/uploads/${uploadId}/chunks/${fi}/${ci}`,
+          `${UPLOADS_BASE}/${uploadId}/chunks/${fi}/${ci}`,
           { method: 'PUT', credentials: 'include', headers: headers(), body: fd, signal: controller.signal },
         )
         if (!res.ok) throw await asError(res)
@@ -100,7 +122,7 @@ export function chunkedUpload(
       }
     }
 
-    const completeRes = await fetch(`${baseURL}/api/v1/game-items/uploads/${uploadId}/complete`, {
+    const completeRes = await fetch(`${UPLOADS_BASE}/${uploadId}/complete`, {
       method: 'POST',
       credentials: 'include',
       headers: headers(),
@@ -116,7 +138,7 @@ export function chunkedUpload(
     if (uploadId) {
       // Best-effort staging cleanup; ignore failures (orphan sweeper backstops).
       try {
-        await fetch(`${baseURL}/api/v1/game-items/uploads/${uploadId}`, {
+        await fetch(`${UPLOADS_BASE}/${uploadId}`, {
           method: 'DELETE',
           credentials: 'include',
           headers: headers(),

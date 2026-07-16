@@ -3,12 +3,49 @@ import type { DragEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { UploadCloud, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { chunkedUpload } from '@/lib/chunkedUpload'
+import type { UploadTargetType } from '@/lib/chunkedUpload'
 import { apiFetch, ApiError } from '@/api/client'
 import { useAppContext } from '@/context/useAppContext'
 import { useConfirm } from '@/hooks/useConfirm'
+import { useLibraryScan } from '@/hooks/useLibraryScan'
 import ConfirmModal from '@/components/common/ConfirmModal'
 import FileBrowser from '@/components/common/FileBrowser'
+import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { Button, Modal } from '@/ui'
+
+// Domain-agnostic upload/scan modal, extracted from the former (games-only)
+// AddMediaModal.tsx and ScanModal.tsx. A domain wires this in by supplying a
+// LibraryModalConfig, the same way gameConfig/mediaConfig/appConfig already
+// drive the list/detail pages, no domain-specific JSX or copy lives in this
+// file, it all comes from config.
+export interface LibraryModalConfig {
+  // Which UI this modal instance renders. 'both' shows a tab switcher between
+  // the upload and scan bodies in one modal; 'upload' or 'scan' render just
+  // that body (this is how Games keeps its existing two-button/two-modal
+  // layout, two LibraryModal instances, one of each mode, unchanged from
+  // before this extraction).
+  mode: 'upload' | 'scan' | 'both'
+  // PROVISIONAL CONTRACT: sent as target_type to the generalized upload
+  // endpoint instead of a route-based domain segment. Only "game_item_bundle"
+  // has a live backend endpoint today (see chunkedUpload.ts), subject to
+  // change once the backend discovery session locks the real contract.
+  targetType: UploadTargetType
+  modalTitle: string
+  entityLabel: string
+  entityLabelPlural: string
+  // Optional `accept` attribute hint for the file inputs (e.g. ".iso,.img").
+  // Undefined means "accept anything", matching the pre-extraction behavior.
+  acceptFileTypes?: string
+  // Sub-features of the upload body. All default to false except where noted.
+  // Game enables every one of these (unchanged behavior); Media/App only
+  // get the plain single/multi-file drop zone unless explicitly turned on.
+  supportsMultiDisc?: boolean
+  supportsFolderMode?: boolean
+  // Browse-server-path import has no backend route outside game-items today
+  // (see AddMediaModal's former import-from-path flow), only supply
+  // importFromPathApiPath when a domain actually has one.
+  importFromPathApiPath?: string
+}
 
 interface UploadEntry {
   id: string
@@ -24,10 +61,10 @@ interface StagedDisc {
 }
 
 // A file or folder picked via the server-side file browser (real, absolute,
-// server-resolved path — never a browser File object), staged for import
-// via POST /api/v1/game-items/import-from-path. Unlike the drag-and-drop/file-
-// input entries above, these can offer "delete original after import"
-// because the backend already knows the source's real path.
+// server-resolved path, never a browser File object), staged for import via
+// config.importFromPathApiPath. Unlike the drag-and-drop/file-input entries
+// above, these can offer "delete original after import" because the backend
+// already knows the source's real path.
 interface BrowseImportEntry {
   id: string
   path: string
@@ -38,15 +75,15 @@ interface BrowseImportEntry {
   error?: string
 }
 
-// Shape of the inline (non-background) response body from
-// POST /api/v1/game-items/import-from-path — see path_import.import_inline /
-// finalize_reassembled. delete_original_error is only ever present when
+// Shape of the inline (non-background) response body from the
+// import-from-path endpoint. delete_original_error is only ever present when
 // delete_original was true and the post-import cleanup failed; its presence
 // never means the import itself failed (the collection/item was already
-// committed by that point).
+// committed by that point). No result_type/target_type field here, this
+// response never carried one, and nothing read it, so it is not carried
+// forward into this generalized component.
 interface ImportFromPathResult {
   job_id?: string
-  result_type?: string
   id?: number
   title?: string
   reused_existing_media?: boolean
@@ -75,7 +112,7 @@ function folderNameFor(file: File): string {
 // ingested), so discard them entirely and rename from the containing folder
 // instead: "{folder}{ext}" when a folder contributes one file of that
 // extension, "{folder}_{n}{ext}" when it contributes more than one. This is a
-// candidate name only — the existing sanitize_filename()/slugify() call in
+// candidate name only, the existing sanitize_filename()/slugify() call in
 // chunked_uploads.init_session() slugifies it server-side, so no frontend
 // slugify is introduced here. Order is untouched: callers must still append
 // the returned discs in the same order as the source FileList.
@@ -104,20 +141,28 @@ function stageFolderFiles(fileList: FileList): StagedDisc[] {
   })
 }
 
-interface AddMediaModalProps {
+interface LibraryModalProps {
   open: boolean
   onClose: () => void
-  onAdded: () => void
+  // Fired after a successful upload, import, or scan-import, callers pass
+  // the same cache-invalidation callback for every mode, exactly as Games.tsx
+  // already did for AddMediaModal's onAdded and ScanModal's onImported.
+  onComplete: () => void
   mediaPath?: string | null
+  config: LibraryModalConfig
 }
 
-export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaModalProps) {
+function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryModalProps) {
   const { dispatch } = useAppContext()
   const [entries, setEntries] = useState<UploadEntry[]>([])
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
   const discFolderInputRef = useRef<HTMLInputElement>(null)
+
+  const supportsMultiDisc = config.supportsMultiDisc ?? false
+  const supportsFolderMode = config.supportsFolderMode ?? false
+  const supportsBrowseImport = Boolean(config.importFromPathApiPath)
 
   // Multi-disc state
   const [multiDisc, setMultiDisc] = useState(false)
@@ -140,7 +185,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
   const [folderBackground, setFolderBackground] = useState(false)
   const [folderResult, setFolderResult] = useState<{ type: 'item' | 'set'; title: string; discCount?: number } | null>(null)
 
-  // Server-side-path import state — a second, independent source mechanism
+  // Server-side-path import state, a second, independent source mechanism
   // alongside drag-and-drop/file-input above. Sourced via FileBrowser (real,
   // absolute, server-resolved paths), not a browser File object, so unlike
   // every other entry list in this modal it can offer "delete original".
@@ -209,7 +254,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
     const title = entry.file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim()
     const { promise } = chunkedUpload('file', title, [entry.file], (pct) => {
       setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, progress: pct } : e)))
-    })
+    }, config.targetType)
     promise
       .then((res) => {
         // Over the server threshold: finalize runs as a background job surfaced
@@ -224,7 +269,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
         }
         const status = res.body.reused_existing_media ? 'reused' : 'success'
         setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status, progress: 100 } : e)))
-        onAdded()
+        onComplete()
       })
       .catch((err: Error) => {
         setEntries((prev) =>
@@ -257,7 +302,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
 
   // Multi-disc + folder-upload combo: the picked folder's files are already
   // recursively enumerated by the browser (webkitdirectory walks the whole
-  // tree), so this just renames for collision-safety and appends — no new
+  // tree), so this just renames for collision-safety and appends, no new
   // recursion logic, and append order is preserved (= upload order).
   function handleDiscFolderPick(fileList: FileList) {
     if (fileList.length === 0) return
@@ -296,7 +341,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
     setSetProgress(0)
     setSetBackground(false)
 
-    const { promise } = chunkedUpload('set', title, stagedDiscs.map((d) => d.file), setSetProgress)
+    const { promise } = chunkedUpload('set', title, stagedDiscs.map((d) => d.file), setSetProgress, config.targetType)
     try {
       const res = await promise
       if (res.status === 202 && res.body.job_id) {
@@ -309,7 +354,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
         return
       }
       setSetStatus('success')
-      onAdded()
+      onComplete()
     } catch (err) {
       setSetStatus('error')
       setSetError(err instanceof Error ? err.message : 'Upload failed.')
@@ -325,7 +370,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
     setFolderProgress(0)
     setFolderBackground(false)
 
-    const { promise } = chunkedUpload('folder', title, folderFiles, setFolderProgress)
+    const { promise } = chunkedUpload('folder', title, folderFiles, setFolderProgress, config.targetType)
     try {
       const res = await promise
       if (res.status === 202 && res.body.job_id) {
@@ -344,14 +389,14 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
           : { type: 'item', title: res.body.title ?? title },
       )
       setFolderStatus('success')
-      onAdded()
+      onComplete()
     } catch (err) {
       setFolderStatus('error')
       setFolderError(err instanceof Error ? err.message : 'Upload failed.')
     }
   }
 
-  // Each Browse click appends one entry — FileBrowser is single-select, so
+  // Each Browse click appends one entry, FileBrowser is single-select, so
   // staging multiple sources means clicking "Browse Server Files…" once per
   // item, mirroring how "Select Disc Folder…" above is clicked once per disc.
   function handleBrowseSelect(path: string, isDir: boolean) {
@@ -376,10 +421,10 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
   const allDeleteChecked =
     stagedBrowseEntries.length > 0 && stagedBrowseEntries.every((e) => e.deleteOriginal)
 
-  // Mirrors ScanModal's toggleAll/allSelected pattern exactly, applied to
-  // deleteOriginal instead of an import-selection set — every staged entry is
+  // Mirrors the scan body's toggleAll/allSelected pattern, applied to
+  // deleteOriginal instead of an import-selection set, every staged entry is
   // always imported here, so there's no separate "select which to import"
-  // step the way Scan's preview has.
+  // step the way the scan preview has.
   function toggleDeleteAllOriginal() {
     const next = !allDeleteChecked
     setBrowseImports((prev) =>
@@ -389,7 +434,8 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
 
   async function submitBrowseImports() {
     const pending = browseImports.filter((e) => e.status === 'staged')
-    if (pending.length === 0) return
+    if (pending.length === 0 || !config.importFromPathApiPath) return
+    const importPath = config.importFromPathApiPath
 
     const toDelete = pending.filter((e) => e.deleteOriginal)
     if (toDelete.length > 0) {
@@ -408,7 +454,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       setBrowseImports((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'importing' } : e)))
       try {
         const title = entry.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim()
-        const res = await apiFetch<ImportFromPathResult>('/api/v1/game-items/import-from-path', {
+        const res = await apiFetch<ImportFromPathResult>(importPath, {
           method: 'POST',
           body: JSON.stringify({ source_path: entry.path, title, delete_original: entry.deleteOriginal }),
         })
@@ -418,10 +464,10 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
             payload: { id: res.job_id, kind: 'upload', status: 'processing', progress: 0, message: `Importing "${title}"…` },
           })
         }
-        // The import itself always succeeded by this point — delete_original_error
+        // The import itself always succeeded by this point, delete_original_error
         // (inline path only; res.job_id means this went to the background path
         // instead, surfaced separately via the job consumer in AppContext) means
-        // only the post-import source cleanup failed. Distinct from 'error' —
+        // only the post-import source cleanup failed. Distinct from 'error':
         // this is a partial success, not an import failure.
         if (res.delete_original_error) {
           setBrowseImports((prev) => prev.map((e) =>
@@ -430,7 +476,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
         } else {
           setBrowseImports((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'success' } : e)))
         }
-        onAdded()
+        onComplete()
       } catch (err) {
         const message = err instanceof ApiError ? err.detail : 'Import failed.'
         setBrowseImports((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'error', error: message } : e)))
@@ -447,7 +493,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
     <>
     <Modal
       open={open}
-      title="Add Media"
+      title={config.modalTitle}
       onClose={onClose}
       busy={busy}
       footer={
@@ -491,43 +537,49 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       }
     >
       {/* Mode toggles */}
-      <div className="mb-3 flex flex-col gap-1.5">
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-neutral-300">
-          <input
-            type="checkbox"
-            className="accent-[#ff8a5c]"
-            checked={multiDisc}
-            disabled={busy}
-            onChange={(e) => {
-              setMultiDisc(e.target.checked)
-              setStagedDiscs([])
-              setSetTitle('')
-              setFolderName('')
-              setFolderNameTouched(false)
-              setSetStatus('idle')
-              setSetError(null)
-            }}
-          />
-          Multi-disc set
-        </label>
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-neutral-300">
-          <input
-            type="checkbox"
-            className="accent-[#ff8a5c]"
-            checked={folderMode}
-            disabled={busy}
-            onChange={(e) => {
-              setFolderMode(e.target.checked)
-              setFolderFiles([])
-              setFolderTitle('')
-              setFolderStatus('idle')
-              setFolderError(null)
-              setFolderResult(null)
-            }}
-          />
-          Folder upload
-        </label>
-      </div>
+      {(supportsMultiDisc || supportsFolderMode) && (
+        <div className="mb-3 flex flex-col gap-1.5">
+          {supportsMultiDisc && (
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-neutral-300">
+              <input
+                type="checkbox"
+                className="accent-[#ff8a5c]"
+                checked={multiDisc}
+                disabled={busy}
+                onChange={(e) => {
+                  setMultiDisc(e.target.checked)
+                  setStagedDiscs([])
+                  setSetTitle('')
+                  setFolderName('')
+                  setFolderNameTouched(false)
+                  setSetStatus('idle')
+                  setSetError(null)
+                }}
+              />
+              Multi-disc set
+            </label>
+          )}
+          {supportsFolderMode && (
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-neutral-300">
+              <input
+                type="checkbox"
+                className="accent-[#ff8a5c]"
+                checked={folderMode}
+                disabled={busy}
+                onChange={(e) => {
+                  setFolderMode(e.target.checked)
+                  setFolderFiles([])
+                  setFolderTitle('')
+                  setFolderStatus('idle')
+                  setFolderError(null)
+                  setFolderResult(null)
+                }}
+              />
+              Folder upload
+            </label>
+          )}
+        </div>
+      )}
 
       {/* When both are checked, "Folder upload" changes the input method for
           staging discs (pick per-disc folders instead of loose files) rather
@@ -543,7 +595,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       {multiDisc && (
         <input
           type="text"
-          placeholder="Set title (e.g. Final Fantasy VII)"
+          placeholder={`Set title (e.g. Final Fantasy VII)`}
           value={setTitle}
           onChange={(e) => setSetTitle(e.target.value)}
           disabled={busy}
@@ -551,7 +603,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
         />
       )}
 
-      {/* Folder name field (multi-disc mode only) — the shared destination
+      {/* Folder name field (multi-disc mode only), the shared destination
           folder all discs are copied into. Defaults from the first staged
           disc's filename or the set title above, editable independently. */}
       {multiDisc && (
@@ -583,7 +635,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
                 Select Disc Folder…
               </Button>
               <span className="text-xs text-neutral-400">
-                Click once per disc, in order — files inside are staged below.
+                Click once per disc, in order, files inside are staged below.
               </span>
               {/* @ts-expect-error webkitdirectory is not in React's InputHTMLAttributes */}
               <input
@@ -620,12 +672,13 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
                 Add disc files (one per disc, in order)
               </p>
               <p className="text-xs text-neutral-400 dark:text-neutral-500">
-                Files will appear below — drag to reorder before creating the set.
+                Files will appear below, drag to reorder before creating the set.
               </p>
               <input
                 ref={fileInputRef}
                 type="file"
                 multiple
+                accept={config.acceptFileTypes}
                 className="sr-only"
                 tabIndex={-1}
                 aria-hidden="true"
@@ -696,7 +749,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
           {setStatus === 'success' && (
             <p className="mt-3 text-sm text-emerald-400">
               {setBackground
-                ? 'Upload complete — the set is being finalized in the background. Track it in the Activity panel.'
+                ? 'Upload complete, the set is being finalized in the background. Track it in the Activity panel.'
                 : 'Set created successfully.'}
             </p>
           )}
@@ -708,7 +761,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
         <div className="space-y-3">
           <input
             type="text"
-            placeholder="Title (e.g. Sonic Adventure)"
+            placeholder={`Title (e.g. Sonic Adventure)`}
             value={folderTitle}
             onChange={(e) => setFolderTitle(e.target.value)}
             disabled={busy}
@@ -769,7 +822,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
           {folderStatus === 'success' && folderResult && (
             <p className="text-sm text-emerald-400">
               {folderBackground
-                ? `Upload complete — "${folderResult.title}" is being finalized in the background. Track it in the Activity panel.`
+                ? `Upload complete, "${folderResult.title}" is being finalized in the background. Track it in the Activity panel.`
                 : folderResult.type === 'set'
                 ? `Added "${folderResult.title}" as a ${folderResult.discCount}-disc set.`
                 : `Added "${folderResult.title}" as a library item.`}
@@ -801,12 +854,13 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
               Drag and drop files here, or click to browse
             </p>
             <p className="text-xs text-neutral-400 dark:text-neutral-500">
-              Multiple files are supported — each uploads and imports independently.
+              Multiple files are supported, each uploads and imports independently.
             </p>
             <input
               ref={fileInputRef}
               type="file"
               multiple
+              accept={config.acceptFileTypes}
               className="sr-only"
               tabIndex={-1}
               aria-hidden="true"
@@ -851,13 +905,15 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
         </>
       )}
 
-      {/* Server-side-path import — independent of the drag-and-drop/file-input
+      {/* Server-side-path import, independent of the drag-and-drop/file-input
           modes above, so it's shown alongside the default view only (not
           combined with multi-disc/folder-upload mode, which stage sources a
           different way). Unlike every method above, this one knows the
           source's real server path, so it alone can offer to delete the
-          original after a confirmed successful import. */}
-      {!multiDisc && !folderMode && (
+          original after a confirmed successful import. Only rendered when the
+          domain config supplies an importFromPathApiPath, Media/App have no
+          such route today. */}
+      {supportsBrowseImport && !multiDisc && !folderMode && (
         <div className="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-700">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
@@ -874,7 +930,7 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
             </Button>
           </div>
           <p className="mb-2 text-xs text-neutral-400 dark:text-neutral-500">
-            Pick a file or folder already on this server — no upload needed. Click again to add more.
+            Pick a file or folder already on this server, no upload needed. Click again to add more.
           </p>
 
           {browseImports.length > 0 && (
@@ -956,10 +1012,11 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
         {mediaPath
           ? `Tip: uploads are copied through the browser, which can be slow for very large files. For faster imports of large files, place them directly in ${mediaPath} and use Scan instead.`
-          : 'Tip: uploads are copied through the browser, which can be slow for very large files. Set a software library path in Settings to enable faster imports of large files via Scan.'}
-        {' '}Dragged/dropped or picked files can't offer to delete their source afterward — the
-        browser never exposes a real file path for that input method. Use "Import from a path on
-        this server" above if you want the option to delete the original after import.
+          : `Tip: uploads are copied through the browser, which can be slow for very large files. Set a library path in Settings to enable faster imports of large files.`}
+        {supportsBrowseImport &&
+          ` Dragged/dropped or picked files can't offer to delete their source afterward, the ` +
+          `browser never exposes a real file path for that input method. Use "Import from a path on ` +
+          `this server" above if you want the option to delete the original after import.`}
       </p>
 
       {!multiDisc && !folderMode && showSummary && (
@@ -970,13 +1027,15 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       )}
     </Modal>
 
-    <FileBrowser
-      open={browserOpen}
-      onClose={() => setBrowserOpen(false)}
-      onSelect={handleBrowseSelect}
-      mode="both"
-      title="Select File or Folder to Import"
-    />
+    {supportsBrowseImport && (
+      <FileBrowser
+        open={browserOpen}
+        onClose={() => setBrowserOpen(false)}
+        onSelect={handleBrowseSelect}
+        mode="both"
+        title="Select File or Folder to Import"
+      />
+    )}
 
     <ConfirmModal
       open={deleteConfirmOpen}
@@ -986,6 +1045,226 @@ export function AddMediaModal({ open, onClose, onAdded, mediaPath }: AddMediaMod
       onConfirm={handleDeleteConfirmed}
       onCancel={handleDeleteCancelled}
     />
+    </>
+  )
+}
+
+function ScanBody({ open, onClose, onComplete, mediaPath, config }: LibraryModalProps) {
+  const {
+    scanning, status, error, handleScan, handleCancelScan, cancelling,
+    importing, importResult, handleImport,
+  } = useLibraryScan({ open, onImported: onComplete })
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  const preview = status?.preview ?? []
+  const hasPreview = !status?.running && !importResult && preview.length > 0
+  const allSelected = preview.length > 0 && selected.size === preview.length
+
+  // Auto-select all items when the preview first loads
+  useEffect(() => {
+    if (status && !status.running && !importResult && status.preview.length > 0) {
+      setSelected(new Set(status.preview.map((p) => p.file_path)))
+    }
+  }, [status, importResult])
+
+  useEffect(() => {
+    if (!open) setSelected(new Set())
+  }, [open])
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(preview.map((p) => p.file_path)))
+  }
+
+  function toggleItem(path: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
+
+  const busy = scanning || importing
+
+  return (
+    <Modal
+      open={open}
+      title={config.modalTitle}
+      onClose={onClose}
+      busy={busy}
+      footer={
+        <>
+          {scanning && (
+            <Button variant="ghost" onClick={handleCancelScan} loading={cancelling} disabled={cancelling}>
+              {cancelling ? 'Cancelling…' : 'Cancel Scan'}
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onClose} disabled={importing}>
+            {importResult ? 'Close' : scanning ? 'Hide' : 'Cancel'}
+          </Button>
+          {!status && !scanning && (
+            <Button onClick={handleScan} loading={scanning} disabled={scanning}>
+              Scan
+            </Button>
+          )}
+          {hasPreview && (
+            <Button
+              onClick={() => handleImport(Array.from(selected))}
+              loading={importing}
+              disabled={importing || selected.size === 0}
+            >
+              Import{selected.size > 0 ? ` (${selected.size})` : ''}
+            </Button>
+          )}
+        </>
+      }
+    >
+      {!status && !scanning && (
+        <div className="space-y-2">
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">
+            {mediaPath
+              ? `Scan only looks for new files inside ${mediaPath}. Files outside this folder won't be found.`
+              : 'Scan only looks for new files inside your configured library path. Set one in Settings before scanning.'}
+          </p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">
+            Multi-disc {config.entityLabelPlural} should be added manually via the{' '}
+            <span className="font-medium text-neutral-500 dark:text-neutral-400">Add Media</span>{' '}
+            button's multi-file checkbox. Scanning a folder of individual disc files will import
+            each disc as a separate standalone item.
+          </p>
+        </div>
+      )}
+
+      {scanning && (
+        <div className="flex items-center gap-2 text-sm text-neutral-500">
+          <LoadingSpinner label="Scanning…" />
+          <span>Scanning…</span>
+        </div>
+      )}
+
+      {hasPreview && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-neutral-400 dark:text-neutral-500">
+              Found {preview.length} new item{preview.length !== 1 ? 's' : ''}
+            </p>
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="text-xs text-[#ff8a5c] hover:underline"
+            >
+              {allSelected ? 'Deselect All' : 'Select All'}
+            </button>
+          </div>
+          <ul className="max-h-64 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700">
+            {preview.map((item) => (
+              <li key={item.file_path} className="flex items-center gap-3 px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={selected.has(item.file_path)}
+                  onChange={() => toggleItem(item.file_path)}
+                  className="h-4 w-4 shrink-0 accent-[#ff8a5c]"
+                />
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                    {item.title}
+                  </span>
+                  <span className="block truncate text-xs text-neutral-400 dark:text-neutral-500">
+                    {item.detected_era ? item.detected_era.toUpperCase() : '?'}
+                    {item.is_loose && ' · loose'}
+                    {item.is_zip && ' · zip'}
+                    {' · '}
+                    {item.file_path}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {!scanning && status && preview.length === 0 && !importResult && (
+        <p className="text-sm text-neutral-500">
+          {status.cancelled
+            ? 'Scan cancelled.'
+            : status.error
+              ? `Scan error: ${status.error}`
+              : `No new items found in the ${config.entityLabelPlural} library.`}
+        </p>
+      )}
+
+      {importResult && (
+        <div className="space-y-1">
+          <p className="text-sm text-neutral-700 dark:text-neutral-300">
+            Imported {importResult.imported} item{importResult.imported !== 1 ? 's' : ''}
+            {importResult.skipped > 0 && `, skipped ${importResult.skipped} duplicate${importResult.skipped !== 1 ? 's' : ''}`}.
+          </p>
+          {importResult.errors.length > 0 && (
+            <div className="mt-2">
+              <p className="text-xs font-medium text-red-500">
+                {importResult.errors.length} error{importResult.errors.length !== 1 ? 's' : ''}:
+              </p>
+              <ul className="mt-1 max-h-32 overflow-y-auto space-y-1">
+                {importResult.errors.map((e, i) => (
+                  <li key={i} className="truncate text-xs text-red-400" title={e.reason}>
+                    {e.path.replace(/\\/g, '/').split('/').pop()}: {e.reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">❌ {error}</p>}
+    </Modal>
+  )
+}
+
+// Entry point. 'both' is a light tab switcher over the two bodies above, for
+// any future domain that wants one button/one modal for both flows, no
+// current domain uses it (Games keeps its existing two-button/two-modal
+// layout via two separate 'upload'/'scan' instances, Media/App are
+// 'upload'-only), but the config shape supports it so a domain can opt in
+// without another extraction.
+export function LibraryModal(props: LibraryModalProps) {
+  const { config, open, onClose } = props
+  const [tab, setTab] = useState<'upload' | 'scan'>(config.mode === 'scan' ? 'scan' : 'upload')
+
+  if (config.mode !== 'both') {
+    return config.mode === 'scan' ? <ScanBody {...props} /> : <UploadBody {...props} />
+  }
+
+  // 'both' renders a small segmented control above whichever body is active,
+  // sharing one open/close lifecycle. Note: each body tracks its own `busy`
+  // state locally and that state is not lifted up here, so switching tabs
+  // mid-upload or mid-scan is not currently guarded against. A domain that
+  // adopts 'both' should confirm this is acceptable, or lift `busy` up,
+  // before relying on it.
+  const tabButtonClass = (active: boolean) =>
+    `rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+      active
+        ? 'bg-[#ff8a5c] text-neutral-950'
+        : 'text-neutral-400 hover:text-neutral-200'
+    }`
+
+  return (
+    <>
+      {open && (
+        <div className="fixed inset-x-0 top-4 z-[60] mx-auto flex w-fit gap-1 rounded-lg border border-neutral-700 bg-neutral-900/95 p-1 shadow-lg">
+          <button type="button" className={tabButtonClass(tab === 'upload')} onClick={() => setTab('upload')}>
+            Upload
+          </button>
+          <button type="button" className={tabButtonClass(tab === 'scan')} onClick={() => setTab('scan')}>
+            Scan
+          </button>
+        </div>
+      )}
+      {tab === 'upload' ? (
+        <UploadBody {...props} onClose={onClose} config={{ ...config, modalTitle: `${config.modalTitle}, Upload` }} />
+      ) : (
+        <ScanBody {...props} onClose={onClose} config={{ ...config, modalTitle: `${config.modalTitle}, Scan` }} />
+      )}
     </>
   )
 }

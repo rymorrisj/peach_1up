@@ -91,8 +91,8 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
   // before writing state; if the value has moved on, that callback has been
   // superseded and becomes a no-op instead of clobbering newer state.
   //
-  // This matters because Library's index.tsx always keeps <ScanModal> mounted
-  // (only toggles `open`), so this hook instance — and any in-flight promise's
+  // This matters because Games.tsx always keeps <LibraryModal> (scan mode)
+  // mounted (only toggles `open`), so this hook instance — and any in-flight promise's
   // closures — stay alive across opens/closes. Modal.tsx blocks Escape while
   // busy, and the Cancel button is disabled during import, but scanning can
   // now be dismissed early (the scan continues as a tracked background job).

@@ -19,6 +19,7 @@ import type { GameItemBundleData } from '../components/CollectionCard'
 import { ERA_LABELS } from '@/generated/constants'
 import type { EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
 import { launchGateFromReason } from '../types'
+import type { LibraryModalConfig } from '../components/LibraryModal'
 import type { components } from '@shared/types'
 
 type LaunchHistory = components['schemas']['LaunchHistoryRead']
@@ -573,4 +574,30 @@ export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
   showDescriptionMeta: false,
   filterRestrictionUsers: (users) => users.filter((u) => !u.is_owner),
   renderExtras: useGameDetailExtras,
+}
+
+// Games.tsx keeps its existing two-button/two-modal layout (Add Media, Scan
+// Directory) unchanged, both now point at the shared LibraryModal instead of
+// the former games-only AddMediaModal/ScanModal, with every sub-feature
+// (multi-disc, folder upload, browse-server-path import) still enabled so
+// behavior is identical to before this extraction.
+export const gameUploadModalConfig: LibraryModalConfig = {
+  mode: 'upload',
+  // PROVISIONAL CONTRACT. See chunkedUpload.ts. This is the only target_type
+  // with a real, live backend endpoint today (/api/v1/game-items/uploads/*).
+  targetType: 'game_item_bundle',
+  modalTitle: 'Add Media',
+  entityLabel: 'game',
+  entityLabelPlural: 'games',
+  supportsMultiDisc: true,
+  supportsFolderMode: true,
+  importFromPathApiPath: '/api/v1/game-items/import-from-path',
+}
+
+export const gameScanModalConfig: LibraryModalConfig = {
+  mode: 'scan',
+  targetType: 'game_item_bundle',
+  modalTitle: 'Scan Library',
+  entityLabel: 'game',
+  entityLabelPlural: 'games',
 }

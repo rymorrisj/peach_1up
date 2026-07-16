@@ -3,6 +3,7 @@ import { apiFetch, ApiError } from '@/api/client'
 import { useEditForm } from '@/hooks/useEditForm'
 import { formFromCollection, type SoftwareAppForm } from '../types/appForm'
 import { AppEditForm } from '../components/AppEditForm'
+import type { LibraryModalConfig } from '../components/LibraryModal'
 import type { EntityBundleBase, EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
 import { resolveLeafCoverArt, launchGateFromReason } from '../types'
 import type { components } from '@shared/types'
@@ -133,6 +134,25 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
   }
 }
 
+// App had no creation UI at all before this. Mode is 'upload' only (no scan
+// support on the backend for this domain), and no multi-disc/folder/browse-
+// import sub-features: AppItem has no disc_number/multi-part concept the way
+// GameItem does, so a bundle is always a single uploaded item here.
+export const appUploadModalConfig: LibraryModalConfig = {
+  mode: 'upload',
+  // PROVISIONAL CONTRACT. See chunkedUpload.ts. No live backend endpoint
+  // exists for this target_type at all today: apps.py's only creation route
+  // (POST /api/v1/app-items) takes a pre-existing file_path and has zero
+  // upload/file-transport mechanism of its own. This is the most speculative,
+  // most load-bearing provisional-contract assumption in this refactor.
+  // App uploads cannot function until the backend actually implements a
+  // chunked (or any) upload path for "app_item".
+  targetType: 'app_item',
+  modalTitle: 'Add App',
+  entityLabel: 'app',
+  entityLabelPlural: 'apps',
+}
+
 // App's cover art lives on the leaf item (same indirection as Game — see
 // resolveLeafCoverArt). Launch is domain-enabled ('app' targetType) but
 // per-entity gated to PC apps only via isLaunchable (bundle.is_pc).
@@ -148,4 +168,5 @@ export const appDomainConfig: EntityDomainConfig<AppItemBundleData> = {
   launchTargetType: 'app',
   isLaunchable: (bundle) => bundle.is_pc,
   renderExtras: useAppDetailExtras,
+  uploadConfig: appUploadModalConfig,
 }

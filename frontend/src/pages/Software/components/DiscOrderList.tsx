@@ -14,7 +14,7 @@ interface DiscOrderListProps {
 // Reorderable disc list for the Library edit view. Reordering is local-only —
 // callers stage `order` and persist it on the page's own Save action; this
 // component never writes to the API itself. Native HTML5 drag-and-drop
-// (matches the drag-event pattern already used in AddMediaModal.tsx) plus
+// (matches the drag-event pattern already used in LibraryModal.tsx) plus
 // up/down buttons for keyboard/accessibility, mirroring the same affordance
 // already used for staging discs before upload.
 export function DiscOrderList({ discs, order, onReorder, disabled, renderActions }: DiscOrderListProps) {
