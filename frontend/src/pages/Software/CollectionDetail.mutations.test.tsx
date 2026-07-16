@@ -768,7 +768,7 @@ describe('CollectionDetail (mutation path)', () => {
       const enrichCalls = callsTo(calls, '/api/v1/game-items/enrich', 'POST')
       expect(enrichCalls.length).toBe(1)
       expect(enrichCalls[0].body).toMatchObject({
-        entity_type: 'software_collection',
+        entity_type: 'game_item_bundle',
         entity_id: 1,
         metadata_source: 'TheGamesDB',
         title: 'Doom (1993)',

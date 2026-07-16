@@ -250,7 +250,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
   // longer decides whether the button is enabled.
   const launchGate = launchGateFromReason(collection.launch_blocked_reason, isLaunching)
 
-  const storageKey = `fetch_metadata_${window.location.pathname}`
+  const storageKey = `fetch_metadata_${window.location.pathname}_${activeProvider}`
   const activeDisc = fetchDiscId != null ? sortedItems.find((d) => d.id === fetchDiscId) : undefined
 
   return {
@@ -489,7 +489,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
         <FetchMetadataModal
           open={fetchMetadataOpen}
           onClose={() => setFetchMetadataOpen(false)}
-          entityType="software_collection"
+          entityType="game_item_bundle"
           entityId={collection.id}
           entityTitle={collection.title}
           currentContentRating={collection.content_rating}
@@ -513,7 +513,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
           <FetchMetadataModal
             open={fetchDiscId != null}
             onClose={() => setFetchDiscId(null)}
-            entityType="software_item"
+            entityType="game_item"
             entityId={fetchDiscId}
             entityTitle={activeDisc.file_path.split(/[\\/]/).pop() ?? collection.title}
             storageKey={`${storageKey}#disc-${fetchDiscId}`}
