@@ -23,19 +23,27 @@ router = APIRouter(prefix="/api/v1", tags=["apps"])
 
 @router.get("/app-items", response_model=Page[AppItemBundleRead])
 def list_apps(
+    era: str | None = None,
     environment_item_id: int | None = None,
     category: str | None = None,
     tag: str | None = None,
+    profile_assigned: bool | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     active_user: UserItem = Depends(get_active_user),
 ):
     q = get_filtered_app_items(active_user, db)
+    if era:
+        q = q.filter(AppItemBundle.era == era)
     if environment_item_id is not None:
         q = q.filter(AppItemBundle.environment_item_id == environment_item_id)
     if category:
         q = q.filter(AppItemBundle.category == category)
+    if profile_assigned is True:
+        q = q.filter(AppItemBundle.profile_item_id.isnot(None))
+    elif profile_assigned is False:
+        q = q.filter(AppItemBundle.profile_item_id.is_(None))
     if tag:
         from backend.models.tag import EntityTag, Tag
         subq = (

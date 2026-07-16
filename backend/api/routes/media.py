@@ -132,12 +132,23 @@ def create_media_item_bundle(
 
 @router.get("/media-item-bundles", response_model=Page[MediaItemBundleRead])
 def list_media_item_bundles(
+    tag: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     active_user: UserItem = Depends(get_active_user),
 ):
-    q = get_filtered_media_item_bundles(active_user, db).order_by(MediaItemBundle.id)
+    q = get_filtered_media_item_bundles(active_user, db)
+    if tag:
+        from backend.models.tag import EntityTag, Tag
+        subq = (
+            db.query(EntityTag.entity_id)
+            .join(Tag, EntityTag.tag_id == Tag.id)
+            .filter(EntityTag.entity_type == "media_item_bundle", Tag.name == tag)
+            .subquery()
+        )
+        q = q.filter(MediaItemBundle.id.in_(subq))
+    q = q.order_by(MediaItemBundle.id)
     total = q.count()
     rows = q.offset(offset).limit(limit).all()
     return Page(items=media_item_bundle_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)

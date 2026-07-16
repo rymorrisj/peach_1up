@@ -90,10 +90,10 @@ export function launchGateFromReason(
 // Filter bar support for EntityListPage, presence-gated the same pattern as
 // uploadConfig: a domain that omits `filters` entirely gets no filter bar and
 // no change to its list query params. Modeled on Games.tsx's Filters state
-// (era + profileFilter), the only domain with backend support for either
-// param today (GET /api/v1/game-items, see game_item_bundles.py:list_game_items).
-// Apps' list endpoint (GET /api/v1/app-items) has neither param, and Media has
-// no era/profile concept at all, so both leave this unset.
+// (era + profileFilter). Game (GET /api/v1/game-items, game_item_bundles.py:
+// list_game_items) and App (GET /api/v1/app-items, apps.py:list_apps) both
+// have backend support for era and profile_assigned. Media has no era/profile
+// concept at all, so it leaves this unset.
 export interface EntityFilterConfig {
   // Renders an "All eras" + ERA_LABELS select, synced to the `?era=` URL
   // search param (survives navigation/back-button, mirrors Games.tsx) and
@@ -216,7 +216,7 @@ export interface EntityDomainConfig<TBundle extends EntityBundleBase> {
   // only domain with a working Scan today) stays on its own bespoke
   // two-button/two-modal layout, untouched.
   scanConfig?: LibraryModalConfig
-  // Era/profile filter bar, see EntityFilterConfig. Omitted for Media/App.
+  // Era/profile filter bar, see EntityFilterConfig. Omitted for Media.
   filters?: EntityFilterConfig
   // Multi-disc display-disk selector, see EntityMultiDiscConfig. Omitted for
   // every domain today (slot-readiness only).
