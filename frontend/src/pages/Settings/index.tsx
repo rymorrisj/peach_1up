@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import * as Tabs from '@radix-ui/react-tabs'
 import TopBar from '@/components/layout/TopBar'
 import TabBar from '@/components/common/TabBar'
 import AttributionTab from '@/pages/Settings/AttributionTab'
@@ -12,15 +12,19 @@ const TABS: { id: Tab; label: string }[] = [
 ]
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<Tab>('attribution')
-
   return (
     <div className="flex flex-col min-h-full">
       <TopBar title="Settings" />
       <div className="p-6">
-        <TabBar tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
-        {activeTab === 'attribution' && <AttributionTab />}
-        {activeTab === 'advanced' && <AdvancedTab />}
+        <Tabs.Root defaultValue="attribution">
+          <TabBar tabs={TABS} />
+          <Tabs.Content value="attribution">
+            <AttributionTab />
+          </Tabs.Content>
+          <Tabs.Content value="advanced">
+            <AdvancedTab />
+          </Tabs.Content>
+        </Tabs.Root>
       </div>
     </div>
   )

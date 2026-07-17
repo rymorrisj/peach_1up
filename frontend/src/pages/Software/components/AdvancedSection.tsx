@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import * as Collapsible from '@radix-ui/react-collapsible'
 import { Button } from '@/ui'
 import LaunchCommandList from '@/components/LaunchCommandList'
 interface AdvancedSectionProps {
@@ -18,20 +18,15 @@ export function AdvancedSection({
   launchCommands,
   setLaunchCommands,
 }: AdvancedSectionProps) {
-  const [advancedOpen, setAdvancedOpen] = useState(false)
-
   return (
-    <section className="space-y-4">
-      <button
-        type="button"
-        onClick={() => setAdvancedOpen((v) => !v)}
-        className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300"
-      >
+    <Collapsible.Root className="space-y-4">
+      <Collapsible.Trigger className="group flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300">
         <span>Advanced</span>
-        <span aria-hidden="true">{advancedOpen ? '▲' : '▼'}</span>
-      </button>
+        <span aria-hidden="true" className="hidden group-data-[state=open]:inline">▲</span>
+        <span aria-hidden="true" className="group-data-[state=open]:hidden">▼</span>
+      </Collapsible.Trigger>
 
-      {advancedOpen && (
+      <Collapsible.Content>
         <div className="space-y-5">
           {item.launch_review_flagged && (
             <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
@@ -85,7 +80,7 @@ export function AdvancedSection({
             </p>
           )}
         </div>
-      )}
-    </section>
+      </Collapsible.Content>
+    </Collapsible.Root>
   )
 }

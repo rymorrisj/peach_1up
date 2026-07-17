@@ -16,10 +16,10 @@ export function Tooltip({ content, children, side = 'top' }: TooltipProps) {
           <RadixTooltip.Content
             side={side}
             sideOffset={6}
-            className="z-50 rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-900 shadow-md dark:border-surface-400 dark:bg-surface-900 dark:text-neutral-100"
+            className="z-50 rounded-md border border-border-strong bg-surface-1 px-2.5 py-1.5 text-xs font-medium text-fg-1 shadow-md"
           >
             {content}
-            <RadixTooltip.Arrow className="fill-white dark:fill-surface-900" />
+            <RadixTooltip.Arrow className="fill-surface-1" />
           </RadixTooltip.Content>
         </RadixTooltip.Portal>
       </RadixTooltip.Root>

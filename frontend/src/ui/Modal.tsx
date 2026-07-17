@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
 import type { ReactNode } from 'react'
 
 interface ModalProps {
@@ -11,48 +11,30 @@ interface ModalProps {
 }
 
 export function Modal({ open, title, onClose, children, footer, busy = false }: ModalProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
-
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-    if (open && !dialog.open) {
-      dialog.showModal()
-    } else if (!open && dialog.open) {
-      dialog.close()
-    }
-  }, [open])
-
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-    const handleClose = () => onClose()
-    dialog.addEventListener('close', handleClose)
-    return () => dialog.removeEventListener('close', handleClose)
-  }, [onClose])
-
-  // The native 'cancel' event fires on Escape before 'close'. Without this,
-  // Escape closes the dialog unconditionally, bypassing any Cancel button's
-  // disabled={busy} guard elsewhere in the tree. Blocking it here at the
-  // source covers every caller, not just the ones that remember to check.
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-    const handleCancel = (e: Event) => {
-      if (busy) e.preventDefault()
-    }
-    dialog.addEventListener('cancel', handleCancel)
-    return () => dialog.removeEventListener('cancel', handleCancel)
-  }, [busy])
-
   return (
-    <dialog
-      ref={dialogRef}
-      className="w-full max-w-[32rem] rounded-lg border border-neutral-200 bg-white p-6 shadow-xl backdrop:bg-black/50 dark:border-surface-400 dark:bg-surface-900"
+    <Dialog.Root
+      open={open}
+      onOpenChange={(next) => {
+        // Radix fires this for every built in dismiss path, Escape, overlay
+        // click, or an embedded Dialog.Close. Gating it here on busy is the
+        // single replacement for the old cancel-event preventDefault, it
+        // covers every dismiss path at the source the same way, callers that
+        // also want their own footer buttons disabled while busy still do
+        // that themselves, unchanged.
+        if (!next && !busy) onClose()
+      }}
     >
-      <h2 className="mb-5 text-lg font-semibold text-neutral-900 dark:text-neutral-100">{title}</h2>
-      <div className="space-y-4">{children}</div>
-      {footer && <div className="mt-6 flex justify-end gap-3">{footer}</div>}
-    </dialog>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
+        <Dialog.Content
+          aria-describedby={undefined}
+          className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-[32rem] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-border-strong bg-surface-1 p-6 shadow-xl"
+        >
+          <Dialog.Title className="mb-5 text-lg font-semibold text-fg-1">{title}</Dialog.Title>
+          <div className="space-y-4">{children}</div>
+          {footer && <div className="mt-6 flex justify-end gap-3">{footer}</div>}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   )
 }

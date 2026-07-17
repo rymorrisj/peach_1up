@@ -13,10 +13,14 @@ describe('Modal', () => {
     expect(screen.getByText('Modal body content')).toBeInTheDocument()
   })
 
-  it('calls showModal and the dialog gets the open attribute', () => {
+  it('renders the dialog when open is true', () => {
     render(<Modal open title="Test" onClose={vi.fn()}>Content</Modal>)
-    // showModal is mocked in src/test/setup.ts to add the open attribute
-    expect(screen.getByRole('dialog')).toHaveAttribute('open')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('renders nothing when open is false', () => {
+    render(<Modal open={false} title="Test" onClose={vi.fn()}>Content</Modal>)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('renders footer content when the footer prop is provided', () => {

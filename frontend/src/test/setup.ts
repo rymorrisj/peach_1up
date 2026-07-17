@@ -11,6 +11,26 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
 }
 
+// jsdom implements neither the pointer capture methods nor scrollIntoView.
+// Radix's Select (and other Radix components using its internal pointer
+// interaction layer) call hasPointerCapture/setPointerCapture/
+// releasePointerCapture and scrollIntoView when a trigger is clicked or a
+// listbox item is highlighted, throwing "not a function" in jsdom without
+// these. Harmless no-ops, only their presence matters here, not their
+// behavior, real pointer capture has no jsdom-observable effect anyway.
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false
+}
+if (!Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = () => {}
+}
+if (!Element.prototype.releasePointerCapture) {
+  Element.prototype.releasePointerCapture = () => {}
+}
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {}
+}
+
 // jsdom does not implement HTMLDialogElement.showModal() / close(). Re-applied
 // in beforeEach (not just assigned once at module load) because these are
 // vi.fn() mocks: any test file that calls vi.resetAllMocks()/vi.clearAllMocks()
