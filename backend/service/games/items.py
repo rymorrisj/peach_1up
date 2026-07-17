@@ -30,7 +30,7 @@ _COLLECTION_COLUMNS = {
 _LEAF_COLUMNS = {
     "file_path", "executable_path", "cover_art_path", "file_type",
     "folder_path", "detection_reason", "file_size_bytes", "original_name",
-    "folder_owned",
+    "folder_owned", "verification_status", "sha1",
 }
 
 
@@ -223,6 +223,7 @@ def _prepare_item(
     from backend.models.environment import EnvironmentItem
     from backend.service.utils.era_defaults import defaults_for_era, lookup_environment_and_profile
     from backend.service.utils.profile_builder import _EXECUTABLE_PRIORITY, _find_cover
+    from backend.service.utils.smart_media_detector import classify as _classify
     from backend.service.utils.smart_media_detector import detect as _smart_detect
     from backend.service.utils.rating_detect import detect_rating
 
@@ -280,6 +281,8 @@ def _prepare_item(
         "last_launched_at": None,
         "launch_count": 0,
         "file_size_bytes": None,
+        "verification_status": "unchecked",
+        "sha1": None,
     }
 
     # The directory this ingest owns and created/renamed exclusively for this
@@ -563,6 +566,18 @@ def _prepare_item(
         row["detection_reason"] = _det_reason
     # else: era stays the initial "unknown" and detection_reason stays None.
 
+    # classify() runs after era resolution above, not alongside the file_type/
+    # requires_install write above, since the fuzzy title match tier needs the
+    # final resolved era to scope its search. "unknown" is passed through as
+    # None, era is required for classify() to ever reach "suspect", an
+    # unscoped title search across every platform would make an accidental
+    # false-positive match more likely, not less.
+    _classify_result = _classify(
+        Path(row["file_path"]), title, row["era"] if row["era"] != "unknown" else None,
+    )
+    row["verification_status"] = _classify_result.status
+    row["sha1"] = _classify_result.computed_sha1
+
     if row["era"] and row["era"] != "unknown":
         _emulator_slug, _profile_era = defaults_for_era(row["era"])
         if _emulator_slug and _profile_era:
@@ -755,6 +770,7 @@ def _create_multi_disc_collection(
     skipped entirely in that case, not guessed at.
     """
     from backend.core.logger import get_logger
+    from backend.service.utils.smart_media_detector import classify as _classify
     from backend.service.utils.smart_media_detector import detect as _smart_detect
     from backend.service.utils.era_defaults import defaults_for_era, lookup_environment_and_profile
     from backend.service.utils.profile_builder import _find_cover
@@ -814,8 +830,17 @@ def _create_multi_disc_collection(
 
         cover = _find_cover(staged_dir if staged_dir is not None else disc_files[0].parent)
 
+        # Redump provides a distinct sha1 per disc of a multi-disc set (each
+        # disc is its own dat entry), so every disc gets its own classify()
+        # call and its own persisted sha1/verification_status here, not just
+        # disc 1. era comes from the single detect() call above (disc 1 only,
+        # unchanged), the whole set shares one era, only the hash/title check
+        # is genuinely per-disc.
+        _classify_era = detected_era if detected_era != "unknown" else None
+
         leaves: list[GameItem] = []
         for disc_number, disc_file in enumerate(disc_files, start=1):
+            _classify_result = _classify(disc_file, title, _classify_era)
             leaf = GameItem(
                 game_item_bundle_id=collection.id,
                 disc_number=disc_number,
@@ -826,6 +851,8 @@ def _create_multi_disc_collection(
                 cover_art_path=str(cover) if disc_number == 1 and cover else None,
                 original_name=disc_file.name,
                 folder_path=str(disc_file.parent),
+                verification_status=_classify_result.status,
+                sha1=_classify_result.computed_sha1,
                 # All disc files of a "set" upload are written together into one
                 # unique-slugged staging directory dedicated to this collection
                 # (see service.uploads.software_games.finalize_reassembled), safe to rmtree.
@@ -1054,6 +1081,91 @@ def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, 
     db.commit()
     db.refresh(leaf)
     return leaf
+
+
+def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
+    """Shared re-verify body, mutates *leaf* in place, caller commits.
+
+    Split out of reverify_library_leaf so reverify_library_collection (the
+    Part D "re-check all discs" bundle endpoint) can re-verify every leaf in
+    one transaction instead of one commit per disc.
+
+    Never reads detection_reason and never fabricates a comparison value,
+    that was the old implementation's bug: parsing a hash out of
+    detection_reason and, on failure to parse, silently comparing a freshly
+    computed hash against itself, which always "matched" whether the file was
+    actually good or not. Reads leaf.sha1 (persisted at ingest by
+    _prepare_item / _create_multi_disc_collection) directly instead:
+
+    - leaf.sha1 present: run classify() fresh against the current file. This
+      naturally re-derives "verified" if nothing changed, "caution" or
+      "suspect" if the file drifted into a different but still
+      index-recognizable state, or "not_in_index" if it drifted into
+      nothing recognizable at all.
+    - leaf.sha1 absent (a legacy row from before this field existed, or
+      hash_file() failed at ingest): there is no baseline to anchor a real
+      classification to. Only hash the file now and resolve to "not_in_index"
+      (hashing succeeded) or "unchecked" (it still can't be hashed), never
+      jump straight to verified/caution/suspect on a leaf that was never
+      classified at ingest.
+    """
+    path = normalise_path(leaf.file_path)
+    if not path.is_file():
+        raise HTTPException(status_code=400, detail=f"Media file not found on disk: {leaf.file_path}")
+
+    if leaf.sha1 is not None:
+        from backend.service.utils.smart_media_detector import classify as _classify
+
+        era = bundle.era if bundle.era != "unknown" else None
+        result = _classify(path, bundle.title, era)
+        leaf.verification_status = result.status
+        leaf.sha1 = result.computed_sha1
+    else:
+        from backend.service.utils.smart_media_detector.hashing.hash_lookup import hash_file
+
+        try:
+            leaf.sha1 = hash_file(path)["sha1"]
+            leaf.verification_status = "not_in_index"
+        except OSError:
+            leaf.sha1 = None
+            leaf.verification_status = "unchecked"
+
+
+def reverify_library_leaf(leaf_id: int, db: Session) -> GameItem:
+    """On-demand re-check of one leaf, the manual counterpart to ingest-time
+    classify() above. Catches post-ingest corruption or a swapped file, which
+    ingest-time detection can never see. See _reverify_leaf_in_session for
+    the actual logic.
+    """
+    leaf = db.get(GameItem, leaf_id)
+    if leaf is None:
+        raise HTTPException(status_code=404, detail="Software item not found.")
+    bundle = db.get(GameItemBundle, leaf.game_item_bundle_id)
+    if bundle is None:
+        raise HTTPException(status_code=404, detail="Parent collection not found.")
+
+    _reverify_leaf_in_session(leaf, bundle)
+    db.commit()
+    db.refresh(leaf)
+    return leaf
+
+
+def reverify_library_collection(collection_id: int, db: Session) -> GameItemBundle:
+    """Re-check every disc in a collection in one transaction, the bundle-
+    level "re-verify all discs" action (Part D). Per-disc verification means
+    a single-leaf re-verify can no longer stand in for "verify the whole
+    game" once a bundle has more than one disc.
+    """
+    collection = db.get(GameItemBundle, collection_id)
+    if collection is None:
+        raise HTTPException(status_code=404, detail="Software collection not found.")
+
+    for leaf in collection.items:
+        _reverify_leaf_in_session(leaf, collection)
+
+    db.commit()
+    db.refresh(collection)
+    return collection
 
 
 def reorder_library_items(

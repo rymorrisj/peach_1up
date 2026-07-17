@@ -42,3 +42,15 @@ def update_game_item(
     return GameItemRead.model_validate(
         lib_svc.update_library_leaf(leaf.game_item_bundle_id, leaf_id, body, db)
     )
+
+
+@router.post("/game-item/{leaf_id}/verify", response_model=GameItemRead)
+def verify_game_item(
+    leaf_id: int,
+    db: Session = Depends(get_db),
+    _: UserItem = require_permission("can_manage_game"),
+):
+    """On-demand re-check, distinct from the automatic ingest-time write in
+    _prepare_item (backend/service/games/items.py). Catches post-ingest
+    file corruption."""
+    return GameItemRead.model_validate(lib_svc.reverify_library_leaf(leaf_id, db))

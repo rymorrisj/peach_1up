@@ -551,6 +551,19 @@ def update_game_item_bundle(
     return game_item_bundle_to_read(lib_svc.update_library_collection(collection_id, body, db), db)
 
 
+@router.post("/game-item-bundle/{collection_id}/verify", response_model=GameItemBundleRead)
+def verify_game_item_bundle(
+    collection_id: int,
+    db: Session = Depends(get_db),
+    _: UserItem = require_permission("can_manage_game"),
+):
+    """Re-verify every disc in this collection, distinct from
+    POST /api/v1/game-item/{leaf_id}/verify (single disc only). Per-disc
+    verification means only this endpoint reflects the whole game's true
+    state for a multi-disc collection."""
+    return game_item_bundle_to_read(lib_svc.reverify_library_collection(collection_id, db), db)
+
+
 @router.post("/game-item-bundle/{collection_id}/flag-launch", response_model=GameItemBundleRead)
 def flag_launch(
     collection_id: int,

@@ -117,6 +117,41 @@ still not be rejected by the DB (see §6).
   never at emit time. This is intentional decoupling, but it means a
   detector-side era rename would not fail loudly against `constants.yaml`.
 
+### 4a. verify() / classify(), the verification surface (current, added after 4 above)
+
+`detect()`'s call sites listed above predate this subsection and have not
+been re-audited here, treat that list as stale. This subsection covers only
+the newer verification-specific entry points, confirmed accurate as of this
+writing.
+
+- **`verify(path, expected_sha1) -> VerifyResult`** (`verify.py`), hash-only,
+  three-state (`matched` / `mismatched` / `not_in_index`). Needs a prior
+  known hash to compare against, used internally by `classify()`'s
+  `"verified"` tier only, not called directly by any backend code today.
+- **`classify(path, title, era, threshold=0.90) -> ClassifyResult`**
+  (`classify.py`), five-state (`verified` / `caution` / `suspect` /
+  `not_in_index` / `unchecked`), no prior expected hash needed. This is the
+  function `backend/service/games/items.py` actually calls, once per disc,
+  both at ingest (`_prepare_item`, `_create_multi_disc_collection`) and on a
+  manual re-check (`_reverify_leaf_in_session`).
+- **`GameItem.verification_status`** (`backend/models/game.py`) persists
+  `ClassifyResult.status` verbatim, same five string values. `GameItem.sha1`
+  persists `ClassifyResult.computed_sha1`.
+- **`GameItemBundleRead.verification_status`** is a read-time rollup (not
+  stored) across a bundle's items, worst-severity-wins, see
+  `_rollup_verification_status` / `_VERIFICATION_SEVERITY` in
+  `backend/models/game.py`. Per-disc verification means this rollup, not any
+  single disc's own status, is a multi-disc bundle's true state.
+- **Raw hash never returned via the API.** `GameItem.sha1` has no field on
+  `GameItemRead`, confirmed by reading `GameItemRead`'s field list directly
+  (`backend/models/game.py`), not inferred. A caller needing the raw hash
+  uses the `smart_media_detector` package directly, `ClassifyResult` and
+  `VerifyResult` both carry it.
+- **Fuzzy title matching** (`hashing/title_match.py`) is stdlib-only
+  (`difflib.SequenceMatcher`), no new dependency, scoped to `era`
+  (skipped entirely when `era` is `None`/`"unknown"`, fails closed to
+  `not_in_index` rather than searching every platform's titles).
+
 ---
 
 ## 5. app_settings key inventory + call sites

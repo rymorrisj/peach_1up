@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import model_validator
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
@@ -25,6 +25,23 @@ if TYPE_CHECKING:
 # Leaf entity: GameItem (one disc / media record within a bundle).
 # Single-disc games are bundles-of-one.
 # ---------------------------------------------------------------------------
+
+# Five-state hash verification status for a single leaf, set from
+# smart_media_detector.classify()'s ClassifyResult.status (same five string
+# values, see classify.py / result.py for the full definitions):
+#   "verified"     sha1 exactly matches a hash_index.json entry. The only
+#                  state that reads as a positive confirmation.
+#   "caution"      md5 or crc32 exactly matches an entry, no sha1 match.
+#                  Real index coverage, weaker confidence than "verified".
+#   "suspect"      no hash matched, but the title approximately matches an
+#                  indexed title. The only "possible bad file" warning
+#                  state, deliberately conservative, see classify.py.
+#   "not_in_index" no hash matched and no confident title match either.
+#                  Neutral "we have no data", not a warning.
+#   "unchecked"    default. Never verified at all, e.g. a row created before
+#                  this field existed, or the file could not be hashed.
+VerificationStatus = Literal["verified", "caution", "not_in_index", "suspect", "unchecked"]
+
 
 class GameItem(SQLModel, table=True):
     __tablename__ = "game_items"
@@ -65,6 +82,22 @@ class GameItem(SQLModel, table=True):
     # applies, but it is a real, currently-supported fetch path, so it gets
     # its own tracking column rather than being folded into the bundle's.
     metadata_fetched_at: Optional[datetime] = None
+    # Set automatically at ingest time from smart_media_detector.classify()
+    # (see _prepare_item / _create_multi_disc_collection in
+    # backend/service/games/items.py, one classify() call per disc), and
+    # refreshed on demand by the /api/v1/game-item/{leaf_id}/verify and
+    # /api/v1/game-item-bundle/{collection_id}/verify endpoints.
+    verification_status: VerificationStatus = Field(
+        default="unchecked", sa_column=Column(String, nullable=False)
+    )
+    # This leaf's own computed sha1 (hash_file()'s result), persisted
+    # whenever classify() successfully hashes the file, regardless of
+    # verification_status. Used as classify()'s own re-check baseline and to
+    # avoid ever needing to parse a hash back out of detection_reason. Never
+    # returned by the API, GameItemRead deliberately omits it. A caller
+    # needing the raw hash should use the smart_media_detector package
+    # directly rather than reading it off a GameItem.
+    sha1: Optional[str] = Field(default=None, sa_column=Column(String))
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=False),
@@ -91,6 +124,10 @@ class GameItemRead(SQLModel):
     detection_reason: Optional[str] = None
     file_size_bytes: Optional[int] = None
     metadata_fetched_at: Optional[datetime] = None
+    # sha1 is deliberately not exposed here, or anywhere else in the API. The
+    # raw hash is not needed by any caller, and a caller that does need it
+    # should use the smart_media_detector package directly.
+    verification_status: VerificationStatus = "unchecked"
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -327,6 +364,41 @@ class GameItemBundleRead(SQLModel):
     # when a resolved, era-matched Environment has not had its OS installed yet;
     # None when the item clears every gate.
     launch_blocked_reason: Optional[str] = None
+    # Computed at read time (not stored) by _rollup_verification_status below,
+    # the worst-severity status among this bundle's items. "verified" only
+    # when every disc is "verified"; any disc in a weaker state pulls the
+    # whole bundle down to that state (see _VERIFICATION_SEVERITY).
+    verification_status: VerificationStatus = "unchecked"
+
+
+# Worst-wins severity order for the bundle-level rollup, highest number is
+# most severe and wins. suspect > caution is explicit in the source spec.
+# not_in_index vs. unchecked is not: both are lumped together there as one
+# non-problem tier below caution. Ranking unchecked one step above
+# not_in_index is a judgment call, not a spec requirement, an unchecked disc
+# is more actionable ("go verify it") than a disc that was already checked
+# and genuinely has no index data, so it is surfaced first when a bundle has
+# a mix of the two and nothing worse.
+_VERIFICATION_SEVERITY: dict[VerificationStatus, int] = {
+    "verified": 0,
+    "not_in_index": 1,
+    "unchecked": 2,
+    "caution": 3,
+    "suspect": 4,
+}
+
+
+def _rollup_verification_status(items: list[GameItemRead]) -> VerificationStatus:
+    """Worst-status-wins rollup across a bundle's leaves, see
+    _VERIFICATION_SEVERITY for the ordering and its one judgment call.
+    Empty *items* is defensive only, a bundle always has at least one leaf.
+    """
+    if not items:
+        return "unchecked"
+    return max(
+        (item.verification_status for item in items),
+        key=lambda status: _VERIFICATION_SEVERITY[status],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -454,6 +526,7 @@ def game_item_bundle_to_read(c: "GameItemBundle", db: "Session") -> GameItemBund
         if c.item_type == "pc" else None
     )
     read.launch_blocked_reason = _launch_blocked_reason(c, environment)
+    read.verification_status = _rollup_verification_status(read.items)
     return read
 
 
@@ -502,5 +575,6 @@ def game_item_bundles_to_read_bulk(
         read.genres = genre_map.get(c.id, [])
         read.linked_items = linked_map.get(c.id, [])
         read.launch_blocked_reason = _launch_blocked_reason(c, environment_by_bundle_id.get(c.id))
+        read.verification_status = _rollup_verification_status(read.items)
         reads.append(read)
     return reads

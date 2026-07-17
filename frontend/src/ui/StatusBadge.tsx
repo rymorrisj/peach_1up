@@ -1,6 +1,8 @@
 import { cn } from '@/lib/utils'
 
-type Status = 'ok' | 'missing' | 'error' | 'unknown' | 'healthy' | 'degraded' | 'unconfigured'
+type Status =
+  | 'ok' | 'missing' | 'error' | 'unknown' | 'healthy' | 'degraded' | 'unconfigured'
+  | 'verified' | 'caution' | 'not_in_index' | 'suspect' | 'unchecked'
 
 interface StatusBadgeProps {
   status: string
@@ -35,6 +37,30 @@ const CONFIG: Record<Status, { classes: string; defaultLabel: string }> = {
   unconfigured: {
     classes: 'bg-info/15 text-info',
     defaultLabel: 'Unconfigured',
+  },
+  // Five-state hash verification model (backend: VerificationStatus in
+  // backend/models/game.py). Placeholder treatment, exact icon/color choices
+  // are not final, functional distinctness (5 visually different states) is
+  // what matters right now.
+  verified: {
+    classes: 'bg-success/15 text-success',
+    defaultLabel: '✓ Verified',
+  },
+  caution: {
+    classes: 'bg-warning/15 text-warning',
+    defaultLabel: '⚠ Caution',
+  },
+  not_in_index: {
+    classes: 'bg-info/15 text-info',
+    defaultLabel: 'Not in Index',
+  },
+  suspect: {
+    classes: 'bg-error/15 text-error',
+    defaultLabel: '⚠ Suspect',
+  },
+  unchecked: {
+    classes: 'bg-neutral-500/15 text-neutral-500',
+    defaultLabel: 'Unchecked',
   },
 }
 

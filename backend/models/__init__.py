@@ -33,6 +33,7 @@ from backend.models.media_restriction import MediaRestriction
 from backend.models.tag import EntityTag, Tag, TagCreate, TagRead, get_tags_for_entity
 from backend.models.emulator_install import EmulatorInstall
 from backend.models.rom_pack import RomPackItem, RomPackItemRead
+from backend.models.hash_index import HashIndexEntry
 from backend.models.controller_mapping import (
     ControllerMappingItem, ControllerMappingItemBase, ControllerMappingItemCreate,
     ControllerMappingItemRead, ControllerMappingItemUpdate, mapping_to_read as controller_mapping_to_read,

@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
-import { Button } from '@/ui'
+import { Button, StatusBadge } from '@/ui'
 import ConfirmModal from '@/components/common/ConfirmModal'
 import { useXisoConvert } from '@/hooks/useXisoConvert'
 import { useDiscOrder } from '@/hooks/useDiscOrder'
 import { useInstalledToggle } from '@/hooks/useInstalledToggle'
 import { useFlagLaunch } from '@/hooks/useFlagLaunch'
+import { useVerifyGameCollection } from '@/hooks/useVerifyGameCollection'
 import { useDeleteCollection } from '@/hooks/useDeleteCollection'
 import { useEditForm } from '@/hooks/useEditForm'
 import { formFromCollection, type SoftwareGameForm as EditFormFields } from '../types/gameForm'
@@ -137,6 +138,14 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
     handleCancel: handleInstalledCancel,
   } = useInstalledToggle({ collectionId, detailQueryKey })
 
+  // Bundle-scoped, re-verifies every disc in one call (see Part B, every
+  // disc gets its own persisted sha1/verification_status now, so a
+  // single-leaf re-check would miss a bad disc 2 in a multi-disc set).
+  const { verifying, verifyError, lastResultStatus, handleVerify } = useVerifyGameCollection({
+    collectionId,
+    detailQueryKey,
+  })
+
   const { form, setFormField, resyncFromCollection } = useEditForm({ collection, formFromCollection })
 
   useEffect(() => {
@@ -245,6 +254,12 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
   const sortedItems = collection.items.slice().sort((a, b) => a.disc_number - b.disc_number)
   // Single-disc games are collections-of-one — suppress the disc list entirely.
   const isMultiDisc = sortedItems.length > 1
+  // lastResultStatus (set the instant a verify POST resolves) takes priority
+  // over the collection's own data so the badge updates immediately, without
+  // waiting on detailQueryKey's background refetch to land. Bundle-level
+  // rollup, not any single disc's status, see _rollup_verification_status
+  // in backend/models/game.py for the worst-status-wins ordering.
+  const displayedVerificationStatus = lastResultStatus ?? collection.verification_status ?? 'unchecked'
   // At a Glance "media size" stat: no bundle-level total exists in the API,
   // so this sums each disc's real file_size_bytes client-side. Null items
   // (size not yet known) contribute 0 rather than breaking the sum — the
@@ -340,6 +355,27 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
             <span className="font-medium">Metadata fetched:</span>{' '}
             {new Date(collection.metadata_fetched_at).toLocaleDateString()}
           </div>
+        )}
+        <div className="flex items-center gap-2">
+          <span className="font-medium shrink-0">Hash verification:</span>
+          <StatusBadge status={displayedVerificationStatus} />
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleVerify}
+            loading={verifying}
+          >
+            {isMultiDisc ? 'Verify All Discs' : 'Verify'}
+          </Button>
+        </div>
+        {displayedVerificationStatus === 'suspect' && (
+          <p role="alert" className="text-xs text-amber-600 dark:text-amber-400">
+            Possible false negative due to malformed name. Please check the Game title against
+            our manifest and try again.
+          </p>
+        )}
+        {verifyError && (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">{verifyError}</p>
         )}
         {collection.era === 'dos' && (
           <div className="flex items-center gap-2">
@@ -442,23 +478,29 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
               order={displayedOrder}
               onReorder={setDiscOrder}
               disabled={saveMutation.isPending}
-              renderActions={(disc) =>
-                isOwner ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      if (confirmRefetchIfAlreadyFetched(disc.metadata_fetched_at)) setFetchDiscId(disc.id)
-                    }}
-                    disabled={!metadataProviderEnabled || discMetadataBusy}
-                    loading={discMetadataBusy && fetchDiscId === disc.id}
-                    title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured` : 'Fetch cover art for this disc'}
-                    className="shrink-0"
-                  >
-                    Cover Art
-                  </Button>
-                ) : null
-              }
+              renderActions={(disc) => (
+                <>
+                  {/* Per-disc status, since a bad disc 2 must be visible on
+                      its own row, not just folded into the bundle rollup
+                      badge above (Part B, every disc is verified independently). */}
+                  <StatusBadge status={disc.verification_status} />
+                  {isOwner ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (confirmRefetchIfAlreadyFetched(disc.metadata_fetched_at)) setFetchDiscId(disc.id)
+                      }}
+                      disabled={!metadataProviderEnabled || discMetadataBusy}
+                      loading={discMetadataBusy && fetchDiscId === disc.id}
+                      title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured` : 'Fetch cover art for this disc'}
+                      className="shrink-0"
+                    >
+                      Cover Art
+                    </Button>
+                  ) : null}
+                </>
+              )}
             />
             {discOrder != null && (
               <p className="text-xs text-amber-600 dark:text-amber-400">

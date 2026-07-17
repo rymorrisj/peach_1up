@@ -65,7 +65,8 @@ the install/setup blocklist in `utils/blocklist.py`).
 
 ## How to use it
 
-The package's public surface, per `__init__.py`, is just two names:
+The package's public surface, per `__init__.py`, is six names: `detect`,
+`ScanResult`, `verify`, `VerifyResult`, `classify`, and `ClassifyResult`.
 
 ```python
 from backend.service.utils.smart_media_detector import detect, ScanResult
@@ -75,20 +76,99 @@ if scan.era is not None:
     ...  # scan.title, scan.platform, scan.confidence, scan.reason, scan.requires_install
 ```
 
-This is how every real caller in the codebase uses it, always via a local
-`import ... as _smart_detect` inside the calling function rather than a
+This is how every real caller in the codebase uses `detect()`, always via a
+local `import ... as _smart_detect` inside the calling function rather than a
 module-level import (`backend/service/games/items.py`,
 `backend/service/utils/drive_utils.py`,
 `backend/api/routes/game_item_bundles.py`). Callers check `scan.era` for
 `None` to decide whether detection succeeded, and separately inspect
 `scan.warnings` for logging even on a successful low-confidence match.
 
-A second function is used directly by callers, bypassing the package's public
+### verify(), hash-only re-check, separate from detect()
+
+`verify(path, expected_sha1) -> VerifyResult` (`verify.py`) is a second,
+narrower entry point, kept deliberately separate from `detect()`. It never
+runs the magic-byte/structural/directory/fallback tiers, it only hashes
+*path* and looks the result up in `hash_index.json`, mirroring how
+`bios_placement.py` already uses `hash_file()` directly today (see below).
+Use it to re-check a file already identified by `detect()` at some earlier
+point, not to identify an unknown file for the first time, that is still
+`detect()`'s job.
+
+```python
+from backend.service.utils.smart_media_detector import verify, VerifyResult
+
+result: VerifyResult = verify(Path("/path/to/some.iso"), expected_sha1="…")
+result.status  # "matched" | "mismatched" | "not_in_index"
+```
+
+`VerifyResult.status` distinguishes three outcomes:
+
+- `"matched"`, the file's current sha1 is present in `hash_index.json` and
+  equals *expected_sha1*.
+- `"mismatched"`, the file's current sha1 is present in `hash_index.json`
+  but does not equal *expected_sha1* (the file changed since the hash was
+  recorded, e.g. corruption or a swapped file).
+- `"not_in_index"`, the file's current sha1 is not present in
+  `hash_index.json` at all. Deliberately distinct from `"mismatched"`, this
+  means the index has no opinion on the file at all, not that it disagrees
+  with a prior recorded hash.
+
+### classify(), five-state verification, no prior expected_sha1 needed
+
+`classify(path, title, era, threshold=0.90) -> ClassifyResult` (`classify.py`)
+is the third entry point, used for Peach 1UP's persisted `GameItem.verification_status`
+field (five states, see `backend/models/game.py`). Unlike `verify()`, it needs
+no prior expected hash, it establishes a classification from scratch, so it
+is used both at ingest (one call per disc, see `backend/service/games/items.py`)
+and for a from-scratch manual re-check.
+
+```python
+from backend.service.utils.smart_media_detector import classify, ClassifyResult
+
+result: ClassifyResult = classify(Path("/path/to/some.iso"), title="Halo", era="xbox")
+result.status  # "verified" | "caution" | "suspect" | "not_in_index" | "unchecked"
+```
+
+`ClassifyResult.status` distinguishes five outcomes, checked in this order:
+
+1. `"verified"`, sha1 (or, for a `.chd`, its embedded rawsha1) exactly
+   matches a `hash_index.json` entry. Highest confidence, the only state
+   that should ever read as a positive confirmation.
+2. `"caution"`, no sha1 match, but md5 or crc32 exactly matches an entry.
+   Real index coverage, weaker confidence than a sha1 hit. Skipped entirely
+   for `.chd` (its raw md5/crc32 are as meaningless as its raw sha1, same
+   reasoning as `hash_lookup.lookup()`).
+3. `"suspect"`, no hash of any kind matched, but *title* is an approximate
+   match (`hashing/title_match.py`, stdlib `difflib.SequenceMatcher`,
+   *threshold* similarity ratio, 0.90 default) for a title that does exist
+   in `hash_index.json`, scoped to *era*. This is the only state that warns
+   of a possibly bad file, and it is deliberately conservative: an ambiguous
+   or below-threshold title match never produces it, that falls through to
+   `"not_in_index"` instead. *era* is required for this tier, a `None`/unknown
+   era skips the fuzzy check entirely (fails closed) rather than searching
+   every platform's titles, which would make an accidental false-positive
+   match more likely, not less.
+4. `"not_in_index"`, no hash matched and no confident title match either.
+   Neutral, "we have no data on this file", not a warning.
+5. `"unchecked"`, the file could not be hashed at all (missing, unreadable,
+   permission error). No classification was possible.
+
+`ClassifyResult.computed_sha1` is the file's own raw sha1, persisted whenever
+hashing succeeds regardless of status (`None` only for `"unchecked"`). This
+is the value Peach 1UP persists as `GameItem.sha1`, its own re-check baseline
+for a later `classify()` call, never returned by any API response, see
+`dev_docs/TYPES.md` §4 for that guarantee.
+
+### hash_file(), the lower-level primitive detect(), verify(), and classify() all share
+
+A fourth function is used directly by callers, bypassing the package's public
 `__init__.py`, since it is a general-purpose hashing utility rather than a
-detection call: `hash_file(path) -> dict` from `hashing/hash_lookup.py`, which
-returns `{"sha1": ..., "md5": ..., "crc32": ...}`. `backend/service/utils/bios_placement.py`
-imports this directly to verify a placed BIOS file's SHA-1 against a
-known-good hash.
+detection, verification, or classification call: `hash_file(path) -> dict`
+from `hashing/hash_lookup.py`, which returns `{"sha1": ..., "md5": ...,
+"crc32": ...}`. `backend/service/utils/bios_placement.py` imports this
+directly to verify a placed BIOS file's SHA-1 against a known-good hash.
+`verify()` and `classify()` above are both built on this same primitive.
 
 ## Where the hash source data comes from
 
@@ -140,6 +220,30 @@ records, prints a "Records skipped (no sha1)" count in the run summary, and
 logs a final warning with the total skipped count across all parsed DATs, so
 a run against an MD5/CRC32-only DAT surfaces the problem instead of quietly
 producing zero new entries.
+
+## Loading the index into the database (Peach 1UP only)
+
+`hash_index.json` also has a Peach-1UP-specific consumer outside this
+package: `scripts/ingest_hash_index.py` reads it and upserts every entry into
+a `hash_index_entries` DB table (`backend/models/hash_index.py`,
+`HashIndexEntry`) for callers that want to query confirmed hashes via SQL
+instead of loading the JSON file directly. Run it manually after
+regenerating `hash_index.json`:
+
+```bash
+python -m scripts.ingest_hash_index [--index <path>]
+```
+
+Refer to the [Peach 1UP](https://github.com/rymorrisj/peach_1up) project if you are
+interested in how we do that *or if you are passionate about perseving your media!*
+
+It is idempotent (upsert by `sha1`, existing rows updated in place, nothing
+wiped) and standalone (not called from any startup/lifespan hook or from
+this package). This package has no knowledge of the script, the DB table, or
+SQLModel, and never will — it stays storage-agnostic per the
+"Standalone-package intent" section below. Nothing in this package's own
+code path (`detect()`, `hash_lookup.py`) reads from that table; both consume
+`hash_index.json` independently.
 
 ## Current coverage state
 
