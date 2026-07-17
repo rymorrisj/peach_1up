@@ -297,11 +297,11 @@ def _prepare_item(
     if media_src.is_dir():
         if games_root_str:
             from backend.service.utils.path_utils import library_domain_root
-            media_root = library_domain_root("game")
+            media_root = library_domain_root("games")
             if not (media_src == media_root or media_src.is_relative_to(media_root)):
                 raise HTTPException(
                     status_code=400,
-                    detail="Folder is outside the games library (library/software/game/).",
+                    detail="Folder is outside the games library (library/software/games/).",
                 )
 
         existing = db.query(GameItem).filter(
@@ -372,7 +372,7 @@ def _prepare_item(
     elif media_src.is_file():
         if games_root_str:
             from backend.service.utils.path_utils import library_domain_root
-            _games_root = library_domain_root("game")
+            _games_root = library_domain_root("games")
             _src_parent = media_src.parent
 
             # Slugify the destination folder name (matches the shared slugify()
@@ -896,7 +896,7 @@ def _delete_leaf_media_folders(collection: GameItemBundle) -> None:
     directory is worse than under-deleting an unowned one.
 
     Every resolved path is required to fall under the game library root
-    (library/software/game/) before removal; a path that fails this check is
+    (library/software/games/) before removal; a path that fails this check is
     refused and logged loudly rather than silently skipped, since silently
     continuing past a failed containment check on a delete path is worse than
     doing nothing.
@@ -915,7 +915,7 @@ def _delete_leaf_media_folders(collection: GameItemBundle) -> None:
             collection.id,
         )
         return
-    media_root = library_domain_root("game")
+    media_root = library_domain_root("games")
 
     def _under_root(path: Path) -> bool:
         return path == media_root or path.is_relative_to(media_root)

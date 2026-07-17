@@ -136,9 +136,8 @@ def is_within_roots(resolved: Path, roots: list[Path]) -> bool:
     return any(resolved == r or resolved.is_relative_to(r) for r in roots)
 
 
-# Matches the on-disk folder names exactly (the games folder is the singular
-# "game", not "games") so a domain key can be joined onto SOFTWARE_PATH with
-# no further translation. "media" is deliberately NOT a member: MediaItem/
+# Matches the on-disk folder names exactly so a domain key can be joined onto
+# SOFTWARE_PATH with no further translation. "media" is deliberately NOT a member: MediaItem/
 # MediaItemBundle (backend/models/media.py) is the Software section's Media
 # sub-tab AND the only Media domain that exists in this codebase, per doc
 # dev_docs/v2/03_media_archive.md's "new archival Media domain" and the
@@ -146,7 +145,7 @@ def is_within_roots(resolved: Path, roots: list[Path]) -> bool:
 # That domain roots at MEDIA_PATH (library/media/), not SOFTWARE_PATH/media/,
 # and is resolved directly in backend/service/uploads/software_media.py, it
 # has no reason to ever go through this SOFTWARE_PATH-scoped resolver.
-_LIBRARY_DOMAINS: frozenset[str] = frozenset({"game", "apps"})
+_LIBRARY_DOMAINS: frozenset[str] = frozenset({"games", "apps"})
 
 
 def library_root() -> Path:
@@ -160,8 +159,8 @@ def library_root() -> Path:
 
 
 def library_domain_root(domain: str) -> Path:
-    """Return the on-disk root for one Software-library domain: "game" or
-    "apps". Each is a fixed subdirectory of SOFTWARE_PATH, library/software/game/,
+    """Return the on-disk root for one Software-library domain: "games" or
+    "apps". Each is a fixed subdirectory of SOFTWARE_PATH, library/software/games/,
     library/software/apps/, matching the real on-disk layout.
 
     Single place upload, scan, and any other consumer that used to read
@@ -169,7 +168,7 @@ def library_domain_root(domain: str) -> Path:
     domain-scoped destination from instead.
 
     Raises:
-        ValueError: if domain is not one of "game", "apps".
+        ValueError: if domain is not one of "games", "apps".
     """
     if domain not in _LIBRARY_DOMAINS:
         raise ValueError(

@@ -76,7 +76,7 @@ def _ensure_default_paths() -> None:
     lib = base / "library"
     for d in [
         lib / "software",
-        lib / "software" / "game",
+        lib / "software" / "games",
         lib / "software" / "media",
         lib / "software" / "apps",
         lib / "media",

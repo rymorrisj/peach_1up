@@ -71,8 +71,8 @@ class TestPrepareFolderRename:
         media_root = tmp_path / "media"
         media_root.mkdir()
         # SOFTWARE_PATH is media_root; games_root_str-derived paths resolve to
-        # library_domain_root("game") = media_root/game — see path_utils.py.
-        games_root = media_root / "game"
+        # library_domain_root("games") = media_root/games — see path_utils.py.
+        games_root = media_root / "games"
         games_root.mkdir()
         src_folder = games_root / "My Game (1993)"
         src_folder.mkdir()
@@ -94,7 +94,7 @@ class TestPrepareFolderRename:
         no rename and no move should occur."""
         media_root = tmp_path / "media"
         media_root.mkdir()
-        games_root = media_root / "game"
+        games_root = media_root / "games"
         games_root.mkdir()
         src_folder = games_root / "doom"
         src_folder.mkdir()
@@ -114,7 +114,7 @@ class TestPrepareFolderRename:
         skipped and the file is moved there instead."""
         media_root = tmp_path / "media"
         media_root.mkdir()
-        games_root = media_root / "game"
+        games_root = media_root / "games"
         games_root.mkdir()
         existing_canonical = games_root / "doom"
         existing_canonical.mkdir()
@@ -135,7 +135,7 @@ class TestPrepareFolderRename:
         is not eligible for rename — a new folder is created and the file moved."""
         media_root = tmp_path / "media"
         media_root.mkdir()
-        games_root = media_root / "game"
+        games_root = media_root / "games"
         games_root.mkdir()
         src_file = games_root / "doom.exe"
         src_file.write_bytes(b"fake exe")
@@ -154,7 +154,7 @@ class TestPrepareFolderRename:
         rename path — only direct subfolders of games_root qualify."""
         media_root = tmp_path / "media"
         media_root.mkdir()
-        games_root = media_root / "game"
+        games_root = media_root / "games"
         games_root.mkdir()
         deep_folder = games_root / "outer" / "inner"
         deep_folder.mkdir(parents=True)
@@ -185,7 +185,7 @@ class TestPrepareDuplication:
         """Importing the same directory twice raises _ItemAlreadyExists."""
         media_root = tmp_path / "media"
         media_root.mkdir()
-        games_root = media_root / "game"
+        games_root = media_root / "games"
         games_root.mkdir()
         folder = games_root / "doom"
         folder.mkdir()

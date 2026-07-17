@@ -199,8 +199,8 @@ def import_from_path(
     from backend.core.settings import get_settings
     from backend.service.utils.path_utils import library_domain_root
     svc = get_settings()
-    # Games-only route today, so the destination domain is always "game".
-    media_root = library_domain_root("game")
+    # Games-only route today, so the destination domain is always "games".
+    media_root = library_domain_root("games")
     try:
         threshold = int(svc.get("UPLOAD_BACKGROUND_THRESHOLD_BYTES", DEFAULT_BACKGROUND_THRESHOLD_BYTES)
                          or DEFAULT_BACKGROUND_THRESHOLD_BYTES)
@@ -254,8 +254,8 @@ def cancel_scan(job_id: str):
 
 
 def _resolve_scan_directory(domain: str) -> Path:
-    """Resolve the scan root for one library domain ("game" or "apps"). Only
-    "game" is reachable today (this route is games-only), but the resolver
+    """Resolve the scan root for one library domain ("games" or "apps"). Only
+    "games" is reachable today (this route is games-only), but the resolver
     itself is domain-aware so a future Apps scan endpoint can call it
     correctly without any change here."""
     try:
@@ -332,7 +332,7 @@ def trigger_scan(
         if _scan_running:
             raise HTTPException(status_code=409, detail="A scan is already running.")
     # This route is games-only today (mounted at /api/v1/game-items/scan).
-    resolved = _resolve_scan_directory("game")
+    resolved = _resolve_scan_directory("games")
     _check_known_items_findable(db)
     # Fast stat-only pre-pass classifies the scan so the UI knows immediately
     # whether to keep the inline modal (small) or drop to the nav bell (large).

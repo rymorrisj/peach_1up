@@ -301,9 +301,9 @@ class TestSoftwareUploadRoute:
         c, media_path = client
         from backend.service.utils import media_dup_index
 
-        # Dedup is checked against the games domain root (media_path/game),
+        # Dedup is checked against the games domain root (media_path/games),
         # not media_path itself — see path_utils.library_domain_root.
-        root = (media_path / "game").resolve()
+        root = (media_path / "games").resolve()
         rglob_calls_on_root = []
         original_rglob = media_dup_index.Path.rglob
 

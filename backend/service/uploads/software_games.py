@@ -128,7 +128,7 @@ def finalize_background(upload_id: str, media_root: str, job_id: str) -> None:
 
 def _root() -> Path:
     from backend.service.utils.path_utils import library_domain_root
-    return library_domain_root("game")
+    return library_domain_root("games")
 
 
 def register() -> None:
