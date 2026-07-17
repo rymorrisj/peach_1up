@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Optional
 
@@ -84,6 +85,8 @@ def enrich_entity(
                 )
         for key, value in metadata_fields.items():
             setattr(entity, key, value)
+        if metadata_fields or genre is not None:
+            entity.metadata_fetched_at = datetime.now(timezone.utc)
         if genre is not None:
             from backend.models.metadata_lookup import set_genres_for_game_item_bundle
             # No provider hint here — metadata_source is a display string (e.g.
@@ -111,6 +114,7 @@ def enrich_entity(
         if cover_art_url:
             dest_dir = Path(entity.folder_path) if entity.folder_path else Path(entity.file_path).parent
             entity.cover_art_path = str(download_remote_image(cover_art_url, dest_dir))
+            entity.metadata_fetched_at = datetime.now(timezone.utc)
 
     else:
         raise HTTPException(status_code=422, detail=f"Invalid entity_type: {entity_type!r}")

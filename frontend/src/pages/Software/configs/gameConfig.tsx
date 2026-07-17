@@ -36,6 +36,19 @@ function formIsReady<T>(form: T | null): form is T {
   return form != null
 }
 
+// Fires only when opening/triggering a Fetch Metadata search (a real call to
+// the provider, costing API credits/allowance) for an item that already has
+// metadata_fetched_at set. Accept All never calls this: it only reuses
+// state a search already fetched into the modal, it never calls the
+// provider again, so it needs no warning of its own.
+function confirmRefetchIfAlreadyFetched(metadataFetchedAt: string | null | undefined): boolean {
+  if (!metadataFetchedAt) return true
+  return window.confirm(
+    'Metadata was already fetched for this item. Fetching again will use additional ' +
+      'API credits/allowance. Continue?',
+  )
+}
+
 // Composes every game-only concern (disc reorder, DOS-install, xiso convert,
 // edit form, launch_commands, flag launch, delete flow, metadata enrich) into
 // the slot shape EntityDetailPage renders. Called unconditionally on every
@@ -309,6 +322,12 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
             <span className="font-medium">Developer:</span> {collection.developer}
           </div>
         )}
+        {collection.metadata_fetched_at && (
+          <div>
+            <span className="font-medium">Metadata fetched:</span>{' '}
+            {new Date(collection.metadata_fetched_at).toLocaleDateString()}
+          </div>
+        )}
         {collection.era === 'dos' && (
           <div className="flex items-center gap-2">
             <span className="font-medium shrink-0">Installed:</span>
@@ -366,7 +385,9 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => setFetchMetadataOpen(true)}
+            onClick={() => {
+              if (confirmRefetchIfAlreadyFetched(collection.metadata_fetched_at)) setFetchMetadataOpen(true)
+            }}
             disabled={!metadataProviderEnabled || collectionMetadataBusy}
             loading={collectionMetadataBusy}
             title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured — set them in Settings > Advanced` : undefined}
@@ -377,7 +398,9 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => setFetchDiscId(sortedItems[0].id)}
+              onClick={() => {
+                if (confirmRefetchIfAlreadyFetched(sortedItems[0].metadata_fetched_at)) setFetchDiscId(sortedItems[0].id)
+              }}
               disabled={!metadataProviderEnabled || discMetadataBusy}
               loading={discMetadataBusy && fetchDiscId === sortedItems[0].id}
               title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured` : 'Fetch cover art for this disc'}
@@ -414,7 +437,9 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setFetchDiscId(disc.id)}
+                    onClick={() => {
+                      if (confirmRefetchIfAlreadyFetched(disc.metadata_fetched_at)) setFetchDiscId(disc.id)
+                    }}
                     disabled={!metadataProviderEnabled || discMetadataBusy}
                     loading={discMetadataBusy && fetchDiscId === disc.id}
                     title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured` : 'Fetch cover art for this disc'}

@@ -17,6 +17,7 @@ export interface GameItemData {
   folder_path: string | null
   detection_reason: string | null
   file_size_bytes: number | null
+  metadata_fetched_at: string | null
   created_at?: string | null
   updated_at?: string | null
 }
@@ -33,6 +34,7 @@ export interface GameItemBundleData extends EntityBundleBase {
   metadata_source: string | null
   content_rating: string | null
   launch_commands: string[] | null
+  metadata_fetched_at: string | null
   installed: boolean
   requires_install: boolean
   launch_review_flagged: boolean

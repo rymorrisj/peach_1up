@@ -58,6 +58,13 @@ class GameItem(SQLModel, table=True):
     # None covers rows written before this column existed, treated the same as
     # False. See _delete_leaf_media_folders.
     folder_owned: Optional[bool] = None
+    # Set when a Fetch Metadata Keep last successfully applied cover art to
+    # this leaf (see enrich_entity(), backend/service/games/enrich.py). None
+    # means never fetched. Leaf-level Fetch Metadata only ever applies
+    # cover_art_url, never the full metadata fields a bundle-level fetch
+    # applies, but it is a real, currently-supported fetch path, so it gets
+    # its own tracking column rather than being folded into the bundle's.
+    metadata_fetched_at: Optional[datetime] = None
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=False),
@@ -83,6 +90,7 @@ class GameItemRead(SQLModel):
     folder_path: Optional[str] = None
     detection_reason: Optional[str] = None
     file_size_bytes: Optional[int] = None
+    metadata_fetched_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -152,6 +160,12 @@ class GameItemBundle(SQLModel, table=True):
     # IGDB alone can already return more than one video per game. Same
     # JSON-column pattern as launch_commands above.
     external_links: Optional[list[dict]] = Field(default=None, sa_column=Column(JSON))
+    # Set when a Fetch Metadata Keep last successfully applied metadata to
+    # this bundle (see enrich_entity(), backend/service/games/enrich.py).
+    # None means never fetched. Surfaced on the detail page and used to warn
+    # before a re-fetch, since every fetch call costs the user's provider
+    # API credits/allowance.
+    metadata_fetched_at: Optional[datetime] = None
     installed: bool = False
     requires_install: bool = False
     launch_review_flagged: bool = Field(default=False)
@@ -285,6 +299,7 @@ class GameItemBundleRead(SQLModel):
     content_rating: Optional[str] = None
     launch_commands: Optional[list[str]] = None
     external_links: Optional[list[dict]] = None
+    metadata_fetched_at: Optional[datetime] = None
     installed: bool = False
     requires_install: bool = False
     launch_review_flagged: bool = False
