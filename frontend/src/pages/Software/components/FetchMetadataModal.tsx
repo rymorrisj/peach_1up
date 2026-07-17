@@ -151,7 +151,11 @@ export function FetchMetadataModal({
       const data = await apiFetch<GameDetails>(
         `/api/v1/game-items/metadata-details?game_id=${selectedId}`,
       )
-      setDetails(data)
+      // Normalized here, once, so every downstream read of details.assets/
+      // details.video_urls can rely on the GameDetails type contract (always
+      // an array, never undefined) without re-guarding at each call site,
+      // even against a response shape that predates these two fields.
+      setDetails({ ...data, assets: data.assets ?? [], video_urls: data.video_urls ?? [] })
       setPhase('preview')
     } catch (err) {
       setSearchError(err instanceof Error ? err.message : 'Failed to fetch details.')
