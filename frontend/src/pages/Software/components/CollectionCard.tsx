@@ -91,18 +91,18 @@ function ArtPlaceholder({ collection }: { collection: GameItemBundleData }) {
         }}
       />
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em]">{label}</span>
-        {collection.year && <span className="font-mono text-[10px] text-neutral-500">{collection.year}</span>}
+        <span className="font-mono text-[0.625rem] font-bold uppercase tracking-[0.18em]">{label}</span>
+        {collection.year && <span className="font-mono text-[0.625rem] text-neutral-500">{collection.year}</span>}
       </div>
       <div className="mt-auto">
         <p
-          className="font-sans text-[15px] font-semibold leading-snug tracking-tight text-neutral-100"
+          className="font-sans text-[0.9375rem] font-semibold leading-snug tracking-tight text-neutral-100"
           style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}
         >
           {collection.title}
         </p>
         {collection.publisher && (
-          <p className="mt-1 truncate font-mono text-[10px] tracking-[0.04em] text-neutral-500">
+          <p className="mt-1 truncate font-mono text-[0.625rem] tracking-[0.04em] text-neutral-500">
             {collection.publisher}
           </p>
         )}
@@ -129,7 +129,7 @@ function MiniPlaceholder({ discNumber, era }: { discNumber: number; era: string 
         }}
       />
       <p
-        className="relative font-sans text-[10px] font-semibold leading-[1.15] tracking-[-0.005em] text-neutral-100"
+        className="relative font-sans text-[0.625rem] font-semibold leading-[1.15] tracking-[-0.005em] text-neutral-100"
         style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}
       >
         Disc {discNumber}
@@ -153,7 +153,7 @@ function StackGlyph() {
 
 // Shared layer base classes — absolute fill, rounded, overflow-hidden, dark bg, shadow + eased transition
 const LAYER_BASE =
-  'absolute inset-0 overflow-hidden rounded-xl bg-[#1a1f27] shadow-[0_1px_2px_rgb(20_12_6/0.4)] ' +
+  'absolute inset-0 overflow-hidden rounded-xl bg-[#1a1f27] shadow-[var(--shadow-sm)] ' +
   'transition-[transform,box-shadow] duration-[220ms] ease-[cubic-bezier(0.16,1,0.3,1)]'
 
 interface CollectionCardProps {
@@ -185,7 +185,7 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
     <div className="group relative flex flex-col gap-2.5">
       <Link
         to={to}
-        className="flex flex-col gap-2.5 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a5c] focus-visible:ring-offset-2 focus-visible:ring-offset-surface-950"
+        className="flex flex-col gap-2.5 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
       >
       {/* Padding-right/top gives space for the peeking background layers */}
       <div style={{ padding: '12px 12px 0 0' }}>
@@ -216,7 +216,7 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
           )}
 
           {/* Layer A — front (display disc), z=3 */}
-          <div className={`${LAYER_BASE} z-[3] group-hover:-translate-y-0.5 group-hover:shadow-[0_4px_12px_rgb(20_12_6/0.45)]`}>
+          <div className={`${LAYER_BASE} z-[3] group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-md)]`}>
             {displayDisc?.cover_art_url ? (
               <img src={displayDisc.cover_art_url} alt={collection.title} loading="lazy" className="h-full w-full object-cover" />
             ) : (
@@ -225,7 +225,7 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
 
             {/* Stack count badge — bottom right, only for multi-disc collections */}
             {isMultiDisc && (
-              <div className="absolute bottom-2 right-2 z-[4] inline-flex items-center gap-1.5 rounded-[4px] border border-white/[0.16] bg-[rgb(13_16_20/0.80)] px-[7px] py-[4px] font-mono text-[11px] font-bold leading-none tracking-[0.04em] text-[#f3efe9] backdrop-blur-[6px]">
+              <div className="absolute bottom-2 right-2 z-[4] inline-flex items-center gap-1.5 rounded-[4px] border border-white/[0.16] bg-surface-0/80 px-[7px] py-[4px] font-mono text-[0.6875rem] font-bold leading-none tracking-[0.04em] text-[#f3efe9] backdrop-blur-[6px]">
                 <StackGlyph />
                 {discCount}
               </div>
@@ -234,8 +234,7 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
             {/* Divergence badge — bottom left, only when display disc ≠ launch disc */}
             {launchDiffersFromDisplay && launchDisc && (
               <div
-                className="absolute bottom-2 left-2 z-[4] inline-flex items-center gap-1 rounded-[4px] border bg-black/[0.78] px-[7px] py-[4px] font-mono text-[10px] font-semibold leading-none tracking-[0.04em] backdrop-blur-[6px]"
-                style={{ color: '#ff8a5c', borderColor: 'rgb(255 138 92 / 0.40)' }}
+                className="absolute bottom-2 left-2 z-[4] inline-flex items-center gap-1 rounded-[4px] border border-accent/40 bg-black/[0.78] px-[7px] py-[4px] font-mono text-[0.625rem] font-semibold leading-none tracking-[0.04em] text-accent backdrop-blur-[6px]"
                 title={`Disc ${launchDisc.disc_number} will launch`}
               >
                 ▶ Disc {launchDisc.disc_number}
@@ -246,9 +245,9 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
             <div
               className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-[180ms] ease-out group-hover:opacity-100"
               aria-hidden="true"
-              style={{ background: 'linear-gradient(180deg, rgb(13 16 20 / 0) 30%, rgb(13 16 20 / 0.55) 100%)' }}
+              style={{ background: 'linear-gradient(180deg, rgb(var(--surface-0) / 0) 30%, rgb(var(--surface-0) / 0.55) 100%)' }}
             >
-              <div className="flex h-[52px] w-[52px] scale-[0.82] items-center justify-center rounded-full bg-[#ff8a5c] text-[#1d0a04] shadow-[0_6px_18px_rgb(20_12_6/0.55),0_0_0_1px_rgb(255_255_255/0.08)_inset] transition-transform duration-200 ease-out group-hover:scale-100">
+              <div className="flex h-[52px] w-[52px] scale-[0.82] items-center justify-center rounded-full bg-accent text-[#1d0a04] shadow-[0_6px_18px_rgb(20_12_6/0.55),0_0_0_1px_rgb(255_255_255/0.08)_inset] transition-transform duration-200 ease-out group-hover:scale-100">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                   <path d="M5 3.5v13l11-6.5z" />
                 </svg>
@@ -272,9 +271,9 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
                       onClick={() => !isDisplay && onSetDisplayDisk?.(collection.id, disc.id)}
                       disabled={isDisplay}
                       title={isDisplay ? 'Displayed' : isLaunch ? 'Set as display cover (launches this disc)' : 'Set as display cover'}
-                      className={`shrink-0 rounded border font-mono text-[9px] px-1.5 py-0.5 transition-colors duration-[120ms] ${
+                      className={`shrink-0 rounded border font-mono text-[0.5625rem] px-1.5 py-0.5 transition-colors duration-[120ms] ${
                         isDisplay
-                          ? 'cursor-default border-[#ff8a5c]/60 bg-[#ff8a5c]/10 text-[#ff8a5c]/90'
+                          ? 'cursor-default border-accent/60 bg-accent/10 text-accent/90'
                           : 'cursor-pointer border-neutral-700 bg-black/40 text-neutral-400 hover:border-neutral-500 hover:text-neutral-200'
                       }`}
                     >
@@ -295,7 +294,7 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
         <div className="flex gap-[5px] overflow-hidden">
           {collection.era && collection.era !== 'unknown' && (
             <span
-              className="inline-flex shrink-0 items-center rounded-[4px] border px-[7px] py-1 font-mono text-[10.5px] font-medium leading-none tracking-[0.08em]"
+              className="inline-flex shrink-0 items-center rounded-[4px] border px-[7px] py-1 font-mono text-[0.65625rem] font-medium leading-none tracking-[0.08em]"
               style={{ color: chipHex, borderColor: `${chipHex}6a`, background: `${chipHex}1a` }}
             >
               {ERA_LABEL[collection.era] ?? collection.era.toUpperCase()}
@@ -303,10 +302,10 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
           )}
           {isMultiDisc && (
             <>
-              <span className="inline-flex shrink-0 items-center rounded-[4px] border border-[#6aa9d6]/40 bg-[#6aa9d6]/[0.08] px-[7px] py-1 font-mono text-[10.5px] font-medium leading-none tracking-[0.04em] text-[#b3d6f0]">
+              <span className="inline-flex shrink-0 items-center rounded-[4px] border border-info/40 bg-info/[0.08] px-[7px] py-1 font-mono text-[0.65625rem] font-medium leading-none tracking-[0.04em] text-[#b3d6f0]">
                 Collection
               </span>
-              <span className="inline-flex shrink-0 items-center rounded-[4px] border border-neutral-700 bg-transparent px-[7px] py-1 font-mono text-[10.5px] leading-none tracking-[0.04em] text-[#8a8f99]">
+              <span className="inline-flex shrink-0 items-center rounded-[4px] border border-neutral-700 bg-transparent px-[7px] py-1 font-mono text-[0.65625rem] leading-none tracking-[0.04em] text-[#8a8f99]">
                 {discCount} items
               </span>
             </>

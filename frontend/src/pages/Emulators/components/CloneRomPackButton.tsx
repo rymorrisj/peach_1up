@@ -22,19 +22,19 @@ export function CloneRomPackButton({ romPackEntry, isCloning, cloneError, onClon
             fontSize: compact ? 12 : 13,
             padding: compact ? '4px 10px' : '9px 14px',
             borderRadius: compact ? 'var(--r-1)' : 'var(--r-2)',
-            background: 'var(--peach-500)', color: '#fff', opacity: isCloning ? 0.5 : 1,
+            background: 'rgb(var(--peach-500))', color: 'rgb(var(--fg-inverse))', opacity: isCloning ? 0.5 : 1,
           }}
         >
           {isCloning ? 'Cloning…' : 'Clone ROM Pack'}
         </button>
       )}
       {!romPackEntry.is_installed && romPackEntry.git_available === false && (
-        <span style={{ fontFamily: 'var(--font-display)', fontSize: compact ? 12 : 13, color: '#fbbf24' }}>
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: compact ? 12 : 13, color: 'rgb(var(--warning))' }}>
           git not found on PATH
         </span>
       )}
       {cloneError && (
-        <div style={{ marginTop: compact ? 6 : 8, fontSize: 12, color: 'var(--error)', fontFamily: 'var(--font-display)' }}>
+        <div style={{ marginTop: compact ? 6 : 8, fontSize: '0.75rem', color: 'rgb(var(--error))', fontFamily: 'var(--font-display)' }}>
           {cloneError}
         </div>
       )}

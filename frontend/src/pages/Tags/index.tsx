@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import { Lock } from 'lucide-react'
 import TopBar from '@/components/layout/TopBar'
 import { apiFetch, ApiError } from '@/api/client'
 import { TAG_SWATCHES, swatchHex } from '@/components/Tags'
+import { Button, Card } from '@/ui'
 
 interface UserTag {
   id: number
@@ -24,12 +26,71 @@ function SwatchPicker({ value, onChange }: { value: string; onChange: (id: strin
           style={{ background: s.hex }}
           className={`h-6 w-6 rounded-full border-2 transition-transform duration-[120ms] hover:scale-110 ${
             value === s.id
-              ? 'scale-100 border-[#ff8a5c]'
+              ? 'scale-100 border-accent'
               : 'border-transparent'
           }`}
         />
       ))}
     </div>
+  )
+}
+
+// System tags carry no explicit category field from the backend (Tag only
+// has id/name/item_count/color/is_system), but the seeder in
+// backend/core/startup_seed.py assigns a distinct color per category (era
+// tags -> coral, hardware tags -> amber, content-type tags -> sky), so color
+// is the reliable signal for reconstructing the grouping client-side. Any
+// system tag with a color outside that set falls into "Other" rather than
+// being silently dropped, matching the existing "explain, don't hide"
+// pattern used elsewhere in this codebase (e.g. PlatformField.tsx).
+const CATEGORY_BY_COLOR: Record<string, { label: string; hint: string }> = {
+  coral: { label: 'Era', hint: 'Inferred from your launch profile. Always shown first on cards.' },
+  amber: { label: 'Hardware', hint: 'Detected from profile requirements (MT-32, SB16, Voodoo, …).' },
+  sky: { label: 'Content type', hint: 'Set by platform metadata. Genre and category.' },
+}
+const CATEGORY_ORDER = ['coral', 'amber', 'sky', 'other']
+
+function SystemTagGroup({ label, hint, items }: {
+  label: string
+  hint: string
+  items: UserTag[]
+}) {
+  if (items.length === 0) return null
+  return (
+    <Card className="mb-3">
+      <Card.Header>{label}</Card.Header>
+      <p className="mb-3 text-xs normal-case tracking-normal text-fg-3">{hint}</p>
+      <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+        {items.map((t) => {
+          const hex = swatchHex(t.color)
+          return (
+            <div
+              key={t.id}
+              className="flex items-center gap-2.5 rounded-lg border border-border-strong bg-surface-0 px-2.5 py-2"
+            >
+              <span
+                className="inline-flex items-center rounded-[4px] border border-border-strong bg-surface-3 px-[7px] py-1 font-mono text-[0.65625rem] font-medium leading-none"
+                style={{ color: hex }}
+              >
+                <span
+                  className="mr-1.5 inline-block h-[6px] w-[6px] rounded-full"
+                  style={{ background: hex }}
+                />
+                <span className="text-neutral-600 dark:text-neutral-300">{t.name}</span>
+              </span>
+              <span className="ml-auto font-mono text-[0.6875rem] text-neutral-500">{t.item_count} item{t.item_count === 1 ? '' : 's'}</span>
+              <span
+                className="shrink-0"
+                title="System tags are managed by Peach 1UP and cannot be deleted."
+                aria-label="Read-only system tag"
+              >
+                <Lock size={12} className="text-fg-3" aria-hidden="true" />
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </Card>
   )
 }
 
@@ -117,9 +178,9 @@ export default function Tags() {
         </span>
       </div>
 
-      <div className="mb-8 overflow-hidden rounded-xl border border-neutral-200 dark:border-surface-400">
+      <div className="mb-8 overflow-hidden rounded-xl border border-border-strong">
         {/* Inline create row */}
-        <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-neutral-200 bg-neutral-50 px-4 py-3.5 dark:border-surface-400 dark:bg-surface-800/40">
+        <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border-strong bg-neutral-50 px-4 py-3.5 dark:bg-surface-2/40">
           <input
             type="text"
             placeholder="New tag name — e.g. cozy-evening"
@@ -127,17 +188,12 @@ export default function Tags() {
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') addTag() }}
             maxLength={32}
-            className="rounded-lg border border-neutral-300 bg-white px-3 py-2 font-sans text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-[#ff8a5c] dark:border-neutral-700 dark:bg-surface-950 dark:text-neutral-100 dark:placeholder:text-neutral-600"
+            className="rounded-lg border border-neutral-300 bg-white px-3 py-2 font-sans text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-accent dark:border-neutral-700 dark:bg-surface-0 dark:text-neutral-100 dark:placeholder:text-neutral-600"
           />
           <SwatchPicker value={newSwatch} onChange={setNewSwatch} />
-          <button
-            type="button"
-            onClick={addTag}
-            disabled={!newName.trim()}
-            className="rounded-lg bg-[#ff8a5c] px-4 py-2 font-sans text-sm font-semibold text-[#1d0a04] transition-colors duration-[120ms] hover:bg-[#ff9469] disabled:cursor-not-allowed disabled:opacity-40"
-          >
+          <Button onClick={addTag} disabled={!newName.trim()}>
             Create tag
-          </button>
+          </Button>
         </div>
 
         {/* Tag list */}
@@ -156,24 +212,24 @@ export default function Tags() {
             return (
               <div
                 key={t.id}
-                className={`grid items-center gap-3 border-b border-neutral-200 px-4 py-3 last:border-b-0 dark:border-surface-400 ${
+                className={`grid items-center gap-3 border-b border-border-strong px-4 py-3 last:border-b-0 ${
                   confirming
                     ? 'border-l-[3px] border-l-red-500 bg-red-500/[0.06]'
-                    : 'hover:bg-neutral-50 dark:hover:bg-surface-800/40'
+                    : 'hover:bg-surface-2/40'
                 }`}
                 style={{ gridTemplateColumns: '2rem 1fr 7rem 7rem 2rem' }}
               >
                 <div
                   className="h-[18px] w-[18px] rounded-full"
-                  style={{ background: hex, boxShadow: '0 0 0 1px rgba(255,255,255,0.06) inset' }}
+                  style={{ background: hex, boxShadow: '0 0 0 1px rgb(var(--fg-inverse) / 0.06) inset' }}
                 />
                 <div>
                   <div className="font-sans text-sm font-medium text-neutral-900 dark:text-neutral-100">{t.name}</div>
-                  <div className="font-mono text-[11px] text-neutral-400 dark:text-neutral-500">#{t.id}</div>
+                  <div className="font-mono text-[0.6875rem] text-neutral-400 dark:text-neutral-500">#{t.id}</div>
                 </div>
                 <div>
                   <span
-                    className="inline-flex items-center rounded-[4px] border border-neutral-300 bg-neutral-100 px-[7px] py-1 font-mono text-[10.5px] font-medium leading-none dark:border-surface-400 dark:bg-surface-400"
+                    className="inline-flex items-center rounded-[4px] border border-border-strong bg-surface-3 px-[7px] py-1 font-mono text-[0.65625rem] font-medium leading-none"
                     style={{ color: hex }}
                   >
                     <span
@@ -186,14 +242,15 @@ export default function Tags() {
                 <div className="text-right font-mono text-xs text-neutral-400 dark:text-neutral-500">
                   {t.item_count} item{t.item_count === 1 ? '' : 's'}
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setConfirmId(confirming ? null : t.id)}
                   aria-label={`Delete tag ${t.name}`}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-transparent text-neutral-400 transition-colors hover:border-red-500/40 hover:text-red-400 dark:text-neutral-500"
+                  className="h-7 w-7 px-0 hover:text-red-400"
                 >
                   ×
-                </button>
+                </Button>
 
                 {confirming && (
                   <div className="col-span-5 flex items-center gap-3 pt-2 font-sans text-sm text-neutral-500 dark:text-neutral-400">
@@ -204,20 +261,12 @@ export default function Tags() {
                       )}
                     </span>
                     <div className="flex-1" />
-                    <button
-                      type="button"
-                      onClick={() => setConfirmId(null)}
-                      className="rounded-lg px-3 py-1.5 text-xs font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-surface-400 dark:hover:text-neutral-200"
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => setConfirmId(null)}>
                       Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeTag(t.id)}
-                      className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/10 dark:text-red-400"
-                    >
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={() => removeTag(t.id)}>
                       Delete tag
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
@@ -235,48 +284,30 @@ export default function Tags() {
         </span>
       </div>
 
-      <div className="mb-3 overflow-hidden rounded-xl border border-neutral-800 dark:border-surface-400">
-        {loading ? (
-          <div className="px-4 py-8 text-center font-sans text-sm text-neutral-400 dark:text-neutral-500">
-            Loading system tags…
-          </div>
-        ) : systemTags.length === 0 ? (
-          <div className="px-4 py-8 text-center font-sans text-sm text-neutral-400 dark:text-neutral-500">
-            No system tags.
-          </div>
-        ) : (
-          <div className="grid gap-2 p-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
-            {systemTags.map((t) => {
-              const hex = swatchHex(t.color)
-              return (
-                <div
-                  key={t.id}
-                  className="flex items-center gap-2.5 rounded-lg border border-neutral-800 bg-surface-950 px-2.5 py-2 dark:border-surface-400"
-                >
-                  <span
-                    className="inline-flex items-center rounded-[4px] border border-neutral-300 bg-neutral-100 px-[7px] py-1 font-mono text-[10.5px] font-medium leading-none dark:border-surface-400 dark:bg-surface-400"
-                    style={{ color: hex }}
-                  >
-                    <span
-                      className="mr-1.5 inline-block h-[6px] w-[6px] rounded-full"
-                      style={{ background: hex }}
-                    />
-                    <span className="text-neutral-600 dark:text-neutral-300">{t.name}</span>
-                  </span>
-                  <span className="ml-auto font-mono text-[11px] text-neutral-500">{t.item_count} item{t.item_count === 1 ? '' : 's'}</span>
-                  <span
-                    className="text-neutral-500"
-                    title="System tags are managed by Peach 1UP and cannot be deleted."
-                    aria-label="Read-only system tag"
-                  >
-                    🔒
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      {loading ? (
+        <div className="mb-3 overflow-hidden rounded-xl border border-border-strong px-4 py-8 text-center font-sans text-sm text-neutral-400 dark:text-neutral-500">
+          Loading system tags…
+        </div>
+      ) : systemTags.length === 0 ? (
+        <div className="mb-3 overflow-hidden rounded-xl border border-border-strong px-4 py-8 text-center font-sans text-sm text-neutral-400 dark:text-neutral-500">
+          No system tags.
+        </div>
+      ) : (
+        CATEGORY_ORDER.map((key) => {
+          const category = CATEGORY_BY_COLOR[key]
+          const items = key === 'other'
+            ? systemTags.filter((t) => !(t.color in CATEGORY_BY_COLOR))
+            : systemTags.filter((t) => t.color === key)
+          return (
+            <SystemTagGroup
+              key={key}
+              label={category?.label ?? 'Other'}
+              hint={category?.hint ?? 'System tags that do not match a known category.'}
+              items={items}
+            />
+          )
+        })
+      )}
       </div>
     </div>
   )

@@ -22,14 +22,14 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <main
-          className="flex min-h-screen flex-col items-center justify-center gap-4 bg-white dark:bg-surface-950"
-          style={{ color: 'var(--fg-1)' }}
+          className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface-0"
+          style={{ color: 'rgb(var(--fg-1))' }}
         >
           <p className="text-lg font-semibold">Something went wrong.</p>
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="rounded-lg bg-[#ff8a5c] px-4 py-2 text-sm font-medium text-white hover:bg-[#e67a4c]"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
           >
             Reload
           </button>

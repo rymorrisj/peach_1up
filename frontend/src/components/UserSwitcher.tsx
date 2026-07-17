@@ -77,7 +77,7 @@ function PinModal({ user, onSuccess, onClose }: PinModalProps) {
     <dialog
       ref={refCallback}
       onClose={handleDialogClose}
-      className="w-full max-w-xs rounded-xl border border-neutral-200 bg-white p-6 shadow-2xl backdrop:bg-black/60 dark:border-surface-600 dark:bg-surface-900"
+      className="w-full max-w-xs rounded-xl border border-border bg-surface-1 p-6 shadow-2xl backdrop:bg-black/60"
     >
       <div className="mb-4 flex items-center gap-3">
         <div
@@ -99,7 +99,7 @@ function PinModal({ user, onSuccess, onClose }: PinModalProps) {
       </div>
 
       {user.is_locked ? (
-        <div className="flex items-center gap-2 rounded-md bg-neutral-100 p-3 text-sm text-neutral-600 dark:bg-surface-800 dark:text-neutral-300">
+        <div className="flex items-center gap-2 rounded-md bg-surface-2 p-3 text-sm text-neutral-600 dark:text-neutral-300">
           <Lock size={14} />
           Account locked — contact owner
         </div>
@@ -221,8 +221,8 @@ export default function UserSwitcher() {
               className={cn(
                 "group flex min-w-[5.5rem] flex-col items-center gap-1.5 rounded-xl px-3 py-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-peach",
                 isDisabled
-                  ? "cursor-default bg-neutral-100 dark:bg-surface-800"
-                  : "cursor-pointer hover:bg-neutral-50 dark:hover:bg-surface-800/60",
+                  ? "cursor-default bg-surface-2"
+                  : "cursor-pointer hover:bg-surface-2/60",
               )}
             >
               <div className="relative">
@@ -231,7 +231,7 @@ export default function UserSwitcher() {
                     "flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold shadow-sm",
                     avatarColor(user.id),
                     isActive &&
-                      "ring-2 ring-peach ring-offset-2 ring-offset-white dark:ring-offset-surface-950",
+                      "ring-2 ring-peach ring-offset-2 ring-offset-surface-0",
                   )}
                 >
                   {user.is_locked ? (

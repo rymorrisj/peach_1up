@@ -21,7 +21,7 @@ export function ProfilesList({ profiles, eraLabel, formatDate, onEdit, onDelete 
                   {profile.name}
                 </span>
                 {profile.is_bundled && (
-                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-500 dark:bg-surface-700 dark:text-neutral-400">
+                  <span className="rounded-full bg-surface-3 px-2 py-0.5 text-xs font-medium text-neutral-500 dark:text-neutral-400">
                     default
                   </span>
                 )}

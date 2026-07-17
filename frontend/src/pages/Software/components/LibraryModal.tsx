@@ -11,7 +11,7 @@ import { useLibraryScan } from '@/hooks/useLibraryScan'
 import ConfirmModal from '@/components/common/ConfirmModal'
 import FileBrowser from '@/components/common/FileBrowser'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
-import { Button, Modal } from '@/ui'
+import { Button, Modal, Input, Checkbox } from '@/ui'
 
 // Domain-agnostic upload/scan modal, extracted from the former (games-only)
 // AddMediaModal.tsx and ScanModal.tsx. A domain wires this in by supplying a
@@ -560,43 +560,35 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
       {(supportsMultiDisc || supportsFolderMode) && (
         <div className="mb-3 flex flex-col gap-1.5">
           {supportsMultiDisc && (
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-neutral-300">
-              <input
-                type="checkbox"
-                className="accent-[#ff8a5c]"
-                checked={multiDisc}
-                disabled={busy}
-                onChange={(e) => {
-                  setMultiDisc(e.target.checked)
-                  setStagedDiscs([])
-                  setSetTitle('')
-                  setFolderName('')
-                  setFolderNameTouched(false)
-                  setSetStatus('idle')
-                  setSetError(null)
-                }}
-              />
-              Multi-disc set
-            </label>
+            <Checkbox
+              checked={multiDisc}
+              disabled={busy}
+              onCheckedChange={(checked) => {
+                setMultiDisc(checked)
+                setStagedDiscs([])
+                setSetTitle('')
+                setFolderName('')
+                setFolderNameTouched(false)
+                setSetStatus('idle')
+                setSetError(null)
+              }}
+              label="Multi-disc set"
+            />
           )}
           {supportsFolderMode && (
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-neutral-300">
-              <input
-                type="checkbox"
-                className="accent-[#ff8a5c]"
-                checked={folderMode}
-                disabled={busy}
-                onChange={(e) => {
-                  setFolderMode(e.target.checked)
-                  setFolderFiles([])
-                  setFolderTitle('')
-                  setFolderStatus('idle')
-                  setFolderError(null)
-                  setFolderResult(null)
-                }}
-              />
-              Folder upload
-            </label>
+            <Checkbox
+              checked={folderMode}
+              disabled={busy}
+              onCheckedChange={(checked) => {
+                setFolderMode(checked)
+                setFolderFiles([])
+                setFolderTitle('')
+                setFolderStatus('idle')
+                setFolderError(null)
+                setFolderResult(null)
+              }}
+              label="Folder upload"
+            />
           )}
         </div>
       )}
@@ -613,13 +605,12 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
 
       {/* Set title field (multi-disc mode only) */}
       {multiDisc && (
-        <input
-          type="text"
-          placeholder={`Set title (e.g. Final Fantasy VII)`}
+        <Input
+          placeholder="Set title (e.g. Final Fantasy VII)"
           value={setTitle}
           onChange={(e) => setSetTitle(e.target.value)}
           disabled={busy}
-          className="mb-3 w-full rounded-lg border border-neutral-600 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-500 outline-none focus:border-[#ff8a5c]"
+          className="mb-3"
         />
       )}
 
@@ -627,8 +618,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
           folder all discs are copied into. Defaults from the first staged
           disc's filename or the set title above, editable independently. */}
       {multiDisc && (
-        <input
-          type="text"
+        <Input
           placeholder="Folder name (defaults from the first disc or title)"
           value={folderName}
           onChange={(e) => {
@@ -636,7 +626,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
             setFolderNameTouched(true)
           }}
           disabled={busy}
-          className="mb-3 w-full rounded-lg border border-neutral-600 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-500 outline-none focus:border-[#ff8a5c]"
+          className="mb-3"
         />
       )}
 
@@ -683,8 +673,8 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click() }}
               className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center cursor-pointer transition-colors ${
                 dragActive
-                  ? 'border-[#ff8a5c] bg-[#ff8a5c]/5'
-                  : 'border-neutral-300 dark:border-neutral-700 hover:border-[#ff8a5c]/60'
+                  ? 'border-accent bg-accent/5'
+                  : 'border-neutral-300 dark:border-neutral-700 hover:border-accent/60'
               }`}
             >
               <UploadCloud size={28} className="text-neutral-400" aria-hidden="true" />
@@ -762,7 +752,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
                 <span>{setProgress}%</span>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
-                <div className="h-full rounded-full bg-[#ff8a5c] transition-all duration-100" style={{ width: `${setProgress}%` }} />
+                <div className="h-full rounded-full bg-accent transition-all duration-100" style={{ width: `${setProgress}%` }} />
               </div>
             </div>
           )}
@@ -779,13 +769,11 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
         </>
       ) : folderMode ? (
         <div className="space-y-3">
-          <input
-            type="text"
-            placeholder={`Title (e.g. Sonic Adventure)`}
+          <Input
+            placeholder="Title (e.g. Sonic Adventure)"
             value={folderTitle}
             onChange={(e) => setFolderTitle(e.target.value)}
             disabled={busy}
-            className="w-full rounded-lg border border-neutral-600 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-500 outline-none focus:border-[#ff8a5c]"
           />
           <div className="flex items-center gap-3">
             <Button
@@ -835,7 +823,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
                 <span>{folderProgress}%</span>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
-                <div className="h-full rounded-full bg-[#ff8a5c] transition-all duration-100" style={{ width: `${folderProgress}%` }} />
+                <div className="h-full rounded-full bg-accent transition-all duration-100" style={{ width: `${folderProgress}%` }} />
               </div>
             </div>
           )}
@@ -865,8 +853,8 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click() }}
             className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center cursor-pointer transition-colors ${
               dragActive
-                ? 'border-[#ff8a5c] bg-[#ff8a5c]/5'
-                : 'border-neutral-300 dark:border-neutral-700 hover:border-[#ff8a5c]/60'
+                ? 'border-accent bg-accent/5'
+                : 'border-neutral-300 dark:border-neutral-700 hover:border-accent/60'
             }`}
           >
             <UploadCloud size={28} className="text-neutral-400" aria-hidden="true" />
@@ -910,7 +898,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
                   {entry.status === 'uploading' && (
                     <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
                       <div
-                        className="h-full rounded-full bg-[#ff8a5c] transition-all duration-100"
+                        className="h-full rounded-full bg-accent transition-all duration-100"
                         style={{ width: `${entry.progress}%` }}
                       />
                     </div>
@@ -963,7 +951,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
                   <button
                     type="button"
                     onClick={toggleDeleteAllOriginal}
-                    className="text-xs text-[#ff8a5c] hover:underline"
+                    className="text-xs text-accent hover:underline"
                   >
                     {allDeleteChecked ? 'Uncheck All "Delete Original"' : 'Check All "Delete Original"'}
                   </button>
@@ -981,16 +969,13 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
                     >
                       {entry.isDir ? '📁' : '📄'} {entry.name}
                     </span>
-                    <label className="flex shrink-0 items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
-                      <input
-                        type="checkbox"
-                        checked={entry.deleteOriginal}
-                        disabled={entry.status !== 'staged'}
-                        onChange={() => toggleEntryDelete(entry.id)}
-                        className="h-3.5 w-3.5"
-                      />
-                      Delete original
-                    </label>
+                    <Checkbox
+                      checked={entry.deleteOriginal}
+                      disabled={entry.status !== 'staged'}
+                      onCheckedChange={() => toggleEntryDelete(entry.id)}
+                      label="Delete original"
+                      size="sm"
+                    />
                     <span className="shrink-0 text-xs font-medium">
                       {entry.status === 'importing' && <span className="text-neutral-400">Importing…</span>}
                       {entry.status === 'success' && <span className="text-emerald-500">✓ Added</span>}
@@ -1171,7 +1156,7 @@ function ScanBody({ open, onClose, onComplete, mediaPath, config }: LibraryModal
             <button
               type="button"
               onClick={toggleAll}
-              className="text-xs text-[#ff8a5c] hover:underline"
+              className="text-xs text-accent hover:underline"
             >
               {allSelected ? 'Deselect All' : 'Select All'}
             </button>
@@ -1179,11 +1164,10 @@ function ScanBody({ open, onClose, onComplete, mediaPath, config }: LibraryModal
           <ul className="max-h-64 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700">
             {preview.map((item) => (
               <li key={item.file_path} className="flex items-center gap-3 px-3 py-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={selected.has(item.file_path)}
-                  onChange={() => toggleItem(item.file_path)}
-                  className="h-4 w-4 shrink-0 accent-[#ff8a5c]"
+                  onCheckedChange={() => toggleItem(item.file_path)}
+                  className="shrink-0"
                 />
                 <div className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
@@ -1264,7 +1248,7 @@ export function LibraryModal(props: LibraryModalProps) {
   const tabButtonClass = (active: boolean) =>
     `rounded-md px-3 py-1 text-xs font-medium transition-colors ${
       active
-        ? 'bg-[#ff8a5c] text-neutral-950'
+        ? 'bg-accent text-neutral-950'
         : 'text-neutral-400 hover:text-neutral-200'
     }`
 

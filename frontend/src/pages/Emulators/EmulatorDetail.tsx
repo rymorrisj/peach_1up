@@ -163,14 +163,14 @@ export default function EmulatorDetail() {
 
   if (catalog.length > 0 && !entry) {
     return (
-      <div className="p-6" style={{ color: 'var(--fg-3)' }}>
+      <div className="p-6" style={{ color: 'rgb(var(--fg-3))' }}>
         Emulator not found.
       </div>
     )
   }
 
   const BTN: React.CSSProperties = {
-    border: 'none', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600,
+    border: 'none', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', fontWeight: 600,
     padding: '9px 14px', borderRadius: 'var(--r-2)', cursor: 'pointer',
   }
 
@@ -181,8 +181,8 @@ export default function EmulatorDetail() {
           type="button"
           onClick={() => navigate('/emulators')}
           style={{
-            background: 'transparent', border: 0, color: 'var(--fg-1)',
-            fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 500,
+            background: 'transparent', border: 0, color: 'rgb(var(--fg-1))',
+            fontFamily: 'var(--font-display)', fontSize: '0.8125rem', fontWeight: 500,
             cursor: 'pointer', padding: '6px 10px',
           }}
         >
@@ -192,7 +192,7 @@ export default function EmulatorDetail() {
         <button
           type="button"
           onClick={handleDelete}
-          style={{ ...BTN, background: 'transparent', border: '1px solid var(--error)', color: 'var(--error)' }}
+          style={{ ...BTN, background: 'transparent', border: '1px solid rgb(var(--error))', color: 'rgb(var(--error))' }}
         >
           Remove
         </button>
@@ -205,17 +205,17 @@ export default function EmulatorDetail() {
             className="flex items-center justify-center rounded-xl shrink-0"
             style={{
               width: 56, height: 56,
-              background: 'var(--surface-2)', border: '1px solid var(--border-strong)',
-              fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 22, color: 'var(--peach-300)',
+              background: 'rgb(var(--surface-2))', border: '1px solid rgb(var(--border-strong))',
+              fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '1.375rem', color: 'rgb(var(--peach-300))',
             }}
           >
             {entry ? entry.name.slice(0, 2).toUpperCase() : '??'}
           </div>
           <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 32, letterSpacing: '-0.02em', margin: 0, color: 'var(--fg-1)' }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '2rem', letterSpacing: '-0.02em', margin: 0, color: 'rgb(var(--fg-1))' }}>
               {entry?.name ?? slug}
             </h1>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--fg-3)', marginTop: 6 }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'rgb(var(--fg-3))', marginTop: 6 }}>
               {entry?.version}
             </div>
           </div>
@@ -225,10 +225,10 @@ export default function EmulatorDetail() {
               <span
                 key={era}
                 style={{
-                  fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 11,
+                  fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.6875rem',
                   letterSpacing: '0.08em', padding: '4px 6px', borderRadius: 'var(--r-1)',
-                  border: `1px solid ${ERA_COLOR[era] ?? 'var(--border)'}`,
-                  color: ERA_COLOR[era] ?? 'var(--fg-3)', display: 'inline-block',
+                  border: `1px solid ${ERA_COLOR[era] ?? 'rgb(var(--border))'}`,
+                  color: ERA_COLOR[era] ?? 'rgb(var(--fg-3))', display: 'inline-block',
                 }}
               >
                 {era}
@@ -238,13 +238,13 @@ export default function EmulatorDetail() {
         </div>
 
         {entry && (
-          <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, lineHeight: 1.55, color: 'var(--fg-2)', maxWidth: 760, margin: '14px 0 22px' }}>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.875rem', lineHeight: 1.55, color: 'rgb(var(--fg-2))', maxWidth: 760, margin: '14px 0 22px' }}>
             {entry.description}
           </p>
         )}
 
         {/* Tabs */}
-        <div className="flex gap-0" style={{ borderBottom: '1px solid var(--border)', marginBottom: 18 }}>
+        <div className="flex gap-0" style={{ borderBottom: '1px solid rgb(var(--border))', marginBottom: 18 }}>
           <TabBtn id="overview" label="Overview" active={tab === 'overview'} onClick={() => setTab('overview')} />
           {romPackSlug && (
             <TabBtn id="rom" label="ROM Packs" active={tab === 'rom'} onClick={() => setTab('rom')} />

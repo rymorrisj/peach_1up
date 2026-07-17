@@ -1,4 +1,4 @@
-import { Button } from '@/ui'
+import { Button, Checkbox } from '@/ui'
 import type { components } from '@shared/types'
 
 type User = components['schemas']['UserItemRead']
@@ -24,9 +24,6 @@ export function RestrictionsSection({
 }: RestrictionsSectionProps) {
   return (
     <section className="space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-        Restrictions
-      </h2>
       <p className="text-sm text-neutral-500 dark:text-neutral-400">
         Checked users cannot see this item in their library.
       </p>
@@ -37,15 +34,11 @@ export function RestrictionsSection({
         <ul className="space-y-2">
           {users.map((user) => (
             <li key={user.id}>
-              <label className="flex cursor-pointer items-center gap-3 text-sm text-neutral-700 dark:text-neutral-300">
-                <input
-                  type="checkbox"
-                  checked={restrictedIds.has(user.id)}
-                  onChange={() => toggleRestriction(user.id)}
-                  className="h-4 w-4 rounded border-neutral-300 text-[#ff8a5c] focus:ring-[#ff8a5c] dark:border-neutral-600"
-                />
-                {user.name}
-              </label>
+              <Checkbox
+                checked={restrictedIds.has(user.id)}
+                onCheckedChange={() => toggleRestriction(user.id)}
+                label={user.name}
+              />
             </li>
           ))}
         </ul>

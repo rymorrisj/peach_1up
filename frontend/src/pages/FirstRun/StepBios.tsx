@@ -56,7 +56,7 @@ export default function StepBios({ onBack, onFinish, onFinishAndGoTo, finishing 
         <button
           type="button"
           onClick={() => onFinishAndGoTo('/emulators/bios')}
-          className="text-sm font-medium text-[#ff8a5c] hover:underline"
+          className="text-sm font-medium text-accent hover:underline"
         >
           Finish setup & go to BIOS →
         </button>
@@ -68,7 +68,7 @@ export default function StepBios({ onBack, onFinish, onFinishAndGoTo, finishing 
           href={`${DOCS_BASE_URL}/docs/user-guide`}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-medium text-[#ff8a5c] hover:underline"
+          className="font-medium text-accent hover:underline"
         >
           Browse the guides
         </a>
@@ -88,7 +88,7 @@ export default function StepBios({ onBack, onFinish, onFinishAndGoTo, finishing 
           type="button"
           onClick={onFinish}
           disabled={finishing}
-          className="rounded-md bg-[#ff8a5c] px-6 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff8a5c]"
+          className="rounded-md bg-accent px-6 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           {finishing ? 'Finishing…' : 'Finish'}
         </button>

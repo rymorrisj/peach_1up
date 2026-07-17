@@ -23,7 +23,7 @@ export default function Bios() {
   return (
     <div className="p-6">
       {isLoading ? (
-        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--fg-3)' }}>
+        <div className="flex items-center gap-2 text-sm" style={{ color: 'rgb(var(--fg-3))' }}>
           <LoadingSpinner label="Loading BIOS requirements…" />
           <span aria-hidden="true">Loading BIOS requirements…</span>
         </div>
@@ -31,35 +31,35 @@ export default function Bios() {
         <EmptyState heading="No BIOS requirements" subtext="No emulators in the catalog require a BIOS asset." />
       ) : (
         <>
-        <div className="rounded-xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+        <div className="rounded-xl" style={{ background: 'rgb(var(--surface-1))', border: '1px solid rgb(var(--border))' }}>
           {bios.map((b, i) => (
             <div
               key={b.slug}
-              style={{ padding: '14px 18px', borderBottom: i < bios.length - 1 ? '1px solid var(--border)' : 'none' }}
+              style={{ padding: '14px 18px', borderBottom: i < bios.length - 1 ? '1px solid rgb(var(--border))' : 'none' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--fg-1)' }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.875rem', color: 'rgb(var(--fg-1))' }}>
                   {b.name}
                 </span>
                 <span style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-3)',
-                  border: '1px solid var(--border)', borderRadius: 'var(--r-1)', padding: '2px 6px',
+                  fontFamily: 'var(--font-mono)', fontSize: '0.625rem', color: 'rgb(var(--fg-3))',
+                  border: '1px solid rgb(var(--border))', borderRadius: 'var(--r-1)', padding: '2px 6px',
                 }}>
                   {b.required ? 'required' : 'optional'}
                 </span>
                 <span style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase',
-                  color: 'var(--fg-3)',
+                  fontFamily: 'var(--font-mono)', fontSize: '0.625rem', letterSpacing: '0.06em', textTransform: 'uppercase',
+                  color: 'rgb(var(--fg-3))',
                 }}>
                   {b.platform}
                 </span>
                 <StatusDot ok={b.is_present} />
               </div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'rgb(var(--fg-3))', marginBottom: 6 }}>
                 {b.bios_path}/
               </div>
               {b.is_present ? (
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: '#4ade80' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.8125rem', color: 'rgb(var(--success))' }}>
                   Files detected
                 </div>
               ) : (

@@ -86,7 +86,7 @@ export default function FileUpload({ slug, onComplete, accept }: FileUploadProps
         type="button"
         onClick={() => fileRef.current?.click()}
         disabled={uploading}
-        className="text-xs text-[#ff8a5c] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+        className="text-xs text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
       >
         {uploading ? 'Uploading…' : 'or upload a new file…'}
       </button>
@@ -102,7 +102,7 @@ export default function FileUpload({ slug, onComplete, accept }: FileUploadProps
       {progress !== null && (
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
           <div
-            className="h-full rounded-full bg-[#ff8a5c] transition-all duration-100"
+            className="h-full rounded-full bg-accent transition-all duration-100"
             style={{ width: `${progress}%` }}
           />
         </div>

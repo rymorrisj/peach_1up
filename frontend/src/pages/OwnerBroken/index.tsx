@@ -1,6 +1,6 @@
 export default function OwnerBroken() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-white px-4 dark:bg-surface-950">
+    <main className="flex min-h-screen items-center justify-center bg-surface-0 px-4">
       <div className="max-w-md text-center">
         <h1 className="mb-2 text-xl font-semibold text-neutral-700 dark:text-neutral-300">
           Owner account unavailable
@@ -9,7 +9,7 @@ export default function OwnerBroken() {
           The owner account is missing or locked. Recovery requires running the
           setup script from the host machine, in the project directory:
         </p>
-        <pre className="rounded bg-neutral-100 px-3 py-2 text-left text-sm font-mono text-neutral-800 dark:bg-surface-800 dark:text-neutral-200">
+        <pre className="rounded bg-surface-2 px-3 py-2 text-left text-sm font-mono text-neutral-800 dark:text-neutral-200">
           python scripts/setup_admin_user.py
         </pre>
         <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-500">

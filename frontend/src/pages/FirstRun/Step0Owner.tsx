@@ -82,7 +82,7 @@ export default function Step0Owner({ onNext }: Step0OwnerProps) {
             onChange={(e) => setName(e.target.value)}
             placeholder="Your name"
             autoComplete="name"
-            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100 dark:placeholder:text-neutral-600"
+            className="w-full rounded-md border border-neutral-300 bg-surface-2 px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent focus:outline-none dark:border-neutral-700 dark:text-neutral-100 dark:placeholder:text-neutral-600"
           />
         </div>
 
@@ -103,7 +103,7 @@ export default function Step0Owner({ onNext }: Step0OwnerProps) {
             }
             placeholder="••••"
             autoComplete="new-password"
-            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100 dark:placeholder:text-neutral-600"
+            className="w-full rounded-md border border-neutral-300 bg-surface-2 px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent focus:outline-none dark:border-neutral-700 dark:text-neutral-100 dark:placeholder:text-neutral-600"
           />
         </div>
 
@@ -124,12 +124,12 @@ export default function Step0Owner({ onNext }: Step0OwnerProps) {
             }
             placeholder="••••"
             autoComplete="new-password"
-            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100 dark:placeholder:text-neutral-600"
+            className="w-full rounded-md border border-neutral-300 bg-surface-2 px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent focus:outline-none dark:border-neutral-700 dark:text-neutral-100 dark:placeholder:text-neutral-600"
           />
         </div>
 
         {error && (
-          <p role="alert" className="text-xs text-[#ff6a55]">
+          <p role="alert" className="text-xs text-error">
             {error}
           </p>
         )}
@@ -138,7 +138,7 @@ export default function Step0Owner({ onNext }: Step0OwnerProps) {
           <button
             type="submit"
             disabled={saving}
-            className="rounded-md bg-[#ff8a5c] px-6 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff8a5c]"
+            className="rounded-md bg-accent px-6 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {saving ? "Creating…" : "Create Account"}
           </button>

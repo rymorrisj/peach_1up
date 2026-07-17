@@ -24,7 +24,7 @@ export default function FirstRun() {
 
   if (isLoading || finishing) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-white dark:bg-surface-950">
+      <main className="flex min-h-screen items-center justify-center bg-surface-0">
         <LoadingSpinner label="Checking setup status…" />
       </main>
     )
@@ -53,10 +53,10 @@ export default function FirstRun() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-white dark:bg-surface-950 px-6 py-12">
+    <main className="flex min-h-screen items-center justify-center bg-surface-0 px-6 py-12">
       <div className="w-full max-w-2xl">
         {completeError && (
-          <p role="alert" className="mb-4 text-sm text-[#ff6a55]">
+          <p role="alert" className="mb-4 text-sm text-error">
             {completeError}
           </p>
         )}

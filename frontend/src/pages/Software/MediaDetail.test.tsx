@@ -110,7 +110,7 @@ describe('MediaDetail', () => {
     renderPage()
 
     await waitFor(() => {
-      expect(screen.getByText('My Video')).toBeInTheDocument()
+      expect(screen.getAllByText('My Video')[0]).toBeInTheDocument()
     })
   })
 

@@ -104,6 +104,15 @@ function mockApi(app: unknown, environments: unknown[] = []) {
   return calls
 }
 
+// Radix Select's trigger is not a native <select>, userEvent.selectOptions
+// does not work against it. Open the listbox by clicking the labeled
+// trigger, then click the option by its visible text (the option's label,
+// not its underlying value, Radix's listbox is queried by accessible name).
+async function selectRadixOption(user: ReturnType<typeof userEvent.setup>, triggerName: string, optionName: string) {
+  await user.click(screen.getByRole('combobox', { name: triggerName }))
+  await user.click(await screen.findByRole('option', { name: optionName }))
+}
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -129,7 +138,7 @@ describe('AppDetail', () => {
     renderPage()
 
     await waitFor(() => {
-      expect(screen.getByText('My App')).toBeInTheDocument()
+      expect(screen.getAllByText('My App')[0]).toBeInTheDocument()
     })
   })
 
@@ -141,7 +150,7 @@ describe('AppDetail', () => {
       await waitFor(() => {
         expect(screen.getByLabelText('Title')).toHaveValue('My App')
       })
-      expect(screen.getByLabelText('Era')).toHaveValue('winxp')
+      expect(screen.getByRole('combobox', { name: 'Era' })).toHaveTextContent('Windows XP')
       expect(screen.getByLabelText('Platform')).toBeInTheDocument()
     })
 
@@ -162,13 +171,13 @@ describe('AppDetail', () => {
       renderPage()
 
       await screen.findByLabelText('Title')
-      expect(screen.getByLabelText('Platform')).toHaveValue('5')
-      expect(screen.getByLabelText('Platform')).not.toBeDisabled()
+      expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('My XP Box')
+      expect(screen.getByRole('combobox', { name: 'Platform' })).not.toBeDisabled()
 
-      await user.selectOptions(screen.getByLabelText('Era'), 'ps1')
-      const platformSelect = screen.getByLabelText('Platform')
+      await selectRadixOption(user, 'Era', 'PlayStation 1')
+      const platformSelect = screen.getByRole('combobox', { name: 'Platform' })
       expect(platformSelect).toBeDisabled()
-      expect(platformSelect).toHaveValue('')
+      expect(platformSelect).toHaveTextContent('No platform selected')
     })
 
     it('sends the expected PATCH bodies on save', async () => {
@@ -179,7 +188,7 @@ describe('AppDetail', () => {
       const title = await screen.findByLabelText('Title')
       await user.clear(title)
       await user.type(title, 'Renamed App')
-      await user.selectOptions(screen.getByLabelText('Platform'), '5')
+      await selectRadixOption(user, 'Platform', 'My XP Box')
       await user.click(screen.getByRole('button', { name: 'Save Changes' }))
 
       await waitFor(() => {

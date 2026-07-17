@@ -95,7 +95,7 @@ export function LaunchHistorySection({ history, canDelete = false }: LaunchHisto
                   checked={selected.has(h.id)}
                   onChange={() => toggle(h.id)}
                   aria-label={`Select launch ${h.id} for deletion`}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#ff8a5c]"
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-accent"
                 />
               )}
               <span className="min-w-[7rem] text-neutral-500 dark:text-neutral-400 tabular-nums">

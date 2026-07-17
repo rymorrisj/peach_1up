@@ -5,7 +5,7 @@ import type { EmulatorCatalogSlug } from '@/generated/constants'
 import type { EmulatorEntry, ProfileForm as ProfileFormData, ProfileModalState } from '@/types/profiles'
 
 const SELECT_CLASS =
-  'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
+  'w-full rounded-md border border-neutral-300 bg-surface-2 px-3 py-2 text-sm text-neutral-900 focus:border-accent focus:outline-none dark:border-neutral-700 dark:text-neutral-100'
 
 interface ProfileFormProps {
   modal: ProfileModalState
@@ -126,8 +126,8 @@ export function ProfileForm({
             role="switch"
             aria-checked={form.enable_networking}
             onClick={() => setField('enable_networking', !form.enable_networking)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#ff8a5c] focus:ring-offset-2 ${
-              form.enable_networking ? 'bg-[#ff8a5c]' : 'bg-neutral-300 dark:bg-neutral-600'
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 ${
+              form.enable_networking ? 'bg-accent' : 'bg-neutral-300 dark:bg-neutral-600'
             }`}
           >
             <span
@@ -155,8 +155,8 @@ export function ProfileForm({
               role="switch"
               aria-checked={form.enable_dgvoodoo2}
               onClick={() => setField('enable_dgvoodoo2', !form.enable_dgvoodoo2)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#ff8a5c] focus:ring-offset-2 ${
-                form.enable_dgvoodoo2 ? 'bg-[#ff8a5c]' : 'bg-neutral-300 dark:bg-neutral-600'
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 ${
+                form.enable_dgvoodoo2 ? 'bg-accent' : 'bg-neutral-300 dark:bg-neutral-600'
               }`}
             >
               <span

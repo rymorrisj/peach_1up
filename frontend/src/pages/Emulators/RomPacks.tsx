@@ -49,12 +49,12 @@ function RomPackRow({ entry, isLast }: { entry: CatalogEntry; isLast: boolean })
   }
 
   return (
-    <div style={{ padding: '14px 18px', borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
+    <div style={{ padding: '14px 18px', borderBottom: isLast ? 'none' : '1px solid rgb(var(--border))' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
-        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--fg-1)' }}>
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.875rem', color: 'rgb(var(--fg-1))' }}>
           {entry.name}
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: '0.8125rem', color: 'rgb(var(--fg-3))' }}>
           <StatusDot ok={entry.is_installed} />
           {entry.is_installed ? 'Installed' : 'Not installed'}
         </div>
@@ -67,7 +67,7 @@ function RomPackRow({ entry, isLast }: { entry: CatalogEntry; isLast: boolean })
       </div>
       {!entry.is_installed && <GuidanceNote text={entry.guidance_text} url={entry.guidance_url} />}
       {cloneError && (
-        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--error)', fontFamily: 'var(--font-display)' }}>
+        <div style={{ marginTop: 8, fontSize: '0.75rem', color: 'rgb(var(--error))', fontFamily: 'var(--font-display)' }}>
           {cloneError}
         </div>
       )}
@@ -111,7 +111,7 @@ export default function RomPacks() {
   return (
     <div className="p-6">
       {isLoading ? (
-        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--fg-3)' }}>
+        <div className="flex items-center gap-2 text-sm" style={{ color: 'rgb(var(--fg-3))' }}>
           <LoadingSpinner label="Loading ROM packs…" />
           <span aria-hidden="true">Loading ROM packs…</span>
         </div>
@@ -119,7 +119,7 @@ export default function RomPacks() {
         <EmptyState heading="No ROM packs" subtext="No emulators in the catalog require a ROM pack." />
       ) : (
         <>
-        <div className="rounded-xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+        <div className="rounded-xl" style={{ background: 'rgb(var(--surface-1))', border: '1px solid rgb(var(--border))' }}>
           {romPacks.map((entry, i) => (
             <RomPackRow key={entry.slug} entry={entry} isLast={i === romPacks.length - 1} />
           ))}

@@ -157,7 +157,7 @@ function renderPage(slug = 'doom') {
 
 async function waitForLoaded() {
   await waitFor(() => {
-    expect(screen.getByText('Doom')).toBeInTheDocument()
+    expect(screen.getAllByText('Doom')[0]).toBeInTheDocument()
   })
 }
 

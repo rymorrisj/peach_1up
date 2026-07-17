@@ -30,18 +30,16 @@ export function LaunchSection({
 }: LaunchSectionProps) {
   return (
     <section className="space-y-2">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-        Launch
-      </h2>
-
-      <Button
-        onClick={onLaunch}
-        loading={!!launching}
-        disabled={launchDisabled ?? !!launching}
-        className="w-full justify-center py-3 text-base"
-      >
-        {launchButtonLabel}
-      </Button>
+      <div className="flex justify-center">
+        <Button
+          onClick={onLaunch}
+          loading={!!launching}
+          disabled={launchDisabled ?? !!launching}
+          className="px-10 py-3 text-base"
+        >
+          {launchButtonLabel}
+        </Button>
+      </div>
 
       {launchNote}
 

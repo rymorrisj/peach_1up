@@ -42,7 +42,7 @@ export default function ConfirmModal({
   return (
     <dialog
       ref={dialogRef}
-      className="rounded-lg border border-neutral-200 bg-white p-[1.5em] shadow-xl backdrop:bg-black/50 dark:border-surface-400 dark:bg-surface-900"
+      className="rounded-lg border border-border-strong bg-surface-1 p-[1.5em] shadow-xl backdrop:bg-black/50"
     >
       <h2 className="mb-[0.5em] text-lg font-semibold text-neutral-900 dark:text-neutral-100">
         {title}
@@ -64,7 +64,7 @@ export default function ConfirmModal({
           type="button"
           onClick={onCancel}
           autoFocus
-          className="rounded-md border border-neutral-200 px-[1em] py-[0.5em] text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-100 dark:border-surface-400 dark:text-neutral-300 dark:hover:bg-surface-800"
+          className="rounded-md border border-border-strong px-[1em] py-[0.5em] text-sm font-medium text-neutral-700 transition-colors hover:bg-surface-2 dark:text-neutral-300"
         >
           Cancel
         </button>

@@ -168,8 +168,8 @@ export default function EnvironmentModal({
                 aria-pressed={selected}
                 className={`rounded-md border px-3 py-2 text-left text-sm font-medium transition-colors ${
                   selected
-                    ? 'border-[#ff8a5c] bg-[#ff8a5c]/10 text-[#ff8a5c] dark:bg-[#ff8a5c]/20'
-                    : 'border-neutral-200 text-neutral-700 hover:border-neutral-400 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-neutral-500 dark:hover:bg-surface-800'
+                    ? 'border-accent bg-accent/10 text-accent dark:bg-accent/20'
+                    : 'border-neutral-200 text-neutral-700 hover:border-neutral-400 hover:bg-surface-2 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-neutral-500'
                 } disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 {era.label}
@@ -207,14 +207,14 @@ export default function EnvironmentModal({
                   aria-pressed={selected}
                   className={`rounded-md border p-3 text-left transition-colors ${
                     selected
-                      ? 'border-[#ff8a5c] bg-[#ff8a5c]/10 dark:bg-[#ff8a5c]/20'
-                      : 'border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:border-neutral-500 dark:hover:bg-surface-800'
+                      ? 'border-accent bg-accent/10 dark:bg-accent/20'
+                      : 'border-neutral-200 hover:border-neutral-400 hover:bg-surface-2 dark:border-neutral-700 dark:hover:border-neutral-500'
                   } disabled:cursor-not-allowed disabled:opacity-50`}
                 >
                   <span
                     className={`block text-sm font-medium ${
                       selected
-                        ? 'text-[#ff8a5c]'
+                        ? 'text-accent'
                         : 'text-neutral-800 dark:text-neutral-200'
                     }`}
                   >

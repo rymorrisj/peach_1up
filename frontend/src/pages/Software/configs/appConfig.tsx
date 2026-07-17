@@ -114,6 +114,9 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
   const launchGate = launchGateFromReason(collection.launch_blocked_reason, isLaunching)
 
   return {
+    era: collection.era,
+    year: collection.year,
+    publisher: collection.publisher,
     launchCount: collection.launch_count,
     lastLaunchedAt: collection.last_launched_at,
     launchHistory,

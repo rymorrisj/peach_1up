@@ -42,8 +42,8 @@ function EmulatorCard({
     <div
       className="rounded-lg w-full"
       style={{
-        background: "var(--surface-1)",
-        border: "1px solid var(--border)",
+        background: "rgb(var(--surface-1))",
+        border: "1px solid rgb(var(--border))",
       }}
     >
       {/* Main content — click navigates to detail */}
@@ -52,7 +52,7 @@ function EmulatorCard({
         onClick={onClick}
         onMouseEnter={(e) => {
           (e.currentTarget as HTMLDivElement).style.background =
-            "var(--surface-2)";
+            "rgb(var(--surface-2))";
         }}
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLDivElement).style.background = "transparent";
@@ -64,12 +64,12 @@ function EmulatorCard({
             style={{
               width: 52,
               height: 52,
-              background: "var(--surface-2)",
-              border: "1px solid var(--border-strong)",
+              background: "rgb(var(--surface-2))",
+              border: "1px solid rgb(var(--border-strong))",
               fontFamily: "var(--font-mono)",
               fontWeight: 700,
-              fontSize: 20,
-              color: "var(--peach-300)",
+              fontSize: '1.25rem',
+              color: "rgb(var(--peach-300))",
             }}
           >
             {initials(entry.name)}
@@ -81,9 +81,9 @@ function EmulatorCard({
                 style={{
                   fontFamily: "var(--font-display)",
                   fontWeight: 600,
-                  fontSize: 18,
+                  fontSize: '1.125rem',
                   lineHeight: 1,
-                  color: "var(--fg-1)",
+                  color: "rgb(var(--fg-1))",
                 }}
               >
                 {entry.name}
@@ -91,8 +91,8 @@ function EmulatorCard({
               <span
                 style={{
                   fontFamily: "var(--font-mono)",
-                  fontSize: 12,
-                  color: "var(--fg-3)",
+                  fontSize: '0.75rem',
+                  color: "rgb(var(--fg-3))",
                 }}
               >
                 {entry.version}
@@ -102,9 +102,9 @@ function EmulatorCard({
                 className="inline-flex items-center gap-1.5"
                 style={{
                   fontFamily: "var(--font-mono)",
-                  fontSize: 11,
+                  fontSize: '0.6875rem',
                   fontWeight: 500,
-                  color: isReady ? "var(--success)" : "var(--error)",
+                  color: isReady ? "rgb(var(--success))" : "rgb(var(--error))",
                 }}
               >
                 <span
@@ -112,7 +112,7 @@ function EmulatorCard({
                   style={{
                     width: 6,
                     height: 6,
-                    background: isReady ? "var(--success)" : "var(--error)",
+                    background: isReady ? "rgb(var(--success))" : "rgb(var(--error))",
                   }}
                 />
                 {isReady ? "Ready" : "Not installed"}
@@ -122,9 +122,9 @@ function EmulatorCard({
             <div
               style={{
                 fontFamily: "var(--font-display)",
-                fontSize: 13,
+                fontSize: '0.8125rem',
                 lineHeight: 1.4,
-                color: "var(--fg-2)",
+                color: "rgb(var(--fg-2))",
                 marginBottom: 12,
               }}
             >
@@ -139,12 +139,12 @@ function EmulatorCard({
                     style={{
                       fontFamily: "var(--font-mono)",
                       fontWeight: 600,
-                      fontSize: 11,
+                      fontSize: '0.6875rem',
                       letterSpacing: "0.08em",
                       padding: "4px 6px",
                       borderRadius: "var(--r-1)",
-                      border: `1px solid ${ERA_COLOR[era] ?? "var(--border)"}`,
-                      color: ERA_COLOR[era] ?? "var(--fg-3)",
+                      border: `1px solid ${ERA_COLOR[era] ?? "rgb(var(--border))"}`,
+                      color: ERA_COLOR[era] ?? "rgb(var(--fg-3))",
                       display: "inline-block",
                     }}
                   >
@@ -157,15 +157,15 @@ function EmulatorCard({
             <div
               className="flex gap-[18px] pt-3"
               style={{
-                borderTop: "1px solid var(--border)",
+                borderTop: "1px solid rgb(var(--border))",
                 fontFamily: "var(--font-mono)",
-                fontSize: 12,
+                fontSize: '0.75rem',
                 fontWeight: 500,
-                color: "var(--fg-3)",
+                color: "rgb(var(--fg-3))",
               }}
             >
               <span>
-                <strong style={{ color: "var(--fg-1)", marginRight: 4 }}>
+                <strong style={{ color: "rgb(var(--fg-1))", marginRight: 4 }}>
                   {entry.install_type === "rom_pack"
                     ? "—"
                     : entry.is_installed
@@ -176,7 +176,7 @@ function EmulatorCard({
               </span>
               {entry.license && (
                 <span>
-                  <strong style={{ color: "var(--fg-1)", marginRight: 4 }}>
+                  <strong style={{ color: "rgb(var(--fg-1))", marginRight: 4 }}>
                     {entry.license}
                   </strong>
                   license
@@ -191,7 +191,7 @@ function EmulatorCard({
       {editing ? (
         <div
           className="px-[18px] pb-[14px] pt-3 flex gap-2 items-center"
-          style={{ borderTop: "1px solid var(--border)" }}
+          style={{ borderTop: "1px solid rgb(var(--border))" }}
         >
           <input
             value={editPath}
@@ -200,13 +200,13 @@ function EmulatorCard({
             autoFocus
             style={{
               flex: 1,
-              background: "var(--surface-2)",
-              border: "1px solid var(--border)",
+              background: "rgb(var(--surface-2))",
+              border: "1px solid rgb(var(--border))",
               borderRadius: "var(--r-2)",
               padding: "7px 10px",
               fontFamily: "var(--font-mono)",
-              fontSize: 12,
-              color: "var(--fg-1)",
+              fontSize: '0.75rem',
+              color: "rgb(var(--fg-1))",
               outline: "none",
             }}
           />
@@ -217,12 +217,12 @@ function EmulatorCard({
             style={{
               border: "none",
               fontFamily: "var(--font-display)",
-              fontSize: 13,
+              fontSize: '0.8125rem',
               fontWeight: 600,
               padding: "7px 12px",
               borderRadius: "var(--r-2)",
               cursor: saving ? "not-allowed" : "pointer",
-              background: "var(--peach-500)",
+              background: "rgb(var(--peach-500))",
               color: "#1d0a04",
               opacity: saving ? 0.6 : 1,
             }}
@@ -233,15 +233,15 @@ function EmulatorCard({
             type="button"
             onClick={onCancelEdit}
             style={{
-              border: "1px solid var(--border)",
+              border: "1px solid rgb(var(--border))",
               fontFamily: "var(--font-display)",
-              fontSize: 13,
+              fontSize: '0.8125rem',
               fontWeight: 500,
               padding: "7px 12px",
               borderRadius: "var(--r-2)",
               cursor: "pointer",
               background: "transparent",
-              color: "var(--fg-2)",
+              color: "rgb(var(--fg-2))",
             }}
           >
             Cancel
@@ -250,7 +250,7 @@ function EmulatorCard({
       ) : (
         <div
           className="px-[18px] py-2.5 flex gap-2 justify-end items-center"
-          style={{ borderTop: "1px solid var(--border)" }}
+          style={{ borderTop: "1px solid rgb(var(--border))" }}
         >
           {canEdit && (
             <button
@@ -260,15 +260,15 @@ function EmulatorCard({
                 onEdit();
               }}
               style={{
-                border: "1px solid var(--border)",
+                border: "1px solid rgb(var(--border))",
                 fontFamily: "var(--font-display)",
-                fontSize: 12,
+                fontSize: '0.75rem',
                 fontWeight: 500,
                 padding: "5px 10px",
                 borderRadius: "var(--r-2)",
                 cursor: "pointer",
                 background: "transparent",
-                color: "var(--fg-3)",
+                color: "rgb(var(--fg-3))",
               }}
             >
               Edit path
@@ -281,15 +281,15 @@ function EmulatorCard({
               onDelete();
             }}
             style={{
-              border: "1px solid var(--error)",
+              border: "1px solid rgb(var(--error))",
               fontFamily: "var(--font-display)",
-              fontSize: 12,
+              fontSize: '0.75rem',
               fontWeight: 500,
               padding: "5px 10px",
               borderRadius: "var(--r-2)",
               cursor: "pointer",
               background: "transparent",
-              color: "var(--error)",
+              color: "rgb(var(--error))",
             }}
           >
             Remove
@@ -368,9 +368,9 @@ export default function Emulators() {
           className="ml-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors duration-[120ms]"
           style={{
             fontFamily: "var(--font-display)",
-            background: "var(--surface-2)",
-            border: "1px solid var(--border)",
-            color: "var(--fg-1)",
+            background: "rgb(var(--surface-2))",
+            border: "1px solid rgb(var(--border))",
+            color: "rgb(var(--fg-1))",
             cursor: "pointer",
           }}
         >
@@ -384,10 +384,10 @@ export default function Emulators() {
             style={{
               fontFamily: "var(--font-display)",
               fontWeight: 600,
-              fontSize: 18,
+              fontSize: '1.125rem',
               letterSpacing: "-0.01em",
               margin: 0,
-              color: "var(--fg-1)",
+              color: "rgb(var(--fg-1))",
             }}
           >
             Installed backends
@@ -395,8 +395,8 @@ export default function Emulators() {
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 13,
-              color: "var(--fg-3)",
+              fontSize: '0.8125rem',
+              color: "rgb(var(--fg-3))",
             }}
           >
             {installedCount} of {emulatorEntries.length} ready
@@ -406,9 +406,9 @@ export default function Emulators() {
         {isLoading ? (
           <div
             style={{
-              color: "var(--fg-3)",
+              color: "rgb(var(--fg-3))",
               fontFamily: "var(--font-display)",
-              fontSize: 14,
+              fontSize: '0.875rem',
             }}
           >
             Loading…
@@ -417,10 +417,10 @@ export default function Emulators() {
           <div
             className="rounded-xl p-10 text-center text-sm"
             style={{
-              border: "1px dashed var(--border-strong)",
-              color: "var(--fg-3)",
+              border: "1px dashed rgb(var(--border-strong))",
+              color: "rgb(var(--fg-3))",
               backgroundImage:
-                "repeating-linear-gradient(0deg, transparent 0 11px, rgb(255 138 92 / 0.04) 11px 12px), repeating-linear-gradient(90deg, transparent 0 11px, rgb(255 138 92 / 0.04) 11px 12px)",
+                "repeating-linear-gradient(0deg, transparent 0 11px, rgb(var(--peach-500) / 0.04) 11px 12px), repeating-linear-gradient(90deg, transparent 0 11px, rgb(var(--peach-500) / 0.04) 11px 12px)",
             }}
           >
             No emulators found. Check your configuration.

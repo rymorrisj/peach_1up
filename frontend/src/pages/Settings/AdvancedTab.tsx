@@ -2,7 +2,39 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { useAppContext } from '@/context/useAppContext'
-import { Button, Modal, Input, FormField } from '@/ui'
+import { Button, Modal, Input, FormField, Card, RadioGroup, Radio, Checkbox, Select } from '@/ui'
+
+const FONT_SCALE_OPTIONS = [
+  { value: '0.9', label: '90%' },
+  { value: '1', label: '100% (default)' },
+  { value: '1.1', label: '110%' },
+  { value: '1.25', label: '125%' },
+  { value: '1.5', label: '150%' },
+]
+
+function AppearanceSection() {
+  const { state, dispatch } = useAppContext()
+
+  return (
+    <Card>
+      <Card.Header>Appearance</Card.Header>
+      <div className="space-y-3">
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          Scales all text in the app. Useful on high resolution displays or for readability.
+          Applies immediately and is remembered on this device.
+        </p>
+        <FormField label="Text size" htmlFor="font-scale">
+          <Select
+            id="font-scale"
+            value={String(state.fontScale)}
+            onValueChange={(v) => dispatch({ type: 'SET_FONT_SCALE', payload: parseFloat(v) })}
+            options={FONT_SCALE_OPTIONS}
+          />
+        </FormField>
+      </div>
+    </Card>
+  )
+}
 
 function MetadataProviderSection() {
   const queryClient = useQueryClient()
@@ -34,59 +66,43 @@ function MetadataProviderSection() {
   }
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-        Metadata Provider
-      </h2>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-        Which service "Fetch Metadata" searches. Only one provider is active at a time —
-        switching providers below doesn't clear either one's saved credentials, it only
-        changes which one is used.
-      </p>
-      <div className="space-y-2">
-        <label className="flex items-center gap-3 text-sm text-neutral-900 dark:text-neutral-100">
-          <input
-            type="radio"
-            name="metadata-provider"
-            checked={activeProvider === 'thegamesdb'}
-            disabled={saving}
-            onChange={() => void handleSelect('thegamesdb')}
-            className="h-4 w-4 accent-[#ff8a5c]"
-          />
-          TheGamesDB
-        </label>
-        <label className="flex items-center gap-3 text-sm text-neutral-900 dark:text-neutral-100">
-          <input
-            type="radio"
-            name="metadata-provider"
-            checked={activeProvider === 'igdb'}
-            disabled={saving}
-            onChange={() => void handleSelect('igdb')}
-            className="h-4 w-4 accent-[#ff8a5c]"
-          />
-          IGDB
-        </label>
+    <Card>
+      <Card.Header>Metadata Provider</Card.Header>
+      <div className="space-y-3">
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          Which service "Fetch Metadata" searches. Only one provider is active at a time —
+          switching providers below doesn't clear either one's saved credentials, it only
+          changes which one is used.
+        </p>
+        <RadioGroup
+          value={activeProvider}
+          onValueChange={(v) => void handleSelect(v as 'thegamesdb' | 'igdb')}
+          disabled={saving}
+        >
+          <Radio value="thegamesdb" label="TheGamesDB" />
+          <Radio value="igdb" label="IGDB" />
+        </RadioGroup>
+        {activeProvider === 'thegamesdb' && (
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">
+            Metadata fetched via this tool is powered by TheGamesDB.net.
+          </p>
+        )}
+        {activeProvider === 'igdb' && (
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">
+            Metadata fetched via this tool is powered by IGDB.com.
+          </p>
+        )}
+        <p className="text-xs text-neutral-400 dark:text-neutral-500">
+          Fetched metadata, including ratings, may be incomplete or inaccurate. If you rely on
+          content filtering, verify ratings manually.
+        </p>
+        {error && (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            ❌ {error}
+          </p>
+        )}
       </div>
-      {activeProvider === 'thegamesdb' && (
-        <p className="text-xs text-neutral-400 dark:text-neutral-500">
-          Metadata fetched via this tool is powered by TheGamesDB.net.
-        </p>
-      )}
-      {activeProvider === 'igdb' && (
-        <p className="text-xs text-neutral-400 dark:text-neutral-500">
-          Metadata fetched via this tool is powered by IGDB.com.
-        </p>
-      )}
-      <p className="text-xs text-neutral-400 dark:text-neutral-500">
-        Fetched metadata, including ratings, may be incomplete or inaccurate. If you rely on
-        content filtering, verify ratings manually.
-      </p>
-      {error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          ❌ {error}
-        </p>
-      )}
-    </section>
+    </Card>
   )
 }
 
@@ -128,10 +144,9 @@ function TheGamesDbSection() {
   }
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-        TheGamesDB
-      </h2>
+    <Card>
+      <Card.Header>TheGamesDB</Card.Header>
+      <div className="space-y-3">
       <p className="text-sm text-neutral-600 dark:text-neutral-400">
         API key for TheGamesDB metadata enrichment. Currently{' '}
         <strong>{enabled ? 'configured' : 'not configured'}</strong>. The key is never
@@ -175,7 +190,8 @@ function TheGamesDbSection() {
           ❌ {error}
         </p>
       )}
-    </section>
+      </div>
+    </Card>
   )
 }
 
@@ -225,10 +241,9 @@ function IGDBSection() {
   }
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-        IGDB
-      </h2>
+    <Card>
+      <Card.Header>IGDB</Card.Header>
+      <div className="space-y-3">
       <p className="text-sm text-neutral-600 dark:text-neutral-400">
         Twitch Developer app credentials for IGDB metadata enrichment. Currently{' '}
         <strong>{enabled ? 'configured' : 'not configured'}</strong>. Neither value is
@@ -280,7 +295,8 @@ function IGDBSection() {
           ❌ {error}
         </p>
       )}
-    </section>
+      </div>
+    </Card>
   )
 }
 
@@ -339,10 +355,9 @@ function PinPepperSection() {
   }
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-        PIN Pepper
-      </h2>
+    <Card>
+      <Card.Header>PIN Pepper</Card.Header>
+      <div className="space-y-3">
       <p className="text-sm text-neutral-600 dark:text-neutral-400">
         Optional app-level secret mixed into every PIN hash. Currently{' '}
         <strong>{enabled ? 'enabled' : 'disabled'}</strong>. Changing this invalidates every
@@ -394,7 +409,8 @@ function PinPepperSection() {
           </p>
         )}
       </Modal>
-    </section>
+      </div>
+    </Card>
   )
 }
 
@@ -435,38 +451,25 @@ function LaunchHistoryRetentionSection() {
   }
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-        Launch History Retention
-      </h2>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-        How long launch session history is kept. Older records are deleted automatically. "Keep
-        forever" preserves everything. This runs in the background and does not affect launches.
-      </p>
-      <div className="space-y-2">
-        {RETENTION_OPTIONS.map((opt) => (
-          <label
-            key={opt.value}
-            className="flex items-center gap-3 text-sm text-neutral-900 dark:text-neutral-100"
-          >
-            <input
-              type="radio"
-              name="launch-history-retention"
-              checked={active === opt.value}
-              disabled={saving}
-              onChange={() => void handleSelect(opt.value)}
-              className="h-4 w-4 accent-[#ff8a5c]"
-            />
-            {opt.label}
-          </label>
-        ))}
-      </div>
-      {error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          ❌ {error}
+    <Card>
+      <Card.Header>Launch History Retention</Card.Header>
+      <div className="space-y-3">
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          How long launch session history is kept. Older records are deleted automatically. "Keep
+          forever" preserves everything. This runs in the background and does not affect launches.
         </p>
-      )}
-    </section>
+        <RadioGroup value={active} onValueChange={handleSelect} disabled={saving}>
+          {RETENTION_OPTIONS.map((opt) => (
+            <Radio key={opt.value} value={opt.value} label={opt.label} />
+          ))}
+        </RadioGroup>
+        {error && (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            ❌ {error}
+          </p>
+        )}
+      </div>
+    </Card>
   )
 }
 
@@ -499,34 +502,28 @@ function DeleteOriginalOnUploadSection() {
   }
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-        Server Path Import
-      </h2>
-      <label className="flex items-center gap-3">
-        <input
-          type="checkbox"
+    <Card>
+      <Card.Header>Server Path Import</Card.Header>
+      <div className="space-y-3">
+        <Checkbox
           checked={enabled}
+          onCheckedChange={handleToggle}
           disabled={saving}
-          onChange={(e) => handleToggle(e.target.checked)}
-          className="h-4 w-4 shrink-0 accent-[#ff8a5c]"
+          label='Delete the original file/folder after importing via "Browse Server Files…"'
         />
-        <span className="text-sm text-neutral-900 dark:text-neutral-100">
-          Delete the original file/folder after importing via "Browse Server Files…"
-        </span>
-      </label>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-        Default for the "delete once uploaded" checkbox when adding media by browsing a path
-        already on this server. Only applies to that input method — items dragged or dropped
-        through the browser can never delete their source, since the browser never exposes its
-        real file path. This cannot be undone.
-      </p>
-      {error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          ❌ {error}
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          Default for the "delete once uploaded" checkbox when adding media by browsing a path
+          already on this server. Only applies to that input method — items dragged or dropped
+          through the browser can never delete their source, since the browser never exposes its
+          real file path. This cannot be undone.
         </p>
-      )}
-    </section>
+        {error && (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            ❌ {error}
+          </p>
+        )}
+      </div>
+    </Card>
   )
 }
 
@@ -559,32 +556,26 @@ function DeleteMediaOnRemovalSection() {
   }
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-        Library Removal
-      </h2>
-      <label className="flex items-center gap-3">
-        <input
-          type="checkbox"
+    <Card>
+      <Card.Header>Library Removal</Card.Header>
+      <div className="space-y-3">
+        <Checkbox
           checked={enabled}
+          onCheckedChange={handleToggle}
           disabled={saving}
-          onChange={(e) => handleToggle(e.target.checked)}
-          className="h-4 w-4 shrink-0 accent-[#ff8a5c]"
+          label="Permanently delete media files when removing from library"
         />
-        <span className="text-sm text-neutral-900 dark:text-neutral-100">
-          Permanently delete media files when removing from library
-        </span>
-      </label>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-        When enabled, removing an item from the library also deletes its media files from disk.
-        This cannot be undone.
-      </p>
-      {error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          ❌ {error}
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          When enabled, removing an item from the library also deletes its media files from disk.
+          This cannot be undone.
         </p>
-      )}
-    </section>
+        {error && (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            ❌ {error}
+          </p>
+        )}
+      </div>
+    </Card>
   )
 }
 
@@ -617,6 +608,7 @@ export default function AdvancedTab() {
 
   return (
     <div className="mt-6 space-y-6">
+      <AppearanceSection />
       <MetadataProviderSection />
       <TheGamesDbSection />
       <IGDBSection />

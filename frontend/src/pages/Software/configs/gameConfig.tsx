@@ -17,7 +17,6 @@ import { DiscOrderList } from '../components/DiscOrderList'
 import { CollectionCard, getGameCoverArt } from '../components/CollectionCard'
 import type { GameItemBundleData } from '../components/CollectionCard'
 import { LinkedItemsSection } from '../components/LinkedItemsSection'
-import { ERA_LABELS } from '@/generated/constants'
 import type { EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
 import { launchGateFromReason, SOFTWARE_SORT_OPTIONS, GAME_ROUTE_BASE } from '../types'
 import type { LibraryModalConfig } from '../components/LibraryModal'
@@ -243,10 +242,15 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
     return {}
   }
 
-  const eraLabel = ERA_LABELS[collection.era] ?? (collection.era === 'unknown' ? 'Unknown' : collection.era)
   const sortedItems = collection.items.slice().sort((a, b) => a.disc_number - b.disc_number)
   // Single-disc games are collections-of-one — suppress the disc list entirely.
   const isMultiDisc = sortedItems.length > 1
+  // At a Glance "media size" stat: no bundle-level total exists in the API,
+  // so this sums each disc's real file_size_bytes client-side. Null items
+  // (size not yet known) contribute 0 rather than breaking the sum — the
+  // SoftwareEntityDetail.tsx render side only shows the tile when this is > 0,
+  // so an all-null collection still renders no tile rather than a fake "0 B".
+  const mediaSizeBytes = sortedItems.reduce((sum, item) => sum + (item.file_size_bytes ?? 0), 0)
   const showDiscSwapWarning = (collection.era === 'ps1' || collection.era === 'ps2') && isMultiDisc
 
   // Staged order takes precedence over the server's disc_number order once
@@ -269,13 +273,21 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
   const activeDisc = fetchDiscId != null ? sortedItems.find((d) => d.id === fetchDiscId) : undefined
 
   return {
-    eraLabel,
+    era: collection.era,
+    year: collection.year,
+    publisher: collection.publisher,
     launchCount: collection.launch_count,
     lastLaunchedAt: collection.last_launched_at,
     launchHistory,
+    // At a Glance stats — see EntityDetailExtras (types.ts) for the omit-vs-
+    // fabricate contract. localInstalled mirrors collection.installed and
+    // already exists for the DOS-only editable toggle below (metaAfter), this
+    // just also surfaces it as a read-only tile for every era.
+    installedStatus: localInstalled,
+    mediaSizeBytes,
 
     topControl: (
-      <section className="space-y-3 rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 dark:border-surface-700 dark:bg-surface-900">
+      <section className="space-y-3 rounded-md border border-border bg-surface-1 px-4 py-3">
         <label
           htmlFor="delete-media-override"
           className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
@@ -379,12 +391,9 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
 
     fetchMetadataAction: isOwner ? (
       <section className="space-y-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-          Metadata
-        </h2>
         <div className="flex items-center gap-3">
           <Button
-            variant="secondary"
+            variant="primary"
             size="sm"
             onClick={() => {
               if (confirmRefetchIfAlreadyFetched(collection.metadata_fetched_at)) setFetchMetadataOpen(true)
@@ -397,7 +406,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
           </Button>
           {!isMultiDisc && sortedItems[0] && (
             <Button
-              variant="secondary"
+              variant="primary"
               size="sm"
               onClick={() => {
                 if (confirmRefetchIfAlreadyFetched(sortedItems[0].metadata_fetched_at)) setFetchDiscId(sortedItems[0].id)

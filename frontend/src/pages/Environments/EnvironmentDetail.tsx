@@ -18,9 +18,9 @@ function TabBtn({ label, active, onClick, count }: {
   return (
     <button type="button" onClick={onClick} style={{
       padding: '10px 14px', border: 0, background: 'transparent',
-      borderBottom: active ? '2px solid var(--peach-500)' : '2px solid transparent',
-      color: active ? 'var(--fg-1)' : 'var(--fg-3)',
-      fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13,
+      borderBottom: active ? '2px solid rgb(var(--peach-500))' : '2px solid transparent',
+      color: active ? 'rgb(var(--fg-1))' : 'rgb(var(--fg-3))',
+      fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.8125rem',
       lineHeight: 1, cursor: 'pointer', marginBottom: -1,
     }}>
       {label}
@@ -34,11 +34,11 @@ function TabBtn({ label, active, onClick, count }: {
 function ReadRow({ label, value, last = false }: { label: string; value: string; last?: boolean }) {
   return (
     <div className="flex items-center px-[18px] py-3.5"
-      style={{ borderBottom: last ? 'none' : '1px solid var(--border)', gap: 12 }}>
-      <div style={{ minWidth: 190, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
+      style={{ borderBottom: last ? 'none' : '1px solid rgb(var(--border))', gap: 12 }}>
+      <div style={{ minWidth: 190, fontFamily: 'var(--font-display)', fontSize: '0.8125rem', color: 'rgb(var(--fg-3))' }}>
         {label}
       </div>
-      <div style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-2)', textAlign: 'right', wordBreak: 'break-all' }}>
+      <div style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'rgb(var(--fg-2))', textAlign: 'right', wordBreak: 'break-all' }}>
         {value}
       </div>
     </div>
@@ -48,8 +48,8 @@ function ReadRow({ label, value, last = false }: { label: string; value: string;
 function EditRow({ label, children, last = false }: { label: string; children: React.ReactNode; last?: boolean }) {
   return (
     <div className="flex items-center px-[18px] py-2.5"
-      style={{ borderBottom: last ? 'none' : '1px solid var(--border)', gap: 12 }}>
-      <div style={{ minWidth: 190, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
+      style={{ borderBottom: last ? 'none' : '1px solid rgb(var(--border))', gap: 12 }}>
+      <div style={{ minWidth: 190, fontFamily: 'var(--font-display)', fontSize: '0.8125rem', color: 'rgb(var(--fg-3))' }}>
         {label}
       </div>
       <div style={{ flex: 1 }}>{children}</div>
@@ -58,9 +58,9 @@ function EditRow({ label, children, last = false }: { label: string; children: R
 }
 
 const INPUT: React.CSSProperties = {
-  width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)',
+  width: '100%', background: 'rgb(var(--surface-2))', border: '1px solid rgb(var(--border))',
   borderRadius: 'var(--r-2)', padding: '7px 10px', fontFamily: 'var(--font-mono)',
-  fontSize: 12, color: 'var(--fg-1)', outline: 'none',
+  fontSize: '0.75rem', color: 'rgb(var(--fg-1))', outline: 'none',
 }
 
 export default function EnvironmentDetail() {
@@ -171,45 +171,45 @@ export default function EnvironmentDetail() {
   }
 
   if (!platform) {
-    return <div className="p-6" style={{ color: 'var(--fg-3)' }}>Loading…</div>
+    return <div className="p-6" style={{ color: 'rgb(var(--fg-3))' }}>Loading…</div>
   }
 
   const eraKey = platform.era.toUpperCase()
-  const eraColor = ERA_COLOR[eraKey] ?? 'var(--fg-3)'
+  const eraColor = ERA_COLOR[eraKey] ?? 'rgb(var(--fg-3))'
   // Live presence check, computed fresh on every read (is_present), not a
   // persisted status column -- see compute_environment_presence.
-  const statusColor = platform.is_present ? 'var(--success)' : 'var(--error)'
+  const statusColor = platform.is_present ? 'rgb(var(--success))' : 'rgb(var(--error))'
   const statusLabel = platform.is_present ? 'Present' : 'Not present'
-  const BTN: React.CSSProperties = { border: 'none', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, padding: '9px 14px', borderRadius: 'var(--r-2)', cursor: 'pointer' }
+  const BTN: React.CSSProperties = { border: 'none', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', fontWeight: 600, padding: '9px 14px', borderRadius: 'var(--r-2)', cursor: 'pointer' }
 
   return (
     <div className="flex flex-col min-h-full">
       <TopBar>
         <button type="button" onClick={() => navigate('/environments')}
-          style={{ background: 'transparent', border: 0, color: 'var(--fg-1)', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 500, cursor: 'pointer', padding: '6px 10px' }}>
+          style={{ background: 'transparent', border: 0, color: 'rgb(var(--fg-1))', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', padding: '6px 10px' }}>
           ← Environments
         </button>
         <span style={{ flex: 1 }} />
         {!editing && (
           <button type="button" onClick={handleLaunch} disabled={launching}
-            style={{ ...BTN, background: 'var(--peach-500)', color: '#1d0a04' }}>
+            style={{ ...BTN, background: 'rgb(var(--peach-500))', color: '#1d0a04' }}>
             {launching ? 'Launching…' : 'Launch'}
           </button>
         )}
         {editing ? (
           <>
             <button type="button" onClick={() => setEditing(false)}
-              style={{ ...BTN, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--fg-2)' }}>
+              style={{ ...BTN, background: 'rgb(var(--surface-2))', border: '1px solid rgb(var(--border))', color: 'rgb(var(--fg-2))' }}>
               Cancel
             </button>
             <button type="button" onClick={handleEditSave} disabled={editSaving}
-              style={{ ...BTN, background: 'var(--peach-500)', color: '#1d0a04' }}>
+              style={{ ...BTN, background: 'rgb(var(--peach-500))', color: '#1d0a04' }}>
               {editSaving ? 'Saving…' : 'Save'}
             </button>
           </>
         ) : (
           <button type="button" onClick={startEditing}
-            style={{ ...BTN, background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--fg-2)' }}>
+            style={{ ...BTN, background: 'rgb(var(--surface-2))', border: '1px solid rgb(var(--border))', color: 'rgb(var(--fg-2))' }}>
             Edit
           </button>
         )}
@@ -217,15 +217,15 @@ export default function EnvironmentDetail() {
 
       <div className="p-6">
         <div className="flex items-center gap-3 mb-4">
-          <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 32, letterSpacing: '-0.02em', margin: 0, color: 'var(--fg-1)' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '2rem', letterSpacing: '-0.02em', margin: 0, color: 'rgb(var(--fg-1))' }}>
             {platform.name}
           </h1>
-          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 11, letterSpacing: '0.08em', padding: '4px 6px', borderRadius: 'var(--r-1)', border: `1px solid ${eraColor}`, color: eraColor }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.6875rem', letterSpacing: '0.08em', padding: '4px 6px', borderRadius: 'var(--r-1)', border: `1px solid ${eraColor}`, color: eraColor }}>
             {eraKey}
           </span>
         </div>
 
-        <div className="flex gap-0" style={{ borderBottom: '1px solid var(--border)', marginBottom: 22 }}>
+        <div className="flex gap-0" style={{ borderBottom: '1px solid rgb(var(--border))', marginBottom: 22 }}>
           <TabBtn label="Overview" active={tab === 'overview'} onClick={() => setTab('overview')} />
           <TabBtn label="Notes" active={tab === 'notes'} onClick={() => setTab('notes')} />
         </div>
@@ -233,8 +233,8 @@ export default function EnvironmentDetail() {
         <div className="grid gap-3.5" style={{ gridTemplateColumns: '1fr 280px' }}>
           <div>
             {tab === 'overview' && (
-              <div className="rounded-xl overflow-hidden" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-                <div style={{ padding: '14px 18px 8px', fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)' }}>
+              <div className="rounded-xl overflow-hidden" style={{ background: 'rgb(var(--surface-1))', border: '1px solid rgb(var(--border))' }}>
+                <div style={{ padding: '14px 18px 8px', fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgb(var(--fg-3))' }}>
                   Configuration
                 </div>
                 {editing ? (
@@ -262,7 +262,7 @@ export default function EnvironmentDetail() {
                       <input value={editForm.config_path} onChange={e => setField('config_path', e.target.value)} style={INPUT} placeholder="optional" />
                     </EditRow>
                     {editSaveError && (
-                      <div className="px-[18px] py-3" style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--error)' }}>
+                      <div className="px-[18px] py-3" style={{ fontFamily: 'var(--font-display)', fontSize: '0.8125rem', color: 'rgb(var(--error))' }}>
                         ❌ {editSaveError}
                       </div>
                     )}
@@ -281,16 +281,16 @@ export default function EnvironmentDetail() {
             )}
 
             {tab === 'notes' && (
-              <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+              <div className="rounded-xl p-[18px]" style={{ background: 'rgb(var(--surface-1))', border: '1px solid rgb(var(--border))' }}>
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={8}
                   placeholder="Notes about this environment…"
-                  style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-2)', padding: '10px 12px', fontFamily: 'var(--font-display)', fontSize: 13, lineHeight: 1.5, color: 'var(--fg-1)', outline: 'none', resize: 'vertical' }} />
+                  style={{ width: '100%', background: 'rgb(var(--surface-2))', border: '1px solid rgb(var(--border))', borderRadius: 'var(--r-2)', padding: '10px 12px', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', lineHeight: 1.5, color: 'rgb(var(--fg-1))', outline: 'none', resize: 'vertical' }} />
                 {saveError && (
-                  <div className="mt-2" style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--error)' }}>❌ {saveError}</div>
+                  <div className="mt-2" style={{ fontFamily: 'var(--font-display)', fontSize: '0.8125rem', color: 'rgb(var(--error))' }}>❌ {saveError}</div>
                 )}
                 <div className="flex justify-end mt-3">
                   <button type="button" onClick={handleSaveNotes} disabled={saving}
-                    style={{ ...BTN, background: 'var(--peach-500)', color: '#1d0a04' }}>
+                    style={{ ...BTN, background: 'rgb(var(--peach-500))', color: '#1d0a04' }}>
                     {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Notes'}
                   </button>
                 </div>
@@ -299,21 +299,21 @@ export default function EnvironmentDetail() {
           </div>
 
           <div className="flex flex-col gap-3.5">
-            <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 14 }}>
+            <div className="rounded-xl p-[18px]" style={{ background: 'rgb(var(--surface-1))', border: '1px solid rgb(var(--border))' }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgb(var(--fg-3))', marginBottom: 14 }}>
                 At a glance
               </div>
               <div className="flex items-center gap-2 mb-3.5">
                 <span className="rounded-full inline-block shrink-0" style={{ width: 7, height: 7, background: statusColor }} />
-                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--fg-1)' }}>{statusLabel}</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.875rem', color: 'rgb(var(--fg-1))' }}>{statusLabel}</span>
               </div>
               {[
                 { label: 'emulator', value: platform.emulator_slug },
                 { label: 'installed', value: platform.installed_at ? new Date(platform.installed_at + 'Z').toLocaleDateString() : 'Not yet' },
               ].map(({ label, value }) => (
                 <div key={label} className="mb-3 last:mb-0">
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15, lineHeight: 1, color: 'var(--fg-1)' }}>{value}</div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginTop: 3 }}>{label}</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.9375rem', lineHeight: 1, color: 'rgb(var(--fg-1))' }}>{value}</div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'rgb(var(--fg-3))', marginTop: 3 }}>{label}</div>
                 </div>
               ))}
             </div>

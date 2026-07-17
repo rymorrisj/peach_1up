@@ -2,6 +2,7 @@ import { useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/api/client'
 import { swatchHex } from './swatches'
+import { Input } from '@/ui'
 import type { components } from '@shared/types'
 type TagRead = components['schemas']['TagRead']
 
@@ -58,7 +59,7 @@ export default function TagCombobox({ assignedTagIds, onAssign }: Props) {
 
   return (
     <div className="relative">
-      <input
+      <Input
         value={input}
         onChange={(e) => {
           setInput(e.target.value)
@@ -74,10 +75,10 @@ export default function TagCombobox({ assignedTagIds, onAssign }: Props) {
         }
         onKeyDown={handleKeyDown}
         placeholder="Search tags…"
-        className="w-full rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100"
+        className="py-1.5"
       />
       {open && filtered.length > 0 && (
-        <ul className="absolute z-10 mt-1 w-full rounded-md border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-surface-800">
+        <ul className="absolute z-10 mt-1 w-full rounded-md border border-neutral-200 bg-surface-2 py-1 shadow-lg dark:border-neutral-700">
           {filtered.map((tag, i) => (
             <li key={tag.id}>
               <button

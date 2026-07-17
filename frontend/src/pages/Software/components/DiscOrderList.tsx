@@ -77,7 +77,7 @@ export function DiscOrderList({ discs, order, onReorder, disabled, renderActions
             <span className="w-5 shrink-0 font-mono text-xs text-neutral-500">{idx + 1}</span>
             <span className="min-w-0 flex-1 truncate font-mono text-xs text-neutral-400">{filename}</span>
             {isLaunch && (
-              <span className="shrink-0 rounded-[4px] border border-[#ff8a5c]/40 bg-[#ff8a5c]/10 px-1.5 py-0.5 font-mono text-[10px] text-[#ff8a5c]">
+              <span className="shrink-0 rounded-[4px] border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-mono text-[0.625rem] text-accent">
                 Launch target
               </span>
             )}

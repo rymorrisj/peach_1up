@@ -1,4 +1,4 @@
-import { Button, FormField, Input, Textarea } from '@/ui'
+import { Button, Card, FormField, Input, Textarea, Select } from '@/ui'
 import PathInput from '@/components/common/PathInput'
 import { ERA_LABELS } from '@/generated/constants'
 import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal'
@@ -7,9 +7,6 @@ import type { SoftwareAppForm } from '../types/appForm'
 import type { components } from '@shared/types'
 
 type Platform = components['schemas']['EnvironmentItemRead']
-
-const SELECT_CLASS =
-  'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
 
 interface AppEditFormProps {
   form: SoftwareAppForm
@@ -43,10 +40,10 @@ export function AppEditForm({
   }
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-        Details
-      </h2>
+    <div className="space-y-6">
+      <Card>
+      <Card.Header>Details</Card.Header>
+      <div className="space-y-4">
 
       <FormField label="Title" htmlFor="detail-title" required>
         <Input
@@ -67,6 +64,13 @@ export function AppEditForm({
         />
       </FormField>
 
+      </div>
+      </Card>
+
+      <Card>
+      <Card.Header>Files</Card.Header>
+      <div className="space-y-4">
+
       <FormField label="Cover Art Path" htmlFor="detail-cover">
         <PathInput
           id="detail-cover"
@@ -77,6 +81,13 @@ export function AppEditForm({
           placeholder="C:\Images\cover.png"
         />
       </FormField>
+
+      </div>
+      </Card>
+
+      <Card>
+      <Card.Header>Launch Setup</Card.Header>
+      <div className="space-y-4">
 
       <FormField
         label="Era"
@@ -89,19 +100,15 @@ export function AppEditForm({
             : undefined
         }
       >
-        <select
+        <Select
           id="detail-era"
-          value={form.era}
-          onChange={(e) => handleEraChange(e.target.value)}
-          className={SELECT_CLASS}
-        >
-          <option value="">No era selected</option>
-          {Object.entries(ERA_LABELS).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
+          value={form.era || 'none'}
+          onValueChange={(v) => handleEraChange(v === 'none' ? '' : v)}
+          options={[
+            { value: 'none', label: 'No era selected' },
+            ...Object.entries(ERA_LABELS).map(([key, label]) => ({ value: key, label })),
+          ]}
+        />
       </FormField>
 
       <PlatformField
@@ -112,6 +119,9 @@ export function AppEditForm({
         platforms={platforms}
         disabledNote="Determined automatically by platform type, no environment needed."
       />
+
+      </div>
+      </Card>
 
       <div className="flex items-center gap-3">
         <Button onClick={handleSave} loading={saving}>
@@ -127,6 +137,6 @@ export function AppEditForm({
           ❌ {saveError}
         </p>
       )}
-    </section>
+    </div>
   )
 }

@@ -169,9 +169,9 @@ describe('CollectionDetail (read path)', () => {
     mockApi({ user: adminUser, collection: fullCollection() })
     renderPage()
     await waitFor(() => {
-      expect(screen.getByText('Doom')).toBeInTheDocument()
+      expect(screen.getAllByText('Doom')[0]).toBeInTheDocument()
     })
-    expect(screen.getByText(/id Software/)).toBeInTheDocument()
+    expect(screen.getAllByText(/id Software/)[0]).toBeInTheDocument()
     expect(screen.getByText(/Action, Shooter/)).toBeInTheDocument()
   })
 
@@ -198,7 +198,7 @@ describe('CollectionDetail (read path)', () => {
     renderPage()
 
     await waitFor(() => {
-      expect(screen.getByText('Doom')).toBeInTheDocument()
+      expect(screen.getAllByText('Doom')[0]).toBeInTheDocument()
     })
     expect(screen.queryByRole('heading', { name: /restrictions/i })).not.toBeInTheDocument()
 

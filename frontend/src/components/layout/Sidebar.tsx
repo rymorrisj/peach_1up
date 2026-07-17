@@ -6,10 +6,10 @@ const DOCS_BASE_URL =
   "http://localhost:3000";
 
 const ERA_ITEMS = [
-  { label: "DOS", slug: "dos", color: "var(--era-dos)" },
-  { label: "WIN95", slug: "win95", color: "var(--era-win95)" },
-  { label: "WIN98", slug: "win98", color: "var(--era-win98)" },
-  { label: "WINXP", slug: "winxp", color: "var(--era-winxp)" },
+  { label: "DOS", slug: "dos", color: "rgb(var(--era-dos))" },
+  { label: "WIN95", slug: "win95", color: "rgb(var(--era-win95))" },
+  { label: "WIN98", slug: "win98", color: "rgb(var(--era-win98))" },
+  { label: "WINXP", slug: "winxp", color: "rgb(var(--era-winxp))" },
 ];
 
 const CONSOLE_ERA_ITEMS = [
@@ -46,8 +46,8 @@ export default function Sidebar() {
       className="flex shrink-0 flex-col"
       style={{
         width: 240,
-        background: "var(--surface-0)",
-        borderRight: "1px solid var(--border)",
+        background: "rgb(var(--surface-0))",
+        borderRight: "1px solid rgb(var(--border))",
       }}
     >
       {/* Brand */}
@@ -67,9 +67,9 @@ export default function Sidebar() {
           style={{
             fontFamily: "var(--font-display)",
             fontWeight: 700,
-            fontSize: 17,
+            fontSize: '1.0625rem',
             letterSpacing: "-0.015em",
-            color: "var(--fg-1)",
+            color: "rgb(var(--fg-1))",
           }}
         >
           Peach
@@ -77,13 +77,13 @@ export default function Sidebar() {
             style={{
               fontFamily: "var(--font-mono)",
               fontWeight: 700,
-              fontSize: 12,
+              fontSize: '0.75rem',
               letterSpacing: "0.12em",
-              color: "var(--peach-500)",
+              color: "rgb(var(--peach-500))",
               padding: "3px 5px",
-              border: "1px solid rgb(255 138 92 / 0.4)",
+              border: "1px solid rgb(var(--peach-500) / 0.4)",
               borderRadius: "var(--r-1)",
-              background: "rgb(255 138 92 / 0.08)",
+              background: "rgb(var(--peach-500) / 0.08)",
               transform: "translateY(-1px)",
               display: "inline-block",
             }}
@@ -109,7 +109,7 @@ export default function Sidebar() {
                     className="flex items-center gap-2.5 rounded-lg px-3 py-[9px] text-sm font-medium transition-colors duration-[120ms] hover:text-fg-1 text-neutral-400"
                     style={{
                       fontFamily: "var(--font-display)",
-                      color: "var(--fg-2)",
+                      color: "rgb(var(--fg-2))",
                       borderLeft: "2px solid transparent",
                     }}
                   >
@@ -138,10 +138,10 @@ export default function Sidebar() {
                   }
                   style={({ isActive }) => ({
                     fontFamily: "var(--font-display)",
-                    color: isActive ? "var(--fg-1)" : "var(--fg-2)",
-                    background: isActive ? "var(--surface-2)" : "transparent",
+                    color: isActive ? "rgb(var(--fg-1))" : "rgb(var(--fg-2))",
+                    background: isActive ? "rgb(var(--surface-2))" : "transparent",
                     borderLeft: isActive
-                      ? "2px solid var(--peach-500)"
+                      ? "2px solid rgb(var(--peach-500))"
                       : "2px solid transparent",
                   })}
                 >
@@ -169,10 +169,10 @@ export default function Sidebar() {
           style={{
             fontFamily: "var(--font-mono)",
             fontWeight: 600,
-            fontSize: 11,
+            fontSize: '0.6875rem',
             letterSpacing: "0.1em",
             textTransform: "uppercase",
-            color: "var(--fg-3)",
+            color: "rgb(var(--fg-3))",
           }}
         >
           Eras
@@ -195,7 +195,7 @@ export default function Sidebar() {
                   style={{
                     fontFamily: "var(--font-mono)",
                     fontWeight: 600,
-                    fontSize: 11,
+                    fontSize: '0.6875rem',
                     letterSpacing: "0.08em",
                     padding: "3px 5px",
                     border: `1px solid ${color}`,
@@ -206,7 +206,7 @@ export default function Sidebar() {
                 >
                   {label}
                 </span>
-                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>
+                <span style={{ fontSize: '0.75rem', color: "rgb(var(--fg-3))" }}>
                   {label === "DOS" && "DOS 6.22"}
                   {label === "WIN95" && "Windows 95"}
                   {label === "WIN98" && "Windows 98"}
@@ -223,10 +223,10 @@ export default function Sidebar() {
           style={{
             fontFamily: "var(--font-mono)",
             fontWeight: 600,
-            fontSize: 11,
+            fontSize: '0.6875rem',
             letterSpacing: "0.1em",
             textTransform: "uppercase",
-            color: "var(--fg-3)",
+            color: "rgb(var(--fg-3))",
           }}
         >
           Consoles
@@ -249,7 +249,7 @@ export default function Sidebar() {
                   style={{
                     fontFamily: "var(--font-mono)",
                     fontWeight: 600,
-                    fontSize: 11,
+                    fontSize: '0.6875rem',
                     letterSpacing: "0.08em",
                     padding: "3px 5px",
                     border: `1px solid ${color}`,
@@ -260,7 +260,7 @@ export default function Sidebar() {
                 >
                   {label}
                 </span>
-                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>
+                <span style={{ fontSize: '0.75rem', color: "rgb(var(--fg-3))" }}>
                   {label === "PS1" && "PlayStation 1"}
                   {label === "PS2" && "PlayStation 2"}
                   {label === "XBOX" && "Xbox OG"}
@@ -279,15 +279,15 @@ export default function Sidebar() {
       <div
         className="mt-auto px-4 py-3"
         style={{
-          borderTop: "1px solid var(--border)",
+          borderTop: "1px solid rgb(var(--border))",
           fontFamily: "var(--font-mono)",
-          fontSize: 11,
+          fontSize: '0.6875rem',
           lineHeight: 1.4,
-          color: "var(--fg-3)",
+          color: "rgb(var(--fg-3))",
         }}
       >
         <span
-          style={{ color: "var(--fg-2)", display: "block", fontWeight: 600 }}
+          style={{ color: "rgb(var(--fg-2))", display: "block", fontWeight: 600 }}
         >
           Peach 1UP
         </span>

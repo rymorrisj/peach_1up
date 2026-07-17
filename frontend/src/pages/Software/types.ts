@@ -292,9 +292,19 @@ export interface EntityDetailExtrasContext<TBundle extends EntityBundleBase> {
 // casts them once, at the single point it spreads into SoftwareEntityDetail,
 // which already owns those real types.
 export interface EntityDetailExtras {
-  eraLabel?: string
+  // Raw era slug (e.g. "ps1"), not a pre-formatted label, so the header chip
+  // can look up both its short display code and its token color from
+  // types/era.ts the same way grid cards already do. Omitted entirely for
+  // domains with no era concept (Media).
+  era?: string
+  year?: number | null
+  publisher?: string | null
   launchCount?: number
   lastLaunchedAt?: string | null
+  // At a Glance stats. See SoftwareEntityDetail.tsx for the omit-vs-fabricate
+  // rule: undefined/null renders no tile rather than a fake zero/false.
+  installedStatus?: boolean
+  mediaSizeBytes?: number | null
   topControl?: ReactNode
   metaAfter?: ReactNode
   editForm?: unknown

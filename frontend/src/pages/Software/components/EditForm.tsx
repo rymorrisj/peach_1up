@@ -1,4 +1,4 @@
-import { Button, FormField, Input, Textarea } from '@/ui'
+import { Button, Card, FormField, Input, Textarea, Select } from '@/ui'
 import PathInput from '@/components/common/PathInput'
 import FileBrowser from '@/components/common/FileBrowser'
 import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
@@ -16,9 +16,6 @@ type EditableItem = {
   file_path?: string | null
   folder_path?: string | null
 }
-
-const SELECT_CLASS =
-  'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100'
 
 interface EditFormProps {
   item: EditableItem
@@ -73,10 +70,10 @@ export function EditForm({
   }
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-        Details
-      </h2>
+    <div className="space-y-6">
+      <Card>
+      <Card.Header>Profile</Card.Header>
+      <div className="space-y-4">
 
       <div className="grid grid-cols-2 gap-4">
         <FormField label="Title" htmlFor="detail-title" required>
@@ -146,18 +143,12 @@ export function EditForm({
         </FormField>
 
         <FormField label="Content Rating" htmlFor="detail-rating">
-          <select
+          <Select
             id="detail-rating"
-            value={form.content_rating}
-            onChange={(e) => setField('content_rating', e.target.value)}
-            className={SELECT_CLASS}
-          >
-            {RATING_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            value={form.content_rating || 'none'}
+            onValueChange={(v) => setField('content_rating', v === 'none' ? '' : v)}
+            options={RATING_OPTIONS.map((o) => ({ value: o.value || 'none', label: o.label }))}
+          />
         </FormField>
       </div>
 
@@ -175,7 +166,7 @@ export function EditForm({
       {showLaunchFile && <FormField label="Launch File" htmlFor="detail-executable">
         <div className="flex items-center gap-2">
           <span
-            className="min-w-0 flex-1 truncate rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-surface-800"
+            className="min-w-0 flex-1 truncate rounded-md border border-neutral-200 bg-surface-2 px-3 py-2 text-sm dark:border-neutral-700"
             title={form.executable_path || undefined}
           >
             {form.executable_path
@@ -210,19 +201,15 @@ export function EditForm({
 
       <div className="grid grid-cols-2 gap-4">
         <FormField label="Era" htmlFor="detail-era">
-          <select
+          <Select
             id="detail-era"
-            value={form.era}
-            onChange={(e) => handleEraChange(e.target.value)}
-            className={SELECT_CLASS}
-          >
-            <option value="">— No era —</option>
-            {Object.entries(ERA_LABELS).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
+            value={form.era || 'none'}
+            onValueChange={(v) => handleEraChange(v === 'none' ? '' : v)}
+            options={[
+              { value: 'none', label: '— No era —' },
+              ...Object.entries(ERA_LABELS).map(([key, label]) => ({ value: key, label })),
+            ]}
+          />
           {item.detection_reason ? (
             <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
               Era was detected automatically from your media. You can change it if the detection was wrong.
@@ -246,38 +233,41 @@ export function EditForm({
       </div>
 
       <FormField label="Launch Profile" htmlFor="detail-profile">
-        <select
+        <Select
           id="detail-profile"
-          value={form.profile_item_id}
-          onChange={(e) => setField('profile_item_id', e.target.value)}
-          className={SELECT_CLASS}
-        >
-          <option value="">— No profile —</option>
-          {eraProfiles.length > 0 && (
-            <optgroup label={`Matching era (${eraLabel})`}>
-              {eraProfiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}{p.is_bundled ? ' (default)' : ''}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {otherProfiles.length > 0 && (
-            <optgroup label="Other eras">
-              {otherProfiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({ERA_LABELS[p.era] ?? p.era})
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
+          value={form.profile_item_id || 'none'}
+          onValueChange={(v) => setField('profile_item_id', v === 'none' ? '' : v)}
+          options={[
+            { value: 'none', label: '— No profile —' },
+            ...(eraProfiles.length > 0
+              ? [{
+                  groupLabel: `Matching era (${eraLabel})`,
+                  options: eraProfiles.map((p) => ({
+                    value: String(p.id),
+                    label: `${p.name}${p.is_bundled ? ' (default)' : ''}`,
+                  })),
+                }]
+              : []),
+            ...(otherProfiles.length > 0
+              ? [{
+                  groupLabel: 'Other eras',
+                  options: otherProfiles.map((p) => ({
+                    value: String(p.id),
+                    label: `${p.name} (${ERA_LABELS[p.era] ?? p.era})`,
+                  })),
+                }]
+              : []),
+          ]}
+        />
         {profileEraMismatch && (
           <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
             Selected profile targets a different era — launch may fail.
           </p>
         )}
       </FormField>
+
+      </div>
+      </Card>
 
       <div className="flex items-center gap-3">
         <Button onClick={handleSave} loading={saving}>
@@ -293,6 +283,6 @@ export function EditForm({
           ❌ {saveError}
         </p>
       )}
-    </section>
+    </div>
   )
 }

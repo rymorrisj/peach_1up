@@ -116,7 +116,7 @@ describe('EntityDetailPage', () => {
     renderAt('/software/games/doom-test', '/software/games/:slug', <EntityDetailPage config={gameDomainConfig} />)
 
     await waitFor(() => {
-      expect(screen.getByText('Doom Test')).toBeInTheDocument()
+      expect(screen.getAllByText('Doom Test')[0]).toBeInTheDocument()
     })
   })
 
@@ -137,7 +137,7 @@ describe('EntityDetailPage', () => {
     renderAt('/software/apps/1', '/software/apps/:id', <EntityDetailPage config={appDomainConfig} />)
 
     await waitFor(() => {
-      expect(screen.getByText('My App')).toBeInTheDocument()
+      expect(screen.getAllByText('My App')[0]).toBeInTheDocument()
     })
     // App now declares renderExtras (AppEditForm), so its own edit form
     // shows, but not Game's Advanced section (launch_commands, review flag).
@@ -161,7 +161,7 @@ describe('EntityDetailPage', () => {
     renderAt('/software/media/1', '/software/media/:id', <EntityDetailPage config={mediaDomainConfig} />)
 
     await waitFor(() => {
-      expect(screen.getByText('My Video')).toBeInTheDocument()
+      expect(screen.getAllByText('My Video')[0]).toBeInTheDocument()
     })
     // Media now declares renderExtras (MediaEditForm), so its own edit form
     // shows, but not Game's Advanced section, and still no launch (Media

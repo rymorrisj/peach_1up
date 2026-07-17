@@ -70,9 +70,9 @@ export function BiosPlaceAction({ bios }: { bios: BiosItem }) {
         onClick={() => setOpen(true)}
         disabled={isPlacing}
         style={{
-          background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--r-1)',
-          padding: '4px 10px', fontFamily: 'var(--font-display)', fontSize: 12,
-          color: 'var(--peach-400)', cursor: 'pointer', opacity: isPlacing ? 0.5 : 1,
+          background: 'none', border: '1px solid rgb(var(--border))', borderRadius: 'var(--r-1)',
+          padding: '4px 10px', fontFamily: 'var(--font-display)', fontSize: '0.75rem',
+          color: 'rgb(var(--peach-400))', cursor: 'pointer', opacity: isPlacing ? 0.5 : 1,
         }}
       >
         {isPlacing ? 'Placing…' : 'Locate file/folder…'}
@@ -85,17 +85,17 @@ export function BiosPlaceAction({ bios }: { bios: BiosItem }) {
         title={`Locate ${bios.name}`}
       />
       {error && (
-        <div style={{ marginTop: 6, fontSize: 12, color: 'var(--error)', fontFamily: 'var(--font-display)' }}>
+        <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'rgb(var(--error))', fontFamily: 'var(--font-display)' }}>
           ❌ {error}
         </div>
       )}
       {result && result.warnings.map((w, i) => (
-        <div key={i} style={{ marginTop: 6, fontSize: 12, color: '#f59e0b', fontFamily: 'var(--font-display)' }}>
+        <div key={i} style={{ marginTop: 6, fontSize: '0.75rem', color: 'rgb(var(--warning))', fontFamily: 'var(--font-display)' }}>
           ⚠ {w}
         </div>
       ))}
       {result && result.warnings.length === 0 && result.copied.length > 0 && (
-        <div style={{ marginTop: 6, fontSize: 12, color: '#4ade80', fontFamily: 'var(--font-display)' }}>
+        <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'rgb(var(--success))', fontFamily: 'var(--font-display)' }}>
           Placed {result.copied.length} file{result.copied.length === 1 ? '' : 's'}.
         </div>
       )}

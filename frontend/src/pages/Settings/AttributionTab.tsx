@@ -43,7 +43,7 @@ export default function AttributionTab() {
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-neutral-500 dark:bg-surface-700 dark:text-neutral-400">
+                  <span className="rounded bg-surface-3 px-1.5 py-0.5 font-mono text-xs text-neutral-500 dark:text-neutral-400">
                     {entry.license}
                   </span>
                   {entry.source_url && (
@@ -51,7 +51,7 @@ export default function AttributionTab() {
                       href={entry.source_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-xs text-[#ff8a5c] underline hover:opacity-80"
+                      className="text-xs text-accent underline hover:opacity-80"
                     >
                       Source →
                     </a>

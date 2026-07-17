@@ -12,14 +12,14 @@ interface RomPackTabProps {
 
 export function RomPackTab({ romPackEntry, isCloning, cloneError, onCloneRomPack }: RomPackTabProps) {
   return (
-    <div className="rounded-xl overflow-hidden" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+    <div className="rounded-xl overflow-hidden" style={{ background: 'rgb(var(--surface-1))', border: '1px solid rgb(var(--border))' }}>
       {romPackEntry ? (
         <div style={{ padding: '16px 18px' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--fg-1)', marginBottom: 12 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.875rem', color: 'rgb(var(--fg-1))', marginBottom: 12 }}>
             {romPackEntry.name}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: '0.8125rem', color: 'rgb(var(--fg-3))' }}>
               <StatusDot ok={romPackEntry.is_installed} />
               {romPackEntry.is_installed ? 'ROM pack present' : 'ROM pack missing'}
             </div>
@@ -34,18 +34,18 @@ export function RomPackTab({ romPackEntry, isCloning, cloneError, onCloneRomPack
             <GuidanceNote text={romPackEntry.guidance_text} url={romPackEntry.guidance_url} />
           )}
           {cloneError && (
-            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--error)', fontFamily: 'var(--font-display)' }}>
+            <div style={{ marginTop: 8, fontSize: '0.75rem', color: 'rgb(var(--error))', fontFamily: 'var(--font-display)' }}>
               {cloneError}
             </div>
           )}
           {romPackEntry.is_installed && (
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: '#4ade80', marginTop: 4 }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.8125rem', color: 'rgb(var(--success))', marginTop: 4 }}>
               ROM pack installed and ready.
             </div>
           )}
         </div>
       ) : (
-        <div style={{ color: 'var(--fg-3)', fontFamily: 'var(--font-display)', fontSize: 13, padding: '16px 18px' }}>
+        <div style={{ color: 'rgb(var(--fg-3))', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', padding: '16px 18px' }}>
           No ROM packs required for this emulator.
         </div>
       )}

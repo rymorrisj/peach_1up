@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
-import { Button } from '@/ui'
+import { Button, Select } from '@/ui'
 import TopBar from '@/components/layout/TopBar'
 import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
@@ -17,9 +17,6 @@ import type { EntityBundleBase, EntityDomainConfig, Page, TagRead } from '../typ
 const PAGE_SIZE = 50
 
 const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
-
-const SELECT_CLASS =
-  'rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#ff8a5c] border'
 
 interface SoftwarePaths {
   library_path: string | null
@@ -227,7 +224,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
 
       <div className="p-6">
         {isLoading ? (
-          <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--fg-3)' }}>
+          <div className="flex items-center gap-2 text-sm" style={{ color: 'rgb(var(--fg-3))' }}>
             <LoadingSpinner label={`Loading ${config.entityLabelPlural}…`} />
             <span aria-hidden="true">Loading {config.entityLabelPlural}…</span>
           </div>
@@ -242,53 +239,46 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
             {(config.filters || config.sortOptions) ? (
               <div className="mb-6 flex flex-wrap items-center gap-3">
                 {config.filters?.era && (
-                  <select
-                    value={filters.era}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      setFilters((f) => ({ ...f, era: v }))
+                  <Select
+                    value={filters.era || 'all'}
+                    onValueChange={(v) => {
+                      const val = v === 'all' ? '' : v
+                      setFilters((f) => ({ ...f, era: val }))
                       setOffset(0)
-                      setSearchParams((p) => { if (v) p.set('era', v); else p.delete('era'); return p })
+                      setSearchParams((p) => { if (val) p.set('era', val); else p.delete('era'); return p })
                     }}
-                    className={SELECT_CLASS}
-                    style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--fg-1)' }}
-                  >
-                    <option value="">All eras</option>
-                    {ERA_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
+                    className="w-auto"
+                    options={[{ value: 'all', label: 'All eras' }, ...ERA_OPTIONS]}
+                  />
                 )}
                 {config.filters?.profileAssigned && (
-                  <select
+                  <Select
                     value={filters.profileFilter}
-                    onChange={(e) => {
-                      setFilters((f) => ({ ...f, profileFilter: e.target.value as ListFilters['profileFilter'] }))
+                    onValueChange={(v) => {
+                      setFilters((f) => ({ ...f, profileFilter: v as ListFilters['profileFilter'] }))
                       setOffset(0)
                     }}
-                    className={SELECT_CLASS}
-                    style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--fg-1)' }}
-                  >
-                    <option value="all">All {config.entityLabelPlural}</option>
-                    <option value="assigned">Profile assigned</option>
-                    <option value="unassigned">No profile</option>
-                  </select>
+                    className="w-auto"
+                    options={[
+                      { value: 'all', label: `All ${config.entityLabelPlural}` },
+                      { value: 'assigned', label: 'Profile assigned' },
+                      { value: 'unassigned', label: 'No profile' },
+                    ]}
+                  />
                 )}
                 {config.filters?.tag && (
-                  <select
-                    value={filters.tagFilter}
-                    onChange={(e) => {
-                      setFilters((f) => ({ ...f, tagFilter: e.target.value }))
+                  <Select
+                    value={filters.tagFilter || '__all_tags__'}
+                    onValueChange={(v) => {
+                      setFilters((f) => ({ ...f, tagFilter: v === '__all_tags__' ? '' : v }))
                       setOffset(0)
                     }}
-                    className={SELECT_CLASS}
-                    style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--fg-1)' }}
-                  >
-                    <option value="">All tags</option>
-                    {tagOptions.map((t) => (
-                      <option key={t.id} value={t.name}>{t.name}</option>
-                    ))}
-                  </select>
+                    className="w-auto"
+                    options={[
+                      { value: '__all_tags__', label: 'All tags' },
+                      ...tagOptions.map((t) => ({ value: t.name, label: t.name })),
+                    ]}
+                  />
                 )}
                 {hasActiveFilters && (
                   <button
@@ -298,41 +288,39 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
                       setOffset(0)
                       setSearchParams((p) => { p.delete('era'); return p })
                     }}
-                    style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}
+                    style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', color: 'rgb(var(--fg-3))', background: 'none', border: 'none', cursor: 'pointer' }}
                   >
                     Clear filters
                   </button>
                 )}
                 {config.sortOptions && (
-                  <select
-                    value={filters.sort}
-                    onChange={(e) => {
-                      setFilters((f) => ({ ...f, sort: e.target.value }))
+                  <Select
+                    value={filters.sort || 'default'}
+                    onValueChange={(v) => {
+                      setFilters((f) => ({ ...f, sort: v === 'default' ? '' : v }))
                       setOffset(0)
                     }}
-                    className={SELECT_CLASS}
-                    style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--fg-1)' }}
-                  >
-                    <option value="">Default order</option>
-                    {config.sortOptions.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
+                    className="w-auto"
+                    options={[
+                      { value: 'default', label: 'Default order' },
+                      ...config.sortOptions.map((o) => ({ value: o.value, label: o.label })),
+                    ]}
+                  />
                 )}
-                <span className="ml-auto" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)' }}>
+                <span className="ml-auto" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'rgb(var(--fg-3))' }}>
                   {total} {total === 1 ? config.entityLabel : config.entityLabelPlural}
                 </span>
               </div>
             ) : (
               <div className="mb-6 flex items-center">
-                <span className="ml-auto" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)' }}>
+                <span className="ml-auto" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'rgb(var(--fg-3))' }}>
                   {total} {total === 1 ? config.entityLabel : config.entityLabelPlural}
                 </span>
               </div>
             )}
 
             {config.filters && entities.length === 0 ? (
-              <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--fg-3)' }}>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: '0.875rem', color: 'rgb(var(--fg-3))' }}>
                 No {config.entityLabelPlural} match the current filters.
               </p>
             ) : (
@@ -386,7 +374,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
                 >
                   Previous
                 </Button>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-3)' }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'rgb(var(--fg-3))' }}>
                   {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
                 </span>
                 <Button

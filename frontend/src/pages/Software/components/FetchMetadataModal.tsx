@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Button, Modal } from '@/ui'
+import { Button, Modal, Input, RadioGroup, Radio, Checkbox } from '@/ui'
 import { useToast } from '@/ui/ToastProvider'
 import { apiFetch } from '@/api/client'
 
@@ -332,14 +332,13 @@ export function FetchMetadataModal({
       {phase === 'search' ? (
         <div className="space-y-4">
           <div className="flex gap-2">
-            <input
-              type="text"
+            <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') void handleSearch() }}
               placeholder="Search game title…"
               disabled={searching}
-              className="min-w-0 flex-1 rounded-lg border border-neutral-600 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-500 outline-none focus:border-[#ff8a5c]"
+              className="min-w-0 flex-1"
             />
             <Button
               onClick={() => void handleSearch()}
@@ -364,28 +363,29 @@ export function FetchMetadataModal({
               <legend className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-400">
                 Select a match
               </legend>
-              <ul className="max-h-64 space-y-1 overflow-y-auto">
+              <RadioGroup
+                value={selectedId != null ? String(selectedId) : ''}
+                onValueChange={(v) => setSelectedId(parseInt(v, 10))}
+                className="max-h-64 space-y-1 overflow-y-auto"
+              >
                 {results.map((r) => (
-                  <li key={r.game_id}>
-                    <label className="flex cursor-pointer items-center gap-3 rounded-md border border-neutral-700 bg-neutral-800/50 px-3 py-2 text-sm hover:border-[#ff8a5c]/60 has-[:checked]:border-[#ff8a5c] has-[:checked]:bg-[#ff8a5c]/10">
-                      <input
-                        type="radio"
-                        name="game-select"
-                        value={r.game_id}
-                        checked={selectedId === r.game_id}
-                        onChange={() => setSelectedId(r.game_id)}
-                        className="accent-[#ff8a5c]"
-                      />
-                      <span className="flex-1 font-medium text-neutral-100">{r.title}</span>
-                      {r.release_date && (
-                        <span className="shrink-0 text-xs text-neutral-400">
-                          {r.release_date.split('-')[0]}
-                        </span>
-                      )}
-                    </label>
-                  </li>
+                  <Radio
+                    key={r.game_id}
+                    value={String(r.game_id)}
+                    wrapperClassName="cursor-pointer rounded-md border border-neutral-700 bg-neutral-800/50 px-3 py-2 text-sm hover:border-accent/60 has-[[data-state=checked]]:border-accent has-[[data-state=checked]]:bg-accent/10"
+                    label={
+                      <span className="flex flex-1 items-center gap-3">
+                        <span className="flex-1 font-medium text-neutral-100">{r.title}</span>
+                        {r.release_date && (
+                          <span className="shrink-0 text-xs text-neutral-400">
+                            {r.release_date.split('-')[0]}
+                          </span>
+                        )}
+                      </span>
+                    }
+                  />
                 ))}
-              </ul>
+              </RadioGroup>
             </fieldset>
           )}
         </div>
@@ -488,15 +488,14 @@ export function FetchMetadataModal({
                     <strong>{details.rating}</strong>. If this lowers or clears an existing rating,
                     it can affect what sub-accounts are allowed to see.
                   </p>
-                  <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-amber-200">
-                    <input
-                      type="checkbox"
+                  <div className="mt-2">
+                    <Checkbox
                       checked={confirmRatingChange}
-                      onChange={(e) => setConfirmRatingChange(e.target.checked)}
-                      className="accent-[#ff8a5c]"
+                      onCheckedChange={setConfirmRatingChange}
+                      label="I understand and want to apply this rating change"
+                      labelClassName="text-amber-200"
                     />
-                    I understand and want to apply this rating change
-                  </label>
+                  </div>
                 </div>
               )}
             </>
@@ -525,7 +524,7 @@ export function FetchMetadataModal({
                       alt={asset.type}
                       className="aspect-square w-full rounded-md border border-neutral-700 object-cover"
                     />
-                    <p className="truncate text-center text-[10px] text-neutral-400">{asset.type}</p>
+                    <p className="truncate text-center text-[0.625rem] text-neutral-400">{asset.type}</p>
                   </div>
                 ))}
               </div>
@@ -544,7 +543,7 @@ export function FetchMetadataModal({
                       href={url}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[#ff8a5c] hover:underline"
+                      className="text-accent hover:underline"
                     >
                       {url}
                     </a>

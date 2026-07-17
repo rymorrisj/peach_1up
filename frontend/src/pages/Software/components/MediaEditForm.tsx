@@ -1,4 +1,4 @@
-import { Button, FormField, Input, Textarea } from '@/ui'
+import { Button, Card, FormField, Input, Textarea } from '@/ui'
 import PathInput from '@/components/common/PathInput'
 import type { SoftwareMediaForm } from '../types/mediaForm'
 
@@ -20,10 +20,10 @@ export function MediaEditForm({
   saveSuccess,
 }: MediaEditFormProps) {
   return (
-    <section className="space-y-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-        Details
-      </h2>
+    <div className="space-y-6">
+      <Card>
+      <Card.Header>Details</Card.Header>
+      <div className="space-y-4">
 
       <FormField label="Title" htmlFor="detail-title" required>
         <Input
@@ -55,6 +55,9 @@ export function MediaEditForm({
         />
       </FormField>
 
+      </div>
+      </Card>
+
       <div className="flex items-center gap-3">
         <Button onClick={handleSave} loading={saving}>
           Save Changes
@@ -69,6 +72,6 @@ export function MediaEditForm({
           ❌ {saveError}
         </p>
       )}
-    </section>
+    </div>
   )
 }

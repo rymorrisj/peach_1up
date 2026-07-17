@@ -128,7 +128,7 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 p-6 text-sm" style={{ color: 'var(--fg-3)' }}>
+      <div className="flex items-center gap-2 p-6 text-sm" style={{ color: 'rgb(var(--fg-3))' }}>
         <LoadingSpinner label={`Loading ${config.entityLabel}…`} />
         <span aria-hidden="true">Loading {config.entityLabel}…</span>
       </div>
@@ -155,9 +155,14 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
     <>
     <SoftwareEntityDetail
       title={entity.title}
-      eraLabel={extras.eraLabel}
+      era={extras.era}
+      year={extras.year}
+      publisher={extras.publisher}
+      coverArtUrl={config.coverArt(entity)}
       launchCount={extras.launchCount}
       lastLaunchedAt={extras.lastLaunchedAt}
+      installedStatus={extras.installedStatus}
+      mediaSizeBytes={extras.mediaSizeBytes}
       topControl={extras.topControl}
       metaBefore={showDescriptionMeta && entity.description ? <p>{entity.description}</p> : undefined}
       metaAfter={extras.metaAfter}

@@ -39,7 +39,7 @@ export default function StepEmulators({ emulators, onNext, onSkip, onFinishAndGo
         <button
           type="button"
           onClick={() => onFinishAndGoTo('/emulators')}
-          className="text-sm font-medium text-[#ff8a5c] hover:underline"
+          className="text-sm font-medium text-accent hover:underline"
         >
           Finish setup & go to Emulators →
         </button>
@@ -56,7 +56,7 @@ export default function StepEmulators({ emulators, onNext, onSkip, onFinishAndGo
         <button
           type="button"
           onClick={onNext}
-          className="rounded-md bg-[#ff8a5c] px-6 py-2.5 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff8a5c]"
+          className="rounded-md bg-accent px-6 py-2.5 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           Next: BIOS
         </button>

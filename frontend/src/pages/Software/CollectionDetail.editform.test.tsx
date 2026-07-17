@@ -145,12 +145,21 @@ function renderPage(slug = 'doom') {
 
 async function waitForLoaded() {
   await waitFor(() => {
-    expect(screen.getByText('Doom')).toBeInTheDocument()
+    expect(screen.getAllByText('Doom')[0]).toBeInTheDocument()
   })
 }
 
 function callsTo(calls: RecordedCall[], url: string, method: string) {
   return calls.filter((c) => c.url === url && c.method === method)
+}
+
+// Radix Select's trigger is not a native <select>, userEvent.selectOptions
+// does not work against it. Open the listbox by clicking the labeled
+// trigger, then click the option by its visible text (the option's label,
+// not its underlying value, Radix's listbox is queried by accessible name).
+async function selectRadixOption(user: ReturnType<typeof userEvent.setup>, triggerName: string, optionName: string) {
+  await user.click(screen.getByRole('combobox', { name: triggerName }))
+  await user.click(await screen.findByRole('option', { name: optionName }))
 }
 
 async function saveAndWait(user: ReturnType<typeof userEvent.setup>) {
@@ -271,9 +280,8 @@ describe('CollectionDetail edit form (field-level)', () => {
     renderPage()
     await waitForLoaded()
 
-    const select = screen.getByLabelText('Content Rating')
-    await user.selectOptions(select, 'M')
-    expect(select).toHaveValue('M')
+    await selectRadixOption(user, 'Content Rating', 'M — Mature')
+    expect(screen.getByRole('combobox', { name: 'Content Rating' })).toHaveTextContent('M — Mature')
 
     await saveAndWait(user)
     const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
@@ -293,9 +301,8 @@ describe('CollectionDetail edit form (field-level)', () => {
     renderPage()
     await waitForLoaded()
 
-    const select = screen.getByLabelText('Platform')
-    await user.selectOptions(select, '5')
-    expect(select).toHaveValue('5')
+    await selectRadixOption(user, 'Platform', 'My DOS PC')
+    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('My DOS PC')
 
     await saveAndWait(user)
     const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
@@ -331,13 +338,13 @@ describe('CollectionDetail edit form (field-level)', () => {
     renderPage()
     await waitForLoaded()
 
-    const platformSelect = screen.getByLabelText('Platform')
-    expect(platformSelect).toHaveValue('5')
+    const platformSelect = screen.getByRole('combobox', { name: 'Platform' })
+    expect(platformSelect).toHaveTextContent('My DOS PC')
     expect(platformSelect).not.toBeDisabled()
 
-    await user.selectOptions(screen.getByLabelText('Era'), 'ps1')
+    await selectRadixOption(user, 'Era', 'PlayStation 1')
     expect(platformSelect).toBeDisabled()
-    expect(platformSelect).toHaveValue('')
+    expect(platformSelect).toHaveTextContent('No platform selected')
 
     await saveAndWait(user)
     const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
@@ -357,9 +364,8 @@ describe('CollectionDetail edit form (field-level)', () => {
     renderPage()
     await waitForLoaded()
 
-    const select = screen.getByLabelText('Launch Profile')
-    await user.selectOptions(select, '10')
-    expect(select).toHaveValue('10')
+    await selectRadixOption(user, 'Launch Profile', 'DOSBox Default (default)')
+    expect(screen.getByRole('combobox', { name: 'Launch Profile' })).toHaveTextContent('DOSBox Default (default)')
     expect(screen.queryByText('Selected profile targets a different era — launch may fail.')).not.toBeInTheDocument()
 
     await saveAndWait(user)
@@ -372,6 +378,7 @@ describe('CollectionDetail edit form (field-level)', () => {
     const win95Profile = { id: 20, name: 'Win95 Default', slug: 'win95-default', era: 'win95', emulator_slug: '86box', is_bundled: false, enable_networking: false, enable_dgvoodoo2: false, use_drive: true, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' }
 
     it('groups profiles by era match and shows no mismatch warning while the era matches the assigned profile', async () => {
+      const user = userEvent.setup()
       setupApi([
         { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ era: 'dos', profile_item_id: 10 }) },
         { match: /^\/api\/v1\/profile-items/, respond: () => ({ items: [dosProfile, win95Profile] }) },
@@ -379,9 +386,11 @@ describe('CollectionDetail edit form (field-level)', () => {
       renderPage()
       await waitForLoaded()
 
-      // Matching-era profile renders without an era suffix; the other-era
-      // profile is labeled with its own era so the "Other eras" optgroup
-      // grouping in EditForm.tsx is distinguishable in the flattened option list.
+      // Radix does not render closed listbox content, open it first. Matching-era
+      // profile renders without an era suffix; the other-era profile is labeled
+      // with its own era so the "Other eras" grouping in EditForm.tsx is
+      // distinguishable in the option list.
+      await user.click(screen.getByRole('combobox', { name: 'Launch Profile' }))
       expect(screen.getByRole('option', { name: 'DOSBox Default (default)' })).toBeInTheDocument()
       expect(screen.getByRole('option', { name: 'Win95 Default (Windows 95)' })).toBeInTheDocument()
       expect(screen.queryByText('Selected profile targets a different era — launch may fail.')).not.toBeInTheDocument()
@@ -398,9 +407,8 @@ describe('CollectionDetail edit form (field-level)', () => {
       renderPage()
       await waitForLoaded()
 
-      const eraSelect = screen.getByLabelText('Era')
-      await user.selectOptions(eraSelect, 'win95')
-      expect(eraSelect).toHaveValue('win95')
+      await selectRadixOption(user, 'Era', 'Windows 95')
+      expect(screen.getByRole('combobox', { name: 'Era' })).toHaveTextContent('Windows 95')
 
       expect(screen.getByText('Selected profile targets a different era — launch may fail.')).toBeInTheDocument()
 

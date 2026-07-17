@@ -1,10 +1,7 @@
-import { FormField } from '@/ui'
+import { FormField, Select } from '@/ui'
 import type { components } from '@shared/types'
 
 type Platform = components['schemas']['EnvironmentItemRead']
-
-const SELECT_CLASS =
-  'w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#ff8a5c] focus:outline-none dark:border-neutral-700 dark:bg-surface-800 dark:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-50'
 
 interface PlatformFieldProps {
   /** Whether this item can launch via an Environment at all (Games: era is
@@ -55,23 +52,25 @@ function unselectableReason(p: Platform, itemEra: string): string | null {
 export function PlatformField({ isPcLaunchable, itemEra, value, onChange, platforms, disabledNote }: PlatformFieldProps) {
   return (
     <FormField label="Platform" htmlFor="detail-platform" hint={!isPcLaunchable ? disabledNote : undefined}>
-      <select
+      <Select
         id="detail-platform"
-        value={value}
+        value={value || 'none'}
         disabled={!isPcLaunchable}
-        onChange={(e) => onChange(e.target.value)}
-        className={SELECT_CLASS}
-      >
-        <option value="">No platform selected</option>
-        {isPcLaunchable && platforms.map((p) => {
-          const reason = unselectableReason(p, itemEra)
-          return (
-            <option key={p.id} value={p.id} disabled={reason != null}>
-              {reason ? `${p.name} — ${reason}` : p.name}
-            </option>
-          )
-        })}
-      </select>
+        onValueChange={(v) => onChange(v === 'none' ? '' : v)}
+        options={[
+          { value: 'none', label: 'No platform selected' },
+          ...(isPcLaunchable
+            ? platforms.map((p) => {
+                const reason = unselectableReason(p, itemEra)
+                return {
+                  value: String(p.id),
+                  label: reason ? `${p.name} — ${reason}` : p.name,
+                  disabled: reason != null,
+                }
+              })
+            : []),
+        ]}
+      />
     </FormField>
   )
 }

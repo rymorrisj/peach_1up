@@ -31,15 +31,15 @@ export function OverviewTab({
   return (
     <div>
       <div className="grid gap-3.5" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-          <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 12 }}>
+        <div className="rounded-xl p-[18px]" style={{ background: 'rgb(var(--surface-1))', border: '1px solid rgb(var(--border))' }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgb(var(--fg-3))', marginBottom: 12 }}>
             Configuration
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)', width: 140, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', borderBottom: '1px solid rgb(var(--border))' }}>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.8125rem', color: 'rgb(var(--fg-3))', width: 140, flexShrink: 0 }}>
               Executable
             </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-2)' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'rgb(var(--fg-2))' }}>
               {entry.install_path ?? '—'}
             </span>
           </div>
@@ -49,17 +49,17 @@ export function OverviewTab({
             { label: 'Eras',         value: eras.join(' · ') || '—' },
             { label: 'Status',       value: isReady ? 'Ready' : 'Not installed' },
           ]} />
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 4 }}>
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgb(var(--border))' }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.6875rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgb(var(--fg-3))', marginBottom: 4 }}>
               Sandbox
             </div>
             {entry.container_hardcap_disabled === true ? (
               <div style={{
-                padding: '8px 10px', borderBottom: '1px solid var(--border)',
-                background: 'rgba(239,68,68,0.06)', borderRadius: 'var(--r-1)',
+                padding: '8px 10px', borderBottom: '1px solid rgb(var(--border))',
+                background: 'rgb(var(--error) / 0.06)', borderRadius: 'var(--r-1)',
                 marginBottom: 2,
               }}>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: '#ef4444', lineHeight: 1.5 }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', color: 'rgb(var(--error))', lineHeight: 1.5 }}>
                   {entry.container_hardcap_note ?? 'AppContainer isolation is not supported for this emulator. This is a permanent platform limitation.'}
                   {!entry.container_hardcap_note && (
                     <>
@@ -67,7 +67,7 @@ export function OverviewTab({
                       <button
                         type="button"
                         onClick={onShowLimitations}
-                        style={{ background: 'none', border: 'none', padding: 0, color: 'var(--peach-400)', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 12 }}
+                        style={{ background: 'none', border: 'none', padding: 0, color: 'rgb(var(--peach-400))', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: '0.75rem' }}
                       >
                         Known Limitations
                       </button>
@@ -76,7 +76,7 @@ export function OverviewTab({
                         href="https://www.qemu.org/docs/master/system/security.html"
                         target="_blank"
                         rel="noreferrer"
-                        style={{ color: 'var(--peach-400)', textDecoration: 'underline' }}
+                        style={{ color: 'rgb(var(--peach-400))', textDecoration: 'underline' }}
                       >
                         Learn more
                       </a>
@@ -107,13 +107,13 @@ export function OverviewTab({
           </div>
           {/* Install actions for installer-type emulators */}
           {entry.install_type === 'installer' && (
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgb(var(--border))' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: '0.8125rem', color: 'rgb(var(--fg-3))' }}>
                   <StatusDot ok={entry.installer_present} />
                   {entry.installer_present ? 'Installer ready' : 'Installer not placed'}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: '0.8125rem', color: 'rgb(var(--fg-3))' }}>
                   <StatusDot ok={!!isReady} />
                   {isReady ? 'Installed' : isInstalling ? 'Waiting for install…' : 'Not installed'}
                 </div>
@@ -123,9 +123,9 @@ export function OverviewTab({
                     onClick={onRunInstaller}
                     disabled={isInstalling}
                     style={{
-                      border: 'none', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600,
+                      border: 'none', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', fontWeight: 600,
                       padding: '9px 14px', borderRadius: 'var(--r-2)', cursor: 'pointer',
-                      background: 'var(--peach-500)', color: '#fff', opacity: isInstalling ? 0.5 : 1,
+                      background: 'rgb(var(--peach-500))', color: 'rgb(var(--fg-inverse))', opacity: isInstalling ? 0.5 : 1,
                     }}
                   >
                     {isInstalling ? 'Running…' : 'Run Installer'}
@@ -136,7 +136,7 @@ export function OverviewTab({
                 <GuidanceNote text={entry.guidance_text} url={entry.guidance_url} />
               )}
               {installError && (
-                <div style={{ marginTop: 6, fontSize: 12, color: 'var(--error)', fontFamily: 'var(--font-display)' }}>
+                <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'rgb(var(--error))', fontFamily: 'var(--font-display)' }}>
                   {installError}
                 </div>
               )}
@@ -144,15 +144,15 @@ export function OverviewTab({
           )}
           {/* Guidance for zip-type emulators not yet installed */}
           {entry.install_type === 'zip' && !isReady && entry.guidance_text && (
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgb(var(--border))' }}>
               <GuidanceNote text={entry.guidance_text} url={entry.guidance_url} />
             </div>
           )}
           {/* Install actions for github_release-type emulators */}
           {entry.install_type === 'github_release' && (
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgb(var(--border))' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-display)', fontSize: '0.8125rem', color: 'rgb(var(--fg-3))' }}>
                   <StatusDot ok={!!isReady} />
                   {isReady ? 'Installed' : isInstalling ? 'Downloading…' : 'Not installed'}
                 </div>
@@ -162,9 +162,9 @@ export function OverviewTab({
                     onClick={onRunInstaller}
                     disabled={isInstalling}
                     style={{
-                      border: 'none', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600,
+                      border: 'none', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', fontWeight: 600,
                       padding: '9px 14px', borderRadius: 'var(--r-2)', cursor: 'pointer',
-                      background: 'var(--peach-500)', color: '#fff', opacity: isInstalling ? 0.5 : 1,
+                      background: 'rgb(var(--peach-500))', color: 'rgb(var(--fg-inverse))', opacity: isInstalling ? 0.5 : 1,
                     }}
                   >
                     {isInstalling ? 'Downloading…' : 'Download'}
@@ -175,20 +175,20 @@ export function OverviewTab({
                 <GuidanceNote text={entry.guidance_text} url={entry.guidance_url} />
               )}
               {isInstalling && (
-                <div style={{ fontSize: 12, color: 'var(--fg-3)', fontFamily: 'var(--font-display)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'rgb(var(--fg-3))', fontFamily: 'var(--font-display)' }}>
                   Downloading the latest release from GitHub — this may take a minute.
                 </div>
               )}
               {installError && (
-                <div style={{ marginTop: 6, fontSize: 12, color: 'var(--error)', fontFamily: 'var(--font-display)' }}>
+                <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'rgb(var(--error))', fontFamily: 'var(--font-display)' }}>
                   {installError}
                 </div>
               )}
             </div>
           )}
         </div>
-        <div className="rounded-xl p-[18px]" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-          <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 12 }}>
+        <div className="rounded-xl p-[18px]" style={{ background: 'rgb(var(--surface-1))', border: '1px solid rgb(var(--border))' }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgb(var(--fg-3))', marginBottom: 12 }}>
             At a glance
           </div>
           <div className="grid grid-cols-2 gap-3.5">
@@ -199,10 +199,10 @@ export function OverviewTab({
               { value: isReady ? '✓' : '✗', label: 'installed' },
             ].map(({ value, label }) => (
               <div key={label}>
-                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, lineHeight: 1, color: 'var(--fg-1)' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.375rem', lineHeight: 1, color: 'rgb(var(--fg-1))' }}>
                   {value}
                 </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'rgb(var(--fg-3))', marginTop: 4 }}>
                   {label}
                 </div>
               </div>
@@ -214,32 +214,32 @@ export function OverviewTab({
       {/* Required BIOS assets */}
       {emulatorBios.length > 0 && (
         <div style={{ marginTop: 18 }}>
-          <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-3)', marginBottom: 10 }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgb(var(--fg-3))', marginBottom: 10 }}>
             Required Assets
           </div>
-          <div className="rounded-xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+          <div className="rounded-xl" style={{ background: 'rgb(var(--surface-1))', border: '1px solid rgb(var(--border))' }}>
             {emulatorBios.map((bios, i) => (
               <div
                 key={bios.slug}
-                style={{ padding: '14px 18px', borderBottom: i < emulatorBios.length - 1 ? '1px solid var(--border)' : 'none' }}
+                style={{ padding: '14px 18px', borderBottom: i < emulatorBios.length - 1 ? '1px solid rgb(var(--border))' : 'none' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: 'var(--fg-1)' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.875rem', color: 'rgb(var(--fg-1))' }}>
                     {bios.name}
                   </span>
                   <span style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-3)',
-                    border: '1px solid var(--border)', borderRadius: 'var(--r-1)', padding: '2px 6px',
+                    fontFamily: 'var(--font-mono)', fontSize: '0.625rem', color: 'rgb(var(--fg-3))',
+                    border: '1px solid rgb(var(--border))', borderRadius: 'var(--r-1)', padding: '2px 6px',
                   }}>
                     {bios.required ? 'required' : 'optional'}
                   </span>
                   <StatusDot ok={bios.is_present} />
                 </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'rgb(var(--fg-3))', marginBottom: 6 }}>
                   {bios.bios_path}/
                 </div>
                 {bios.is_present ? (
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: '#4ade80' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.8125rem', color: 'rgb(var(--success))' }}>
                     Files detected
                   </div>
                 ) : (
@@ -248,11 +248,11 @@ export function OverviewTab({
                 {bios.slug === '86box-roms' && romPackEntry ? (
                   <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 6 }}>
                     <div>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.04em', color: 'var(--fg-3)', marginBottom: 4 }}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.625rem', letterSpacing: '0.04em', color: 'rgb(var(--fg-3))', marginBottom: 4 }}>
                         Clone official ROM pack
                       </div>
                       {romPackEntry.is_installed && (
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: '#4ade80' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', color: 'rgb(var(--success))' }}>
                           Installed
                         </span>
                       )}
@@ -265,7 +265,7 @@ export function OverviewTab({
                       />
                     </div>
                     <div>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.04em', color: 'var(--fg-3)', marginBottom: 4 }}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.625rem', letterSpacing: '0.04em', color: 'rgb(var(--fg-3))', marginBottom: 4 }}>
                         Locate folder you already have
                       </div>
                       <BiosPlaceAction bios={bios} />

@@ -44,9 +44,9 @@ function MultiDiscStrip({ discs, displayDiskId, launchDiskId, onSetDisplayDisk }
               onClick={(e) => { e.preventDefault(); if (!isDisplay) onSetDisplayDisk(disc.id) }}
               disabled={isDisplay}
               title={isDisplay ? 'Displayed' : isLaunch ? 'Set as display cover (launches this disc)' : 'Set as display cover'}
-              className={`shrink-0 rounded border font-mono text-[9px] px-1.5 py-0.5 transition-colors duration-[120ms] ${
+              className={`shrink-0 rounded border font-mono text-[0.5625rem] px-1.5 py-0.5 transition-colors duration-[120ms] ${
                 isDisplay
-                  ? 'cursor-default border-[#ff8a5c]/60 bg-[#ff8a5c]/10 text-[#ff8a5c]/90'
+                  ? 'cursor-default border-accent/60 bg-accent/10 text-accent/90'
                   : 'cursor-pointer border-neutral-700 bg-black/40 text-neutral-400 hover:border-neutral-500 hover:text-neutral-200'
               }`}
             >
@@ -77,15 +77,15 @@ export function EntityCard<TBundle extends EntityBundleBase>({
     <div className="group relative flex flex-col gap-2.5">
       <Link
         to={to}
-        className="flex flex-col gap-2.5 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff8a5c] focus-visible:ring-offset-2 focus-visible:ring-offset-surface-950"
+        className="flex flex-col gap-2.5 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
       >
-        <div className="relative aspect-video overflow-hidden rounded-xl bg-[#1a1f27] shadow-[0_1px_2px_rgb(20_12_6/0.4)]">
+        <div className="relative aspect-video overflow-hidden rounded-xl bg-[#1a1f27] shadow-[var(--shadow-sm)]">
           {art ? (
             <img src={art} alt={entity.title} loading="lazy" className="h-full w-full object-cover" />
           ) : (
             <div className="absolute inset-0 flex items-end p-3.5">
               <p
-                className="font-sans text-[15px] font-semibold leading-snug tracking-tight text-neutral-100"
+                className="font-sans text-[0.9375rem] font-semibold leading-snug tracking-tight text-neutral-100"
                 style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}
               >
                 {entity.title}

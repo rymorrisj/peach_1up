@@ -34,7 +34,7 @@ export default function TopBar({ title, children }: TopBarProps) {
     <header
       className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 px-6"
       style={{
-        borderBottom: '1px solid var(--border)',
+        borderBottom: '1px solid rgb(var(--border))',
         background: 'var(--topbar-glass)',
         backdropFilter: 'blur(20px) saturate(1.4)',
       }}
@@ -44,10 +44,10 @@ export default function TopBar({ title, children }: TopBarProps) {
           style={{
             fontFamily: 'var(--font-display)',
             fontWeight: 600,
-            fontSize: 18,
+            fontSize: '1.125rem',
             letterSpacing: '-0.01em',
             margin: 0,
-            color: 'var(--fg-1)',
+            color: 'rgb(var(--fg-1))',
           }}
         >
           {title}
@@ -59,14 +59,14 @@ export default function TopBar({ title, children }: TopBarProps) {
           <span
             className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
             style={{
-              background: 'rgb(110 208 154 / 0.12)',
-              color: 'var(--success)',
-              border: '1px solid rgb(110 208 154 / 0.3)',
+              background: 'rgb(var(--success) / 0.12)',
+              color: 'rgb(var(--success))',
+              border: '1px solid rgb(var(--success) / 0.3)',
             }}
           >
             <span
               className="h-1.5 w-1.5 rounded-full"
-              style={{ background: 'var(--success)', animation: 'dot-pulse 1.4s ease-in-out infinite' }}
+              style={{ background: 'rgb(var(--success))', animation: 'dot-pulse 1.4s ease-in-out infinite' }}
               aria-hidden="true"
             />
             {activeSessions} running
@@ -79,14 +79,14 @@ export default function TopBar({ title, children }: TopBarProps) {
           onClick={() => _dispatch({ type: 'SET_THEME', payload: _isDark ? 'light' : 'dark' })}
           aria-label={_isDark ? 'Switch to light theme' : 'Switch to dark theme'}
           className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-[120ms]"
-          style={{ color: 'var(--fg-2)', border: '1px solid transparent' }}
+          style={{ color: 'rgb(var(--fg-2))', border: '1px solid transparent' }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--surface-2)'
-            e.currentTarget.style.color = 'var(--fg-1)'
+            e.currentTarget.style.background = 'rgb(var(--surface-2))'
+            e.currentTarget.style.color = 'rgb(var(--fg-1))'
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'transparent'
-            e.currentTarget.style.color = 'var(--fg-2)'
+            e.currentTarget.style.color = 'rgb(var(--fg-2))'
           }}
         >
           {_isDark ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
