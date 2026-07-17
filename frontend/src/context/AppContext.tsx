@@ -1,7 +1,7 @@
 import React, { useEffect, useReducer, useRef } from 'react'
 import { apiFetch } from '@/api/client'
 import type { components } from '@shared/types'
-import { AppContext, initialState, appReducer, applyTheme } from './_AppContext'
+import { AppContext, initialState, appReducer, applyTheme, applyFontScale } from './_AppContext'
 import type { BackgroundJob } from './_AppContext'
 
 type User = components['schemas']['UserItemRead']
@@ -9,6 +9,7 @@ type User = components['schemas']['UserItemRead']
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState, (init) => {
     applyTheme(init.theme)
+    applyFontScale(init.fontScale)
     return init
   })
   const didMountAuthCheck = useRef(false)

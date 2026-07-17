@@ -2,42 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  font-size: 16px;
+/* Single source of truth for root font-size. Scales every rem-based
+   Tailwind text utility (text-sm, text-xs, etc, all rem by default) in
+   one change, since rem is relative to this value, not a fixed 16px. */
+html {
+  font-size: calc(100% * var(--font-scale));
+}
 
-  /* Light theme */
-  --surface-0: #faf8f5;
-  --surface-1: #f2efea;
-  --surface-2: #e8e4dd;
-  --surface-3: #dedad2;
-  --border:    #cdc8bf;
-  --border-strong: #b8b2a8;
+[data-skin="peach-classic"] {
+  /* Font scale lives here, not in the light/dark override block below, so
+     it is skin-independent and a user's scale preference survives a
+     theme or skin switch. Applied via the html{} rule further down,
+     which is the single source of truth for root font-size, do not
+     re-add a font-size declaration on this selector, [data-skin] has
+     higher specificity than a bare html selector and would silently
+     defeat the html{} rule below since both target the same element. */
+  --font-scale: 1;
 
-  --fg-1: #1c1a17;
-  --fg-2: #5e5b55;
-  --fg-3: #928e88;
+  /* Dark theme is the default, matching initialState.theme in
+     context/_AppContext.ts. Bare selector (no .dark needed) holds dark
+     values so the CSS default matches the app's actual runtime default and
+     there is no flash of light theme before applyTheme runs. Light is the
+     explicit override below via :not(.dark). */
+  --surface-0: 13 16 20;
+  --surface-1: 19 24 32;
+  --surface-2: 28 34 48;
+  --surface-3: 38 46 62;
+  --border:    42 49 66;
+  --border-strong: 59 67 88;
 
-  --topbar-glass: rgb(250 248 245 / 0.85);
+  --fg-1: 243 238 231;
+  --fg-2: 182 179 173;
+  --fg-3: 122 122 120;
+  --fg-inverse: 255 255 255;
 
-  --peach-300: #ffa97a;
-  --peach-400: #ff9469;
-  --peach-500: #ff8a5c;
-  --peach-600: #ed6f3f;
-  --peach-700: #c4552a;
+  --topbar-glass: rgb(13 16 20 / 0.8);
 
-  --success: #6ed09a;
-  --warning: #ffb547;
-  --error:   #ff6a55;
-  --info:    #6aa9d6;
+  --peach-300: 255 169 122;
+  --peach-400: 255 148 105;
+  --peach-500: 255 138 92;
+  --peach-600: 237 111 63;
+  --peach-700: 196 85 42;
 
-  --era-dos:   #d6a64a;
-  --era-win95: #b6d36b;
-  --era-win98: #6ea8d6;
-  --era-winxp: #66b27a;
+  --success: 110 208 154;
+  --warning: 255 181 71;
+  --error:   255 106 85;
+  --info:    106 169 214;
 
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.08);
-  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.10);
-  --shadow-lg: 0 12px 28px rgb(0 0 0 / 0.14);
+  --era-dos:   214 166 74;
+  --era-win95: 182 211 107;
+  --era-win98: 110 168 214;
+  --era-winxp: 102 178 122;
+
+  /* Tag swatch colours, shared across themes. Sourced from
+     generated/constants.ts TAG_COLOR_HEX (config/constants.yaml), do not
+     hand-edit these to a different value than that source of truth. */
+  --tag-color-1: 122 132 153; /* slate */
+  --tag-color-2: 224 116 99;  /* coral */
+  --tag-color-3: 212 149 74;  /* amber */
+  --tag-color-4: 89 184 122;  /* mint */
+  --tag-color-5: 91 164 207;  /* sky */
+  --tag-color-6: 139 109 196; /* violet */
+  --tag-color-7: 196 109 139; /* rose */
+
+  --shadow-sm: 0 1px 2px rgb(20 12 6 / 0.4);
+  --shadow-md: 0 4px 12px rgb(20 12 6 / 0.45);
+  --shadow-lg: 0 12px 28px rgb(20 12 6 / 0.5);
 
   --r-1: 4px;
   --r-2: 8px;
@@ -54,28 +84,30 @@
   --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
 }
 
-html.dark {
-  --surface-0: #0d1014;
-  --surface-1: #131820;
-  --surface-2: #1c2230;
-  --surface-3: #262e3e;
-  --border:    #2a3142;
-  --border-strong: #3b4358;
+/* Light theme, explicit override. Only reached when .dark is absent from
+   the root element, i.e. the user has actively switched to light. */
+[data-skin="peach-classic"]:not(.dark) {
+  --surface-0: 250 248 245;
+  --surface-1: 242 239 234;
+  --surface-2: 232 228 221;
+  --surface-3: 222 218 210;
+  --border:    205 200 191;
+  --border-strong: 184 178 168;
 
-  --fg-1: #f3eee7;
-  --fg-2: #b6b3ad;
-  --fg-3: #7a7a78;
+  --fg-1: 28 26 23;
+  --fg-2: 94 91 85;
+  --fg-3: 146 142 136;
 
-  --topbar-glass: rgb(13 16 20 / 0.8);
+  --topbar-glass: rgb(250 248 245 / 0.85);
 
-  --shadow-sm: 0 1px 2px rgb(20 12 6 / 0.4);
-  --shadow-md: 0 4px 12px rgb(20 12 6 / 0.45);
-  --shadow-lg: 0 12px 28px rgb(20 12 6 / 0.5);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.08);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.10);
+  --shadow-lg: 0 12px 28px rgb(0 0 0 / 0.14);
 }
 
 body {
-  background-color: var(--surface-0);
-  color: var(--fg-1);
+  background-color: rgb(var(--surface-0));
+  color: rgb(var(--fg-1));
   @apply font-sans antialiased;
 }
 
@@ -90,7 +122,7 @@ a:active {
 .era-chip {
   display: inline-block;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;

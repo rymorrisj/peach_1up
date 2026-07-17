@@ -7,10 +7,10 @@ export const ERA_LABEL: Record<string, string> = {
 }
 
 export const ERA_COLOR: Record<string, string> = {
-  DOS: 'var(--era-dos)',
-  WIN95: 'var(--era-win95)',
-  WIN98: 'var(--era-win98)',
-  WINXP: 'var(--era-winxp)',
+  DOS: 'rgb(var(--era-dos))',
+  WIN95: 'rgb(var(--era-win95))',
+  WIN98: 'rgb(var(--era-win98))',
+  WINXP: 'rgb(var(--era-winxp))',
   PS1: '#a9a0d6',
   PS2: '#6090d0',
   XBOX: '#6db36d',
@@ -21,10 +21,10 @@ export const ERA_COLOR: Record<string, string> = {
 }
 
 export const ERA_PLACEHOLDER: Record<string, { bg: string; color: string }> = {
-  dos:        { bg: 'linear-gradient(155deg, #2b2316 0%, #16110a 100%)', color: 'var(--era-dos)' },
-  win95:      { bg: 'linear-gradient(155deg, #20281a 0%, #11160c 100%)', color: 'var(--era-win95)' },
-  win98:      { bg: 'linear-gradient(155deg, #17202b 0%, #0c1118 100%)', color: 'var(--era-win98)' },
-  winxp:      { bg: 'linear-gradient(155deg, #182617 0%, #0e150d 100%)', color: 'var(--era-winxp)' },
+  dos:        { bg: 'linear-gradient(155deg, #2b2316 0%, #16110a 100%)', color: 'rgb(var(--era-dos))' },
+  win95:      { bg: 'linear-gradient(155deg, #20281a 0%, #11160c 100%)', color: 'rgb(var(--era-win95))' },
+  win98:      { bg: 'linear-gradient(155deg, #17202b 0%, #0c1118 100%)', color: 'rgb(var(--era-win98))' },
+  winxp:      { bg: 'linear-gradient(155deg, #182617 0%, #0e150d 100%)', color: 'rgb(var(--era-winxp))' },
   ps1:        { bg: 'linear-gradient(155deg, #1e1a2b 0%, #110f18 100%)', color: '#a9a0d6' },
   ps2:        { bg: 'linear-gradient(155deg, #162030 0%, #0c1118 100%)', color: '#6090d0' },
   xbox:       { bg: 'linear-gradient(155deg, #182618 0%, #0e150e 100%)', color: '#6db36d' },

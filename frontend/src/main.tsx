@@ -70,7 +70,7 @@ function RequireAuth() {
 
   if (!state.authChecked) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-white dark:bg-surface-950">
+      <main className="flex min-h-screen items-center justify-center bg-surface-0">
         <LoadingSpinner label="Checking authentication…" />
       </main>
     )
@@ -101,7 +101,7 @@ function FirstRunGuard() {
 
   if (isLoading || (firstRunComplete && ownerStatus.isLoading)) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-white dark:bg-surface-950">
+      <main className="flex min-h-screen items-center justify-center bg-surface-0">
         <LoadingSpinner label="Checking setup status…" />
       </main>
     )

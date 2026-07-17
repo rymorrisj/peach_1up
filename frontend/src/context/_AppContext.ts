@@ -5,6 +5,20 @@ type User = components['schemas']['UserItemRead']
 
 type Theme = 'dark' | 'light'
 
+// Theme itself has no persistence mechanism today, initialState.theme is
+// hardcoded and resets to 'dark' on every reload. Font scale is new ground,
+// not a continuation of an existing pattern. Namespaced key, nothing else
+// in the app currently touches localStorage at all (checked), so there is
+// no collision risk.
+const FONT_SCALE_STORAGE_KEY = 'peach1up:font-scale'
+
+function readStoredFontScale(): number {
+  if (typeof window === 'undefined') return 1
+  const raw = window.localStorage.getItem(FONT_SCALE_STORAGE_KEY)
+  const parsed = raw ? parseFloat(raw) : NaN
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
+}
+
 export interface BackgroundJob {
   id: string
   kind: 'upload' | 'scan'
@@ -17,6 +31,7 @@ export interface BackgroundJob {
 
 export interface AppState {
   theme: Theme
+  fontScale: number
   sidebarCollapsed: boolean
   activeProfileId: number | null
   activeUser: User | null
@@ -27,6 +42,7 @@ export interface AppState {
 
 export type AppAction =
   | { type: 'SET_THEME'; payload: Theme }
+  | { type: 'SET_FONT_SCALE'; payload: number }
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'SET_ACTIVE_PROFILE'; payload: number | null }
   | { type: 'SET_ACTIVE_USER'; payload: User | null }
@@ -38,6 +54,7 @@ export type AppAction =
 
 export const initialState: AppState = {
   theme: 'dark',
+  fontScale: readStoredFontScale(),
   sidebarCollapsed: false,
   activeProfileId: null,
   activeUser: null,
@@ -52,6 +69,13 @@ export function applyTheme(theme: Theme) {
   } else {
     document.documentElement.classList.remove('dark')
   }
+  if (!document.documentElement.hasAttribute('data-skin')) {
+    document.documentElement.setAttribute('data-skin', 'peach-classic')
+  }
+}
+
+export function applyFontScale(scale: number) {
+  document.documentElement.style.setProperty('--font-scale', String(scale))
 }
 
 export function appReducer(state: AppState, action: AppAction): AppState {
@@ -59,6 +83,12 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_THEME':
       applyTheme(action.payload)
       return { ...state, theme: action.payload }
+    case 'SET_FONT_SCALE':
+      applyFontScale(action.payload)
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(FONT_SCALE_STORAGE_KEY, String(action.payload))
+      }
+      return { ...state, fontScale: action.payload }
     case 'TOGGLE_SIDEBAR':
       return { ...state, sidebarCollapsed: !state.sidebarCollapsed }
     case 'SET_ACTIVE_PROFILE':
