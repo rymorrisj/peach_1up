@@ -86,7 +86,7 @@ community contributors.
 
 ## Smart Scanner
 
-`smart_media_detector` is the self-contained media detection package that identifies platform and era from a disk image or directory path. It lives at `backend/service/utils/smart_media_detector/` and has zero `backend.*` imports — it is designed to be vendored into its own standalone repository after the Beta ships.
+`smart_media_detector` is the self-contained media detection package that identifies platform and era from a disk image or directory path. It lives at `backend/service/utils/smart_media_detector/` and is designed to be vendored into its own standalone repository after the Beta ships. It is not fully import-clean today: `detector.py` still imports `backend.core.logger` for its module logger, and `iso_detect.py` imports a sibling module, `backend/service/utils/xbox_image.py`, that lives outside the package folder. See the package's own README.md for the full standalone-package-readiness rundown, including dead code that was already removed as part of getting closer to this goal.
 
 ### Detection pipeline
 

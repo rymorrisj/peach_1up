@@ -349,6 +349,40 @@ conversation and wait for an explicit decision before proceeding.
 
 ---
 
+## Smart Detection: Hash-Based Media Identity Verification
+
+`backend/service/utils/smart_media_detector` runs a full-file SHA-1 (with MD5/CRC32
+fallback) lookup as the first tier of its detection pipeline, checked against a bundled
+`hash_index.json` built offline from Redump/No-Intro community DAT files. A SHA-1 match
+confirms the uploaded disc image's bytes are byte-for-byte identical to a known, community
+verified dump of a specific title, this is a useful integrity signal (a corrupted or
+incomplete rip will not match), not just a title-lookup convenience.
+
+**Scope, what this actually covers today:**
+
+- This runs during library ingest, when a media path is turned into a `GameItemBundle`
+  library item (`backend/service/games/items.py`, `backend/api/routes/game_item_bundles.py`,
+  `backend/service/utils/drive_utils.py`), not during the raw upload-streaming step itself.
+  The chunked upload router (`/api/v1/software/uploads/*`) only writes bytes to disk, it does
+  not hash or verify anything as part of the transfer.
+- `AppItemBundle` (software app) uploads explicitly skip this entirely, per
+  `backend/service/uploads/software_apps.py`'s own docstring: era detection and hashing are
+  not run for apps, era stays `"unknown"` until a human sets it via the edit form.
+- Hash-index coverage today is limited to two platforms, Sony PlayStation and Microsoft
+  Xbox, see `smart_media_detector/README.md`'s Current coverage state section. Uploads for
+  every other supported era fall through to lower-confidence, non-hash detection tiers
+  regardless of whether the file is corrupted or tampered with.
+
+**What this is not:** a live integrity-monitoring or tamper-detection mechanism. There is no
+stored expected-hash-per-library-item to diff against on relaunch, no re-verification after
+initial ingest, and no upload is blocked or rejected on a hash mismatch or a hash miss, a
+non-matching file still ingests normally, just at lower confidence via the magic-byte,
+structural, directory, or extension/size tiers. See the existing "hash_index.json is
+committed but not independently reproducible" note below for the related caveat that the
+source DAT files behind this index are not themselves in the repo.
+
+---
+
 ## Known Limitations
 
 ### Job Object assignment on Windows 11 (nested job retry)

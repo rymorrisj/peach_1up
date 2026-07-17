@@ -1,0 +1,234 @@
+# smart_media_detector
+
+Identifies platform, era, and (when possible) title from a disk image file or a
+directory, using a five-tier detection pipeline that trades off confidence against
+how much it has to inspect. Built to eventually be vendored out into its own
+standalone package once Peach 1UP reaches Beta, so it is kept mostly free of
+project-specific imports (see "Standalone-package intent" below for the current
+state of that goal, including the places it still falls short).
+
+## What it does
+
+Given a path, `detect()` returns a `ScanResult` with `title`, `platform`, `era`,
+`confidence` (0.0 to 1.0), a human-readable `reason`, an optional `requires_install`
+flag, and a list of `warnings`. It never raises, even on a garbage or unreadable
+path, it always returns a `ScanResult` with `confidence=0.0` and an explanatory
+reason instead.
+
+## Detection pipeline
+
+Detection runs in tier order and stops at the first confident match. This matches
+`dev_docs/TECH.md`'s documented description with no drift in pipeline structure.
+
+1. **Hash lookup** (`hashing/hash_lookup.py`), full-file SHA-1, with MD5 and
+   CRC32 fallback, checked against the bundled `hashing/hash_index.json`. A SHA-1
+   hit returns `confidence=1.0` and exits immediately. CHD containers are a special
+   case, see below.
+2. **Magic bytes** (`magic/magic_detect.py`, driven by `magic/magic_signatures.toml`),
+   file header compared against known signatures at fixed offsets. Covers PS1,
+   PS2 (ambiguous with PS1 until resolved by SYSTEM.CNF), Dreamcast (GD-ROM),
+   N64, and NES signatures.
+3. **Structural validation**, a deeper, format-specific parse:
+   - ISO (`iso_detect.py`): reads the ISO 9660 PVD at sector 16 for volume label,
+     publisher, and system-ID fields, then falls back to scanning the root
+     directory for a `.xbe` entry (Original Xbox).
+   - CHD (`validators/chd_validator.py`): walks the CHD v5 metadata chain, a
+     `CHGD` tag means Dreamcast, `CHTR`/`CHT2` means a standard CD/DVD track,
+     PS1 vs PS2 is then guessed from the header's logical (uncompressed) size,
+     since the CHTR/CHT2 tag alone does not distinguish PS1 from PS2.
+   - BIN/CUE (`validators/bin_validator.py`, `iso_detect.detect_cue`): resolves
+     the `.cue` sheet to its `.bin` sibling, then reruns the magic-byte and PVD
+     checks against the binary. Falls back to the cue sheet's declared track
+     type (`MODE1/2352`, `MODE2/2352`, `AUDIO`) as a low-confidence secondary
+     signal if magic bytes do not resolve it.
+4. **Directory heuristics** (`directory_detect.py`), for folder-based items:
+   checks `AUTORUN.INF` for a pointed-to PE executable first (parsing its PE
+   header for OS version and subsystem), then falls back to root-level marker
+   files (`I386`/`XPSP` for XP, `WIN98`/`WIN95` marker files, `SYSTEM.CNF` for
+   PS1/PS2 with BOOT vs BOOT2 key resolution), then depth-2 scans for DOS
+   decompression tools, `.WAD` files, split archives, and DOS-only extension
+   sets.
+5. **Extension / size fallback**, lowest-confidence tier. Used when nothing
+   structural matched: file extension alone for `.xiso`, `.z64`/`.n64`/`.v64`,
+   `.sfc`/`.smc`/`.fig`/`.swc`, `.nes`, plus extension combined with file size
+   for ambiguous `.img` and `.iso` files.
+
+PE executables (`.exe` files and files pointed to by `AUTORUN.INF`) are handled
+by `exe_detect.py` and `directory_detect.py` respectively, both read the PE
+header's `MajorOperatingSystemVersion` and (for autorun) `Subsystem` fields to
+distinguish Windows 98 era from Windows XP era.
+
+`_compute_requires_install()` in `detector.py` is a separate heuristic, applied
+after era detection, that flags DOS-era installer media (raw `.iso`/`.cue`,
+small `.img` files, or a directory whose only root-level executables are all on
+the install/setup blocklist in `utils/blocklist.py`).
+
+## How to use it
+
+The package's public surface, per `__init__.py`, is just two names:
+
+```python
+from backend.service.utils.smart_media_detector import detect, ScanResult
+
+scan: ScanResult = detect(Path("/path/to/some.iso"))
+if scan.era is not None:
+    ...  # scan.title, scan.platform, scan.confidence, scan.reason, scan.requires_install
+```
+
+This is how every real caller in the codebase uses it, always via a local
+`import ... as _smart_detect` inside the calling function rather than a
+module-level import (`backend/service/games/items.py`,
+`backend/service/utils/drive_utils.py`,
+`backend/api/routes/game_item_bundles.py`). Callers check `scan.era` for
+`None` to decide whether detection succeeded, and separately inspect
+`scan.warnings` for logging even on a successful low-confidence match.
+
+A second function is used directly by callers, bypassing the package's public
+`__init__.py`, since it is a general-purpose hashing utility rather than a
+detection call: `hash_file(path) -> dict` from `hashing/hash_lookup.py`, which
+returns `{"sha1": ..., "md5": ..., "crc32": ...}`. `backend/service/utils/bios_placement.py`
+imports this directly to verify a placed BIOS file's SHA-1 against a
+known-good hash.
+
+## Where the hash source data comes from
+
+`hash_index.json` is generated offline from DAT files published by preservation
+communities, not fetched or generated at runtime.
+
+- **Redump** (redump.org) publishes per-disc DATs (XML, `<game name=...><rom
+  sha1= md5= crc=>`) for CD/DVD-based console platforms. Downloads are at
+  redump.org/downloads, organized by platform. No login or authentication is
+  required to browse or download.
+- **No-Intro** (no-intro.org, or the community wiki/datomatic front ends) publishes
+  the equivalent DAT format for cartridge-based platforms. Same schema shape,
+  same no-auth download model.
+
+Both formats are parsed by the same code path, `hashing/dat_parser.py` reads
+`<header><name>` for a platform hint and iterates every `<game>/<rom>` element,
+so a single parser handles DATs from either source, or from TOSEC, which uses a
+compatible schema. `_ERA_MARKERS` in `dat_parser.py` maps the platform-name
+string to an era slug: `playstation 2` to `ps2`, `playstation` to `ps1`,
+`xbox` to `xbox`, and `dreamcast` to `dreamcast` are confirmed against real
+Redump DAT header text. `super nintendo entertainment system` to `snes`,
+`nintendo entertainment system` to `nes`, and `nintendo 64` to `n64` follow
+No-Intro's standard naming convention but have not been verified against an
+actual downloaded No-Intro DAT. There is deliberately no mapping for
+`ibm pc compatible`, see Current coverage state below for why. None of the
+confirmed mappings add any actual rows to `hash_index.json` today, they only
+affect how a future DAT for these platforms would resolve once ingested.
+
+### Turning a new DAT into index entries today
+
+The process is entirely manual, there is no ingestion automation:
+
+```bash
+python -m backend.service.utils.smart_media_detector.hashing.build_index \
+    --dats <directory-of-dat-files> [--output <path>] [--rebuild]
+```
+
+This walks `--dats` recursively for `*.dat`/`*.xml` files, parses each with
+`dat_parser.parse_dat()`, and merges new entries into the existing
+`hash_index.json` (or wipes and rebuilds it, if `--rebuild` is passed). One
+detail worth knowing before feeding it a new DAT source: entries are only
+added if the parsed record has a `sha1` value, a DAT that supplies only
+`md5`/`crc32` per entry will parse without error but contribute zero rows to
+the index, since `build_index.py`'s indexing key is SHA-1 only (MD5/CRC32 are
+still stored per-entry for the secondary lookup tiers, just not usable as the
+primary key for new records that lack SHA-1). This is no longer a silent
+failure mode: `build_index.py` now logs a warning per DAT file with skipped
+records, prints a "Records skipped (no sha1)" count in the run summary, and
+logs a final warning with the total skipped count across all parsed DATs, so
+a run against an MD5/CRC32-only DAT surfaces the problem instead of quietly
+producing zero new entries.
+
+## Current coverage state
+
+As of this writing, `hash_index.json` has confirmed entries for exactly two
+platforms:
+
+- **Sony PlayStation** (era `ps1`), sourced from a Redump PlayStation datfile.
+- **Microsoft Xbox** (era `xbox`), sourced from a Redump Xbox datfile.
+
+Every other era in `config/constants.yaml`'s `eras` list, `win95`, `win98`,
+`winxp`, `ps2`, `nes`, `snes`, `n64`, and `dreamcast`, has zero hash-index
+coverage. This is a real gap against what the pipeline and this document
+otherwise imply: the magic-byte table already has signatures for `n64`,
+`nes`, and `dreamcast`, and the structural/directory tiers already have logic
+paths for `ps2`, `win95`, `win98`, and `winxp`, but none of those eras can
+currently reach tier-1 (hash-confirmed, `confidence=1.0`) identification.
+Detection for those eras today relies entirely on tiers 2 through 5.
+`_ERA_MARKERS` now has mappings ready for `nes`, `snes`, and `n64` (see above),
+but that only means a future No-Intro DAT for those platforms would resolve
+correctly once ingested, `hash_index.json` itself still has zero rows for
+them today.
+
+A second, separate known gap: PC software (DOS/Windows game and application
+discs) has no clean hash source integrated at all. Redump does publish an
+"IBM PC compatible" DAT category that would be the natural fit, it has not
+been added to the index. This is not simply a matter of adding one mapping
+line the way NES/SNES/N64 were, Redump ships one PC disc DAT category that
+covers DOS and Windows 95/98/XP era CD software together, so the platform-name
+string alone cannot tell those eras apart the way it can for the console
+entries. `_ERA_MARKERS` deliberately has no mapping for `ibm pc compatible`,
+a PC DAT parses cleanly today but every record from it carries `era=None`,
+the same safe default any other unmapped platform name gets, rather than a
+wrong but confident era. A real per-title resolution strategy, inspecting
+individual DAT game entries for sub-platform hints rather than relying on the
+shared header name, is needed before this platform can reach tier-1 hash
+coverage at all. PC-era detection today runs entirely on PVD publisher/
+volume-label heuristics (`iso_detect.py`) and directory heuristics, never on
+a hash match.
+
+## Standalone-package intent
+
+The package is written to eventually be extracted into its own repository,
+`__init__.py` exposes a minimal two-name surface (`detect`, `ScanResult`), and
+the bulk of the code, `detector.py`'s dispatch logic, `magic/`, `validators/`,
+`iso_detect.py`, `exe_detect.py`, `directory_detect.py`, and the hashing
+pipeline, has no dependency on the rest of Peach 1UP. That said, a few things
+would need cleanup before extraction is actually clean:
+
+- `detector.py` imports `backend.core.logger` for its module logger. Small,
+  but it is a real `backend.*` import inside the package today, this is the
+  one remaining `backend.*` import in the package.
+- `iso_detect.py` imports `from ..xbox_image import is_xiso`, a sibling
+  module at `backend/service/utils/xbox_image.py`, one directory above this
+  package. It has no `backend.*` imports itself, but it lives outside
+  `smart_media_detector/`, so it would need to move into the package (or be
+  vendored as a copy) before extraction.
+- `utils/file_helpers.py` (unused `get_compatible_media()`, three `backend.*`
+  imports) and the stub `validators/iso_validator.py`/`validators/rom_validator.py`
+  files (`raise NotImplementedError`, never imported anywhere) have since been
+  removed as dead code, they are noted here only so the history of this
+  cleanup isn't lost.
+
+No packaging scaffolding (`pyproject.toml`, `setup.py`, version metadata, its
+own test runner config) exists yet inside this directory, extraction has not
+been started beyond the import-hygiene intent described above.
+
+## Known limitations
+
+- Xbox OG ISOs without `DEFAULT.XBE` at the ISO root will not resolve via the
+  structural `.xbe` scan, the magic-byte tier still applies as a fallback.
+  Standard Xbox rips typically include `DEFAULT.XBE` at the root, so this is
+  expected to be rare in practice.
+- `.bin`/`.cue` pairs without a matching `.cue` sibling return low confidence
+  and a warning, the scanner cannot resolve CD layout without a cue sheet.
+- The `requires_install` heuristic (DOS/Windows installer-only directory
+  detection) is approximate, it checks whether every root-level executable
+  is on the install/setup blocklist. May need tuning based on real-world
+  testing.
+
+## Disclaimer
+
+We do our best to sanitize, clean up and parse all datfiles we use but there 
+may be some inaccurcies with detection for various reasons. Always, check the files
+for yourselves.
+
+## Attributions
+
+We sourced all of our Datfiles from:
+
+- [Redump](http://redump.org//)
+- [TOSEC](https://www.tosecdev.org/)
+- [No-Intro](https://datomatic.no-intro.org/)

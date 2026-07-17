@@ -4,14 +4,41 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Redump DAT <header><name> platform strings, checked in order (most-specific
-# first) so "PlayStation 2" is matched before the "PlayStation" substring.
+# Redump/No-Intro DAT <header><name> platform strings, checked in order
+# (most-specific first) so "PlayStation 2" is matched before the "PlayStation"
+# substring, and "Super Nintendo Entertainment System" is matched before the
+# "Nintendo Entertainment System" substring it contains.
+#
+# The first four entries are confirmed against real Redump DAT header text
+# ("Sony - PlayStation", "Sony - PlayStation 2", "Microsoft - Xbox",
+# presumably "Sega - Dreamcast" following the same pattern).
+#
+# The NES/SNES/N64 entries below follow No-Intro's standard, well-established
+# "<Manufacturer> - <full system name>" naming convention. They have not been
+# verified against an actually downloaded No-Intro DAT in this session, but
+# the convention itself is well known and consistent, so confidence is high.
 _ERA_MARKERS: list[tuple[str, str]] = [
     ("playstation 2", "ps2"),
     ("playstation", "ps1"),
     ("xbox", "xbox"),
     ("dreamcast", "dreamcast"),
+    ("super nintendo entertainment system", "snes"),
+    ("nintendo entertainment system", "nes"),
+    ("nintendo 64", "n64"),
 ]
+
+# Deliberately no "ibm pc compatible" entry. Redump ships one PC disc DAT
+# category that covers DOS and Windows 95/98/XP era CD software together, a
+# platform-name string alone cannot tell those eras apart the way it can for
+# the console entries above. Mapping it to any single era, "dos" included,
+# would let a confirmed, confidence=1.0 hash match silently mislabel a
+# Windows-era title, the same wrong-answer-with-false-confidence failure
+# shape as the PS1 sector-sync bug this project already had to fix once. A
+# PC DAT should parse cleanly and fall through to era=None here, the same
+# safe default any other unmapped platform name already gets, until a real
+# per-title resolution strategy (inspecting individual DAT game entries for
+# sub-platform hints, not just the shared header name) is built. Do not
+# reintroduce a blanket mapping for this platform.
 
 
 def _resolve_era_from_platform(platform: str | None) -> str | None:

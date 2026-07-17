@@ -68,6 +68,7 @@ def main() -> None:
 
     files_parsed = 0
     entries_added = 0
+    skipped_no_sha1 = 0
 
     for dat_path in dat_files:
         try:
@@ -77,9 +78,12 @@ def main() -> None:
             continue
 
         files_parsed += 1
+        file_skipped = 0
         for record in records:
             sha1 = record.get("sha1")
             if not sha1:
+                skipped_no_sha1 += 1
+                file_skipped += 1
                 continue
             if sha1 not in index:
                 index[sha1] = {
@@ -92,14 +96,30 @@ def main() -> None:
                 }
                 entries_added += 1
 
+        if file_skipped:
+            logger.warning(
+                "%s: skipped %d record(s) with no sha1 value (md5/crc32-only "
+                "entries are not indexable by this build, since the index is "
+                "keyed by sha1)",
+                dat_path.name, file_skipped,
+            )
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as fh:
         json.dump(index, fh, indent=2, ensure_ascii=False)
 
     print(f"Files parsed:    {files_parsed}")
     print(f"Entries added:   {entries_added}")
+    print(f"Records skipped (no sha1): {skipped_no_sha1}")
     print(f"Total index size: {len(index)} (was {prior_size})")
     print(f"Written to:      {output_path}")
+
+    if skipped_no_sha1:
+        logger.warning(
+            "%d total record(s) across all parsed DATs were skipped for lacking "
+            "a sha1 value and contributed no entries to the index.",
+            skipped_no_sha1,
+        )
 
 
 if __name__ == "__main__":
