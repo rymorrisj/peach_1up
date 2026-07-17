@@ -48,7 +48,29 @@ def create_media_item(
     db: Session = Depends(get_db),
     _: UserItem = require_permission("can_manage_media"),
 ):
-    item = MediaItem(**body.model_dump(), slug=unique_media_slug(body.title, db))
+    # Every item gets a collection-of-one MediaItemBundle on creation when the
+    # caller doesn't attach it to an existing one, mirroring App's
+    # create_app_item_bundle (backend/service/apps/items.py): bundle first,
+    # flush for its id, then the item referencing it. Without this the item
+    # is never reachable from the library list, which only ever queries
+    # GET /api/v1/media-item-bundles, not /media-items directly.
+    bundle_id = body.media_item_bundle_id
+    if bundle_id is None:
+        bundle = MediaItemBundle(
+            title=body.title,
+            media_kind=body.media_kind,
+            cover_art_path=body.cover_art_path,
+            slug=unique_media_slug(body.title, db),
+        )
+        db.add(bundle)
+        db.flush()
+        bundle_id = bundle.id
+
+    item = MediaItem(
+        **body.model_dump(exclude={"media_item_bundle_id"}),
+        media_item_bundle_id=bundle_id,
+        slug=unique_media_slug(body.title, db),
+    )
     db.add(item)
     db.commit()
     db.refresh(item)
