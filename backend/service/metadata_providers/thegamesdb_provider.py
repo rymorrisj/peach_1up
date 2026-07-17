@@ -14,18 +14,55 @@ the API on every call.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from backend.models.metadata_lookup import (
     Developer, Genre, Publisher,
     get_or_create_developer, get_or_create_genre, get_or_create_publisher,
 )
-from backend.service.metadata_providers import GameDetails, SearchResult
+from backend.service.metadata_providers import GameDetails, MetadataAsset, SearchResult
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 _PROVIDER = "thegamesdb"
+
+
+def _youtube_url(value: object) -> Optional[str]:
+    """TheGamesDB's youtube field convention is not fully confirmed live
+    (see this session's earlier discovery: api.thegamesdb.net was blocked by
+    sandbox network policy). Community scraper implementations treat it as a
+    bare video id needing the watch-url prefix, so that's the default
+    assumption here, but a value that already looks like a full URL is
+    passed through unchanged rather than double-prefixed, so either shape
+    resolves correctly regardless of which one TheGamesDB actually returns."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    value = value.strip()
+    if value.startswith("http://") or value.startswith("https://"):
+        return value
+    return f"https://www.youtube.com/watch?v={value}"
+
+
+def _asset_type_label(img: dict) -> str:
+    img_type = img.get("type") or "image"
+    side = img.get("side")
+    return f"{img_type}_{side}" if side else img_type
+
+
+def _asset_urls(base_url_obj: dict, filename: str) -> tuple[Optional[str], Optional[str]]:
+    """Build (full_url, thumb_url) for one image filename, using the same
+    original/thumb base_url keys the existing cover-art construction already
+    relies on (the only two keys this codebase has confirmed TheGamesDB
+    returns)."""
+    original = (base_url_obj.get("original") or "").rstrip("/")
+    thumb = (base_url_obj.get("thumb") or "").rstrip("/")
+    clean_filename = filename.lstrip("/")
+    if not clean_filename:
+        return None, None
+    full_url = f"{original}/{clean_filename}" if original else None
+    thumb_url = f"{thumb}/{clean_filename}" if thumb else None
+    return full_url, thumb_url
 
 
 def _ids_from_game_field(game: dict, field: str) -> list[int]:
@@ -129,6 +166,9 @@ class TheGamesDBProvider:
             result.release_date = game.get("release_date") or None
             result.overview = game.get("overview") or None
             result.rating = game.get("rating") or None
+            youtube_url = _youtube_url(game.get("youtube"))
+            if youtube_url:
+                result.video_urls = [youtube_url]
             raw_platform = game.get("platform")
             if raw_platform is not None:
                 try:
@@ -164,18 +204,34 @@ class TheGamesDBProvider:
         images_data = images_raw.get("data", {})
         base_url_obj = images_data.get("base_url", {})
         all_images = images_data.get("images", {}).get(str(game_id), [])
+
+        # Full image set, every type (boxart front/back, screenshot, fanart,
+        # banner, clearlogo, icon) and every image TheGamesDB returned for
+        # this game, not just the one front-boxart cover — this is already
+        # the full payload get_game_images() fetched, previously discarded
+        # down to a single image here. cover_art_url/cover_art_thumb_url
+        # below are left pointing at the front boxart specifically and
+        # unchanged in behavior, existing consumers (the Keep flow's applied
+        # cover art) depend on that.
+        for img in all_images:
+            filename = img.get("filename", "")
+            full_url, thumb_url = _asset_urls(base_url_obj, filename)
+            if not full_url:
+                continue
+            result.assets.append(
+                MetadataAsset(url=full_url, type=_asset_type_label(img), thumb_url=thumb_url)
+            )
+
         front_boxart = next(
             (img for img in all_images if img.get("type") == "boxart" and img.get("side") == "front"),
             None,
         )
         if front_boxart:
             filename = front_boxart.get("filename", "")
-            original = (base_url_obj.get("original") or "").rstrip("/")
-            thumb = (base_url_obj.get("thumb") or "").rstrip("/")
-            clean_filename = filename.lstrip("/")
-            if original and clean_filename:
-                result.cover_art_url = f"{original}/{clean_filename}"
-            if thumb and clean_filename:
-                result.cover_art_thumb_url = f"{thumb}/{clean_filename}"
+            full_url, thumb_url = _asset_urls(base_url_obj, filename)
+            if full_url:
+                result.cover_art_url = full_url
+            if thumb_url:
+                result.cover_art_thumb_url = thumb_url
 
         return result

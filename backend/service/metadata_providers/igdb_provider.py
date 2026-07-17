@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 import httpx
 
 from backend.models.metadata_lookup import get_or_create_developer, get_or_create_genre, get_or_create_publisher
-from backend.service.metadata_providers import GameDetails, SearchResult
+from backend.service.metadata_providers import GameDetails, MetadataAsset, SearchResult
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -218,7 +218,7 @@ class IGDBProvider:
         query = (
             "fields name,first_release_date,summary,"
             "genres.name,involved_companies.company.name,involved_companies.developer,"
-            "involved_companies.publisher,cover.image_id,platforms,"
+            "involved_companies.publisher,cover.image_id,platforms,videos.video_id,"
             "age_ratings.organization.name,age_ratings.rating_category.rating; "
             f"where id = {int(game_id)}; limit 1;"
         )
@@ -267,5 +267,21 @@ class IGDBProvider:
 
         result.cover_art_url = _cover_url(game.get("cover"), "t_cover_big")
         result.cover_art_thumb_url = _cover_url(game.get("cover"), "t_thumb")
+
+        # IGDB's own screenshots/artworks fields are deliberately not fetched
+        # here (out of scope for this pass, TheGamesDB was the one audited
+        # for image completeness this session) — assets only carries IGDB's
+        # existing single cover image today, wrapped in the same shape
+        # TheGamesDB's multi-image assets list uses, so the Accept All flow
+        # never needs to special-case which provider produced a given asset.
+        if result.cover_art_url:
+            result.assets.append(
+                MetadataAsset(url=result.cover_art_url, type="cover", thumb_url=result.cover_art_thumb_url)
+            )
+
+        for video in game.get("videos") or []:
+            video_id = video.get("video_id")
+            if video_id:
+                result.video_urls.append(f"https://www.youtube.com/watch?v={video_id}")
 
         return result

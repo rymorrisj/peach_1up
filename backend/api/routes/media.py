@@ -13,29 +13,15 @@ from backend.core.logger import get_logger
 from backend.models.media import (
     MediaItemBundle, MediaItemBundleCreate, MediaItemBundleRead, MediaItemBundleUpdate,
     MediaItem, MediaItemCreate, MediaItemRead, MediaItemUpdate,
-    delete_links_for,
+    delete_links_for, unique_media_slug,
     media_item_bundle_to_read, media_item_bundle_to_read_bulk, item_to_read, items_to_read_bulk,
 )
 from backend.models.pagination import Page
 from backend.models.user import UserItem
-from backend.service.utils.slug_generator import unique_slug
 from backend.service.utils.sort_utils import apply_bundle_sort
 
 router = APIRouter(prefix="/api/v1", tags=["media"])
 logger = get_logger(__name__)
-
-
-def _unique_media_slug(title: str, db: Session) -> str:
-    """Slug uniqueness spans both media_items and media_collections — the two
-    share the /media/{slug}-style namespace, so a title collision between an
-    item and a collection is treated the same as a same-table collision."""
-    return unique_slug(
-        title,
-        lambda s: (
-            db.query(MediaItem).filter(MediaItem.slug == s).first() is not None
-            or db.query(MediaItemBundle).filter(MediaItemBundle.slug == s).first() is not None
-        ),
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +48,7 @@ def create_media_item(
     db: Session = Depends(get_db),
     _: UserItem = require_permission("can_manage_media"),
 ):
-    item = MediaItem(**body.model_dump(), slug=_unique_media_slug(body.title, db))
+    item = MediaItem(**body.model_dump(), slug=unique_media_slug(body.title, db))
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -124,7 +110,7 @@ def create_media_item_bundle(
     db: Session = Depends(get_db),
     _: UserItem = require_permission("can_manage_media"),
 ):
-    collection = MediaItemBundle(**body.model_dump(), slug=_unique_media_slug(body.title, db))
+    collection = MediaItemBundle(**body.model_dump(), slug=unique_media_slug(body.title, db))
     db.add(collection)
     db.commit()
     db.refresh(collection)

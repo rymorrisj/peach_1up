@@ -139,7 +139,10 @@ def get_game_details(game_id: int) -> dict:
     """Fetch detailed metadata for a game by its TheGamesDB ID.
 
     Calls GET /v1/Games/ByGameID with overview, rating, genres, publishers,
-    developers, and platform fields.
+    developers, platform, players, youtube (trailer link), alternates
+    (alternate titles), and the PC-specific system-requirement fields (os,
+    processor, ram, hdd, video, sound) — relevant here given this app's
+    DOS/Win9x/XP focus, unlike a console-only library tool.
 
     Args:
         game_id: The TheGamesDB numeric game identifier.
@@ -155,7 +158,10 @@ def get_game_details(game_id: int) -> dict:
         params={
             "apikey": key,
             "id": game_id,
-            "fields": "overview,rating,genres,publishers,developers,platform",
+            "fields": (
+                "overview,rating,genres,publishers,developers,platform,players,"
+                "youtube,alternates,os,processor,ram,hdd,video,sound"
+            ),
         },
         timeout=_TIMEOUT,
     )

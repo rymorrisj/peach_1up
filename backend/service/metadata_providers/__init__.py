@@ -24,6 +24,19 @@ class SearchResult:
 
 
 @dataclass
+class MetadataAsset:
+    """One downloadable image a provider returned, offered to the Accept All
+    flow (backend/service/games/media_link.py) for server-side download into
+    a linked Media item. url is the best/original-resolution URL to actually
+    download; thumb_url (when the provider has one) is only for the
+    frontend's preview, never downloaded server-side."""
+
+    url: str
+    type: str
+    thumb_url: Optional[str] = None
+
+
+@dataclass
 class GameDetails:
     game_id: int
     title: Optional[str] = None
@@ -36,6 +49,8 @@ class GameDetails:
     genres: list[str] = field(default_factory=list)
     developer: Optional[str] = None
     publisher: Optional[str] = None
+    video_urls: list[str] = field(default_factory=list)
+    assets: list[MetadataAsset] = field(default_factory=list)
 
 
 class MetadataProvider(Protocol):

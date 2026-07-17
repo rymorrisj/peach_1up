@@ -9,6 +9,12 @@ interface SearchResult {
   release_date: string | null
 }
 
+interface MetadataAsset {
+  url: string
+  type: string
+  thumb_url: string | null
+}
+
 interface GameDetails {
   game_id: number
   title: string | null
@@ -20,6 +26,8 @@ interface GameDetails {
   genres: string[] | null
   developer: string | null
   publisher: string | null
+  video_urls: string[]
+  assets: MetadataAsset[]
 }
 
 interface FetchMetadataModalProps {
@@ -65,13 +73,16 @@ export function FetchMetadataModal({
   const [results, setResults] = useState<SearchResult[] | null>(null)
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
-  const [phase, setPhase] = useState<'search' | 'preview'>('search')
+  const [phase, setPhase] = useState<'search' | 'preview' | 'accept-all'>('search')
   const [fetching, setFetching] = useState(false)
   const [details, setDetails] = useState<GameDetails | null>(null)
 
   const [applying, setApplying] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [confirmRatingChange, setConfirmRatingChange] = useState(false)
+
+  const [acceptingAll, setAcceptingAll] = useState(false)
+  const [acceptError, setAcceptError] = useState<string | null>(null)
 
   // Pre-fill the search field with the item's title on open — editable, not
   // re-applied on every render (only when the modal transitions to open).
@@ -108,6 +119,8 @@ export function FetchMetadataModal({
       setApplying(false)
       setApplyError(null)
       setConfirmRatingChange(false)
+      setAcceptingAll(false)
+      setAcceptError(null)
     }
   }, [open])
 
@@ -174,6 +187,9 @@ export function FetchMetadataModal({
       if (details.developer) payload.developer = details.developer
       if (details.publisher) payload.publisher = details.publisher
       if (details.genres && details.genres.length > 0) payload.genre = details.genres
+      if (details.video_urls && details.video_urls.length > 0) {
+        payload.external_links = details.video_urls.map((url) => ({ type: 'trailer', url }))
+      }
     } else if (entityType === 'game_item') {
       // Leaf: only per-disc cover_art_url is supported.
       if (details.cover_art_url) payload.cover_art_url = details.cover_art_url
@@ -187,12 +203,49 @@ export function FetchMetadataModal({
       sessionStorage.removeItem(storageKey)
       showToast(`Metadata applied: ${details.title ?? entityTitle}`, 'success')
       onSuccess()
-      onClose()
+
+      // Accept All only applies at the game_item_bundle level (that's the
+      // side the entity-link table's game_item_bundle<->media_item_bundle
+      // link attaches to) and only when there is something downloadable to
+      // offer. Otherwise this is unchanged from before: close immediately,
+      // identical to today's Keep-only behavior.
+      const hasAcceptables =
+        entityType === 'game_item_bundle' &&
+        ((details.assets && details.assets.length > 0) || (details.video_urls && details.video_urls.length > 0))
+      if (hasAcceptables) {
+        setPhase('accept-all')
+      } else {
+        onClose()
+      }
     } catch (err) {
       setApplyError(err instanceof Error ? err.message : 'Failed to apply metadata.')
     } finally {
       setApplying(false)
     }
+  }
+
+  async function handleAcceptAll() {
+    if (!details || details.assets.length === 0) return
+    setAcceptingAll(true)
+    setAcceptError(null)
+    try {
+      await apiFetch(`/api/v1/game-items/${entityId}/accept-metadata-assets`, {
+        method: 'POST',
+        body: JSON.stringify({ assets: details.assets }),
+      })
+      showToast(`Linked media created for "${details.title ?? entityTitle}".`, 'success')
+      onClose()
+    } catch (err) {
+      setAcceptError(err instanceof Error ? err.message : 'Failed to create linked media.')
+    } finally {
+      setAcceptingAll(false)
+    }
+  }
+
+  function handleSkipAcceptAll() {
+    // Zero additional calls — Keep already applied core metadata + cover art
+    // above, this step only ever offers to go further than that.
+    onClose()
   }
 
   function handleRedo() {
@@ -204,7 +257,8 @@ export function FetchMetadataModal({
 
   const showCoverArt = entityType === 'game_item'
   const showMetadata = entityType === 'game_item_bundle'
-  const busy = phase === 'search' ? searching || fetching : applying
+  const busy =
+    phase === 'search' ? searching || fetching : phase === 'accept-all' ? acceptingAll : applying
 
   useEffect(() => {
     onBusyChange?.(busy)
@@ -242,7 +296,7 @@ export function FetchMetadataModal({
               Fetch Now
             </Button>
           </div>
-        ) : (
+        ) : phase === 'preview' ? (
           <div className="flex items-center gap-3">
             <Button variant="secondary" onClick={handleRedo} disabled={applying}>
               Redo
@@ -253,6 +307,19 @@ export function FetchMetadataModal({
               loading={applying}
             >
               Keep
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <Button variant="secondary" onClick={handleSkipAcceptAll} disabled={acceptingAll}>
+              Skip
+            </Button>
+            <Button
+              onClick={() => void handleAcceptAll()}
+              disabled={acceptingAll || !details || details.assets.length === 0}
+              loading={acceptingAll}
+            >
+              Accept All
             </Button>
           </div>
         )
@@ -318,7 +385,7 @@ export function FetchMetadataModal({
             </fieldset>
           )}
         </div>
-      ) : (
+      ) : phase === 'preview' ? (
         <div className="space-y-4">
           {details && (
             <>
@@ -389,7 +456,26 @@ export function FetchMetadataModal({
                     <dd className="text-neutral-100">{details.publisher}</dd>
                   </div>
                 )}
+                {showMetadata && details.assets.length > 0 && (
+                  <div className="flex gap-2">
+                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Images found</dt>
+                    <dd className="text-neutral-100">{details.assets.length}</dd>
+                  </div>
+                )}
+                {showMetadata && details.video_urls.length > 0 && (
+                  <div className="flex gap-2">
+                    <dt className="w-28 shrink-0 font-medium text-neutral-400">Trailer</dt>
+                    <dd className="text-neutral-100">{details.video_urls.length} link(s) found</dd>
+                  </div>
+                )}
               </dl>
+
+              {showMetadata && (details.assets.length > 0 || details.video_urls.length > 0) && (
+                <p className="text-xs text-neutral-400">
+                  Keep applies title/cover art now — you'll be offered a separate Accept All step
+                  afterward to create a linked Media item from the images above.
+                </p>
+              )}
 
               {ratingChanged && (
                 <div className="rounded-md border border-amber-600/50 bg-amber-950/30 p-3">
@@ -414,6 +500,61 @@ export function FetchMetadataModal({
 
           {applyError && (
             <p role="alert" className="text-sm text-red-400">{applyError}</p>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-sm text-neutral-300">
+            Metadata applied. Create a linked Media item from the images and links below, or skip.
+          </p>
+
+          {details && details.assets.length > 0 && (
+            <div>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-400">
+                Images ({details.assets.length})
+              </h3>
+              <div className="grid grid-cols-4 gap-2">
+                {details.assets.map((asset, i) => (
+                  <div key={`${asset.type}-${i}`} className="space-y-1">
+                    <img
+                      src={asset.thumb_url ?? asset.url}
+                      alt={asset.type}
+                      className="aspect-square w-full rounded-md border border-neutral-700 object-cover"
+                    />
+                    <p className="truncate text-center text-[10px] text-neutral-400">{asset.type}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {details && details.video_urls.length > 0 && (
+            <div>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-400">
+                Trailer link{details.video_urls.length > 1 ? 's' : ''}
+              </h3>
+              <ul className="space-y-1 text-sm">
+                {details.video_urls.map((url) => (
+                  <li key={url}>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[#ff8a5c] hover:underline"
+                    >
+                      {url}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-xs text-neutral-400">
+                Already saved on the game (applied by Keep) — Accept All only affects the images above.
+              </p>
+            </div>
+          )}
+
+          {acceptError && (
+            <p role="alert" className="text-sm text-red-400">{acceptError}</p>
           )}
         </div>
       )}

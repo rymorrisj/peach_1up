@@ -145,6 +145,13 @@ class GameItemBundle(SQLModel, table=True):
     metadata_source: Optional[str] = None
     content_rating: Optional[str] = Field(default=None, index=True)
     launch_commands: Optional[list[str]] = Field(default=None, sa_column=Column(JSON))
+    # Trailer/video links fetched from a metadata provider (TheGamesDB's
+    # youtube field, IGDB's videos field), never downloaded, stored verbatim
+    # as-is. Shape: list of {"type": str, "url": str}, "type" is "trailer"
+    # for every entry today; a typed list rather than a scalar column since
+    # IGDB alone can already return more than one video per game. Same
+    # JSON-column pattern as launch_commands above.
+    external_links: Optional[list[dict]] = Field(default=None, sa_column=Column(JSON))
     installed: bool = False
     requires_install: bool = False
     launch_review_flagged: bool = Field(default=False)
@@ -240,6 +247,7 @@ class GameItemBundleUpdate(SQLModel):
     metadata_source: Optional[str] = None
     content_rating: Optional[str] = None
     launch_commands: Optional[list[str]] = None
+    external_links: Optional[list[dict]] = None
     launch_review_flagged: Optional[bool] = None
     installed: Optional[bool] = None
     requires_install: Optional[bool] = None
@@ -276,6 +284,7 @@ class GameItemBundleRead(SQLModel):
     metadata_source: Optional[str] = None
     content_rating: Optional[str] = None
     launch_commands: Optional[list[str]] = None
+    external_links: Optional[list[dict]] = None
     installed: bool = False
     requires_install: bool = False
     launch_review_flagged: bool = False

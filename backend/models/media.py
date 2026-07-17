@@ -296,6 +296,25 @@ def _link_target_model(entity_type: str) -> Optional[type]:
     return None
 
 
+def unique_media_slug(title: str, db: "Session") -> str:
+    """Slug uniqueness spans both media_items and media_item_bundles — the
+    two share the /media/{slug}-style namespace, so a title collision
+    between an item and a bundle is treated the same as a same-table
+    collision. Shared by backend/api/routes/media.py's create routes and
+    backend/service/games/media_link.py's Accept All flow, a single choke
+    point rather than two hand-maintained copies of the same cross-table
+    uniqueness rule."""
+    from backend.service.utils.slug_generator import unique_slug
+
+    return unique_slug(
+        title,
+        lambda s: (
+            db.query(MediaItem).filter(MediaItem.slug == s).first() is not None
+            or db.query(MediaItemBundle).filter(MediaItemBundle.slug == s).first() is not None
+        ),
+    )
+
+
 def delete_links_for(entity_type: str, entity_id: int, db: "Session") -> None:
     """Remove every MediaLink row involving (entity_type, entity_id) on
     either side. Callers must run this before (or as part of, same

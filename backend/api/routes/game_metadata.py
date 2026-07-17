@@ -42,7 +42,18 @@ class EnrichBody(BaseModel):
     content_rating: Optional[str] = None
     metadata_source: Optional[str] = None
     cover_art_url: Optional[str] = None
+    external_links: Optional[list[dict]] = None
     confirm_rating_change: bool = False
+
+
+class MetadataAssetBody(BaseModel):
+    url: str
+    type: str
+    thumb_url: Optional[str] = None
+
+
+class AcceptMetadataAssetsBody(BaseModel):
+    assets: list[MetadataAssetBody]
 
 
 @router.get("/metadata-search")
@@ -118,6 +129,11 @@ def get_metadata_details(
         "genres": details.genres,
         "developer": details.developer,
         "publisher": details.publisher,
+        "video_urls": details.video_urls,
+        "assets": [
+            {"url": a.url, "type": a.type, "thumb_url": a.thumb_url}
+            for a in details.assets
+        ],
     }
 
 
@@ -142,9 +158,40 @@ def enrich_library_entity(
         content_rating=body.content_rating,
         metadata_source=body.metadata_source,
         cover_art_url=body.cover_art_url,
+        external_links=body.external_links,
         confirm_rating_change=body.confirm_rating_change,
         db=db,
     )
     if entity_type == "game_item_bundle":
         return game_item_bundle_to_read(entity, db)
     return GameItemRead.model_validate(entity)
+
+
+@router.post("/{id}/accept-metadata-assets")
+def accept_metadata_assets(
+    id: int,
+    request: Request,
+    body: AcceptMetadataAssetsBody,
+    db: Session = Depends(get_db),
+    _: UserItem = require_permission("is_owner"),
+):
+    """Accept All step of the Fetch Metadata flow: downloads every asset the
+    frontend already fetched via /metadata-details (no second round trip to
+    the provider here) and attaches them to a linked Media item bundle for
+    the GameItemBundle named by *id*. Same permission level as the rest of
+    this flow (/metadata-search, /metadata-details, /enrich all gate on
+    is_owner) and the same rate-limit bucket as /enrich, since both are
+    write operations against this game.
+    """
+    _enforce_rate_limit("library-enrich", request, _ENRICH_RATE_LIMIT, _ENRICH_RATE_WINDOW_SECONDS)
+
+    from backend.models.media import media_item_bundle_to_read
+    from backend.service.games.media_link import create_linked_media_from_metadata
+    from backend.service.metadata_providers import MetadataAsset
+
+    assets = [
+        MetadataAsset(url=a.url, type=a.type, thumb_url=a.thumb_url)
+        for a in body.assets
+    ]
+    bundle = create_linked_media_from_metadata(id, assets, db)
+    return media_item_bundle_to_read(bundle, db)
