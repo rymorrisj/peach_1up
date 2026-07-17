@@ -77,13 +77,13 @@ class TestFilesystemAllowlist:
             lambda: {"LIBRARY_PATH": str(library_path), "SOFTWARE_PATH": "", "MEDIA_PATH": "", "OS_PATH": "", "ROMS_PATH": "", "PROFILES_PATH": ""},
         )
 
-        # _allowed_roots() additionally allowlists every existing drive root on
-        # Windows (so users can browse any drive to configure library paths).
+        # allowed_browse_roots() additionally allowlists every existing drive
+        # root (so users can browse any drive to configure library paths).
         # That's orthogonal to the LIBRARY_PATH allowlist under test here, and
         # would make "outside library path" paths under e.g. C:\Users\... pass
-        # the allowlist check anyway. Pin to a non-Windows platform so only the
-        # configured-path allowlist is exercised.
-        monkeypatch.setattr(filesystem.sys, "platform", "linux")
+        # the allowlist check anyway. Stub it down to just the configured
+        # LIBRARY_PATH so only that allowlist is exercised.
+        monkeypatch.setattr(filesystem, "allowed_browse_roots", lambda: [library_path.resolve()])
 
         app = FastAPI()
         app.include_router(filesystem.router)

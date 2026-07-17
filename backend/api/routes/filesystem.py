@@ -1,5 +1,4 @@
 import string
-import sys
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -27,9 +26,7 @@ def _get_drive_label(letter: str) -> str:
 
 @router.get("/drives", response_model=DrivesResult)
 def list_drives(_: UserItem = Depends(require_game_or_environment_editor)):
-    """Return available Windows drive letters. 404 on non-Windows."""
-    if sys.platform != "win32":
-        raise HTTPException(status_code=404, detail="Drive listing is only available on Windows.")
+    """Return available Windows drive letters."""
     drives = []
     for letter in string.ascii_uppercase:
         try:

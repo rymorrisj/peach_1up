@@ -40,8 +40,7 @@ Emulators marked "requires BIOS" need a BIOS image sourced from your own hardwar
 ```bash
 # Backend
 pip install -r backend/requirements-dev.txt
-./start.sh    # Linux
-start.bat     # Windows
+start.bat
 
 # Frontend (separate terminal)
 cd frontend && npm run dev
@@ -49,7 +48,7 @@ cd frontend && npm run dev
 
 ## Build
 
-There is a build script at the root you can run which bundles all the build commands and tasks. You can also rebuild parts individually. Packaging is currently Windows-only (`build.bat`) — Linux packaging (.deb/AppImage) is planned but not yet built (see SCOPE.md PX-3).
+There is a build script at the root you can run which bundles all the build commands and tasks. You can also rebuild parts individually. Packaging is Windows-only (`build.bat`).
 
 ```bash
 build.bat     # Windows

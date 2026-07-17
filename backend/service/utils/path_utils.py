@@ -5,7 +5,6 @@ forms) must pass through normalise_path before any allowlist check or filesystem
 operation. This module is the single choke-point for that normalisation.
 """
 
-import os
 import re
 from pathlib import Path
 
@@ -59,23 +58,16 @@ def resolve_under(base: Path, *parts: str) -> Path:
 def normalise_path(path: str) -> Path:
     """Normalise a user-supplied path to an absolute resolved Path.
 
-    The result is a canonical absolute path native to the host the backend runs
-    on, independent of the terminal it was launched from. ``os.name`` (the
-    Python runtime OS, unaffected by whether the process was started from Git
-    Bash, cmd, PowerShell, or a Linux shell) selects the path flavor:
-
-    * On Windows, ``pathlib.Path`` is ``WindowsPath``, which already parses both
-      ``C:/foo`` and ``C:\\foo`` as absolute — no separator munging is needed.
-      Git Bash / MSYS2 virtual paths (``/c/Users`` -> ``C:/Users``) are the one
-      form it does not understand, so those are translated first.
-    * On POSIX, ``Path`` is ``PosixPath``. A backslash is a legal filename
-      character and ``/c/...`` is a legitimate absolute path, so the string is
-      left untouched — the Windows-only translation must never run here.
+    The result is a canonical absolute path, independent of the terminal it was
+    launched from. ``pathlib.Path`` is ``WindowsPath``, which already parses
+    both ``C:/foo`` and ``C:\\foo`` as absolute, no separator munging is
+    needed. Git Bash / MSYS2 virtual paths (``/c/Users`` -> ``C:/Users``) are
+    the one form it does not understand, so those are translated first.
 
     Steps applied in order:
         1. Empty / whitespace-only rejection.
         2. Null-byte rejection (common injection vector).
-        3. Git Bash / MSYS2 virtual path translation — Windows host only.
+        3. Git Bash / MSYS2 virtual path translation.
         4. Absolute resolution via ``Path.resolve()`` — eliminates ``..``
            segments and relative references.
 
@@ -88,9 +80,8 @@ def normalise_path(path: str) -> Path:
     if "\x00" in path:
         raise ValueError("Path contains a null byte.")
 
-    # Git Bash / MSYS2 style virtual paths (/c/Users -> C:/Users). Windows host
-    # only: on POSIX, /c/... is a real absolute path and must be left alone.
-    if os.name == "nt" and re.match(r"^/[a-zA-Z]/", path):
+    # Git Bash / MSYS2 style virtual paths (/c/Users -> C:/Users).
+    if re.match(r"^/[a-zA-Z]/", path):
         path = f"{path[1].upper()}:{path[2:]}"
 
     return Path(path).resolve()
@@ -99,16 +90,15 @@ def normalise_path(path: str) -> Path:
 def allowed_browse_roots() -> list[Path]:
     """Return every filesystem root the server-side file browser (and anything
     that consumes a path it returned) is permitted to touch: the configured
-    library base directories, plus — on Windows — every drive letter, since
-    the browser is also used to locate arbitrary source media (ROM packs,
-    manual launch-target overrides) that legitimately live outside the library.
+    library base directories, plus every drive letter, since the browser is
+    also used to locate arbitrary source media (ROM packs, manual launch-target
+    overrides) that legitimately live outside the library.
 
     Shared by the /filesystem/browse endpoint and any endpoint that accepts a
     path the browser produced, so the allowlist can never drift between the
     two call sites.
     """
     import string
-    import sys
 
     from backend.core.settings import get_settings
 
@@ -121,14 +111,13 @@ def allowed_browse_roots() -> list[Path]:
                 roots.append(Path(val).resolve())
             except OSError:
                 pass
-    if sys.platform == "win32":
-        for letter in string.ascii_uppercase:
-            try:
-                drive = Path(f"{letter}:\\")
-                if drive.exists():
-                    roots.append(drive.resolve())
-            except OSError:
-                pass
+    for letter in string.ascii_uppercase:
+        try:
+            drive = Path(f"{letter}:\\")
+            if drive.exists():
+                roots.append(drive.resolve())
+        except OSError:
+            pass
     return roots
 
 

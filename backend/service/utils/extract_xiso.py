@@ -9,7 +9,6 @@ into the xiso format xemu requires.
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
 from backend.core.logger import get_logger
@@ -19,7 +18,7 @@ from backend.service.utils.path_utils import allowed_browse_roots, is_within_roo
 logger = get_logger(__name__)
 
 _VENDOR_DIR = get_base_path() / "services" / "vendor" / "extract-xiso"
-_BINARY_NAME = "extract-xiso.exe" if sys.platform == "win32" else "extract-xiso"
+_BINARY_NAME = "extract-xiso.exe"
 
 # Multi-GB rips take a while to rewrite; this is a ceiling against a hung
 # or wedged process, not an expected duration.

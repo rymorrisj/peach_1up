@@ -1,7 +1,6 @@
 import glob as _glob
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 from backend.core.settings import get_base_path
@@ -44,9 +43,6 @@ def detect_binary(slug: str) -> Path | None:
 
 
 def launch_installer(slug: str) -> dict:
-    if sys.platform != "win32":
-        raise RuntimeError("Installer launch is only supported on Windows.")
-
     import ctypes
 
     entry = get_emulator(slug)

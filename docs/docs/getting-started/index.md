@@ -14,9 +14,8 @@ This page gets you from a fresh checkout to a running app. For deployment behind
 [Metadata Enrichment](./metadata-enrichment.mdx).
 
 :::note Platform support
-The Alpha is built and tested on **Windows 10/11**. Native Linux support is planned for the Beta —
-the backend already runs on Linux for development, but the packaged build and the hardened sandbox
-are Windows-first today.
+The Alpha is built and tested on **Windows 10/11**. Peach 1UP is Windows-only, the hardened
+sandbox relies on Windows Job Objects, and there are no plans to support other platforms.
 :::
 
 ## Prerequisites
@@ -54,11 +53,7 @@ Python virtual environment, installs backend and frontend dependencies, generate
 client, and starts every service.
 
 ```bash
-# Windows
 start.bat
-
-# Linux / macOS
-./start.sh
 ```
 
 When it finishes you'll have:
@@ -67,7 +62,7 @@ When it finishes you'll have:
 | ------- | --- | ----- |
 | Frontend | http://localhost:5173 | The app UI — open this |
 | Backend API | http://localhost:8000 | FastAPI; interactive docs at `/api/docs` |
-| Docs site | http://localhost:3000 | This documentation (Windows `start.bat` only) |
+| Docs site | http://localhost:3000 | This documentation |
 
 The backend binds to `127.0.0.1` only — it is not reachable from other machines unless you
 explicitly enable network access (see [Self-Hosting](./self-hosting.mdx)).
@@ -116,11 +111,6 @@ is used otherwise), and runs PyInstaller. The output is a self-contained directo
 Building the NSIS installer additionally requires [NSIS](https://nsis.sourceforge.io/) and
 [WinSW](https://github.com/winsw/winsw/releases) — see the project `README.md` for the installer
 steps.
-
-:::note
-A native Linux build script is not available yet (planned for the Beta). On Linux, run from source
-with `./start.sh` as shown above.
-:::
 
 ## Configuration
 

@@ -21,8 +21,7 @@ cd frontend && npx tsc --noEmit
 **Python linting:**
 
 ```bash
-.venv\Scripts\python.exe -m ruff check backend\   # Windows
-.venv/bin/python -m ruff check backend/            # Linux
+.venv\Scripts\python.exe -m ruff check backend\
 ```
 
 ## Commit format

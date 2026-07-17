@@ -11,7 +11,6 @@ import math
 import os
 import re
 import shutil
-import sys
 import tempfile
 import threading
 import time
@@ -69,11 +68,7 @@ def _dosbox_cmd_path(path: Path) -> str:
     whitespace. Forward slashes are never used — the DOSBox-X autoexec
     tokeniser treats them as DOS switch characters, which truncates the
     imgmount file argument.
-
-    On non-Windows platforms, returns the POSIX path form.
     """
-    if sys.platform != "win32":
-        return path.as_posix()
     p = str(path)
     return f'"{p}"' if any(c.isspace() for c in p) else p
 

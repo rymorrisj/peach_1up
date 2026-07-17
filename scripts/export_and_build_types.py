@@ -76,9 +76,8 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        npm = "npm.cmd" if sys.platform == "win32" else "npm"
         subprocess.run(
-            [npm, "run", "generate:api"],
+            ["npm.cmd", "run", "generate:api"],
             cwd=REPO_ROOT / "frontend",
             check=True,
         )

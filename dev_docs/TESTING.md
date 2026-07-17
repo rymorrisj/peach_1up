@@ -13,7 +13,6 @@ verification only) and the security-sensitive surface in `SECURITY.md`.
 | --- | --- | --- | --- | --- |
 | Backend | pytest | `pyproject.toml` (`[tool.pytest.ini_options]`, `testpaths=["backend/tests"]`) | 43 `test_*.py` | ~594 `test_` functions |
 | Frontend | Vitest (jsdom) | `frontend/vitest.config.ts` | 36 `*.test.{ts,tsx}` | co-located with source + `*.acceptance.test.tsx` (3) |
-| E2E smoke | Playwright | `playwright/playwright.config.js` | 4 `*.spec.js` | serial, `workers: 1` |
 
 **Coverage thresholds are declared and now run in CI:**
 - Backend: `pyproject.toml` `[tool.coverage.report] fail_under = 65`. `pytest-cov`
@@ -22,7 +21,6 @@ verification only) and the security-sensitive surface in `SECURITY.md`.
   (`.github/workflows/test.yml`).
 - Frontend: `vitest.config.ts` thresholds — lines/functions/statements 65,
   branches 60. CI runs `vitest run --coverage`.
-- Playwright: no coverage; smoke assertions only; not wired into CI (manual).
 
 ---
 
@@ -66,10 +64,6 @@ verification only) and the security-sensitive surface in `SECURITY.md`.
   `LaunchHistory`, `TagChips`, `EraSelector`, `ConfirmModal`, `TabbedLayout`,
   `Profiles`/`Bios`/`RomPacks` tabs, `EmulatorDetail`, plus the v2 route-redirect
   tests (`test/routing.sectionRedirects.test.tsx`).
-
-**Playwright smoke (`playwright/tests/`):** `first-run`, `login-switch`,
-`add-media-launch`, `multi-disc-launch` — full-stack happy paths requiring a
-live backend (`:8000`) + frontend (`:5173`), started manually.
 
 ---
 
@@ -137,10 +131,6 @@ application defect.
   Claude Code must **never** run pytest/vitest/any suite in-sandbox, never
   install/update packages, and must verify by reading code and tracing call
   sites. Live runs are handed to Ryan to execute manually.
-- **Playwright is explicitly a manual, pre-req-gated smoke suite** — its config
-  header documents the required boot sequence (`npm install`,
-  `npx playwright install chromium`, start backend, start frontend). Not part of
-  any automated gate.
 - **Regeneration/build discipline is convention-enforced** — `gen_constants.py`
   before export, `export_and_build_types.py` to refresh `openapi.json`/`types.ts`;
   the router-parity check is the single loud failure in that chain.
@@ -158,9 +148,9 @@ current state is consistent with that tier — but the delta to a
 "mechanically-enforced" tier is:
 
 1. **CI now runs the suites** (`.github/workflows/test.yml` — pytest + vitest,
-   both with coverage, on push/PR to `main`), but the **Playwright smoke suite is
-   not wired into CI**, and the type-generation job does not fail on a stale
-   committed generated file (it uploads artifacts instead of diffing).
+   both with coverage, on push/PR to `main`), but the type-generation job does
+   not fail on a stale committed generated file (it uploads artifacts instead
+   of diffing).
 2. **Some producers stay untyped/untested** — launch `target_type`
    (`software_collection`/`environment`) is still a bare derived string. The
    environment status vocabulary is now the `EnvironmentStatus` Literal, and the
@@ -185,5 +175,5 @@ phase (TECH.md P7); the GitHub Actions test workflow is the first piece of it.
   oversights: the Environment image-path traversal gap (intentional) and the
   native `sandbox_host.exe`/AppContainer path (manual test matrix, P9).
 - **CI now runs pytest + vitest with coverage on every push/PR**, so the coverage
-  floors are enforced there. The remaining gaps are the un-gated Playwright smoke
-  suite and the type-generation freshness check (artifacts uploaded, not diffed).
+  floors are enforced there. The remaining gap is the type-generation freshness
+  check (artifacts uploaded, not diffed).
