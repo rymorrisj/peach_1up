@@ -1,7 +1,7 @@
 from backend.api.routes import (
-    apps, auth, bios, controllers, drives, emulators, environments, filesystem, health, jobs, launches,
-    media, profiles, restrictions, rom_packs, settings, game_item_bundles, game_items, game_metadata,
-    tags, uploads, users,
+    apps, auth, bios, controllers, drives, emulators, entity_links, environments, filesystem, health,
+    jobs, launches, media, profiles, restrictions, rom_packs, settings, game_item_bundles, game_items,
+    game_metadata, tags, uploads, users,
 )
 
 ROUTERS = [
@@ -32,4 +32,5 @@ ROUTERS = [
     media.router,
     restrictions.router,
     tags.router,
+    entity_links.router,
 ]

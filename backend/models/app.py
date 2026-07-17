@@ -9,6 +9,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 from backend.constants import PC_ERAS
 from backend.constants_generated import EraValue, FileType
+from backend.models.media import LinkedEntityRef
 from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_entity
 
 if TYPE_CHECKING:
@@ -276,6 +277,7 @@ class AppItemBundleRead(SQLModel):
     updated_at: datetime
     items: list[AppItemRead] = []
     tags: list[TagRead] = []
+    linked_items: list[LinkedEntityRef] = []
     # Pre-launch UX gate, same semantics and shared computation as
     # GameItemBundleRead.launch_blocked_reason (see backend/models/game.py and
     # the shared compute_launch_blocked_reason). "no_profile" when the bundle has
@@ -336,11 +338,13 @@ def app_item_bundle_to_read(c: "AppItemBundle", db: "Session") -> AppItemBundleR
     Environment is only resolved for a PC app (era match and is_installed
     are checked inside compute_launch_blocked_reason once resolved).
     """
+    from backend.models.media import _linked_items_for
     from backend.service.utils.era_defaults import compute_launch_blocked_reason, resolve_environment_for_launch_gate
 
     read = AppItemBundleRead.model_validate(c)
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
     read.tags = get_tags_for_entity("app_item_bundle", c.id, db)
+    read.linked_items = _linked_items_for("app_item_bundle", c.id, db)
     environment = (
         resolve_environment_for_launch_gate(c.environment_item_id, c.era, db)
         if c.is_pc else None
@@ -358,6 +362,7 @@ def app_item_bundles_to_read_bulk(bundles: list["AppItemBundle"], db: "Session")
     """app_item_bundle_to_read over a list in bulk queries instead of the per-bundle N+1."""
     from sqlalchemy import select as _select
 
+    from backend.models.media import _linked_items_for_many
     from backend.service.utils.era_defaults import compute_launch_blocked_reason, resolve_environments_for_launch_gate_bulk
 
     if not bundles:
@@ -378,6 +383,7 @@ def app_item_bundles_to_read_bulk(bundles: list["AppItemBundle"], db: "Session")
         leaves_by_bundle.setdefault(leaf.app_item_bundle_id, []).append(leaf_read)
 
     tag_map = get_tags_for_entities("app_item_bundle", bundle_ids, db)
+    linked_map = _linked_items_for_many("app_item_bundle", bundle_ids, db)
 
     # Batched Environment resolution (explicit id + era-matched system
     # fallback) for every PC app bundle, mirroring game.py's bulk path.
@@ -389,6 +395,7 @@ def app_item_bundles_to_read_bulk(bundles: list["AppItemBundle"], db: "Session")
         read = AppItemBundleRead.model_validate(c)
         read.items = leaves_by_bundle.get(c.id, [])
         read.tags = tag_map.get(c.id, [])
+        read.linked_items = linked_map.get(c.id, [])
         read.launch_blocked_reason = compute_launch_blocked_reason(
             is_pc=c.is_pc,
             era=c.era,

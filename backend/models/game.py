@@ -10,6 +10,7 @@ from sqlmodel import Field, Relationship, SQLModel
 from backend.constants import PC_ERAS
 from backend.constants_generated import EraValue, FileType, ItemType
 from backend.models.drive import Drive, DriveRead
+from backend.models.media import LinkedEntityRef
 from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_entity
 
 _YEAR_MIN = 1970
@@ -291,6 +292,7 @@ class GameItemBundleRead(SQLModel):
     items: list[GameItemRead] = []
     drive: Optional[DriveRead] = None
     tags: list[TagRead] = []
+    linked_items: list[LinkedEntityRef] = []
     # Pre-launch UX gate. Computed at read time (not stored) in
     # game_item_bundle_to_read / game_item_bundles_to_read_bulk via the shared
     # compute_launch_blocked_reason. "no_profile" when the bundle has no launch
@@ -416,10 +418,13 @@ def game_item_bundle_to_read(c: "GameItemBundle", db: "Session") -> GameItemBund
     from backend.models.metadata_lookup import get_genres_for_game_item_bundle
     from backend.service.utils.era_defaults import resolve_environment_for_launch_gate
 
+    from backend.models.media import _linked_items_for
+
     read = GameItemBundleRead.model_validate(c)
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
     read.tags = get_tags_for_entity("game_item_bundle", c.id, db)
     read.genres = get_genres_for_game_item_bundle(c.id, db)
+    read.linked_items = _linked_items_for("game_item_bundle", c.id, db)
     environment = (
         resolve_environment_for_launch_gate(c.environment_item_id, c.era, db)
         if c.item_type == "pc" else None
@@ -431,10 +436,11 @@ def game_item_bundle_to_read(c: "GameItemBundle", db: "Session") -> GameItemBund
 def game_item_bundles_to_read_bulk(
     bundles: list["GameItemBundle"], db: "Session"
 ) -> list[GameItemBundleRead]:
-    """game_item_bundle_to_read over a list in three bulk queries total (all
-    leaves, all tags, all genres) instead of the per-bundle N+1."""
+    """game_item_bundle_to_read over a list in bulk queries (all leaves, all
+    tags, all genres, all linked items) instead of the per-bundle N+1."""
     from sqlalchemy import select as _select
 
+    from backend.models.media import _linked_items_for_many
     from backend.models.metadata_lookup import get_genres_for_game_item_bundles
     from backend.service.utils.era_defaults import resolve_environments_for_launch_gate_bulk
 
@@ -457,6 +463,7 @@ def game_item_bundles_to_read_bulk(
 
     tag_map = get_tags_for_entities("game_item_bundle", bundle_ids, db)
     genre_map = get_genres_for_game_item_bundles(bundle_ids, db)
+    linked_map = _linked_items_for_many("game_item_bundle", bundle_ids, db)
 
     # Batched Environment resolution (explicit id + era-matched system
     # fallback) for every PC bundle, instead of a per-bundle lookup (N+1).
@@ -469,6 +476,7 @@ def game_item_bundles_to_read_bulk(
         read.items = leaves_by_bundle.get(c.id, [])
         read.tags = tag_map.get(c.id, [])
         read.genres = genre_map.get(c.id, [])
+        read.linked_items = linked_map.get(c.id, [])
         read.launch_blocked_reason = _launch_blocked_reason(c, environment_by_bundle_id.get(c.id))
         reads.append(read)
     return reads

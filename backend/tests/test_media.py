@@ -1,8 +1,7 @@
-"""Route-level tests for Media CRUD (backend/api/routes/media.py) and the
-MediaLink exactly-one-of(media_item_id, media_item_bundle_id) invariant on
-backend/models/media.py — the regression test for the @validates fix that
-replaced a model_validator(mode="after") which never fired on direct
-construction (same bug class as GameItemBundle.item_type).
+"""Route-level tests for Media CRUD (backend/api/routes/media.py), the
+generic entity-link routes (backend/api/routes/entity_links.py), and the
+MediaLink canonical-ordering / no-self-link invariant enforced by
+make_entity_link() in backend/models/media.py.
 """
 
 import pytest
@@ -16,6 +15,13 @@ def _owner_user():
 def _no_permission_user():
     from backend.models.user import UserItem
     return UserItem(id=2, name="Guest", is_owner=False, can_manage_media=False)
+
+
+def _media_only_user():
+    """can_manage_media but NOT can_manage_game — used to prove link creation
+    needs authorization on BOTH entities, not just the one named in the URL."""
+    from backend.models.user import UserItem
+    return UserItem(id=3, name="Archivist", is_owner=False, can_manage_media=True, can_manage_game=False)
 
 
 @pytest.fixture
@@ -38,12 +44,13 @@ def mem_db_session():
 def client(mem_db_session):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
-    from backend.api.routes import media
+    from backend.api.routes import entity_links, media
     from backend.core.database import get_db
     from backend.core.dependencies import get_active_user
 
     app = FastAPI()
     app.include_router(media.router)
+    app.include_router(entity_links.router)
     app.dependency_overrides[get_active_user] = _owner_user
     app.dependency_overrides[get_db] = lambda: mem_db_session
 
@@ -252,7 +259,11 @@ class TestPermissionSplit:
 
 
 # ---------------------------------------------------------------------------
-# Link / unlink
+# Link / unlink — generic entity-link routes (backend/api/routes/entity_links.py).
+# Canonical ordering sorts entity_a/entity_b ascending by (type, id): since
+# "game_item_bundle" < "media_item" and "game_item_bundle" < "media_item_bundle"
+# lexicographically, the game side always lands as entity_a regardless of
+# which side the request names first. Tests assert on that fixed ordering.
 # ---------------------------------------------------------------------------
 
 
@@ -268,24 +279,35 @@ class TestLinkUnlink:
         collection = _make_software_collection(db)
 
         link_resp = c.post(
-            f"/api/v1/media-item/{item.id}/link",
-            json={"game_item_bundle_id": collection.id, "link_note": "Theme song"},
+            f"/api/v1/entity-links/media_item/{item.id}",
+            json={
+                "target_entity_type": "game_item_bundle",
+                "target_entity_id": collection.id,
+                "link_note": "Theme song",
+            },
         )
         assert link_resp.status_code == 201, link_resp.text
-        assert link_resp.json()["media_item_id"] == item.id
+        body = link_resp.json()
+        assert body["entity_a_type"] == "game_item_bundle"
+        assert body["entity_a_id"] == collection.id
+        assert body["entity_b_type"] == "media_item"
+        assert body["entity_b_id"] == item.id
 
         get_resp = c.get(f"/api/v1/media-item/{item.id}")
         assert get_resp.status_code == 200
-        assert len(get_resp.json()["linked_game"]) == 1
+        linked = get_resp.json()["linked_items"]
+        assert len(linked) == 1
+        assert linked[0]["entity_type"] == "game_item_bundle"
+        assert linked[0]["entity_id"] == collection.id
 
         unlink_resp = c.delete(
-            f"/api/v1/media-item/{item.id}/link",
-            params={"game_item_bundle_id": collection.id},
+            f"/api/v1/entity-links/media_item/{item.id}",
+            params={"target_entity_type": "game_item_bundle", "target_entity_id": collection.id},
         )
         assert unlink_resp.status_code == 204
 
         get_resp2 = c.get(f"/api/v1/media-item/{item.id}")
-        assert get_resp2.json()["linked_game"] == []
+        assert get_resp2.json()["linked_items"] == []
 
     def test_link_and_unlink_media_collection(self, client):
         c, db = client
@@ -298,15 +320,19 @@ class TestLinkUnlink:
         sw_collection = _make_software_collection(db)
 
         link_resp = c.post(
-            f"/api/v1/media-item-bundle/{media_collection.id}/link",
-            json={"game_item_bundle_id": sw_collection.id},
+            f"/api/v1/entity-links/media_item_bundle/{media_collection.id}",
+            json={"target_entity_type": "game_item_bundle", "target_entity_id": sw_collection.id},
         )
         assert link_resp.status_code == 201, link_resp.text
-        assert link_resp.json()["media_item_bundle_id"] == media_collection.id
+        body = link_resp.json()
+        assert body["entity_a_type"] == "game_item_bundle"
+        assert body["entity_a_id"] == sw_collection.id
+        assert body["entity_b_type"] == "media_item_bundle"
+        assert body["entity_b_id"] == media_collection.id
 
         unlink_resp = c.delete(
-            f"/api/v1/media-item-bundle/{media_collection.id}/link",
-            params={"game_item_bundle_id": sw_collection.id},
+            f"/api/v1/entity-links/media_item_bundle/{media_collection.id}",
+            params={"target_entity_type": "game_item_bundle", "target_entity_id": sw_collection.id},
         )
         assert unlink_resp.status_code == 204
 
@@ -314,12 +340,12 @@ class TestLinkUnlink:
         c, db = client
         collection = _make_software_collection(db)
         resp = c.post(
-            "/api/v1/media-item/999/link",
-            json={"game_item_bundle_id": collection.id},
+            "/api/v1/entity-links/media_item/999",
+            json={"target_entity_type": "game_item_bundle", "target_entity_id": collection.id},
         )
         assert resp.status_code == 404
 
-    def test_link_unknown_software_collection_is_404(self, client):
+    def test_link_unknown_game_collection_is_404(self, client):
         c, db = client
         from backend.models.media import MediaItem
 
@@ -328,8 +354,41 @@ class TestLinkUnlink:
         db.commit()
         db.refresh(item)
 
-        resp = c.post(f"/api/v1/media-item/{item.id}/link", json={"game_item_bundle_id": 999})
+        resp = c.post(
+            f"/api/v1/entity-links/media_item/{item.id}",
+            json={"target_entity_type": "game_item_bundle", "target_entity_id": 999},
+        )
         assert resp.status_code == 404
+
+    def test_link_unknown_entity_type_is_422(self, client):
+        c, db = client
+        from backend.models.media import MediaItem
+
+        item = MediaItem(title="X", media_kind="audio", file_path="/x.mp3", slug="x")
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        resp = c.post(
+            f"/api/v1/entity-links/media_item/{item.id}",
+            json={"target_entity_type": "not_a_real_type", "target_entity_id": 1},
+        )
+        assert resp.status_code == 422
+
+    def test_self_link_is_422(self, client):
+        c, db = client
+        from backend.models.media import MediaItem
+
+        item = MediaItem(title="X", media_kind="audio", file_path="/x.mp3", slug="x")
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        resp = c.post(
+            f"/api/v1/entity-links/media_item/{item.id}",
+            json={"target_entity_type": "media_item", "target_entity_id": item.id},
+        )
+        assert resp.status_code == 422
 
     def test_unlink_missing_link_is_404(self, client):
         c, db = client
@@ -342,77 +401,97 @@ class TestLinkUnlink:
         collection = _make_software_collection(db)
 
         resp = c.delete(
-            f"/api/v1/media-item/{item.id}/link",
-            params={"game_item_bundle_id": collection.id},
+            f"/api/v1/entity-links/media_item/{item.id}",
+            params={"target_entity_type": "game_item_bundle", "target_entity_id": collection.id},
         )
         assert resp.status_code == 404
 
+    def test_create_requires_authorization_on_both_entities(self, client):
+        """A caller with can_manage_media but not can_manage_game must be
+        rejected: creating a link touches two entities in two domains, and
+        the two-sided check (backend/api/routes/entity_links.py's
+        _resolve_link_entities) must not accept authorization on only one
+        side, unlike tags.py's single-sided precedent."""
+        c, db = client
+        from backend.models.media import MediaItem
 
-# ---------------------------------------------------------------------------
-# MediaLink XOR invariant — regression test for the @validates fix.
-# Constructed directly (MediaLink(...) + db.add() + db.flush()), NOT via
-# .model_validate(), since that is exactly the construction path a
-# model_validator(mode="after") does not fire on for a SQLModel table=True
-# class (see backend/models/media.py's comment on MediaLink).
-# ---------------------------------------------------------------------------
-
-
-class TestMediaLinkExactlyOneTarget:
-    def test_both_set_is_rejected(self, mem_db_session):
-        from backend.models.media import MediaLink, MediaItem, MediaItemBundle
-
-        db = mem_db_session
-        item = MediaItem(title="X", media_kind="audio", file_path="/x.mp3", slug="x")
-        collection = MediaItemBundle(title="Y", media_kind="audio", slug="y")
-        db.add(item)
-        db.add(collection)
-        db.commit()
-        db.refresh(item)
-        db.refresh(collection)
-        sw_collection = _make_software_collection(db)
-
-        with pytest.raises(ValueError):
-            MediaLink(
-                media_item_id=item.id,
-                media_item_bundle_id=collection.id,
-                game_item_bundle_id=sw_collection.id,
-            )
-
-    def test_neither_set_is_rejected(self, mem_db_session):
-        from backend.models.media import MediaLink
-
-        db = mem_db_session
-        sw_collection = _make_software_collection(db)
-
-        with pytest.raises(ValueError):
-            MediaLink(game_item_bundle_id=sw_collection.id)
-
-    def test_exactly_one_item_set_is_accepted(self, mem_db_session):
-        from backend.models.media import MediaLink, MediaItem
-
-        db = mem_db_session
         item = MediaItem(title="X", media_kind="audio", file_path="/x.mp3", slug="x")
         db.add(item)
         db.commit()
         db.refresh(item)
-        sw_collection = _make_software_collection(db)
+        collection = _make_software_collection(db)
 
-        link = MediaLink(media_item_id=item.id, game_item_bundle_id=sw_collection.id)
-        db.add(link)
-        db.flush()
-        assert link.id is not None
+        from backend.core.dependencies import get_active_user
+        c.app.dependency_overrides[get_active_user] = _media_only_user
 
-    def test_exactly_one_collection_set_is_accepted(self, mem_db_session):
-        from backend.models.media import MediaLink, MediaItemBundle
+        resp = c.post(
+            f"/api/v1/entity-links/media_item/{item.id}",
+            json={"target_entity_type": "game_item_bundle", "target_entity_id": collection.id},
+        )
+        assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# MediaLink canonical-ordering / no-self-link invariant, enforced by
+# make_entity_link() (backend/models/media.py) rather than a model
+# validator. Unlike the old exactly-one-of-two-nullable-FKs shape, every
+# MediaLink column is now always required, so there is no construction-time
+# ambiguity left for a model_post_init to guard.
+# ---------------------------------------------------------------------------
+
+
+class TestMakeEntityLink:
+    def test_self_link_is_rejected(self):
+        from backend.models.media import make_entity_link
+
+        with pytest.raises(ValueError):
+            make_entity_link("media_item", 5, "media_item", 5)
+
+    def test_canonical_ordering_is_independent_of_argument_order(self):
+        from backend.models.media import make_entity_link
+
+        forward = make_entity_link("media_item", 5, "game_item_bundle", 2)
+        backward = make_entity_link("game_item_bundle", 2, "media_item", 5)
+
+        assert (forward.entity_a_type, forward.entity_a_id, forward.entity_b_type, forward.entity_b_id) == (
+            backward.entity_a_type, backward.entity_a_id, backward.entity_b_type, backward.entity_b_id,
+        )
+        assert forward.entity_a_type == "game_item_bundle"
+        assert forward.entity_a_id == 2
+        assert forward.entity_b_type == "media_item"
+        assert forward.entity_b_id == 5
+
+    def test_self_referential_media_to_media_link_is_accepted(self, mem_db_session):
+        from backend.models.media import MediaItem, make_entity_link
 
         db = mem_db_session
-        collection = MediaItemBundle(title="Y", media_kind="audio", slug="y")
-        db.add(collection)
+        a = MediaItem(title="A", media_kind="text", file_path="/a.pdf", slug="a")
+        b = MediaItem(title="B", media_kind="text", file_path="/b.pdf", slug="b")
+        db.add(a)
+        db.add(b)
         db.commit()
-        db.refresh(collection)
-        sw_collection = _make_software_collection(db)
+        db.refresh(a)
+        db.refresh(b)
 
-        link = MediaLink(media_item_bundle_id=collection.id, game_item_bundle_id=sw_collection.id)
+        link = make_entity_link("media_item", a.id, "media_item", b.id)
         db.add(link)
         db.flush()
         assert link.id is not None
+
+    def test_duplicate_pair_violates_unique_constraint(self, mem_db_session):
+        from sqlalchemy.exc import IntegrityError
+        from backend.models.media import MediaItem, make_entity_link
+
+        db = mem_db_session
+        item = MediaItem(title="X", media_kind="audio", file_path="/x.mp3", slug="x")
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        collection = _make_software_collection(db)
+
+        db.add(make_entity_link("media_item", item.id, "game_item_bundle", collection.id))
+        db.flush()
+
+        db.add(make_entity_link("game_item_bundle", collection.id, "media_item", item.id))
+        with pytest.raises(IntegrityError):
+            db.flush()

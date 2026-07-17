@@ -8,15 +8,18 @@ from sqlmodel import Field, SQLModel
 # must be set per row. A model_validator(mode="after") does not fire on direct
 # construction (MediaRestriction(...) + db.add()) on a SQLModel table=True
 # class, same bug class as GameItemBundle.item_type (see backend/models/game.py)
-# and MediaLink (see backend/models/media.py, lines 190-235). @validates on
-# each FK field individually does not work either: sqlmodel_table_construct()
-# setattr()s every field in class-declaration order, so constructing with only
-# a later-declared field passed causes an earlier-declared field's validator
-# to fire first while the later field is still unset — it sees both as None
-# and incorrectly raises "none set" before the real value is ever assigned.
-# Fixed the same way as MediaLink: a model_post_init override runs the check
-# once, after the full object is built and all three fields hold their final
-# values.
+# and Drive (see backend/models/drive.py). @validates on each FK field
+# individually does not work either: sqlmodel_table_construct() setattr()s
+# every field in class-declaration order, so constructing with only a
+# later-declared field passed causes an earlier-declared field's validator to
+# fire first while the later field is still unset — it sees both as None and
+# incorrectly raises "none set" before the real value is ever assigned. Fixed
+# the same way as Drive: a model_post_init override runs the check once,
+# after the full object is built and all three fields hold their final
+# values. MediaLink (backend/models/media.py) used to share this exact bug
+# class but no longer does: it moved to a polymorphic entity_a/entity_b shape
+# with no nullable-FK ambiguity to guard, so it has no model_post_init at all
+# now.
 # ---------------------------------------------------------------------------
 
 

@@ -15,10 +15,11 @@ from backend.models.game import (
 )
 from backend.models.environment import BiosCounts, CountTotal, HealthSummary, InstalledCounts, EnvironmentItem, EnvironmentItemBase, EnvironmentItemCreate, EnvironmentItemHealthCounts, EnvironmentItemUpdate, EnvironmentItemRead, StorageStats
 from backend.models.media import (
-    LinkedGameRef,
+    LinkedEntityRef,
     MediaItemBundle, MediaItemBundleCreate, MediaItemBundleRead, MediaItemBundleUpdate,
     MediaItem, MediaItemCreate, MediaItemRead, MediaItemUpdate,
     MediaLink, MediaLinkCreate, MediaLinkRead,
+    delete_links_for, make_entity_link,
     media_item_bundle_to_read,
     media_item_bundle_to_read_bulk,
     item_to_read as media_item_to_read,

@@ -18,11 +18,14 @@ class DriveBase(SQLModel):
 # must be set per row. A model_validator(mode="after") does not fire on direct
 # construction (Drive(...) + db.add()) on a SQLModel table=True class -- same
 # bug class as GameItemBundle.item_type (backend/models/game.py) and
-# MediaLink (backend/models/media.py). This mirrors MediaLink's fix exactly: a
-# model_post_init override runs the check once, after the full object is built
-# and both FK fields hold their final values. Unlike item_type there is no
-# derivation step here (neither FK's value is computed from the other), so no
-# @validates hook is needed -- only the post-construction exactly-one check.
+# MediaRestriction (backend/models/media_restriction.py). This mirrors that
+# fix exactly: a model_post_init override runs the check once, after the full
+# object is built and both FK fields hold their final values. Unlike item_type
+# there is no derivation step here (neither FK's value is computed from the
+# other), so no @validates hook is needed -- only the post-construction
+# exactly-one check. MediaLink (backend/models/media.py) no longer belongs to
+# this bug class: it moved to a polymorphic entity_a/entity_b shape with no
+# nullable-FK ambiguity to guard, so it has no model_post_init at all now.
 # ---------------------------------------------------------------------------
 
 class Drive(DriveBase, table=True):

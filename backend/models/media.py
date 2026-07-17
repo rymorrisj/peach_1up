@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from pydantic import model_validator
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, and_, func, or_
 from sqlmodel import Field, Relationship, SQLModel
 
 from backend.constants_generated import MediaKind
@@ -89,11 +89,15 @@ def _compute_cover_art_url(cover_art_path: Optional[str]) -> Optional[str]:
         return None
 
 
-class LinkedGameRef(SQLModel):
-    """One GameItemBundle a MediaItem/MediaItemBundle is linked to, via MediaLink."""
+class LinkedEntityRef(SQLModel):
+    """One counterpart entity a linked entity is connected to via MediaLink.
+
+    entity_type/entity_id name the counterpart (never the entity this ref is
+    attached to on a given Read model)."""
 
     link_id: int
-    game_item_bundle_id: int
+    entity_type: str
+    entity_id: int
     title: str
     slug: Optional[str] = None
     link_note: Optional[str] = None
@@ -114,7 +118,7 @@ class MediaItemRead(SQLModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     tags: list[TagRead] = []
-    linked_game: list[LinkedGameRef] = []
+    linked_items: list[LinkedEntityRef] = []
 
     @model_validator(mode="after")
     def _fill_cover_art_url(self) -> "MediaItemRead":
@@ -180,7 +184,7 @@ class MediaItemBundleRead(SQLModel):
     updated_at: Optional[datetime] = None
     items: list[MediaItemRead] = []
     tags: list[TagRead] = []
-    linked_game: list[LinkedGameRef] = []
+    linked_items: list[LinkedEntityRef] = []
 
     @model_validator(mode="after")
     def _fill_cover_art_url(self) -> "MediaItemBundleRead":
@@ -189,65 +193,122 @@ class MediaItemBundleRead(SQLModel):
 
 
 # ---------------------------------------------------------------------------
-# MediaLink, Media <-> Game join. Exactly one of media_item_id /
-# media_item_bundle_id must be set per row. A model_validator(mode="after")
-# does not fire on direct construction (MediaLink(...) + db.add()) on a
-# SQLModel table=True class, same bug class as GameItemBundle.item_type
-# (see backend/models/game.py). @validates on each FK field individually
-# does not work either: sqlmodel_table_construct() setattr()s every field in
-# class-declaration order (media_item_id before media_item_bundle_id), so
-# constructing with only the *second*-declared field passed causes the
-# first-declared field's validator to fire first, while the second field is
-# still unset, it sees both as None and incorrectly raises "neither set"
-# before the real value is ever assigned. Whichever field is declared first
-# always breaks single-field construction of the *other* field. Fixed the
-# same way as GameItemBundle.item_type: a model_post_init override runs
-# the check once, after the full object is built and both fields hold their
-# final values.
+# MediaLink, polymorphic entity-to-entity join (Media <-> Game, Media <-> App,
+# Media <-> Media, ...). entity_a/entity_b are unordered from a caller's
+# perspective; make_entity_link() below is the only supported way to build a
+# row, since it applies the canonical-ordering rule every write path
+# (backend/api/routes/entity_links.py, the delete-cleanup call sites below)
+# depends on: a self-referential pair (e.g. two MediaItem rows) always lands
+# sorted ascending by (entity_type, entity_id) as entity_a/entity_b, so the
+# same pair can never be stored twice under swapped columns, and a lookup
+# never needs to check both orderings for a duplicate.
+#
+# No DB-level foreign key on either pair, matching EntityTag's documented
+# reasoning exactly (backend/models/tag.py): SQLite cannot FK one column to
+# multiple target tables, so integrity (existence, cascade-on-delete) is
+# enforced at the application layer instead. Unlike EntityTag, a stale
+# MediaLink row is not just inert decoration, it would resurface as a wrong,
+# clickable deeplink if its entity_id were ever reused, so callers deleting
+# an entity that can appear on either side of a link MUST call
+# delete_links_for() first; see backend/service/games/items.py's
+# delete_library_collection, backend/service/apps/items.py's
+# delete_app_item_bundle, and this module's delete_media_item(_bundle) below.
 # ---------------------------------------------------------------------------
 
 
 class MediaLink(SQLModel, table=True):
     __tablename__ = "media_links"
+    __table_args__ = (
+        UniqueConstraint("entity_a_type", "entity_a_id", "entity_b_type", "entity_b_id"),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    media_item_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=True),
-    )
-    media_item_bundle_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("media_item_bundles.id", ondelete="CASCADE"), nullable=True),
-    )
-    game_item_bundle_id: int = Field(
-        sa_column=Column(
-            Integer, ForeignKey("game_item_bundles.id", ondelete="CASCADE"), nullable=False
-        )
-    )
+    entity_a_type: str = Field(sa_column=Column(String, nullable=False, index=True))
+    entity_a_id: int = Field(sa_column=Column(Integer, nullable=False, index=True))
+    entity_b_type: str = Field(sa_column=Column(String, nullable=False, index=True))
+    entity_b_id: int = Field(sa_column=Column(Integer, nullable=False, index=True))
     link_note: Optional[str] = None
-
-    def model_post_init(self, __context: object) -> None:
-        has_item = self.media_item_id is not None
-        has_bundle = self.media_item_bundle_id is not None
-        if has_item == has_bundle:
-            raise ValueError(
-                "Exactly one of media_item_id or media_item_bundle_id must be set on a "
-                f"MediaLink (got media_item_id={self.media_item_id!r}, "
-                f"media_item_bundle_id={self.media_item_bundle_id!r})."
-            )
 
 
 class MediaLinkCreate(SQLModel):
-    game_item_bundle_id: int
+    target_entity_type: str
+    target_entity_id: int
     link_note: Optional[str] = None
 
 
 class MediaLinkRead(SQLModel):
     id: int
-    media_item_id: Optional[int] = None
-    media_item_bundle_id: Optional[int] = None
-    game_item_bundle_id: int
+    entity_a_type: str
+    entity_a_id: int
+    entity_b_type: str
+    entity_b_id: int
     link_note: Optional[str] = None
+
+
+def make_entity_link(
+    entity_type: str,
+    entity_id: int,
+    target_entity_type: str,
+    target_entity_id: int,
+    *,
+    link_note: Optional[str] = None,
+) -> MediaLink:
+    """Construct a MediaLink with entity_a/entity_b sorted ascending by
+    (type, id). The single choke-point every write path must go through,
+    replacing the old model_post_init XOR check (that invariant no longer
+    exists under this shape, all four columns are always required).
+
+    Raises:
+        ValueError: If both sides name the exact same entity (a link cannot
+            point an entity at itself).
+    """
+    a = (entity_type, entity_id)
+    b = (target_entity_type, target_entity_id)
+    if a == b:
+        raise ValueError(
+            f"Cannot link an entity to itself (entity_type={entity_type!r}, entity_id={entity_id!r})."
+        )
+    lo, hi = (a, b) if a < b else (b, a)
+    return MediaLink(
+        entity_a_type=lo[0], entity_a_id=lo[1],
+        entity_b_type=hi[0], entity_b_id=hi[1],
+        link_note=link_note,
+    )
+
+
+def _link_target_model(entity_type: str) -> Optional[type]:
+    """entity_type -> model backing it. Single source of truth for both
+    counterpart title/slug resolution (_linked_items_for_many below) and
+    existence-checks when creating a link (backend/api/routes/entity_links.py
+    imports this directly rather than hand-maintaining a second copy).
+    Deferred imports avoid a module-load-order dependency between media.py,
+    game.py, and app.py."""
+    if entity_type == "game_item_bundle":
+        from backend.models.game import GameItemBundle
+        return GameItemBundle
+    if entity_type == "app_item_bundle":
+        from backend.models.app import AppItemBundle
+        return AppItemBundle
+    if entity_type == "media_item":
+        return MediaItem
+    if entity_type == "media_item_bundle":
+        return MediaItemBundle
+    return None
+
+
+def delete_links_for(entity_type: str, entity_id: int, db: "Session") -> None:
+    """Remove every MediaLink row involving (entity_type, entity_id) on
+    either side. Callers must run this before (or as part of, same
+    transaction) deleting the entity itself: MediaLink carries no DB-level
+    foreign key, so there is no ON DELETE CASCADE to rely on, unlike
+    EntityTag (left to go stale on delete today), a stale MediaLink is not
+    optional to clean up here, see the module-level comment above."""
+    db.query(MediaLink).filter(
+        or_(
+            and_(MediaLink.entity_a_type == entity_type, MediaLink.entity_a_id == entity_id),
+            and_(MediaLink.entity_b_type == entity_type, MediaLink.entity_b_id == entity_id),
+        )
+    ).delete()
 
 
 # ---------------------------------------------------------------------------
@@ -257,36 +318,75 @@ class MediaLinkRead(SQLModel):
 # ---------------------------------------------------------------------------
 
 
-def _linked_game_for(
+def _linked_items_for(
     entity_type: str, entity_id: int, db: "Session"
-) -> list[LinkedGameRef]:
-    return _linked_game_for_many(entity_type, [entity_id], db).get(entity_id, [])
+) -> list[LinkedEntityRef]:
+    return _linked_items_for_many(entity_type, [entity_id], db).get(entity_id, [])
 
 
-def _linked_game_for_many(
+def _linked_items_for_many(
     entity_type: str, entity_ids: list[int], db: "Session"
-) -> dict[int, list[LinkedGameRef]]:
+) -> dict[int, list[LinkedEntityRef]]:
+    """Bulk variant: one MediaLink query plus one bulk query per distinct
+    counterpart entity_type found, instead of a per-entity N+1.
+
+    A matched row's "my" id may land on either the a or b side depending on
+    the canonical-ordering rule make_entity_link() applied at write time, so
+    each row is inspected to find which side belongs to entity_ids and treats
+    the other side as the counterpart. A counterpart row that no longer
+    exists (should not happen once every delete path calls
+    delete_links_for(), kept here as a defensive skip, not a crash, matching
+    this codebase's degrade-and-skip convention elsewhere, e.g. game.py's
+    _leaf_to_read) is silently omitted rather than raised.
+    """
     if not entity_ids:
         return {}
     from sqlalchemy import select as _select
 
-    from backend.models.game import GameItemBundle
-
-    link_col = MediaLink.media_item_id if entity_type == "media_item" else MediaLink.media_item_bundle_id
+    id_set = set(entity_ids)
     rows = db.execute(
-        _select(link_col, MediaLink.id, MediaLink.link_note, GameItemBundle)
-        .join(GameItemBundle, GameItemBundle.id == MediaLink.game_item_bundle_id)
-        .where(link_col.in_(entity_ids))
-    ).all()
-    result: dict[int, list[LinkedGameRef]] = {}
-    for owner_id, link_id, link_note, bundle in rows:
-        result.setdefault(owner_id, []).append(
-            LinkedGameRef(
-                link_id=link_id,
-                game_item_bundle_id=bundle.id,
-                title=bundle.title,
-                slug=bundle.slug,
-                link_note=link_note,
+        _select(MediaLink).where(
+            or_(
+                and_(MediaLink.entity_a_type == entity_type, MediaLink.entity_a_id.in_(id_set)),
+                and_(MediaLink.entity_b_type == entity_type, MediaLink.entity_b_id.in_(id_set)),
+            )
+        )
+    ).scalars().all()
+
+    # (my_entity_id, link, counterpart_type, counterpart_id) per matched row.
+    pending: list[tuple[int, "MediaLink", str, int]] = []
+    ids_by_target_type: dict[str, set[int]] = {}
+    for link in rows:
+        if link.entity_a_type == entity_type and link.entity_a_id in id_set:
+            my_id, counterpart_type, counterpart_id = link.entity_a_id, link.entity_b_type, link.entity_b_id
+        else:
+            my_id, counterpart_type, counterpart_id = link.entity_b_id, link.entity_a_type, link.entity_a_id
+        pending.append((my_id, link, counterpart_type, counterpart_id))
+        ids_by_target_type.setdefault(counterpart_type, set()).add(counterpart_id)
+
+    titles: dict[tuple[str, int], tuple[str, Optional[str]]] = {}
+    for target_type, ids in ids_by_target_type.items():
+        model = _link_target_model(target_type)
+        if model is None:
+            continue
+        found = db.execute(_select(model).where(model.id.in_(ids))).scalars().all()
+        for obj in found:
+            titles[(target_type, obj.id)] = (obj.title, getattr(obj, "slug", None))
+
+    result: dict[int, list[LinkedEntityRef]] = {}
+    for my_id, link, counterpart_type, counterpart_id in pending:
+        title_slug = titles.get((counterpart_type, counterpart_id))
+        if title_slug is None:
+            continue
+        title, slug = title_slug
+        result.setdefault(my_id, []).append(
+            LinkedEntityRef(
+                link_id=link.id,
+                entity_type=counterpart_type,
+                entity_id=counterpart_id,
+                title=title,
+                slug=slug,
+                link_note=link.link_note,
             )
         )
     return result
@@ -295,7 +395,7 @@ def _linked_game_for_many(
 def item_to_read(item: MediaItem, db: "Session") -> MediaItemRead:
     read = MediaItemRead.model_validate(item)
     read.tags = get_tags_for_entity("media_item", item.id, db)
-    read.linked_game = _linked_game_for("media_item", item.id, db)
+    read.linked_items = _linked_items_for("media_item", item.id, db)
     return read
 
 
@@ -304,12 +404,12 @@ def items_to_read_bulk(items: list[MediaItem], db: "Session") -> list[MediaItemR
         return []
     item_ids = [i.id for i in items]
     tag_map = get_tags_for_entities("media_item", item_ids, db)
-    linked_map = _linked_game_for_many("media_item", item_ids, db)
+    linked_map = _linked_items_for_many("media_item", item_ids, db)
     reads = []
     for i in items:
         read = MediaItemRead.model_validate(i)
         read.tags = tag_map.get(i.id, [])
-        read.linked_game = linked_map.get(i.id, [])
+        read.linked_items = linked_map.get(i.id, [])
         reads.append(read)
     return reads
 
@@ -318,7 +418,7 @@ def media_item_bundle_to_read(bundle: MediaItemBundle, db: "Session") -> MediaIt
     read = MediaItemBundleRead.model_validate(bundle)
     read.items = items_to_read_bulk(list(bundle.items), db)
     read.tags = get_tags_for_entity("media_item_bundle", bundle.id, db)
-    read.linked_game = _linked_game_for("media_item_bundle", bundle.id, db)
+    read.linked_items = _linked_items_for("media_item_bundle", bundle.id, db)
     return read
 
 
@@ -329,12 +429,12 @@ def media_item_bundle_to_read_bulk(
         return []
     bundle_ids = [c.id for c in bundles]
     tag_map = get_tags_for_entities("media_item_bundle", bundle_ids, db)
-    linked_map = _linked_game_for_many("media_item_bundle", bundle_ids, db)
+    linked_map = _linked_items_for_many("media_item_bundle", bundle_ids, db)
     reads = []
     for c in bundles:
         read = MediaItemBundleRead.model_validate(c)
         read.items = items_to_read_bulk(list(c.items), db)
         read.tags = tag_map.get(c.id, [])
-        read.linked_game = linked_map.get(c.id, [])
+        read.linked_items = linked_map.get(c.id, [])
         reads.append(read)
     return reads

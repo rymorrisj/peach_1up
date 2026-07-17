@@ -13,11 +13,10 @@ from backend.core.logger import get_logger
 from backend.models.media import (
     MediaItemBundle, MediaItemBundleCreate, MediaItemBundleRead, MediaItemBundleUpdate,
     MediaItem, MediaItemCreate, MediaItemRead, MediaItemUpdate,
-    MediaLink, MediaLinkCreate, MediaLinkRead,
+    delete_links_for,
     media_item_bundle_to_read, media_item_bundle_to_read_bulk, item_to_read, items_to_read_bulk,
 )
 from backend.models.pagination import Page
-from backend.models.game import GameItemBundle
 from backend.models.user import UserItem
 from backend.service.utils.slug_generator import unique_slug
 from backend.service.utils.sort_utils import apply_bundle_sort
@@ -109,6 +108,7 @@ def delete_media_item(
     item = db.get(MediaItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Media item not found.")
+    delete_links_for("media_item", item_id, db)
     db.delete(item)
     db.commit()
 
@@ -189,108 +189,16 @@ def delete_media_item_bundle(
     collection = db.get(MediaItemBundle, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Media collection not found.")
+    delete_links_for("media_item_bundle", collection_id, db)
     db.delete(collection)
     db.commit()
 
 
 # ---------------------------------------------------------------------------
-# Link / unlink a MediaItem or MediaItemBundle to a GameItemBundle.
-#
-# doc 03's route table only listed item-level linking (/media/{id}/link);
-# the collections/{id}/link counterpart below closes that gap — the doc's own
-# prose names "an OST collection linked to a game" as a canonical case, so a
-# MediaItemBundle needs the same link/unlink surface as a MediaItem.
-# ---------------------------------------------------------------------------
-
-
-@router.post("/media-item/{item_id}/link", response_model=MediaLinkRead, status_code=201)
-def link_media_item(
-    item_id: int,
-    body: MediaLinkCreate,
-    db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_media"),
-):
-    item = db.get(MediaItem, item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Media item not found.")
-    if not db.get(GameItemBundle, body.game_item_bundle_id):
-        raise HTTPException(status_code=404, detail="Software collection not found.")
-    link = MediaLink(
-        media_item_id=item_id,
-        game_item_bundle_id=body.game_item_bundle_id,
-        link_note=body.link_note,
-    )
-    db.add(link)
-    db.commit()
-    db.refresh(link)
-    return link
-
-
-@router.delete("/media-item/{item_id}/link", status_code=204)
-def unlink_media_item(
-    item_id: int,
-    game_item_bundle_id: int = Query(...),
-    db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_media"),
-):
-    link = (
-        db.query(MediaLink)
-        .filter(
-            MediaLink.media_item_id == item_id,
-            MediaLink.game_item_bundle_id == game_item_bundle_id,
-        )
-        .first()
-    )
-    if not link:
-        raise HTTPException(status_code=404, detail="Link not found.")
-    db.delete(link)
-    db.commit()
-
-
-@router.post("/media-item-bundle/{collection_id}/link", response_model=MediaLinkRead, status_code=201)
-def link_media_item_bundle(
-    collection_id: int,
-    body: MediaLinkCreate,
-    db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_media"),
-):
-    collection = db.get(MediaItemBundle, collection_id)
-    if not collection:
-        raise HTTPException(status_code=404, detail="Media collection not found.")
-    if not db.get(GameItemBundle, body.game_item_bundle_id):
-        raise HTTPException(status_code=404, detail="Software collection not found.")
-    link = MediaLink(
-        media_item_bundle_id=collection_id,
-        game_item_bundle_id=body.game_item_bundle_id,
-        link_note=body.link_note,
-    )
-    db.add(link)
-    db.commit()
-    db.refresh(link)
-    return link
-
-
-@router.delete("/media-item-bundle/{collection_id}/link", status_code=204)
-def unlink_media_item_bundle(
-    collection_id: int,
-    game_item_bundle_id: int = Query(...),
-    db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_media"),
-):
-    link = (
-        db.query(MediaLink)
-        .filter(
-            MediaLink.media_item_bundle_id == collection_id,
-            MediaLink.game_item_bundle_id == game_item_bundle_id,
-        )
-        .first()
-    )
-    if not link:
-        raise HTTPException(status_code=404, detail="Link not found.")
-    db.delete(link)
-    db.commit()
-
-
+# Link / unlink routes moved to backend/api/routes/entity_links.py — see
+# create_entity_link / delete_entity_link there. This domain's link surface
+# is no longer Game-specific (MediaLink is now a polymorphic entity-to-entity
+# join, see backend/models/media.py), so it no longer belongs to this file.
 # ---------------------------------------------------------------------------
 # Archive upload — reuses begin_upload/stream_upload_to_disk exactly as the
 # relocated OS-install-media route does (backend/api/routes/environments.py).

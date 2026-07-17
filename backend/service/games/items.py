@@ -989,6 +989,14 @@ def delete_library_collection(collection_id: int, token: str, db: Session) -> No
     if _should_delete_media(collection):
         _delete_leaf_media_folders(collection)
 
+    # MediaLink carries no DB-level FK to game_item_bundles (a polymorphic
+    # entity_id cannot FK to multiple target tables), so there is no
+    # ON DELETE CASCADE for it, unlike the leaf rows below. Clean it up
+    # explicitly or a stale link row could resurface as a wrong deeplink if
+    # this id is ever reused.
+    from backend.models.media import delete_links_for
+    delete_links_for("game_item_bundle", collection_id, db)
+
     db.delete(collection)  # ON DELETE CASCADE removes the leaf rows
     db.commit()
 
