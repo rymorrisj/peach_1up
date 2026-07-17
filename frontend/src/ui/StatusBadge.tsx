@@ -9,31 +9,31 @@ interface StatusBadgeProps {
 
 const CONFIG: Record<Status, { classes: string; defaultLabel: string }> = {
   ok: {
-    classes: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    classes: 'bg-success/15 text-success',
     defaultLabel: 'OK',
   },
   healthy: {
-    classes: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    classes: 'bg-success/15 text-success',
     defaultLabel: 'Healthy',
   },
   missing: {
-    classes: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    classes: 'bg-warning/15 text-warning',
     defaultLabel: 'Missing',
   },
   degraded: {
-    classes: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    classes: 'bg-warning/15 text-warning',
     defaultLabel: 'Degraded',
   },
   error: {
-    classes: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    classes: 'bg-error/15 text-error',
     defaultLabel: 'Error',
   },
   unknown: {
-    classes: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400',
+    classes: 'bg-info/15 text-info',
     defaultLabel: 'Unknown',
   },
   unconfigured: {
-    classes: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400',
+    classes: 'bg-info/15 text-info',
     defaultLabel: 'Unconfigured',
   },
 }

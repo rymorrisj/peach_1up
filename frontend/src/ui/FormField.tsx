@@ -15,7 +15,7 @@ export function FormField({ label, htmlFor, error, hint, required, children }: F
       <div className="mb-1 flex items-center">
         <label
           htmlFor={htmlFor}
-          className="block text-sm font-medium text-neutral-700 dark:text-neutral-300"
+          className="block text-sm font-medium text-fg-2"
         >
           {label}
         </label>
@@ -23,7 +23,7 @@ export function FormField({ label, htmlFor, error, hint, required, children }: F
       </div>
       {children}
       {hint && !error && (
-        <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">{hint}</p>
+        <p className="mt-1 text-xs text-fg-3">{hint}</p>
       )}
       {error && (
         <p role="alert" className="mt-1 text-xs text-error">

@@ -11,24 +11,30 @@ export function PageHeader({ title, description, action, count }: PageHeaderProp
   return (
     <div className="mb-4 flex items-baseline gap-2.5">
       <h2
+        className="text-lg"
         style={{
           fontFamily: 'var(--font-display)',
           fontWeight: 600,
-          fontSize: 18,
           letterSpacing: '-0.01em',
           margin: 0,
-          color: 'var(--fg-1)',
+          color: 'rgb(var(--fg-1))',
         }}
       >
         {title}
       </h2>
       {count !== undefined && (
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500, color: 'var(--fg-3)' }}>
+        <span
+          className="text-[0.8125rem]"
+          style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, color: 'rgb(var(--fg-3))' }}
+        >
           {count}
         </span>
       )}
       {description && (
-        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--fg-3)', marginLeft: 4 }}>
+        <span
+          className="text-[0.8125rem]"
+          style={{ fontFamily: 'var(--font-display)', color: 'rgb(var(--fg-3))', marginLeft: 4 }}
+        >
           {description}
         </span>
       )}
