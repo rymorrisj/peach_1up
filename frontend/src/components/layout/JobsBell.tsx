@@ -73,7 +73,7 @@ export default function JobsBell() {
           {active > 0 && (
             <span
               className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[0.5625rem] font-bold"
-              style={{ background: 'rgb(var(--peach-500))', color: '#1d0a04', animation: 'dot-pulse 1.4s ease-in-out infinite' }}
+              style={{ background: 'rgb(var(--peach-500))', color: 'rgb(var(--accent-ink))', animation: 'dot-pulse 1.4s ease-in-out infinite' }}
             >
               {active}
             </span>

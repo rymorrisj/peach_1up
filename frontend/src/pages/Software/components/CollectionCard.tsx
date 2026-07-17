@@ -247,7 +247,7 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
               aria-hidden="true"
               style={{ background: 'linear-gradient(180deg, rgb(var(--surface-0) / 0) 30%, rgb(var(--surface-0) / 0.55) 100%)' }}
             >
-              <div className="flex h-[52px] w-[52px] scale-[0.82] items-center justify-center rounded-full bg-accent text-[#1d0a04] shadow-[0_6px_18px_rgb(20_12_6/0.55),0_0_0_1px_rgb(255_255_255/0.08)_inset] transition-transform duration-200 ease-out group-hover:scale-100">
+              <div className="flex h-[52px] w-[52px] scale-[0.82] items-center justify-center rounded-full bg-accent text-accent-ink shadow-[0_6px_18px_rgb(20_12_6/0.55),0_0_0_1px_rgb(255_255_255/0.08)_inset] transition-transform duration-200 ease-out group-hover:scale-100">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                   <path d="M5 3.5v13l11-6.5z" />
                 </svg>

@@ -223,7 +223,7 @@ function EmulatorCard({
               borderRadius: "var(--r-2)",
               cursor: saving ? "not-allowed" : "pointer",
               background: "rgb(var(--peach-500))",
-              color: "#1d0a04",
+              color: "rgb(var(--accent-ink))",
               opacity: saving ? 0.6 : 1,
             }}
           >

@@ -192,7 +192,7 @@ export default function EnvironmentDetail() {
         <span style={{ flex: 1 }} />
         {!editing && (
           <button type="button" onClick={handleLaunch} disabled={launching}
-            style={{ ...BTN, background: 'rgb(var(--peach-500))', color: '#1d0a04' }}>
+            style={{ ...BTN, background: 'rgb(var(--peach-500))', color: 'rgb(var(--accent-ink))' }}>
             {launching ? 'Launching…' : 'Launch'}
           </button>
         )}
@@ -203,7 +203,7 @@ export default function EnvironmentDetail() {
               Cancel
             </button>
             <button type="button" onClick={handleEditSave} disabled={editSaving}
-              style={{ ...BTN, background: 'rgb(var(--peach-500))', color: '#1d0a04' }}>
+              style={{ ...BTN, background: 'rgb(var(--peach-500))', color: 'rgb(var(--accent-ink))' }}>
               {editSaving ? 'Saving…' : 'Save'}
             </button>
           </>
@@ -290,7 +290,7 @@ export default function EnvironmentDetail() {
                 )}
                 <div className="flex justify-end mt-3">
                   <button type="button" onClick={handleSaveNotes} disabled={saving}
-                    style={{ ...BTN, background: 'rgb(var(--peach-500))', color: '#1d0a04' }}>
+                    style={{ ...BTN, background: 'rgb(var(--peach-500))', color: 'rgb(var(--accent-ink))' }}>
                     {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Notes'}
                   </button>
                 </div>

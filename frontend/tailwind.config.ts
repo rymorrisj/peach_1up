@@ -56,6 +56,7 @@ const config: Config = {
           DEFAULT: 'rgb(var(--peach-500) / <alpha-value>)',
           hover: 'rgb(var(--peach-600) / <alpha-value>)',
           fg: 'rgb(var(--fg-inverse) / <alpha-value>)',
+          ink: 'rgb(var(--accent-ink) / <alpha-value>)',
         },
       },
       fontFamily: {
