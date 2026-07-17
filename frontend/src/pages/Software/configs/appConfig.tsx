@@ -3,9 +3,10 @@ import { apiFetch, ApiError } from '@/api/client'
 import { useEditForm } from '@/hooks/useEditForm'
 import { formFromCollection, type SoftwareAppForm } from '../types/appForm'
 import { AppEditForm } from '../components/AppEditForm'
+import { LinkedItemsSection } from '../components/LinkedItemsSection'
 import type { LibraryModalConfig } from '../components/LibraryModal'
 import type { EntityBundleBase, EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
-import { resolveLeafCoverArt, launchGateFromReason, SOFTWARE_SORT_OPTIONS } from '../types'
+import { resolveLeafCoverArt, launchGateFromReason, SOFTWARE_SORT_OPTIONS, APP_ROUTE_BASE } from '../types'
 import type { components } from '@shared/types'
 
 type Platform = components['schemas']['EnvironmentItemRead']
@@ -136,6 +137,7 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
         platforms={platforms}
       />
     ),
+    afterContent: <LinkedItemsSection items={collection.linked_items} />,
   }
 }
 
@@ -164,7 +166,7 @@ export const appUploadModalConfig: LibraryModalConfig = {
 // per-entity gated to PC apps only via isLaunchable (bundle.is_pc).
 export const appDomainConfig: EntityDomainConfig<AppItemBundleData> = {
   domain: 'app',
-  routeBase: '/software/apps',
+  routeBase: APP_ROUTE_BASE,
   listApiPath: '/api/v1/app-items',
   bundleApiPath: (id) => `/api/v1/app-item-bundle/${id}`,
   tagEntityType: 'app_item_bundle',

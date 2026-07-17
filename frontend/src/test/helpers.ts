@@ -45,6 +45,7 @@ export function createMockLibraryItem(overrides?: Partial<LibraryCollection>): L
     launch_disk_id: 100,
     display_disk_id: 100,
     tags: [],
+    linked_items: [],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,

@@ -52,6 +52,7 @@ function minimalApp(overrides?: Record<string, unknown>) {
     title: 'My App',
     description: null,
     tags: [],
+    linked_items: [],
     era: 'winxp',
     is_pc: true,
     category: null,

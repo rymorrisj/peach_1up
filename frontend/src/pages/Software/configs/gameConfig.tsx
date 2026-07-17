@@ -16,9 +16,10 @@ import { FetchMetadataModal } from '../components/FetchMetadataModal'
 import { DiscOrderList } from '../components/DiscOrderList'
 import { CollectionCard, getGameCoverArt } from '../components/CollectionCard'
 import type { GameItemBundleData } from '../components/CollectionCard'
+import { LinkedItemsSection } from '../components/LinkedItemsSection'
 import { ERA_LABELS } from '@/generated/constants'
 import type { EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
-import { launchGateFromReason, SOFTWARE_SORT_OPTIONS } from '../types'
+import { launchGateFromReason, SOFTWARE_SORT_OPTIONS, GAME_ROUTE_BASE } from '../types'
 import type { LibraryModalConfig } from '../components/LibraryModal'
 import type { components } from '@shared/types'
 
@@ -512,6 +513,8 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
 
     afterContent: (
       <>
+        <LinkedItemsSection items={collection.linked_items} />
+
         <FetchMetadataModal
           open={fetchMetadataOpen}
           onClose={() => setFetchMetadataOpen(false)}
@@ -618,7 +621,7 @@ export const gameScanModalConfig: LibraryModalConfig = {
 // indirection) — see getGameCoverArt in CollectionCard.tsx, reused as-is.
 export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
   domain: 'game',
-  routeBase: '/software/games',
+  routeBase: GAME_ROUTE_BASE,
   listApiPath: '/api/v1/game-items',
   bundleApiPath: gameBundleApiPath,
   tagEntityType: 'game_item_bundle',

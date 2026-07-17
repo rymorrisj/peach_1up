@@ -52,6 +52,7 @@ function minimalMedia(overrides?: Record<string, unknown>) {
     title: 'My Video',
     description: null,
     tags: [],
+    linked_items: [],
     media_kind: 'video',
     cover_art_path: null,
     cover_art_url: null,

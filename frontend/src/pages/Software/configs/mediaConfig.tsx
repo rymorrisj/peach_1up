@@ -3,9 +3,10 @@ import { apiFetch, ApiError } from '@/api/client'
 import { useEditForm } from '@/hooks/useEditForm'
 import { formFromCollection, type SoftwareMediaForm } from '../types/mediaForm'
 import { MediaEditForm } from '../components/MediaEditForm'
+import { LinkedItemsSection } from '../components/LinkedItemsSection'
 import type { LibraryModalConfig } from '../components/LibraryModal'
 import type { EntityBundleBase, EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
-import { SOFTWARE_SORT_OPTIONS } from '../types'
+import { SOFTWARE_SORT_OPTIONS, MEDIA_ROUTE_BASE } from '../types'
 
 export interface MediaItemLeaf {
   id: number
@@ -68,6 +69,7 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
         saveSuccess={saveMutation.isSuccess}
       />
     ),
+    afterContent: <LinkedItemsSection items={collection.linked_items} />,
   }
 }
 
@@ -126,7 +128,7 @@ export const mediaUploadModalConfig: LibraryModalConfig = {
 // cover_art_url is bundle-level for Media, leaf-level for Game/App).
 export const mediaDomainConfig: EntityDomainConfig<MediaItemBundleData> = {
   domain: 'media',
-  routeBase: '/software/media',
+  routeBase: MEDIA_ROUTE_BASE,
   listApiPath: '/api/v1/media-item-bundles',
   bundleApiPath: (id) => `/api/v1/media-item-bundle/${id}`,
   tagEntityType: 'media_item_bundle',

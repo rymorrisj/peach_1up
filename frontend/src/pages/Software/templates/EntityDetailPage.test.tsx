@@ -99,7 +99,7 @@ describe('EntityDetailPage', () => {
       {
         match: '/api/v1/game-item-bundle/by-slug/doom-test',
         respond: () => ({
-          id: 1, slug: 'doom-test', title: 'Doom Test', description: null, tags: [],
+          id: 1, slug: 'doom-test', title: 'Doom Test', description: null, tags: [], linked_items: [],
           sort_title: null, era: 'dos', category: null, publisher: null, developer: null,
           genres: [], year: null, external_game_id: null, metadata_source: null,
           content_rating: null, launch_commands: null, installed: false, requires_install: false,
@@ -125,7 +125,7 @@ describe('EntityDetailPage', () => {
       {
         match: '/api/v1/app-item-bundle/1',
         respond: () => ({
-          id: 1, slug: 'my-app', title: 'My App', description: null, tags: [],
+          id: 1, slug: 'my-app', title: 'My App', description: null, tags: [], linked_items: [],
           era: 'winxp', is_pc: true, category: null, publisher: null, developer: null, year: null,
           installed: false, environment_item_id: null, profile_item_id: null,
           launch_disk_id: 100, display_disk_id: 100, last_launched_at: null, launch_count: 0,
@@ -152,7 +152,7 @@ describe('EntityDetailPage', () => {
       {
         match: '/api/v1/media-item-bundle/1',
         respond: () => ({
-          id: 1, slug: 'my-video', title: 'My Video', description: null, tags: [],
+          id: 1, slug: 'my-video', title: 'My Video', description: null, tags: [], linked_items: [],
           media_kind: 'video', cover_art_path: null, cover_art_url: null,
           items: [{ id: 100, media_item_bundle_id: 1, file_path: '/media/video.mp4', cover_art_path: null, cover_art_url: null }],
         }),

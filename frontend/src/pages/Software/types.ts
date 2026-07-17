@@ -4,7 +4,15 @@ import type { RestrictionDomain } from '@/hooks/useCollectionRestrictions'
 import type { LibraryModalConfig } from './components/LibraryModal'
 
 export type TagRead = components['schemas']['TagRead']
+export type LinkedEntityRef = components['schemas']['LinkedEntityRef']
 type UserItemRead = components['schemas']['UserItemRead']
+
+// Single source of truth for each domain's detail-route base, referenced by
+// both the domain's own EntityDomainConfig.routeBase and the entity-link
+// resolver (LinkedItemsSection.tsx), so the two never drift apart.
+export const GAME_ROUTE_BASE = '/software/games'
+export const MEDIA_ROUTE_BASE = '/software/media'
+export const APP_ROUTE_BASE = '/software/apps'
 
 // Server-side pagination envelope (backend models/pagination.py), shared by
 // every /api/v1/*-item(s)/*-bundle(s) list route across all three domains.
@@ -27,6 +35,7 @@ export interface EntityBundleBase {
   title: string
   description: string | null
   tags: TagRead[]
+  linked_items: LinkedEntityRef[]
   created_at?: string | null
   updated_at?: string | null
 }
