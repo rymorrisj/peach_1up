@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Literal, Optional
 
 from pydantic import model_validator
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import validates
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -33,14 +33,15 @@ if TYPE_CHECKING:
 #                  state that reads as a positive confirmation.
 #   "caution"      md5 or crc32 exactly matches an entry, no sha1 match.
 #                  Real index coverage, weaker confidence than "verified".
-#   "suspect"      no hash matched, but the title approximately matches an
-#                  indexed title. The only "possible bad file" warning
-#                  state, deliberately conservative, see classify.py.
+#   "mismatch"     no hash matched, but the title approximately matches an
+#                  indexed title. Expected to happen often against an
+#                  inherently incomplete public hash catalog, not itself a
+#                  sign the file is bad, see classify.py.
 #   "not_in_index" no hash matched and no confident title match either.
 #                  Neutral "we have no data", not a warning.
 #   "unchecked"    default. Never verified at all, e.g. a row created before
 #                  this field existed, or the file could not be hashed.
-VerificationStatus = Literal["verified", "caution", "not_in_index", "suspect", "unchecked"]
+VerificationStatus = Literal["verified", "caution", "not_in_index", "mismatch", "unchecked"]
 
 
 class GameItem(SQLModel, table=True):
@@ -90,6 +91,15 @@ class GameItem(SQLModel, table=True):
     verification_status: VerificationStatus = Field(
         default="unchecked", sa_column=Column(String, nullable=False)
     )
+    # ClassifyResult.similarity (title_match.py's SequenceMatcher ratio),
+    # persisted only when verification_status is "mismatch", the only status
+    # fuzzy_title_match() ever produces a score for. None for every other
+    # status, including a re-check that resolves to "unchecked" or
+    # "not_in_index" without a classify() call (see
+    # _reverify_leaf_in_session). Not returned to the frontend as a raw
+    # number, GameItemRead exposes it so the UI can choose message wording,
+    # never display it directly.
+    verification_similarity: Optional[float] = Field(default=None, sa_column=Column(Float))
     # This leaf's own computed sha1 (hash_file()'s result), persisted
     # whenever classify() successfully hashes the file, regardless of
     # verification_status. Used as classify()'s own re-check baseline and to
@@ -128,6 +138,10 @@ class GameItemRead(SQLModel):
     # raw hash is not needed by any caller, and a caller that does need it
     # should use the smart_media_detector package directly.
     verification_status: VerificationStatus = "unchecked"
+    # None unless verification_status is "mismatch", see GameItem's field
+    # comment. Exposed so the frontend can pick message wording, not meant
+    # to be shown to the user as a raw number.
+    verification_similarity: Optional[float] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -364,41 +378,49 @@ class GameItemBundleRead(SQLModel):
     # when a resolved, era-matched Environment has not had its OS installed yet;
     # None when the item clears every gate.
     launch_blocked_reason: Optional[str] = None
-    # Computed at read time (not stored) by _rollup_verification_status below,
+    # Computed at read time (not stored) by _rollup_verification_item below,
     # the worst-severity status among this bundle's items. "verified" only
     # when every disc is "verified"; any disc in a weaker state pulls the
     # whole bundle down to that state (see _VERIFICATION_SEVERITY).
     verification_status: VerificationStatus = "unchecked"
+    # verification_similarity of whichever leaf's status won the rollup
+    # above, not an independent computation. None unless that leaf's own
+    # status is "mismatch".
+    verification_similarity: Optional[float] = None
 
 
 # Worst-wins severity order for the bundle-level rollup, highest number is
-# most severe and wins. suspect > caution is explicit in the source spec.
-# not_in_index vs. unchecked is not: both are lumped together there as one
-# non-problem tier below caution. Ranking unchecked one step above
-# not_in_index is a judgment call, not a spec requirement, an unchecked disc
-# is more actionable ("go verify it") than a disc that was already checked
-# and genuinely has no index data, so it is surfaced first when a bundle has
-# a mix of the two and nothing worse.
+# most severe and wins. caution is the most severe state: an actual partial
+# hash match (md5/crc32) against the index is real, specific signal that
+# something is off. mismatch sits just above the neutral not_in_index/
+# unchecked tier, not above caution, since a title-only match against an
+# inherently incomplete public hash catalog is expected to happen often and
+# is not itself a sign of a bad file, unlike a genuine partial hash hit.
+# not_in_index vs. unchecked is not spec-mandated either: both are lumped
+# together there as one non-problem tier below mismatch. Ranking unchecked
+# one step above not_in_index is a judgment call, not a spec requirement, an
+# unchecked disc is more actionable ("go verify it") than a disc that was
+# already checked and genuinely has no index data, so it is surfaced first
+# when a bundle has a mix of the two and nothing worse.
 _VERIFICATION_SEVERITY: dict[VerificationStatus, int] = {
     "verified": 0,
     "not_in_index": 1,
     "unchecked": 2,
-    "caution": 3,
-    "suspect": 4,
+    "mismatch": 3,
+    "caution": 4,
 }
 
 
-def _rollup_verification_status(items: list[GameItemRead]) -> VerificationStatus:
+def _rollup_verification_item(items: list[GameItemRead]) -> GameItemRead | None:
     """Worst-status-wins rollup across a bundle's leaves, see
     _VERIFICATION_SEVERITY for the ordering and its one judgment call.
-    Empty *items* is defensive only, a bundle always has at least one leaf.
+    Returns the winning leaf itself, not just its status, so the caller can
+    also carry over that leaf's verification_similarity. Empty *items* is
+    defensive only, a bundle always has at least one leaf.
     """
     if not items:
-        return "unchecked"
-    return max(
-        (item.verification_status for item in items),
-        key=lambda status: _VERIFICATION_SEVERITY[status],
-    )
+        return None
+    return max(items, key=lambda item: _VERIFICATION_SEVERITY[item.verification_status])
 
 
 # ---------------------------------------------------------------------------
@@ -526,7 +548,9 @@ def game_item_bundle_to_read(c: "GameItemBundle", db: "Session") -> GameItemBund
         if c.item_type == "pc" else None
     )
     read.launch_blocked_reason = _launch_blocked_reason(c, environment)
-    read.verification_status = _rollup_verification_status(read.items)
+    _worst = _rollup_verification_item(read.items)
+    read.verification_status = _worst.verification_status if _worst is not None else "unchecked"
+    read.verification_similarity = _worst.verification_similarity if _worst is not None else None
     return read
 
 
@@ -575,6 +599,8 @@ def game_item_bundles_to_read_bulk(
         read.genres = genre_map.get(c.id, [])
         read.linked_items = linked_map.get(c.id, [])
         read.launch_blocked_reason = _launch_blocked_reason(c, environment_by_bundle_id.get(c.id))
-        read.verification_status = _rollup_verification_status(read.items)
+        _worst = _rollup_verification_item(read.items)
+        read.verification_status = _worst.verification_status if _worst is not None else "unchecked"
+        read.verification_similarity = _worst.verification_similarity if _worst is not None else None
         reads.append(read)
     return reads

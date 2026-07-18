@@ -6,7 +6,7 @@ from .result import ClassifyResult
 from .validators.chd_validator import extract_embedded_sha1
 
 _INDEX_PATH = Path(__file__).parent / "hashing" / "hash_index.json"
-_DEFAULT_THRESHOLD = 0.90
+_DEFAULT_THRESHOLD = 0.80
 
 
 def classify(
@@ -68,7 +68,7 @@ def classify(
     if match is not None:
         matched_title, similarity = match
         return ClassifyResult(
-            status="suspect", computed_sha1=computed_sha1, matched_title=matched_title, similarity=similarity,
+            status="mismatch", computed_sha1=computed_sha1, matched_title=matched_title, similarity=similarity,
             reason=(
                 f"title '{title}' is a {similarity:.0%} match for indexed title "
                 f"'{matched_title}', but no hash from this file matches any entry for it"

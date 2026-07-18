@@ -128,20 +128,27 @@ writing.
   three-state (`matched` / `mismatched` / `not_in_index`). Needs a prior
   known hash to compare against, used internally by `classify()`'s
   `"verified"` tier only, not called directly by any backend code today.
-- **`classify(path, title, era, threshold=0.90) -> ClassifyResult`**
-  (`classify.py`), five-state (`verified` / `caution` / `suspect` /
+- **`classify(path, title, era, threshold=0.80) -> ClassifyResult`**
+  (`classify.py`), five-state (`verified` / `caution` / `mismatch` /
   `not_in_index` / `unchecked`), no prior expected hash needed. This is the
   function `backend/service/games/items.py` actually calls, once per disc,
   both at ingest (`_prepare_item`, `_create_multi_disc_collection`) and on a
-  manual re-check (`_reverify_leaf_in_session`).
+  manual re-check (`_reverify_leaf_in_session`). `"mismatch"` (renamed from
+  `"suspect"`) means the title fuzzy-matched an indexed title but no hash
+  did, expected to happen often against an inherently incomplete public hash
+  catalog, not itself a sign the file is bad.
 - **`GameItem.verification_status`** (`backend/models/game.py`) persists
   `ClassifyResult.status` verbatim, same five string values. `GameItem.sha1`
-  persists `ClassifyResult.computed_sha1`.
+  persists `ClassifyResult.computed_sha1`. `GameItem.verification_similarity`
+  persists `ClassifyResult.similarity`, populated only when status is
+  `"mismatch"`, None otherwise.
 - **`GameItemBundleRead.verification_status`** is a read-time rollup (not
   stored) across a bundle's items, worst-severity-wins, see
-  `_rollup_verification_status` / `_VERIFICATION_SEVERITY` in
+  `_rollup_verification_item` / `_VERIFICATION_SEVERITY` in
   `backend/models/game.py`. Per-disc verification means this rollup, not any
   single disc's own status, is a multi-disc bundle's true state.
+  `GameItemBundleRead.verification_similarity` carries over from whichever
+  leaf's status won that rollup, same None-unless-`"mismatch"` rule.
 - **Raw hash never returned via the API.** `GameItem.sha1` has no field on
   `GameItemRead`, confirmed by reading `GameItemRead`'s field list directly
   (`backend/models/game.py`), not inferred. A caller needing the raw hash

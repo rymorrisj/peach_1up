@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 
-type VerificationStatus = 'verified' | 'caution' | 'not_in_index' | 'suspect' | 'unchecked'
+type VerificationStatus = 'verified' | 'caution' | 'not_in_index' | 'mismatch' | 'unchecked'
 
 interface VerifyGameCollectionResponse {
   verification_status: VerificationStatus
+  verification_similarity: number | null
 }
 
 interface UseVerifyGameCollectionOptions {
@@ -24,6 +25,7 @@ export function useVerifyGameCollection({ collectionId, detailQueryKey }: UseVer
   const [verifying, setVerifying] = useState(false)
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [lastResultStatus, setLastResultStatus] = useState<VerificationStatus | null>(null)
+  const [lastResultSimilarity, setLastResultSimilarity] = useState<number | null>(null)
 
   async function handleVerify() {
     if (collectionId == null) return
@@ -35,6 +37,7 @@ export function useVerifyGameCollection({ collectionId, detailQueryKey }: UseVer
         { method: 'POST' },
       )
       setLastResultStatus(result.verification_status)
+      setLastResultSimilarity(result.verification_similarity)
       queryClient.invalidateQueries({ queryKey: detailQueryKey })
     } catch (err) {
       setVerifyError(err instanceof ApiError ? err.detail : 'Failed to verify.')
@@ -43,5 +46,5 @@ export function useVerifyGameCollection({ collectionId, detailQueryKey }: UseVer
     }
   }
 
-  return { verifying, verifyError, lastResultStatus, handleVerify }
+  return { verifying, verifyError, lastResultStatus, lastResultSimilarity, handleVerify }
 }

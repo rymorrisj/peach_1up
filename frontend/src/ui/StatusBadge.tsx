@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils'
 
 type Status =
   | 'ok' | 'missing' | 'error' | 'unknown' | 'healthy' | 'degraded' | 'unconfigured'
-  | 'verified' | 'caution' | 'not_in_index' | 'suspect' | 'unchecked'
+  | 'verified' | 'caution' | 'not_in_index' | 'mismatch' | 'unchecked'
 
 interface StatusBadgeProps {
   status: string
@@ -54,9 +54,15 @@ const CONFIG: Record<Status, { classes: string; defaultLabel: string }> = {
     classes: 'bg-info/15 text-info',
     defaultLabel: 'Not in Index',
   },
-  suspect: {
-    classes: 'bg-error/15 text-error',
-    defaultLabel: '⚠ Suspect',
+  // Softer than error/red on purpose: a title-only match against an
+  // inherently incomplete public hash catalog is expected to happen often
+  // and is not itself a sign the file is bad (see _VERIFICATION_SEVERITY
+  // in backend/models/game.py), grouped with caution's warning family
+  // instead of the red "something is wrong" treatment the old "suspect"
+  // name and styling implied.
+  mismatch: {
+    classes: 'bg-warning/15 text-warning',
+    defaultLabel: 'Mismatch',
   },
   unchecked: {
     classes: 'bg-neutral-500/15 text-neutral-500',

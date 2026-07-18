@@ -18,7 +18,8 @@ export interface GameItemData {
   detection_reason: string | null
   file_size_bytes: number | null
   metadata_fetched_at: string | null
-  verification_status: 'verified' | 'caution' | 'not_in_index' | 'suspect' | 'unchecked'
+  verification_status: 'verified' | 'caution' | 'not_in_index' | 'mismatch' | 'unchecked'
+  verification_similarity: number | null
   created_at?: string | null
   updated_at?: string | null
 }
@@ -53,7 +54,9 @@ export interface GameItemBundleData extends EntityBundleBase {
   launch_blocked_reason: string | null
   // Backend-computed rollup (worst-status-wins) across items[]' own
   // verification_status. "verified" only when every disc is verified.
-  verification_status: 'verified' | 'caution' | 'not_in_index' | 'suspect' | 'unchecked'
+  verification_status: 'verified' | 'caution' | 'not_in_index' | 'mismatch' | 'unchecked'
+  // verification_similarity of whichever leaf's status won the rollup above.
+  verification_similarity: number | null
   items: GameItemData[]
 }
 

@@ -141,7 +141,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
   // Bundle-scoped, re-verifies every disc in one call (see Part B, every
   // disc gets its own persisted sha1/verification_status now, so a
   // single-leaf re-check would miss a bad disc 2 in a multi-disc set).
-  const { verifying, verifyError, lastResultStatus, handleVerify } = useVerifyGameCollection({
+  const { verifying, verifyError, lastResultStatus, lastResultSimilarity, handleVerify } = useVerifyGameCollection({
     collectionId,
     detailQueryKey,
   })
@@ -257,9 +257,14 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
   // lastResultStatus (set the instant a verify POST resolves) takes priority
   // over the collection's own data so the badge updates immediately, without
   // waiting on detailQueryKey's background refetch to land. Bundle-level
-  // rollup, not any single disc's status, see _rollup_verification_status
+  // rollup, not any single disc's status, see _rollup_verification_item
   // in backend/models/game.py for the worst-status-wins ordering.
   const displayedVerificationStatus = lastResultStatus ?? collection.verification_status ?? 'unchecked'
+  // Paired with displayedVerificationStatus above, same precedence, always
+  // sourced from whichever leaf's status the rollup actually picked. Only
+  // meaningful when displayedVerificationStatus is 'mismatch'.
+  const displayedVerificationSimilarity =
+    lastResultStatus != null ? lastResultSimilarity : collection.verification_similarity
   // At a Glance "media size" stat: no bundle-level total exists in the API,
   // so this sums each disc's real file_size_bytes client-side. Null items
   // (size not yet known) contribute 0 rather than breaking the sum — the
@@ -368,10 +373,11 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
             {isMultiDisc ? 'Verify All Discs' : 'Verify'}
           </Button>
         </div>
-        {displayedVerificationStatus === 'suspect' && (
+        {displayedVerificationStatus === 'mismatch' && (
           <p role="alert" className="text-xs text-amber-600 dark:text-amber-400">
-            Possible false negative due to malformed name. Please check the Game title against
-            our manifest and try again.
+            {displayedVerificationSimilarity === 1
+              ? "We found the same title in our records, but the file itself doesn't match any known version. This is common and doesn't necessarily mean anything is wrong."
+              : "We found a similar title in our records, but the file itself doesn't match any known version."}
           </p>
         )}
         {verifyError && (

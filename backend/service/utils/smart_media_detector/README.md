@@ -116,7 +116,7 @@ result.status  # "matched" | "mismatched" | "not_in_index"
 
 ### classify(), five-state verification, no prior expected_sha1 needed
 
-`classify(path, title, era, threshold=0.90) -> ClassifyResult` (`classify.py`)
+`classify(path, title, era, threshold=0.80) -> ClassifyResult` (`classify.py`)
 is the third entry point, used for Peach 1UP's persisted `GameItem.verification_status`
 field (five states, see `backend/models/game.py`). Unlike `verify()`, it needs
 no prior expected hash, it establishes a classification from scratch, so it
@@ -127,7 +127,7 @@ and for a from-scratch manual re-check.
 from backend.service.utils.smart_media_detector import classify, ClassifyResult
 
 result: ClassifyResult = classify(Path("/path/to/some.iso"), title="Halo", era="xbox")
-result.status  # "verified" | "caution" | "suspect" | "not_in_index" | "unchecked"
+result.status  # "verified" | "caution" | "mismatch" | "not_in_index" | "unchecked"
 ```
 
 `ClassifyResult.status` distinguishes five outcomes, checked in this order:
@@ -139,12 +139,13 @@ result.status  # "verified" | "caution" | "suspect" | "not_in_index" | "unchecke
    Real index coverage, weaker confidence than a sha1 hit. Skipped entirely
    for `.chd` (its raw md5/crc32 are as meaningless as its raw sha1, same
    reasoning as `hash_lookup.lookup()`).
-3. `"suspect"`, no hash of any kind matched, but *title* is an approximate
+3. `"mismatch"`, no hash of any kind matched, but *title* is an approximate
    match (`hashing/title_match.py`, stdlib `difflib.SequenceMatcher`,
-   *threshold* similarity ratio, 0.90 default) for a title that does exist
-   in `hash_index.json`, scoped to *era*. This is the only state that warns
-   of a possibly bad file, and it is deliberately conservative: an ambiguous
-   or below-threshold title match never produces it, that falls through to
+   *threshold* similarity ratio, 0.80 default) for a title that does exist
+   in `hash_index.json`, scoped to *era*. Expected to happen often against
+   an inherently incomplete public hash catalog, not itself a sign the file
+   is bad, and it is deliberately conservative: an ambiguous or
+   below-threshold title match never produces it, that falls through to
    `"not_in_index"` instead. *era* is required for this tier, a `None`/unknown
    era skips the fuzzy check entirely (fails closed) rather than searching
    every platform's titles, which would make an accidental false-positive

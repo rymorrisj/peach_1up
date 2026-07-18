@@ -45,12 +45,13 @@ class ClassifyResult:
             only state that should ever read as a positive confirmation.
         "caution", no sha1 match, but md5 or crc32 exactly matches an entry.
             Real index coverage, weaker confidence than a sha1 hit.
-        "suspect", no hash of any kind matched, but the title is an
+        "mismatch", no hash of any kind matched, but the title is an
             approximate (>=threshold) match for a title that does exist in
-            hash_index.json. The only state that warns of a possibly bad
-            file. Deliberately conservative, an ambiguous or below-threshold
+            hash_index.json. Expected to happen often against an inherently
+            incomplete public hash catalog, not itself a sign the file is
+            bad. Deliberately conservative, an ambiguous or below-threshold
             title match never produces this state, it falls through to
-            "not_in_index" instead. A false "suspect" must never fire.
+            "not_in_index" instead. A false "mismatch" must never fire.
         "not_in_index", no hash matched and no confident title match either.
             Neutral, "we have no data on this file", not a warning.
         "unchecked", the file could not be hashed at all (missing, unreadable,
@@ -62,11 +63,11 @@ class ClassifyResult:
     internally for the verified-tier lookup, a caller needing that value
     should use validators.chd_validator.extract_embedded_sha1 directly.
 
-    matched_title/similarity are populated only for "suspect": the specific
+    matched_title/similarity are populated only for "mismatch": the specific
     index title the fuzzy match landed on and its similarity ratio, useful
     for logging, not required for handling the status itself.
     """
-    status: Literal["verified", "caution", "suspect", "not_in_index", "unchecked"]
+    status: Literal["verified", "caution", "mismatch", "not_in_index", "unchecked"]
     computed_sha1: str | None
     matched_title: str | None
     similarity: float | None

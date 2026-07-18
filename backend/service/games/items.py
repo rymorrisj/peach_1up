@@ -30,7 +30,7 @@ _COLLECTION_COLUMNS = {
 _LEAF_COLUMNS = {
     "file_path", "executable_path", "cover_art_path", "file_type",
     "folder_path", "detection_reason", "file_size_bytes", "original_name",
-    "folder_owned", "verification_status", "sha1",
+    "folder_owned", "verification_status", "verification_similarity", "sha1",
 }
 
 
@@ -291,6 +291,7 @@ def _prepare_item(
         "launch_count": 0,
         "file_size_bytes": None,
         "verification_status": "unchecked",
+        "verification_similarity": None,
         "sha1": None,
     }
 
@@ -576,13 +577,14 @@ def _prepare_item(
     # classify() runs after era resolution above, not alongside the file_type/
     # requires_install write above, since the fuzzy title match tier needs the
     # final resolved era to scope its search. "unknown" is passed through as
-    # None, era is required for classify() to ever reach "suspect", an
+    # None, era is required for classify() to ever reach "mismatch", an
     # unscoped title search across every platform would make an accidental
     # false-positive match more likely, not less.
     _classify_result = _classify(
         Path(row["file_path"]), title, row["era"] if row["era"] != "unknown" else None,
     )
     row["verification_status"] = _classify_result.status
+    row["verification_similarity"] = _classify_result.similarity
     row["sha1"] = _classify_result.computed_sha1
 
     if row["era"] and row["era"] != "unknown":
@@ -859,6 +861,7 @@ def _create_multi_disc_collection(
                 original_name=disc_file.name,
                 folder_path=str(disc_file.parent),
                 verification_status=_classify_result.status,
+                verification_similarity=_classify_result.similarity,
                 sha1=_classify_result.computed_sha1,
                 # All disc files of a "set" upload are written together into one
                 # unique-slugged staging directory dedicated to this collection
@@ -1106,14 +1109,14 @@ def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
 
     - leaf.sha1 present: run classify() fresh against the current file. This
       naturally re-derives "verified" if nothing changed, "caution" or
-      "suspect" if the file drifted into a different but still
+      "mismatch" if the file drifted into a different but still
       index-recognizable state, or "not_in_index" if it drifted into
       nothing recognizable at all.
     - leaf.sha1 absent (a legacy row from before this field existed, or
       hash_file() failed at ingest): there is no baseline to anchor a real
       classification to. Only hash the file now and resolve to "not_in_index"
       (hashing succeeded) or "unchecked" (it still can't be hashed), never
-      jump straight to verified/caution/suspect on a leaf that was never
+      jump straight to verified/caution/mismatch on a leaf that was never
       classified at ingest.
     """
     path = normalise_path(leaf.file_path)
@@ -1126,6 +1129,7 @@ def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
         era = bundle.era if bundle.era != "unknown" else None
         result = _classify(path, bundle.title, era)
         leaf.verification_status = result.status
+        leaf.verification_similarity = result.similarity
         leaf.sha1 = result.computed_sha1
     else:
         from backend.service.utils.smart_media_detector.hashing.hash_lookup import hash_file
@@ -1133,9 +1137,11 @@ def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
         try:
             leaf.sha1 = hash_file(path)["sha1"]
             leaf.verification_status = "not_in_index"
+            leaf.verification_similarity = None
         except OSError:
             leaf.sha1 = None
             leaf.verification_status = "unchecked"
+            leaf.verification_similarity = None
 
 
 def reverify_library_leaf(leaf_id: int, db: Session) -> GameItem:

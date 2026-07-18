@@ -45,7 +45,7 @@ def _titles_for_era(era: str, index_path: Path) -> list[tuple[str, str]]:
 
 
 def fuzzy_title_match(
-    title: str, era: str | None, index_path: Path, *, threshold: float = 0.90,
+    title: str, era: str | None, index_path: Path, *, threshold: float = 0.80,
 ) -> tuple[str, float] | None:
     """Best-effort approximate title match, scoped to *era* only.
 
