@@ -15,13 +15,14 @@ capabilities = []
 skip_memory_limit = true
 description = "PlayStation 3 emulation"
 required = false
-install_type = "zip"
+install_type = "github_release"
 install_scope = "portable"
+asset_pattern = '^rpcs3-v[\d.]+-\d+-[0-9a-f]+_win64_msvc\.7z$'
 license = "GPL-2.0"
 copyright = "Copyright 2011-2024 the RPCS3 team and contributors"
-source_url = "https://github.com/RPCS3/rpcs3"
+source_url = "https://github.com/RPCS3/rpcs3-binaries-win"
 supported_formats = [".iso"]
-guidance_text = "RPCS3's main GitHub repo publishes no downloadable binaries. Windows builds are distributed from github.com/RPCS3/rpcs3-binaries-win as a .7z archive, download the latest win64 build, extract it, and place rpcs3.exe directly in emulators/rpcs3/. Portable mode is automatic on Windows, no sentinel file is needed. In-app automated download is planned as follow-up work once .7z extraction support is added."
+guidance_text = "RPCS3 is auto-installed from github.com/RPCS3/rpcs3-binaries-win, a companion binaries repo to the primary RPCS3/rpcs3 source repo, which has no downloadable releases of its own. Portable mode is automatic on Windows, no sentinel file is needed."
 guidance_url = "https://rpcs3.net/quickstart"
 
 [[container_broker_files]]

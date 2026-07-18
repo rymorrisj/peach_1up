@@ -5,3 +5,7 @@
   license: "Custom (modified 4-clause Berkeley license)"
   copyright: "Copyright (c) 2003 in <in@fishtank.com>. All rights reserved."
   source_url: https://github.com/xboxdev/extract-xiso
+- name: 7-Zip (7za.exe)
+  license: "LGPL-2.1-or-later"
+  copyright: "Copyright (C) 1999-2026 Igor Pavlov."
+  source_url: https://www.7-zip.org/

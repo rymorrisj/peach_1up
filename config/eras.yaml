@@ -51,7 +51,7 @@ ps2:
 
 ps3:
   backend: rpcs3
-  memory_limit_mb: 6144
+  memory_limit_mb: 12288
   cpu_limit_percent: 90
   supported_media: [".iso"]
 
@@ -64,7 +64,7 @@ xbox:
 xbox360:
   backend: xenia
   memory_limit_mb: 6144
-  cpu_limit_percent: 90
+  cpu_limit_percent: 75
   supported_media: [".iso"]
 
 nes:

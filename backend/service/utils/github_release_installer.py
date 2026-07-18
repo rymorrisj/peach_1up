@@ -30,6 +30,7 @@ from __future__ import annotations
 import hashlib
 import re
 import shutil
+import subprocess
 import tempfile
 import zipfile
 from datetime import datetime, timezone
@@ -41,10 +42,16 @@ from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import ensure_portable_mode, get_emulator
 
 _BASE_DIR = get_base_path() / "emulators"
+_SEVENZ_EXE = get_base_path() / "services" / "vendor" / "7z" / "7za.exe"
 _API_ROOT = "https://api.github.com"
 _API_TIMEOUT = 30.0
 _DOWNLOAD_TIMEOUT = 300.0
 _DOWNLOAD_CHUNK = 1024 * 1024  # 1 MiB
+# RPCS3's win64_msvc build decompresses to ~143 MiB (149996575 bytes,
+# confirmed by extracting the live release with 7za.exe), compressed size is
+# ~35 MiB. 500 MiB leaves headroom for growth while still bounding
+# decompression-bomb archives.
+_MAX_7Z_EXTRACT_SIZE = 500 * 1024 * 1024
 _GITHUB_HEADERS = {
     "Accept": "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
@@ -205,6 +212,107 @@ def _safe_extract_zip(zip_path: Path, dest_dir: Path) -> None:
                 shutil.copyfileobj(src, dst)
 
 
+def _run_7za(args: list[str]) -> subprocess.CompletedProcess:
+    """Run the vendored 7za.exe with an explicit argument list.
+
+    Never uses ``shell=True`` or string-interpolated commands, arguments are
+    passed as a list so no shell parses them.
+
+    Raises:
+        RuntimeError: If 7za.exe is missing from its vendored location.
+    """
+    if not _SEVENZ_EXE.is_file():
+        raise RuntimeError(f"Vendored 7-Zip binary not found at {_SEVENZ_EXE}.")
+    return subprocess.run(
+        [str(_SEVENZ_EXE), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+
+def _list_7z_entries(archive_path: Path) -> list[dict[str, str]]:
+    """Return the parsed ``-slt`` (technical listing) entries of a .7z archive.
+
+    Each entry is a dict of its ``Key = Value`` fields, keyed on 7za.exe's own
+    field names (``Path``, ``Size``, ``Attributes``, ...). 7za.exe's ``-slt``
+    output starts with a block describing the archive file itself, that block
+    is not a member and is skipped by splitting on the ``----------``
+    separator line 7za.exe prints before the member list.
+
+    Raises:
+        RuntimeError: On any non-zero 7za.exe exit code.
+    """
+    result = _run_7za(["l", "-slt", "-sccUTF-8", "--", str(archive_path)])
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"7za list failed (exit {result.returncode}) for {archive_path}: "
+            f"{result.stderr.strip() or result.stdout.strip()}"
+        )
+    _, _, members_text = result.stdout.partition("----------")
+    entries: list[dict[str, str]] = []
+    for block in members_text.split("\n\n"):
+        fields: dict[str, str] = {}
+        for line in block.splitlines():
+            key, sep, value = line.partition(" = ")
+            if sep:
+                fields[key.strip()] = value.strip()
+        if "Path" in fields:
+            entries.append(fields)
+    return entries
+
+
+def _safe_extract_7z(archive_path: Path, dest_dir: Path) -> None:
+    """Extract ``archive_path`` (a .7z archive) into ``dest_dir`` using the
+    vendored 7za.exe, with the same safety posture as ``_safe_extract_zip``.
+
+    Every entry's path is resolved and confirmed to stay within ``dest_dir``,
+    and entries with a ``.git`` path component are rejected, before 7za.exe
+    is ever invoked to extract, same guard logic as ``_safe_extract_zip``.
+    7za.exe has no built-in decompression-bomb size limit, so the archive's
+    total uncompressed size (summed from the ``-slt`` listing) is checked
+    against ``_MAX_7Z_EXTRACT_SIZE`` in the same pre-extraction pass.
+
+    Raises:
+        RuntimeError: On any path that escapes ``dest_dir``, a ``.git`` path
+            component, a total uncompressed size over
+            ``_MAX_7Z_EXTRACT_SIZE``, or any non-zero 7za.exe exit code.
+    """
+    dest_root = dest_dir.resolve()
+    entries = _list_7z_entries(archive_path)
+
+    total_size = 0
+    for entry in entries:
+        # 7za.exe reports paths with backslashes regardless of host OS, since
+        # the archives it lists are always Windows-built.
+        name = entry["Path"].replace("\\", "/")
+        if ".git" in Path(name).parts:
+            raise RuntimeError(
+                f"Refusing to extract {name!r}: contains a '.git' path "
+                "component."
+            )
+        target = (dest_root / name).resolve()
+        try:
+            target.relative_to(dest_root)
+        except ValueError:
+            raise RuntimeError(f"Zip-slip detected: {name!r} escapes {dest_root}.")
+        if "D" not in entry.get("Attributes", ""):
+            total_size += int(entry.get("Size") or 0)
+
+    if total_size > _MAX_7Z_EXTRACT_SIZE:
+        raise RuntimeError(
+            f"7z extraction aborted: total uncompressed size {total_size} "
+            f"bytes exceeds limit of {_MAX_7Z_EXTRACT_SIZE} bytes."
+        )
+
+    result = _run_7za(["x", "-y", f"-o{dest_root}", "--", str(archive_path)])
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"7za extraction failed (exit {result.returncode}) for "
+            f"{archive_path}: {result.stderr.strip() or result.stdout.strip()}"
+        )
+
+
 def _record_install(
     slug: str,
     version: str,
@@ -301,7 +409,16 @@ def install_from_github_release(slug: str) -> dict:
 
         # (5) Extract into emulators/<slug>/ with the zip-slip guard.
         target_dir.mkdir(parents=True, exist_ok=True)
-        _safe_extract_zip(tmp_asset, target_dir)
+        suffix = Path(asset_name).suffix.lower()
+        if suffix == ".zip":
+            _safe_extract_zip(tmp_asset, target_dir)
+        elif suffix == ".7z":
+            _safe_extract_7z(tmp_asset, target_dir)
+        else:
+            raise RuntimeError(
+                f"Unsupported archive format {suffix!r} for asset "
+                f"{asset_name!r}."
+            )
     finally:
         # (7) Clean up temp files on success or failure.
         shutil.rmtree(tmp_dir, ignore_errors=True)
