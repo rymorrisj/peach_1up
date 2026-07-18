@@ -5,12 +5,23 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Redump/No-Intro DAT <header><name> platform strings, checked in order
-# (most-specific first) so "PlayStation 2" is matched before the "PlayStation"
-# substring, and "Super Nintendo Entertainment System" is matched before the
-# "Nintendo Entertainment System" substring it contains.
+# (most-specific first) so "PlayStation 3" is matched before "PlayStation 2"
+# before the bare "PlayStation" substring, "Xbox 360" is matched before the
+# bare "Xbox" substring, and "Super Nintendo Entertainment System" is matched
+# before the "Nintendo Entertainment System" substring it contains.
 #
-# The first four entries are confirmed against real Redump DAT header text
-# ("Sony - PlayStation", "Sony - PlayStation 2", "Microsoft - Xbox",
+# The bare "playstation" and "xbox" markers are still substring matches, so
+# any future platform string that also contains one of them ("PlayStation 4",
+# "PlayStation 5", "PlayStation Portable", "PlayStation Vita", "Xbox One",
+# "Xbox Series") and has no more-specific marker of its own ahead of it in
+# this list will silently fall into ps1/xbox the same way PS3 and Xbox 360
+# did before this fix. None of those platforms are in the vocabulary yet
+# (see config/constants.yaml eras), so do not add a marker for one without
+# also adding its era value to the vocabulary chain first.
+#
+# These entries are confirmed against real Redump DAT header text ingested
+# into hash_index.json ("Sony - PlayStation", "Sony - PlayStation 2",
+# "Sony - PlayStation 3", "Microsoft - Xbox", "Microsoft - Xbox 360",
 # presumably "Sega - Dreamcast" following the same pattern).
 #
 # The NES/SNES/N64 entries below follow No-Intro's standard, well-established
@@ -18,8 +29,10 @@ logger = logging.getLogger(__name__)
 # verified against an actually downloaded No-Intro DAT in this session, but
 # the convention itself is well known and consistent, so confidence is high.
 _ERA_MARKERS: list[tuple[str, str]] = [
+    ("playstation 3", "ps3"),
     ("playstation 2", "ps2"),
     ("playstation", "ps1"),
+    ("xbox 360", "xbox360"),
     ("xbox", "xbox"),
     ("dreamcast", "dreamcast"),
     ("super nintendo entertainment system", "snes"),
