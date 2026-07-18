@@ -325,8 +325,9 @@ conversation and wait for an explicit decision before proceeding.
 - If `CreateProcessW` or `AssignProcessToJobObject` fails for any reason, **the launch
   is aborted**. There is no unsandboxed fallback.
 - AppContainer (P9) is an additional isolation layer applied on top of Job Objects when
-  `container_enabled = true` in the emulator descriptor. Currently only DOSBox-X has
-  `container_enabled = true`. All other emulators run under Job Object isolation only.
+  `container_enabled = true` in the emulator descriptor. DOSBox-X, DuckStation, Flycast,
+  Mesen, PCSX2, and Project64 all have `container_enabled = true`. xemu and 86Box remain
+  disabled, xemu due to documented QEMU TCG incompatibility and 86Box pending further testing.
 - The container-enable resolution and media-broker config that were previously duplicated
   across all five backends (86Box, DOSBox-X, xemu, Flycast, console) are now single
   implementations in `backend/service/utils/emulator_catalog.py`: `resolve_container_enabled()`
