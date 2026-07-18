@@ -74,10 +74,12 @@ _PATH_KEYS: frozenset[str] = frozenset({
 _PATH_DEFAULTS: dict[str, str] = {
     "LIBRARY_PATH":       str((_PROJECT_ROOT / "library").resolve()),
     # v2: library/software is the launchable-Software root (pre-v2 this was
-    # library/media). library/media is now the archival Media/Archive domain's
-    # root — see backend/models/media.py and api/routes/media.py.
+    # library/media). MEDIA_PATH now roots at library/software/media, the
+    # archival Media/Archive domain's folder, see backend/models/media.py and
+    # api/routes/media.py. It previously lived at library/media, that decision
+    # was reversed, see dev_docs/v2/01_rename_and_infra.md.
     "SOFTWARE_PATH":      str((_PROJECT_ROOT / "library" / "software").resolve()),
-    "MEDIA_PATH":         str((_PROJECT_ROOT / "library" / "media").resolve()),
+    "MEDIA_PATH":         str((_PROJECT_ROOT / "library" / "software" / "media").resolve()),
     "OS_PATH":            str((_PROJECT_ROOT / "library" / "system" / "os").resolve()),
     "ROMS_PATH":          str((_PROJECT_ROOT / "library" / "system" / "roms" / "86box").resolve()),
     "PROFILES_PATH":      str((_PROJECT_ROOT / "library" / "system" / "profiles").resolve()),

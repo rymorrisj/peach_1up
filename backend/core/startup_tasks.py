@@ -79,7 +79,6 @@ def _ensure_default_paths() -> None:
         lib / "software" / "games",
         lib / "software" / "media",
         lib / "software" / "apps",
-        lib / "media",
         lib / "system",
         lib / "system" / "bios",
         lib / "system" / "roms",

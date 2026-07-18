@@ -13,8 +13,8 @@ shape: reassemble, return the staged path, and let the caller make its own
 POST /api/v1/media-items (or /media-item-bundles) with that file_path plus
 the fields only a human can supply (title, media_kind, description, ...).
 
-Storage root is MEDIA_PATH (library/media/), the same setting the existing
-single-shot archive upload uses, not library_domain_root("media")/SOFTWARE_PATH,
+Storage root is MEDIA_PATH (library/software/media/), the same setting the
+existing single-shot archive upload uses, not library_domain_root("media"),
 which is unrelated Software-domain vocabulary that nothing in this domain
 consumes (see path_utils.py).
 
