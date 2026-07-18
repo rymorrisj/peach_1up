@@ -3,15 +3,28 @@ import { useQuery } from '@tanstack/react-query'
 import { Navigate } from 'react-router-dom'
 import { apiFetch, ApiError } from '@/api/client'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import StepWelcome from './StepWelcome'
 import Step0Owner from './Step0Owner'
+import StepSoftware from './StepSoftware'
+import StepUsers from './StepUsers'
 import StepEmulators from './StepEmulators'
 import StepBios from './StepBios'
+import StepSettings from './StepSettings'
+import StepGuides from './StepGuides'
 import type { FirstRunStatus } from './types'
 
-// Local step index for the two informational screens shown after the owner
-// account exists. Not a generalized Stepper, this wizard is fixed at three
-// screens and isn't expected to grow.
-type WizardStep = 'owner' | 'emulators' | 'bios'
+// Local step index for the screens shown across the wizard. Not a
+// generalized Stepper, this is a fixed, hand-ordered sequence, not a
+// config-driven array, and isn't expected to grow much beyond this.
+type WizardStep =
+  | 'welcome'
+  | 'owner'
+  | 'software'
+  | 'users'
+  | 'emulators'
+  | 'bios'
+  | 'settings'
+  | 'guides'
 
 export default function FirstRun() {
   const [completeError, setCompleteError] = useState<string | null>(null)
@@ -32,9 +45,11 @@ export default function FirstRun() {
 
   if (data?.first_run_complete) return <Navigate to="/software" replace />
 
-  // Owner already exists (e.g. the wizard was reloaded mid-flow) — resume at
-  // the informational steps instead of re-showing owner creation.
-  const currentStep: WizardStep = step ?? (data?.owner_exists ? 'emulators' : 'owner')
+  // Owner already exists (e.g. the wizard was reloaded mid-flow), resume at
+  // the first step after owner creation instead of re-showing it, and skip
+  // Welcome too, since it has nothing to do with the owner-exists check.
+  // A true first-time visitor (no owner yet) always starts at Welcome.
+  const currentStep: WizardStep = step ?? (data?.owner_exists ? 'software' : 'welcome')
 
   async function completeSetup(target: string = '/') {
     setFinishing(true)
@@ -60,20 +75,35 @@ export default function FirstRun() {
             {completeError}
           </p>
         )}
-        {currentStep === 'owner' && <Step0Owner onNext={() => setStep('emulators')} />}
+        {currentStep === 'welcome' && <StepWelcome onNext={() => setStep('owner')} />}
+        {currentStep === 'owner' && <Step0Owner onNext={() => setStep('software')} />}
+        {currentStep === 'software' && <StepSoftware onNext={() => setStep('users')} />}
+        {currentStep === 'users' && (
+          <StepUsers onBack={() => setStep('software')} onNext={() => setStep('emulators')} />
+        )}
         {currentStep === 'emulators' && (
           <StepEmulators
             emulators={data?.emulators ?? []}
             onNext={() => setStep('bios')}
-            onSkip={() => completeSetup()}
+            onSkip={() => setStep('settings')}
             onFinishAndGoTo={completeSetup}
           />
         )}
         {currentStep === 'bios' && (
           <StepBios
             onBack={() => setStep('emulators')}
-            onFinish={() => completeSetup()}
+            onFinish={() => setStep('settings')}
             onFinishAndGoTo={completeSetup}
+            finishing={finishing}
+          />
+        )}
+        {currentStep === 'settings' && (
+          <StepSettings onBack={() => setStep('bios')} onNext={() => setStep('guides')} />
+        )}
+        {currentStep === 'guides' && (
+          <StepGuides
+            onBack={() => setStep('settings')}
+            onFinish={() => completeSetup()}
             finishing={finishing}
           />
         )}
