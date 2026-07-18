@@ -24,11 +24,13 @@ _BACKEND_MODULES: dict[str, str] = {
     BackendSlug.DOSBOX_X.value:    "backend.service.backends.dosbox",
     BackendSlug.BOX86.value:       "backend.service.backends.box86",
     BackendSlug.XEMU.value:        "backend.service.backends.xemu",
+    BackendSlug.RPCS3.value:       "backend.service.backends.rpcs3",
     BackendSlug.FLYCAST.value:     "backend.service.backends.flycast",
     BackendSlug.DUCKSTATION.value: "backend.service.backends.console",
     BackendSlug.PCSX2.value:       "backend.service.backends.console",
     BackendSlug.MESEN.value:       "backend.service.backends.console",
     BackendSlug.PROJECT64.value:   "backend.service.backends.console",
+    BackendSlug.XENIA.value:       "backend.service.backends.xenia",
 }
 
 

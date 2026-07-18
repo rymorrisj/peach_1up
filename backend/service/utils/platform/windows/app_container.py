@@ -101,6 +101,16 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
         # xemu HDD image fallback: grants the whole xemu emulator dir when launch_paths
         # does not supply the specific .qcow2 path.
         "hdd_image":    base / "emulators" / "xemu",
+        # RPCS3 portable virtual HDD (game installs, saves, trophies).
+        "dev_hdd0":     base / "emulators" / slug / "dev_hdd0",
+        # RPCS3 portable firmware directory (populated by File > Install Firmware).
+        "dev_flash":    base / "emulators" / slug / "dev_flash",
+        # RPCS3 portable mounted-disc directory.
+        "dev_bdvd":     base / "emulators" / slug / "dev_bdvd",
+        # Xenia portable content directory (saves/DLC), under storage_root.
+        "content":      base / "emulators" / slug / "content",
+        # Xenia portable shader cache directory, under storage_root.
+        "cache":        base / "emulators" / slug / "cache",
     }
 
     if path_key in derived:

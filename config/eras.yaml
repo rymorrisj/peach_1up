@@ -49,11 +49,23 @@ ps2:
   cpu_limit_percent: 80
   supported_media: [".iso", ".bin", ".cue", ".chd"]
 
+ps3:
+  backend: rpcs3
+  memory_limit_mb: 6144
+  cpu_limit_percent: 90
+  supported_media: [".iso"]
+
 xbox:
   backend: xemu
   memory_limit_mb: 3072
   cpu_limit_percent: 75
   supported_media: [".iso", ".xiso"]
+
+xbox360:
+  backend: xenia
+  memory_limit_mb: 6144
+  cpu_limit_percent: 90
+  supported_media: [".iso"]
 
 nes:
   backend: mesen

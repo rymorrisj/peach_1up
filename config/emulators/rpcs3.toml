@@ -1,0 +1,80 @@
+slug = "rpcs3"
+era = "ps3"
+display_name = "RPCS3"
+name = "RPCS3"
+version = "0.0.41"
+binary = "rpcs3.exe"
+sha256 = ""
+download_url = "https://rpcs3.net/download"
+release_url = "https://github.com/RPCS3/rpcs3-binaries-win/releases"
+sandbox_mode = "appcontainer"
+container_enabled = false
+container_hardcap_disabled = true
+container_permanently_excluded = true
+capabilities = []
+skip_memory_limit = true
+description = "PlayStation 3 emulation"
+required = false
+install_type = "zip"
+install_scope = "portable"
+license = "GPL-2.0"
+copyright = "Copyright 2011-2024 the RPCS3 team and contributors"
+source_url = "https://github.com/RPCS3/rpcs3"
+supported_formats = [".iso"]
+guidance_text = "RPCS3's main GitHub repo publishes no downloadable binaries. Windows builds are distributed from github.com/RPCS3/rpcs3-binaries-win as a .7z archive, download the latest win64 build, extract it, and place rpcs3.exe directly in emulators/rpcs3/. Portable mode is automatic on Windows, no sentinel file is needed. In-app automated download is planned as follow-up work once .7z extraction support is added."
+guidance_url = "https://rpcs3.net/quickstart"
+
+[[container_broker_files]]
+path_key = "install_dir"
+access = "rw"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "dev_hdd0"
+access = "rw"
+mode = "inherit"
+
+[[container_broker_files]]
+path_key = "dev_flash"
+access = "rw"
+mode = "inherit"
+
+[[container_broker_files]]
+path_key = "dev_bdvd"
+access = "rw"
+mode = "inherit"
+
+[[dependencies]]
+name = "ps3-firmware"
+acquire_method = "user_supplied"
+required = true
+validation_type = "manual"
+display_name = "PS3 Firmware (PS3UPDAT.PUP)"
+platform = "ps3"
+guidance_text = "Download the latest PS3 firmware (PS3UPDAT.PUP) from Sony and install it from within RPCS3 via File > Install Firmware, or pass --installfw at the command line. This populates dev_flash/ under RPCS3's portable data folder. Peach 1UP does not provide, link to, or assist with acquiring firmware files."
+guidance_url = "https://rpcs3.net/quickstart"
+
+[[known_limitations]]
+title = "AppContainer isolation not supported"
+severity = "critical"
+description = "RPCS3 is a heavily JIT-based recompiler (Cell PPU/SPU and RSX) that relies on runtime code generation and low-level system calls incompatible with AppContainer's restricted token, the same class of limitation as xemu. Job Object isolation (kill-on-close, CPU cap) is the only available isolation layer on Windows."
+
+[[known_limitations]]
+title = "Controller input requires manual configuration"
+severity = "info"
+description = "RPCS3 does not auto-detect controllers. On first run, open Pads Settings inside RPCS3 and manually bind a gamepad, otherwise keyboard input is used by default."
+
+[[known_limitations]]
+title = "First-launch shader and JIT compilation stutter"
+severity = "info"
+description = "RPCS3 precompiles shaders and recompiles PPU/SPU code the first time a title is launched. Expect stutter and reduced performance on a title's first boot, subsequent launches are smoother once the caches are warm."
+
+[[known_limitations]]
+title = "Digital content (.pkg/.rap) not yet supported"
+severity = "info"
+description = "Only disc-based content (.iso) is supported for import in this release. Digital PSN content (.pkg installers and .rap license files) requires RPCS3's own package installer and dev_hdd0/game/ provisioning, planned as follow-up work."
+
+[[known_limitations]]
+title = "Extracted disc folders not yet scanned"
+severity = "info"
+description = "Only .iso disc images are recognized by the media scanner in this release. Extracted PS3_GAME/PS3_DISC.SFB folder structures, which RPCS3 can also boot directly, are not yet detected as importable media, planned as follow-up work."

@@ -55,6 +55,8 @@ backend_slugs:
   duckstation: "DuckStation"
   pcsx2:       "PCSX2"
   xemu:        "xemu"
+  rpcs3:       "RPCS3"
+  xenia:       "Xenia"
   mesen:       "Mesen"
   project64:   "Project64"
   flycast:     "Flycast"
@@ -65,6 +67,8 @@ backend_system_labels:
   duckstation: "PlayStation 1"
   pcsx2:       "PlayStation 2"
   xemu:        "Xbox OG"
+  rpcs3:       "PlayStation 3"
+  xenia:       "Xbox 360"
   mesen:       "NES, SNES"
   project64:   "Nintendo 64"
   flycast:     "Dreamcast"
@@ -118,7 +122,9 @@ era_backends:
   winxp:     86box
   ps1:       duckstation
   ps2:       pcsx2
+  ps3:       rpcs3
   xbox:      xemu
+  xbox360:   xenia
   nes:       mesen
   snes:      mesen
   n64:       project64

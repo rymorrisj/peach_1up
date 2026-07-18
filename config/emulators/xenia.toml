@@ -1,0 +1,45 @@
+slug = "xenia"
+era = "xbox360"
+display_name = "Xenia"
+name = "Xenia"
+version = "1.0.2844-master"
+binary = "xenia.exe"
+sha256 = ""
+download_url = "https://xenia.jp"
+release_url = "https://github.com/xenia-project/release-builds-windows/releases"
+portable_sentinel = "portable.txt"
+sandbox_mode = "appcontainer"
+container_enabled = true
+capabilities = []
+skip_memory_limit = false
+description = "Xbox 360 emulation"
+required = false
+install_type = "github_release"
+install_scope = "portable"
+asset_pattern = '^xenia_master\.zip$'
+license = "BSD-3-Clause"
+copyright = "Copyright 2015-2024 Ben Vanik and contributors"
+source_url = "https://github.com/xenia-project/release-builds-windows"
+supported_formats = [".iso"]
+guidance_text = "Xenia is auto-installed from github.com/xenia-project/release-builds-windows, a companion CI repo to the primary xenia-project/xenia source repo, which has no downloadable releases of its own. A portable.txt sentinel is created automatically next to xenia.exe so its storage_root resolves to emulators/xenia/ instead of Documents\\Xenia."
+guidance_url = "https://xenia.jp"
+
+[[container_broker_files]]
+path_key = "install_dir"
+access = "rw"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "content"
+access = "rw"
+mode = "grant"
+
+[[container_broker_files]]
+path_key = "cache"
+access = "rw"
+mode = "grant"
+
+[[known_limitations]]
+title = "Default GPU backend (D3D12) can crash on AMD hardware"
+severity = "warning"
+description = "Xenia defaults to gpu = \"any\", which resolves to D3D12 and has been confirmed to trigger an AMD GPU driver timeout during gameplay. Switching to gpu = \"vulkan\" avoids the crash, but Xenia's own in-app warning states its Vulkan FBO render path is 'heavily incomplete, early development.' There is no clean default, pick vulkan if D3D12 crashes are hit, or any/d3d12 for otherwise wider compatibility. Change it by editing the gpu key in Xenia's portable xenia.config.toml (or in-app under Settings) and restarting."
