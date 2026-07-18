@@ -1208,9 +1208,9 @@ function ScanBody({ open, onClose, onComplete, mediaPath, config }: LibraryModal
               <p className="text-xs font-medium text-red-500">
                 {importResult.errors.length} error{importResult.errors.length !== 1 ? 's' : ''}:
               </p>
-              <ul className="mt-1 max-h-32 overflow-y-auto space-y-1">
+              <ul className="mt-1 max-h-40 overflow-y-auto space-y-1">
                 {importResult.errors.map((e, i) => (
-                  <li key={i} className="truncate text-xs text-red-400" title={e.reason}>
+                  <li key={i} className="break-words text-xs text-red-400">
                     {e.path.replace(/\\/g, '/').split('/').pop()}: {e.reason}
                   </li>
                 ))}

@@ -238,6 +238,13 @@ export function FetchMetadataModal({
         body: JSON.stringify({ assets: details.assets }),
       })
       showToast(`Linked media created for "${details.title ?? entityTitle}".`, 'success')
+      // Same call handleKeep() makes above: the accepted assets can change
+      // bundle-level fields (cover art, linked_items), and onSuccess's
+      // refetchEntity()/resyncFromCollection() (see gameConfig.tsx) pulls a
+      // full fresh copy of the bundle rather than patching individual
+      // fields, so it picks up whatever accept-metadata-assets changed just
+      // as correctly as it does for Keep's changes, no divergence needed.
+      onSuccess()
       onClose()
     } catch (err) {
       setAcceptError(err instanceof Error ? err.message : 'Failed to create linked media.')

@@ -324,6 +324,18 @@ been started beyond the import-hygiene intent described above.
   is on the install/setup blocklist. May need tuning based on real-world
   testing.
 
+### Hash Verification: Known Limitations
+
+Peach 1UP checks your files against public Redump and No-Intro hash catalogs to confirm they match a known-good dump. This is a useful signal, but it isn't a judgment on your files, and you should expect to see unverified results often. A few things worth knowing:
+
+These catalogs are incomplete by nature. Redump and No-Intro document specific dumps that specific people have submitted, not every legitimate copy of a game that's ever existed. A file can be a perfectly good, working copy of a real game and still not match anything in the index, simply because that exact dump was never catalogued.
+
+A same title match isn't a same file match. When a title matches something in our records but the file itself doesn't match any known hash for it, you'll see a mismatch result. This commonly happens when your copy is a different release, revision, or region variant than what's indexed, the file was re-encoded, repacked, or converted at some point (for example, disc images stripped of padding), the game is unchanged but the exact bytes are different so the hash no longer matches, or multiple valid dumps exist under the same title (reprints, disc swaps, alternate rips) and yours simply isn't one of the specific ones on file.
+
+A mismatch result is informational, not a warning. It means we couldn't confirm this specific file against our catalog, not that something is wrong with this file. Trust your own judgment about files you know the provenance of.
+
+Some platforms have limited or no hash coverage yet. Titles for platforms without an indexed catalog, or with only hash-only data and no era classification, will always show as unverified, regardless of file integrity.
+
 ## Disclaimer
 
 We do our best to sanitize, clean up and parse all datfiles we use but there 

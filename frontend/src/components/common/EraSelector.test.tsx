@@ -3,10 +3,19 @@ import userEvent from '@testing-library/user-event'
 import EraSelector from '@/components/common/EraSelector'
 
 describe('EraSelector', () => {
-  it('renders PC and Console group headings', () => {
+  it('renders console family group headings', () => {
     render(<EraSelector value={null} onChange={vi.fn()} />)
+    expect(screen.getByText('PlayStation')).toBeInTheDocument()
+    expect(screen.getByText('Xbox')).toBeInTheDocument()
+    expect(screen.getByText('Nintendo')).toBeInTheDocument()
     expect(screen.getByText('PC')).toBeInTheDocument()
-    expect(screen.getByText('Console')).toBeInTheDocument()
+    expect(screen.getByText('Other')).toBeInTheDocument()
+  })
+
+  it('renders ps3 and xbox360 even though neither has a backend yet', () => {
+    render(<EraSelector value={null} onChange={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'PlayStation 3' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Xbox 360' })).toBeInTheDocument()
   })
 
   it('renders individual era buttons', () => {

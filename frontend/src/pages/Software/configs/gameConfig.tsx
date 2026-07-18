@@ -376,8 +376,8 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
         {displayedVerificationStatus === 'mismatch' && (
           <p role="alert" className="text-xs text-amber-600 dark:text-amber-400">
             {displayedVerificationSimilarity === 1
-              ? "We found the same title in our records, but the file itself doesn't match any known version. This is common and doesn't necessarily mean anything is wrong."
-              : "We found a similar title in our records, but the file itself doesn't match any known version."}
+              ? "This title matches our records, but the file itself doesn't match any known hash for it. This is common. Repacked files, alternate dumps, and different regional releases will all show this. It doesn't mean anything is wrong with your file."
+              : "We found a similar, but not exact, title in our records, and the file itself doesn't match any known hash either. This is common. Repacked files, alternate dumps, and different regional releases will all show this. It doesn't mean anything is wrong with your file."}
           </p>
         )}
         {verifyError && (

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Query } from "@tanstack/react-query";
 import { Lock, Check } from "lucide-react";
 import { apiFetch, ApiError } from "@/api/client";
 import { useAppContext } from "@/context/useAppContext";
@@ -7,6 +8,18 @@ import { Button, Input } from "@/ui";
 import { cn } from "@/lib/utils";
 import type { components } from "@shared/types";
 type User = components["schemas"]["UserItemRead"];
+
+// Matches every Software-domain list/detail query key
+// ([domain, 'list', ...]/[domain, 'detail', ...], see EntityListPage.tsx:89
+// and EntityDetailPage.tsx:39), without naming game/app/media here, so a
+// user switch keeps invalidating a future domain's lists and detail pages
+// without this call site needing an edit when that domain is added. A
+// restriction change on any domain can change what the newly-active user is
+// allowed to see, so every domain's cached pages need to be treated as stale.
+function isSoftwareDomainListOrDetailQuery(query: Query): boolean {
+  const kind = query.queryKey[1];
+  return kind === "list" || kind === "detail";
+}
 
 interface SwitchResponse {
   user: User;
@@ -189,7 +202,7 @@ export default function UserSwitcher() {
     })
       .then(({ user: switched }) => {
         dispatch({ type: "SET_ACTIVE_USER", payload: switched });
-        queryClient.invalidateQueries({ queryKey: ["library"] });
+        queryClient.invalidateQueries({ predicate: isSoftwareDomainListOrDetailQuery });
       })
       .catch(() => {
         /* silently fall back */
@@ -198,7 +211,7 @@ export default function UserSwitcher() {
 
   function handlePinSuccess(switched: User) {
     dispatch({ type: "SET_ACTIVE_USER", payload: switched });
-    queryClient.invalidateQueries({ queryKey: ["library"] });
+    queryClient.invalidateQueries({ predicate: isSoftwareDomainListOrDetailQuery });
     setPinTarget(null);
   }
 
