@@ -483,10 +483,13 @@ def import_scan_results(
         path = item.path
         title = item.title or Path(path).stem.replace("-", " ").title()
         try:
-            # item.era is the era the scan preview auto-detected (echoed back by
-            # the client), not a user selection — pass it as detected_era so the
-            # per-item detection_reason is preserved instead of being overwritten
-            # with a fixed "Selected by user during import" string.
+            # item.era is the era the scan preview auto-detected, echoed back by
+            # the client from an earlier request. _prepare_item no longer trusts
+            # it for the persisted era or detection_reason (it always re-detects
+            # against the file on disk at import time instead), it is passed
+            # through only as a directory-file-selection hint for multi-format
+            # folders. See _prepare_item's docstring for why the client echo is
+            # not trusted.
             row = _prepare_item(path, title, db, used_slugs=used_slugs, detected_era=item.era)
         except _ItemAlreadyExists:
             skipped += 1

@@ -202,17 +202,26 @@ def _prepare_item(
     detection, then returns a mapping of all column values (collection- and
     leaf-level) for a collection-of-one.
 
-    Era resolution has three sources, in precedence order:
-        1. ``user_override_era`` — a genuine user selection. Sets
+    Era resolution has two sources, in precedence order:
+        1. ``user_override_era``, a genuine user selection. Sets
            ``detection_reason`` to "Selected by user during import".
-        2. ``detected_era`` — an era determined by an upstream detection pass
-           (e.g. the scan preview). Pins the era but ``detection_reason`` keeps
-           the actual per-item detection method, never the "user selected"
-           string. This is what the scan importer passes.
-        3. This function's own detection — the default (manual add path).
+        2. This function's own fresh detection against the file on disk
+           (_det_era/_det_reason, computed below), the default for both the
+           manual add path and the scan importer.
 
-    Keeping (2) and (1) distinct is the fix for scan imports stamping a fixed
-    "Selected by user during import" reason on every auto-detected item.
+    ``detected_era`` is still accepted as a parameter, but only as a hint for
+    resolve_media_file_from_directory() when choosing which file inside a
+    multi-format directory to run detection against (see _resolve_era
+    below). It is never used to set the persisted era or detection_reason
+    directly. It used to be: the scan importer passed its scan-preview era
+    straight through and it won on precedence over this function's own
+    detection. That value is echoed back by the client from an earlier
+    request and was never re-checked against the file at import time, so a
+    file that changed between scan and import, or a client that sent a
+    stale or incorrect value, would silently persist under the wrong era.
+    This function already runs a real detection pass unconditionally on
+    every call regardless of what the caller passes in, so trusting that
+    fresh result instead of the client echo costs nothing extra.
 
     Raises:
         _ItemAlreadyExists: if this path is already tracked as a library leaf.
@@ -548,19 +557,17 @@ def _prepare_item(
     row["requires_install"] = _scan.requires_install
 
     # Single resolution + write site for era and detection_reason (Stage 6).
-    # Precedence: explicit user override, then a scan-preview detected-era hint,
-    # then this function's own detection. detection_reason therefore reflects the
-    # actual detection method per item, and is only the fixed "user" string when
-    # the era was genuinely user-selected — not for every scan import.
+    # Precedence: explicit user override, then this function's own fresh
+    # detection against the file on disk. detected_era (the scan-preview
+    # value echoed back by the client) is deliberately not trusted here, it
+    # is never re-verified against the file at import time, so a file that
+    # changed between scan and import, or a stale/incorrect client value,
+    # would otherwise persist silently. _det_era/_det_reason already come
+    # from a real detection pass this same call already ran above, so using
+    # them instead of detected_era adds no extra cost.
     if user_override_era is not None:
         row["era"] = user_override_era
         row["detection_reason"] = "Selected by user during import"
-    elif detected_era is not None:
-        row["era"] = detected_era
-        row["detection_reason"] = (
-            _det_reason if _det_era == detected_era and _det_reason
-            else "Detected during library scan"
-        )
     elif _det_era is not None:
         row["era"] = _det_era
         row["detection_reason"] = _det_reason
