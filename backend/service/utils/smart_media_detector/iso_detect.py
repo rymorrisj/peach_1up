@@ -115,6 +115,12 @@ def detect_from_pvd(iso_path: Path) -> ScanResult:
                 reason=f"ISO volume label '{vol_id}', publisher '{publisher[:30]}' match PS1",
             )
 
+        if "PS3_DISC.SFB" in _root_dir_entry_names(iso_path, pvd):
+            return ScanResult(
+                title=None, platform=None, era="ps3", confidence=0.9,
+                reason="ISO 9660 root directory contains PS3_DISC.SFB — PS3 disc image",
+            )
+
         return _detect_from_xbe_scan(iso_path)
 
     except Exception as exc:
@@ -122,6 +128,44 @@ def detect_from_pvd(iso_path: Path) -> ScanResult:
             title=None, platform=None, era=None, confidence=0.0,
             reason=f"ISO PVD read error: {exc}",
         )
+
+
+def _root_dir_entry_names(iso_path: Path, pvd: bytes) -> list[str]:
+    """Return upper-cased, version-stripped file/dir names in the ISO 9660 root directory.
+
+    Standalone from _detect_from_xbe_scan's own directory walk below: same PVD
+    root LBA/size fields (offsets 158/166) and record layout, kept separate
+    rather than shared so this new PS3 check can't perturb the existing,
+    already-working Xbox .xbe scan.
+    """
+    if len(pvd) < 190:
+        return []
+    root_lba = struct.unpack_from("<I", pvd, 158)[0]
+    root_size = struct.unpack_from("<I", pvd, 166)[0]
+    if root_lba == 0 or root_size == 0 or root_size > 65536:
+        return []
+    try:
+        with iso_path.open("rb") as fh:
+            fh.seek(root_lba * 2048)
+            dir_data = fh.read(root_size)
+    except OSError:
+        return []
+    names: list[str] = []
+    i = 0
+    while i < len(dir_data):
+        rec_len = dir_data[i]
+        if rec_len == 0:
+            i = (i | 2047) + 1
+            continue
+        if i + 33 > len(dir_data):
+            break
+        name_len = dir_data[i + 32]
+        if i + 33 + name_len > len(dir_data):
+            break
+        name = dir_data[i + 33: i + 33 + name_len].decode("ascii", errors="replace")
+        names.append(name.split(";")[0].upper())
+        i += rec_len
+    return names
 
 
 def _detect_from_xbe_scan(iso_path: Path) -> ScanResult:

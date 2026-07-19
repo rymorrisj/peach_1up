@@ -79,6 +79,19 @@ def _check_firmware_installed(install_dir: Path) -> None:
         )
 
 
+# PS3_DISC.SFB at a folder's root (alongside PS3_GAME/, optionally PS3_UPDATE/)
+# marks the folder as a disc-format dump. RPCS3's own "Boot Game" targets the
+# folder itself in this case and does its own internal walk, so the folder is
+# the launch unit, not a resolved EBOOT.BIN, this is a distinct shape from the
+# dev_hdd0/game/<TITLE_ID>/ and loose extracted folders find_eboot resolves.
+_DISC_MARKER_FILENAME = "PS3_DISC.SFB"
+
+
+def is_disc_format_folder(folder: Path) -> bool:
+    """Return True if *folder* is a disc-format dump (has PS3_DISC.SFB at its root)."""
+    return (folder / _DISC_MARKER_FILENAME).is_file()
+
+
 def find_eboot(folder: Path) -> Path | None:
     """Return the EBOOT.BIN path for *folder*, checking both known layouts.
 
@@ -260,12 +273,13 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             raise FileNotFoundError(f"Media file not found: {media_path}")
 
         if media_path.is_dir():
-            eboot = find_eboot(media_path)
-            if eboot is None:
-                raise FileNotFoundError(
-                    f"No bootable PS3 title found in '{media_path}' "
-                    "(expected USRDIR/EBOOT.BIN, optionally under PS3_GAME/)."
-                )
+            if not is_disc_format_folder(media_path):
+                eboot = find_eboot(media_path)
+                if eboot is None:
+                    raise FileNotFoundError(
+                        f"No bootable PS3 title found in '{media_path}' "
+                        "(expected USRDIR/EBOOT.BIN, optionally under PS3_GAME/)."
+                    )
             target_path = media_path
         elif media_path.suffix.lower() == ".pkg":
             title_id = _title_id_from_rap(media_path) or _title_id_from_pkg_header(media_path)

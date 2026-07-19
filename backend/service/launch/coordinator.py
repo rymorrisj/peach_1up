@@ -608,10 +608,19 @@ async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None
     effective_media_path = entity.executable_path if entity.executable_path else entity.media_path
     if Path(effective_media_path).is_dir() and drive is None:
         try:
-            resolved = _resolve_media_file_from_directory(Path(effective_media_path), entity.era)
+            effective_media_path = str(
+                _resolve_media_file_from_directory(Path(effective_media_path), entity.era)
+            )
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        effective_media_path = str(resolved)
+            if entity.era != "ps3":
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            # ps3's supported_media is .iso/.pkg only (config/eras.yaml), so this
+            # resolver always raises for an extracted disc folder: there is no
+            # single top-level file to resolve to, the folder itself is the
+            # correct launch target (matches rpcs3.launch()'s own is_dir()
+            # handling and the equivalent catch in games/items.py's ingest
+            # path). Leave effective_media_path pointing at the folder rather
+            # than surfacing this as a 422.
 
     _verify_media_path_containment(effective_media_path, entity.source_type)
 
