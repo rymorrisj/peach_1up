@@ -160,7 +160,7 @@ async def _watch_event(
         # Without the named event we can't wait for the host's own signal, but
         # we can still fall back to a direct wait on the process itself so
         # EXITED/CLEANED_UP fire regardless. SandboxHandle.terminate() awaits a
-        # cleanup_future that only ever resolves via CLEANED_UP -- returning
+        # cleanup_future that only ever resolves via CLEANED_UP, returning
         # here without firing it would let terminate() hang forever.
         loop = asyncio.get_event_loop()
         rc = await loop.run_in_executor(None, proc.wait)

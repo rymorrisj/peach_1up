@@ -84,7 +84,7 @@ class TestListAndGetEnvironment:
     def test_list_returns_live_presence_not_a_stale_flag(self, client):
         c, db = client
         # No working/base image paths present, so is_present must be computed
-        # False live -- there is no persisted column to fall back on anymore.
+        # False live, there is no persisted column to fall back on anymore.
         _make_environment(db)
 
         resp = c.get("/api/v1/environment-items")

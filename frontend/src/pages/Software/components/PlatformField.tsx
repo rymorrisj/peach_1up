@@ -7,7 +7,7 @@ interface PlatformFieldProps {
   /** Whether this item can launch via an Environment at all (Games: era is
    *  PC, Apps: is_pc). Everything else about the field derives from this. */
   isPcLaunchable: boolean
-  /** The item's own era (e.g. "win98") -- an Environment option is only
+  /** The item's own era (e.g. "win98"), an Environment option is only
    *  selectable if its era matches this exactly. Mirrors the backend
    *  authoritative gate (compute_launch_blocked_reason's
    *  "environment_era_mismatch") that closed the incident where a win98 item
@@ -22,7 +22,7 @@ interface PlatformFieldProps {
 }
 
 // DOS/DOSBox-X environments have no OS install step, so they are always
-// treated as installed regardless of installed_at -- mirrors
+// treated as installed regardless of installed_at, mirrors
 // era_defaults.environment_is_installed on the backend exactly, so the
 // frontend and backend gates can't drift apart.
 function isEnvironmentInstalled(p: Platform): boolean {
@@ -47,7 +47,7 @@ function unselectableReason(p: Platform, itemEra: string): string | null {
 // whole field: an Environment that does not match the item's era, is not
 // live-present (compute_environment_presence), or has not had its OS
 // installed yet shows as a disabled option with the reason appended, rather
-// than being silently omitted or silently selectable -- same "explain why,
+// than being silently omitted or silently selectable, same "explain why,
 // don't hide" philosophy as the field-level disabledNote.
 export function PlatformField({ isPcLaunchable, itemEra, value, onChange, platforms, disabledNote }: PlatformFieldProps) {
   return (

@@ -41,7 +41,7 @@ class LaunchResult:
 
 
 # Synchronous post-spawn liveness check, run inline before the launch response
-# is returned. Bounded short on purpose -- this adds to every launch's
+# is returned. Bounded short on purpose, this adds to every launch's
 # response time, success or failure, so it only catches the common
 # near-instant-crash case (missing DLL, bad args, immediate fault). Slower
 # crashes (up to the existing 3s short-lived window) are still caught
@@ -482,7 +482,7 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
             # launch_review_flagged, a field AppCollection deliberately does
             # not have (see backend/models/app.py), and software_collection_id
             # / app_collection_id are separate id spaces that can collide on
-            # the same integer -- keying off collection_id alone here would
+            # the same integer, keying off collection_id alone here would
             # risk flagging an unrelated SoftwareCollection row.
             if spec.collection_id is not None and not is_app:
                 register_short_lived_check(spec.collection_id, proc, launch_time)
@@ -495,8 +495,8 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
     finally:
         # Once registered, process_registry itself is the active-state source
         # of truth for these keys (try_reserve scans it too), so releasing the
-        # now-redundant pending marker here -- on every exit path, success or
-        # failure -- never reopens a window for a duplicate launch to slip in.
+        # now-redundant pending marker here, on every exit path, success or
+        # failure, never reopens a window for a duplicate launch to slip in.
         process_registry.release(reservation)
 
 

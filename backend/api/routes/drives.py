@@ -21,7 +21,7 @@ def _require_drive_owner_permission(drive: Drive, active_user: UserItem) -> None
     """Gate a drive mutation on the permission matching its owning collection.
 
     Exactly one of game_item_bundle_id / app_item_bundle_id is ever set on a
-    Drive (enforced by Drive.model_post_init) -- app-owned drives require
+    Drive (enforced by Drive.model_post_init), app-owned drives require
     can_manage_app, game-owned drives require can_manage_game
     (unchanged from before Apps existed).
     """

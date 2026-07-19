@@ -20,7 +20,7 @@ class EnvironmentItemBase(SQLModel):
     default_flags: Optional[str] = None
     # Whether the OS itself has been installed into this Environment (distinct
     # from any software-item-level installed flag, e.g. GameItemBundle.installed
-    # -- different entity). Already existed as a "Mark as Installed" affordance
+    #, different entity). Already existed as a "Mark as Installed" affordance
     # in EnvironmentCard.tsx before this change; now also read as the
     # environment_is_installed() launch gate (era_defaults.py) instead of a new
     # duplicate is_installed boolean. Meaningful for Win9x/WinXP under 86Box;

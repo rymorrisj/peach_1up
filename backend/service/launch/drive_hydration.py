@@ -57,11 +57,11 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
 
     # Auto-create a drive for DOS collections/apps that don't have one yet.
     # entity.era already resolves correctly for both source types (era column
-    # for Software, the linked Environment's era for Apps -- see
+    # for Software, the linked Environment's era for Apps, see
     # launchable_resolver.resolve_launchable_app), so the DOS-era gate below
     # is source-type-agnostic. Only the launch-leaf lookup differs, since
     # GameItem and AppItem are separate tables with non-overlapping id
-    # spaces -- collection.launch_disk_id must be resolved against whichever
+    # spaces, collection.launch_disk_id must be resolved against whichever
     # table entity.source_type actually points into.
     collection = entity._db_collection
     if (

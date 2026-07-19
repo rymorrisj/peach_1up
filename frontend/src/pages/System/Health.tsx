@@ -48,7 +48,7 @@ function formatBytes(n: number) {
 }
 
 // Live presence check (compute_environment_presence, computed fresh on
-// every read, nothing persisted or cached) -- replaces the old stale
+// every read, nothing persisted or cached), replaces the old stale
 // isHealthy(status), which treated the never-updated "unknown" default as
 // healthy and so never actually gated anything.
 export function isHealthy(p: Platform) {

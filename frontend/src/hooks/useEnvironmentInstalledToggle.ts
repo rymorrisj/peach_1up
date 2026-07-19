@@ -8,7 +8,7 @@ interface UseEnvironmentInstalledToggleOptions {
 
 // Win9x/WinXp "OS installed" flag: whether the user has finished running the
 // installer inside this Environment. Same interaction shape as
-// useInstalledToggle (DOS game-files-copied flag) -- confirm dialog first,
+// useInstalledToggle (DOS game-files-copied flag), confirm dialog first,
 // since environment_is_installed() (era_defaults.py) now gates launch
 // eligibility on this value, so flipping it wrong hides a real Environment
 // from PlatformField or marks an unfinished install as ready.
@@ -45,7 +45,7 @@ export function useEnvironmentInstalledToggle({ environmentId }: UseEnvironmentI
     const target = !currentlyInstalled
     const consequence = target
       ? 'Only confirm if you have finished running the OS installer inside this Environment.'
-      : 'This marks the Environment as not yet installed -- it will show as unlaunchable until marked installed again.'
+      : 'This marks the Environment as not yet installed, it will show as unlaunchable until marked installed again.'
     const confirmed = await confirm({
       title: target ? 'Mark as installed?' : 'Mark as not installed?',
       consequence,

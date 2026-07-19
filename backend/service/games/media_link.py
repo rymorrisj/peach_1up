@@ -36,7 +36,7 @@ def create_linked_media_from_metadata(
     "later additions join the same bundle" decision. If more than one
     media_item_bundle happens to already be linked (e.g. a user separately,
     manually linked an unrelated one), the earliest link (lowest link_id)
-    wins, deterministically -- this is a real edge case the locked design
+    wins, deterministically, this is a real edge case the locked design
     doesn't explicitly resolve, flagged in this session's report.
 
     Images always live at the bundle level on both sides of the link (never
@@ -107,7 +107,7 @@ def create_linked_media_from_metadata(
 
     if is_new_bundle:
         # Reuses the same canonical-ordering helper the generic entity-link
-        # route uses (backend/api/routes/entity_links.py) -- no bespoke
+        # route uses (backend/api/routes/entity_links.py), no bespoke
         # MediaLink construction here.
         db.add(make_entity_link("game_item_bundle", game_item_bundle_id, "media_item_bundle", bundle.id))
 

@@ -21,7 +21,7 @@ asset_pattern = '^rpcs3-v[\d.]+-\d+-[0-9a-f]+_win64_msvc\.7z$'
 license = "GPL-2.0"
 copyright = "Copyright 2011-2024 the RPCS3 team and contributors"
 source_url = "https://github.com/RPCS3/rpcs3-binaries-win"
-supported_formats = [".iso"]
+supported_formats = [".iso", ".pkg"]
 guidance_text = "RPCS3 is auto-installed from github.com/RPCS3/rpcs3-binaries-win, a companion binaries repo to the primary RPCS3/rpcs3 source repo, which has no downloadable releases of its own. Portable mode is automatic on Windows, no sentinel file is needed."
 guidance_url = "https://rpcs3.net/quickstart"
 
@@ -71,11 +71,6 @@ severity = "info"
 description = "RPCS3 precompiles shaders and recompiles PPU/SPU code the first time a title is launched. Expect stutter and reduced performance on a title's first boot, subsequent launches are smoother once the caches are warm."
 
 [[known_limitations]]
-title = "Digital content (.pkg/.rap) not yet supported"
+title = "Digital content (.pkg) installs need two launch attempts"
 severity = "info"
-description = "Only disc-based content (.iso) is supported for import in this release. Digital PSN content (.pkg installers and .rap license files) requires RPCS3's own package installer and dev_hdd0/game/ provisioning, planned as follow-up work."
-
-[[known_limitations]]
-title = "Extracted disc folders not yet scanned"
-severity = "info"
-description = "Only .iso disc images are recognized by the media scanner in this release. Extracted PS3_GAME/PS3_DISC.SFB folder structures, which RPCS3 can also boot directly, are not yet detected as importable media, planned as follow-up work."
+description = "RPCS3 cannot install a .pkg headlessly (it refuses --installpkg combined with --no-gui) and never exits on its own once an unattended install finishes, so a single launch call cannot both install and boot within the coordinator's 30s dispatch window. The first launch of an uninstalled .pkg starts the install and returns once it stabilizes on disk (RPCS3 itself is terminated automatically, no manual dialog dismissal needed); launching the same title again afterward boots it normally from the resulting dev_hdd0/game/<TITLE_ID>/ folder."

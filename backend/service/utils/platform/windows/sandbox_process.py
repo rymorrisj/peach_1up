@@ -67,7 +67,7 @@ class SandboxProcess:
             # GetExitCodeProcess's own BOOL return signals whether the DWORD
             # out-param is meaningful at all. Ignoring it left exit_code at its
             # pre-set _STILL_ACTIVE value on failure, so poll() reported "still
-            # running" even though the call told us nothing -- a dead process
+            # running" even though the call told us nothing, a dead process
             # could be reported alive indefinitely. Log and treat as unknown
             # (None) rather than implicitly alive; do not set returncode or
             # close handles, since we don't actually know the process exited.

@@ -232,7 +232,7 @@ class TestDifferentKeysSucceed:
 
 
 # ---------------------------------------------------------------------------
-# 4. Reservation is released on immediate-exit failure -- no phantom lock
+# 4. Reservation is released on immediate-exit failure, no phantom lock
 # ---------------------------------------------------------------------------
 
 class TestRollbackOnImmediateExit:
@@ -258,14 +258,14 @@ class TestRollbackOnImmediateExit:
         assert exc_info.value.status_code == 500
 
         # The crash must have released both the reservation and the registry
-        # entry (process_registry.terminate at the immediate-exit path) -- a
+        # entry (process_registry.terminate at the immediate-exit path), a
         # retry for the same profile must succeed, not hit the 409 guard.
         result = _run(launch_collection(item.id, None, mem_session))
         assert result.history_id is not None
 
 
 # ---------------------------------------------------------------------------
-# 4b. A clean exit (code 0) within the inline window is not a crash -- the
+# 4b. A clean exit (code 0) within the inline window is not a crash, the
 #     launch must succeed, unlike a non-zero exit in the same window.
 # ---------------------------------------------------------------------------
 
@@ -282,7 +282,7 @@ class TestCleanExitZeroNotTreatedAsCrash:
         _patch_backend_router(monkeypatch, fake_dispatch)
 
         # Exit code 0 within the inline window must not be treated as a
-        # crash -- the launch should succeed, not raise a 500.
+        # crash, the launch should succeed, not raise a 500.
         result = _run(launch_collection(item.id, None, mem_session))
         assert result.history_id is not None
 
@@ -314,7 +314,7 @@ class TestReservationRaceClosed:
         reservation1 = process_registry.try_reserve(profile_item_id=42, emulator_slug="duckstation", user_item_id=1)
         assert reservation1 is not None
 
-        # No registration happened in between -- this is the exact TOCTOU
+        # No registration happened in between, this is the exact TOCTOU
         # window a naive "check, then separately mark" implementation would
         # leave open. A real reservation must close it.
         reservation2 = process_registry.try_reserve(profile_item_id=42, emulator_slug="other-slug", user_item_id=99)
@@ -333,7 +333,7 @@ class TestReservationRaceClosed:
         reservation1 = process_registry.try_reserve(profile_item_id=1, emulator_slug="flycast", user_item_id=7)
         assert reservation1 is not None
 
-        # Different profile_id, same (emulator_slug, user_id) -- must also collide.
+        # Different profile_id, same (emulator_slug, user_id), must also collide.
         reservation2 = process_registry.try_reserve(profile_item_id=2, emulator_slug="flycast", user_item_id=7)
         assert reservation2 is None
 
@@ -380,7 +380,7 @@ class TestRegistrationFailureKillsProcessAndReleasesReservation:
         crashing_proc.kill.assert_called_once()
 
         # process_registry.register() never succeeded, so no entry exists in
-        # the registry either -- only a leaked pending marker could block a
+        # the registry either, only a leaked pending marker could block a
         # retry from here.
         monkeypatch.setattr(process_registry, "register", original_register)
 
@@ -392,7 +392,7 @@ class TestRegistrationFailureKillsProcessAndReleasesReservation:
 
         _patch_backend_router(monkeypatch, fake_dispatch_retry)
 
-        # (c) reservation was released -- a retry for the same profile_id and
+        # (c) reservation was released, a retry for the same profile_id and
         # the same (emulator_slug, user_id) pair must succeed, not hit 409.
         result = _run(launch_collection(item.id, None, mem_session))
         assert result.history_id is not None

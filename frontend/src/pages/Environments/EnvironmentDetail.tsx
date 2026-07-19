@@ -177,7 +177,7 @@ export default function EnvironmentDetail() {
   const eraKey = platform.era.toUpperCase()
   const eraColor = ERA_COLOR[eraKey] ?? 'rgb(var(--fg-3))'
   // Live presence check, computed fresh on every read (is_present), not a
-  // persisted status column -- see compute_environment_presence.
+  // persisted status column, see compute_environment_presence.
   const statusColor = platform.is_present ? 'rgb(var(--success))' : 'rgb(var(--error))'
   const statusLabel = platform.is_present ? 'Present' : 'Not present'
   const BTN: React.CSSProperties = { border: 'none', fontFamily: 'var(--font-display)', fontSize: '0.8125rem', fontWeight: 600, padding: '9px 14px', borderRadius: 'var(--r-2)', cursor: 'pointer' }

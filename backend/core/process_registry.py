@@ -87,7 +87,7 @@ def try_reserve(profile_item_id: int | None, emulator_slug: str | None, user_ite
 
 def release(reservation: Reservation | None) -> None:
     """Release a reservation from try_reserve(). Safe to call once registration has
-    superseded it -- it only clears the pending marker, never touches _registry."""
+    superseded it, it only clears the pending marker, never touches _registry."""
     if reservation is None:
         return
     with _lock:

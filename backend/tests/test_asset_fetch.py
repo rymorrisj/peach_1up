@@ -236,7 +236,7 @@ class TestDownloadRemoteImage:
 
     def test_custom_filename_stem_is_used(self, tmp_lib, monkeypatch):
         """filename_stem is the one thing generalized out of the old
-        _download_cover_art -- confirm a caller-supplied stem (e.g. Accept
+        _download_cover_art, confirm a caller-supplied stem (e.g. Accept
         All's per-asset naming) actually lands on disk."""
         import backend.service.utils.asset_fetch as asset_fetch_mod
 

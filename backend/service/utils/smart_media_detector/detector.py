@@ -77,7 +77,20 @@ def _detect(path: Path) -> ScanResult:
             result.requires_install = _compute_requires_install(path, result.era)
             return result
     except Exception as exc:
-        log.warning("Hash lookup failed for '%s': %s", path, exc, exc_info=True)
+        if path.is_dir():
+            # A directory reaching hash_file()'s path.open("rb") always fails
+            # (PermissionError on Windows, IsADirectoryError on POSIX), this is
+            # a caller bug, some upstream step should have resolved *path* to
+            # its actual hashable media file before detection ran, not this
+            # function's job to do. The traceback adds nothing actionable here.
+            log.warning(
+                "Hash lookup received a directory instead of a resolved media "
+                "file for '%s': %s. The caller did not resolve this path to "
+                "its actual launchable file before detection.",
+                path, exc,
+            )
+        else:
+            log.warning("Hash lookup failed for '%s': %s", path, exc, exc_info=True)
         # empty or missing index — continue to signal detection
 
     if path.is_file():

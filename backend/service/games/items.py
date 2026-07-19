@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import time
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -19,6 +20,15 @@ from backend.service.utils.path_utils import normalise_path, resolve_under
 from backend.service.utils.slug_generator import generate_collection_slug, slugify, unique_slug
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
+
+# A folder rename can transiently fail with WinError 5 (ERROR_ACCESS_DENIED) if
+# antivirus, the Windows Search indexer, RPCS3, or an open Explorer/terminal
+# window briefly holds the folder (or a file inside it) open right after
+# import copies files into it. Retrying the rename itself does no extra file
+# I/O, unlike the re-hash avoidance in _prepare_item, so it doesn't widen the
+# same AV/indexer lock window that guards against, it just gives a transient
+# lock a short, bounded chance to clear.
+_FOLDER_RENAME_RETRY_DELAYS: tuple[float, ...] = (0.1, 0.25, 0.5, 1.0)
 
 # Keys in the prepared row that belong to the collection (parent) vs the leaf.
 _COLLECTION_COLUMNS = {
@@ -99,9 +109,10 @@ def _reconcile_folder_to_slug(
             (defense-in-depth — slugify() already guarantees [a-z0-9-] only).
         HTTPException(409): the target path is DB-tracked by a different item,
             a real collision, not a self-rename or an orphaned directory.
-        HTTPException(500): the OS-level rename itself failed (permissions,
-            file lock, AV scan). Fails loud rather than leaving the DB slug
-            and on-disk folder name silently mismatched.
+        HTTPException(500): the OS-level rename itself failed after retrying
+            through _FOLDER_RENAME_RETRY_DELAYS (permissions, file lock, AV
+            scan). Fails loud rather than leaving the DB slug and on-disk
+            folder name silently mismatched.
     """
     try:
         target = resolve_under(folder.parent, slug)
@@ -123,12 +134,20 @@ def _reconcile_folder_to_slug(
             target = resolve_under(folder.parent, slug)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=f"Slug-based folder name is invalid: {exc}")
-    try:
-        folder.rename(target)
-    except OSError as exc:
+    rename_exc: OSError | None = None
+    for delay in (0.0, *_FOLDER_RENAME_RETRY_DELAYS):
+        if delay:
+            time.sleep(delay)
+        try:
+            folder.rename(target)
+            rename_exc = None
+            break
+        except OSError as exc:
+            rename_exc = exc
+    if rename_exc is not None:
         raise HTTPException(
             status_code=500,
-            detail=f"Could not rename media folder to match its slug '{slug}': {exc}",
+            detail=f"Could not rename media folder to match its slug '{slug}': {rename_exc}",
         )
     if undo_stack is not None:
         undo_stack.append(lambda _o=folder, _n=target: _n.rename(_o) if _n.exists() else None)
@@ -175,7 +194,18 @@ def best_detect_path(folder: Path, executable_path: str | None) -> Path:
         )
     except OSError:
         hit = None
-    return hit if hit is not None else folder
+    if hit is not None:
+        return hit
+    # Extracted PS3 disc folders have no top-level launchable file, era.yaml
+    # only declares .iso for ps3, and the real target is nested two levels
+    # down (USRDIR/EBOOT.BIN or PS3_GAME/USRDIR/EBOOT.BIN). Without this,
+    # the raw folder falls through unchanged and reaches hash_file(), which
+    # opens it as a file and raises PermissionError. This check is
+    # inherently PS3-specific (no other era's folder ever has an EBOOT.BIN),
+    # so it is a no-op for every other era's folder.
+    from backend.service.backends.rpcs3 import find_eboot
+    eboot = find_eboot(folder)
+    return eboot if eboot is not None else folder
 
 
 def _collection_for_leaf(leaf: GameItem | None, db: Session) -> GameItemBundle | None:
@@ -380,7 +410,25 @@ def _prepare_item(
                     elif _scan.warnings:
                         log.warning("Media detection warnings for '%s': %s", resolved_media, _scan.warnings)
             except ValueError as exc:
-                log.warning("Could not resolve media file for '%s': %s", title, exc)
+                if _resolve_era == "ps3":
+                    # ps3's supported_media is .iso only (config/eras.yaml), so
+                    # this resolver always raises for an extracted disc folder,
+                    # that is expected, not a failure: there is no single file
+                    # to resolve to, the folder itself is the correct launch
+                    # target (matches rpcs3.launch()'s own is_dir() handling),
+                    # so row["file_path"] is deliberately left pointing at the
+                    # folder. Only warn when the folder isn't valid PS3 content
+                    # either, i.e. resolution has no other explanation.
+                    from backend.service.backends.rpcs3 import find_eboot
+                    if find_eboot(media_src) is None:
+                        log.warning(
+                            "Could not find EBOOT.BIN in expected PS3 folder structure "
+                            "for '%s' at '%s' (expected USRDIR/EBOOT.BIN, optionally "
+                            "under PS3_GAME/).",
+                            title, media_src,
+                        )
+                else:
+                    log.warning("Could not resolve media file for '%s': %s", title, exc)
 
     elif media_src.is_file():
         if games_root_str:

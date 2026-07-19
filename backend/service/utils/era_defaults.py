@@ -41,13 +41,13 @@ def environment_is_installed(env) -> bool:
 
     Reads the pre-existing installed_at timestamp (set by the "Mark as
     Installed" action in EnvironmentCard.tsx) rather than a new dedicated
-    boolean -- installed_at already recorded exactly this concept before this
+    boolean, installed_at already recorded exactly this concept before this
     change, and adding a second field for the same fact would recreate the
     same kind of duplicate-state drift this task exists to fix.
 
     DOS/DOSBox-X environments have no install step (DOSBox-X boots straight
     to a DOS prompt against the per-item drive), so they are always treated
-    as installed regardless of installed_at -- checked here, at read time,
+    as installed regardless of installed_at, checked here, at read time,
     rather than forced true at creation, so the rule can't drift if an
     environment's era is ever changed after creation.
     """
@@ -145,7 +145,7 @@ def compute_launch_blocked_reason(
        (coordinator._resolve_environment_for_pc_entity). *environment* is the
        already-resolved EnvironmentItem (or None) from
        resolve_environment_for_launch_gate / resolve_environments_for_launch_gate_bulk
-       -- environment_item_id if set, else the era-matched is_system fallback,
+      , environment_item_id if set, else the era-matched is_system fallback,
        exactly mirroring the coordinator's own resolution order. No resolvable
        Environment at all -> "no_environment".
     3. Era match is the authoritative gate, added after a real incident where a
