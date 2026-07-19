@@ -90,6 +90,7 @@ file_types:
   hdd:       "Hard Disk Image"
   exe:       "Executable"
   rom:       "ROM"
+  pkg:       "PS3 Package"
   unknown:   "Unknown"
 
 hardware_profiles:

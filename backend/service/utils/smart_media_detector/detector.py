@@ -153,6 +153,12 @@ def _detect_file(path: Path) -> ScanResult:
             warnings=["no magic byte match; era inferred from extension only"],
         )
 
+    if suffix == ".pkg":
+        return ScanResult(
+            title=None, platform=None, era="ps3", confidence=0.7,
+            reason="file extension .pkg indicates PlayStation 3 package",
+        )
+
     if suffix == ".iso":
         return detect_iso(path)
 

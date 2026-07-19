@@ -70,6 +70,8 @@ def _classify_file_type(path: Path) -> str:
             return "hdd"
     if suffix in {".exe", ".bat", ".com"}:
         return "exe"
+    if suffix == ".pkg":
+        return "pkg"
     if suffix in _ROM_EXTENSIONS:
         return "rom"
     return "unknown"

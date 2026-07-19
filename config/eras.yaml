@@ -53,7 +53,7 @@ ps3:
   backend: rpcs3
   memory_limit_mb: 12288
   cpu_limit_percent: 90
-  supported_media: [".iso"]
+  supported_media: [".iso", ".pkg"]
 
 xbox:
   backend: xemu
