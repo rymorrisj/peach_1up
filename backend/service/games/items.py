@@ -181,6 +181,15 @@ def _rewrite_paths_after_folder_rename(
 def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     if executable_path and Path(executable_path).suffix.lower() != ".img":
         return Path(executable_path)
+    # Extracted Xbox 360 XEX folders can contain multiple top-level .xex
+    # files. Resolve those first, before the generic top-level scan below,
+    # so the same file is always chosen deterministically (exact
+    # default.xex, else alphabetically first) instead of whatever order
+    # the generic scan's directory iteration happens to return.
+    from backend.service.utils.smart_media_detector.directory_detect import find_default_xex
+    xex = find_default_xex(folder)
+    if xex is not None:
+        return xex
     from backend.service.utils.file_types import all_supported_extensions
     all_exts = _MEDIA_SUFFIXES | all_supported_extensions()
     folder_name = folder.name

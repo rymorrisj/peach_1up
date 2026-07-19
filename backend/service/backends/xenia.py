@@ -86,20 +86,38 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         raise FileNotFoundError("Xenia requires a disc image to launch (media_path was not set).")
     if not spec.media_path.exists():
         raise FileNotFoundError(f"Media file not found: {spec.media_path}")
-    if spec.media_path.suffix.lower() not in supported_formats:
-        raise ValueError(
-            f"Unsupported media format '{spec.media_path.suffix}'. "
-            f"{display_name} supports: {', '.join(sorted(supported_formats))}"
-        )
+
+    if spec.media_path.is_dir():
+        from backend.service.utils.smart_media_detector.directory_detect import find_default_xex
+        target_path = find_default_xex(spec.media_path)
+        if target_path is None:
+            raise FileNotFoundError(
+                f"No bootable Xbox 360 title found in '{spec.media_path}' "
+                "(expected a .xex file, ideally named default.xex)."
+            )
+    else:
+        if spec.media_path.suffix.lower() not in supported_formats:
+            raise ValueError(
+                f"Unsupported media format '{spec.media_path.suffix}'. "
+                f"{display_name} supports: {', '.join(sorted(supported_formats))}"
+            )
+        target_path = spec.media_path
 
     _warn_if_risky_gpu(install_dir)
 
-    args = [f"--target={spec.media_path}"]
-    job_name_prefix = f"Peach1UP_xenia_{spec.media_path.stem}"
+    args = [f"--target={target_path}"]
+    job_name_prefix = f"Peach1UP_xenia_{target_path.stem}"
 
     container_enabled = resolve_container_enabled("xenia", spec.container_enabled)
+    # target_path (not spec.media_path) is passed here deliberately: for the
+    # directory case, target_path.parent == spec.media_path exactly (see
+    # find_default_xex, top-level only), so the broker's parent-dir grant
+    # still covers the whole extracted folder including sibling resource
+    # files, and its exact-file entry gets a real file handle instead of
+    # silently failing on a directory (CreateFileW without
+    # FILE_FLAG_BACKUP_SEMANTICS cannot open a directory handle).
     sandbox_config = build_media_broker_config(
-        "xenia", str(install_path), spec.media_path, spec.user_item_id, container_enabled)
+        "xenia", str(install_path), target_path, spec.user_item_id, container_enabled)
 
     logger.debug("xenia.launch: args=%s", args)
     return launch_under_job_object(

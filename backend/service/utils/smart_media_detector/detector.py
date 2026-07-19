@@ -125,6 +125,12 @@ def _detect_file(path: Path) -> ScanResult:
             reason="file extension .xiso indicates Original Xbox disc image",
         )
 
+    if suffix == ".xex":
+        return ScanResult(
+            title=None, platform=None, era="xbox360", confidence=0.7,
+            reason="file extension .xex indicates Xbox 360 executable",
+        )
+
     if suffix in {".z64", ".n64", ".v64"}:
         return ScanResult(
             title=None, platform=None, era="n64", confidence=0.7,

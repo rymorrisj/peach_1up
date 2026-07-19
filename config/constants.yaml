@@ -91,6 +91,7 @@ file_types:
   exe:       "Executable"
   rom:       "ROM"
   pkg:       "PS3 Package"
+  xex:       "Xbox 360 Executable"
   unknown:   "Unknown"
 
 hardware_profiles:

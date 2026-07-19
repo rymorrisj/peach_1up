@@ -1,10 +1,51 @@
 import struct
 from pathlib import Path
 
+from backend.core.logger import get_logger
+
 from .result import ScanResult
+
+log = get_logger(__name__)
 
 _WINDOWS_MARKERS = frozenset({"WINDOWS", "WIN", "SYSTEM", "SYSTEM32", "PROGRAM FILES", "PROGRA~1"})
 _DOS_TOOLS = frozenset({"DEICE.EXE", "PKUNZIP.EXE", "PKUNZIP.COM", "LZMA.EXE"})
+
+
+def find_default_xex(folder: Path) -> Path | None:
+    """Return the launchable .xex path for an extracted Xbox 360 XEX folder.
+
+    Prefers an exact "default.xex" match (case-insensitive) at the folder's
+    top level, the conventional entry point Xenia itself looks for. If no
+    default.xex exists but other .xex files are present, falls back to the
+    alphabetically first one by filename, chosen deterministically rather
+    than by filesystem iteration order, and logs a warning since this is a
+    tie-break, not a confirmed match, and the wrong title could otherwise
+    launch silently.
+
+    Public (not module-private): imported by both the ingest/detection layer
+    (backend.service.games.items.best_detect_path) and the Xenia launch
+    backend (backend.service.backends.xenia.launch), the same
+    resolve-once-reuse-everywhere role find_eboot plays for PS3 in
+    backend.service.backends.rpcs3.
+    """
+    try:
+        xex_files = [f for f in folder.iterdir() if f.is_file() and f.suffix.lower() == ".xex"]
+    except OSError:
+        return None
+    if not xex_files:
+        return None
+    for f in xex_files:
+        if f.name.lower() == "default.xex":
+            return f
+    xex_files.sort(key=lambda f: f.name.lower())
+    chosen = xex_files[0]
+    log.warning(
+        "xex resolver: no default.xex found in '%s', %d other .xex file(s) present, "
+        "deterministically choosing '%s' (alphabetically first) as a tie-break. "
+        "Rename the intended file to default.xex to avoid relying on this.",
+        folder, len(xex_files), chosen.name,
+    )
+    return chosen
 
 
 def detect_directory(path: Path) -> ScanResult:

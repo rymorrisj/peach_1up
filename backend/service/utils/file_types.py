@@ -72,6 +72,8 @@ def _classify_file_type(path: Path) -> str:
         return "exe"
     if suffix == ".pkg":
         return "pkg"
+    if suffix == ".xex":
+        return "xex"
     if suffix in _ROM_EXTENSIONS:
         return "rom"
     return "unknown"

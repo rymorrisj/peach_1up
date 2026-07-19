@@ -20,7 +20,7 @@ asset_pattern = '^xenia_master\.zip$'
 license = "BSD-3-Clause"
 copyright = "Copyright 2015-2024 Ben Vanik and contributors"
 source_url = "https://github.com/xenia-project/release-builds-windows"
-supported_formats = [".iso"]
+supported_formats = [".iso", ".xex"]
 guidance_text = "Xenia is auto-installed from github.com/xenia-project/release-builds-windows, a companion CI repo to the primary xenia-project/xenia source repo, which has no downloadable releases of its own. A portable.txt sentinel is created automatically next to xenia.exe so its storage_root resolves to emulators/xenia/ instead of Documents\\Xenia."
 guidance_url = "https://xenia.jp"
 
