@@ -195,7 +195,7 @@ export function EditForm({
           onClose={() => setExecBrowserOpen(false)}
           onSelect={(path) => { setField('executable_path', path); setExecBrowserOpen(false) }}
           mode="file"
-          extensions={launchFileExtensions?.extensions.join(',')}
+          extensions={launchFileExtensions?.extensions?.join(',')}
           title="Select Launch File"
           rootPath={item.folder_path ?? null}
         />

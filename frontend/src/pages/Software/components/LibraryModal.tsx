@@ -196,6 +196,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
   const [folderProgress, setFolderProgress] = useState(0)
   const [folderBackground, setFolderBackground] = useState(false)
   const [folderResult, setFolderResult] = useState<{ type: 'item' | 'set'; title: string; discCount?: number } | null>(null)
+  const folderAbortRef = useRef<(() => void) | null>(null)
 
   // Server-side-path import state, a second, independent source mechanism
   // alongside drag-and-drop/file-input above. Sourced via FileBrowser (real,
@@ -392,7 +393,8 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
     setFolderProgress(0)
     setFolderBackground(false)
 
-    const { promise } = chunkedUpload('folder', title, folderFiles, setFolderProgress, config.uploadDomain)
+    const { promise, abort } = chunkedUpload('folder', title, folderFiles, setFolderProgress, config.uploadDomain)
+    folderAbortRef.current = abort
     try {
       const res = await promise
       if (res.status === 202 && res.body.job_id) {
@@ -415,6 +417,8 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
     } catch (err) {
       setFolderStatus('error')
       setFolderError(err instanceof Error ? err.message : 'Upload failed.')
+    } finally {
+      folderAbortRef.current = null
     }
   }
 
@@ -541,7 +545,16 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
           </div>
         ) : folderMode ? (
           <div className="flex items-center gap-3">
-            <Button variant="secondary" onClick={onClose} disabled={busy}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (folderStatus === 'uploading') {
+                  folderAbortRef.current?.()
+                } else {
+                  onClose()
+                }
+              }}
+            >
               Cancel
             </Button>
             <Button
