@@ -15,6 +15,14 @@ before a confirmed successful write into the library. stage_from_source builds
 the same ReassembledUpload shape service.uploads.core produces from staged
 chunks, so software_games.finalize_reassembled (dedup, multi-disc detection,
 cleanup-on-failure) is reused unmodified.
+
+When the source already resolves under SOFTWARE_PATH, none of that applies:
+there is nothing to copy and no disposable staging directory for
+finalize_reassembled to safely delete on a duplicate or a failure, deleting
+"dest_dir" in that case would delete the source itself. _import_in_place
+bypasses stage_from_source/finalize_reassembled for that case and ingests the
+source directly, the same treatment manual add and Scan's import step give a
+path that is already in place.
 """
 from __future__ import annotations
 
@@ -25,9 +33,10 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from backend.core.logger import get_logger
+from backend.service.games import items as lib_svc
 from backend.service.uploads import core as cu
 from backend.service.uploads import software_games as upload_finalize
-from backend.service.utils.path_utils import resolve_under, sanitize_filename
+from backend.service.utils.path_utils import is_within_roots, resolve_under, sanitize_filename
 from backend.service.utils.slug_generator import unique_slug
 from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES
 
@@ -129,9 +138,44 @@ def delete_source(source: Path) -> str | None:
         return f"Import succeeded, but the original could not be deleted: {exc}"
 
 
+def _import_in_place(source: Path, title: str, db: Session, delete_original: bool) -> dict:
+    """Ingest *source* directly, with no copy: the same treatment Scan's
+    import step (import_scan_results -> _prepare_item) already gives a path
+    that is already under SOFTWARE_PATH.
+
+    finalize_reassembled's dedup-elsewhere-and-delete-dest_dir and
+    failure-cleanup rmtree(dest_dir) both assume dest_dir is disposable
+    staging that stage_from_source just created, that assumption is false
+    here (dest_dir would be the source itself), so this bypasses
+    stage_from_source/finalize_reassembled entirely and calls the same
+    ingester manual add and scan-import use directly.
+
+    delete_original is accepted only to decide whether delete_original_note
+    belongs in the result, it is never acted on here (there is no separate
+    original left to delete once the source itself becomes the library item).
+    """
+    collection = lib_svc._ingest_media_entry(str(source), title, db)
+    result = {
+        "result_type": "game_item_bundle",
+        "id": collection.id,
+        "title": collection.title,
+    }
+    if delete_original:
+        result["delete_original_note"] = (
+            "The source was already inside the library, so nothing was copied "
+            "or deleted, it was imported in place."
+        )
+    return result
+
+
 def import_inline(
     source: Path, title: str, media_root: Path, db: Session, delete_original: bool
 ) -> dict:
+    if is_within_roots(source, [media_root]):
+        # Ingesting in place adopts the source itself as the library item
+        # (moving/renaming it into its canonical spot at most), there is no
+        # separate "original" left over to delete afterward.
+        return _import_in_place(source, title, db, delete_original)
     reasm = stage_from_source(source, title, media_root)
     result = upload_finalize.finalize_reassembled(reasm, media_root, db)
     if delete_original:
@@ -152,14 +196,18 @@ def import_background(
     source = Path(source_path)
     root = Path(media_root)
     try:
-        jobs.update(job_id, progress=0.1, message="Copying into library…")
-        reasm = stage_from_source(source, title, root)
-        jobs.update(job_id, progress=0.6, message="Importing…")
-        result = upload_finalize.finalize_reassembled(reasm, root, db)
-        if delete_original:
-            error = delete_source(source)
-            if error:
-                result["delete_original_error"] = error
+        if is_within_roots(source, [root]):
+            jobs.update(job_id, progress=0.5, message="Importing…")
+            result = _import_in_place(source, title, db, delete_original)
+        else:
+            jobs.update(job_id, progress=0.1, message="Copying into library…")
+            reasm = stage_from_source(source, title, root)
+            jobs.update(job_id, progress=0.6, message="Importing…")
+            result = upload_finalize.finalize_reassembled(reasm, root, db)
+            if delete_original:
+                error = delete_source(source)
+                if error:
+                    result["delete_original_error"] = error
         jobs.complete(job_id, result=result, message=f"Added \"{result.get('title', 'import')}\".")
     except Exception as exc:  # noqa: BLE001 — background tasks must not propagate
         logger.exception("Background path import failed: source=%s", source)

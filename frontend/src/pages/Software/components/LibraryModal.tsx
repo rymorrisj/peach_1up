@@ -83,6 +83,7 @@ interface BrowseImportEntry {
   deleteOriginal: boolean
   status: 'staged' | 'importing' | 'success' | 'partial' | 'error'
   error?: string
+  note?: string
 }
 
 // Shape of the inline (non-background) response body from the
@@ -98,6 +99,7 @@ interface ImportFromPathResult {
   title?: string
   reused_existing_media?: boolean
   disc_count?: number
+  delete_original_note?: string
   delete_original_error?: string
 }
 
@@ -492,6 +494,10 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
         if (res.delete_original_error) {
           setBrowseImports((prev) => prev.map((e) =>
             e.id === entry.id ? { ...e, status: 'partial', error: res.delete_original_error } : e,
+          ))
+        } else if (res.delete_original_note) {
+          setBrowseImports((prev) => prev.map((e) =>
+            e.id === entry.id ? { ...e, status: 'success', note: res.delete_original_note } : e,
           ))
         } else {
           setBrowseImports((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'success' } : e)))
@@ -978,7 +984,11 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
                     />
                     <span className="shrink-0 text-xs font-medium">
                       {entry.status === 'importing' && <span className="text-neutral-400">Importing…</span>}
-                      {entry.status === 'success' && <span className="text-emerald-500">✓ Added</span>}
+                      {entry.status === 'success' && (
+                        <span className="text-emerald-500" title={entry.note}>
+                          {entry.note ? '✓ Imported in place' : '✓ Added'}
+                        </span>
+                      )}
                       {entry.status === 'partial' && (
                         <span className="text-amber-500" title={entry.error}>
                           ✓ Added, original not deleted
