@@ -159,6 +159,8 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
                 raise HTTPException(status_code=409, detail="This upload's content is already in the library.")
             if isinstance(exc, _SlugCollision):
                 raise HTTPException(status_code=409, detail=str(exc)) from exc
+            if isinstance(exc, ValueError):
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
             raise
         return JSONResponse(status_code=201, content=result)
 

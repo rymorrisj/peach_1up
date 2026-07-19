@@ -221,6 +221,8 @@ def import_from_path(
         raise HTTPException(status_code=409, detail="This item is already in the library.")
     except lib_svc._SlugCollision as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return JSONResponse(status_code=201, content=result)
 
 
