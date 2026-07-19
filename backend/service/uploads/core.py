@@ -191,16 +191,26 @@ def reassemble(upload_id: str, media_root: Path) -> ReassembledUpload:
                     detail=f"Two uploaded files are both named '{slot['name']}', rename one and retry.",
                 )
             src_dir = resolve_under(session_dir, str(file_index))
+            file_bytes = 0
             with dest_path.open("wb") as out:
                 for chunk_index in range(slot["chunks"]):
                     part = resolve_under(src_dir, f"{chunk_index}.part")
                     if not part.exists():
                         raise ValueError(f"Missing chunk {chunk_index} for file {slot['name']}.")
                     data = part.read_bytes()
+                    file_bytes += len(data)
                     total_bytes += len(data)
                     if total_bytes > DEFAULT_MAX_BYTES:
                         raise ValueError("Upload exceeds the maximum allowed size.")
                     out.write(data)
+            expected_size = int(slot["size"])
+            if file_bytes == 0 or file_bytes != expected_size:
+                raise ValueError(
+                    f"Reassembled file '{slot['name']}' is {file_bytes} bytes, expected "
+                    f"{expected_size} bytes as declared at upload start; the upload is "
+                    "incomplete or one of its chunks was empty (e.g. a cloud-storage "
+                    "placeholder with no local data)."
+                )
             written_paths.append(dest_path)
     except Exception:
         shutil.rmtree(dest_dir, ignore_errors=True)

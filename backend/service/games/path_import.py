@@ -79,14 +79,22 @@ def stage_from_source(source: Path, title: str, media_root: Path) -> cu.Reassemb
 
     try:
         if kind == "file":
+            source_bytes = source.stat().st_size
             dest_dir.mkdir(parents=True, exist_ok=False)
             dest_path = resolve_under(dest_dir, sanitize_filename(source.name))
             shutil.copy2(str(source), str(dest_path))
             paths = [dest_path]
         else:
+            source_bytes = source_size(source)
             shutil.copytree(str(source), str(dest_dir), symlinks=True)
             paths = [p for p in dest_dir.rglob("*") if p.is_file() and not p.is_symlink()]
         total_bytes = sum(p.stat().st_size for p in paths)
+        if total_bytes == 0 or total_bytes != source_bytes:
+            raise ValueError(
+                f"Copied '{source.name}' is {total_bytes} bytes, expected {source_bytes} "
+                "bytes from the source at copy time; the source may be empty (e.g. an "
+                "unsynced cloud-storage placeholder) or the copy did not complete."
+            )
     except Exception:
         shutil.rmtree(dest_dir, ignore_errors=True)
         raise

@@ -172,7 +172,12 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
           year: f.year ? parseInt(f.year, 10) : null,
           category: f.category.trim() || null,
           content_rating: f.content_rating || null,
-          era: f.era || null,
+          // era has a NOT NULL column on the backend. When unset in the form,
+          // omit the key entirely (undefined is dropped by JSON.stringify)
+          // instead of sending null, so the backend's exclude_unset=True
+          // leaves the existing DB value untouched rather than trying to
+          // null out a NOT NULL column.
+          era: f.era || undefined,
           environment_item_id : f.environment_item_id  ? parseInt(f.environment_item_id , 10) : null,
           profile_item_id: f.profile_item_id ? parseInt(f.profile_item_id, 10) : null,
           launch_commands: resolveLaunchCommands(launchCommands, collection?.launch_commands),

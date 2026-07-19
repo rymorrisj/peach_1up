@@ -1096,6 +1096,13 @@ def update_library_collection(
         raise HTTPException(status_code=404, detail="Software collection not found.")
 
     fields = body.model_dump(exclude_unset=True)
+    if "era" in fields and fields["era"] is None:
+        # era is a NOT NULL column (see GameItemBundle.era in backend/models/game.py).
+        # A caller that explicitly sends era: null would otherwise reach the
+        # setattr/commit below and fail as a raw NOT NULL constraint violation.
+        # Reject it cleanly here instead, this is defense-in-depth against any
+        # caller, the frontend form now omits the key entirely when era is unset.
+        raise HTTPException(status_code=422, detail="era cannot be null. Omit the field to leave it unchanged.")
     for disk_field in ("display_disk_id", "launch_disk_id"):
         if fields.get(disk_field) is not None:
             leaf_ids = set(
