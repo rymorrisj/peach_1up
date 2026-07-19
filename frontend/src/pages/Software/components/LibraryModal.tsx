@@ -63,6 +63,10 @@ interface UploadEntry {
   progress: number
   status: 'uploading' | 'success' | 'reused' | 'error'
   error?: string
+  // Set only when the finalize step went to a background job (202 response).
+  // While set, the entry's live progress/message are read from
+  // state.backgroundJobs instead of the static "success" label below.
+  jobId?: string
 }
 
 interface StagedDisc {
@@ -81,9 +85,13 @@ interface BrowseImportEntry {
   name: string
   isDir: boolean
   deleteOriginal: boolean
-  status: 'staged' | 'importing' | 'success' | 'partial' | 'error'
+  status: 'staged' | 'importing' | 'processing' | 'success' | 'partial' | 'error'
   error?: string
   note?: string
+  // Set only when the import went to a background job (job_id in the inline
+  // response). While set and the job isn't done yet, status stays 'processing'
+  // and live progress/message are read from state.backgroundJobs.
+  jobId?: string
 }
 
 // Shape of the inline (non-background) response body from the
@@ -165,7 +173,7 @@ interface LibraryModalProps {
 }
 
 function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryModalProps) {
-  const { dispatch } = useAppContext()
+  const { state, dispatch } = useAppContext()
   const [entries, setEntries] = useState<UploadEntry[]>([])
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -186,6 +194,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
   const [setError, setSetError] = useState<string | null>(null)
   const [setProgress, setSetProgress] = useState(0)
   const [setBackground, setSetBackground] = useState(false)
+  const [setJobId, setSetJobId] = useState<string | null>(null)
 
   // Folder upload state
   const [folderMode, setFolderMode] = useState(false)
@@ -195,8 +204,11 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
   const [folderError, setFolderError] = useState<string | null>(null)
   const [folderProgress, setFolderProgress] = useState(0)
   const [folderBackground, setFolderBackground] = useState(false)
+  const [folderJobId, setFolderJobId] = useState<string | null>(null)
   const [folderResult, setFolderResult] = useState<{ type: 'item' | 'set'; title: string; discCount?: number } | null>(null)
   const folderAbortRef = useRef<(() => void) | null>(null)
+  const setAbortRef = useRef<(() => void) | null>(null)
+  const entryAbortsRef = useRef<Map<string, () => void>>(new Map())
 
   // Server-side-path import state, a second, independent source mechanism
   // alongside drag-and-drop/file-input above. Sourced via FileBrowser (real,
@@ -238,6 +250,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
       setSetError(null)
       setSetProgress(0)
       setSetBackground(false)
+      setSetJobId(null)
       setMultiDisc(false)
       setFolderFiles([])
       setFolderTitle('')
@@ -245,6 +258,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
       setFolderError(null)
       setFolderProgress(0)
       setFolderBackground(false)
+      setFolderJobId(null)
       setFolderResult(null)
       setFolderMode(false)
       setBrowseImports([])
@@ -265,19 +279,21 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
 
   function startUpload(entry: UploadEntry) {
     const title = entry.file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim()
-    const { promise } = chunkedUpload('file', title, [entry.file], (pct) => {
+    const { promise, abort } = chunkedUpload('file', title, [entry.file], (pct) => {
       setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, progress: pct } : e)))
     }, config.uploadDomain)
+    entryAbortsRef.current.set(entry.id, abort)
     promise
       .then(async (res) => {
         // Over the server threshold: finalize runs as a background job surfaced
         // in the nav bell. The item appears in the grid once that job finishes.
         if (res.status === 202 && res.body.job_id) {
+          const jobId = res.body.job_id
           dispatch({
             type: 'UPSERT_JOB',
-            payload: { id: res.body.job_id, kind: 'upload', status: 'processing', progress: 0, message: `Finalizing "${title}"…` },
+            payload: { id: jobId, kind: 'upload', status: 'processing', progress: 0, message: `Finalizing "${title}"…` },
           })
-          setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'success', progress: 100 } : e)))
+          setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'success', progress: 100, jobId } : e)))
           return
         }
         if (config.createFromUpload) {
@@ -298,6 +314,9 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
         setEntries((prev) =>
           prev.map((e) => (e.id === entry.id ? { ...e, status: 'error', error: err.message } : e)),
         )
+      })
+      .finally(() => {
+        entryAbortsRef.current.delete(entry.id)
       })
   }
 
@@ -363,8 +382,10 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
     setSetError(null)
     setSetProgress(0)
     setSetBackground(false)
+    setSetJobId(null)
 
-    const { promise } = chunkedUpload('set', title, stagedDiscs.map((d) => d.file), setSetProgress, config.uploadDomain)
+    const { promise, abort } = chunkedUpload('set', title, stagedDiscs.map((d) => d.file), setSetProgress, config.uploadDomain)
+    setAbortRef.current = abort
     try {
       const res = await promise
       if (res.status === 202 && res.body.job_id) {
@@ -373,6 +394,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
           payload: { id: res.body.job_id, kind: 'upload', status: 'processing', progress: 0, message: `Finalizing "${title}"…` },
         })
         setSetBackground(true)
+        setSetJobId(res.body.job_id)
         setSetStatus('success')
         return
       }
@@ -381,6 +403,8 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
     } catch (err) {
       setSetStatus('error')
       setSetError(err instanceof Error ? err.message : 'Upload failed.')
+    } finally {
+      setAbortRef.current = null
     }
   }
 
@@ -392,6 +416,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
     setFolderError(null)
     setFolderProgress(0)
     setFolderBackground(false)
+    setFolderJobId(null)
 
     const { promise, abort } = chunkedUpload('folder', title, folderFiles, setFolderProgress, config.uploadDomain)
     folderAbortRef.current = abort
@@ -403,6 +428,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
           payload: { id: res.body.job_id, kind: 'upload', status: 'processing', progress: 0, message: `Finalizing "${title}"…` },
         })
         setFolderBackground(true)
+        setFolderJobId(res.body.job_id)
         setFolderResult({ type: 'item', title })
         setFolderStatus('success')
         return
@@ -485,16 +511,24 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
           body: JSON.stringify({ source_path: entry.path, title, delete_original: entry.deleteOriginal }),
         })
         if (res.job_id) {
+          const jobId = res.job_id
           dispatch({
             type: 'UPSERT_JOB',
-            payload: { id: res.job_id, kind: 'upload', status: 'processing', progress: 0, message: `Importing "${title}"…` },
+            payload: { id: jobId, kind: 'upload', status: 'processing', progress: 0, message: `Importing "${title}"…` },
           })
+          // Background path: the import isn't actually finished yet, so don't
+          // mark this entry successful or invalidate the cache. Instead track
+          // the job's live progress (rendered below from state.backgroundJobs)
+          // until it reaches a terminal state; the shared 'upload-complete'
+          // window event (fired from AppContext once the job is 'done', which
+          // also surfaces any delete_original_error via a toast) handles cache
+          // invalidation and error reporting for this entry from here on.
+          setBrowseImports((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'processing', jobId } : e)))
+          continue
         }
         // The import itself always succeeded by this point, delete_original_error
-        // (inline path only; res.job_id means this went to the background path
-        // instead, surfaced separately via the job consumer in AppContext) means
-        // only the post-import source cleanup failed. Distinct from 'error':
-        // this is a partial success, not an import failure.
+        // means only the post-import source cleanup failed. Distinct from
+        // 'error': this is a partial success, not an import failure.
         if (res.delete_original_error) {
           setBrowseImports((prev) => prev.map((e) =>
             e.id === entry.id ? { ...e, status: 'partial', error: res.delete_original_error } : e,
@@ -531,8 +565,13 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
           <div className="flex items-center gap-3">
             <Button
               variant="secondary"
-              onClick={onClose}
-              disabled={busy}
+              onClick={() => {
+                if (setStatus === 'uploading') {
+                  setAbortRef.current?.()
+                } else {
+                  onClose()
+                }
+              }}
             >
               Cancel
             </Button>
@@ -568,9 +607,21 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
                 : 'Upload Folder'}
             </Button>
           </div>
+        ) : entries.some((e) => e.status === 'uploading') ? (
+          <div className="flex items-center gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                entryAbortsRef.current.forEach((abort) => abort())
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={onClose}>Upload in progress…</Button>
+          </div>
         ) : (
           <Button onClick={onClose}>
-            {busy ? 'Upload in progress…' : 'Done'}
+            Done
           </Button>
         )
       }
@@ -590,6 +641,8 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
                 setFolderNameTouched(false)
                 setSetStatus('idle')
                 setSetError(null)
+                setSetBackground(false)
+                setSetJobId(null)
               }}
               label="Multi-disc set"
             />
@@ -605,6 +658,8 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
                 setFolderStatus('idle')
                 setFolderError(null)
                 setFolderResult(null)
+                setFolderBackground(false)
+                setFolderJobId(null)
               }}
               label="Folder upload"
             />
@@ -775,13 +830,34 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
               </div>
             </div>
           )}
-          {setStatus === 'success' && (
-            <p className="mt-3 text-sm text-emerald-400">
-              {setBackground
-                ? 'Upload complete, the set is being finalized in the background. Track it in the Activity panel.'
-                : 'Set created successfully.'}
-            </p>
+          {setStatus === 'success' && !setBackground && (
+            <p className="mt-3 text-sm text-emerald-400">Set created successfully.</p>
           )}
+          {setStatus === 'success' && setBackground && (() => {
+            const setJob = setJobId ? state.backgroundJobs.find((j) => j.id === setJobId) : undefined
+            if (setJob?.status === 'error') {
+              return (
+                <p className="mt-3 text-sm text-red-400">
+                  Finalizing failed: {setJob.error ?? 'Unknown error.'}
+                </p>
+              )
+            }
+            if (setJob && setJob.status !== 'done') {
+              const pct = Math.round((setJob.progress ?? 0) * 100)
+              return (
+                <div className="mt-3">
+                  <p className="text-sm text-neutral-400">{setJob.message}</p>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                    <div
+                      className="h-full rounded-full bg-accent transition-all duration-300"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            }
+            return <p className="mt-3 text-sm text-emerald-400">Set created successfully.</p>
+          })()}
           {setStatus === 'error' && setError && (
             <p role="alert" className="mt-3 text-sm text-red-400">{setError}</p>
           )}
@@ -846,15 +922,38 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
               </div>
             </div>
           )}
-          {folderStatus === 'success' && folderResult && (
+          {folderStatus === 'success' && folderResult && !folderBackground && (
             <p className="text-sm text-emerald-400">
-              {folderBackground
-                ? `Upload complete, "${folderResult.title}" is being finalized in the background. Track it in the Activity panel.`
-                : folderResult.type === 'set'
+              {folderResult.type === 'set'
                 ? `Added "${folderResult.title}" as a ${folderResult.discCount}-disc set.`
                 : `Added "${folderResult.title}" as a library item.`}
             </p>
           )}
+          {folderStatus === 'success' && folderResult && folderBackground && (() => {
+            const folderJob = folderJobId ? state.backgroundJobs.find((j) => j.id === folderJobId) : undefined
+            if (folderJob?.status === 'error') {
+              return (
+                <p className="text-sm text-red-400">
+                  Finalizing "{folderResult.title}" failed: {folderJob.error ?? 'Unknown error.'}
+                </p>
+              )
+            }
+            if (folderJob && folderJob.status !== 'done') {
+              const pct = Math.round((folderJob.progress ?? 0) * 100)
+              return (
+                <div>
+                  <p className="text-sm text-neutral-400">{folderJob.message}</p>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                    <div
+                      className="h-full rounded-full bg-accent transition-all duration-300"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            }
+            return <p className="text-sm text-emerald-400">Added "{folderResult.title}" as a library item.</p>
+          })()}
           {folderStatus === 'error' && folderError && (
             <p role="alert" className="text-sm text-red-400">{folderError}</p>
           )}
@@ -901,32 +1000,54 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
           {/* Single-upload progress list */}
           {entries.length > 0 && (
             <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto">
-              {entries.map((entry) => (
-                <li key={entry.id} className="rounded-md border border-neutral-200 dark:border-neutral-700 px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm text-neutral-800 dark:text-neutral-200">
-                      {entry.file.name}
-                    </span>
-                    <span className="shrink-0 text-xs font-medium">
-                      {entry.status === 'uploading' && <span className="text-neutral-400">{entry.progress}%</span>}
-                      {entry.status === 'success' && <span className="text-emerald-500">✓ Added</span>}
-                      {entry.status === 'reused' && <span className="text-emerald-500">✓ Reused existing file</span>}
-                      {entry.status === 'error' && <span className="text-red-500">Failed</span>}
-                    </span>
-                  </div>
-                  {entry.status === 'uploading' && (
-                    <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
-                      <div
-                        className="h-full rounded-full bg-accent transition-all duration-100"
-                        style={{ width: `${entry.progress}%` }}
-                      />
+              {entries.map((entry) => {
+                const liveJob = entry.jobId ? state.backgroundJobs.find((j) => j.id === entry.jobId) : undefined
+                const finalizing = entry.status === 'success' && liveJob && liveJob.status !== 'done'
+                const finalizeFailed = entry.status === 'success' && liveJob?.status === 'error'
+                const finalizePct = liveJob ? Math.round((liveJob.progress ?? 0) * 100) : 0
+                return (
+                  <li key={entry.id} className="rounded-md border border-neutral-200 dark:border-neutral-700 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 flex-1 truncate text-sm text-neutral-800 dark:text-neutral-200">
+                        {entry.file.name}
+                      </span>
+                      <span className="shrink-0 text-xs font-medium">
+                        {entry.status === 'uploading' && <span className="text-neutral-400">{entry.progress}%</span>}
+                        {finalizeFailed && (
+                          <span className="text-red-500" title={liveJob?.error ?? undefined}>Finalize failed</span>
+                        )}
+                        {!finalizeFailed && finalizing && (
+                          <span className="text-neutral-400">{liveJob?.message ?? 'Finalizing…'}</span>
+                        )}
+                        {!finalizeFailed && !finalizing && entry.status === 'success' && (
+                          <span className="text-emerald-500">✓ Added</span>
+                        )}
+                        {entry.status === 'reused' && <span className="text-emerald-500">✓ Reused existing file</span>}
+                        {entry.status === 'error' && <span className="text-red-500">Failed</span>}
+                      </span>
                     </div>
-                  )}
-                  {entry.status === 'error' && entry.error && (
-                    <p role="alert" className="mt-1 text-xs text-red-500">{entry.error}</p>
-                  )}
-                </li>
-              ))}
+                    {entry.status === 'uploading' && (
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                        <div
+                          className="h-full rounded-full bg-accent transition-all duration-100"
+                          style={{ width: `${entry.progress}%` }}
+                        />
+                      </div>
+                    )}
+                    {finalizing && !finalizeFailed && (
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                        <div
+                          className="h-full rounded-full bg-accent transition-all duration-300"
+                          style={{ width: `${finalizePct}%` }}
+                        />
+                      </div>
+                    )}
+                    {entry.status === 'error' && entry.error && (
+                      <p role="alert" className="mt-1 text-xs text-red-500">{entry.error}</p>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </>
@@ -977,7 +1098,9 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
                 )}
               </div>
               <ul className="max-h-48 space-y-1.5 overflow-y-auto">
-                {browseImports.map((entry) => (
+                {browseImports.map((entry) => {
+                  const liveJob = entry.jobId ? state.backgroundJobs.find((j) => j.id === entry.jobId) : undefined
+                  return (
                   <li
                     key={entry.id}
                     className="flex items-center gap-2 rounded-md border border-neutral-200 dark:border-neutral-700 px-3 py-2"
@@ -997,6 +1120,15 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
                     />
                     <span className="shrink-0 text-xs font-medium">
                       {entry.status === 'importing' && <span className="text-neutral-400">Importing…</span>}
+                      {entry.status === 'processing' && liveJob?.status === 'error' && (
+                        <span className="text-red-500" title={liveJob.error ?? undefined}>Failed</span>
+                      )}
+                      {entry.status === 'processing' && liveJob?.status !== 'error' && (
+                        <span className="text-neutral-400">
+                          {liveJob?.message ?? 'Finalizing…'}
+                          {liveJob ? ` (${Math.round((liveJob.progress ?? 0) * 100)}%)` : ''}
+                        </span>
+                      )}
                       {entry.status === 'success' && (
                         <span className="text-emerald-500" title={entry.note}>
                           {entry.note ? '✓ Imported in place' : '✓ Added'}
@@ -1020,7 +1152,8 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
                       </button>
                     )}
                   </li>
-                ))}
+                  )
+                })}
               </ul>
               {stagedBrowseEntries.length > 0 && (
                 <Button
@@ -1080,7 +1213,7 @@ function UploadBody({ open, onClose, onComplete, mediaPath, config }: LibraryMod
 function ScanBody({ open, onClose, onComplete, mediaPath, config }: LibraryModalProps) {
   const {
     scanning, status, error, handleScan, handleCancelScan, cancelling,
-    importing, importResult, handleImport,
+    importing, importResult, handleImport, scanProgress, scanMessage,
   } = useLibraryScan({ open, onImported: onComplete })
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
@@ -1164,9 +1297,19 @@ function ScanBody({ open, onClose, onComplete, mediaPath, config }: LibraryModal
       )}
 
       {scanning && (
-        <div className="flex items-center gap-2 text-sm text-neutral-500">
-          <LoadingSpinner label="Scanning…" />
-          <span>Scanning…</span>
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-sm text-neutral-500">
+            <LoadingSpinner label="Scanning…" />
+            <span>{scanMessage ?? 'Scanning…'}</span>
+          </div>
+          {scanProgress > 0 && (
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+              <div
+                className="h-full rounded-full bg-accent transition-all duration-300"
+                style={{ width: `${scanProgress}%` }}
+              />
+            </div>
+          )}
         </div>
       )}
 

@@ -28,6 +28,7 @@ from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
 
+from backend.core import jobs
 from backend.core.logger import get_logger
 from backend.service.utils.path_utils import resolve_under, sanitize_filename, sanitize_relative_path
 from backend.service.utils.slug_generator import unique_slug
@@ -41,6 +42,16 @@ logger = get_logger(__name__)
 
 _lock = threading.Lock()
 _sessions: dict[str, dict] = {}
+
+# Time-based throttle for reassemble()'s progress reporting, a simple local
+# last-update timestamp rather than reading the job's own updated_at back from
+# core.jobs (avoids a second lock round-trip per chunk just to throttle).
+# Chosen over a fixed chunk-count stride because the nested files x chunks
+# loop shape means a stride like "every 10 chunks" would fire far too often
+# for many small files and not often enough for few huge ones; wall-clock
+# time is shape-agnostic. 1s comfortably beats the frontend's 1500ms poll
+# interval without adding meaningful lock contention.
+_PROGRESS_INTERVAL_SECONDS = 1.0
 
 
 @dataclass
@@ -167,11 +178,19 @@ def total_size(upload_id: str) -> int:
         return sum(int(s["size"]) for s in session["files"])
 
 
-def reassemble(upload_id: str, media_root: Path) -> ReassembledUpload:
+def reassemble(upload_id: str, media_root: Path, job_id: str | None = None) -> ReassembledUpload:
     """Concatenate every file's chunks in order into a permanent slug dir under
     *media_root* (the caller's resolved domain root), then drop the staging
     dir and session. On any failure the partial destination and the staging
     dir are both removed before re-raising.
+
+    If *job_id* is given, periodically reports progress into core.jobs as
+    bytes are written (throttled by elapsed time, see _PROGRESS_INTERVAL_SECONDS
+    below), against the client-declared total from the manifest (same value
+    total_size() returns). Declared size is untrusted client input, if it is
+    0 (e.g. a malformed manifest), progress reporting is skipped entirely
+    rather than dividing by zero; the caller still gets a normal complete/fail
+    at the end regardless.
     """
     with _lock:
         session = _sessions.get(upload_id)
@@ -187,6 +206,13 @@ def reassemble(upload_id: str, media_root: Path) -> ReassembledUpload:
     media_root.mkdir(parents=True, exist_ok=True)
     dest_dir = resolve_under(media_root, slug)
     dest_dir.mkdir(parents=True, exist_ok=False)
+
+    # Declared size drives progress percentage, same source of truth total_size()
+    # uses. It's client-declared (untrusted) input, checked against actual
+    # reassembled bytes per-file below, but 0 or bogus just means progress
+    # reporting is skipped, it never affects correctness of the reassembly itself.
+    declared_total_size = sum(int(s["size"]) for s in files)
+    last_progress_at = time.time()
 
     written_paths: list[Path] = []
     total_bytes = 0
@@ -213,6 +239,15 @@ def reassemble(upload_id: str, media_root: Path) -> ReassembledUpload:
                     if total_bytes > DEFAULT_MAX_BYTES:
                         raise ValueError("Upload exceeds the maximum allowed size.")
                     out.write(data)
+                    if job_id is not None and declared_total_size > 0:
+                        now = time.time()
+                        if now - last_progress_at >= _PROGRESS_INTERVAL_SECONDS:
+                            last_progress_at = now
+                            jobs.update(
+                                job_id,
+                                progress=total_bytes / declared_total_size,
+                                message="Reassembling upload…",
+                            )
             expected_size = int(slot["size"])
             if file_bytes == 0 or file_bytes != expected_size:
                 raise ValueError(

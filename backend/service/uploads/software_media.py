@@ -60,8 +60,8 @@ def finalize_background(upload_id: str, media_root: str, job_id: str) -> None:
     still reports progress into core.jobs like every other domain so the nav
     bell behaves identically regardless of which domain a large upload belongs to."""
     try:
-        jobs.update(job_id, progress=0.1, message="Reassembling upload…")
-        reasm = cu.reassemble(upload_id, Path(media_root))
+        jobs.update(job_id, progress=0.0, message="Reassembling upload…")
+        reasm = cu.reassemble(upload_id, Path(media_root), job_id=job_id)
         result = _result(reasm)
         jobs.complete(job_id, result=result, message=f"Staged \"{result.get('title', 'upload')}\".")
     except Exception as exc:  # noqa: BLE001, background tasks must not propagate

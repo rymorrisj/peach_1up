@@ -106,8 +106,8 @@ def finalize_background(upload_id: str, media_root: str, job_id: str) -> None:
 
     db = Session(get_engine())
     try:
-        jobs.update(job_id, progress=0.1, message="Reassembling upload…")
-        reasm = cu.reassemble(upload_id, Path(media_root))
+        jobs.update(job_id, progress=0.0, message="Reassembling upload…")
+        reasm = cu.reassemble(upload_id, Path(media_root), job_id=job_id)
         result = finalize_reassembled(reasm, Path(media_root), db)
         jobs.complete(job_id, result=result, message=f"Added \"{result.get('title', 'upload')}\".")
     except Exception as exc:  # noqa: BLE001, background tasks must not propagate

@@ -47,10 +47,6 @@ function setApiRoutes(overrides: Record<string, ApiHandler> = {}) {
   }
 }
 
-const RUNNING_STATUS = { running: true, error: null }
-
-const DONE_STATUS = { running: false, error: null }
-
 const DONE_JOB = {
   id: 'job-1',
   kind: 'scan',
@@ -95,15 +91,18 @@ describe('useLibraryScan', () => {
   it('polling stops and preview is populated when scan finishes', async () => {
     vi.useFakeTimers()
 
-    // Sequenced /scan/status: running -> done. Mount hydration reads
-    // /api/v1/jobs instead (idle no-op via the default route below); once
-    // /scan/status reports done, the hook fetches the job result for the
-    // preview it now carries instead of the removed status-endpoint cache.
-    const statusSeq = [RUNNING_STATUS, DONE_STATUS]
+    // The hook no longer polls /scan/status or fetches /api/v1/jobs/{id}.
+    // Completion now flows entirely through AppContext's own 1500ms poll of
+    // the list endpoint GET /api/v1/jobs, which only starts once handleScan's
+    // onSuccess registers job-1 in state.backgroundJobs via UPSERT_JOB (status
+    // 'processing'). The hook's own mount-time hydration read (the `open`
+    // effect) also hits this same URL, before the scan is even triggered, so
+    // the queue below serves that call an empty list first and only reports
+    // the finished job on the poll tick that follows registration.
+    const jobsSeq: unknown[] = [[], [DONE_JOB]]
     setApiRoutes({
       '/api/v1/game-items/scan': () => ({ started: true, directory: '/lib', job_id: 'job-1' }),
-      '/api/v1/game-items/scan/status': () => statusSeq.shift() ?? DONE_STATUS,
-      '/api/v1/jobs/job-1': () => DONE_JOB,
+      '/api/v1/jobs': () => jobsSeq.shift() ?? [DONE_JOB],
     })
 
     const onImported = vi.fn()
@@ -112,14 +111,17 @@ describe('useLibraryScan', () => {
       { wrapper: createWrapper() },
     )
 
-    // Flush mutation onSuccess — two act rounds drain TanStack's scheduler
+    // Flush mutation onSuccess — two act rounds drain TanStack's scheduler.
+    // This also registers job-1 in state.backgroundJobs, which is what starts
+    // AppContext's poll effect (it only runs while an active job exists).
     await act(async () => { result.current.handleScan() })
     await act(async () => {})
 
-    // First poll tick — still running
-    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
-    // Second poll tick — done
-    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(result.current.scanning).toBe(true)
+
+    // AppContext's poll tick (1500ms) fetches the job list again and reports
+    // job-1 as done with its preview result.
+    await act(async () => { await vi.advanceTimersByTimeAsync(1500) })
 
     expect(result.current.scanning).toBe(false)
     expect(result.current.status?.preview).toHaveLength(1)
