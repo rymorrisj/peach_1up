@@ -54,13 +54,20 @@ def create_media_item(
     # flush for its id, then the item referencing it. Without this the item
     # is never reachable from the library list, which only ever queries
     # GET /api/v1/media-item-bundles, not /media-items directly.
+    # Reserve the item's own slug against the title first. The implicit
+    # bundle below shares the same title but is a technical pairing, not a
+    # second title claim, so it must not consume a slot in the item's
+    # title/title-2/title-3 sequence — that sequence belongs to genuine
+    # cross-table title collisions between distinct items/bundles.
+    item_slug = unique_media_slug(body.title, db)
+
     bundle_id = body.media_item_bundle_id
     if bundle_id is None:
         bundle = MediaItemBundle(
             title=body.title,
             media_kind=body.media_kind,
             cover_art_path=body.cover_art_path,
-            slug=unique_media_slug(body.title, db),
+            slug=unique_media_slug(f"{body.title} Collection", db),
         )
         db.add(bundle)
         db.flush()
@@ -69,7 +76,7 @@ def create_media_item(
     item = MediaItem(
         **body.model_dump(exclude={"media_item_bundle_id"}),
         media_item_bundle_id=bundle_id,
-        slug=unique_media_slug(body.title, db),
+        slug=item_slug,
     )
     db.add(item)
     db.commit()

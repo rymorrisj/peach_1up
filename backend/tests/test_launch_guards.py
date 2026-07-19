@@ -38,6 +38,25 @@ def mem_session():
         yield session
 
 
+class _FakeSettings:
+    """Same fake-settings convention as test_game_items.py — get_settings()
+    is a process-wide singleton gated by init_settings(), so unit tests patch
+    it directly rather than depending on some other test file having already
+    triggered the real init via a TestClient lifespan startup."""
+
+    def get(self, key, default=None):
+        return default
+
+    def get_env_var(self, key):
+        return ""
+
+
+@pytest.fixture(autouse=True)
+def _patch_settings(monkeypatch):
+    import backend.core.settings as settings_mod
+    monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings())
+
+
 @pytest.fixture(autouse=True)
 def _clean_registry():
     """process_registry is a process-wide singleton; clear it around every test

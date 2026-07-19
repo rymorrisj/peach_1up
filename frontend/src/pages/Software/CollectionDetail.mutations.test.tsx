@@ -110,6 +110,7 @@ function setupApi(user: unknown, handlers: Handler[] = []): RecordedCall[] {
     { match: '/api/v1/tags', respond: () => [] },
     { match: /^\/api\/v1\/restrictions\//, respond: () => ({ restricted_user_item_ids: [] }) },
     { match: /\/launches$/, respond: () => [] },
+    { match: '/api/v1/filesystem/launch-file-extensions', respond: () => ({ extensions: [] }) },
   ]
 
   const calls: RecordedCall[] = []
