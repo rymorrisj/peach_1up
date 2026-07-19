@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from backend.service.games import items as lib_svc
 from backend.service.games.items import _ItemAlreadyExists
+from backend.service.utils.file_types import all_supported_extensions
 
 # Priority order matches _EXECUTABLE_PRIORITY in profile_builder.py: .gdi > .cue > .chd.
 # Shared by detect_disc_files and select_disc_pointer_files so folder uploads and
@@ -76,16 +77,22 @@ def select_disc_pointer_files(files: list[Path]) -> list[Path]:
 
 
 def pick_folder_launch_file(files: list[Path]) -> Path:
-    """Confirm at least one recognizable launch file exists; raise 422 otherwise."""
-    for ext in (".gdi", ".cue", ".iso", ".chd", ".xiso", ".zip", ".exe"):
-        hit = next((f for f in files if f.suffix.lower() == ext), None)
-        if hit:
-            return hit
+    """Confirm at least one recognizable launch file exists; raise 422 otherwise.
+
+    This is a pre-flight validation gate only, the specific file it returns is
+    not used for launch-file selection (see _EXECUTABLE_PRIORITY in
+    profile_builder.py for the order-sensitive picker), so a plain membership
+    check against the full supported-extension set is sufficient here.
+    """
+    supported = all_supported_extensions()
+    hit = next((f for f in files if f.suffix.lower() in supported), None)
+    if hit:
+        return hit
     raise HTTPException(
         status_code=422,
         detail=(
             "No recognizable launch file found in the uploaded folder. "
-            "Expected: .gdi, .cue, .iso, .chd, .xiso, .zip, or .exe."
+            f"Expected one of: {', '.join(sorted(supported))}."
         ),
     )
 

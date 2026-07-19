@@ -4,8 +4,9 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.core.dependencies import require_game_or_environment_editor
-from backend.models.filesystem import BrowseResult, DrivesResult
+from backend.models.filesystem import BrowseResult, DrivesResult, SupportedExtensionsResult
 from backend.models.user import UserItem
+from backend.service.utils.file_types import all_supported_extensions
 from backend.service.utils.path_utils import allowed_browse_roots, is_within_roots
 
 router = APIRouter(prefix="/api/v1/filesystem", tags=["filesystem"])
@@ -36,6 +37,15 @@ def list_drives(_: UserItem = Depends(require_game_or_environment_editor)):
         except Exception:
             pass
     return {"drives": drives}
+
+
+@router.get("/launch-file-extensions", response_model=SupportedExtensionsResult)
+def launch_file_extensions(_: UserItem = Depends(require_game_or_environment_editor)):
+    """Return every launchable media extension (dot-stripped) across all eras in
+    eras.yaml, the same source of truth used server-side to validate uploaded
+    and scanned launch files, so browse-dialog filtering never drifts from it.
+    """
+    return {"extensions": sorted(ext.lstrip(".") for ext in all_supported_extensions())}
 
 
 @router.get("/browse", response_model=BrowseResult)

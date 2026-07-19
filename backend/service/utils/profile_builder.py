@@ -17,7 +17,29 @@ from backend.service.utils.upload_utils import TMP_CHUNKS_DIRNAME
 _COVER_STEMS: frozenset[str] = frozenset({"cover"})
 _COVER_EXTENSIONS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 
-_EXECUTABLE_PRIORITY: list[str] = [".gdi", ".cue", ".iso", ".chd", ".xiso", ".zip", ".exe"]
+# Extensions with deliberate precedence: disc-pointer formats before raw
+# images, install-package formats (.pkg, .xex) before the generic .exe, since
+# a pointer/disc image is a more specific "this is the launch file" signal
+# than a bare executable sitting alongside it.
+_EXECUTABLE_PRIORITY_ORDER: tuple[str, ...] = (
+    ".gdi", ".cue", ".iso", ".chd", ".xiso", ".pkg", ".xex", ".zip", ".exe",
+)
+
+
+def _executable_priority() -> list[str]:
+    """Launch-file priority order for a folder scan.
+
+    Extensions in ``_EXECUTABLE_PRIORITY_ORDER`` are checked first, in that
+    order. Any other extension present in ``all_supported_extensions()`` (e.g.
+    a new era added to eras.yaml without a corresponding edit here) is
+    appended afterward, sorted for determinism, so it is still recognized as a
+    launch file, just at lowest priority until it earns an explicit position.
+    """
+    rest = sorted(all_supported_extensions() - set(_EXECUTABLE_PRIORITY_ORDER))
+    return list(_EXECUTABLE_PRIORITY_ORDER) + rest
+
+
+_EXECUTABLE_PRIORITY: list[str] = _executable_priority()
 
 
 @dataclass
@@ -58,7 +80,8 @@ def scan_media_folders(base: Path) -> list[FolderScanEntry]:
     the chunked-upload staging directory (``TMP_CHUNKS_DIRNAME``), which is never
     a library item and is always excluded. The best-guess launchable file is
     chosen from the folder's direct contents using the priority order defined in
-    ``_EXECUTABLE_PRIORITY`` (.cue > .iso > .chd > .xiso > .exe). The file matching
+    ``_EXECUTABLE_PRIORITY`` (see ``_EXECUTABLE_PRIORITY_ORDER``, with any other
+    supported extension appended afterward). The file matching
     ``{folder_name}.img`` is always excluded — it is a drive image, not launchable
     media. Subdirectories that raise ``OSError`` or ``PermissionError`` are
     skipped silently.

@@ -1,6 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
 import { Button, Card, FormField, Input, Textarea, Select } from '@/ui'
 import PathInput from '@/components/common/PathInput'
 import FileBrowser from '@/components/common/FileBrowser'
+import { apiFetch } from '@/api/client'
 import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
 import { ERA_TO_EMULATOR, isPcEra } from '@/pages/Environments/EnvironmentModal'
 import { PlatformField } from './PlatformField'
@@ -46,6 +48,11 @@ export function EditForm({
   profiles,
   platforms,
 }: EditFormProps) {
+  const { data: launchFileExtensions } = useQuery({
+    queryKey: ['filesystem', 'launch-file-extensions'],
+    queryFn: () => apiFetch<{ extensions: string[] }>('/api/v1/filesystem/launch-file-extensions'),
+    staleTime: 5 * 60_000,
+  })
   const ROM_ERAS = new Set(['nes', 'n64', 'ps1', 'ps2', 'xbox', 'dreamcast'])
   const isRomEra = ROM_ERAS.has(item.era)
   const showLaunchFile = item.file_path !== undefined || item.folder_path !== undefined
@@ -188,7 +195,7 @@ export function EditForm({
           onClose={() => setExecBrowserOpen(false)}
           onSelect={(path) => { setField('executable_path', path); setExecBrowserOpen(false) }}
           mode="file"
-          extensions="cue,iso,chd,xiso,exe"
+          extensions={launchFileExtensions?.extensions.join(',')}
           title="Select Launch File"
           rootPath={item.folder_path ?? null}
         />

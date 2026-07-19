@@ -29,3 +29,7 @@ class BrowseResult(SQLModel):
     parent_path: Optional[str] = None
     dirs: list[DirEntry]
     files: list[FileEntry]
+
+
+class SupportedExtensionsResult(SQLModel):
+    extensions: list[str]
