@@ -8,13 +8,21 @@ transport in service.uploads.core, the browser-upload path is used when the
 source lives on the user's machine; this one is used when it already lives on
 the server's filesystem, so no chunked transfer is needed.
 
-stage_from_source always copies (never moves) the source into a fresh
-directory under SOFTWARE_PATH, so the source is untouched until ingest has fully
-succeeded. Only then, if the caller opted in, is the original deleted — never
-before a confirmed successful write into the library. stage_from_source builds
-the same ReassembledUpload shape service.uploads.core produces from staged
-chunks, so software_games.finalize_reassembled (dedup, multi-disc detection,
-cleanup-on-failure) is reused unmodified.
+stage_from_source stages the source into a fresh directory under
+SOFTWARE_PATH. When delete_original is False it copies, so the source is
+left untouched. When delete_original is True it first attempts an atomic
+os.rename, which only succeeds when source and destination share a
+filesystem/drive, no partial state is possible so nothing needs verifying
+afterward. When source and destination are on different filesystems/drives
+(rename fails with "not same device"), it falls back to the same copy the
+delete_original=False path uses, runs the same post-copy integrity checks,
+and only then deletes the source, never before the copy is confirmed
+complete and correct. Either way this is one atomic-from-the-caller's-
+perspective operation instead of a transient double-disk-usage window
+followed by a separate, easy-to-get-wrong cleanup step. stage_from_source
+builds the same ReassembledUpload shape service.uploads.core produces from
+staged chunks, so software_games.finalize_reassembled (dedup, multi-disc
+detection, cleanup-on-failure) is reused unmodified.
 
 When the source already resolves under SOFTWARE_PATH, none of that applies:
 there is nothing to copy and no disposable staging directory for
@@ -26,6 +34,8 @@ path that is already in place.
 """
 from __future__ import annotations
 
+import errno
+import os
 import shutil
 from pathlib import Path
 
@@ -65,16 +75,60 @@ def source_size(source: Path) -> int:
         return 0
 
 
-def stage_from_source(source: Path, title: str, media_root: Path) -> cu.ReassembledUpload:
-    """Copy *source* (already validated to exist and fall within the allowed
+# Windows' ERROR_NOT_SAME_DEVICE. CPython's Windows errno mapping already
+# translates this to errno.EXDEV on OSError, but that mapping table isn't
+# something to take on faith for a Windows-only codebase, so the winerror
+# attribute (only ever set on Windows) is checked directly as a second,
+# platform-native signal alongside errno.EXDEV.
+_ERROR_NOT_SAME_DEVICE = 17
+
+
+def _rename_same_filesystem(source: Path, dest: Path) -> bool:
+    """Attempt an atomic same-filesystem move via os.rename. Returns True on
+    success. Returns False only when the rename failed specifically because
+    *source* and *dest* are on different filesystems/drives, the one case
+    that requires falling back to copy. Any other OSError (permissions, a
+    name collision, etc.) is a genuine failure and propagates unchanged, it
+    must not be misread as "just needs a fallback."
+    """
+    try:
+        os.rename(str(source), str(dest))
+        return True
+    except OSError as exc:
+        if exc.errno == errno.EXDEV or getattr(exc, "winerror", None) == _ERROR_NOT_SAME_DEVICE:
+            return False
+        raise
+
+
+def stage_from_source(
+    source: Path, title: str, media_root: Path, move: bool = False,
+) -> cu.ReassembledUpload:
+    """Stage *source* (already validated to exist and fall within the allowed
     browse roots) into a fresh, uniquely-named directory under media_root, and
     return the same ReassembledUpload shape upload_finalize expects — so
     finalize_reassembled can ingest it exactly like a chunked upload's output,
     dedup and multi-disc detection included.
 
-    Folder copies preserve symlinks as symlinks (never follow them) so a
+    move=False (default) copies, leaving *source* untouched. move=True is for
+    callers that are about to delete the original anyway (delete_original=True):
+
+    - Same filesystem: os.rename is attempted first. It's atomic, no partial
+      state can exist, so on success there is nothing left to verify or
+      delete, the source is simply gone and the destination is simply there.
+    - Different filesystems: os.rename always fails (cross-device rename
+      isn't possible at the OS level), detected via _rename_same_filesystem
+      returning False. This falls back to the same copy2/copytree used when
+      move=False, runs the same post-copy integrity checks below, and only
+      deletes *source* after those checks confirm the destination is a
+      complete, correct copy. The source is never deleted before a copy is
+      verified, so a truncated/corrupted cross-device copy cannot destroy the
+      only remaining copy of the data.
+
+    Folder copies/moves preserve symlinks as symlinks (never follow them) so a
     symlink nested inside an otherwise-legitimate source folder can't be used
-    to pull content from outside the allowed browse roots into the library.
+    to pull content from outside the allowed browse roots into the library
+    (the cross-device copy fallback uses copytree(symlinks=True) too, so this
+    holds for both).
     Original filenames are preserved verbatim for a folder source (unlike the
     browser-upload path, these are real host filenames, not untrusted
     client-supplied strings — sanitizing them would also break disc-pointer
@@ -86,16 +140,23 @@ def stage_from_source(source: Path, title: str, media_root: Path) -> cu.Reassemb
     media_root.mkdir(parents=True, exist_ok=True)
     dest_dir = resolve_under(media_root, slug)
 
+    renamed = False
     try:
         if kind == "file":
             source_bytes = source.stat().st_size
             dest_dir.mkdir(parents=True, exist_ok=False)
             dest_path = resolve_under(dest_dir, sanitize_filename(source.name))
-            shutil.copy2(str(source), str(dest_path))
+            if move:
+                renamed = _rename_same_filesystem(source, dest_path)
+            if not renamed:
+                shutil.copy2(str(source), str(dest_path))
             paths = [dest_path]
         else:
             source_bytes = source_size(source)
-            shutil.copytree(str(source), str(dest_dir), symlinks=True)
+            if move:
+                renamed = _rename_same_filesystem(source, dest_dir)
+            if not renamed:
+                shutil.copytree(str(source), str(dest_dir), symlinks=True)
             paths = [p for p in dest_dir.rglob("*") if p.is_file() and not p.is_symlink()]
         total_bytes = sum(p.stat().st_size for p in paths)
         if total_bytes == 0 or total_bytes != source_bytes:
@@ -114,28 +175,20 @@ def stage_from_source(source: Path, title: str, media_root: Path) -> cu.Reassemb
         shutil.rmtree(dest_dir, ignore_errors=True)
         raise HTTPException(status_code=413, detail="Import exceeds the maximum allowed size.")
 
+    if move and not renamed:
+        # Cross-device fallback: the copy above is now verified complete and
+        # within size limits, so it's safe to remove the original. Any
+        # failure here (e.g. permissions) is left to propagate, not
+        # swallowed, the destination copy is already valid and is not rolled
+        # back for a failed cleanup of the source.
+        if source.is_dir():
+            shutil.rmtree(str(source))
+        else:
+            source.unlink()
+
     return cu.ReassembledUpload(
         kind=kind, title=base_title, dest_dir=dest_dir, paths=paths, total_bytes=total_bytes,
     )
-
-
-def delete_source(source: Path) -> str | None:
-    """Delete the original source after a confirmed successful import.
-
-    Never raises — the import already succeeded by the time this runs; a
-    failed cleanup of the original is logged and returned as a warning string
-    (surfaced to the caller in the result), not an error that would make the
-    already-successful import look like it failed.
-    """
-    try:
-        if source.is_dir():
-            shutil.rmtree(source)
-        else:
-            source.unlink()
-        return None
-    except OSError as exc:
-        logger.warning("Could not delete original source '%s' after import: %s", source, exc)
-        return f"Import succeeded, but the original could not be deleted: {exc}"
 
 
 def _import_in_place(source: Path, title: str, db: Session, delete_original: bool) -> dict:
@@ -176,13 +229,8 @@ def import_inline(
         # (moving/renaming it into its canonical spot at most), there is no
         # separate "original" left over to delete afterward.
         return _import_in_place(source, title, db, delete_original)
-    reasm = stage_from_source(source, title, media_root)
-    result = upload_finalize.finalize_reassembled(reasm, media_root, db)
-    if delete_original:
-        error = delete_source(source)
-        if error:
-            result["delete_original_error"] = error
-    return result
+    reasm = stage_from_source(source, title, media_root, move=delete_original)
+    return upload_finalize.finalize_reassembled(reasm, media_root, db)
 
 
 def import_background(
@@ -200,14 +248,13 @@ def import_background(
             jobs.update(job_id, progress=0.5, message="Importing…")
             result = _import_in_place(source, title, db, delete_original)
         else:
-            jobs.update(job_id, progress=0.1, message="Copying into library…")
-            reasm = stage_from_source(source, title, root)
+            jobs.update(
+                job_id, progress=0.1,
+                message="Moving into library…" if delete_original else "Copying into library…",
+            )
+            reasm = stage_from_source(source, title, root, move=delete_original)
             jobs.update(job_id, progress=0.6, message="Importing…")
             result = upload_finalize.finalize_reassembled(reasm, root, db)
-            if delete_original:
-                error = delete_source(source)
-                if error:
-                    result["delete_original_error"] = error
         jobs.complete(job_id, result=result, message=f"Added \"{result.get('title', 'import')}\".")
     except Exception as exc:  # noqa: BLE001 — background tasks must not propagate
         logger.exception("Background path import failed: source=%s", source)
