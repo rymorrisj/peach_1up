@@ -1135,6 +1135,14 @@ def update_library_collection(
 
 _PATH_FIELDS = {"executable_path", "cover_art_path"}
 _EXISTENCE_FIELDS = {"executable_path", "cover_art_path"}
+# executable_path is what coordinator.py prefers over media_path when
+# building a LaunchSpec (see _launch_entity), so it is the one field here
+# that can steer a launch outside the library entirely if left unchecked.
+# cover_art_path only ever gets read for display, never passed to a
+# backend's launch(), so it is deliberately left out of this containment
+# check, same reasoning ingest already applies to media_src at
+# ~line 340-348 (games-only, directory case).
+_CONTAINMENT_FIELDS = {"executable_path"}
 
 
 def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, db: Session) -> GameItem:
@@ -1149,6 +1157,17 @@ def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, 
             raise HTTPException(status_code=400, detail=f"{key}: {e}")
         if key in _EXISTENCE_FIELDS and not resolved.exists():
             raise HTTPException(status_code=400, detail=f"{key} does not exist: {resolved}")
+        if key in _CONTAINMENT_FIELDS:
+            from backend.core.settings import get_settings
+            games_root_str = get_settings().get("SOFTWARE_PATH", "") or ""
+            if games_root_str:
+                from backend.service.utils.path_utils import library_domain_root
+                media_root = library_domain_root("games")
+                if not (resolved == media_root or resolved.is_relative_to(media_root)):
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"{key} must be inside the games library (library/software/games/).",
+                    )
         fields[key] = str(resolved)
     for key, value in fields.items():
         setattr(leaf, key, value)

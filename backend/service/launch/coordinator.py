@@ -500,6 +500,43 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
         process_registry.release(reservation)
 
 
+def _verify_media_path_containment(path_str: str, source_type: str) -> None:
+    """Re-verify *path_str* stays within its domain's allowed roots immediately
+    before it reaches a backend's launch().
+
+    Ingest-time containment checks (games/items.py's directory branch,
+    apps/items.py's create_app_item_bundle) are not the only way
+    executable_path/media_path can end up set on a leaf row, they can also be
+    overwritten later via PATCH /game-item/{id} or /app-item/{id}. Those routes
+    now reject an out-of-bounds executable_path themselves, but this is a
+    second, independent gate, not a replacement for it, so a bad value
+    reaching the column by any other means still cannot result in a launch
+    outside the permitted directories. Raises rather than swallowing, a launch
+    that would escape containment must fail loudly, not silently narrow to
+    some other path.
+    """
+    resolved = Path(path_str).resolve()
+    if source_type == "app":
+        from backend.service.utils.path_utils import allowed_browse_roots, is_within_roots
+        if not is_within_roots(resolved, allowed_browse_roots()):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Launch target '{resolved}' is outside the permitted directories.",
+            )
+        return
+    from backend.core.settings import get_settings
+    games_root_str = get_settings().get("SOFTWARE_PATH", "") or ""
+    if not games_root_str:
+        return
+    from backend.service.utils.path_utils import library_domain_root
+    media_root = library_domain_root("games")
+    if not (resolved == media_root or resolved.is_relative_to(media_root)):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Launch target '{resolved}' is outside the games library (library/software/games/).",
+        )
+
+
 def _resolve_environment_for_pc_entity(entity: "LaunchableEntity", db: Session) -> EnvironmentItem | None:
     """Resolve the Environment for a PC SoftwareCollection launch (doc 02 A5).
 
@@ -575,6 +612,8 @@ async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         effective_media_path = str(resolved)
+
+    _verify_media_path_containment(effective_media_path, entity.source_type)
 
     spec = _build_spec_for_entity(
         entity, profile, platform_record, drive, effective_media_path,
