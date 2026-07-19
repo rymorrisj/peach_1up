@@ -485,7 +485,7 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
             # the same integer, keying off collection_id alone here would
             # risk flagging an unrelated SoftwareCollection row.
             if spec.collection_id is not None and not is_app:
-                register_short_lived_check(spec.collection_id, proc, launch_time)
+                register_short_lived_check(spec.collection_id, proc, launch_time, spec.era)
 
         return LaunchResult(
             history_id=history.id,
