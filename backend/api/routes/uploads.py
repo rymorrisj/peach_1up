@@ -49,6 +49,10 @@ class InitFile(BaseModel):
     name: str
     size: int
     chunks: int
+    # Only ever sent for a folder upload the frontend already detected as
+    # PS3_DISC.SFB-marked (see chunkedUpload.ts); absent for every other
+    # upload, which keeps the existing flat-basename behavior unchanged.
+    relative_path: Optional[str] = None
 
 
 class InitBody(BaseModel):
@@ -93,7 +97,10 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
             upload_id = cu.init_session(
                 body.kind,
                 title,
-                [{"name": f.name, "size": f.size, "chunks": f.chunks} for f in body.files],
+                [
+                    {"name": f.name, "size": f.size, "chunks": f.chunks, "relative_path": f.relative_path}
+                    for f in body.files
+                ],
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc

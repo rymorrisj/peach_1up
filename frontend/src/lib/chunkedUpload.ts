@@ -54,6 +54,36 @@ interface InitResponse {
   chunk_max_bytes: number
 }
 
+// PS3 disc dumps (PS3_GAME/, PS3_DISC.SFB, optionally PS3_UPDATE/) are the one
+// upload shape where nested folder structure must survive the transport,
+// RPCS3 walks EBOOT.BIN from inside PS3_GAME/USRDIR/ itself, and the backend
+// already treats a PS3_DISC.SFB-marked folder as its own launch unit (see
+// backend/service/backends/rpcs3.py). Every other upload keeps flattening to
+// a bare basename unchanged; only this detection opts a "folder" upload into
+// sending relative_path at all.
+function webkitRelativePathOf(file: File): string | undefined {
+  return (file as unknown as { webkitRelativePath?: string }).webkitRelativePath || undefined
+}
+
+function isDiscFormatFolderUpload(files: File[]): boolean {
+  return files.some((f) => {
+    const relPath = webkitRelativePathOf(f)
+    if (!relPath) return false
+    const parts = relPath.split('/')
+    return parts.length === 2 && parts[1].toUpperCase() === 'PS3_DISC.SFB'
+  })
+}
+
+// Drops the selected root folder's own name (parts[0]): the server's dest_dir
+// already IS that root, re-including it would nest everything one level too
+// deep and collide with the slug-named destination directory itself.
+function relativePathWithinSelection(file: File): string | undefined {
+  const relPath = webkitRelativePathOf(file)
+  if (!relPath) return undefined
+  const parts = relPath.split('/')
+  return parts.length >= 2 ? parts.slice(1).join('/') : undefined
+}
+
 async function asError(res: Response): Promise<Error> {
   try {
     const body = (await res.json()) as { detail?: string }
@@ -95,11 +125,19 @@ export function chunkedUpload(
   const headers = () => ({ 'X-CSRF-Token': getCsrfToken() })
 
   async function run(): Promise<ChunkedUploadResult> {
-    const manifest = files.map((f) => ({
-      name: f.name,
-      size: f.size,
-      chunks: Math.max(1, Math.ceil(f.size / chunkSize)),
-    }))
+    const discFormat = kind === 'folder' && isDiscFormatFolderUpload(files)
+    const manifest = files.map((f) => {
+      const entry: { name: string; size: number; chunks: number; relative_path?: string } = {
+        name: f.name,
+        size: f.size,
+        chunks: Math.max(1, Math.ceil(f.size / chunkSize)),
+      }
+      if (discFormat) {
+        const relativePath = relativePathWithinSelection(f)
+        if (relativePath) entry.relative_path = relativePath
+      }
+      return entry
+    })
 
     const initRes = await fetch(`${uploadsBase}/init`, {
       method: 'POST',

@@ -35,6 +35,37 @@ def sanitize_filename(filename: str, *, fallback: str = "upload") -> str:
     return f"{safe_stem}.{safe_ext}" if safe_ext else safe_stem
 
 
+def sanitize_relative_path(path: str) -> list[str]:
+    """Validate a caller-supplied relative path and return its safe segments.
+
+    Unlike sanitize_filename, which deliberately collapses any input to a
+    single flat basename, this preserves the full segment list for callers
+    that have already gated on needing real nested-path handling (today:
+    chunked-upload folders detected as PS3_DISC.SFB discs, see
+    backend.service.uploads.core.init_session). It only validates path
+    *shape*, rejecting an empty path and any segment that is empty, ".",
+    "..", or looks like a drive letter or home-relative prefix. It does not
+    itself check containment against any destination directory, callers must
+    still pass the returned segments through resolve_under(base, *segments)
+    before touching disk, the same defense-in-depth every other
+    user-influenced path in this codebase already goes through.
+
+    Raises:
+        ValueError: if path is empty or any segment is unsafe.
+    """
+    segments = path.replace("\\", "/").split("/")
+    if not any(segments):
+        raise ValueError("Relative path must not be empty.")
+    for segment in segments:
+        if not segment:
+            raise ValueError(f"Relative path '{path}' contains an empty segment.")
+        if segment in (".", ".."):
+            raise ValueError(f"Relative path '{path}' contains a disallowed '{segment}' segment.")
+        if ":" in segment or segment.startswith("~"):
+            raise ValueError(f"Relative path '{path}' contains an absolute-looking segment '{segment}'.")
+    return segments
+
+
 def resolve_under(base: Path, *parts: str) -> Path:
     """Join *parts* onto *base* and verify the resolved path stays within it.
 

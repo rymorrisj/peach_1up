@@ -29,7 +29,7 @@ from pathlib import Path
 from fastapi import HTTPException, UploadFile
 
 from backend.core.logger import get_logger
-from backend.service.utils.path_utils import resolve_under, sanitize_filename
+from backend.service.utils.path_utils import resolve_under, sanitize_filename, sanitize_relative_path
 from backend.service.utils.slug_generator import unique_slug
 from backend.service.utils.upload_utils import (
     DEFAULT_MAX_BYTES,
@@ -81,7 +81,15 @@ def init_session(kind: str, title: str, files: list[dict]) -> str:
         if size < 0 or chunks < 1:
             raise ValueError("Each file requires a positive chunk count and non-negative size.")
         declared_total += size
-        slots.append({"name": name, "size": size, "chunks": chunks, "received": set()})
+        # relative_path is only ever sent by the frontend for a folder upload
+        # already detected client-side as PS3_DISC.SFB-marked (see
+        # chunkedUpload.ts); every other upload omits it, so segments stays
+        # None and reassemble() falls back to the existing flat basename.
+        raw_relative_path = f.get("relative_path")
+        segments = sanitize_relative_path(str(raw_relative_path)) if raw_relative_path else None
+        slots.append({
+            "name": name, "size": size, "chunks": chunks, "received": set(), "segments": segments,
+        })
     if declared_total > DEFAULT_MAX_BYTES:
         raise ValueError("Upload exceeds the maximum allowed size.")
 
@@ -184,7 +192,8 @@ def reassemble(upload_id: str, media_root: Path) -> ReassembledUpload:
     total_bytes = 0
     try:
         for file_index, slot in enumerate(files):
-            dest_path = resolve_under(dest_dir, slot["name"])
+            segments = slot.get("segments")
+            dest_path = resolve_under(dest_dir, *segments) if segments else resolve_under(dest_dir, slot["name"])
             if dest_path.exists():
                 raise HTTPException(
                     status_code=409,
@@ -192,6 +201,7 @@ def reassemble(upload_id: str, media_root: Path) -> ReassembledUpload:
                 )
             src_dir = resolve_under(session_dir, str(file_index))
             file_bytes = 0
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
             with dest_path.open("wb") as out:
                 for chunk_index in range(slot["chunks"]):
                     part = resolve_under(src_dir, f"{chunk_index}.part")
