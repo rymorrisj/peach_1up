@@ -44,6 +44,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('session-expired', handleSessionExpired)
   }, [])
 
+  const didMountJobsBootstrap = useRef(false)
+  useEffect(() => {
+    // Without this, state.backgroundJobs only ever gets populated by a job
+    // the current tab itself just started (UPSERT_JOB) or by the poll below,
+    // which only runs once a job is already known to be active, so a job
+    // that finished (or is still running) before this tab loaded would never
+    // show up at all. core.jobs retains finished jobs for an hour (see
+    // backend/core/jobs.py), so this makes the Activity bell reflect that
+    // full backend-known list immediately on load, not just this session's
+    // own activity, matching "stays in the nav until manually cleared".
+    // Guarded the same way as the auth-check effect above, against
+    // StrictMode's double-invoke of mount effects in dev.
+    if (didMountJobsBootstrap.current) return
+    didMountJobsBootstrap.current = true
+    apiFetch<BackgroundJob[]>('/api/v1/jobs')
+      .then((jobs) => dispatch({ type: 'SET_JOBS', payload: jobs }))
+      .catch(() => {})
+  }, [])
+
   // Poll background jobs (upload finalize, large scans) while any is processing
   // or cancelling — 'cancelling' still needs polling to observe the eventual
   // 'cancelled' transition once the job loop actually stops. Keyed on the
