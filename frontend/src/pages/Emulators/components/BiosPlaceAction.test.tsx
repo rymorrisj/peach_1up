@@ -4,10 +4,10 @@ import { BiosPlaceAction } from './BiosPlaceAction'
 import type { components } from '@shared/types'
 type BiosItem = components['schemas']['BiosItem']
 
-// FileBrowser drives its own dialog/query plumbing — out of scope here. Stubbed
+// BrowsePanel drives its own query plumbing, out of scope here. Stubbed
 // to a single button that immediately fires onSelect with a fixed path, so
 // these tests exercise BiosPlaceAction's own fetch/state logic in isolation.
-vi.mock('@/components/common/FileBrowser', () => ({
+vi.mock('@/components/common/BrowsePanel', () => ({
   default: ({ open, onSelect }: { open: boolean; onSelect: (path: string) => void }) =>
     open ? <button onClick={() => onSelect('/fake/path/to/bios')}>fake-select</button> : null,
 }))

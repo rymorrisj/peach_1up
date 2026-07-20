@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { cn } from '@/lib/utils'
 import { Input, Button } from '@/ui'
-import FileBrowser from '@/components/common/FileBrowser'
+import BrowsePanel from '@/components/common/BrowsePanel'
 
 interface PathInputProps {
   id?: string
@@ -37,33 +36,39 @@ export default function PathInput({
       : undefined
 
   return (
-    <div className={cn('flex gap-2', className)}>
-      <Input
-        id={id}
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        hasError={hasError}
-        className="min-w-0 flex-1"
-      />
-      <Button
-        variant="secondary"
-        size="sm"
-        className="shrink-0"
-        onClick={() => setBrowserOpen(true)}
-      >
-        Browse…
-      </Button>
-      <FileBrowser
-        open={browserOpen}
-        onClose={() => setBrowserOpen(false)}
-        onSelect={(path) => { onChange(path); setBrowserOpen(false) }}
-        extensions={extensions}
-        mode={mode}
-        title={mode === 'folder' ? 'Select Folder' : mode === 'both' ? 'Select File or Folder' : 'Select File'}
-        rootPath={rootPath}
-      />
+    <div className={className}>
+      <div className="flex gap-2">
+        <Input
+          id={id}
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          hasError={hasError}
+          className="min-w-0 flex-1"
+        />
+        <Button
+          variant="secondary"
+          size="sm"
+          className="shrink-0"
+          onClick={() => setBrowserOpen((v) => !v)}
+        >
+          Browse…
+        </Button>
+      </div>
+      {browserOpen && (
+        <div className="mt-2">
+          <BrowsePanel
+            open={browserOpen}
+            onClose={() => setBrowserOpen(false)}
+            onSelect={(path) => { onChange(path); setBrowserOpen(false) }}
+            extensions={extensions}
+            mode={mode}
+            title={mode === 'folder' ? 'Select Folder' : mode === 'both' ? 'Select File or Folder' : 'Select File'}
+            rootPath={rootPath}
+          />
+        </div>
+      )}
     </div>
   )
 }

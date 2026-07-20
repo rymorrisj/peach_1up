@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import FileBrowser from '@/components/common/FileBrowser'
+import BrowsePanel from '@/components/common/BrowsePanel'
 import { getCsrfToken } from '@/api/client'
 import type { components } from '@shared/types'
 type BiosPlaceResult = components['schemas']['BiosPlaceResult']
@@ -67,7 +67,7 @@ export function BiosPlaceAction({ bios }: { bios: BiosItem }) {
     <div style={{ marginTop: 6 }}>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => setOpen(!open)}
         disabled={isPlacing}
         style={{
           background: 'none', border: '1px solid rgb(var(--border))', borderRadius: 'var(--r-1)',
@@ -77,13 +77,17 @@ export function BiosPlaceAction({ bios }: { bios: BiosItem }) {
       >
         {isPlacing ? 'Placing…' : 'Locate file/folder…'}
       </button>
-      <FileBrowser
-        open={open}
-        onClose={() => setOpen(false)}
-        onSelect={handleSelect}
-        mode={mode}
-        title={`Locate ${bios.name}`}
-      />
+      {open && (
+        <div style={{ marginTop: 6 }}>
+          <BrowsePanel
+            open={open}
+            onClose={() => setOpen(false)}
+            onSelect={handleSelect}
+            mode={mode}
+            title={`Locate ${bios.name}`}
+          />
+        </div>
+      )}
       {error && (
         <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'rgb(var(--error))', fontFamily: 'var(--font-display)' }}>
           ❌ {error}

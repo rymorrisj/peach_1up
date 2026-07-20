@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Button, FormField, Input, Modal, Textarea } from '@/ui'
 import PathInput from '@/components/common/PathInput'
 import FileUpload from '@/components/common/FileUpload'
-import FileBrowser from '@/components/common/FileBrowser'
+import BrowsePanel from '@/components/common/BrowsePanel'
 import LaunchCommandList from '@/components/LaunchCommandList'
 import type { HardwareProfile } from '@/generated/constants'
 
@@ -340,7 +340,7 @@ export default function EnvironmentModal({
                     variant="secondary"
                     size="sm"
                     className="shrink-0"
-                    onClick={() => setMachineBrowserOpen(true)}
+                    onClick={() => setMachineBrowserOpen(!machineBrowserOpen)}
                     disabled={submitting}
                   >
                     Browse…
@@ -357,17 +357,21 @@ export default function EnvironmentModal({
                     </Button>
                   )}
                 </div>
-                <FileBrowser
-                  open={machineBrowserOpen}
-                  onClose={() => setMachineBrowserOpen(false)}
-                  onSelect={(path) => {
-                    const slug = path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? ''
-                    onFieldChange('machine_override', slug)
-                    setMachineBrowserOpen(false)
-                  }}
-                  mode="folder"
-                  title="Select Machine (ROM pack › machines)"
-                />
+                {machineBrowserOpen && (
+                  <div className="mt-2">
+                    <BrowsePanel
+                      open={machineBrowserOpen}
+                      onClose={() => setMachineBrowserOpen(false)}
+                      onSelect={(path) => {
+                        const slug = path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? ''
+                        onFieldChange('machine_override', slug)
+                        setMachineBrowserOpen(false)
+                      }}
+                      mode="folder"
+                      title="Select Machine (ROM pack › machines)"
+                    />
+                  </div>
+                )}
               </FormField>
             )}
 

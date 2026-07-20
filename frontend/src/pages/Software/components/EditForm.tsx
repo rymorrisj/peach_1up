@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Button, Card, FormField, Input, Textarea, Select } from '@/ui'
 import PathInput from '@/components/common/PathInput'
-import FileBrowser from '@/components/common/FileBrowser'
+import BrowsePanel from '@/components/common/BrowsePanel'
 import { apiFetch } from '@/api/client'
 import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
 import { ERA_TO_EMULATOR, isPcEra } from '@/pages/Environments/EnvironmentModal'
@@ -185,20 +185,24 @@ export function EditForm({
             variant="secondary"
             size="sm"
             className="shrink-0"
-            onClick={() => setExecBrowserOpen(true)}
+            onClick={() => setExecBrowserOpen(!execBrowserOpen)}
           >
             Browse…
           </Button>
         </div>
-        <FileBrowser
-          open={execBrowserOpen}
-          onClose={() => setExecBrowserOpen(false)}
-          onSelect={(path) => { setField('executable_path', path); setExecBrowserOpen(false) }}
-          mode="file"
-          extensions={launchFileExtensions?.extensions?.join(',')}
-          title="Select Launch File"
-          rootPath={item.folder_path ?? null}
-        />
+        {execBrowserOpen && (
+          <div className="mt-2">
+            <BrowsePanel
+              open={execBrowserOpen}
+              onClose={() => setExecBrowserOpen(false)}
+              onSelect={(path) => { setField('executable_path', path); setExecBrowserOpen(false) }}
+              mode="file"
+              extensions={launchFileExtensions?.extensions?.join(',')}
+              title="Select Launch File"
+              rootPath={item.folder_path ?? null}
+            />
+          </div>
+        )}
         <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
           {isRomEra
             ? 'ROM-based media — auto-resolved from your media folder. Override below if it picked the wrong file.'

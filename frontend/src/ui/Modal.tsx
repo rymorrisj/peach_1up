@@ -30,14 +30,14 @@ export function Modal({ open, title, onClose, children, footer, busy = false }: 
           aria-describedby={undefined}
           className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-[32rem] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-border-strong bg-surface-1 p-6 shadow-xl"
           onInteractOutside={(event) => {
-            // FileBrowser renders a native <dialog> as a sibling of this
-            // portalled Dialog.Content, not a DOM descendant, so Radix's
-            // DismissableLayer sees every click inside it as an outside
-            // interaction. A click landing inside that top-layer <dialog>
-            // must not dismiss this modal underneath it.
-            if (event.target instanceof Element && event.target.closest('dialog')) {
-              event.preventDefault()
-            }
+            // ConfirmModal renders a native <dialog> as a sibling of this
+            // portalled Dialog.Content, not a DOM descendant (e.g. the
+            // delete-original confirmation opened from inside LibraryModal),
+            // so Radix's DismissableLayer sees every click inside it as an
+            // outside interaction. A click landing inside that top-layer
+            // <dialog> must not dismiss this modal underneath it.
+            const target = event.target instanceof Element ? event.target : null
+            if (target?.closest('dialog')) event.preventDefault()
           }}
         >
           <Dialog.Title className="mb-5 text-lg font-semibold text-fg-1">{title}</Dialog.Title>

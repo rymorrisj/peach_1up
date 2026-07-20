@@ -456,9 +456,10 @@ describe('CollectionDetail edit form (field-level)', () => {
     await user.click(await screen.findByRole('button', { name: /DOOM\.EXE/ }))
 
     expect(screen.queryByText('No launch file detected — browse to set one.')).not.toBeInTheDocument()
-    // The FileBrowser dialog stays mounted (just closed) after selection, so
-    // "DOOM.EXE" also still matches inside its file listing — scope to the
-    // Launch File display span via its title attribute (set to the full path).
+    // getByTitle (rather than getByText) targets the Launch File display span
+    // specifically via its title attribute (set to the full path), so this
+    // stays unambiguous even if a file-listing row with matching text is
+    // still in the DOM at the time of the assertion.
     expect(screen.getByTitle('C:\\Games\\Doom\\DOOM.EXE')).toHaveTextContent('DOOM.EXE')
 
     await saveAndWait(user)

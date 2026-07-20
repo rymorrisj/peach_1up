@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import { Button } from '@/ui'
@@ -28,11 +28,11 @@ interface BrowseResult {
   files: FileEntry[]
 }
 
-interface FileBrowserProps {
+interface BrowsePanelProps {
   open: boolean
   onClose: () => void
   // isDir reflects which listing produced the selection (the folder-select
-  // button vs. a row from `files`) — callers that only care about the path
+  // button vs. a row from `files`), callers that only care about the path
   // can ignore the second argument.
   onSelect: (path: string, isDir: boolean) => void
   extensions?: string
@@ -48,7 +48,16 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`
 }
 
-export default function FileBrowser({
+// Renders the server-side filesystem browser as plain in-content DOM, a
+// normal descendant of whatever parent is already showing it (a Modal's
+// Dialog.Content, or a page section), never a second top-layer dialog. This
+// matters because a native <dialog> rendered as a sibling of a Radix
+// Dialog.Content defeats Radix's outside-interaction detection (some event
+// types find the dialog via `event.target.closest('dialog')`, others don't),
+// which previously caused clicks inside the browser to intermittently close
+// the parent modal underneath it. Being a real descendant sidesteps the
+// problem entirely instead of guarding each Radix event type individually.
+export default function BrowsePanel({
   open,
   onClose,
   onSelect,
@@ -56,28 +65,12 @@ export default function FileBrowser({
   title = 'Browse',
   mode = 'file',
   rootPath,
-}: FileBrowserProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
+}: BrowsePanelProps) {
   const [currentPath, setCurrentPath] = useState<string | null>(rootPath ?? null)
 
   useEffect(() => {
-    const d = dialogRef.current
-    if (!d) return
-    if (open && !d.open) {
-      d.showModal()
-      setCurrentPath(rootPath ?? null)
-    } else if (!open && d.open) {
-      d.close()
-    }
+    if (open) setCurrentPath(rootPath ?? null)
   }, [open, rootPath])
-
-  useEffect(() => {
-    const d = dialogRef.current
-    if (!d) return
-    const handler = () => onClose()
-    d.addEventListener('close', handler)
-    return () => d.removeEventListener('close', handler)
-  }, [onClose])
 
   const { data: drivesData } = useQuery({
     queryKey: ['filesystem', 'drives'],
@@ -108,6 +101,8 @@ export default function FileBrowser({
     gcTime: 0,
   })
 
+  if (!open) return null
+
   function handleSelectFolder() {
     if (currentPath) {
       onSelect(currentPath, true)
@@ -116,12 +111,9 @@ export default function FileBrowser({
   }
 
   return (
-    <dialog
-      ref={dialogRef}
-      className="w-full max-w-2xl rounded-lg border border-border-strong bg-surface-1 p-6 shadow-xl backdrop:bg-black/50"
-    >
+    <div className="w-full rounded-lg border border-border-strong bg-surface-1 p-4">
       <div className="mb-4 flex items-center justify-between gap-4">
-        <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{title}</h2>
+        <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{title}</h3>
         <button
           type="button"
           onClick={onClose}
@@ -161,7 +153,7 @@ export default function FileBrowser({
         </p>
       )}
 
-      {/* Drive picker (Windows only, home view — hidden when scoped to a rootPath) */}
+      {/* Drive picker (Windows only, home view, hidden when scoped to a rootPath) */}
       {!currentPath && !rootPath && drivesData?.drives && drivesData.drives.length > 0 && (
         <div className="mb-3">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
@@ -243,6 +235,6 @@ export default function FileBrowser({
       <div className="mt-4 flex justify-end">
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
       </div>
-    </dialog>
+    </div>
   )
 }

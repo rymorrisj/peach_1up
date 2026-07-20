@@ -224,7 +224,19 @@ def _import_in_place(source: Path, title: str, db: Session, delete_original: boo
 def import_inline(
     source: Path, title: str, media_root: Path, db: Session, delete_original: bool
 ) -> dict:
-    if is_within_roots(source, [media_root]):
+    # TEMP DIAGNOSTIC, remove after runtime investigation
+    logger.warning(
+        "TEMP DIAGNOSTIC import_inline: raw source=%r media_root=%r "
+        "resolved_source=%r resolved_media_root=%r",
+        source, media_root, source.resolve(), media_root.resolve(),
+    )
+    in_place = is_within_roots(source, [media_root])
+    # TEMP DIAGNOSTIC, remove after runtime investigation
+    logger.warning(
+        "TEMP DIAGNOSTIC import_inline: is_within_roots=%s branch=%s",
+        in_place, "in_place" if in_place else "stage_from_source(copy/move)",
+    )
+    if in_place:
         # Ingesting in place adopts the source itself as the library item
         # (moving/renaming it into its canonical spot at most), there is no
         # separate "original" left over to delete afterward.
@@ -243,8 +255,20 @@ def import_background(
     db = Session(get_engine())
     source = Path(source_path)
     root = Path(media_root)
+    # TEMP DIAGNOSTIC, remove after runtime investigation
+    logger.warning(
+        "TEMP DIAGNOSTIC import_background: raw source_path=%r media_root=%r "
+        "resolved_source=%r resolved_root=%r",
+        source_path, media_root, source.resolve(), root.resolve(),
+    )
     try:
-        if is_within_roots(source, [root]):
+        in_place = is_within_roots(source, [root])
+        # TEMP DIAGNOSTIC, remove after runtime investigation
+        logger.warning(
+            "TEMP DIAGNOSTIC import_background: is_within_roots=%s branch=%s",
+            in_place, "in_place" if in_place else "stage_from_source(copy/move)",
+        )
+        if in_place:
             jobs.update(job_id, progress=0.5, message="Importing…")
             result = _import_in_place(source, title, db, delete_original)
         else:
