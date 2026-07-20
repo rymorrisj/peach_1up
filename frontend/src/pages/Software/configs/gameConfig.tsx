@@ -136,7 +136,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
     confirmOptions: installedConfirmOptions,
     handleConfirm: handleInstalledConfirm,
     handleCancel: handleInstalledCancel,
-  } = useInstalledToggle({ collectionId, detailQueryKey })
+  } = useInstalledToggle({ collectionId, detailQueryKey, era: collection?.era })
 
   // Bundle-scoped, re-verifies every disc in one call (see Part B, every
   // disc gets its own persisted sha1/verification_status now, so a
@@ -388,7 +388,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
         {verifyError && (
           <p role="alert" className="text-xs text-red-600 dark:text-red-400">{verifyError}</p>
         )}
-        {collection.era === 'dos' && (
+        {(collection.era === 'dos' || collection.era === 'ps3') && (
           <div className="flex items-center gap-2">
             <span className="font-medium shrink-0">Installed:</span>
             <span className="text-neutral-500 dark:text-neutral-400">

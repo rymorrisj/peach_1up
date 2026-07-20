@@ -150,6 +150,19 @@ def _detect_from_directory(root: Path) -> ScanResult:
             reason="cannot list directory",
         )
 
+    if "PS3_DISC.SFB" in entries:
+        # PS3_DISC.SFB at a folder's root marks a disc-format PS3 dump, the
+        # same structural marker iso_detect.detect_iso checks for inside an
+        # ISO 9660 root directory record. Mirrored here at confidence 0.9 to
+        # match that check, since the file is the same reliable Sony
+        # disc-format signal whether it's read from an ISO or a plain folder.
+        from backend.service.backends.rpcs3 import is_disc_format_folder
+        if is_disc_format_folder(root):
+            return ScanResult(
+                title=None, platform=None, era="ps3", confidence=0.9,
+                reason="directory root contains PS3_DISC.SFB, PS3 disc dump",
+            )
+
     if "XPSP" in entries or "I386" in entries:
         return ScanResult(
             title=None, platform=None, era="winxp", confidence=0.6,

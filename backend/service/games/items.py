@@ -181,6 +181,15 @@ def _rewrite_paths_after_folder_rename(
 def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     if executable_path and Path(executable_path).suffix.lower() != ".img":
         return Path(executable_path)
+    # PS3_DISC.SFB at the folder root marks a disc-format dump. The folder
+    # itself, not the nested EBOOT.BIN, is both the detection target (only
+    # directory_detect.py's structural PS3_DISC.SFB check recognizes this
+    # shape, EBOOT.BIN alone carries no such signal) and the launch target
+    # (mirrors rpcs3.launch()'s own is_dir() handling), so this must run
+    # before find_eboot's file resolution below can ever apply here.
+    from backend.service.backends.rpcs3 import is_disc_format_folder
+    if is_disc_format_folder(folder):
+        return folder
     # Extracted Xbox 360 XEX folders can contain multiple top-level .xex
     # files. Resolve those first, before the generic top-level scan below,
     # so the same file is always chosen deterministically (exact

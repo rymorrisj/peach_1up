@@ -146,6 +146,36 @@ def _title_id_from_pkg_header(pkg_path: Path) -> str:
     return match.group(1)
 
 
+def _write_installed_state(spec: "LaunchSpec", installed: bool) -> None:
+    """Write pkg install completion back onto the matching GameItemBundle.
+
+    era-gated to "ps3" and source_type "game", the install-completion signal
+    only means something for a PS3 title bundle, and this is the one backend
+    that ever calls it. Opens its own session rather than reusing any
+    request-scoped one, this can run from the background install-poll thread
+    in _wait_for_stable_and_terminate, long after the launch request that
+    started the install has returned, mirrors monitor._flag_short_lived_item,
+    the codebase's existing pattern for a DB write from outside a request.
+    """
+    if spec.era != "ps3" or spec.source_type != "game" or spec.collection_id is None:
+        return
+    from backend.core.database import get_engine
+    from backend.models import GameItemBundle
+    from sqlalchemy.orm import Session
+
+    try:
+        with Session(get_engine()) as db:
+            collection = db.get(GameItemBundle, spec.collection_id)
+            if collection is not None and collection.installed != installed:
+                collection.installed = installed
+                db.commit()
+    except Exception as exc:
+        logger.error(
+            "rpcs3: failed to write installed=%s for collection_id=%s: %s",
+            installed, spec.collection_id, exc, exc_info=True,
+        )
+
+
 def _snapshot_dir(path: Path) -> tuple[int, int]:
     try:
         files = [f for f in path.rglob("*") if f.is_file()]
@@ -154,7 +184,7 @@ def _snapshot_dir(path: Path) -> tuple[int, int]:
         return (0, 0)
 
 
-def _wait_for_stable_and_terminate(proc: SandboxProcess, game_dir: Path, eboot: Path) -> None:
+def _wait_for_stable_and_terminate(proc: SandboxProcess, game_dir: Path, eboot: Path, spec: "LaunchSpec") -> None:
     """Background poll: end the installer once *game_dir* stops growing.
 
     Runs in a daemon thread so launch() can return well within the
@@ -187,6 +217,7 @@ def _wait_for_stable_and_terminate(proc: SandboxProcess, game_dir: Path, eboot: 
         return
 
     logger.info("rpcs3: pkg install for %s appears complete, terminating installer process", game_dir)
+    _write_installed_state(spec, True)
     try:
         proc.terminate()
         proc.wait(timeout_ms=10_000)
@@ -225,7 +256,7 @@ def _start_pkg_install(
     proc = result[0]
     threading.Thread(
         target=_wait_for_stable_and_terminate,
-        args=(proc, game_dir, eboot),
+        args=(proc, game_dir, eboot, spec),
         daemon=True,
         name=f"rpcs3_pkg_install_wait_{proc.pid}",
     ).start()
@@ -287,6 +318,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             eboot = game_dir / "USRDIR" / "EBOOT.BIN"
             if eboot.is_file():
                 target_path = game_dir
+                _write_installed_state(spec, True)
             else:
                 return _start_pkg_install(spec, install_path, install_dir, media_path, game_dir, eboot)
         else:

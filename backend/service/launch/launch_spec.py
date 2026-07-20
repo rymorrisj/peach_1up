@@ -75,7 +75,9 @@ class LaunchSpec:
     # Used by dosbox backend to generate multi-image IMGMOUNT for disc swap.
     disc_paths: list[Path] = field(default_factory=list)
 
-    # History metadata — coordinator only, not used by backends
+    # History metadata, mostly coordinator-only. Also read by rpcs3.launch()
+    # to write the pkg install-completion state back onto the matching
+    # GameItemBundle row, the one backend-side use of this field today.
     collection_id: int | None = None
     platform_id: int | None = None
     launch_review_flagged: bool = False
