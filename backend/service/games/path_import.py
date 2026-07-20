@@ -280,6 +280,19 @@ def import_background(
             jobs.update(job_id, progress=0.6, message="Importing…")
             result = upload_finalize.finalize_reassembled(reasm, root, db)
         jobs.complete(job_id, result=result, message=f"Added \"{result.get('title', 'import')}\".")
+    except lib_svc._ItemAlreadyExists as exc:
+        # A duplicate-import attempt is an expected rejection, not a real
+        # failure, _ItemAlreadyExists never sets its own message (its __init__
+        # only stores the colliding collection), so str(exc) is always empty
+        # here, that's what previously left jobs.fail() writing an empty
+        # message, and the Activity panel falling back to a bare status word.
+        # This mirrors the message import_inline's own caller already builds
+        # for the same exception at the route level (game_item_bundles.py).
+        title = exc.collection.title if exc.collection else None
+        message = f'"{title}" is already in the library.' if title else "This item is already in the library."
+        logger.info("Background path import skipped, already in library: source=%s", source)
+        db.rollback()
+        jobs.fail(job_id, message)
     except Exception as exc:  # noqa: BLE001 — background tasks must not propagate
         logger.exception("Background path import failed: source=%s", source)
         db.rollback()
