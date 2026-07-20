@@ -176,45 +176,45 @@ if exist "%MSYS2_UCRT64%\g++.exe" (
     echo          then run: pacman -S mingw-w64-ucrt-x86_64-gcc
 )
 
-REM ── Build sandbox_host.exe via MSYS2 (or validate pre-built) ──
-echo Building sandbox_host.exe...
-where bash >nul 2>&1
-if not errorlevel 1 (
-    bash "backend/service/utils/platform/windows/sandbox/build.sh"
-    if errorlevel 1 (
-        echo ERROR: sandbox_host.exe build failed.
-        goto :error
-    )
-    echo [OK] sandbox_host.exe built
-) else (
-    if not exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
-        echo ERROR: bash/MSYS2 not found and sandbox_host.exe is missing.
-        echo Install MSYS2 UCRT64 with gcc and run:
-        echo   bash backend/service/utils/platform/windows/sandbox/build.sh
-        goto :error
-    )
-    echo [OK] sandbox_host.exe found ^(pre-built; MSYS2 not available to rebuild^)
-)
+@REM REM ── Build sandbox_host.exe via MSYS2 (or validate pre-built) ──
+@REM echo Building sandbox_host.exe...
+@REM where bash >nul 2>&1
+@REM if not errorlevel 1 (
+@REM     bash "backend/service/utils/platform/windows/sandbox/build.sh"
+@REM     if errorlevel 1 (
+@REM         echo ERROR: sandbox_host.exe build failed.
+@REM         goto :error
+@REM     )
+@REM     echo [OK] sandbox_host.exe built
+@REM ) else (
+@REM     if not exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
+@REM         echo ERROR: bash/MSYS2 not found and sandbox_host.exe is missing.
+@REM         echo Install MSYS2 UCRT64 with gcc and run:
+@REM         echo   bash backend/service/utils/platform/windows/sandbox/build.sh
+@REM         goto :error
+@REM     )
+@REM     echo [OK] sandbox_host.exe found ^(pre-built; MSYS2 not available to rebuild^)
+@REM )
 
-REM ── Build extract-xiso via MSYS2 (or validate pre-built) ─────
-echo Building extract-xiso...
-where bash >nul 2>&1
-if not errorlevel 1 (
-    bash "services/vendor/extract-xiso/build.sh"
-    if errorlevel 1 (
-        echo ERROR: extract-xiso build failed.
-        goto :error
-    )
-    echo [OK] extract-xiso built
-) else (
-    if not exist "services\vendor\extract-xiso\build\extract-xiso.exe" (
-        echo ERROR: bash/MSYS2 not found and extract-xiso.exe is missing.
-        echo Install MSYS2 UCRT64 with gcc/cmake and run:
-        echo   bash services/vendor/extract-xiso/build.sh
-        goto :error
-    )
-    echo [OK] extract-xiso found ^(pre-built; MSYS2 not available to rebuild^)
-)
+@REM REM ── Build extract-xiso via MSYS2 (or validate pre-built) ─────
+@REM echo Building extract-xiso...
+@REM where bash >nul 2>&1
+@REM if not errorlevel 1 (
+@REM     bash "services/vendor/extract-xiso/build.sh"
+@REM     if errorlevel 1 (
+@REM         echo ERROR: extract-xiso build failed.
+@REM         goto :error
+@REM     )
+@REM     echo [OK] extract-xiso built
+@REM ) else (
+@REM     if not exist "services\vendor\extract-xiso\build\extract-xiso.exe" (
+@REM         echo ERROR: bash/MSYS2 not found and extract-xiso.exe is missing.
+@REM         echo Install MSYS2 UCRT64 with gcc/cmake and run:
+@REM         echo   bash services/vendor/extract-xiso/build.sh
+@REM         goto :error
+@REM     )
+@REM     echo [OK] extract-xiso found ^(pre-built; MSYS2 not available to rebuild^)
+@REM )
 
 if not exist "installer\tools\Peach1UP.exe" (
     echo ERROR: installer\tools\Peach1UP.exe not found.
@@ -223,7 +223,7 @@ if not exist "installer\tools\Peach1UP.exe" (
 )
 
 echo === Running PyInstaller ===
-.venv\Scripts\python.exe -m PyInstaller --clean peach1up.spec
+.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm peach1up.spec
 if errorlevel 1 goto :error
 
 echo === Copying emulators, library and config beside exe ===
@@ -254,31 +254,31 @@ if errorlevel 1 (
     goto :error
 )
 
-echo === Building sandbox_checker capability probes ===
-where bash >nul 2>&1
-if not errorlevel 1 (
-    bash "backend/service/utils/platform/windows/sandbox_checker/src/build_tests.sh"
-    if errorlevel 1 (
-        echo ERROR: sandbox_checker build_tests.sh failed.
-        goto :error
-    )
-    echo [OK] sandbox_checker probes built
-) else (
-    echo WARNING: bash/MSYS2 not found - cannot rebuild sandbox_checker probes.
-)
+@REM echo === Building sandbox_checker capability probes ===
+@REM where bash >nul 2>&1
+@REM if not errorlevel 1 (
+@REM     bash "backend/service/utils/platform/windows/sandbox_checker/src/build_tests.sh"
+@REM     if errorlevel 1 (
+@REM         echo ERROR: sandbox_checker build_tests.sh failed.
+@REM         goto :error
+@REM     )
+@REM     echo [OK] sandbox_checker probes built
+@REM ) else (
+@REM     echo WARNING: bash/MSYS2 not found - cannot rebuild sandbox_checker probes.
+@REM )
 
-if not exist "backend\service\utils\platform\windows\sandbox_checker\src\test_sdl2_d3d11.exe" (
-    echo ERROR: No executables found in backend\service\utils\platform\windows\sandbox_checker\src\
-    echo Run build_tests.sh from an MSYS2 UCRT64 shell first to compile the sandbox executables.
-    goto :error
-)
-if not exist "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\" mkdir "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\"
-copy /Y "backend\service\utils\platform\windows\sandbox_checker\src\*.exe" "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\"
-if errorlevel 1 (
-    echo ERROR: Failed to copy sandbox_checker executables to dist.
-    goto :error
-)
-echo [OK] sandbox exes copied
+@REM if not exist "backend\service\utils\platform\windows\sandbox_checker\src\test_sdl2_d3d11.exe" (
+@REM     echo ERROR: No executables found in backend\service\utils\platform\windows\sandbox_checker\src\
+@REM     echo Run build_tests.sh from an MSYS2 UCRT64 shell first to compile the sandbox executables.
+@REM     goto :error
+@REM )
+@REM if not exist "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\" mkdir "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\"
+@REM copy /Y "backend\service\utils\platform\windows\sandbox_checker\src\*.exe" "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\"
+@REM if errorlevel 1 (
+@REM     echo ERROR: Failed to copy sandbox_checker executables to dist.
+@REM     goto :error
+@REM )
+@REM echo [OK] sandbox exes copied
 
 echo === Copying extract-xiso ===
 if not exist "services\vendor\extract-xiso\build\extract-xiso.exe" (
@@ -293,6 +293,18 @@ if errorlevel 1 (
     goto :error
 )
 echo [OK] extract-xiso copied
+
+echo === Copying vendored 7-Zip ===
+if not exist "services\vendor\7z\7za.exe" (
+    echo ERROR: services\vendor\7z\7za.exe not found.
+    goto :error
+)
+xcopy /E /I /Y "services\vendor\7z" "dist\peach1up\services\vendor\7z"
+if errorlevel 1 (
+    echo ERROR: Failed to copy services\vendor\7z to dist.
+    goto :error
+)
+echo [OK] vendored 7-Zip copied
 
 echo === Build complete ===
 

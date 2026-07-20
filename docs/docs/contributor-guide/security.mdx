@@ -395,7 +395,7 @@ The backend endpoint POST /api/v1/settings/library-path remains live and functio
 writes directly to `settings`, but it requires a `can_manage_settings` session — in
 practice, calling the API directly (e.g. via curl with an authenticated cookie).
 
-Highest-risk case: ROMS_PATH defaults to {project_root}/library/system/roms/86box. Users who supply 86Box ROMs from a zip extracted to a non-default location (the common case) will silently use the wrong ROM path after a clean install. The 86Box backend will raise a ROM path error at launch time rather than silently proceeding, so the failure is visible — but the fix path is now undocumented short of calling the API directly.
+Highest-risk case: ROMS_PATH defaults to \{project_root\}/library/system/roms/86box. Users who supply 86Box ROMs from a zip extracted to a non-default location (the common case) will silently use the wrong ROM path after a clean install. The 86Box backend will raise a ROM path error at launch time rather than silently proceeding, so the failure is visible — but the fix path is now undocumented short of calling the API directly.
 
 This is flagged as needing a decision (restore a UI panel, or document a supported API/CLI workflow) before it can point users anywhere concrete.
 

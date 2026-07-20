@@ -1,6 +1,7 @@
 import { Button, FormField, Input, Modal, Textarea, Select } from '@/ui'
 import { DGVOODOO2_SUPPORTED_ERAS } from '@/generated/constants'
 import type { EmulatorEntry, ProfileForm, ProfileModalState } from '@/types/profiles'
+import type { EmulatorCatalogSlug } from '@/generated/constants'
 
 interface ProfileFormModalProps {
   modal: ProfileModalState
@@ -72,7 +73,7 @@ export function ProfileFormModal({
         <Select
           id="lp-emulator"
           value={form.emulator_slug}
-          onValueChange={(v) => setField('emulator_slug', v)}
+          onValueChange={(v) => setField('emulator_slug', v as EmulatorCatalogSlug | '')}
           placeholder="— Select emulator —"
           hasError={!!formErrors.emulator_slug}
           options={emulators.map((e) => ({ value: e.slug, label: e.slug }))}
