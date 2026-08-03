@@ -4,6 +4,7 @@ import { useEditForm } from '@/hooks/useEditForm'
 import { formFromCollection, type SoftwareMediaForm } from '../types/mediaForm'
 import { MediaEditForm } from '../components/MediaEditForm'
 import { LinkedItemsSection } from '../components/LinkedItemsSection'
+import { FilesSection } from '../components/FilesSection'
 import type { LibraryModalConfig } from '../components/LibraryModal'
 import type { EntityBundleBase, EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
 import { SOFTWARE_SORT_OPTIONS, MEDIA_ROUTE_BASE } from '../types'
@@ -12,6 +13,9 @@ export interface MediaItemLeaf {
   id: number
   media_item_bundle_id: number | null
   file_path: string
+  file_url: string | null
+  file_size_bytes: number | null
+  media_kind: string
   cover_art_path: string | null
   cover_art_url: string | null
 }
@@ -52,9 +56,43 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
     },
   })
 
+  // Additive to handleSetCoverArt below, not a replacement: this leaves the
+  // media item's own cover_art_path untouched and instead pushes the
+  // selected file onto every linked game_item_bundle's own cover art (see
+  // POST /media-item-bundle/{id}/apply-cover-art-to-linked-games). Applies
+  // to every linked game at once (no per-link picker exists in this UI, and
+  // MediaLink itself has no cardinality limit), consistent with the two-
+  // sided can_manage_media + can_manage_game permission check the backend
+  // route enforces. Declared here, alongside saveMutation, rather than below
+  // the early return, since hooks must run unconditionally on every render.
+  const applyCoverArtToGamesMutation = useMutation<number[], Error, string>({
+    mutationFn: (filePath) =>
+      apiFetch<number[]>(`/api/v1/media-item-bundle/${collectionId}/apply-cover-art-to-linked-games`, {
+        method: 'POST',
+        body: JSON.stringify({ file_path: filePath }),
+      }),
+  })
+
   if (!collection || form == null) {
     return {}
   }
+
+  // Reuses the exact same mutation (and therefore the same PATCH
+  // /api/v1/media-item-bundle/{id} save path) the Cover Art Path field's Save
+  // Changes button uses, just with cover_art_path overridden to the picked
+  // file, no parallel update mechanism. saveMutation's onSuccess already
+  // calls resyncFromCollection (refreshes the edit form's Cover Art Path
+  // text) and invalidates detailQueryKey (refreshes SoftwareEntityDetail's
+  // cover art preview via config.coverArt(entity)), so the preview updates
+  // without a full page reload.
+  function handleSetCoverArt(filePath: string) {
+    if (form == null) return
+    saveMutation.mutate({ ...form, cover_art_path: filePath })
+  }
+
+  const linkedGameItems = (collection.linked_items ?? [])
+    .filter((ref) => ref.entity_type === 'game_item_bundle')
+    .map((ref) => ({ entity_id: ref.entity_id, title: ref.title }))
 
   return {
     editFormContent: (
@@ -69,7 +107,33 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
         saveSuccess={saveMutation.isSuccess}
       />
     ),
-    afterContent: <LinkedItemsSection items={collection.linked_items} />,
+    afterContent: (
+      <>
+        <FilesSection
+          items={collection.items}
+          currentCoverArtPath={collection.cover_art_path}
+          onSetCoverArt={handleSetCoverArt}
+          settingCoverArt={saveMutation.isPending}
+          linkedGameItems={linkedGameItems}
+          onApplyCoverArtToGames={(filePath) => applyCoverArtToGamesMutation.mutate(filePath)}
+          applyingCoverArtToGames={applyCoverArtToGamesMutation.isPending}
+        />
+        {applyCoverArtToGamesMutation.isSuccess && (
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            Updated cover art for {applyCoverArtToGamesMutation.data.length} linked game
+            {applyCoverArtToGamesMutation.data.length === 1 ? '' : 's'}.
+          </p>
+        )}
+        {applyCoverArtToGamesMutation.isError && (
+          <p className="text-xs text-red-600 dark:text-red-400">
+            {applyCoverArtToGamesMutation.error instanceof ApiError
+              ? applyCoverArtToGamesMutation.error.detail
+              : 'Failed to update linked game cover art.'}
+          </p>
+        )}
+        <LinkedItemsSection items={collection.linked_items} />
+      </>
+    ),
   }
 }
 
@@ -135,6 +199,10 @@ export const mediaDomainConfig: EntityDomainConfig<MediaItemBundleData> = {
   entityLabel: 'media item',
   entityLabelPlural: 'media',
   coverArt: (bundle) => bundle.cover_art_url ?? null,
+  // The owner can never be restricted (backend hard-exempts is_owner in every
+  // restriction filter, see backend/core/dependencies.py), so it should not
+  // appear in the Restrictions checkbox list at all, matching gameConfig.
+  filterRestrictionUsers: (users) => users.filter((u) => !u.is_owner),
   renderExtras: useMediaDetailExtras,
   uploadConfig: mediaUploadModalConfig,
   // Media has no era/profile concept, but tags are shared across every

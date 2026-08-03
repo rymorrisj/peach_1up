@@ -3,6 +3,11 @@ import { Button, Modal, Input, RadioGroup, Radio, Checkbox } from '@/ui'
 import { useToast } from '@/ui/ToastProvider'
 import { apiFetch } from '@/api/client'
 
+// Accept All downloads every fetched asset (boxart, screenshots, etc.) from
+// the metadata provider server-side before responding, which can take well
+// past the default 10s client abort timeout. see backend/service/games/media_link.py
+const ACCEPT_METADATA_TIMEOUT_MS = 120_000
+
 interface SearchResult {
   game_id: number
   title: string
@@ -236,6 +241,7 @@ export function FetchMetadataModal({
       await apiFetch(`/api/v1/game-items/${entityId}/accept-metadata-assets`, {
         method: 'POST',
         body: JSON.stringify({ assets: details.assets }),
+        timeoutMs: ACCEPT_METADATA_TIMEOUT_MS,
       })
       showToast(`Linked media created for "${details.title ?? entityTitle}".`, 'success')
       // Same call handleKeep() makes above: the accepted assets can change

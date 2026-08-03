@@ -178,6 +178,10 @@ export const appDomainConfig: EntityDomainConfig<AppItemBundleData> = {
   coverArt: (bundle) => resolveLeafCoverArt(bundle.items, bundle.display_disk_id, bundle.launch_disk_id),
   launchTargetType: 'app',
   isLaunchable: (bundle) => bundle.is_pc,
+  // The owner can never be restricted (backend hard-exempts is_owner in every
+  // restriction filter, see backend/core/dependencies.py), so it should not
+  // appear in the Restrictions checkbox list at all, matching gameConfig.
+  filterRestrictionUsers: (users) => users.filter((u) => !u.is_owner),
   renderExtras: useAppDetailExtras,
   // Era/profile/tag filter bar (EntityListPage.tsx). Backend support added
   // alongside this: GET /api/v1/app-items (apps.py:list_apps) now accepts

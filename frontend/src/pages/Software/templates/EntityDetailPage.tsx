@@ -152,7 +152,6 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
   const showDescriptionMeta = config.showDescriptionMeta ?? true
 
   return (
-    <>
     <SoftwareEntityDetail
       title={entity.title}
       era={extras.era}
@@ -206,8 +205,7 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
       }
       launchHistory={extras.launchHistory as SoftwareEntityDetailProps['launchHistory']}
       launchHistoryCanDelete={isAdminOrOwner}
+      afterContent={extras.afterContent}
     />
-    {extras.afterContent}
-    </>
   )
 }

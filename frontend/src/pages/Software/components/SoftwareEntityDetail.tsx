@@ -102,6 +102,12 @@ interface SoftwareEntityDetailProps {
   launchHistory?: LaunchHistory[]
   /** Owner/admin only: enables bulk-select + delete on the session history. */
   launchHistoryCanDelete?: boolean
+  /** Extra full-width sections rendered after the two-column body, before
+   * launch history (e.g. Media's file list, Linked Items). Kept inside this
+   * component's own max-w-5xl/space-y-6 flow so it isn't pushed below the
+   * min-h-full header/body, which would otherwise leave it stranded past a
+   * full viewport of blank space on short pages. */
+  afterContent?: ReactNode
 }
 
 export function SoftwareEntityDetail({
@@ -135,6 +141,7 @@ export function SoftwareEntityDetail({
   restrictions,
   launchHistory,
   launchHistoryCanDelete,
+  afterContent,
 }: SoftwareEntityDetailProps) {
   const eraCode = era && era !== 'unknown' ? (ERA_LABEL[era] ?? era.toUpperCase()) : null
   const eraColor = era ? (ERA_COLOR[eraCode ?? ''] ?? undefined) : undefined
@@ -290,6 +297,8 @@ export function SoftwareEntityDetail({
             </div>
 
           </div>
+
+          {afterContent}
 
           <LaunchHistorySection history={launchHistory ?? []} canDelete={launchHistoryCanDelete} />
 
