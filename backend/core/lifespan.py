@@ -1,11 +1,12 @@
 import asyncio
+import webbrowser
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from backend.core import process_registry
 from backend.core.database import create_tables, init_db
-from backend.core.logger import get_logger
+from backend.core.logger import _is_dev, get_logger
 from backend.core.process_monitor import _process_monitor_loop
 from backend.core.settings import get_base_path, init_settings
 from backend.core.startup_migrations import _apply_schema_migrations
@@ -120,6 +121,17 @@ async def lifespan(app: FastAPI):
         logger.warning("Tray icon not started: %s", exc)
 
     monitor_task = asyncio.create_task(_process_monitor_loop())
+
+    # Alpha testers running the packaged exe may not know how to navigate to
+    # a localhost URL, so open it for them once startup has actually
+    # finished. Skipped in dev (PEACH_ENV=development) since start.bat runs
+    # uvicorn with --reload, which would otherwise reopen a browser tab on
+    # every file-triggered restart.
+    if not _is_dev():
+        try:
+            webbrowser.open("http://127.0.0.1:8000")
+        except Exception as exc:
+            logger.warning("Failed to open browser: %s", exc)
 
     yield
 

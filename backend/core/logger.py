@@ -48,7 +48,11 @@ def _make_dev_handler() -> logging.Handler:
 
 def _make_prod_console_handler() -> logging.Handler:
     handler = logging.StreamHandler(sys.stderr)
-    handler.setLevel(logging.ERROR)
+    # INFO so uvicorn's startup banner ("Uvicorn running on...",
+    # "Application startup complete.") reaches the console in frozen builds.
+    # Regular backend loggers stay capped at ERROR via their own logger
+    # level (see get_logger below), so this does not add general verbosity.
+    handler.setLevel(logging.INFO)
     handler.setFormatter(_CONSOLE_FMT)
     return handler
 
@@ -157,7 +161,12 @@ def configure_uvicorn_logging() -> None:
             uvi.setLevel(logging.DEBUG)
             uvi.addHandler(_get_dev_handler())
         else:
-            uvi.setLevel(logging.ERROR)
+            # uvicorn/uvicorn.error carry the startup banner at INFO level
+            # ("Uvicorn running on...", "Application startup complete.") so a
+            # tester running the packaged exe sees confirmation the server is
+            # up. uvicorn.access stays at ERROR — per-request logging is off
+            # in production by design.
+            uvi.setLevel(logging.INFO if name != "uvicorn.access" else logging.ERROR)
             uvi.addHandler(_get_prod_console_handler())
         # Add file handlers to error loggers only; access logs are too chatty for files
         if name != "uvicorn.access":
