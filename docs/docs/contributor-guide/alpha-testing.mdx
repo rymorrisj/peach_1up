@@ -38,11 +38,21 @@ required. The alpha covers DOS, Windows 95/98/XP, and first-generation consoles
 2. Extract the archive to a folder of your choice (e.g. C:\Peach1UP\)
 3. Open the extracted folder and double-click peach1up.exe
 4. A terminal window opens — this is normal, leave it running in the background
-5. Your browser opens automatically to http://localhost:8000
+5. Your browser opens automatically to http://127.0.0.1:8000
 
-If the browser does not open automatically, navigate to http://localhost:8000 manually.
+If the browser does not open automatically, navigate to http://127.0.0.1:8000 manually.
+
+The browser that opens is whatever your Windows account has set as default. On some
+setups it opens in Edge even if your actual default browser is something else, this is
+a known Windows quirk with how the auto-open is triggered, not a Peach 1UP bug, no need
+to report it.
 
 To stop Peach 1UP, close the terminal window.
+
+**In-app documentation:** the full docs site, including this guide, is always available
+from the running app at http://127.0.0.1:8000/docs, no separate docs server to start.
+The sidebar's **Guides** link opens the docs site's reference material (era detection,
+media formats, hardware profiles, and similar).
 
 ---
 
@@ -77,6 +87,8 @@ earlier builds.)
 - **Browse** — scroll through collections; filter by era using the sidebar
 - **Add media** — click Add Media, browse to a file or folder, and Peach 1UP detects the era automatically
 - **Item detail** — click any item to see its details: era, detected executable, drive, profile, launch history
+- **Media tab file list** — a Media item's detail page lists every file belonging to it, not just its cover image. Image files can be opened directly from the list
+- **Set as cover art** — on an image file in that list, click "Set as cover art" to use it as the media item's cover, no manual path entry needed. If the media item is linked to one or more games, the same action can also apply that image as the linked game's cover art
 - **Launch** — select a profile from the dropdown on the item detail page, then click Launch. The profile must be set before Launch is enabled
 - **Era mismatch** — if you select a profile from a different era, a warning appears. You can proceed but results may be unexpected
 - **Scan** — use the Scan button to scan a folder for new media in bulk
@@ -110,6 +122,7 @@ Users is its own section in the sidebar (no longer nested under Settings).
 - **Add user** — owner only; open **Users** in the sidebar and click Add User; set a name, PIN, and content rating limit
 - **PIN lockout** — 4 consecutive wrong PINs locks the account; the owner can unlock it from the **Users** page
 - **Owner lockout** — if the owner is locked out, run `scripts/setup_admin_user.py` from the install directory in a terminal
+- **Restrictions** — an item's detail page lets the owner or an admin restrict it to specific sub-accounts. The owner account is always exempt and never appears in that restrictable-user list, restrictions can only ever apply to sub-accounts
 
 ### Settings
 
@@ -213,7 +226,8 @@ Screenshots and screen recordings are very welcome.
 Do not spend time testing these — they are known incomplete:
 
 - Linux support (Windows only for alpha)
-- Metadata enrichment (cover art, descriptions from external sources)
+- Metadata enrichment from external sources (descriptions, etc., not cover art, see the
+  Media tab's "Set as cover art" action above)
 - LLM-assisted scan (Smart Scan inc.)
 - Streaming integration
 - Controller remapping UI (Works out the box with Xbox PC controller)

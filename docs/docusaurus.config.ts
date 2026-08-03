@@ -20,8 +20,16 @@ const config: Config = {
 
   // Set the production url of your site here
   url: DOCS_BASE_URL,
-  // Set the /<baseUrl>/ pathname under which your site is served
-  baseUrl: '/',
+  // Set the /<baseUrl>/ pathname under which your site is served. Requires
+  // both a leading and trailing slash (confirmed directly against
+  // @docusaurus/core's own config schema, BaseUrlSchema in
+  // configValidation.js, which normalizes every value through
+  // addLeadingSlash(addTrailingSlash(value)) regardless of what is typed
+  // here). Backend serves this build under app.mount("/docs", ...)
+  // (backend/main.py), so the site's own baseUrl must match that mount path
+  // for its emitted asset/script paths to resolve under the mount instead of
+  // falling through to the SPA catch-all.
+  baseUrl: '/docs/',
 
   onBrokenLinks: 'throw',
 
@@ -102,17 +110,27 @@ const config: Config = {
         {
           title: 'Docs',
           items: [
+            // No leading slash: Docusaurus's addBaseUrl (theme-classic's
+            // FooterLinkItem calls useBaseUrl(to) with default options)
+            // skips prepending baseUrl whenever `to` already starts with
+            // the configured baseUrl string. With baseUrl now '/docs/',
+            // a leading-slash value like '/docs/getting-started' collides
+            // with that guard and is left un-prefixed, pointing at
+            // '/docs/getting-started' while the actual generated route
+            // (baseUrl + docs routeBasePath) is '/docs/docs/getting-started'.
+            // Dropping the leading slash avoids the collision so baseUrl
+            // is correctly prepended, landing on the real route.
             {
               label: 'Getting Started',
-              to: '/docs/getting-started',
+              to: 'docs/getting-started',
             },
             {
               label: 'User Guide',
-              to: '/docs/user-guide',
+              to: 'docs/user-guide',
             },
             {
               label: 'Contributor Guide',
-              to: '/docs/contributor-guide',
+              to: 'docs/contributor-guide',
             },
           ],
         },
