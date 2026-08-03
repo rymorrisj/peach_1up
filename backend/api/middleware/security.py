@@ -1,7 +1,6 @@
 import json
 import os
 import uuid
-from urllib.parse import urlsplit
 
 from fastapi import Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,12 +8,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse
 
 _LOCALHOST_ORIGINS = {"127.0.0.1", "::1", "localhost"}
-
-# Bare hostname for the Docusaurus docs sub-app's Host() route (see main.py's
-# app.host() call), derived from DOCS_BASE_URL. Still subject to
-# SecurityMiddleware's localhost-only gate — only exempted from
-# FirstRunGuardMiddleware below so docs are reachable pre-setup.
-_DOCS_HOST = urlsplit(os.environ.get("DOCS_BASE_URL", "http://localhost:3000")).hostname or "localhost"
 
 
 def _apply_cors_headers(response: Response, request: Request) -> None:
@@ -120,9 +113,8 @@ class FirstRunGuardMiddleware(BaseHTTPMiddleware):
         if _first_run_done_cache:
             return await call_next(request)
 
-        host = request.headers.get("host", "").split(":")[0]
         path = request.url.path
-        excluded = path.startswith("/api/") or path.startswith("/assets/") or host == _DOCS_HOST
+        excluded = path.startswith("/api/") or path.startswith("/assets/") or path.startswith("/docs")
         is_first_run_page = path == "/first-run" or path.startswith("/first-run")
         has_extension = "." in path.rsplit("/", 1)[-1]
 

@@ -19,7 +19,7 @@ def resource_path(relative: str) -> Path:
         return Path(sys._MEIPASS) / relative
     return Path(__file__).resolve().parent.parent / relative
 
-from backend.api.middleware.security import CSRFMiddleware, FirstRunGuardMiddleware, SecurityMiddleware, _DOCS_HOST, _LOCALHOST_ORIGINS, configure_cors
+from backend.api.middleware.security import CSRFMiddleware, FirstRunGuardMiddleware, SecurityMiddleware, _LOCALHOST_ORIGINS, configure_cors
 from backend.api.middleware.request_logging import RequestLoggingMiddleware
 from backend.api.routes import ROUTERS
 from backend.core.lifespan import lifespan
@@ -79,13 +79,19 @@ logger.debug("[PEACH] frontend_dist=%s", frontend_dist)
 logger.debug("[PEACH] exists=%s", frontend_dist.exists())
 
 # Starlette's router dispatches to the first route whose .matches() returns a
-# FULL match (see starlette.routing.Router.app), in registration order. Host
-# routes match FULL on any path once the hostname matches, so this app.host()
-# call must be registered before the "/{full_path:path}" catch-all below —
-# otherwise the catch-all (registered first) would win and the docs sub-app
-# would never be reached. Verified empirically with TestClient.
+# FULL match (see starlette.routing.Router.app), in registration order, so
+# this path mount must be registered before the "/{full_path:path}" catch-all
+# below, otherwise the catch-all (registered first) would win and the docs
+# sub-app would never be reached.
+#
+# Path-based mount, not Host()-based: a Host() route matches the ENTIRE
+# request by hostname with no path discrimination, so registering it for
+# 127.0.0.1 (the packaged app's own browser target, see
+# backend/core/lifespan.py) sent every request, including "/", to the docs
+# StaticFiles app instead of the real application. Docs and the app now
+# share one host:port, distinguished by the "/docs" path prefix only.
 docs_dist = resource_path("docs/build")
-app.host(_DOCS_HOST, app=StaticFiles(directory=str(docs_dist), html=True, check_dir=False))
+app.mount("/docs", app=StaticFiles(directory=str(docs_dist), html=True, check_dir=False))
 
 @app.get("/{full_path:path}", include_in_schema=False)
 async def spa_fallback(full_path: str):
