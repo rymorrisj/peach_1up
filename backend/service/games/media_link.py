@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -91,9 +92,39 @@ def create_linked_media_from_metadata(
             slug=unique_media_slug(game.title, db),
         )
         db.add(bundle)
-        db.flush()
-        boxart_path = next((p for a, p in downloaded if a is boxart), downloaded[0][1])
-        bundle.cover_art_path = str(boxart_path)
+        try:
+            db.flush()
+        except IntegrityError:
+            # unique_media_slug's check-then-insert isn't atomic, so a second
+            # accept-metadata-assets call for the same game, still running
+            # concurrently with this one (the frontend's client-side abort
+            # timeout can fire before a slow multi-image download finishes,
+            # after which a manual retry races the original request rather
+            # than replacing it), can win the slug and commit first. The
+            # winner already created and linked the bundle we were trying to
+            # create, so roll back and join it instead, per this function's
+            # own "later additions join the same bundle" semantics.
+            db.rollback()
+            existing_refs = [
+                ref for ref in _linked_items_for("game_item_bundle", game_item_bundle_id, db)
+                if ref.entity_type == "media_item_bundle"
+            ]
+            if not existing_refs:
+                # No link exists for this game, so the slug collision is
+                # against an unrelated bundle (e.g. a different game with
+                # the same title), not our own concurrent request. That is a
+                # genuine, unrecoverable conflict for this attempt, not
+                # something safe to silently resolve.
+                raise HTTPException(
+                    status_code=409,
+                    detail="A conflicting media item was created at the same time. Please try again.",
+                )
+            earliest = min(existing_refs, key=lambda r: r.link_id)
+            bundle = db.get(MediaItemBundle, earliest.entity_id)
+            is_new_bundle = False
+        else:
+            boxart_path = next((p for a, p in downloaded if a is boxart), downloaded[0][1])
+            bundle.cover_art_path = str(boxart_path)
 
     for asset, path in downloaded:
         db.add(MediaItem(

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
+from sqlmodel import SQLModel
 
 from backend.core.database import get_db
 from backend.core.dependencies import (
@@ -13,7 +14,7 @@ from backend.core.logger import get_logger
 from backend.models.media import (
     MediaItemBundle, MediaItemBundleCreate, MediaItemBundleRead, MediaItemBundleUpdate,
     MediaItem, MediaItemCreate, MediaItemRead, MediaItemUpdate,
-    delete_links_for, unique_media_slug,
+    delete_links_for, unique_media_slug, _linked_items_for,
     media_item_bundle_to_read, media_item_bundle_to_read_bulk, item_to_read, items_to_read_bulk,
 )
 from backend.models.pagination import Page
@@ -193,6 +194,62 @@ def update_media_item_bundle(
     db.commit()
     db.refresh(collection)
     return media_item_bundle_to_read(collection, db)
+
+
+class MediaCoverArtToGamesBody(SQLModel):
+    file_path: str
+
+
+@router.post("/media-item-bundle/{collection_id}/apply-cover-art-to-linked-games", response_model=list[int])
+def apply_cover_art_to_linked_games(
+    collection_id: int,
+    body: MediaCoverArtToGamesBody,
+    db: Session = Depends(get_db),
+    _media: UserItem = require_permission("can_manage_media"),
+    _game: UserItem = require_permission("can_manage_game"),
+):
+    """Reuse one of this media collection's files as cover art for every
+    game_item_bundle linked to it via MediaLink. Additive to the existing
+    Media-only "Set as cover art" action (PATCH /media-item-bundle/{id}),
+    which this does not touch or replace.
+
+    Applies to every linked game, not just one: MediaLink has no cardinality
+    limit (backend/models/media.py), and there is no existing UI pattern in
+    this codebase for picking one of several linked entities, so a single
+    click here updates all of them rather than silently choosing one.
+
+    Writes through the same leaf a game's cover art is actually displayed
+    from (display_disk_id, falling back to launch_disk_id, falling back to
+    the first disc by disc_number), matching resolveLeafCoverArt
+    (frontend/src/pages/Software/types.ts) exactly. Writing any other leaf
+    would be silently invisible, since nothing reads from it for display.
+    """
+    collection = db.get(MediaItemBundle, collection_id)
+    if not collection:
+        raise HTTPException(status_code=404, detail="Media collection not found.")
+    if not any(item.file_path == body.file_path for item in collection.items):
+        raise HTTPException(status_code=422, detail="file_path does not belong to this media item.")
+
+    from backend.models.game import GameItemBundle, GameItemUpdate
+    from backend.service.games.items import update_library_leaf
+
+    linked_game_ids = [
+        ref.entity_id for ref in _linked_items_for("media_item_bundle", collection_id, db)
+        if ref.entity_type == "game_item_bundle"
+    ]
+    if not linked_game_ids:
+        raise HTTPException(status_code=404, detail="This media item has no linked games.")
+
+    updated: list[int] = []
+    for game_id in linked_game_ids:
+        bundle = db.get(GameItemBundle, game_id)
+        if not bundle or not bundle.items:
+            continue
+        target_leaf_id = bundle.display_disk_id or bundle.launch_disk_id
+        leaf = next((i for i in bundle.items if i.id == target_leaf_id), None) or bundle.items[0]
+        update_library_leaf(game_id, leaf.id, GameItemUpdate(cover_art_path=body.file_path), db)
+        updated.append(game_id)
+    return updated
 
 
 @router.delete("/media-item-bundle/{collection_id}", status_code=204)

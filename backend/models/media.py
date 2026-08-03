@@ -69,18 +69,19 @@ class MediaItemUpdate(SQLModel):
     sort_index: Optional[int] = None
 
 
-def _compute_cover_art_url(cover_art_path: Optional[str]) -> Optional[str]:
-    """Same pattern as GameItemRead._compute_cover_art_url: cover art is
-    served through main.py's static /media/{file_path} route, which resolves
-    any path under LIBRARY_PATH, not specifically the MEDIA_PATH subtree, so
-    this works unchanged for the Media domain's own MEDIA_PATH-rooted files."""
-    if not cover_art_path:
+def _compute_media_url(path: Optional[str]) -> Optional[str]:
+    """Resolve any library-rooted absolute path to its servable /media/{file_path}
+    URL (main.py's static route, which resolves any path under LIBRARY_PATH, not
+    specifically the MEDIA_PATH subtree). Shared by cover_art_url and file_url on
+    both MediaItemRead and MediaItemBundleRead, one path-resolution rule instead
+    of a copy per field."""
+    if not path:
         return None
     try:
         from backend.service.utils import settings as _s
 
         lib_root = Path(_s.get("LIBRARY_PATH"))
-        resolved = Path(cover_art_path).resolve()
+        resolved = Path(path).resolve()
         rel = resolved.relative_to(lib_root.resolve())
         if not resolved.exists():
             return None
@@ -109,6 +110,7 @@ class MediaItemRead(SQLModel):
     title: str
     media_kind: MediaKind
     file_path: str
+    file_url: Optional[str] = None
     file_size_bytes: Optional[int] = None
     cover_art_path: Optional[str] = None
     cover_art_url: Optional[str] = None
@@ -121,8 +123,9 @@ class MediaItemRead(SQLModel):
     linked_items: list[LinkedEntityRef] = []
 
     @model_validator(mode="after")
-    def _fill_cover_art_url(self) -> "MediaItemRead":
-        self.cover_art_url = _compute_cover_art_url(self.cover_art_path)
+    def _fill_computed_urls(self) -> "MediaItemRead":
+        self.cover_art_url = _compute_media_url(self.cover_art_path)
+        self.file_url = _compute_media_url(self.file_path)
         return self
 
 
@@ -188,7 +191,7 @@ class MediaItemBundleRead(SQLModel):
 
     @model_validator(mode="after")
     def _fill_cover_art_url(self) -> "MediaItemBundleRead":
-        self.cover_art_url = _compute_cover_art_url(self.cover_art_path)
+        self.cover_art_url = _compute_media_url(self.cover_art_path)
         return self
 
 
