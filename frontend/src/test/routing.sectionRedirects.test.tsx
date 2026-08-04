@@ -161,7 +161,7 @@ async function expectFinalPath(path: string) {
   })
 }
 
-describe.skip('Section redirects (dev_docs/v2/08_emulator_profiles_navigation.md)', () => {
+describe('Section redirects (dev_docs/v2/08_emulator_profiles_navigation.md)', () => {
   it('/platform-health redirects to /system/health (legacy link preserved)', async () => {
     mockApiGenerically()
     renderAt('/platform-health')
@@ -202,7 +202,7 @@ describe.skip('Section redirects (dev_docs/v2/08_emulator_profiles_navigation.md
   })
 })
 
-describe.skip('/emulators/:slug exception (Locked decision 13) — static tab segments resolve first', () => {
+describe('/emulators/:slug exception (Locked decision 13) — static tab segments resolve first', () => {
   it.each([
     ['/emulators/emulators', /no emulators found/i],
     ['/emulators/bios', /no bios requirements/i],
@@ -247,7 +247,7 @@ describe.skip('/emulators/:slug exception (Locked decision 13) — static tab se
   })
 })
 
-describe.skip('Profiles has no per-profile route (Locked decision 11 — reconciles an earlier inconsistent revision)', () => {
+describe('Profiles has no per-profile route (Locked decision 11 — reconciles an earlier inconsistent revision)', () => {
   it('/emulators/profiles/some-slug is not a registered route — falls through to the section default tab', async () => {
     mockApiGenerically()
     renderAt('/emulators/profiles/some-slug')

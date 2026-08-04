@@ -62,7 +62,7 @@ function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
 }
 
-describe.skip('TabbedLayout — domain-agnostic contract', () => {
+describe('TabbedLayout — domain-agnostic contract', () => {
   it('contains no hardcoded domain strings in its executable source (comments excluded)', () => {
     const code = stripComments(fs.readFileSync(SOURCE_PATH, 'utf-8')).toLowerCase()
     for (const word of FORBIDDEN_DOMAIN_WORDS) {

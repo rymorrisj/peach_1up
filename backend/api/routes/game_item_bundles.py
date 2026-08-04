@@ -232,13 +232,13 @@ def import_from_path(
 
 
 @router.get("/game-items/scan/status", response_model=ScanStatus)
-def scan_status():
+def scan_status(_: UserItem = require_permission("can_manage_game")):
     with _scan_lock:
         return {"running": _scan_running, "job_id": _scan_job_id, "error": _scan_error}
 
 
 @router.post("/game-items/scan/{job_id}/cancel")
-def cancel_scan(job_id: str):
+def cancel_scan(job_id: str, _: UserItem = require_permission("can_manage_game")):
     """Cooperative cancellation for an in-flight scan job. Flags the job so
     _run_scan's loop exits at its next check, then returns the updated job
     status immediately — the job itself only reaches the terminal 'cancelled'

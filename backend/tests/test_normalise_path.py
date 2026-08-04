@@ -107,3 +107,78 @@ class TestFilesystemAllowlist:
 
         resp = client.get("/api/v1/filesystem/browse", params={"path": str(sub)})
         assert resp.status_code == 200
+
+
+class TestFilesystemPermissionGate:
+    """dev_docs/P1_AUDIT.md TST-14 — TestFilesystemAllowlist above always
+    overrides get_active_user with an owner, so
+    require_game_or_environment_editor's own permission check (as opposed to
+    the owner bypass baked into it) was never exercised, and GET /drives /
+    GET /launch-file-extensions had no test at all. This class covers a
+    non-editor 403 on all three routes, plus basic 200 coverage for the two
+    previously-untested ones.
+    """
+
+    @pytest.fixture
+    def app_client(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from backend.api.routes import filesystem
+
+        app = FastAPI()
+        app.include_router(filesystem.router)
+
+        with TestClient(app) as client:
+            yield app, client
+
+    def _set_user(self, app, **overrides):
+        from backend.core.dependencies import get_active_user
+        from backend.models.user import UserItem
+
+        kwargs = dict(id=1, name="U", is_owner=False, can_manage_game=False, can_manage_environment=False)
+        kwargs.update(overrides)
+        app.dependency_overrides[get_active_user] = lambda: UserItem(**kwargs)
+
+    def test_browse_403_for_non_editor(self, app_client):
+        app, client = app_client
+        self._set_user(app)
+
+        resp = client.get("/api/v1/filesystem/browse")
+
+        assert resp.status_code == 403
+
+    def test_drives_403_for_non_editor(self, app_client):
+        app, client = app_client
+        self._set_user(app)
+
+        resp = client.get("/api/v1/filesystem/drives")
+
+        assert resp.status_code == 403
+
+    def test_launch_file_extensions_403_for_non_editor(self, app_client):
+        app, client = app_client
+        self._set_user(app)
+
+        resp = client.get("/api/v1/filesystem/launch-file-extensions")
+
+        assert resp.status_code == 403
+
+    def test_drives_200_for_environment_editor(self, app_client):
+        """can_manage_environment alone (no can_manage_game, not owner) is
+        enough — the two flags are OR'd in require_game_or_environment_editor."""
+        app, client = app_client
+        self._set_user(app, can_manage_environment=True)
+
+        resp = client.get("/api/v1/filesystem/drives")
+
+        assert resp.status_code == 200
+        assert "drives" in resp.json()
+
+    def test_launch_file_extensions_200_for_game_editor(self, app_client):
+        app, client = app_client
+        self._set_user(app, can_manage_game=True)
+
+        resp = client.get("/api/v1/filesystem/launch-file-extensions")
+
+        assert resp.status_code == 200
+        assert isinstance(resp.json()["extensions"], list)

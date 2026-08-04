@@ -82,7 +82,7 @@ echo [OK] Backend dependencies installed
 REM ── Frontend deps ────────────────────────────────────────────
 echo Installing frontend dependencies...
 pushd "frontend"
-call npm install
+call npm ci
 if errorlevel 1 (
     echo ERROR: Failed to install frontend dependencies.
     popd
@@ -95,7 +95,7 @@ echo [OK] Frontend dependencies installed
 REM ── Docs deps ─────────────────────────────────────────────────
 echo Installing docs dependencies...
 pushd "docs"
-call npm install
+call npm ci
 if errorlevel 1 (
     echo ERROR: Failed to install docs dependencies.
     popd

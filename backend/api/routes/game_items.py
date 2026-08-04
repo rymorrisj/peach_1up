@@ -48,9 +48,10 @@ def update_game_item(
 def verify_game_item(
     leaf_id: int,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_game"),
+    active_user: UserItem = require_permission("can_manage_game"),
 ):
     """On-demand re-check, distinct from the automatic ingest-time write in
     _prepare_item (backend/service/games/items.py). Catches post-ingest
     file corruption."""
+    _visible_leaf(leaf_id, active_user, db)
     return GameItemRead.model_validate(lib_svc.reverify_library_leaf(leaf_id, db))

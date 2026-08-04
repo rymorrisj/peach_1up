@@ -5,6 +5,7 @@ no database init, no startup logic.
 """
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -75,15 +76,23 @@ def main() -> None:
         print(f"ERROR: Failed to export OpenAPI spec: {exc}", file=sys.stderr)
         sys.exit(1)
 
+    npm_path = shutil.which("npm")
+    if npm_path is None:
+        print("ERROR: npm not found on PATH", file=sys.stderr)
+        sys.exit(1)
+
     try:
         subprocess.run(
-            ["npm.cmd", "run", "generate:api"],
+            [npm_path, "run", "generate:api"],
             cwd=REPO_ROOT / "frontend",
             check=True,
         )
         print("[OK] Types generated successfully → shared/types.ts")
     except subprocess.CalledProcessError as exc:
         print(f"ERROR: Type generation failed (exit {exc.returncode})", file=sys.stderr)
+        sys.exit(1)
+    except OSError as exc:
+        print(f"ERROR: Failed to launch npm: {exc}", file=sys.stderr)
         sys.exit(1)
 
 
