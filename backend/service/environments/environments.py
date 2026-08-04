@@ -234,7 +234,7 @@ def check_environment_item_health(platform: EnvironmentItem, db: Session) -> dic
 
 def batch_health_check(db: Session) -> dict:
     """Live recompute over all user Environments, nothing persisted."""
-    platforms = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()
+    platforms = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()  # noqa: E712
     results = [{"id": platform.id, "is_present": compute_environment_presence(platform)} for platform in platforms]
     return {"results": results, "checked": len(results)}
 
@@ -249,7 +249,7 @@ def get_health_summary(db: Session) -> dict:
         load_catalog,
     )
 
-    user_platforms = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()
+    user_platforms = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()  # noqa: E712
     # Computed live (nothing persisted) so this always matches what
     # list_environment_items shows on the same page load — see
     # compute_environment_presence.
@@ -290,7 +290,7 @@ def get_health_summary(db: Session) -> dict:
     rom_pack_slugs = {e["slug"] for e in rom_entries}
     rom_installed = (
         db.query(RomPackItem)
-        .filter(RomPackItem.slug.in_(rom_pack_slugs), RomPackItem.is_present == True)
+        .filter(RomPackItem.slug.in_(rom_pack_slugs), RomPackItem.is_present == True)  # noqa: E712
         .count()
         if rom_pack_slugs else 0
     )

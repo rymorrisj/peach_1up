@@ -275,7 +275,6 @@ class TestGetFilteredCollectionsOwnerBypass:
     def test_owner_sees_everything_including_unrated_and_restricted(self, mem_db_session):
         from backend.core.dependencies import get_filtered_game_item_bundles
         from backend.models.media_restriction import MediaRestriction
-        from backend.models.user import UserItem
 
         owner = _make_user(mem_db_session, name="Owner", is_owner=True)
         unrated = _make_collection(mem_db_session, slug="unrated", content_rating=None)

@@ -16,14 +16,13 @@ from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.models.environment import EnvironmentItem
 from backend.service.utils.emulator_catalog import get_86box_profile
+from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DOSBOX_ERAS
 from backend.service.utils.eras_config import get_eras
 from backend.service.utils.ini_writer import patch_ini
 from backend.service.utils.emulator_catalog import get_86box_rom_path, get_install_path
 from backend.service.utils.vm.vhd import _build_vhd_footer
 
 logger = get_logger(__name__)
-
-from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DOSBOX_ERAS
 
 _86BOX_ERAS = frozenset({"win95", "win98", "winxp"})
 

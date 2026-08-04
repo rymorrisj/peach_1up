@@ -15,9 +15,7 @@ Architecture note — P3.1 transactional gap (still present in the code):
 Run with:
     pytest backend/tests/test_drive_hydration.py
 """
-import hashlib
-from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock
 
 import pytest
 

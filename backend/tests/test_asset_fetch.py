@@ -14,7 +14,6 @@ backend/service/games/media_link.py's Accept All asset downloads.
 Run with:
     pytest backend/tests/test_asset_fetch.py
 """
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import httpx as real_httpx

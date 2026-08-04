@@ -380,7 +380,6 @@ def write_launch_conf(
             the library directory.
     """
     media_path = spec.media_path
-    executable_path = Path(spec.executable_path)
 
     drive_setup_lines, mount_line, drive_line, media_drive = _build_drive_mount_lines(
         spec.drive_image_path, spec.drive_size_mb, spec.use_drive, media_path,

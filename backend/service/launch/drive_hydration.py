@@ -48,7 +48,6 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
 
     The installed=True write-back goes through entity._db_collection.
     """
-    from backend.models.drive import Drive
     from backend.models.game import GameItem
     from backend.service.utils.drive_utils import compute_drive_size_mb, create_drive_for_collection
     from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DRIVE_ERAS

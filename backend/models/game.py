@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, TYPE_CHECKING
 
 from pydantic import model_validator
 from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Integer, String, func
@@ -13,13 +13,11 @@ from backend.models.drive import Drive, DriveRead
 from backend.models.media import LinkedEntityRef
 from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_entity
 
-_YEAR_MIN = 1970
-_YEAR_MAX = 2050
-
-from typing import TYPE_CHECKING, Optional
-
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
+_YEAR_MIN = 1970
+_YEAR_MAX = 2050
 
 # ---------------------------------------------------------------------------
 # Leaf entity: GameItem (one disc / media record within a bundle).

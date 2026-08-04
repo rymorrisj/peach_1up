@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 
 
 def test_load_catalog_returns_all_emulators():

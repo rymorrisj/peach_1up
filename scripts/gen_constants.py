@@ -8,7 +8,6 @@ Run from the project root:
 from __future__ import annotations
 
 import re
-import textwrap
 import tomllib
 from pathlib import Path
 

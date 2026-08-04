@@ -5,8 +5,6 @@ import struct
 from backend.service.utils.fat.geometry import (
     _BYTES_PER_SECTOR,
     _FAT_COUNT,
-    _FAT_EOC,
-    _FAT_RESERVED,
     _HEAD_COUNT,
     _RESERVED_SECTORS,
     _ROOT_ENTRY_COUNT,

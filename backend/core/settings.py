@@ -8,7 +8,6 @@ import here would create a circular import depending on which module loads
 first.
 """
 
-import os
 import sys
 from pathlib import Path
 

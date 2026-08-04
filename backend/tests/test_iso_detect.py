@@ -3,8 +3,6 @@
 import textwrap
 from pathlib import Path
 
-import pytest
-
 
 # ---------------------------------------------------------------------------
 # _cue_bin_path — multi-FILE fallthrough

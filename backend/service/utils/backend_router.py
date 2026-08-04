@@ -8,7 +8,6 @@ No if/elif chain, no frozensets, no ORM objects.
 from __future__ import annotations
 
 import importlib
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from backend.constants_generated import BackendSlug, Era

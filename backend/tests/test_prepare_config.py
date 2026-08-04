@@ -3,8 +3,6 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 # pycdlib is an optional runtime dependency not available in the test environment.
 # Stub it and its submodule so importing box86 -> media_attach succeeds.
 if "pycdlib" not in sys.modules:

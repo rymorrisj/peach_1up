@@ -25,7 +25,7 @@ def lookup_environment_and_profile(
 
     platform = (
         db.query(EnvironmentItem)
-        .filter(EnvironmentItem.emulator_slug == emulator_slug, EnvironmentItem.is_system == True)
+        .filter(EnvironmentItem.emulator_slug == emulator_slug, EnvironmentItem.is_system == True)  # noqa: E712
         .first()
     )
     profile = (
@@ -93,7 +93,7 @@ def resolve_environments_for_launch_gate_bulk(items: list, db: Session) -> dict[
     if fallback_eras:
         for row in (
             db.query(EnvironmentItem)
-            .filter(EnvironmentItem.era.in_(fallback_eras), EnvironmentItem.is_system == True)
+            .filter(EnvironmentItem.era.in_(fallback_eras), EnvironmentItem.is_system == True)  # noqa: E712
             .all()
         ):
             by_era[row.era] = row
@@ -120,7 +120,7 @@ def lookup_system_environment_by_era(era: str, db: Session):
 
     return (
         db.query(EnvironmentItem)
-        .filter(EnvironmentItem.era == era, EnvironmentItem.is_system == True)
+        .filter(EnvironmentItem.era == era, EnvironmentItem.is_system == True)  # noqa: E712
         .first()
     )
 

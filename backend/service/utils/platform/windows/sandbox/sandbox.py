@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Callable
 
 from backend.core.logger import get_logger
-from backend.service.utils.platform.windows.sandbox.sandbox_config import BrokerFile, SandboxConfig
+from backend.service.utils.platform.windows.sandbox.sandbox_config import SandboxConfig
 from backend.service.utils.platform.windows.sandbox.sandbox_error import SandboxError
 from backend.service.utils.platform.windows.sandbox.sandbox_event import (
     SandboxEvent,
@@ -138,7 +138,6 @@ async def _watch_event(
 
     SYNCHRONIZE = 0x00100000
     EVENT_MODIFY_STATE = 0x0002
-    INFINITE = 0xFFFFFFFF
     WAIT_OBJECT_0 = 0x00000000
     WAIT_TIMEOUT = 0x00000102
 

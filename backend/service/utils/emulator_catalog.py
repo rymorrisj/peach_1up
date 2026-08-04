@@ -3,12 +3,15 @@ import logging
 import os
 import tomllib
 from pathlib import Path
-from typing import Dict, Any, get_args
+from typing import Dict, Any, TYPE_CHECKING, get_args
 
 from backend.constants_generated import InstallType
 from backend.core.settings import get_base_path
 from backend.service.utils import settings as _settings
 from backend.service.utils.eras_config import get_eras as _get_eras
+
+if TYPE_CHECKING:
+    from backend.service.utils.platform.windows.sandbox.sandbox_config import SandboxConfig
 
 _logger = logging.getLogger(__name__)
 

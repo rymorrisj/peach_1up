@@ -165,7 +165,7 @@ class TestPrepareFolderRename:
         # _prepare_item will raise because outer/ is inside games_root but
         # inner/ is two levels deep — falls through to create+move; the
         # canonical dest_folder is games_root/doom which doesn't conflict.
-        row = _call_prepare(str(src_file), "Doom", mem_session)
+        _call_prepare(str(src_file), "Doom", mem_session)
 
         canonical = games_root / "doom"
         assert canonical.is_dir()

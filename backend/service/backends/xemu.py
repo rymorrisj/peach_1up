@@ -14,7 +14,7 @@ import re
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from backend.constants import ERA_FILE_TYPES
 from backend.constants_generated import Era

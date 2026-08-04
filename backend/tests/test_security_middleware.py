@@ -3,7 +3,6 @@
 Run with:
     pytest backend/tests/test_security_middleware.py
 """
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 

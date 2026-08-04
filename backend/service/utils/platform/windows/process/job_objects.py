@@ -22,7 +22,6 @@ is intentionally ignored there.
 
 import ctypes
 import ctypes.wintypes
-import os
 import sys
 
 from backend.service.utils.platform.windows.win32_types import (

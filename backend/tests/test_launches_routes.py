@@ -262,8 +262,8 @@ class TestTargetTypeFailClosed:
 
     def test_unknown_target_type_is_rejected_not_passed_through(self, http_client):
         c, db, app = http_client
-        env_record = _make_launch_history(db, environment_item_id=1)
-        collection_record = _make_launch_history(db, game_item_bundle_id=2)
+        _make_launch_history(db, environment_item_id=1)
+        _make_launch_history(db, game_item_bundle_id=2)
         user = _make_user(db)
         _set_active_user(app, user)
 

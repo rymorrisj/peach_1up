@@ -1,17 +1,24 @@
 import sys
 from pathlib import Path
 
+from backend.service.utils.path_utils import normalise_path
+
 from backend.core.settings import init_settings
 init_settings()
 
-from backend.core.logger import get_logger
+# init_settings() above must run before any import below that reads settings
+# at module level (directly, or transitively through routes/middleware that
+# call get_settings() at import time): get_settings() raises RuntimeError
+# if settings are not yet initialised. Hence the imports below are deliberately
+# not at the top of the file; each is noqa'd rather than reordered.
+from backend.core.logger import get_logger  # noqa: E402
 
 logger = get_logger(__name__)
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse, Response
-from fastapi.requests import Request
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI  # noqa: E402
+from fastapi.responses import FileResponse, Response  # noqa: E402
+from fastapi.requests import Request  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 
 def resource_path(relative: str) -> Path:
@@ -19,10 +26,10 @@ def resource_path(relative: str) -> Path:
         return Path(sys._MEIPASS) / relative
     return Path(__file__).resolve().parent.parent / relative
 
-from backend.api.middleware.security import CSRFMiddleware, FirstRunGuardMiddleware, SecurityMiddleware, _LOCALHOST_ORIGINS, configure_cors
-from backend.api.middleware.request_logging import RequestLoggingMiddleware
-from backend.api.routes import ROUTERS
-from backend.core.lifespan import lifespan
+from backend.api.middleware.security import CSRFMiddleware, FirstRunGuardMiddleware, SecurityMiddleware, _LOCALHOST_ORIGINS, configure_cors  # noqa: E402
+from backend.api.middleware.request_logging import RequestLoggingMiddleware  # noqa: E402
+from backend.api.routes import ROUTERS  # noqa: E402
+from backend.core.lifespan import lifespan  # noqa: E402
 
 app = FastAPI(
     title="Peach 1UP",
@@ -46,7 +53,6 @@ app.add_middleware(RequestLoggingMiddleware)
 for _router in ROUTERS:
     app.include_router(_router)
 
-from backend.service.utils.path_utils import normalise_path
 
 
 @app.get("/media/{file_path:path}", include_in_schema=False)

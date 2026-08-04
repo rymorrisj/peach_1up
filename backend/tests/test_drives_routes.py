@@ -322,7 +322,6 @@ class TestDeleteEndToEnd:
         assert not image.exists()
 
         from backend.models.drive import Drive
-        from backend.models.game import GameItemBundle
 
         assert db.get(Drive, drive.id) is None
         db.refresh(bundle)
@@ -330,7 +329,6 @@ class TestDeleteEndToEnd:
 
     def test_delete_clears_app_bundle_fk(self, http_client, tmp_path):
         from backend.service.utils import confirmation_tokens
-        from backend.models.app import AppItemBundle
 
         c, db, app = http_client
         bundle = _make_app_bundle(db)

@@ -2,8 +2,6 @@ import io
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from backend.service.utils.xbox_image import detect_xbox_image_type, is_xiso
 
 _XBOX_MAGIC = b"MICROSOFT*XBOX*MEDIA"

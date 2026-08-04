@@ -170,7 +170,7 @@ class TestCreateMultiDiscSet:
 
     def test_launch_disk_id_points_to_first_disc(self, tmp_path, mem_session):
         from backend.service.games.items import _create_multi_disc_collection
-        from backend.models.game import GameItemBundle, GameItem
+        from backend.models.game import GameItem
 
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
         library_set = _create_multi_disc_collection(disc_files, "Test Game", mem_session)

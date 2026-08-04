@@ -87,7 +87,7 @@ class TestWriteLaunchConfGameExecutable:
         """Return non-empty lines from the [autoexec] section."""
         idx = content.index("[autoexec]")
         section = content[idx:]
-        return [l.strip() for l in section.splitlines() if l.strip()]
+        return [line.strip() for line in section.splitlines() if line.strip()]
 
     def test_clean_executable_appears_in_autoexec(self, tmp_path):
         content = self._conf_content(tmp_path, game_executable="GAME.EXE")

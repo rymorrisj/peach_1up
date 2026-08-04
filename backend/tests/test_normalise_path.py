@@ -10,8 +10,6 @@ GET /api/v1/filesystem/browse, the closest equivalent to a "scan endpoint"
 that accepts an arbitrary path.
 """
 
-from pathlib import Path
-
 import pytest
 
 

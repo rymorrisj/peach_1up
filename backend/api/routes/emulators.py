@@ -472,7 +472,7 @@ def get_confirm_token(slug: str):
 @router.patch("/{slug}/sandbox")
 def patch_sandbox(slug: str, body: SandboxPatchRequest, _: UserItem = require_permission("is_admin")):
     try:
-        entry = get_emulator(slug)
+        get_emulator(slug)
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
 

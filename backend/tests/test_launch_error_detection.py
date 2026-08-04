@@ -129,7 +129,6 @@ class TestMonitorShortLivedLaunch:
 class TestFlagShortLivedItem:
     def test_sets_flag_and_commits(self, monkeypatch):
         """Sets launch_review_flagged = True and calls commit."""
-        import backend.service.launch.monitor as mod
         from backend.service.launch.monitor import _flag_short_lived_item
 
         mock_item = MagicMock()
@@ -278,7 +277,6 @@ class TestInlineCheckFailsCurrentResponse:
         """The whole point of the inline check: an immediate exit must raise
         HTTPException for *this* request, not just flag the item for later."""
         import backend.service.launch.coordinator as coord
-        from fastapi import HTTPException
 
         src = inspect.getsource(coord.launch)
         # The inline check must run before LaunchResult is constructed, and
