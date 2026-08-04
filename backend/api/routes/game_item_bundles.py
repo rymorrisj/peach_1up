@@ -200,7 +200,7 @@ def import_from_path(
     from backend.service.utils.path_utils import library_domain_root
     svc = get_settings()
     # Games-only route today, so the destination domain is always "games".
-    media_root = library_domain_root("games")
+    domain_root = library_domain_root("games")
     try:
         threshold = int(svc.get("UPLOAD_BACKGROUND_THRESHOLD_BYTES", DEFAULT_BACKGROUND_THRESHOLD_BYTES)
                          or DEFAULT_BACKGROUND_THRESHOLD_BYTES)
@@ -211,12 +211,12 @@ def import_from_path(
         job_id = jobs.create("upload", message=f"Importing \"{title}\"…")
         background_tasks.add_task(
             path_import.import_background,
-            str(resolved), title, str(media_root), job_id, body.delete_original,
+            str(resolved), title, str(domain_root), job_id, body.delete_original,
         )
         return JSONResponse(status_code=202, content={"job_id": job_id, "status": "processing"})
 
     try:
-        result = path_import.import_inline(resolved, title, media_root, db, body.delete_original)
+        result = path_import.import_inline(resolved, title, domain_root, db, body.delete_original)
     except lib_svc._ItemAlreadyExists:
         raise HTTPException(status_code=409, detail="This item is already in the library.")
     except lib_svc._SlugCollision as exc:

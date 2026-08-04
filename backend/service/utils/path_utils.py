@@ -157,15 +157,9 @@ def is_within_roots(resolved: Path, roots: list[Path]) -> bool:
 
 
 # Matches the on-disk folder names exactly so a domain key can be joined onto
-# SOFTWARE_PATH with no further translation. "media" is deliberately NOT a member: MediaItem/
-# MediaItemBundle (backend/models/media.py) is the Software section's Media
-# sub-tab AND the only Media domain that exists in this codebase, per doc
-# dev_docs/v2/03_media_archive.md's "new archival Media domain" and the
-# Software Media sub-tab were never two separate things, they shipped as one.
-# That domain roots at MEDIA_PATH (library/software/media/), read directly
-# from the settings key, not by joining "media" onto SOFTWARE_PATH here, and
-# is resolved directly in backend/service/uploads/software_media.py, it has
-# no reason to ever go through this SOFTWARE_PATH-scoped resolver.
+# SOFTWARE_PATH with no further translation. "media" is deliberately excluded — that
+# domain roots at MEDIA_PATH directly (see software_media.py) and never goes through
+# this SOFTWARE_PATH-scoped resolver.
 _LIBRARY_DOMAINS: frozenset[str] = frozenset({"games", "apps"})
 
 

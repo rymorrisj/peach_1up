@@ -125,7 +125,9 @@ def _parse_cue_track_type(cue_path: Path) -> str | None:
     Returns None if the cue sheet is unreadable or contains no TRACK line.
     """
     try:
-        for line in cue_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        with open(cue_path, "rb") as f:
+            raw = f.read(64 * 1024)  # cue sheets are a few hundred bytes, cap defends against a giant file
+        for line in raw.decode("utf-8", errors="replace").splitlines():
             stripped = line.strip().upper()
             if stripped.startswith("TRACK "):
                 parts = stripped.split()

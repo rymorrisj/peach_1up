@@ -35,6 +35,38 @@ v2 and are indicative, not exact. Apply this map throughout:
 The remainder of the document is left in its original pre-v2 wording for historical
 continuity; read it through the map above.
 
+═══════════════════════════════════════════════════════════════════════════════
+V3 RENAME BANNER (applies on top of the V2 banner above — apply both maps in order)
+═══════════════════════════════════════════════════════════════════════════════
+
+A second rename pass (v3, `dev_docs/v2/10_naming_scheme_v3.md`) landed after the v2 map
+above. Apply this on top of it throughout:
+
+- `SoftwareCollection` → `GameItemBundle`; `SoftwareItem` → `GameItem`. Table
+  `software_collections` → `game_item_bundles`; `software_items` → `game_items`.
+  `SoftwareCollectionGenre` → `GameItemBundleGenre`.
+- Models: `models/software.py` → `models/game.py`.
+- Routes: `software_collections.py` + `software_items.py` → `game_item_bundles.py` +
+  `game_items.py`.
+- Route prefixes: `/api/v1/software` → `/api/v1/game-items`;
+  `/api/v1/softwarecollection` → `/api/v1/game-item-bundle`. Collection launch is
+  `POST /api/v1/game-item-bundle/{collection_id}/launch` (F1).
+- `Environment` → `EnvironmentItem`; any `environment_id` FK → `environment_item_id`.
+  `/api/v1/environments` → `/api/v1/environment-items`.
+- `launch_history.software_collection_id` → `game_item_bundle_id` (plus new
+  `app_item_bundle_id`); derived `target_type` value `software_collection` →
+  `game_item_bundle`, `environment` → `environment_item`.
+- Permission flags: `can_manage_software` → `can_manage_game`; `can_edit_environments`
+  → `can_manage_environment`.
+- Also renamed since the v2 banner was written, beyond its own scope: `User` →
+  `UserItem` (table `user_items`), `Profile` → `ProfileItem` (table `profile_items`),
+  `ControllerMapping` → `ControllerMappingItem` (table `controller_mapping_items`),
+  `MediaCollection` → `MediaItemBundle`, `AppCollection` → `AppItemBundle`. Note:
+  `dev_docs/v2/10_naming_scheme_v3.md` itself still marks the User/Profile/
+  ControllerMapping renames as "DEFERRED — separate future session"; the live code
+  (`backend/models/user.py`, `profile.py`, `controller_mapping.py`) shows all three
+  already implemented, so that planning doc is stale on this point.
+
 App wiring: main.py:39-42 middleware stack (LIFO → runtime order CORS → Security → CSRF → FirstRunGuard → router); main.py:44-57 14 routers included; main.py:65,94,96 three
 catch-alls (/media/\*, docs host, SPA). All db params resolve through get_db (core/database.py:47), a per-request session generator.
 

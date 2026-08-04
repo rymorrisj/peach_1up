@@ -79,7 +79,6 @@ def register() -> None:
     register_domain(
         UploadDomain(
             name="software_media",
-            permission_flag="can_manage_media",
             allowed_kinds=frozenset({"file"}),
             root_resolver=_root,
             finalize_inline=finalize_inline,

@@ -7,6 +7,7 @@ import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useConfirm } from '@/hooks/useConfirm'
+import { useToast } from '@/ui/ToastProvider'
 import type { components } from '@shared/types'
 import EnvironmentCard from './EnvironmentCard'
 import EnvironmentModal, {
@@ -36,6 +37,7 @@ function formFromPlatform(p: Platform): EnvironmentForm {
 export default function Environments() {
   const queryClient = useQueryClient()
   const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm()
+  const { showToast } = useToast()
 
   const { data: platforms, isLoading } = useQuery<Platform[]>({
     queryKey: ['platforms'],
@@ -145,7 +147,7 @@ export default function Environments() {
       )
       await queryClient.invalidateQueries({ queryKey: ['platforms'] })
     } catch (err) {
-      alert(err instanceof ApiError ? err.detail : 'Delete failed.')
+      showToast(err instanceof ApiError ? err.detail : 'Delete failed.', 'error')
     }
   }
 
@@ -154,8 +156,11 @@ export default function Environments() {
     try {
       await apiFetch(`/api/v1/environment-items/${platform.id}/health`, { method: 'POST' })
       await queryClient.invalidateQueries({ queryKey: ['platforms'] })
-    } catch {
-      // Status update reflected via query invalidation
+      // An unhealthy *result* is not an error here — it's a 200 whose status
+      // update is reflected via the invalidation above. Only a failed request
+      // itself (network/permission/500) reaches this catch.
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.detail : 'Health check request failed.', 'error')
     } finally {
       setHealthLoading(null)
     }
@@ -166,8 +171,10 @@ export default function Environments() {
     try {
       await apiFetch('/api/v1/health/recompute-all', { method: 'POST' })
       await queryClient.invalidateQueries({ queryKey: ['platforms'] })
-    } catch {
-      // Partial failures handled server-side; statuses updated via invalidation
+      // Per-environment failures are handled server-side and reflected via the
+      // invalidation above; only a failed request itself reaches this catch.
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.detail : 'Health check request failed.', 'error')
     } finally {
       setHealthCheckAllRunning(false)
     }

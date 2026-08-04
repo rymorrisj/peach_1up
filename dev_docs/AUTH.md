@@ -469,9 +469,10 @@ GET /api/v1/software (or any endpoint using get_filtered_collections)
   → get_active_user → user
   → get_filtered_collections(user, db):
     → user.is_owner → return all collections (no filter)
-    → exclude collections in MediaRestriction WHERE user_id=user.id (software_collection_id)
+    → exclude collections in MediaRestriction WHERE user_item_id=user.id (game_item_bundle_id — also
+      spans media_item_bundle_id and app_item_bundle_id for the Media/App domains)
     → block_unrated_media=true → exclude collections WHERE content_rating IS NULL OR ""
-    → max_content_rating set → load rating_ordinals from app_settings (or defaults; ⚠ no write path exists today, see SECURITY.md Known Gaps)
+    → max_content_rating set → load rating_ordinals from settings (or defaults; ⚠ no write path exists today, see SECURITY.md Known Gaps)
       → compute allowed set: all ratings with ordinal ≤ max
       → filter FAILS CLOSED: a collection passes only if its rating is NULL/empty or in
         the allowed set. An unrecognised rating is DENIED, not passed through; and if the

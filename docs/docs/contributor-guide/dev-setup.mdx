@@ -13,14 +13,11 @@ git clone <repo-url>
 cd peach_1up
 ```
 
-Then run the setup script for your OS from the project root:
+Then run the setup script from the project root. Peach 1UP is Windows-only (see
+[Technology Stack](./tech-stack.mdx)) — there is no Linux dev setup path:
 
 ```bash
-# Windows
 start.bat
-
-# Linux
-./start.sh
 ```
 
 The script creates a Python virtual environment, installs backend and frontend dependencies, generates the OpenAPI spec and typed API client, and starts every service. When it finishes:
@@ -29,7 +26,7 @@ The script creates a Python virtual environment, installs backend and frontend d
 | ------- | --- |
 | Frontend | http://localhost:5173 |
 | Backend API | http://localhost:8000 |
-| Docs site | http://localhost:3000 (Windows only) |
+| Docs site | http://localhost:3000 |
 
 ## Static verification
 
@@ -44,8 +41,7 @@ cd frontend && npx tsc --noEmit
 **Python linting:**
 
 ```bash
-.venv\Scripts\python.exe -m ruff check backend\   # Windows
-.venv/bin/python -m ruff check backend/            # Linux
+.venv\Scripts\python.exe -m ruff check backend\
 ```
 
 ## Branching and PR workflow

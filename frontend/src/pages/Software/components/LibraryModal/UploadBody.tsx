@@ -25,7 +25,7 @@ export default function UploadBody({ open, onClose, onComplete, mediaPath, confi
   // Multi-disc state
   const [multiDisc, setMultiDisc] = useState(false)
   const [stagedDiscs, setStagedDiscs] = useState<StagedDisc[]>([])
-  const [setTitle, setSetTitle] = useState('')
+  const [discSetTitle, setDiscSetTitle] = useState('')
   const [folderName, setFolderName] = useState('')
   const [folderNameTouched, setFolderNameTouched] = useState(false)
   const [setStatus, setSetStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
@@ -81,7 +81,7 @@ export default function UploadBody({ open, onClose, onComplete, mediaPath, confi
     if (!open && !busy) {
       setEntries([])
       setStagedDiscs([])
-      setSetTitle('')
+      setDiscSetTitle('')
       setFolderName('')
       setFolderNameTouched(false)
       setSetStatus('idle')
@@ -110,10 +110,10 @@ export default function UploadBody({ open, onClose, onComplete, mediaPath, confi
     if (folderNameTouched) return
     if (stagedDiscs.length > 0) {
       setFolderName(stagedDiscs[0].file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim())
-    } else if (setTitle.trim()) {
-      setFolderName(setTitle.trim())
+    } else if (discSetTitle.trim()) {
+      setFolderName(discSetTitle.trim())
     }
-  }, [stagedDiscs, setTitle, folderNameTouched])
+  }, [stagedDiscs, discSetTitle, folderNameTouched])
 
   function startUpload(entry: UploadEntry) {
     const title = entry.file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim()
@@ -206,7 +206,7 @@ export default function UploadBody({ open, onClose, onComplete, mediaPath, confi
   }
 
   async function submitSet() {
-    const title = folderName.trim() || setTitle.trim()
+    const title = folderName.trim() || discSetTitle.trim()
     if (!title) return
     if (stagedDiscs.length === 0) return
 
@@ -407,7 +407,7 @@ export default function UploadBody({ open, onClose, onComplete, mediaPath, confi
             </Button>
             <Button
               onClick={setStatus === 'success' ? onClose : submitSet}
-              disabled={busy || !(folderName.trim() || setTitle.trim()) || stagedDiscs.length === 0}
+              disabled={busy || !(folderName.trim() || discSetTitle.trim()) || stagedDiscs.length === 0}
             >
               {setStatus === 'uploading' ? 'Creating set…' : setStatus === 'success' ? 'Done' : 'Create Set'}
             </Button>
@@ -466,7 +466,7 @@ export default function UploadBody({ open, onClose, onComplete, mediaPath, confi
               onCheckedChange={(checked) => {
                 setMultiDisc(checked)
                 setStagedDiscs([])
-                setSetTitle('')
+                setDiscSetTitle('')
                 setFolderName('')
                 setFolderNameTouched(false)
                 setSetStatus('idle')
@@ -502,8 +502,8 @@ export default function UploadBody({ open, onClose, onComplete, mediaPath, confi
           busy={busy}
           folderMode={folderMode}
           acceptFileTypes={config.acceptFileTypes}
-          setTitle={setTitle}
-          onSetTitleChange={setSetTitle}
+          setTitle={discSetTitle}
+          onSetTitleChange={setDiscSetTitle}
           folderName={folderName}
           onFolderNameChange={(v) => { setFolderName(v); setFolderNameTouched(true) }}
           dragActive={dragActive}

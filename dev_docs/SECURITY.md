@@ -43,10 +43,10 @@ Realistic threats specific to this application:
 
 ## Sequential integer primary keys (accepted tradeoff)
 
-All primary keys in this codebase — `SoftwareCollection.id`, `SoftwareItem.id`,
-`Environment.id`, `Profile.id`, etc. — are sequential auto-increment integers, exposed directly in
-API route paths E.G.: (`/api/v1/softwarecollection/{id}`, `/api/v1/softwareitem/{id}`,
-`/api/v1/environments/{platform_id}`, `/api/v1/tags/{tag_id}/items/{item_id}`, etc.). These IDs are enumerable by any authenticated user.
+All primary keys in this codebase — `GameItemBundle.id`, `GameItem.id`,
+`EnvironmentItem.id`, `Profile.id`, etc. — are sequential auto-increment integers, exposed directly in
+API route paths E.G.: (`/api/v1/game-item-bundle/{id}`, `/api/v1/game-item/{id}`,
+`/api/v1/environment-items/{id}`, `/api/v1/tags/{tag_id}/items/{item_id}`, etc.). These IDs are enumerable by any authenticated user.
 
 It is documented here as a standing, accepted tradeoff.
 A migration to opaque identifiers (e.g. UUIDs) has been flagged as a separate,
@@ -65,6 +65,7 @@ Permission flags on sub-accounts. The authoritative list is `UserBase` in
 | `can_manage_environment`  | Register or modify Environments (the Windows OS install workspaces; was `can_edit_platforms`)                                                                                                                                                                                                   |
 | `can_manage_game`    | Create, edit, delete, or scan/import software collections and items, **and** create/modify/delete launch Profiles (the `Profile` model in `routes/profiles.py`). Also the gate on `POST /api/v1/software/scan`. Was `can_edit_library` (renamed once to `can_edit_software`, then to this name to reflect that it covers create/delete/scan-import, not just edits) |
 | `can_manage_media`         | Add, edit, or remove Media (the archival audio/text/image/video domain)                                                                                                                                                                                                                          |
+| `can_manage_app`         | Add, edit, or remove Apps (the `AppItemBundle` domain) and gates the app-upload router                                                                                                                                                                                                          |
 | `can_manage_controllerMapping` | Create, edit, or delete controller mappings (System → Controllers)                                                                                                                                                                                                                              |
 | `can_manage_settings`      | Modify application settings                                                                                                                                                                                                                                                                     |
 | `can_manage_users`       | Lets a sub-account edit its own `name` and reset its own PIN only — no capability over any other account, no self-delete, no create/delete of any sub-account. Owner-only to grant, like every flag here. Checked in addition to (not instead of) the `is_admin` path on the same two endpoints |
@@ -113,9 +114,10 @@ rules, as implemented in `users.py::reset_pin` and locked by
   dropping the cap. A collection whose own rating is unrecognised is likewise denied to
   a capped user, never passed through.
 - Enforcement is server-side. Deny wins over any permission flag with no override path.
-- Rating scale is freetext on `SoftwareCollection.content_rating`. Recommended: ESRB (E, E10+, T, M, AO) or
+- Rating scale is freetext on `GameItemBundle.content_rating` (also present on
+  `AppItemBundle.content_rating`). Recommended: ESRB (E, E10+, T, M, AO) or
   PEGI (3, 7, 12, 16, 18). Ordinal comparison map configured via the
-  `rating_ordinals` key in `app_settings` (falls back to defaults in
+  `rating_ordinals` key in `settings` (falls back to defaults in
   `dependencies.py` — ⚠ no write path exists today; see Known Gaps).
 
 ---
@@ -140,10 +142,10 @@ rules, as implemented in `users.py::reset_pin` and locked by
   least one validation layer between input and execution.
 - Emulator binary paths are **never taken from request input**, query parameters, or
   profile fields. Paths resolve through three tiers: (1) user override stored in
-  `app_settings` (per-slug `<SLUG>_PATH` key — ⚠ no UI or API write path exists,
+  `settings` (per-slug `<SLUG>_PATH` key — ⚠ no UI or API write path exists,
   settable only via direct DB write; see Known Gaps), (2) bundled project
   `emulators/{slug}/` directory, (3) catalog-detected known installation paths
-  from `emulators.yaml`. No registry scanning. This rule has no exceptions.
+  from `config/emulators/*.toml`. No registry scanning. This rule has no exceptions.
 - CLI arguments passed to emulator processes come from validated `Profile` config fields
   only. There is no freeform command construction anywhere in the codebase.
 - All validated inputs must be checked again at the point of use — do not rely on prior
@@ -156,19 +158,20 @@ rules, as implemented in `users.py::reset_pin` and locked by
 **Mandatory.**
 
 - Emulator binary paths are never derived from request input. Paths resolve through
-  three tiers: `app_settings` per-slug user override, bundled `emulators/{slug}/`
+  three tiers: `settings` per-slug user override, bundled `emulators/{slug}/`
   project directory, or catalog-detected system installation paths from
-  `emulators.yaml`. No registry scanning.
+  `config/emulators/*.toml`. No registry scanning.
 - Arguments are constructed from validated `Profile` fields only. No string interpolation
   of raw user input into argument lists.
 - A launch cooldown is enforced between successive requests to prevent rapid-fire
   spawning.
 - All spawned processes are tracked and recorded in `LaunchHistory` (emulator, profile,
-  the launch target as `software_collection_id` or `environment_id`, start time, exit code).
+  the launch target as `game_item_bundle_id`, `app_item_bundle_id`, or
+  `environment_item_id`, start time, exit code).
 - On Windows, every spawned process is assigned to a Job Object. If Job Object creation
   or assignment fails, the launch is aborted — there is no unsandboxed fallback.
-- On Linux, process isolation is a design target (planned for P8). No hardened sandbox
-  equivalent to Windows Job Objects exists on Linux today — see Known Limitations.
+- Linux is out of scope (DECISIONS.md 2026-07-17). Process isolation is Windows Job
+  Objects only.
 
 ---
 
@@ -201,8 +204,8 @@ Network blocking is enforced at the emulator level, not via host OS firewall rul
 Each emulator is launched with its network adapter disabled or absent when
 enable_networking is false on the active profile (the default). DOSBox-X launches
 with the NE2000 adapter disabled via config. 86Box sets net_type = none to disable
-connectivity without removing the emulated NIC. Console emulators (DuckStation, PCSX2, xemu, Mesen, Project64) have no
-meaningful network capability and require no explicit blocking.
+connectivity without removing the emulated NIC. Console emulators (DuckStation, PCSX2, xemu, Mesen, Project64,
+Flycast, RPCS3, Xenia) have no meaningful network capability and require no explicit blocking.
 
 This approach requires no host elevation, cannot be accidentally bypassed by a
 COM availability issue, and is harder for emulated software to work around than
@@ -317,24 +320,26 @@ conversation and wait for an explicit decision before proceeding.
 - Every emulator launch is assigned to a fresh Job Object with kill-on-close,
   a per-era CPU rate floor and cap (`MIN_MAX_RATE`), and a per-era per-process memory
   cap (Qt emulators exempt via `skip_memory_limit` — see Known Limitations). CPU rate
-  control may be skipped per emulator via `skip_cpu_limit = true` in the descriptor
-  (DOSBox-X uses this).
+  control may be skipped per emulator via `skip_cpu_limit = true` in the descriptor —
+  every emulator except RPCS3 sets this today (RPCS3 is the only one that keeps the
+  enforced CPU cap; see the AppContainer known-limitations entries for RPCS3 and xemu).
 - The Python launcher sequence is: launch process (`CREATE_NEW_PROCESS_GROUP`) → create
   Job Object (named with the launched process's PID for per-launch uniqueness) → apply
   limits → `AssignProcessToJobObject` → breakaway retry if error 5.
 - If `CreateProcessW` or `AssignProcessToJobObject` fails for any reason, **the launch
   is aborted**. There is no unsandboxed fallback.
-- AppContainer (P9) is an additional isolation layer applied on top of Job Objects when
+- AppContainer is an additional isolation layer applied on top of Job Objects when
   `container_enabled = true` in the emulator descriptor. DOSBox-X, DuckStation, Flycast,
-  Mesen, PCSX2, and Project64 all have `container_enabled = true`. xemu and 86Box remain
-  disabled, xemu due to documented QEMU TCG incompatibility and 86Box pending further testing.
+  Mesen, PCSX2, Project64, and Xenia all have `container_enabled = true`. 86Box, RPCS3,
+  and xemu remain disabled — xemu and RPCS3 due to documented JIT/TCG incompatibility
+  (both are `container_permanently_excluded`), 86Box pending further testing.
 - The container-enable resolution and media-broker config that were previously duplicated
   across all five backends (86Box, DOSBox-X, xemu, Flycast, console) are now single
   implementations in `backend/service/utils/emulator_catalog.py`: `resolve_container_enabled()`
   resolves the effective `container_enabled` flag for a launch (profile/spec override, falling
   back to the catalog/settings value), and `build_media_broker_config()` builds the
   `SandboxConfig` broker-file list from it. A slug marked `container_permanently_excluded`
-  in its TOML (currently only `xemu`, see DECISIONS.md 2026-06-04) rejects a profile-level
+  in its TOML (`xemu`, see DECISIONS.md 2026-06-04, and `rpcs3`) rejects a profile-level
   `container_enabled` override at this layer — `resolve_container_enabled()` ignores the
   override and logs a warning rather than honouring it. `PATCH /{slug}/sandbox` already
   blocked enabling a permanently-disabled container via settings (`container_enabled is True`
@@ -438,13 +443,11 @@ Each emulator requires smoke test and full test matrix (OS × GPU × audio × co
 install path × locale) before `container_enabled` is set to true. Until then, that emulator
 runs under Job Object only. See SCOPE.md P9-6 for the test matrix definition.
 
-### Linux sandbox implementation (planned)
+### Linux out of scope
 
-The current Linux process isolation description (cgroups and network namespaces) is
-a design intent. A concrete implementation based on either nsjail or native
-namespaces + cgroups will be introduced in P8. Until then, Linux emulator launches
-do not have a hardened sandbox equivalent to the planned Windows low-privilege
-user + Job Object model.
+Linux support (and the earlier cgroups/network-namespaces sandbox plan for it) was
+removed from scope entirely — see DECISIONS.md 2026-07-17. Process isolation is
+Windows Job Objects only; there is no Linux code path to secure.
 
 ### Drive image path is user-controlled per profile
 
@@ -528,9 +531,9 @@ environment registration time.
 
 ### Library path configuration has no user-facing mechanism
 
-The Library Paths settings panel was removed from the UI in session \[B4\]. LIBRARY_PATH, PROFILES_PATH, and ROMS_PATH can no longer be set through the frontend. The `config/settings.yaml` hand-edit fallback documented here previously has also been removed — settings are now DB-backed via `app_settings`, and no equivalent file exists to hand-edit. **There is currently no file-based or UI-based way for a user to reconfigure these three paths.**
+The Library Paths settings panel was removed from the UI in session \[B4\]. LIBRARY_PATH, PROFILES_PATH, and ROMS_PATH can no longer be set through the frontend. The `config/settings.yaml` hand-edit fallback documented here previously has also been removed — settings are now DB-backed via `settings`, and no equivalent file exists to hand-edit. **There is currently no file-based or UI-based way for a user to reconfigure these three paths.**
 
-The backend endpoint POST /api/v1/settings/library-path remains live and functional — it writes directly to `app_settings` via `set_path()`. It requires a `can_manage_settings`-permitted session, which in practice means calling the API directly (e.g. via curl with an authenticated cookie) rather than anything a typical user can do through the app.
+The backend endpoint POST /api/v1/settings/library-path remains live and functional — it writes directly to `settings` via `set_path()`. It requires a `can_manage_settings`-permitted session, which in practice means calling the API directly (e.g. via curl with an authenticated cookie) rather than anything a typical user can do through the app.
 
 ⚠ **Flag — needs a decision, not fixed here:** the previous mitigation for this gap (hand-edit a config file) no longer has any equivalent at all, which is a regression from before the settings.yaml removal, not just a doc-accuracy fix. Replacement options (restore a UI panel, or document a supported API/CLI workflow for advanced users) need to be decided before this doc can point users anywhere concrete.
 
@@ -556,7 +559,7 @@ Highest-risk case: ROMS_PATH defaults to {project_root}/library/system/roms/86bo
 ## Reporting Security Issues
 
 Please report security vulnerabilities **privately** via
-[GitHub Security Advisories](https://github.com/anthropics/peach_1up/security/advisories)
+[GitHub Security Advisories](https://github.com/rymorrisj/peach_1up/security/advisories)
 rather than opening a public issue. Public disclosure before a fix is available puts
 other users at risk. Include a description of the vulnerability, steps to reproduce, and
 any relevant environment details. We will respond as quickly as possible and coordinate

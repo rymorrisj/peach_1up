@@ -24,6 +24,8 @@ Covers PC platforms from DOS through Windows XP and first-generation consoles
 | Flycast     | Dreamcast        | [github.com/flyinghead/flycast](https://github.com/flyinghead/flycast) — requires DC BIOS |
 | Mesen       | NES, SNES        | [mesen.ca](https://www.mesen.ca)                                                          |
 | Project64   | N64              | [pj64-emu.com](https://www.pj64-emu.com)                                                  |
+| RPCS3       | PS3              | [rpcs3.net](https://rpcs3.net/download) — requires PS3 firmware                           |
+| Xenia       | Xbox 360         | [xenia.jp](https://xenia.jp)                                                              |
 
 Emulators marked "requires BIOS" need a BIOS image sourced from your own hardware. Peach 1UP does not provide BIOS files.
 

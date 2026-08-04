@@ -155,9 +155,6 @@ def _sweep_upload_tmp() -> None:
         from backend.service.uploads.core import sweep_orphans
         from backend.service.utils.upload_utils import DEFAULT_UPLOAD_TMP_TTL_SECONDS
 
-        library_path = get_settings().get("LIBRARY_PATH", "") or ""
-        if not library_path:
-            return
         ttl = int(get_settings().get("UPLOAD_TMP_TTL_SECONDS", DEFAULT_UPLOAD_TMP_TTL_SECONDS)
                   or DEFAULT_UPLOAD_TMP_TTL_SECONDS)
         removed = sweep_orphans(ttl)

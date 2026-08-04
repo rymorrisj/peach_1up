@@ -61,6 +61,7 @@ Permission flags on sub-accounts:
 | `can_manage_environment`  | Register or modify Environments (Windows OS install workspaces; was `can_edit_platforms`) |
 | `can_manage_game`    | Add, edit, delete, or scan/import software collections and items, and create/modify/delete launch Profiles. Gates `POST /api/v1/software/scan`. Was `can_edit_library` |
 | `can_manage_media`         | Add, edit, or remove Media (the archival audio/text/image/video domain) |
+| `can_manage_app`         | Add, edit, or remove Apps (the `AppItemBundle` domain) and gates the app-upload router |
 | `can_manage_controllerMapping` | Create, edit, or delete controller mappings (System → Controllers) |
 | `can_manage_settings`      | Modify application settings                               |
 | `can_manage_users`       | Lets a sub-account edit its own `name` and reset its own PIN only — no capability over any other account, no self-delete, no create/delete of any sub-account. Owner-only to grant, like every flag here. Checked in addition to (not instead of) the `is_admin` path on the same two endpoints |
@@ -96,7 +97,8 @@ the account is locked.
   The filter fails closed: an unknown ceiling is rejected on write, and an unresolvable
   or unrecognised rating is denied rather than passed through.
 - Enforcement is server-side. Deny wins over any permission flag with no override path.
-- Rating scale is freetext on `SoftwareCollection.content_rating`. Recommended: ESRB (E, E10+, T, M, AO) or
+- Rating scale is freetext on `GameItemBundle.content_rating` (also present on
+  `AppItemBundle.content_rating`). Recommended: ESRB (E, E10+, T, M, AO) or
   PEGI (3, 7, 12, 16, 18). Ordinal comparison map configured via the `rating_ordinals` key in `settings`.
 
 ---
@@ -146,11 +148,11 @@ the account is locked.
 - A launch cooldown is enforced between successive requests to prevent rapid-fire
   spawning.
 - All spawned processes are tracked and recorded in `LaunchHistory` (emulator, profile,
-  the launch target as `software_collection_id` or `environment_item_id`, start time, exit code).
+  the launch target as `game_item_bundle_id`, `app_item_bundle_id`, or
+  `environment_item_id`, start time, exit code).
 - On Windows, every spawned process is assigned to a Job Object. If Job Object creation
   or assignment fails, the launch is aborted — there is no unsandboxed fallback.
-- On Linux, process isolation is a design target for a future release. No hardened sandbox
-  equivalent to Windows Job Objects exists on Linux today — see Known Limitations.
+- Linux is out of scope. Process isolation is Windows Job Objects only.
 
 ---
 
@@ -174,8 +176,8 @@ Network blocking is enforced at the emulator level, not via host OS firewall rul
 Each emulator is launched with its network adapter disabled or absent when
 enable_networking is false on the active profile (the default). DOSBox-X launches
 with the NE2000 adapter disabled via config. 86Box sets net_type = none to disable
-connectivity without removing the emulated NIC. Console emulators (DuckStation, PCSX2, xemu, Mesen, Project64) have no
-meaningful network capability and require no explicit blocking.
+connectivity without removing the emulated NIC. Console emulators (DuckStation, PCSX2, xemu, Mesen, Project64,
+Flycast, RPCS3, Xenia) have no meaningful network capability and require no explicit blocking.
 
 This approach requires no host elevation, cannot be accidentally bypassed by a
 COM availability issue, and is harder for emulated software to work around than
@@ -268,16 +270,18 @@ operation runs.
 - Every emulator launch is assigned to a fresh Job Object with kill-on-close,
   a per-era CPU rate floor and cap (`MIN_MAX_RATE`), and a per-era per-process memory
   cap (Qt emulators exempt via `skip_memory_limit` — see Known Limitations). CPU rate
-  control may be skipped per emulator via `skip_cpu_limit = true` in the descriptor
-  (DOSBox-X uses this).
+  control may be skipped per emulator via `skip_cpu_limit = true` in the descriptor —
+  every emulator except RPCS3 sets this today.
 - The Python launcher sequence is: launch process (`CREATE_NEW_PROCESS_GROUP`) → create
   Job Object (named with the launched process's PID for per-launch uniqueness) → apply
   limits → `AssignProcessToJobObject` → breakaway retry if error 5.
 - If `CreateProcessW` or `AssignProcessToJobObject` fails for any reason, **the launch
   is aborted**. There is no unsandboxed fallback.
 - AppContainer is an additional isolation layer applied on top of Job Objects when
-  `container_enabled = true` in the emulator descriptor. Currently only DOSBox-X has
-  `container_enabled = true`. All other emulators run under Job Object isolation only.
+  `container_enabled = true` in the emulator descriptor. DOSBox-X, DuckStation, Flycast,
+  Mesen, PCSX2, Project64, and Xenia all have `container_enabled = true`. 86Box, RPCS3,
+  and xemu remain disabled — xemu and RPCS3 due to documented JIT/TCG incompatibility
+  (both are `container_permanently_excluded`), 86Box pending further testing.
 - For AppContainer-enabled emulators, process creation is delegated to `sandbox_host.exe`,
   which handles `SECURITY_CAPABILITIES`, `CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT`,
   and `ResumeThread`. The Python launcher wraps the resulting PID in a Job Object via the
@@ -330,8 +334,8 @@ the host audio session while an emulator is running, muting system
 audio. This is a side effect of the interim Job Objects isolation
 model. A future AppContainer-based isolation pass removes this limitation. As a
 workaround, CPU rate control can be disabled per emulator via
-skip_cpu_limit = true in the emulator descriptor. DOSBox-X sets
-this flag in its descriptor; the launcher honours it via
+skip_cpu_limit = true in the emulator descriptor — every emulator except RPCS3 (the
+only one that keeps the enforced CPU cap) sets this today; the launcher honours it via
 get_skip_cpu_limit() in emulator_catalog.py.
 
 ### AppContainer not yet validated for all emulators
@@ -340,13 +344,11 @@ Each emulator requires smoke test and full test matrix (OS × GPU × audio × co
 install path × locale) coverage before `container_enabled` is set to true. Until then, that emulator
 runs under Job Object only.
 
-### Linux sandbox implementation (planned)
+### Linux out of scope
 
-The current Linux process isolation description (cgroups and network namespaces) is
-a design intent. A concrete implementation based on either nsjail or native
-namespaces + cgroups will be introduced in a future release. Until then, Linux emulator launches
-do not have a hardened sandbox equivalent to the planned Windows low-privilege
-user + Job Object model.
+Linux support (and the earlier cgroups/network-namespaces sandbox plan for it) was
+removed from scope entirely. Process isolation is Windows Job Objects only; there is
+no Linux code path to secure.
 
 ### Drive image path is user-controlled per profile
 

@@ -21,6 +21,7 @@ import { LinkedItemsSection } from '../components/LinkedItemsSection'
 import type { EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
 import { launchGateFromReason, SOFTWARE_SORT_OPTIONS, GAME_ROUTE_BASE } from '../types'
 import type { LibraryModalConfig } from '../components/LibraryModal'
+import { parseNaiveUtc } from '@/lib/date'
 import type { components } from '@shared/types'
 
 type LaunchHistory = components['schemas']['LaunchHistoryRead']
@@ -335,7 +336,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
           onClick={handleDelete}
           loading={deleting}
         >
-          Delete this collection
+          Delete this game
         </Button>
         {deleteError && (
           <p role="alert" className="text-xs text-red-600 dark:text-red-400">{deleteError}</p>
@@ -363,7 +364,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
         {collection.metadata_fetched_at && (
           <div>
             <span className="font-medium">Metadata fetched:</span>{' '}
-            {new Date(collection.metadata_fetched_at).toLocaleDateString()}
+            {parseNaiveUtc(collection.metadata_fetched_at).toLocaleDateString()}
           </div>
         )}
         <div className="flex items-center gap-2">
@@ -690,12 +691,12 @@ export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
   entityLabel: 'game',
   entityLabelPlural: 'games',
   coverArt: getGameCoverArt,
-  launchTargetType: 'collection',
+  launchTargetType: 'game_item_bundle',
   identifierParam: 'slug',
   backLabel: 'Back to Software',
   showDescriptionMeta: false,
   filterRestrictionUsers: (users) => users.filter((u) => !u.is_owner),
-  renderExtras: useGameDetailExtras,
+  useRenderExtras: useGameDetailExtras,
   // Era/profile/tag filter bar (EntityListPage.tsx). Confirmed backend
   // support: GET /api/v1/game-items (game_item_bundles.py:list_game_items)
   // accepts `era`, `profile_assigned`, and `tag` query params today.

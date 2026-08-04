@@ -90,10 +90,6 @@ export interface BrowseImportEntry {
 // forward into this generalized component.
 export interface ImportFromPathResult {
   job_id?: string
-  id?: number
-  title?: string
-  reused_existing_media?: boolean
-  disc_count?: number
   delete_original_note?: string
   delete_original_error?: string
 }

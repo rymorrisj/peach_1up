@@ -71,23 +71,41 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
         method: 'POST',
         body: JSON.stringify({ file_path: filePath }),
       }),
+    onSuccess: () => {
+      // The response is a list of affected game ids, but game detail is cached
+      // by slug (not id), so there's no exact per-game key to target — invalidate
+      // every currently-cached game list/detail query instead of guessing slugs.
+      queryClient.invalidateQueries({ queryKey: ['game', 'list'] })
+      queryClient.invalidateQueries({ queryKey: ['game', 'detail'] })
+    },
+  })
+
+  // Dedicated mutation for "Set as cover art" from the file list, deliberately
+  // separate from saveMutation: reusing saveMutation would (a) PATCH the live
+  // edit-form state alongside cover_art_path, silently committing any
+  // half-typed title/description edit sitting in the form, and (b) make the
+  // unrelated Details card flash "Saved"/disable its Save button, since the
+  // two actions would share one mutation's pending/success state.
+  const setCoverArtMutation = useMutation<MediaItemBundleData, Error, string>({
+    mutationFn: async (filePath) => {
+      await apiFetch<MediaItemBundleData>(`/api/v1/media-item-bundle/${collectionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ cover_art_path: filePath || null }),
+      })
+      return refetchEntity()
+    },
+    onSuccess: (fresh) => {
+      resyncFromCollection(fresh)
+      queryClient.invalidateQueries({ queryKey: detailQueryKey })
+    },
   })
 
   if (!collection || form == null) {
     return {}
   }
 
-  // Reuses the exact same mutation (and therefore the same PATCH
-  // /api/v1/media-item-bundle/{id} save path) the Cover Art Path field's Save
-  // Changes button uses, just with cover_art_path overridden to the picked
-  // file, no parallel update mechanism. saveMutation's onSuccess already
-  // calls resyncFromCollection (refreshes the edit form's Cover Art Path
-  // text) and invalidates detailQueryKey (refreshes SoftwareEntityDetail's
-  // cover art preview via config.coverArt(entity)), so the preview updates
-  // without a full page reload.
   function handleSetCoverArt(filePath: string) {
-    if (form == null) return
-    saveMutation.mutate({ ...form, cover_art_path: filePath })
+    setCoverArtMutation.mutate(filePath)
   }
 
   const linkedGameItems = (collection.linked_items ?? [])
@@ -113,7 +131,7 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
           items={collection.items}
           currentCoverArtPath={collection.cover_art_path}
           onSetCoverArt={handleSetCoverArt}
-          settingCoverArt={saveMutation.isPending}
+          settingCoverArt={setCoverArtMutation.isPending}
           linkedGameItems={linkedGameItems}
           onApplyCoverArtToGames={(filePath) => applyCoverArtToGamesMutation.mutate(filePath)}
           applyingCoverArtToGames={applyCoverArtToGamesMutation.isPending}
@@ -199,11 +217,14 @@ export const mediaDomainConfig: EntityDomainConfig<MediaItemBundleData> = {
   entityLabel: 'media item',
   entityLabelPlural: 'media',
   coverArt: (bundle) => bundle.cover_art_url ?? null,
+  // The edit form already renders Description; showing it a second time as
+  // detail-page meta text double-displays it (matches gameConfig).
+  showDescriptionMeta: false,
   // The owner can never be restricted (backend hard-exempts is_owner in every
   // restriction filter, see backend/core/dependencies.py), so it should not
   // appear in the Restrictions checkbox list at all, matching gameConfig.
   filterRestrictionUsers: (users) => users.filter((u) => !u.is_owner),
-  renderExtras: useMediaDetailExtras,
+  useRenderExtras: useMediaDetailExtras,
   uploadConfig: mediaUploadModalConfig,
   // Media has no era/profile concept, but tags are shared across every
   // domain (GET /api/v1/media-item-bundles, media.py:list_media_item_bundles,

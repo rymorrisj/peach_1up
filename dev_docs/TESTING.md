@@ -11,8 +11,8 @@ verification only) and the security-sensitive surface in `SECURITY.md`.
 
 | Layer | Runner | Config | Files | Cases |
 | --- | --- | --- | --- | --- |
-| Backend | pytest | `pyproject.toml` (`[tool.pytest.ini_options]`, `testpaths=["backend/tests"]`) | 43 `test_*.py` | ~594 `test_` functions |
-| Frontend | Vitest (jsdom) | `frontend/vitest.config.ts` | 36 `*.test.{ts,tsx}` | co-located with source + `*.acceptance.test.tsx` (3) |
+| Backend | pytest | `pyproject.toml` (`[tool.pytest.ini_options]`, `testpaths=["backend/tests"]`) | 53 `test_*.py` | ~713 `test_` functions |
+| Frontend | Vitest (jsdom) | `frontend/vitest.config.ts` | 48 `*.test.{ts,tsx}` | co-located with source + `*.acceptance.test.tsx` (3) |
 
 **Coverage thresholds are declared and now run in CI:**
 - Backend: `pyproject.toml` `[tool.coverage.report] fail_under = 65`. `pytest-cov`
@@ -41,17 +41,21 @@ verification only) and the security-sensitive surface in `SECURITY.md`.
 - **Detection:** `test_iso_detect`, `test_xbox_image`.
 - **Launch flow:** `test_launch_guards`, `test_launch_error_detection`,
   `test_process_registry`, `test_prepare_config`.
-- **Domain/data:** `test_library_items`, `test_library_scan`, `test_enrich`,
+- **Domain/data:** `test_game_items`, `test_game_scan`, `test_enrich`,
   `test_era_defaults`, `test_emulator_catalog`, `test_health_storage`,
-  `test_environments_routes`, `test_software_collections_routes`,
+  `test_environments_routes`, `test_game_item_bundles_routes`,
+  `test_game_item_bundles_gaps_routes`, `test_game_items_leaf_routes`,
   `test_launches_routes`, `test_media`, `test_controllers`,
   `test_dependencies_content_rating`, `test_users_create_delete_reset`,
   `test_bios_placement`, `test_bios_routes`,
   `test_backend_router`, `test_schema_migrations`, `test_startup_cleanup`,
   `test_fat_writer`, `test_dosbox_autoexec`, `test_dosbox_chs_geometry`,
-  `test_drive_hydration`.
+  `test_drive_hydration`, `test_apps_routes`, `test_asset_fetch`,
+  `test_drives_routes`, `test_emulators_routes`, `test_game_metadata_routes`,
+  `test_profiles_routes`, `test_restrictions_routes`, `test_rom_pack`,
+  `test_settings_routes`, `test_tags`.
   (Backend Tier-1 coverage for `core/dependencies.py`, `users.py`,
-  `software_collections.py`, and `launches.py` was added per
+  `game_item_bundles.py`, and `launches.py` was added per
   `dev_docs/v2/09_test_coverage.md`, now implemented — see that doc.)
 
 **Frontend (`frontend/src/`)** — UI primitives + page acceptance:
@@ -60,7 +64,7 @@ verification only) and the security-sensitive surface in `SECURITY.md`.
 - Hooks: `useConfirmToken`, `useLaunch`, `useLibraryScan`.
 - API client: `client.test.ts` (`credentials: 'include'` singleton behaviour).
 - Pages/components: `Emulators`, `Software`, `Tags` (each with `.test` +
-  `.acceptance.test`), `Settings/LaunchProfiles`, `OwnerBroken`, `UserSwitcher`,
+  `.acceptance.test`), `Emulators/Profiles`, `OwnerBroken`, `UserSwitcher`,
   `LaunchHistory`, `TagChips`, `EraSelector`, `ConfirmModal`, `TabbedLayout`,
   `Profiles`/`Bios`/`RomPacks` tabs, `EmulatorDetail`, plus the v2 route-redirect
   tests (`test/routing.sectionRedirects.test.tsx`).

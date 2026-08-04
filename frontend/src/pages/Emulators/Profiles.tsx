@@ -6,6 +6,7 @@ import ConfirmModal from '@/components/common/ConfirmModal'
 import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useConfirm } from '@/hooks/useConfirm'
+import { useToast } from '@/ui/ToastProvider'
 import { usePaginatedList } from '@/hooks/usePaginatedList'
 import { slugify } from '@/lib/slugify'
 import { ERA_LABELS, EMULATOR_CATALOG_SLUGS } from '@/generated/constants'
@@ -41,6 +42,7 @@ function formatDate(iso: string): string {
 export default function Profiles() {
   const queryClient = useQueryClient()
   const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm()
+  const { showToast } = useToast()
 
   const {
     items: profiles,
@@ -170,7 +172,7 @@ export default function Profiles() {
       await apiFetch(`/api/v1/profile-items/${profile.slug}`, { method: 'DELETE' })
       await invalidateProfiles()
     } catch (err) {
-      alert(err instanceof ApiError ? err.detail : 'Delete failed.')
+      showToast(err instanceof ApiError ? err.detail : 'Delete failed.', 'error')
     }
   }
 

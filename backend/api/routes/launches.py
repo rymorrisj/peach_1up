@@ -90,17 +90,21 @@ async def launch_environment(
     )
 
 
+def _scoped_launch_history(db: Session, active_user: UserItem, q, limit: int) -> list[LaunchHistory]:
+    # Scoped: owner/admin see all, other users see only launches attributable to
+    # them (their profiles) or unattributed shared launches. See scope_launch_query.
+    q = scope_launch_query(q, active_user)
+    return q.order_by(LaunchHistory.started_at.desc()).limit(limit).all()
+
+
 @router.get("/game-item-bundle/{collection_id}/launches", response_model=list[LaunchHistoryRead])
 def list_collection_launches(
     collection_id: int,
     db: Session = Depends(get_db),
     active_user: UserItem = Depends(get_active_user),
 ):
-    # Scoped: owner/admin see all, other users see only launches attributable to
-    # them (their profiles) or unattributed shared launches. See scope_launch_query.
     q = db.query(LaunchHistory).filter(LaunchHistory.game_item_bundle_id == collection_id)
-    q = scope_launch_query(q, active_user)
-    return q.order_by(LaunchHistory.started_at.desc()).limit(20).all()
+    return _scoped_launch_history(db, active_user, q, limit=20)
 
 
 @router.get("/launches", response_model=list[LaunchHistoryRead])
@@ -120,8 +124,7 @@ def list_launches(
             q = q.filter(LaunchHistory.app_item_bundle_id == target_id)
         else:
             raise HTTPException(status_code=422, detail=f"Unknown target_type: {target_type!r}")
-    q = scope_launch_query(q, active_user)
-    return q.order_by(LaunchHistory.started_at.desc()).limit(50).all()
+    return _scoped_launch_history(db, active_user, q, limit=50)
 
 
 class BulkDeleteLaunchesBody(BaseModel):

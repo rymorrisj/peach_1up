@@ -93,6 +93,7 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
         title = (body.title or "").strip()
         if body.kind in ("folder", "set") and not title:
             raise HTTPException(status_code=422, detail="A title is required for folder and set uploads.")
+        chunk_max_bytes = _setting_int("UPLOAD_CHUNK_MAX_BYTES", DEFAULT_CHUNK_MAX_BYTES)
         try:
             upload_id = cu.init_session(
                 body.kind,
@@ -101,13 +102,14 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
                     {"name": f.name, "size": f.size, "chunks": f.chunks, "relative_path": f.relative_path}
                     for f in body.files
                 ],
+                chunk_max_bytes,
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
         return {
             "upload_id": upload_id,
-            "chunk_max_bytes": _setting_int("UPLOAD_CHUNK_MAX_BYTES", DEFAULT_CHUNK_MAX_BYTES),
+            "chunk_max_bytes": chunk_max_bytes,
         }
 
     @router.put("/{upload_id}/chunks/{file_index}/{chunk_index}")

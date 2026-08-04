@@ -6,6 +6,7 @@ import { LAUNCH_TIMEOUT_MS } from '@/hooks/useLaunch'
 import TopBar from '@/components/layout/TopBar'
 import { ERA_LABELS } from '@/generated/constants'
 import { ERA_COLOR } from '@/types/era'
+import { useToast } from '@/ui/ToastProvider'
 import type { components } from '@shared/types'
 
 type Platform = components['schemas']['EnvironmentItemRead']
@@ -67,6 +68,7 @@ export default function EnvironmentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { showToast } = useToast()
   const [tab, setTab] = useState<Tab>('overview')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
@@ -159,11 +161,11 @@ export default function EnvironmentDetail() {
       })
     } catch (err) {
       if (err instanceof ApiError) {
-        alert(err.detail)
+        showToast(err.detail, 'error')
       } else if (err instanceof TimeoutError) {
-        alert('Launch is taking longer than expected — check if it opened.')
+        showToast('Launch is taking longer than expected — check if it opened.', 'info')
       } else {
-        alert('Launch failed.')
+        showToast('Launch failed.', 'error')
       }
     } finally {
       setLaunching(false)

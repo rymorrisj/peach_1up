@@ -33,7 +33,7 @@ from backend.service.uploads.registry import UploadDomain, register_domain
 logger = get_logger(__name__)
 
 
-def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Session) -> dict:
+def finalize_reassembled(reasm: cu.ReassembledUpload, domain_root: Path, db: Session) -> dict:
     """Ingest an already-staged ``ReassembledUpload`` and return a normalized
     summary: ``{result_type, id, title, reused_existing_media?, disc_count?}``.
 
@@ -49,7 +49,7 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Sess
             from backend.service.utils.upload_utils import find_existing_duplicate
 
             dest_path = reasm.paths[0]
-            duplicate = find_existing_duplicate(media_root, dest_path, reasm.total_bytes)
+            duplicate = find_existing_duplicate(domain_root, dest_path, reasm.total_bytes)
             reused = duplicate is not None
             ingest_path = duplicate if reused else dest_path
             if reused:
@@ -86,7 +86,7 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Sess
             }
 
         result_type, collection, disc_count = folder_ingest.ingest_folder(
-            reasm.dest_dir, reasm.paths, reasm.title, db, media_root
+            reasm.dest_dir, reasm.paths, reasm.title, db, domain_root
         )
         return {
             "result_type": result_type,
@@ -102,20 +102,20 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Sess
         raise
 
 
-def finalize_inline(upload_id: str, media_root: Path, db: Session) -> dict:
-    reasm = cu.reassemble(upload_id, media_root)
-    return finalize_reassembled(reasm, media_root, db)
+def finalize_inline(upload_id: str, domain_root: Path, db: Session) -> dict:
+    reasm = cu.reassemble(upload_id, domain_root)
+    return finalize_reassembled(reasm, domain_root, db)
 
 
-def finalize_background(upload_id: str, media_root: str, job_id: str) -> None:
+def finalize_background(upload_id: str, domain_root: str, job_id: str) -> None:
     """BackgroundTask entry: own DB session, report to core.jobs, never raise."""
     from backend.core.database import get_engine
 
     db = Session(get_engine())
     try:
         jobs.update(job_id, progress=0.0, message="Reassembling upload…")
-        reasm = cu.reassemble(upload_id, Path(media_root), job_id=job_id)
-        result = finalize_reassembled(reasm, Path(media_root), db)
+        reasm = cu.reassemble(upload_id, Path(domain_root), job_id=job_id)
+        result = finalize_reassembled(reasm, Path(domain_root), db)
         jobs.complete(job_id, result=result, message=f"Added \"{result.get('title', 'upload')}\".")
     except Exception as exc:  # noqa: BLE001, background tasks must not propagate
         logger.exception("Background upload finalize failed: upload_id=%s", upload_id)
@@ -135,7 +135,6 @@ def register() -> None:
     register_domain(
         UploadDomain(
             name="software_games",
-            permission_flag="can_manage_game",
             allowed_kinds=frozenset({"file", "folder", "set"}),
             root_resolver=_root,
             finalize_inline=finalize_inline,

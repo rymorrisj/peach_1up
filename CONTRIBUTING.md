@@ -2,7 +2,7 @@
 
 ## Quick start
 
-1. **Clone and run** — follow [Getting Started](docs/docs/getting-started/index.md) to get the dev server running (`start.bat` / `./start.sh`). The script creates the virtual environment, installs dependencies, generates the typed API client, and starts every service.
+1. **Clone and run** — follow [Getting Started](docs/docs/getting-started/index.md) to get the dev server running (`start.bat`; Windows-only, see [Technology Stack](docs/docs/contributor-guide/tech-stack.mdx)). The script creates the virtual environment, installs dependencies, generates the typed API client, and starts every service.
 2. **Branch** — create a feature branch off `main`: `git checkout -b feat/your-topic`.
 3. **Verify statically** — type-check and lint before committing (see [Static verification](#static-verification)).
 4. **Commit** — follow the [commit format](#commit-format) below.

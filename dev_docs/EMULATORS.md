@@ -29,7 +29,7 @@ relative to the config file's directory.
 
 **BIOS/ROM source:** N/A
 
-**Bundleable:** Yes
+**Bundleable:** No. Installed on demand from `github.com/joncampbell123/dosbox-x`.
 
 **Portable mode confirmed:** Yes
 
@@ -80,7 +80,8 @@ gaps instead of relying on 86Box's own (currently unverified) in-app behavior.
 
 **BIOS/ROM source:** https://github.com/86Box/roms
 
-**Bundleable:** Yes (binary only; ROM pack is user-supplied)
+**Bundleable:** No. Installed on demand from `github.com/86Box/86Box` (ROM pack is
+separately user-supplied, never bundled or fetched by Peach 1UP).
 
 **Portable mode confirmed:** Yes
 
@@ -201,7 +202,7 @@ specific Xbox revisions. Mismatched pairs will fail to boot.
 
 **BIOS/ROM source:** Dump from your own Xbox OG hardware.
 
-**Bundleable:** Yes
+**Bundleable:** No. Installed on demand from `github.com/xemu-project/xemu`.
 
 **Portable mode confirmed:** Yes (with shader cache caveat above)
 
@@ -256,7 +257,7 @@ compatibility with SNES titles.
 
 **BIOS/ROM source:** Dump from your own Famicom Disk System hardware.
 
-**Bundleable:** Yes
+**Bundleable:** No. Installed on demand from `github.com/SourMesen/Mesen2`.
 
 **Portable mode confirmed:** Yes
 
@@ -322,7 +323,7 @@ the same hardware revision. Mismatched pairs may cause region or boot failures.
 
 **BIOS/ROM source:** Dump from your own Dreamcast hardware.
 
-**Bundleable:** Yes
+**Bundleable:** No. Installed on demand from `github.com/flyinghead/flycast`.
 
 **Portable mode confirmed:** Yes
 

@@ -11,10 +11,10 @@ import type { components } from '@shared/types'
 
 type LaunchResponse = components['schemas']['LaunchResponse']
 
-type LaunchTargetType = 'collection' | 'app' | 'environment'
+type LaunchTargetType = 'game_item_bundle' | 'app' | 'environment'
 
 const LAUNCH_PATH: Record<LaunchTargetType, (id: number) => string> = {
-  collection: (id) => `/api/v1/game-item-bundle/${id}/launch`,
+  game_item_bundle: (id) => `/api/v1/game-item-bundle/${id}/launch`,
   app: (id) => `/api/v1/app-item-bundle/${id}/launch`,
   environment: (id) => `/api/v1/environment-items/${id}/launch`,
 }

@@ -178,6 +178,14 @@ export function chunkedUpload(
     })
     if (!completeRes.ok) throw await asError(completeRes)
     const body = (await completeRes.json().catch(() => ({}))) as ChunkedUploadResult['body']
+    // A 202 with no job_id means the response body failed to parse (or the
+    // server sent an unexpected shape) — silently returning body={} here would
+    // strand the background job with no id to poll/track, and look identical
+    // to a successful inline finalize to the caller. Treat it as a hard error
+    // instead of a quiet success.
+    if (completeRes.status === 202 && !body.job_id) {
+      throw new Error('Upload was accepted for background processing, but the server response could not be read.')
+    }
     onProgress(100)
     return { status: completeRes.status, body }
   }

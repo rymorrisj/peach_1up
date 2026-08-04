@@ -34,7 +34,7 @@ relative to the config file's directory.
 
 **BIOS/ROM source:** N/A
 
-**Bundleable:** Yes
+**Bundleable:** No. Installed on demand from `github.com/joncampbell123/dosbox-x`.
 
 **Portable mode confirmed:** Yes
 
@@ -68,7 +68,8 @@ ROM pack: https://github.com/86Box/roms
 
 **BIOS/ROM source:** https://github.com/86Box/roms
 
-**Bundleable:** Yes (binary only; ROM pack is user-supplied)
+**Bundleable:** No. Installed on demand from `github.com/86Box/86Box` (ROM pack is
+separately user-supplied, never bundled or fetched by Peach 1UP).
 
 **Portable mode confirmed:** Yes
 
@@ -170,7 +171,7 @@ specific Xbox revisions. Mismatched pairs will fail to boot.
 
 **BIOS/ROM source:** Dump from your own Xbox OG hardware.
 
-**Bundleable:** Yes
+**Bundleable:** No. Installed on demand from `github.com/xemu-project/xemu`.
 
 **Portable mode confirmed:** Yes (with shader cache caveat above)
 
@@ -219,7 +220,7 @@ compatibility with SNES titles.
 
 **BIOS/ROM source:** Dump from your own Famicom Disk System hardware.
 
-**Bundleable:** Yes
+**Bundleable:** No. Installed on demand from `github.com/SourMesen/Mesen2`.
 
 **Portable mode confirmed:** Yes
 
@@ -276,7 +277,7 @@ the same hardware revision. Mismatched pairs may cause region or boot failures.
 
 **BIOS/ROM source:** Dump from your own Dreamcast hardware.
 
-**Bundleable:** Yes
+**Bundleable:** No. Installed on demand from `github.com/flyinghead/flycast`.
 
 **Portable mode confirmed:** Yes
 
@@ -289,3 +290,107 @@ Dependencies are included in `peach_1up\emulators\flycast\dependencies`. The rel
 ```bash
 cmake -S . -B build -A x64 -DUSE_DX9=OFF -DUSE_VULKAN=ON -DUSE_DX11=ON -DUSE_OPENGL=ON
 ```
+
+---
+
+## RPCS3
+
+**Supported eras:** PS3
+
+**Portable mode mechanism:** Automatic on Windows. RPCS3 treats its own
+executable directory as the data root, so no sentinel file is created or needed.
+
+**Default user data path (Windows):** the install directory itself
+(`emulators/rpcs3/`), holding `dev_flash/`, `dev_hdd0/`, `dev_bdvd/`,
+`config/`, `cache/`, and `games/`.
+
+**Required files:**
+
+| Filename/Path  | Purpose         | Location                            | Notes                                                                                               |
+| -------------- | --------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `PS3UPDAT.PUP` | PS3 firmware    | installed into `dev_flash/` by RPCS3 | Not copied into place. Install from `File > Install Firmware` inside RPCS3, or pass `--installfw`. |
+
+Peach 1UP does not provide, link to, or assist with acquiring firmware files.
+
+**Optional files:** None.
+
+**ROM/BIOS version coupling:** None. Any reasonably current firmware works.
+
+**Official download:** https://rpcs3.net/download
+
+**BIOS/ROM source:** Sony's own PS3 firmware update package, obtained by the user.
+
+**Bundleable:** No. Installed on demand from `github.com/RPCS3/rpcs3-binaries-win`.
+The asset is a `.7z` and is extracted with the vendored 7-Zip.
+
+**Portable mode confirmed:** Yes
+
+**Known limitations:**
+
+- **AppContainer isolation not supported.** RPCS3 is a heavily JIT-based recompiler
+  (Cell PPU/SPU and RSX) that relies on runtime code generation incompatible with
+  AppContainer's restricted token, the same class of limitation as xemu. Job Object
+  isolation (kill-on-close, CPU cap) is the only available isolation layer.
+- **Digital content (`.pkg`) installs need two launch attempts.** The first launch of
+  an uninstalled `.pkg` starts the install and returns once it stabilizes on disk;
+  launching the same title again afterward boots it normally.
+- **First-launch shader and JIT compilation stutter** is expected on a title's first
+  boot; subsequent launches are smoother once the caches are warm.
+- **Controller input requires manual configuration** inside RPCS3's own Pads Settings.
+
+---
+
+## Xenia
+
+**Supported eras:** Xbox 360
+
+**Portable mode mechanism:** Place an empty `portable.txt` next to the binary.
+Xenia then resolves its `storage_root` to the executable's directory
+(`emulators/xenia/`) instead of `Documents\Xenia`. Peach 1UP creates this
+sentinel automatically after install.
+
+**Default user data path (Windows):** `Documents\Xenia\` without the sentinel;
+`emulators/xenia/` with it, holding `content/` (saves and DLC) and `cache/`
+(shader cache).
+
+**Required files:** None. No BIOS or firmware required.
+
+**Optional files:** None.
+
+**ROM/BIOS version coupling:** None.
+
+**Official download:** https://xenia.jp
+
+**BIOS/ROM source:** N/A
+
+**Bundleable:** No. Installed on demand from
+`github.com/xenia-project/release-builds-windows`. The asset is `xenia_master.zip`.
+
+**Portable mode confirmed:** Yes
+
+---
+
+## Legal
+
+**Peach 1UP does not redistribute emulator binaries.** Every emulator is fetched
+from its own upstream release at the user's request and installed into
+`emulators/<slug>/` on first use, or (Project64 only) downloaded manually by the
+user.
+
+| Emulator    | License         | Install Type     |
+| ----------- | --------------- | ---------------- |
+| 86Box       | GPL-2.0         | github_release   |
+| DOSBox-X    | GPL-2.0         | github_release   |
+| DuckStation | CC BY-NC-ND 4.0 | github_release   |
+| Flycast     | GPL-2.0         | github_release   |
+| Mesen       | GPL-3.0         | github_release   |
+| PCSX2       | GPL-3.0         | github_release   |
+| Project64   | GPL-2.0         | zip (manual)     |
+| RPCS3       | GPL-2.0         | github_release   |
+| Xenia       | BSD-3-Clause    | github_release   |
+| xemu        | GPL-2.0         | github_release   |
+
+Project64 is the one exception to one-click install: the project publishes git
+tags but no GitHub release assets, so there is nothing for the installer to
+match. The user downloads it from pj64-emu.com and extracts it into
+`emulators/project64/` themselves.

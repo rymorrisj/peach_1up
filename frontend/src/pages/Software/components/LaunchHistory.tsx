@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
+import { parseNaiveUtc } from '@/lib/date'
 import type { components } from '@shared/types'
 
 type LaunchHistory = components['schemas']['LaunchHistoryRead']
@@ -75,9 +76,9 @@ export function LaunchHistorySection({ history, canDelete = false }: LaunchHisto
       )}
       <div className="divide-y divide-neutral-100 dark:divide-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm">
         {history.map((h) => {
-          const started = new Date(h.started_at)
+          const started = parseNaiveUtc(h.started_at)
           const durationMs = h.ended_at
-            ? new Date(h.ended_at).getTime() - started.getTime()
+            ? parseNaiveUtc(h.ended_at).getTime() - started.getTime()
             : null
           const duration =
             durationMs != null

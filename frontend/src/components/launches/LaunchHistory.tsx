@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/api/client'
+import { parseNaiveUtc } from '@/lib/date'
 import type { components } from '@shared/types'
 
 type LaunchHistoryRead = components['schemas']['LaunchHistoryRead']
@@ -24,9 +25,9 @@ export default function LaunchHistory({ targetId, targetType }: LaunchHistoryPro
     <div className="mt-2 border-t border-neutral-100 pt-2 dark:border-neutral-800">
       {launches.slice(0, 5).map((l) => (
         <div key={l.id} className="flex items-center gap-2 py-0.5 text-xs text-neutral-400">
-          <span>{new Date(l.started_at + 'Z').toLocaleString()}</span>
+          <span>{parseNaiveUtc(l.started_at).toLocaleString()}</span>
           {l.ended_at ? (
-            <span>{new Date(l.ended_at + 'Z').toLocaleString()}</span>
+            <span>{parseNaiveUtc(l.ended_at).toLocaleString()}</span>
           ) : (
             <span className="text-green-500">running</span>
           )}

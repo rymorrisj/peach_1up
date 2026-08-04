@@ -71,9 +71,10 @@ def tmp_root() -> Path:
     return library_root() / TMP_CHUNKS_DIRNAME
 
 
-def init_session(kind: str, title: str, files: list[dict]) -> str:
+def init_session(kind: str, title: str, files: list[dict], chunk_max_bytes: int) -> str:
     """Validate the declared manifest, create the staging dir, and return an
     unguessable upload_id. Raises ValueError on a malformed manifest."""
+    import math
     import uuid
 
     if kind not in ("file", "folder", "set"):
@@ -91,6 +92,16 @@ def init_session(kind: str, title: str, files: list[dict]) -> str:
             raise ValueError("Each file requires a name.")
         if size < 0 or chunks < 1:
             raise ValueError("Each file requires a positive chunk count and non-negative size.")
+        # Bounds the maximum possible bytes a session can accept to roughly its
+        # declared size (chunks * chunk_max_bytes), closing the gap where a
+        # client declares an arbitrarily large chunk count against a tiny
+        # declared size and streams far more data than either cap implies.
+        max_allowed_chunks = max(1, math.ceil(size / chunk_max_bytes)) if chunk_max_bytes > 0 else chunks
+        if chunks > max_allowed_chunks:
+            raise ValueError(
+                f"Declared chunk count for '{name}' ({chunks}) exceeds what its declared "
+                f"size ({size} bytes) requires (max {max_allowed_chunks})."
+            )
         declared_total += size
         # relative_path is only ever sent by the frontend for a folder upload
         # already detected client-side as PS3_DISC.SFB-marked (see
@@ -99,7 +110,8 @@ def init_session(kind: str, title: str, files: list[dict]) -> str:
         raw_relative_path = f.get("relative_path")
         segments = sanitize_relative_path(str(raw_relative_path)) if raw_relative_path else None
         slots.append({
-            "name": name, "size": size, "chunks": chunks, "received": set(), "segments": segments,
+            "name": name, "size": size, "chunks": chunks, "received": set(),
+            "received_bytes": 0, "segments": segments,
         })
     if declared_total > DEFAULT_MAX_BYTES:
         raise ValueError("Upload exceeds the maximum allowed size.")
@@ -150,14 +162,28 @@ async def store_chunk(
     file_dir.mkdir(parents=True, exist_ok=True)
     part_path = resolve_under(file_dir, f"{chunk_index}.part")
     # stream_upload_to_disk enforces the per-chunk cap and deletes the partial
-    # part on violation; the running per-file/total cap is enforced at reassembly.
-    await stream_upload_to_disk(upload, part_path, chunk_max_bytes)
+    # part on violation; the running per-file total is enforced just below,
+    # against the size declared at init (itself bounded against declared_total
+    # in init_session).
+    written_bytes = await stream_upload_to_disk(upload, part_path, chunk_max_bytes)
 
     with _lock:
         session = _sessions.get(upload_id)
         if session is None:
             raise KeyError(upload_id)
         slot = session["files"][file_index]
+        if chunk_index not in slot["received"]:
+            # Slack of one chunk_max_bytes accounts for the last chunk of a
+            # file legitimately being smaller/larger than an even multiple —
+            # this only rejects genuinely excess cumulative data, not a
+            # normally-shaped final chunk.
+            projected = slot["received_bytes"] + written_bytes
+            if projected > slot["size"] + chunk_max_bytes:
+                part_path.unlink(missing_ok=True)
+                raise ValueError(
+                    f"Cumulative bytes for file_index {file_index} exceed its declared size."
+                )
+            slot["received_bytes"] = projected
         slot["received"].add(chunk_index)
         return {"received": len(slot["received"]), "total": slot["chunks"]}
 
@@ -178,9 +204,9 @@ def total_size(upload_id: str) -> int:
         return sum(int(s["size"]) for s in session["files"])
 
 
-def reassemble(upload_id: str, media_root: Path, job_id: str | None = None) -> ReassembledUpload:
+def reassemble(upload_id: str, domain_root: Path, job_id: str | None = None) -> ReassembledUpload:
     """Concatenate every file's chunks in order into a permanent slug dir under
-    *media_root* (the caller's resolved domain root), then drop the staging
+    *domain_root* (the caller's resolved domain root), then drop the staging
     dir and session. On any failure the partial destination and the staging
     dir are both removed before re-raising.
 
@@ -202,9 +228,9 @@ def reassemble(upload_id: str, media_root: Path, job_id: str | None = None) -> R
         files = session["files"]
 
     base_title = (title or Path(files[0]["name"]).stem.replace("-", " ").title()).strip() or "upload"
-    slug = unique_slug(base_title, lambda s: (media_root / s).exists())
-    media_root.mkdir(parents=True, exist_ok=True)
-    dest_dir = resolve_under(media_root, slug)
+    slug = unique_slug(base_title, lambda s: (domain_root / s).exists())
+    domain_root.mkdir(parents=True, exist_ok=True)
+    dest_dir = resolve_under(domain_root, slug)
     dest_dir.mkdir(parents=True, exist_ok=False)
 
     # Declared size drives progress percentage, same source of truth total_size()
@@ -304,5 +330,6 @@ def sweep_orphans(ttl_seconds: float) -> int:
             shutil.rmtree(child, ignore_errors=True)
             removed += 1
         except OSError:
+            logger.warning("sweep_orphans: failed to inspect/remove %s", child)
             continue
     return removed

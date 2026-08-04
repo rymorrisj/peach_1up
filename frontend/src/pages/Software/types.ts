@@ -204,7 +204,7 @@ export interface EntityDomainConfig<TBundle extends EntityBundleBase> {
   entityLabel: string // singular, e.g. 'game'
   entityLabelPlural: string // e.g. 'games'
   coverArt: CoverArtResolver<TBundle>
-  launchTargetType?: 'collection' | 'app' // omitted entirely for Media
+  launchTargetType?: 'game_item_bundle' | 'app' // omitted entirely for Media
   // Per-entity launch gate on top of launchTargetType — e.g. App launch is
   // PC-scoped only (bundle.is_pc), not every app in the domain is launchable.
   // Defaults to "launchable" whenever launchTargetType is set.
@@ -231,7 +231,7 @@ export interface EntityDomainConfig<TBundle extends EntityBundleBase> {
   // Called unconditionally on every render, exactly like a custom hook, so
   // it must tolerate `entity` being undefined internally (pre-load). Omitted
   // entirely for App/Media, so their rendered output is unaffected.
-  renderExtras?: (ctx: EntityDetailExtrasContext<TBundle>) => EntityDetailExtras
+  useRenderExtras?: (ctx: EntityDetailExtrasContext<TBundle>) => EntityDetailExtras
   // Drives the "+ Add {entityLabel}" affordance EntityListPage renders in its
   // TopBar. Omitted entirely for domains with no creation UI. Game does not
   // use this. Games.tsx is a bespoke page that wires LibraryModal directly

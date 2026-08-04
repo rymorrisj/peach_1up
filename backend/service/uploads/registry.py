@@ -21,13 +21,18 @@ from typing import Callable
 from sqlalchemy.orm import Session
 
 FinalizeInline = Callable[[str, Path, Session], dict]
-FinalizeBackground = Callable[[str, str, str], None]  # (upload_id, media_root_str, job_id)
+FinalizeBackground = Callable[[str, str, str], None]  # (upload_id, domain_root_str, job_id)
+
+# No permission_flag field here: api/routes/uploads.py bakes each domain's
+# require_permission(...) into its router at router-build (import) time, before
+# lifespan has run register_domain() — the registry is empty at that point, so a
+# permission flag can't be sourced from here. The enforced value lives solely at
+# the _build_domain_router("software_games", "can_manage_game") call sites.
 
 
 @dataclass(frozen=True)
 class UploadDomain:
     name: str  # "software_games" | "software_media" | "software_apps"
-    permission_flag: str  # e.g. "can_manage_game"
     allowed_kinds: frozenset[str]  # subset of {"file", "folder", "set"}
     root_resolver: Callable[[], Path]
     finalize_inline: FinalizeInline

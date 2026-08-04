@@ -23,6 +23,11 @@ _RAWSHA1_LEN = 20
 _LOGICAL_BYTES_OFFSET = 32
 _CD_SIZE_THRESHOLD = 800 * 1024 * 1024  # ~800 MB — independent heuristic; iso_detect.py uses a separate 4.7 GB PS1/PS2 boundary
 
+# Defends the metadata-chain walk below against a crafted file whose next_offset
+# chain cycles or wanders past EOF: real CHD files have a handful of metadata
+# entries, so this cap is never reached by a well-formed file.
+_MAX_METADATA_ENTRIES = 4096
+
 
 def extract_embedded_sha1(path: Path) -> str | None:
     """
@@ -78,7 +83,16 @@ def detect(path: Path) -> ScanResult:
             logical_raw = fh.read(8)
             logical_bytes = struct.unpack(">Q", logical_raw)[0] if len(logical_raw) == 8 else 0
 
+            file_size = fh.seek(0, 2)
+            visited_offsets: set[int] = set()
+
             while meta_offset != 0:
+                if len(visited_offsets) >= _MAX_METADATA_ENTRIES or meta_offset in visited_offsets:
+                    break  # cycle or pathologically long chain — bail out rather than spin
+                if meta_offset < 0 or meta_offset >= file_size:
+                    break  # next_offset points outside the file — malformed/crafted chain
+                visited_offsets.add(meta_offset)
+
                 fh.seek(meta_offset)
                 entry_header = fh.read(16)  # tag(4) + flags(1) + length(3) + next(8)
                 if len(entry_header) < 16:

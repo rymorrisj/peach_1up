@@ -20,9 +20,11 @@ runs. The Job Object enforces:
 If the Job Object cannot be created or the emulator cannot be assigned to it, **the
 launch is aborted**. There is no fallback to an uncontained launch.
 
-Emulators run under the current user account. AppContainer isolation (P9) is an
+Emulators run under the current user account. AppContainer isolation is an
 additional layer applied on top of Job Objects when `container_enabled = true` in
-the emulator descriptor. Currently only DOSBox-X has AppContainer enabled. A dedicated
+the emulator descriptor. Seven emulators have it enabled (DOSBox-X, DuckStation,
+Flycast, Mesen, PCSX2, Project64, Xenia); 86Box, RPCS3, and xemu remain Job-Object-only
+(see SECURITY.md § Windows-specific process rules for the reasons). A dedicated
 low-privilege user account is not used.
 
 **What the Job Object does not do:**
@@ -33,7 +35,7 @@ low-privilege user account is not used.
 - It does not block all network access at the OS level — network isolation is handled
   by disabling the emulated network adapter inside each emulator (see the network
   section in SECURITY.md).
-- It does not apply on Linux. Linux isolation is planned for P8.
+- It does not apply on Linux. Linux support is out of scope (DECISIONS.md 2026-07-17).
 
 ---
 

@@ -128,7 +128,6 @@ def register() -> None:
     register_domain(
         UploadDomain(
             name="software_apps",
-            permission_flag="can_manage_app",
             allowed_kinds=frozenset({"file", "folder"}),
             root_resolver=_root,
             finalize_inline=finalize_inline,

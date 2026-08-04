@@ -9,6 +9,7 @@ import EmptyState from '@/components/common/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { useConfirm } from '@/hooks/useConfirm'
 import { useConfirmToken } from '@/hooks/useConfirmToken'
+import { useToast } from '@/ui/ToastProvider'
 import { ERA_LABELS } from '@/generated/constants'
 import { EntityCard } from '../components/EntityCard'
 import { LibraryModal } from '../components/LibraryModal'
@@ -61,6 +62,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
     confirm, isOpen: confirmOpen, options: confirmOptions, handleConfirm, handleCancel, getCheckboxValue,
   } = useConfirm()
   const { issue: issueToken, consume: consumeToken } = useConfirmToken()
+  const { showToast } = useToast()
 
   // Only re-syncs from the URL for domains that opt into the era filter, so
   // this effect is a no-op (never touches state) for every other domain.
@@ -143,8 +145,12 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
 
   async function handleSetDisplayDisk(entityId: number, discId: number) {
     if (!config.multiDisc) return
-    await config.multiDisc.onSetDisplayDisk(entityId, discId)
-    invalidate()
+    try {
+      await config.multiDisc.onSetDisplayDisk(entityId, discId)
+      invalidate()
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.detail : 'Failed to set display disc.', 'error')
+    }
   }
 
   async function handleRemove(entity: TBundle) {
@@ -163,7 +169,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
         await apiFetch(config.bundleApiPath(String(entity.id)), { method: 'DELETE' })
         invalidate()
       } catch (err) {
-        alert(err instanceof ApiError ? err.detail : 'Remove failed.')
+        showToast(err instanceof ApiError ? err.detail : 'Remove failed.', 'error')
       }
       return
     }
@@ -191,7 +197,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({ config }: Ent
       await consumeToken(base, token)
       invalidate()
     } catch (err) {
-      alert(err instanceof ApiError ? err.detail : 'Remove failed.')
+      showToast(err instanceof ApiError ? err.detail : 'Remove failed.', 'error')
     }
   }
 

@@ -227,9 +227,14 @@ def _iso_size_fallback(path: Path) -> ScanResult:
     return ScanResult(title=None, platform=None, era=None, confidence=0.0, reason="no signal found")
 
 
+_POINTER_FILE_READ_CAP_BYTES = 64 * 1024  # cue/gdi pointer files are a few hundred bytes
+
+
 def _cue_bin_path(cue_path: Path) -> Path | None:
     try:
-        for line in cue_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        with open(cue_path, "rb") as f:
+            raw = f.read(_POINTER_FILE_READ_CAP_BYTES)
+        for line in raw.decode("utf-8", errors="replace").splitlines():
             line = line.strip()
             if line.upper().startswith("FILE "):
                 parts = line.split('"')

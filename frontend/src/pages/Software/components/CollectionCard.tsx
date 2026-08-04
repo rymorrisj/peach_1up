@@ -186,12 +186,20 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
   const discCount = collection.items.length
   const isMultiDisc = discCount > 1
   const chipHex = eraHex(collection.era)
-  const to = collection.slug ? `/software/games/${collection.slug}` : `/software/games/${collection.id}`
+  // The detail route is slug-only (/software/games/:slug -> GET
+  // /api/v1/game-item-bundle/by-slug/{slug}) — there is no id-based lookup, so
+  // a numeric-id fallback here would always resolve to "Game not found."
+  // slug is nullable at the DB layer even though the create path always
+  // generates one; prevent navigation entirely for the theoretical null case
+  // rather than linking to a route guaranteed to 404.
+  const to = collection.slug ? `/software/games/${collection.slug}` : null
 
   return (
     <div className="group relative flex flex-col gap-2.5">
       <Link
-        to={to}
+        to={to ?? '#'}
+        onClick={(e) => { if (!to) e.preventDefault() }}
+        aria-disabled={!to}
         className="flex flex-col gap-2.5 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
       >
       {/* Padding-right/top gives space for the peeking background layers */}
@@ -310,7 +318,7 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
           {isMultiDisc && (
             <>
               <span className="inline-flex shrink-0 items-center rounded-[4px] border border-info/40 bg-info/[0.08] px-[7px] py-1 font-mono text-[0.65625rem] font-medium leading-none tracking-[0.04em] text-[#b3d6f0]">
-                Collection
+                Multi-Disc
               </span>
               <span className="inline-flex shrink-0 items-center rounded-[4px] border border-neutral-700 bg-transparent px-[7px] py-1 font-mono text-[0.65625rem] leading-none tracking-[0.04em] text-[#8a8f99]">
                 {discCount} items

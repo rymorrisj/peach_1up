@@ -22,9 +22,9 @@ interface EntityDetailPageProps<TBundle extends EntityBundleBase> {
 // tags, restrictions, and an optional launch button (omitted entirely when
 // config.launchTargetType is unset, e.g. Media). Game-only concerns — disc
 // reordering, xiso conversion, metadata fetch/enrich, era/profile editing,
-// DOS-install — are wired in via config.renderExtras (see
+// DOS-install — are wired in via config.useRenderExtras (see
 // configs/gameConfig.tsx) rather than hardcoded here, so this shell carries
-// no game-specific knowledge. renderExtras is omitted entirely for App/Media,
+// no game-specific knowledge. useRenderExtras is omitted entirely for App/Media,
 // so their rendered output is unaffected by its existence.
 export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: EntityDetailPageProps<TBundle>) {
   const params = useParams<{ id?: string; slug?: string }>()
@@ -45,7 +45,7 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
   })
 
   // The numeric id used for everything except the initial fetch (tags,
-  // restrictions, launch, and any config.renderExtras hooks). For id-routed
+  // restrictions, launch, and any config.useRenderExtras hooks). For id-routed
   // domains this is just the route param parsed as a number, exactly as
   // before. For slug-routed domains (Game) it isn't known until the entity
   // itself has loaded.
@@ -79,15 +79,21 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
     launch, isLaunching, error: launchError, errorType: launchErrorType, launchSuccess, launchWarnings,
   } = useLaunch({
     targetId: entityId ?? 0,
-    targetType: config.launchTargetType ?? 'collection',
+    // useLaunch must be called unconditionally (rules of hooks), but Media
+    // omits launchTargetType entirely and hasLaunch below then keeps its
+    // Launch button from ever rendering — this fallback is never actually
+    // exercised, its value just has to satisfy the type.
+    targetType: config.launchTargetType ?? 'game_item_bundle',
     onSettled: () => queryClient.invalidateQueries({ queryKey: detailQueryKey }),
   })
 
   // Called unconditionally every render (config is a fixed module-level
-  // object per mounted page, so whether renderExtras exists never varies
+  // object per mounted page, so whether useRenderExtras exists never varies
   // across renders of a given instance) — internally composes whatever
-  // domain-specific hooks it needs, exactly like a custom hook.
-  const extras = config.renderExtras?.({
+  // domain-specific hooks it needs, exactly like a custom hook. Named with the
+  // use* prefix (unlike a plain object-property call) so the react-hooks lint
+  // rule can actually see and verify the hooks called inside it.
+  const extras = config.useRenderExtras?.({
     entity,
     entityId,
     detailQueryKey,

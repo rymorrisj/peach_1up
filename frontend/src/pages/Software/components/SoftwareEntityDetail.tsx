@@ -9,6 +9,7 @@ import { LaunchSection } from './LaunchSection'
 import { TagsSection } from './TagsSection'
 import { EditForm } from './EditForm'
 import { AdvancedSection } from './AdvancedSection'
+import { parseNaiveUtc } from '@/lib/date'
 import type { components } from '@shared/types'
 
 type User = components['schemas']['UserItemRead']
@@ -220,7 +221,7 @@ export function SoftwareEntityDetail({
                 <div>
                   <span className="font-medium">Launches:</span> {launchCount}
                   {lastLaunchedAt && (
-                    <> · Last {new Date(lastLaunchedAt + 'Z').toLocaleDateString()}</>
+                    <> · Last {parseNaiveUtc(lastLaunchedAt).toLocaleDateString()}</>
                   )}
                 </div>
               )}

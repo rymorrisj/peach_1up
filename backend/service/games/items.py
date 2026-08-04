@@ -788,7 +788,9 @@ def _disc_data_size(disc_file: Path) -> int | None:
         return disc_file.stat().st_size if disc_file.exists() else None
 
     try:
-        text = disc_file.read_text(encoding="utf-8", errors="ignore")
+        with open(disc_file, "rb") as f:
+            # cue/gdi pointer files are a few hundred bytes; cap defends against a giant file
+            text = f.read(64 * 1024).decode("utf-8", errors="ignore")
     except OSError:
         text = ""
 

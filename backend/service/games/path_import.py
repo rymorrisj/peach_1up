@@ -48,7 +48,7 @@ from backend.service.uploads import core as cu
 from backend.service.uploads import software_games as upload_finalize
 from backend.service.utils.path_utils import is_within_roots, resolve_under, sanitize_filename
 from backend.service.utils.slug_generator import unique_slug
-from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES
+from backend.service.utils.upload_utils import DEFAULT_BACKGROUND_THRESHOLD_BYTES, DEFAULT_MAX_BYTES
 
 logger = get_logger(__name__)
 
@@ -58,8 +58,11 @@ def source_size(source: Path) -> int:
     and the inline/background threshold decision. Symlinked entries are
     skipped, matching stage_from_source's copytree(symlinks=True) — they are
     never dereferenced, so their target's size must not count either. Never
-    raises — an unreadable size falls back to 0, which routes the import
-    inline rather than silently dropping it."""
+    raises — an unreadable size falls back to just over the background
+    threshold (routing the import to the background path rather than
+    blocking the request thread on a source whose true size is unknown),
+    while staying under DEFAULT_MAX_BYTES so it is not falsely rejected by
+    the max-size guard."""
     try:
         if source.is_file():
             return source.stat().st_size
@@ -72,7 +75,7 @@ def source_size(source: Path) -> int:
                 continue
         return total
     except OSError:
-        return 0
+        return DEFAULT_BACKGROUND_THRESHOLD_BYTES + 1
 
 
 # Windows' ERROR_NOT_SAME_DEVICE. CPython's Windows errno mapping already
@@ -101,10 +104,10 @@ def _rename_same_filesystem(source: Path, dest: Path) -> bool:
 
 
 def stage_from_source(
-    source: Path, title: str, media_root: Path, move: bool = False,
+    source: Path, title: str, domain_root: Path, move: bool = False,
 ) -> cu.ReassembledUpload:
     """Stage *source* (already validated to exist and fall within the allowed
-    browse roots) into a fresh, uniquely-named directory under media_root, and
+    browse roots) into a fresh, uniquely-named directory under domain_root, and
     return the same ReassembledUpload shape upload_finalize expects — so
     finalize_reassembled can ingest it exactly like a chunked upload's output,
     dedup and multi-disc detection included.
@@ -136,9 +139,9 @@ def stage_from_source(
     """
     kind = "folder" if source.is_dir() else "file"
     base_title = (title or source.stem.replace("-", " ").title()).strip() or "import"
-    slug = unique_slug(base_title, lambda s: (media_root / s).exists())
-    media_root.mkdir(parents=True, exist_ok=True)
-    dest_dir = resolve_under(media_root, slug)
+    slug = unique_slug(base_title, lambda s: (domain_root / s).exists())
+    domain_root.mkdir(parents=True, exist_ok=True)
+    dest_dir = resolve_under(domain_root, slug)
 
     renamed = False
     try:
@@ -222,31 +225,20 @@ def _import_in_place(source: Path, title: str, db: Session, delete_original: boo
 
 
 def import_inline(
-    source: Path, title: str, media_root: Path, db: Session, delete_original: bool
+    source: Path, title: str, domain_root: Path, db: Session, delete_original: bool
 ) -> dict:
-    # TEMP DIAGNOSTIC, remove after runtime investigation
-    logger.warning(
-        "TEMP DIAGNOSTIC import_inline: raw source=%r media_root=%r "
-        "resolved_source=%r resolved_media_root=%r",
-        source, media_root, source.resolve(), media_root.resolve(),
-    )
-    in_place = is_within_roots(source, [media_root])
-    # TEMP DIAGNOSTIC, remove after runtime investigation
-    logger.warning(
-        "TEMP DIAGNOSTIC import_inline: is_within_roots=%s branch=%s",
-        in_place, "in_place" if in_place else "stage_from_source(copy/move)",
-    )
+    in_place = is_within_roots(source, [domain_root])
     if in_place:
         # Ingesting in place adopts the source itself as the library item
         # (moving/renaming it into its canonical spot at most), there is no
         # separate "original" left over to delete afterward.
         return _import_in_place(source, title, db, delete_original)
-    reasm = stage_from_source(source, title, media_root, move=delete_original)
-    return upload_finalize.finalize_reassembled(reasm, media_root, db)
+    reasm = stage_from_source(source, title, domain_root, move=delete_original)
+    return upload_finalize.finalize_reassembled(reasm, domain_root, db)
 
 
 def import_background(
-    source_path: str, title: str, media_root: str, job_id: str, delete_original: bool,
+    source_path: str, title: str, domain_root: str, job_id: str, delete_original: bool,
 ) -> None:
     """BackgroundTask entry: own DB session, report to core.jobs, never raise."""
     from backend.core import jobs
@@ -254,20 +246,9 @@ def import_background(
 
     db = Session(get_engine())
     source = Path(source_path)
-    root = Path(media_root)
-    # TEMP DIAGNOSTIC, remove after runtime investigation
-    logger.warning(
-        "TEMP DIAGNOSTIC import_background: raw source_path=%r media_root=%r "
-        "resolved_source=%r resolved_root=%r",
-        source_path, media_root, source.resolve(), root.resolve(),
-    )
+    root = Path(domain_root)
     try:
         in_place = is_within_roots(source, [root])
-        # TEMP DIAGNOSTIC, remove after runtime investigation
-        logger.warning(
-            "TEMP DIAGNOSTIC import_background: is_within_roots=%s branch=%s",
-            in_place, "in_place" if in_place else "stage_from_source(copy/move)",
-        )
         if in_place:
             jobs.update(job_id, progress=0.5, message="Importing…")
             result = _import_in_place(source, title, db, delete_original)

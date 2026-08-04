@@ -8,15 +8,16 @@ as an open source project.
 
 ## Infrastructure
 
-PyInstaller compiles the Python backend to a standalone executable. React builds to static files served by FastAPI. pystray provides a system tray icon. Windows installer via NSIS/WiX, Linux via deb/AppImage. CI/CD pipeline planned (P7).
+PyInstaller compiles the Python backend to a standalone executable. React builds to static files served by FastAPI. pystray provides a system tray icon. Windows installer via NSIS/WiX. CI/CD pipeline planned (P7).
 
 ## Platform
 
-**Linux-first.**
+**Windows-only.**
 
-The application runs natively on Linux and Windows. Emulators run natively on the host OS regardless of platform. This keeps a single clean codebase without platform-specific application code paths.
-
-_Note:_ The Alpha build will be tested and run specifically on Windows 10/11 first. Linux support will be added for the Beta.
+The application runs natively on Windows 10/11. Emulators run natively on the host OS.
+Linux support was removed from scope (DECISIONS.md 2026-07-17) — process isolation is
+Windows Job Objects only, and Linux-specific code paths (filesystem.py, dosbox.py,
+emulator_installer.py, extract_xiso.py, path_utils.py) have been removed from the backend.
 
 ## Database
 
@@ -29,7 +30,7 @@ Postgres is a future config change not a rewrite.
 
 ## Backend
 
-**Python 3.11, FastAPI, Pydantic, python-dotenv, PyYAML.**
+**Python 3.11 or later (CI runs 3.14.6), FastAPI, Pydantic, python-dotenv, PyYAML.**
 
 Python chosen for existing codebase and emulator scripting ecosystem. FastAPI
 for async performance, automatic OpenAPI generation, and Pydantic validation.
@@ -62,19 +63,25 @@ DOSBox-X: DOS game sound requires HDD image install flow — games that write th
 - DuckStation — PS1
 - PCSX2 — PS2
 - xemu — Xbox OG
-- Mesen — NES
+- Mesen — NES, SNES
 - Project64 — N64
-- Flycast - Dreamcast
+- Flycast — Dreamcast
+- RPCS3 — PS3
+- Xenia — Xbox 360
+
+All console emulators (and DOSBox-X/86Box) are installed on demand via
+`install_type = "github_release"` (Project64 is the one manual-download exception — see
+EMULATORS.md's Legal table). None ship bundled inside the repository.
 
 ## Process Isolation
 
-**Windows Job Objects (current). cgroups and network namespaces on Linux (planned, P8).**
+**Windows Job Objects.**
 
 Network blocking enforced at the emulator level on every launch — each emulator is
 started with its network adapter disabled when `enable_networking` is false on the
 active profile. Job Objects provide kill-on-close, CPU cap, and memory cap on Windows.
-Linux cgroup/namespace isolation is the design target for P8; no hardened Linux sandbox
-exists today.
+Linux support, and the earlier cgroups/network-namespaces isolation plan for it, was
+removed from scope — see DECISIONS.md 2026-07-17.
 
 ## Documentation
 

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from '@/api/client'
 import TopBar from '@/components/layout/TopBar'
 import { EMULATOR_ERA_MAP, ERA_COLOR } from '@/types/era'
+import { useToast } from '@/ui/ToastProvider'
 import type { EmulatorStatusData } from '@/pages/FirstRun/types'
 import type { components } from '@shared/types'
 import { TabBtn, type Tab } from './components/EmulatorDetailPrimitives'
@@ -29,6 +30,7 @@ export default function EmulatorDetail() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { showToast } = useToast()
   const [tab, setTab] = useState<Tab>('overview')
   const [sandboxSaving, setSandboxSaving] = useState(false)
   const [isInstalling, setIsInstalling] = useState(false)
@@ -133,7 +135,7 @@ export default function EmulatorDetail() {
       await queryClient.invalidateQueries({ queryKey: ['emulators-catalog'] })
       navigate('/emulators')
     } catch (err) {
-      alert(err instanceof ApiError ? err.detail : 'Remove failed.')
+      showToast(err instanceof ApiError ? err.detail : 'Remove failed.', 'error')
     }
   }
 

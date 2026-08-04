@@ -11,7 +11,7 @@ import { mediaDomainConfig } from '../configs/mediaConfig'
 
 // Basic smoke coverage for the shared template: it must render for each
 // domain config without throwing. App and Media now declare their own
-// renderExtras (minimal edit forms, see AppEditForm.tsx/MediaEditForm.tsx),
+// useRenderExtras (minimal edit forms, see AppEditForm.tsx/MediaEditForm.tsx),
 // but still render no game-only content (Advanced section, launch_commands).
 // Not exhaustive behavior coverage, that's CollectionDetail*.test.tsx's job
 // for Game and AppDetail.test.tsx/MediaDetail.test.tsx's job for their own
@@ -139,7 +139,7 @@ describe('EntityDetailPage', () => {
     await waitFor(() => {
       expect(screen.getAllByText('My App')[0]).toBeInTheDocument()
     })
-    // App now declares renderExtras (AppEditForm), so its own edit form
+    // App now declares useRenderExtras (AppEditForm), so its own edit form
     // shows, but not Game's Advanced section (launch_commands, review flag).
     expect(screen.getByRole('button', { name: 'Save Changes' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Advanced' })).not.toBeInTheDocument()
@@ -163,7 +163,7 @@ describe('EntityDetailPage', () => {
     await waitFor(() => {
       expect(screen.getAllByText('My Video')[0]).toBeInTheDocument()
     })
-    // Media now declares renderExtras (MediaEditForm), so its own edit form
+    // Media now declares useRenderExtras (MediaEditForm), so its own edit form
     // shows, but not Game's Advanced section, and still no launch (Media
     // has no launchTargetType).
     expect(screen.getByRole('button', { name: 'Save Changes' })).toBeInTheDocument()

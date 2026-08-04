@@ -18,7 +18,7 @@ detector contract).
 | DB schema structure | DB | SQLModel models, `create_all()` on startup, no Alembic | ⚠️ **Columns are bare `String`, not enum-constrained** — the Literal types are Pydantic-only and are *not* enforced at the DB layer (see §6). |
 | FE types | OpenAPI/Pydantic generated | FastAPI → `shared/openapi.json` (startup) → `openapi-typescript` → `shared/types.ts` | ✅ matches (Pipeline B), but B is **downstream of A** — every Pydantic field typed with a generated Literal re-inlines that enum into OpenAPI. |
 | Secrets | `.env` | `.env`, via `backend/service/utils/env_secrets.py` (`PIN_PEPPER`, `THEGAMESDB_API_KEY`, `AI_API_KEY`, `IGDB_API_KEY`) | ✅ matches. `settings.yaml` has been removed; secrets live in `.env` exclusively. Gitignored. |
-| Operational flags | "Settings DB table" | `app_settings` DB table (SQLite), via the `Settings` ORM model (`backend/models/settings.py:8`) and `backend/service/utils/settings.py` (shared engine from `backend/core/database.py`) | ✅ matches. `settings.yaml`/`paths.yaml` have been removed; all operational flags, per-emulator sandbox overrides, and the 5 path keys are DB-backed. |
+| Operational flags | "Settings DB table" | `settings` DB table (SQLite), via the `Settings` ORM model (`backend/models/settings.py:8`) and `backend/service/utils/settings.py` (shared engine from `backend/core/database.py`) | ✅ matches. `settings.yaml`/`paths.yaml` have been removed; all operational flags, per-emulator sandbox overrides, and the 5 path keys are DB-backed. |
 
 **Bottom line:** the constants pipeline (A), the OpenAPI pipeline (B), the
 TOML→catalog-slug pipeline, and the settings store all match the intended
@@ -76,7 +76,7 @@ that commits a stale generated file. See TESTING.md.
 | --- | --- | --- |
 | `constants_generated.py` Literals | Era, FileType, ItemType, InstallType, HardwareProfile, TagColor, EnvironmentStatus | ✅ static-type only (mypy/pyright); no runtime guard |
 | Pydantic request/response models | fields typed `EraValue`, `Optional[FileType]`, `EnvironmentStatus`, etc. | ✅ FastAPI validates request bodies against the inlined enum; response models validated on serialization |
-| **DB column** | `SoftwareItem.file_type`, `SoftwareCollection.era` | ❌ **`Column(String)`** — any string persists; the Literal is not a DB constraint (`models/software.py`) |
+| **DB column** | `GameItem.file_type`, `GameItemBundle.era` | ❌ **`Column(String)`** — any string persists; the Literal is not a DB constraint (`models/game.py`) |
 | `file_type_from_path()` producer (was `media_type_from_path`) | returns `iso/cue/chd/bin/gdi/cdi/floppy/hdd/exe/rom/directory/unknown` | ✅ **now validated at emit time**. `file_type_from_path` (`service/utils/file_types.py:78`) checks its output against `_VALID_FILE_TYPES = get_args(FileType)` and **raises** on an out-of-vocabulary value. The old `bin/gdi/cdi/rom` drift is resolved: those values are now first-class members of the `FileType` Literal *and* the producer self-checks against it |
 | `smart_media_detector.detect()` era output | bare era strings | ❌ validated against `EraValue` only at the DB/API boundary, never at emit time (by design — see §4) |
 | `environments.py` environment status | `healthy/degraded/unconfigured/error/ok/missing/unknown` | ⚠ typed as the generated `EnvironmentStatus` Literal on `EnvironmentRead.status` (Pydantic-enforced), but the DB column is still `Column(String)`, so no DB constraint |
@@ -108,7 +108,7 @@ still not be rejected by the DB (see §6).
 - **Result type:** `ScanResult` (`result.py`), including `requires_manual_boot`
   / `requires_install` flags.
 - **Call sites (all lazy imports):**
-  - `api/routes/software_collections.py`
+  - `api/routes/game_item_bundles.py`
   - `service/library/items.py`
   - `service/utils/drive_utils.py`
   - (`bios_placement.py` uses only `hashing.hash_lookup.hash_file`, not `detect`)
@@ -161,27 +161,27 @@ writing.
 
 ---
 
-## 5. app_settings key inventory + call sites
+## 5. settings key inventory + call sites
 
 Backed by `backend/service/utils/settings.py` (`_DEFAULTS` at `:46`, `_PATH_KEYS`
-at `:59`) and persisted to the `app_settings` DB table via the `Settings` ORM
+at `:59`) and persisted to the `settings` DB table via the `Settings` ORM
 model (`backend/models/settings.py:8`). `settings.yaml` and
 `%APPDATA%\Peach1UP\paths.yaml` have been removed — every key below, including
 the 6 path keys, is DB-only now.
 
 | Key | Class | Read/write sites |
 | --- | --- | --- |
-| `LIBRARY_PATH`, `SOFTWARE_PATH`, `MEDIA_PATH`, `OS_PATH`, `ROMS_PATH`, `PROFILES_PATH` | Path (static reference) | `main.py`, `uploads.py`, `software_collections.py`, scan allowlist; written via `set_path()` + `POST /settings/library-path` |
+| `LIBRARY_PATH`, `SOFTWARE_PATH`, `MEDIA_PATH`, `OS_PATH`, `ROMS_PATH`, `PROFILES_PATH` | Path (static reference) | `main.py`, `uploads.py`, `game_item_bundles.py`, scan allowlist; written via `set_path()` + `POST /settings/library-path` |
 | `suppress_confirmations` | Operational flag | user-writable (`settings.py:64`); consumed by confirmation-token flow |
 | `reset_db` | Operational flag (destructive) | **not** user-writable; startup only |
 | `delete_media_on_removal` | Operational flag | user-writable; FE reads `Software/index.tsx`, `Settings/AdvancedTab.tsx` |
 | `PIN_PEPPER` | **Secret** | dedicated route `PATCH /settings/pin-pepper`; scrubbed from GET; refused on generic PATCH (`settings.py:81`) |
 | `THEGAMESDB_API_KEY` | **Secret** | user-writable via `AdvancedTab.tsx:32`; status-only GET `/settings/thegamesdb-api-key/status`; scrubbed from GET-all |
-| `ALLOW_NETWORK_ACCESS` | Operational flag (security boundary) | read `main.py:57`, `security.py:47`, `auth.py:52`; **not** user-writable — no write site anywhere; now settable only by writing directly to the `app_settings` row (no hand-editable file exists any more) |
+| `ALLOW_NETWORK_ACCESS` | Operational flag (security boundary) | read `main.py:57`, `security.py:47`, `auth.py:52`; **not** user-writable — no write site anywhere; now settable only by writing directly to the `settings` row (no hand-editable file exists any more) |
 | `rating_ordinals` | Static reference data | `dependencies.py:39` `_load_rating_ordinals()` (falls back to `_BASE_RATING_ORDINALS`, derived by `_derive_rating_ordinals()` from `CONTENT_RATINGS`/`config/constants.yaml`'s `content_ratings` list — ordinal is index within each entry's `scheme` group, e.g. ESRB and PEGI each start their own ladder at 0); **not** user-writable — same DB-only caveat as above |
 | `sandbox_{slug}_container_enabled` | Operational flag (per-emulator) | read `emulators.py:162`; written `emulators.py:457` via `set_flag`; default from TOML |
 | `sandbox_{slug}_skip_memory_limit`, `sandbox_dosbox-x_skip_cpu_limit` | Operational flag (per-emulator) | same path as above; default from TOML |
-| `SCAN_NAV_THRESHOLD_BYTES` | Operational flag | read `software_collections.py` (defaulted) |
+| `SCAN_NAV_THRESHOLD_BYTES` | Operational flag | read `game_item_bundles.py` (defaulted) |
 | `first_run_complete` | (migrated to DB) | dropped from YAML state at load (`settings.py:102`) |
 
 Secret handling reference: `_SENSITIVE_KEYS = {AI_API_KEY, IGDB_API_KEY,
@@ -192,11 +192,11 @@ GET-all response.
 
 ## 6. Known SQLite / Enum limitation (concrete reference)
 
-`backend/models/software.py` (`SoftwareItem`)
+`backend/models/game.py` (`GameItem`)
 ```python
 file_type: Optional[FileType] = Field(default=None, sa_column=Column(String))
 ```
-and (`SoftwareCollection`)
+and (`GameItemBundle`)
 ```python
 era: EraValue = Field(sa_column=Column(String, nullable=False))
 ```
@@ -233,21 +233,21 @@ Literal, not a bug at any single line. Enforcing it would require a DB-level
   value could persist is a producer that bypasses the validating helper and writes
   straight to a `String` column.
 - **`settings.yaml`/`paths.yaml` removed — resolved.** Secrets now live in
-  `.env` exclusively and operational flags/paths now live in `app_settings`
+  `.env` exclusively and operational flags/paths now live in `settings`
   exclusively, matching the intended ownership model in §1.
 - **New resource note:** `ALLOW_NETWORK_ACCESS`, `rating_ordinals`, and
   `SCAN_NAV_THRESHOLD_BYTES` were "hand-edit `settings.yaml`" only — that
   escape hatch is now gone with no replacement UI/API route, so changing
-  them requires a direct write to the `app_settings` table (see §7).
+  them requires a direct write to the `settings` table (see §7).
 - ~13 dead generated exports and 3 parallel era→emulator maps remain
   maintenance-drift surface (per TYPES_AUDIT.md §2/§6), not runtime bugs.
 
 ---
 
-## 7. Settings Store — Resolved State (settings.yaml/paths.yaml → app_settings collapse, complete)
+## 7. Settings Store — Resolved State (settings.yaml/paths.yaml → settings collapse, complete)
 
 This section originally scoped a discovery-only audit for collapsing
-`settings.yaml`/`paths.yaml` into `app_settings`. That collapse is now done —
+`settings.yaml`/`paths.yaml` into `settings`. That collapse is now done —
 `config/settings.yaml` and `%APPDATA%\Peach1UP\paths.yaml` have been deleted
 from disk, and their load/write functions removed from
 `backend/service/utils/settings.py`. This section reflects the resulting
@@ -259,7 +259,7 @@ architecture rather than the original discovery notes.
   `ROMS_PATH`, `PROFILES_PATH`, `suppress_confirmations`, `reset_db`,
   `delete_media_on_removal`, `UPLOAD_TMP_TTL_SECONDS`.
 - `_PATH_KEYS` (`:62`): the 6 path keys above — normalised, resolved absolute
-  at `init()` time, and stored in `app_settings` like every other key. No
+  at `init()` time, and stored in `settings` like every other key. No
   separate paths file exists any more.
 - No `_USER_WRITABLE_KEYS`/`_SENSITIVE_KEYS` in this module — those two
   allowlists still live one layer up, in `backend/api/routes/settings.py`
@@ -268,19 +268,19 @@ architecture rather than the original discovery notes.
   `add_suppression()`/`is_suppressed()` (`:217`/`:237`), `set_path()`
   (`:246`), `get_env_var()` (`:153`).
 - Persistence: `_persist()` (`:93`) upserts a single key into the
-  `app_settings` table through the shared SQLAlchemy engine
+  `settings` table through the shared SQLAlchemy engine
   (`backend.core.database.get_engine()`) and the `Settings` ORM model
   (`backend/models/settings.py:8`) — no raw SQL, no YAML I/O of any kind.
   `_load_all_rows()` (`:79`) reads the whole table the same way.
 
 ### 7.2 Key classification — now uniform
 
-Every key listed in §5 is DB-only, in the single `app_settings` table. There
+Every key listed in §5 is DB-only, in the single `settings` table. There
 is no YAML-backed key any more, no `paths.yaml` overlay, and no key that must
 be reconciled between two stores — the YAML-vs-DB divergence TYPES.md §1
 used to flag is gone. The one remaining split is deliberate, not a
 divergence: the 4 secret-class keys (`PIN_PEPPER`, `THEGAMESDB_API_KEY`,
-`AI_API_KEY`, `IGDB_API_KEY`) are kept out of `app_settings` and live in
+`AI_API_KEY`, `IGDB_API_KEY`) are kept out of `settings` and live in
 `.env` instead (§7.3) — a secret must not round-trip through the same SQLite
 file the `reset_db` dev flag can delete.
 
@@ -288,7 +288,7 @@ One operational consequence of the removal: `ALLOW_NETWORK_ACCESS`,
 `rating_ordinals`, and `SCAN_NAV_THRESHOLD_BYTES` previously had no
 programmatic write path and were "hand-edit `config/settings.yaml`" only.
 That escape hatch is now gone with no replacement UI/API route — changing
-any of these three today requires a direct write to the `app_settings`
+any of these three today requires a direct write to the `settings`
 table (e.g. via a script), not a config-file edit.
 
 ### 7.3 Secrets — `.env`, mechanism unchanged by the collapse
@@ -308,11 +308,11 @@ table (e.g. via a script), not a config-file edit.
   remove the allowlist entries) on its own.
 - `get_env_secret()`/`set_env_secret()` (`backend/service/utils/env_secrets.py`)
   are the only read/write path for all four keys. No secret ever touches
-  `app_settings`.
+  `settings`.
 
-### 7.4 `app_settings` table (DB) — full consumer list
+### 7.4 `settings` table (DB) — full consumer list
 
-Definition: `backend/models/settings.py:8` (`Settings`, table `app_settings`,
+Definition: `backend/models/settings.py:8` (`Settings`, table `settings`,
 columns `key`/`value`/`updated_at`) and `:19` (`SettingsPatch`, a generic
 `{updates: dict}` Pydantic body used by the generic PATCH endpoint — the name
 overlap with the `Settings` DB model is coincidental, not a coupling).
@@ -327,13 +327,13 @@ way it always was: `backend/api/routes/settings.py` (`GET /first-run-status`,
 ### 7.5 Table-creation / seed flow (updated for the T1/T6 engine-sharing fix)
 
 - `ensure_settings_table()` (`backend/core/database.py`) creates just the
-  `app_settings` table at T1 (import time, inside `settings.init()`, called
+  `settings` table at T1 (import time, inside `settings.init()`, called
   from `main.py` before the FastAPI app is built) — scoped narrowly enough to
   run before the rest of `backend.models.*` has registered with
   `SQLModel.metadata`.
 - `create_tables()` (`backend/core/database.py`, invoked from `lifespan.py`)
   still runs the full `SQLModel.metadata.create_all()` at T6 (ASGI startup) —
-  a no-op for `app_settings` since it already exists by then. Plain
+  a no-op for `settings` since it already exists by then. Plain
   `create_all`, no Alembic (matches CLAUDE.md stack notes).
 - The legacy-migration seed step (`_migrate_legacy_config_into_db()`) has
   been deleted along with `settings.yaml`/`paths.yaml`. `init()` no longer
@@ -387,7 +387,7 @@ instead.)
 
 ---
 
-**Summary:** the settings.yaml → DB collapse is complete. `app_settings` now
+**Summary:** the settings.yaml → DB collapse is complete. `settings` now
 holds every operational flag, per-emulator sandbox override, and path key;
 secrets remain in `.env` by design (§7.3). The two items worth resolving
 independently of the collapse, carried forward unchanged from the original

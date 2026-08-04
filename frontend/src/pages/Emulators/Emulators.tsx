@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { apiFetch, ApiError } from "@/api/client";
 import TopBar from "@/components/layout/TopBar";
 import { EMULATOR_ERA_MAP, ERA_COLOR } from "@/types/era";
+import { useToast } from "@/ui/ToastProvider";
 import type { components } from "@shared/types";
 type CatalogEntry = components["schemas"]["CatalogEntryResponse"];
 
@@ -303,6 +304,7 @@ function EmulatorCard({
 export default function Emulators() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [editPath, setEditPath] = useState("");
   const [saving, setSaving] = useState(false);
@@ -327,7 +329,7 @@ export default function Emulators() {
       await queryClient.invalidateQueries({ queryKey: ["emulators-catalog"] });
       setEditingSlug(null);
     } catch (err) {
-      alert(err instanceof ApiError ? err.detail : "Save failed.");
+      showToast(err instanceof ApiError ? err.detail : "Save failed.", "error");
     } finally {
       setSaving(false);
     }
@@ -350,7 +352,7 @@ export default function Emulators() {
       });
       await queryClient.invalidateQueries({ queryKey: ["emulators-catalog"] });
     } catch (err) {
-      alert(err instanceof ApiError ? err.detail : "Remove failed.");
+      showToast(err instanceof ApiError ? err.detail : "Remove failed.", "error");
     }
   }
 
