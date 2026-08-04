@@ -122,9 +122,13 @@ def detect_from_magic(path: Path, extension: str) -> tuple[str | None, str]:
                             return "ps1", "CD-ROM sector sync matched; SYSTEM.CNF BOOT key indicates PS1"
                         # resolved == "unknown": sync pattern alone doesn't prove
                         # PS1/PS2 (it's a generic Mode 2 CD-ROM marker) and
-                        # SYSTEM.CNF couldn't confirm which, so fall through to
-                        # the next detection tier instead of guessing a console.
-                        return None, ""
+                        # SYSTEM.CNF couldn't confirm which, so stop treating this
+                        # signature as a match and keep evaluating the rest.
+                        # Returning here instead would abandon every later
+                        # signature that also applies to this extension, which for
+                        # .bin means the Dreamcast IP.BIN magic at 0x10 plus the
+                        # N64 and NES entries never get tested at all.
+                        continue
                     return sig["era"], sig["reason"]
 
         return None, ""

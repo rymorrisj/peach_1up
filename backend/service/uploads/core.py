@@ -53,6 +53,23 @@ _sessions: dict[str, dict] = {}
 # interval without adding meaningful lock contention.
 _PROGRESS_INTERVAL_SECONDS = 1.0
 
+# Smallest chunk size init_session will assume a real client might have picked,
+# used only as the divisor for the upper bound on a declared chunk count. It is
+# deliberately far below any plausible client value (the bundled frontend uses
+# 8 MB, 128x larger) so that the bound rejects only counts that are absurd for
+# the declared size, never counts that are merely finer-grained than expected.
+# Not a transport parameter: nothing enforces a minimum on an actual chunk PUT,
+# and a real final chunk is routinely smaller than this.
+_MIN_CHUNK_BYTES = 64 * 1024
+
+# Hard ceiling on .part files staged for a single file, independent of its
+# declared size. Each chunk costs one file handle's worth of dir entry plus one
+# set member regardless of how few bytes it carries, so this bounds that
+# per-count overhead even for a maximal declared size. It only binds below a
+# 256 KB implied chunk size on a 25 GB upload, well under _MIN_CHUNK_BYTES
+# territory for anything smaller, so no realistic client ever meets it.
+_MAX_CHUNKS_PER_FILE = 100_000
+
 
 @dataclass
 class ReassembledUpload:
@@ -92,15 +109,40 @@ def init_session(kind: str, title: str, files: list[dict], chunk_max_bytes: int)
             raise ValueError("Each file requires a name.")
         if size < 0 or chunks < 1:
             raise ValueError("Each file requires a positive chunk count and non-negative size.")
-        # Bounds the maximum possible bytes a session can accept to roughly its
-        # declared size (chunks * chunk_max_bytes), closing the gap where a
-        # client declares an arbitrarily large chunk count against a tiny
-        # declared size and streams far more data than either cap implies.
-        max_allowed_chunks = max(1, math.ceil(size / chunk_max_bytes)) if chunk_max_bytes > 0 else chunks
+        # The client picks its own chunk size and never tells the server what it
+        # is; chunk_max_bytes is only the ceiling the server will accept for any
+        # single chunk. A legitimate chunk count therefore falls in a range, and
+        # only counts outside that range indicate a lying manifest:
+        #   floor  = ceil(size / chunk_max_bytes): fewer chunks than this cannot
+        #            carry the declared size, because no one chunk may exceed the
+        #            cap. Impossible declaration.
+        #   ceiling = ceil(size / _MIN_CHUNK_BYTES): more chunks than this implies
+        #            a chunk size below anything a real client would choose, i.e.
+        #            a count inflated to exhaust staging entries rather than to
+        #            move the declared bytes. Absurd declaration.
+        # Dividing by chunk_max_bytes to get the UPPER bound (as the previous
+        # revision did) conflates the server's per-chunk ceiling with the client's
+        # actual chunk size, and so rejects every upload chunked finer than the
+        # cap, which is every upload the bundled frontend produces over 8 MB.
+        # Total bytes accepted are bounded separately and independently by the
+        # cumulative check in store_chunk(), which is what actually caps disk use.
+        # _MAX_CHUNKS_PER_FILE caps the absurdity ceiling so the per-count
+        # overhead stays bounded even at the largest declared size, and the
+        # ceiling applies whether or not a per-chunk cap is configured.
+        min_required_chunks = max(1, math.ceil(size / chunk_max_bytes)) if chunk_max_bytes > 0 else 1
+        max_allowed_chunks = min(
+            max(1, math.ceil(size / _MIN_CHUNK_BYTES)), _MAX_CHUNKS_PER_FILE
+        )
+        if chunks < min_required_chunks:
+            raise ValueError(
+                f"Declared chunk count for '{name}' ({chunks}) is too low to carry its "
+                f"declared size ({size} bytes) within the {chunk_max_bytes}-byte "
+                f"per-chunk limit (at least {min_required_chunks} required)."
+            )
         if chunks > max_allowed_chunks:
             raise ValueError(
-                f"Declared chunk count for '{name}' ({chunks}) exceeds what its declared "
-                f"size ({size} bytes) requires (max {max_allowed_chunks})."
+                f"Declared chunk count for '{name}' ({chunks}) is implausible for its "
+                f"declared size ({size} bytes) (max {max_allowed_chunks})."
             )
         declared_total += size
         # relative_path is only ever sent by the frontend for a folder upload
