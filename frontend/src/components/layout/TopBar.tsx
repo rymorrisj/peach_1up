@@ -1,18 +1,18 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from 'react';
 // import { Moon, Sun } from 'lucide-react'  // re-enable with theme toggle
-import { useQuery } from '@tanstack/react-query'
-import { useAppContext } from '@/context/useAppContext'
-import { apiFetch } from '@/api/client'
-import type { components } from '@shared/types'
-type LaunchHistory = components['schemas']['LaunchHistoryRead']
+import { useQuery } from '@tanstack/react-query';
+import { useAppContext } from '@/context/useAppContext';
+import { apiFetch } from '@/api/client';
+import type { components } from '@shared/types';
+type LaunchHistory = components['schemas']['LaunchHistoryRead'];
 
 interface TopBarProps {
-  title?: string
-  children?: ReactNode
+  title?: string;
+  children?: ReactNode;
 }
 
 export default function TopBar({ title, children }: TopBarProps) {
-  const { state, dispatch: _dispatch } = useAppContext()
+  const { state, dispatch: _dispatch } = useAppContext();
 
   const { data: launches = [] } = useQuery<LaunchHistory[]>({
     queryKey: ['launches'],
@@ -22,13 +22,13 @@ export default function TopBar({ title, children }: TopBarProps) {
     // launch has ended_at set, stop refetching instead of hitting the
     // endpoint on a fixed timer forever.
     refetchInterval: (query) => {
-      const data = query.state.data ?? []
-      return data.some((l) => l.ended_at === null) ? 5000 : false
+      const data = query.state.data ?? [];
+      return data.some((l) => l.ended_at === null) ? 5000 : false;
     },
     refetchOnWindowFocus: false,
-  })
+  });
 
-  const activeSessions = launches.filter((l) => l.ended_at === null).length
+  const activeSessions = launches.filter((l) => l.ended_at === null).length;
 
   return (
     <header
@@ -66,7 +66,10 @@ export default function TopBar({ title, children }: TopBarProps) {
           >
             <span
               className="h-1.5 w-1.5 rounded-full"
-              style={{ background: 'rgb(var(--success))', animation: 'dot-pulse 1.4s ease-in-out infinite' }}
+              style={{
+                background: 'rgb(var(--success))',
+                animation: 'dot-pulse 1.4s ease-in-out infinite',
+              }}
               aria-hidden="true"
             />
             {activeSessions} running
@@ -94,5 +97,5 @@ export default function TopBar({ title, children }: TopBarProps) {
         */}
       </div>
     </header>
-  )
+  );
 }

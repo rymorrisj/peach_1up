@@ -1,13 +1,13 @@
-import { useQuery } from '@tanstack/react-query'
-import { apiFetch } from '@/api/client'
-import { parseNaiveUtc } from '@/lib/date'
-import type { components } from '@shared/types'
+import { useQuery } from '@tanstack/react-query';
+import { apiFetch } from '@/api/client';
+import { parseNaiveUtc } from '@/lib/date';
+import type { components } from '@shared/types';
 
-type LaunchHistoryRead = components['schemas']['LaunchHistoryRead']
+type LaunchHistoryRead = components['schemas']['LaunchHistoryRead'];
 
 interface LaunchHistoryProps {
-  targetId: number
-  targetType: string
+  targetId: number;
+  targetType: string;
 }
 
 export default function LaunchHistory({ targetId, targetType }: LaunchHistoryProps) {
@@ -17,9 +17,9 @@ export default function LaunchHistory({ targetId, targetType }: LaunchHistoryPro
       apiFetch<LaunchHistoryRead[]>(
         `/api/v1/launches?target_id=${targetId}&target_type=${targetType}`,
       ),
-  })
+  });
 
-  if (!launches || launches.length === 0) return null
+  if (!launches || launches.length === 0) return null;
 
   return (
     <div className="mt-2 border-t border-neutral-100 pt-2 dark:border-neutral-800">
@@ -34,5 +34,5 @@ export default function LaunchHistory({ targetId, targetType }: LaunchHistoryPro
         </div>
       ))}
     </div>
-  )
+  );
 }

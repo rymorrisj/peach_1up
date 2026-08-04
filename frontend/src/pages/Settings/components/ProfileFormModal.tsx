@@ -1,25 +1,34 @@
-import { Button, FormField, Input, Modal, Textarea, Select } from '@/ui'
-import { DGVOODOO2_SUPPORTED_ERAS } from '@/generated/constants'
-import type { EmulatorEntry, ProfileForm, ProfileModalState } from '@/types/profiles'
-import type { EmulatorCatalogSlug } from '@/generated/constants'
+import { Button, FormField, Input, Modal, Textarea, Select } from '@/ui';
+import { DGVOODOO2_SUPPORTED_ERAS } from '@/generated/constants';
+import type { EmulatorEntry, ProfileForm, ProfileModalState } from '@/types/profiles';
+import type { EmulatorCatalogSlug } from '@/generated/constants';
 
 interface ProfileFormModalProps {
-  modal: ProfileModalState
-  form: ProfileForm
-  formErrors: Partial<Record<keyof ProfileForm, string>>
-  submitError: string | null
-  submitting: boolean
-  emulators: EmulatorEntry[]
-  eraOptions: Array<{ value: string; label: string }>
-  setField: <K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) => void
-  onSubmit: () => void
-  onClose: () => void
+  modal: ProfileModalState;
+  form: ProfileForm;
+  formErrors: Partial<Record<keyof ProfileForm, string>>;
+  submitError: string | null;
+  submitting: boolean;
+  emulators: EmulatorEntry[];
+  eraOptions: Array<{ value: string; label: string }>;
+  setField: <K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) => void;
+  onSubmit: () => void;
+  onClose: () => void;
 }
 
 export function ProfileFormModal({
-  modal, form, formErrors, submitError, submitting, emulators, eraOptions, setField, onSubmit, onClose,
+  modal,
+  form,
+  formErrors,
+  submitError,
+  submitting,
+  emulators,
+  eraOptions,
+  setField,
+  onSubmit,
+  onClose,
 }: ProfileFormModalProps) {
-  const modalTitle = modal?.mode === 'create' ? 'Add Launch Profile' : 'Edit Launch Profile'
+  const modalTitle = modal?.mode === 'create' ? 'Add Launch Profile' : 'Edit Launch Profile';
 
   return (
     <Modal
@@ -64,12 +73,7 @@ export function ProfileFormModal({
         />
       </FormField>
 
-      <FormField
-        label="Emulator"
-        htmlFor="lp-emulator"
-        required
-        error={formErrors.emulator_slug}
-      >
+      <FormField label="Emulator" htmlFor="lp-emulator" required error={formErrors.emulator_slug}>
         <Select
           id="lp-emulator"
           value={form.emulator_slug}
@@ -91,7 +95,11 @@ export function ProfileFormModal({
         />
       </FormField>
 
-      <FormField label="Extra Arguments" htmlFor="lp-args" hint="Additional command-line flags passed to the emulator">
+      <FormField
+        label="Extra Arguments"
+        htmlFor="lp-args"
+        hint="Additional command-line flags passed to the emulator"
+      >
         <Input
           id="lp-args"
           value={form.extra_args}
@@ -113,9 +121,7 @@ export function ProfileFormModal({
             aria-checked={form.enable_networking}
             onClick={() => setField('enable_networking', !form.enable_networking)}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 ${
-              form.enable_networking
-                ? 'bg-accent'
-                : 'bg-neutral-300 dark:bg-neutral-600'
+              form.enable_networking ? 'bg-accent' : 'bg-neutral-300 dark:bg-neutral-600'
             }`}
           >
             <span
@@ -144,9 +150,7 @@ export function ProfileFormModal({
               aria-checked={form.enable_dgvoodoo2}
               onClick={() => setField('enable_dgvoodoo2', !form.enable_dgvoodoo2)}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 ${
-                form.enable_dgvoodoo2
-                  ? 'bg-accent'
-                  : 'bg-neutral-300 dark:bg-neutral-600'
+                form.enable_dgvoodoo2 ? 'bg-accent' : 'bg-neutral-300 dark:bg-neutral-600'
               }`}
             >
               <span
@@ -180,8 +184,16 @@ export function ProfileFormModal({
         >
           <Select
             id="lp-container"
-            value={form.container_enabled === null ? 'default' : form.container_enabled ? 'true' : 'false'}
-            onValueChange={(v) => setField('container_enabled', v === 'default' ? null : v === 'true')}
+            value={
+              form.container_enabled === null
+                ? 'default'
+                : form.container_enabled
+                  ? 'true'
+                  : 'false'
+            }
+            onValueChange={(v) =>
+              setField('container_enabled', v === 'default' ? null : v === 'true')
+            }
             options={[
               { value: 'default', label: 'Default (use emulator setting)' },
               { value: 'true', label: 'Enabled' },
@@ -197,5 +209,5 @@ export function ProfileFormModal({
         </p>
       )}
     </Modal>
-  )
+  );
 }

@@ -1,19 +1,19 @@
-import { useEffect } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
-import { X } from 'lucide-react'
-import Sidebar from '@/components/layout/Sidebar'
-import HelpBar from '@/components/layout/HelpBar'
-import { useAppContext } from '@/context/useAppContext'
+import { useEffect } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
+import { X } from 'lucide-react';
+import Sidebar from '@/components/layout/Sidebar';
+import HelpBar from '@/components/layout/HelpBar';
+import { useAppContext } from '@/context/useAppContext';
 
 export default function AppShell() {
-  const { state, dispatch } = useAppContext()
-  const navigate = useNavigate()
+  const { state, dispatch } = useAppContext();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (state.showUnauthModal) {
-      navigate('/users')
+      navigate('/users');
     }
-  }, [state.showUnauthModal, navigate])
+  }, [state.showUnauthModal, navigate]);
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'rgb(var(--surface-0))' }}>
@@ -41,5 +41,5 @@ export default function AppShell() {
         <HelpBar />
       </div>
     </div>
-  )
+  );
 }

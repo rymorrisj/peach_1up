@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react'
-import type { ChangeEvent } from 'react'
-import { getCsrfToken } from '@/api/client'
+import { useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
+import { getCsrfToken } from '@/api/client';
 
-const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000'
+const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
 
 interface FileUploadProps {
   /** Slug of the Environment this install media belongs to — era is derived
@@ -10,75 +10,79 @@ interface FileUploadProps {
    *  Undefined when no Environment exists yet (e.g. still in the create-modal
    *  flow, before the record — and its slug — exist); the control renders
    *  nothing in that case since the upload has nowhere to land yet. */
-  slug: string | undefined
-  onComplete: (path: string) => void
-  accept?: string
+  slug: string | undefined;
+  onComplete: (path: string) => void;
+  accept?: string;
 }
 
 export default function FileUpload({ slug, onComplete, accept }: FileUploadProps) {
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [progress, setProgress] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
-    upload(file)
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    upload(file);
   }
 
   function upload(file: File) {
-    if (!slug) return
-    setUploading(true)
-    setProgress(0)
-    setError(null)
+    if (!slug) return;
+    setUploading(true);
+    setProgress(0);
+    setError(null);
 
-    const fd = new FormData()
-    fd.append('file', file)
+    const fd = new FormData();
+    fd.append('file', file);
 
     // XHR is required here — fetch() does not expose upload progress events.
-    const xhr = new XMLHttpRequest()
-    xhr.open('POST', `${baseURL}/api/v1/environment-items/${slug}/install-media`)
-    xhr.withCredentials = true
-    xhr.setRequestHeader('X-CSRF-Token', getCsrfToken())
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${baseURL}/api/v1/environment-items/${slug}/install-media`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('X-CSRF-Token', getCsrfToken());
 
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable) {
-        setProgress(Math.round((ev.loaded / ev.total) * 100))
+        setProgress(Math.round((ev.loaded / ev.total) * 100));
       }
-    }
+    };
 
     xhr.onload = () => {
-      setUploading(false)
-      setProgress(null)
+      setUploading(false);
+      setProgress(null);
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const result = JSON.parse(xhr.responseText) as { path: string; slug: string; size_bytes: number }
-          onComplete(result.path)
+          const result = JSON.parse(xhr.responseText) as {
+            path: string;
+            slug: string;
+            size_bytes: number;
+          };
+          onComplete(result.path);
         } catch {
-          setError('Upload succeeded but the response could not be parsed.')
+          setError('Upload succeeded but the response could not be parsed.');
         }
       } else {
         try {
-          const body = JSON.parse(xhr.responseText) as { detail?: string }
-          setError(body.detail ?? `Upload failed (HTTP ${xhr.status}).`)
+          const body = JSON.parse(xhr.responseText) as { detail?: string };
+          setError(body.detail ?? `Upload failed (HTTP ${xhr.status}).`);
         } catch {
-          setError(`Upload failed (HTTP ${xhr.status}).`)
+          setError(`Upload failed (HTTP ${xhr.status}).`);
         }
       }
-    }
+    };
 
     xhr.onerror = () => {
-      setUploading(false)
-      setProgress(null)
-      setError('Network error during upload.')
-    }
+      setUploading(false);
+      setProgress(null);
+      setError('Network error during upload.');
+    };
 
-    xhr.send(fd)
+    xhr.send(fd);
   }
 
-  if (!slug) return null
+  if (!slug) return null;
 
   return (
     <div className="mt-1.5 space-y-1.5">
@@ -113,5 +117,5 @@ export default function FileUpload({ slug, onComplete, accept }: FileUploadProps
         </p>
       )}
     </div>
-  )
+  );
 }

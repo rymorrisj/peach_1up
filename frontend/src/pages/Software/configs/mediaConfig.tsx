@@ -1,42 +1,52 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, ApiError } from '@/api/client'
-import { useEditForm } from '@/hooks/useEditForm'
-import { formFromCollection, type SoftwareMediaForm } from '../types/mediaForm'
-import { MediaEditForm } from '../components/MediaEditForm'
-import { LinkedItemsSection } from '../components/LinkedItemsSection'
-import { FilesSection } from '../components/FilesSection'
-import type { LibraryModalConfig } from '../components/LibraryModal'
-import type { EntityBundleBase, EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
-import { SOFTWARE_SORT_OPTIONS, MEDIA_ROUTE_BASE } from '../types'
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiFetch, ApiError } from '@/api/client';
+import { useEditForm } from '@/hooks/useEditForm';
+import { formFromCollection, type SoftwareMediaForm } from '../types/mediaForm';
+import { MediaEditForm } from '../components/MediaEditForm';
+import { LinkedItemsSection } from '../components/LinkedItemsSection';
+import { FilesSection } from '../components/FilesSection';
+import type { LibraryModalConfig } from '../components/LibraryModal';
+import type {
+  EntityBundleBase,
+  EntityDetailExtras,
+  EntityDetailExtrasContext,
+  EntityDomainConfig,
+} from '../types';
+import { SOFTWARE_SORT_OPTIONS, MEDIA_ROUTE_BASE } from '../types';
 
 export interface MediaItemLeaf {
-  id: number
-  media_item_bundle_id: number | null
-  file_path: string
-  file_url: string | null
-  file_size_bytes: number | null
-  media_kind: string
-  cover_art_path: string | null
-  cover_art_url: string | null
+  id: number;
+  media_item_bundle_id: number | null;
+  file_path: string;
+  file_url: string | null;
+  file_size_bytes: number | null;
+  media_kind: string;
+  cover_art_path: string | null;
+  cover_art_url: string | null;
 }
 
 export interface MediaItemBundleData extends EntityBundleBase {
-  media_kind: string
-  cover_art_path: string | null
-  cover_art_url: string | null
-  items: MediaItemLeaf[]
+  media_kind: string;
+  cover_art_path: string | null;
+  cover_art_url: string | null;
+  items: MediaItemLeaf[];
 }
 
 // Minimal edit form: title, description, cover_art_path. A single PATCH,
 // no multi-step disc/leaf sequence like Game's since cover_art_path lives
 // directly on the bundle (see formFromCollection in types/mediaForm.ts).
-function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData>): EntityDetailExtras {
-  const collection = ctx.entity
-  const collectionId = ctx.entityId
-  const { detailQueryKey, refetchEntity } = ctx
-  const queryClient = useQueryClient()
+function useMediaDetailExtras(
+  ctx: EntityDetailExtrasContext<MediaItemBundleData>,
+): EntityDetailExtras {
+  const collection = ctx.entity;
+  const collectionId = ctx.entityId;
+  const { detailQueryKey, refetchEntity } = ctx;
+  const queryClient = useQueryClient();
 
-  const { form, setFormField, resyncFromCollection } = useEditForm({ collection, formFromCollection })
+  const { form, setFormField, resyncFromCollection } = useEditForm({
+    collection,
+    formFromCollection,
+  });
 
   const saveMutation = useMutation<MediaItemBundleData, Error, SoftwareMediaForm>({
     mutationFn: async (f) => {
@@ -47,14 +57,14 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
           description: f.description.trim() || null,
           cover_art_path: f.cover_art_path.trim() || null,
         }),
-      })
-      return refetchEntity()
+      });
+      return refetchEntity();
     },
     onSuccess: (fresh) => {
-      resyncFromCollection(fresh)
-      queryClient.invalidateQueries({ queryKey: detailQueryKey })
+      resyncFromCollection(fresh);
+      queryClient.invalidateQueries({ queryKey: detailQueryKey });
     },
-  })
+  });
 
   // Additive to handleSetCoverArt below, not a replacement: this leaves the
   // media item's own cover_art_path untouched and instead pushes the
@@ -67,18 +77,21 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
   // the early return, since hooks must run unconditionally on every render.
   const applyCoverArtToGamesMutation = useMutation<number[], Error, string>({
     mutationFn: (filePath) =>
-      apiFetch<number[]>(`/api/v1/media-item-bundle/${collectionId}/apply-cover-art-to-linked-games`, {
-        method: 'POST',
-        body: JSON.stringify({ file_path: filePath }),
-      }),
+      apiFetch<number[]>(
+        `/api/v1/media-item-bundle/${collectionId}/apply-cover-art-to-linked-games`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ file_path: filePath }),
+        },
+      ),
     onSuccess: () => {
       // The response is a list of affected game ids, but game detail is cached
       // by slug (not id), so there's no exact per-game key to target — invalidate
       // every currently-cached game list/detail query instead of guessing slugs.
-      queryClient.invalidateQueries({ queryKey: ['game', 'list'] })
-      queryClient.invalidateQueries({ queryKey: ['game', 'detail'] })
+      queryClient.invalidateQueries({ queryKey: ['game', 'list'] });
+      queryClient.invalidateQueries({ queryKey: ['game', 'detail'] });
     },
-  })
+  });
 
   // Dedicated mutation for "Set as cover art" from the file list, deliberately
   // separate from saveMutation: reusing saveMutation would (a) PATCH the live
@@ -91,26 +104,26 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
       await apiFetch<MediaItemBundleData>(`/api/v1/media-item-bundle/${collectionId}`, {
         method: 'PATCH',
         body: JSON.stringify({ cover_art_path: filePath || null }),
-      })
-      return refetchEntity()
+      });
+      return refetchEntity();
     },
     onSuccess: (fresh) => {
-      resyncFromCollection(fresh)
-      queryClient.invalidateQueries({ queryKey: detailQueryKey })
+      resyncFromCollection(fresh);
+      queryClient.invalidateQueries({ queryKey: detailQueryKey });
     },
-  })
+  });
 
   if (!collection || form == null) {
-    return {}
+    return {};
   }
 
   function handleSetCoverArt(filePath: string) {
-    setCoverArtMutation.mutate(filePath)
+    setCoverArtMutation.mutate(filePath);
   }
 
   const linkedGameItems = (collection.linked_items ?? [])
     .filter((ref) => ref.entity_type === 'game_item_bundle')
-    .map((ref) => ({ entity_id: ref.entity_id, title: ref.title }))
+    .map((ref) => ({ entity_id: ref.entity_id, title: ref.title }));
 
   return {
     editFormContent: (
@@ -119,9 +132,13 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
         setField={setFormField}
         handleSave={() => saveMutation.mutate(form)}
         saving={saveMutation.isPending}
-        saveError={saveMutation.isError
-          ? (saveMutation.error instanceof ApiError ? saveMutation.error.detail : 'Failed to save.')
-          : null}
+        saveError={
+          saveMutation.isError
+            ? saveMutation.error instanceof ApiError
+              ? saveMutation.error.detail
+              : 'Failed to save.'
+            : null
+        }
         saveSuccess={saveMutation.isSuccess}
       />
     ),
@@ -152,7 +169,7 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
         <LinkedItemsSection items={collection.linked_items} />
       </>
     ),
-  }
+  };
 }
 
 // Best-effort media_kind inference from the uploaded file's extension. The
@@ -165,11 +182,11 @@ function useMediaDetailExtras(ctx: EntityDetailExtrasContext<MediaItemBundleData
 // MediaKind) rather than blocking the upload; the user can correct it from
 // the detail page's edit form afterward.
 function inferMediaKind(fileName: string): 'audio' | 'text' | 'image' | 'video' {
-  const ext = fileName.slice(fileName.lastIndexOf('.') + 1).toLowerCase()
-  if (['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'wma'].includes(ext)) return 'audio'
-  if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'tiff', 'tif'].includes(ext)) return 'image'
-  if (['mp4', 'mkv', 'avi', 'mov', 'webm', 'wmv', 'm4v'].includes(ext)) return 'video'
-  return 'text'
+  const ext = fileName.slice(fileName.lastIndexOf('.') + 1).toLowerCase();
+  if (['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'wma'].includes(ext)) return 'audio';
+  if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'tiff', 'tif'].includes(ext)) return 'image';
+  if (['mp4', 'mkv', 'avi', 'mov', 'webm', 'wmv', 'm4v'].includes(ext)) return 'video';
+  return 'text';
 }
 
 // Media had no creation UI at all before this. Mode is 'upload' only
@@ -192,7 +209,11 @@ export const mediaUploadModalConfig: LibraryModalConfig = {
   entityLabel: 'media item',
   entityLabelPlural: 'media',
   createFromUpload: async (body, fileName) => {
-    const title = fileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim() || fileName
+    const title =
+      fileName
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[-_]/g, ' ')
+        .trim() || fileName;
     await apiFetch('/api/v1/media-items', {
       method: 'POST',
       body: JSON.stringify({
@@ -201,9 +222,9 @@ export const mediaUploadModalConfig: LibraryModalConfig = {
         file_path: body.path,
         file_size_bytes: body.size_bytes ?? null,
       }),
-    })
+    });
   },
-}
+};
 
 // Media has no launch capability at all (no launchTargetType), and its cover
 // art lives directly on the bundle rather than a leaf item (see discovery:
@@ -236,4 +257,4 @@ export const mediaDomainConfig: EntityDomainConfig<MediaItemBundleData> = {
   // (media.py:list_media_item_bundles) accepts the same `sort`
   // ("title" | "date_added") param as Game/App.
   sortOptions: SOFTWARE_SORT_OPTIONS,
-}
+};

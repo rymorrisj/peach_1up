@@ -1,13 +1,13 @@
-import { useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Query } from "@tanstack/react-query";
-import { Lock, Check } from "lucide-react";
-import { apiFetch, ApiError } from "@/api/client";
-import { useAppContext } from "@/context/useAppContext";
-import { Button, Input } from "@/ui";
-import { cn } from "@/lib/utils";
-import type { components } from "@shared/types";
-type User = components["schemas"]["UserItemRead"];
+import { useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Query } from '@tanstack/react-query';
+import { Lock, Check } from 'lucide-react';
+import { apiFetch, ApiError } from '@/api/client';
+import { useAppContext } from '@/context/useAppContext';
+import { Button, Input } from '@/ui';
+import { cn } from '@/lib/utils';
+import type { components } from '@shared/types';
+type User = components['schemas']['UserItemRead'];
 
 // Matches every Software-domain list/detail query key
 // ([domain, 'list', ...]/[domain, 'detail', ...], see EntityListPage.tsx:89
@@ -18,7 +18,7 @@ type User = components["schemas"]["UserItemRead"];
 // allowed to see, so every domain's cached pages need to be treated as stale.
 function isSoftwareDomainListOrDetailQuery(query: Query): boolean {
   const kind = query.queryKey[1];
-  return kind === "list" || kind === "detail";
+  return kind === 'list' || kind === 'detail';
 }
 
 interface SwitchResponse {
@@ -26,16 +26,16 @@ interface SwitchResponse {
 }
 
 function avatarInitial(name: string): string {
-  return name.trim().charAt(0).toUpperCase() || "?";
+  return name.trim().charAt(0).toUpperCase() || '?';
 }
 
 const AVATAR_COLORS = [
-  "bg-peach text-white",
-  "bg-blue-500 text-white",
-  "bg-emerald-500 text-white",
-  "bg-violet-500 text-white",
-  "bg-amber-500 text-white",
-  "bg-rose-500 text-white",
+  'bg-peach text-white',
+  'bg-blue-500 text-white',
+  'bg-emerald-500 text-white',
+  'bg-violet-500 text-white',
+  'bg-amber-500 text-white',
+  'bg-rose-500 text-white',
 ];
 
 function avatarColor(id: number): string {
@@ -50,7 +50,7 @@ interface PinModalProps {
 
 function PinModal({ user, onSuccess, onClose }: PinModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [pin, setPin] = useState("");
+  const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -58,8 +58,7 @@ function PinModal({ user, onSuccess, onClose }: PinModalProps) {
   const refCallback = (el: HTMLDialogElement | null) => {
     if (el && !el.open) {
       el.showModal();
-      (dialogRef as React.MutableRefObject<HTMLDialogElement | null>).current =
-        el;
+      (dialogRef as React.MutableRefObject<HTMLDialogElement | null>).current = el;
     }
   };
 
@@ -73,13 +72,13 @@ function PinModal({ user, onSuccess, onClose }: PinModalProps) {
     setSubmitting(true);
     setError(null);
     try {
-      const resp = await apiFetch<SwitchResponse>("/api/v1/auth/switch", {
-        method: "POST",
+      const resp = await apiFetch<SwitchResponse>('/api/v1/auth/switch', {
+        method: 'POST',
         body: JSON.stringify({ user_item_id: user.id, pin }),
       });
       onSuccess(resp.user);
     } catch (err) {
-      const msg = err instanceof ApiError ? err.detail : "Switch failed.";
+      const msg = err instanceof ApiError ? err.detail : 'Switch failed.';
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -95,19 +94,15 @@ function PinModal({ user, onSuccess, onClose }: PinModalProps) {
       <div className="mb-4 flex items-center gap-3">
         <div
           className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-full text-lg font-bold",
+            'flex h-10 w-10 items-center justify-center rounded-full text-lg font-bold',
             avatarColor(user.id),
           )}
         >
           {avatarInitial(user.name)}
         </div>
         <div>
-          <p className="font-semibold text-neutral-900 dark:text-neutral-100">
-            {user.name}
-          </p>
-          <p className="text-xs text-neutral-400 dark:text-neutral-500">
-            Enter PIN to switch
-          </p>
+          <p className="font-semibold text-neutral-900 dark:text-neutral-100">{user.name}</p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">Enter PIN to switch</p>
         </div>
       </div>
 
@@ -129,7 +124,7 @@ function PinModal({ user, onSuccess, onClose }: PinModalProps) {
             placeholder="••••"
             value={pin}
             onChange={(e) => {
-              setPin(e.target.value.replace(/\D/g, ""));
+              setPin(e.target.value.replace(/\D/g, ''));
               setError(null);
             }}
             hasError={!!error}
@@ -141,18 +136,10 @@ function PinModal({ user, onSuccess, onClose }: PinModalProps) {
             </p>
           )}
           <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => dialogRef.current?.close()}
-            >
+            <Button type="button" variant="ghost" onClick={() => dialogRef.current?.close()}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              loading={submitting}
-              disabled={pin.length < 4}
-            >
+            <Button type="submit" loading={submitting} disabled={pin.length < 4}>
               Switch
             </Button>
           </div>
@@ -175,8 +162,8 @@ export default function UserSwitcher() {
   const queryClient = useQueryClient();
 
   const { data: users } = useQuery<User[]>({
-    queryKey: ["users"],
-    queryFn: () => apiFetch<User[]>("/api/v1/user-items"),
+    queryKey: ['users'],
+    queryFn: () => apiFetch<User[]>('/api/v1/user-items'),
     enabled: !!state.activeUser,
   });
 
@@ -196,12 +183,12 @@ export default function UserSwitcher() {
       return;
     }
     // PIN-free non-owner — switch directly
-    apiFetch<SwitchResponse>("/api/v1/auth/switch", {
-      method: "POST",
-      body: JSON.stringify({ user_item_id: user.id, pin: "" }),
+    apiFetch<SwitchResponse>('/api/v1/auth/switch', {
+      method: 'POST',
+      body: JSON.stringify({ user_item_id: user.id, pin: '' }),
     })
       .then(({ user: switched }) => {
-        dispatch({ type: "SET_ACTIVE_USER", payload: switched });
+        dispatch({ type: 'SET_ACTIVE_USER', payload: switched });
         queryClient.invalidateQueries({ predicate: isSoftwareDomainListOrDetailQuery });
       })
       .catch(() => {
@@ -210,7 +197,7 @@ export default function UserSwitcher() {
   }
 
   function handlePinSuccess(switched: User) {
-    dispatch({ type: "SET_ACTIVE_USER", payload: switched });
+    dispatch({ type: 'SET_ACTIVE_USER', payload: switched });
     queryClient.invalidateQueries({ predicate: isSoftwareDomainListOrDetailQuery });
     setPinTarget(null);
   }
@@ -232,19 +219,16 @@ export default function UserSwitcher() {
               disabled={isDisabled}
               aria-pressed={isActive}
               className={cn(
-                "group flex min-w-[5.5rem] flex-col items-center gap-1.5 rounded-xl px-3 py-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-peach",
-                isDisabled
-                  ? "cursor-default bg-surface-2"
-                  : "cursor-pointer hover:bg-surface-2/60",
+                'group flex min-w-[5.5rem] flex-col items-center gap-1.5 rounded-xl px-3 py-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-peach',
+                isDisabled ? 'cursor-default bg-surface-2' : 'cursor-pointer hover:bg-surface-2/60',
               )}
             >
               <div className="relative">
                 <div
                   className={cn(
-                    "flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold shadow-sm",
+                    'flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold shadow-sm',
                     avatarColor(user.id),
-                    isActive &&
-                      "ring-2 ring-peach ring-offset-2 ring-offset-surface-0",
+                    isActive && 'ring-2 ring-peach ring-offset-2 ring-offset-surface-0',
                   )}
                 >
                   {user.is_locked ? (
@@ -261,10 +245,10 @@ export default function UserSwitcher() {
               </div>
               <span
                 className={cn(
-                  "max-w-[5rem] truncate text-xs font-medium",
+                  'max-w-[5rem] truncate text-xs font-medium',
                   isActive
-                    ? "text-neutral-900 dark:text-neutral-100"
-                    : "text-neutral-500 dark:text-neutral-400",
+                    ? 'text-neutral-900 dark:text-neutral-100'
+                    : 'text-neutral-500 dark:text-neutral-400',
                 )}
               >
                 {user.name}

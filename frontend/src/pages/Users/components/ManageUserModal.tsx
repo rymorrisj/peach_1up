@@ -1,8 +1,8 @@
-import { Button, FormField, Input, Modal } from "@/ui";
-import { cn } from "@/lib/utils";
-import { RATING_OPTIONS as BASE_RATING_OPTIONS } from "@/generated/constants";
+import { Button, FormField, Input, Modal } from '@/ui';
+import { cn } from '@/lib/utils';
+import { RATING_OPTIONS as BASE_RATING_OPTIONS } from '@/generated/constants';
 
-export type ManageUserMode = "create" | "edit";
+export type ManageUserMode = 'create' | 'edit';
 
 export interface ManageUserForm {
   name: string;
@@ -21,23 +21,20 @@ export interface ManageUserForm {
 }
 
 const PERMISSION_FLAGS: { key: keyof ManageUserForm; label: string }[] = [
-  { key: "can_launch_media", label: "Launch media" },
-  { key: "can_manage_game", label: "Edit software" },
-  { key: "can_manage_environment", label: "Edit environments" },
-  { key: "can_manage_media", label: "Edit media" },
-  { key: "can_manage_controllerMapping", label: "Manage controllers" },
-  { key: "can_manage_settings", label: "Edit settings" },
-  { key: "can_manage_users", label: "Manage own account" },
-  { key: "is_admin", label: "Admin" },
+  { key: 'can_launch_media', label: 'Launch media' },
+  { key: 'can_manage_game', label: 'Edit software' },
+  { key: 'can_manage_environment', label: 'Edit environments' },
+  { key: 'can_manage_media', label: 'Edit media' },
+  { key: 'can_manage_controllerMapping', label: 'Manage controllers' },
+  { key: 'can_manage_settings', label: 'Edit settings' },
+  { key: 'can_manage_users', label: 'Manage own account' },
+  { key: 'is_admin', label: 'Admin' },
 ];
 
-const RATING_OPTIONS = [
-  { value: "", label: "No restriction" },
-  ...BASE_RATING_OPTIONS.slice(1),
-];
+const RATING_OPTIONS = [{ value: '', label: 'No restriction' }, ...BASE_RATING_OPTIONS.slice(1)];
 
 const SELECT_CLASS =
-  "w-full rounded-md border border-neutral-300 bg-surface-2 px-3 py-2 text-sm text-neutral-900 focus:border-accent focus:outline-none dark:border-neutral-700 dark:text-neutral-100";
+  'w-full rounded-md border border-neutral-300 bg-surface-2 px-3 py-2 text-sm text-neutral-900 focus:border-accent focus:outline-none dark:border-neutral-700 dark:text-neutral-100';
 
 function Toggle({
   checked,
@@ -56,14 +53,14 @@ function Toggle({
       aria-checked={checked}
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2",
-        checked ? "bg-accent" : "bg-neutral-300 dark:bg-neutral-600",
+        'relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
+        checked ? 'bg-accent' : 'bg-neutral-300 dark:bg-neutral-600',
       )}
     >
       <span
         className={cn(
-          "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
-          checked ? "translate-x-[1.125rem]" : "translate-x-[0.1875rem]",
+          'inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform',
+          checked ? 'translate-x-[1.125rem]' : 'translate-x-[0.1875rem]',
         )}
       />
     </button>
@@ -99,12 +96,12 @@ export function ManageUserModal({
   onSubmit,
   onClose,
 }: ManageUserModalProps) {
-  const isCreate = mode === "create";
+  const isCreate = mode === 'create';
 
   return (
     <Modal
       open={open}
-      title={isCreate ? "Add Account" : `Edit ${targetName ?? "Account"}`}
+      title={isCreate ? 'Add Account' : `Edit ${targetName ?? 'Account'}`}
       onClose={onClose}
       busy={submitting}
       footer={
@@ -113,7 +110,7 @@ export function ManageUserModal({
             Cancel
           </Button>
           <Button onClick={onSubmit} loading={submitting}>
-            {isCreate ? "Create Account" : "Save Changes"}
+            {isCreate ? 'Create Account' : 'Save Changes'}
           </Button>
         </>
       }
@@ -122,16 +119,20 @@ export function ManageUserModal({
         <Input
           id="manage-name"
           value={form.name}
-          onChange={(e) => setField("name", e.target.value)}
+          onChange={(e) => setField('name', e.target.value)}
           placeholder="Alex"
           hasError={!!errors.name}
         />
       </FormField>
 
       <FormField
-        label={isCreate ? "PIN" : "New PIN"}
+        label={isCreate ? 'PIN' : 'New PIN'}
         htmlFor="manage-pin"
-        hint={isCreate ? "4–6 digits. Leave blank for no PIN." : "4–6 digits. Leave blank to keep current PIN."}
+        hint={
+          isCreate
+            ? '4–6 digits. Leave blank for no PIN.'
+            : '4–6 digits. Leave blank to keep current PIN.'
+        }
         error={errors.pin}
       >
         <Input
@@ -140,7 +141,7 @@ export function ManageUserModal({
           inputMode="numeric"
           maxLength={6}
           value={form.pin}
-          onChange={(e) => setField("pin", e.target.value.replace(/\D/g, ""))}
+          onChange={(e) => setField('pin', e.target.value.replace(/\D/g, ''))}
           placeholder="••••"
           hasError={!!errors.pin}
         />
@@ -176,7 +177,7 @@ export function ManageUserModal({
             <select
               id="manage-rating"
               value={form.max_content_rating}
-              onChange={(e) => setField("max_content_rating", e.target.value)}
+              onChange={(e) => setField('max_content_rating', e.target.value)}
               className={SELECT_CLASS}
             >
               {RATING_OPTIONS.map((o) => (
@@ -192,12 +193,10 @@ export function ManageUserModal({
               <Toggle
                 id="manage-block-unrated"
                 checked={form.block_unrated_media}
-                onChange={(v) => setField("block_unrated_media", v)}
+                onChange={(v) => setField('block_unrated_media', v)}
               />
               <span className="text-sm text-neutral-600 dark:text-neutral-300">
-                {form.block_unrated_media
-                  ? "Yes — hide items with no rating"
-                  : "No"}
+                {form.block_unrated_media ? 'Yes — hide items with no rating' : 'No'}
               </span>
             </div>
           </FormField>
@@ -213,9 +212,7 @@ export function ManageUserModal({
                 type="number"
                 min={1}
                 value={form.session_token_ttl}
-                onChange={(e) =>
-                  setField("session_token_ttl", e.target.value.replace(/\D/g, ""))
-                }
+                onChange={(e) => setField('session_token_ttl', e.target.value.replace(/\D/g, ''))}
                 placeholder="e.g. 60"
               />
             </FormField>

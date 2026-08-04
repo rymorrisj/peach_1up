@@ -1,38 +1,38 @@
-import { useQuery } from '@tanstack/react-query'
-import { Button, Card, FormField, Input, Textarea, Select } from '@/ui'
-import PathInput from '@/components/common/PathInput'
-import BrowsePanel from '@/components/common/BrowsePanel'
-import { apiFetch } from '@/api/client'
-import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants'
-import { ERA_TO_EMULATOR, isPcEra } from '@/pages/Environments/EnvironmentModal'
-import { PlatformField } from './PlatformField'
-import type { SoftwareGameForm as EditFormFields } from '../types/gameForm'
-import type { components } from '@shared/types'
+import { useQuery } from '@tanstack/react-query';
+import { Button, Card, FormField, Input, Textarea, Select } from '@/ui';
+import PathInput from '@/components/common/PathInput';
+import BrowsePanel from '@/components/common/BrowsePanel';
+import { apiFetch } from '@/api/client';
+import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants';
+import { ERA_TO_EMULATOR, isPcEra } from '@/pages/Environments/EnvironmentModal';
+import { PlatformField } from './PlatformField';
+import type { SoftwareGameForm as EditFormFields } from '../types/gameForm';
+import type { components } from '@shared/types';
 
-type LaunchProfile = components['schemas']['ProfileItemRead']
-type Platform = components['schemas']['EnvironmentItemRead']
+type LaunchProfile = components['schemas']['ProfileItemRead'];
+type Platform = components['schemas']['EnvironmentItemRead'];
 
 type EditableItem = {
-  era: string
-  detection_reason?: string | null
-  file_path?: string | null
-  folder_path?: string | null
-}
+  era: string;
+  detection_reason?: string | null;
+  file_path?: string | null;
+  folder_path?: string | null;
+};
 
 interface EditFormProps {
-  item: EditableItem
-  form: EditFormFields
-  setField: <K extends keyof EditFormFields>(key: K, value: EditFormFields[K]) => void
-  handleSave: () => void
-  saving: boolean
-  saveError: string | null
-  saveSuccess: boolean
-  execBrowserOpen: boolean
-  setExecBrowserOpen: (open: boolean) => void
-  launchCommands?: string[] | null
-  setLaunchCommands?: (cmds: string[]) => void
-  profiles: LaunchProfile[]
-  platforms: Platform[]
+  item: EditableItem;
+  form: EditFormFields;
+  setField: <K extends keyof EditFormFields>(key: K, value: EditFormFields[K]) => void;
+  handleSave: () => void;
+  saving: boolean;
+  saveError: string | null;
+  saveSuccess: boolean;
+  execBrowserOpen: boolean;
+  setExecBrowserOpen: (open: boolean) => void;
+  launchCommands?: string[] | null;
+  setLaunchCommands?: (cmds: string[]) => void;
+  profiles: LaunchProfile[];
+  platforms: Platform[];
 }
 
 export function EditForm({
@@ -52,19 +52,19 @@ export function EditForm({
     queryKey: ['filesystem', 'launch-file-extensions'],
     queryFn: () => apiFetch<{ extensions: string[] }>('/api/v1/filesystem/launch-file-extensions'),
     staleTime: 5 * 60_000,
-  })
-  const ROM_ERAS = new Set(['nes', 'n64', 'ps1', 'ps2', 'xbox', 'dreamcast'])
-  const isRomEra = ROM_ERAS.has(item.era)
-  const showLaunchFile = item.file_path !== undefined || item.folder_path !== undefined
-  const eraLabel = ERA_LABELS[item.era] ?? (item.era === 'unknown' ? 'Unknown' : item.era)
-  const effectiveProfileId = form.profile_item_id ? parseInt(form.profile_item_id, 10) : null
-  const eraProfiles = profiles.filter((p) => p.era === item.era)
-  const otherProfiles = profiles.filter((p) => p.era !== item.era)
-  const chosenProfile = profiles.find((p) => p.id === effectiveProfileId) ?? null
-  const expectedEmulator = (ERA_TO_EMULATOR as Record<string, string | undefined>)[item.era]
+  });
+  const ROM_ERAS = new Set(['nes', 'n64', 'ps1', 'ps2', 'xbox', 'dreamcast']);
+  const isRomEra = ROM_ERAS.has(item.era);
+  const showLaunchFile = item.file_path !== undefined || item.folder_path !== undefined;
+  const eraLabel = ERA_LABELS[item.era] ?? (item.era === 'unknown' ? 'Unknown' : item.era);
+  const effectiveProfileId = form.profile_item_id ? parseInt(form.profile_item_id, 10) : null;
+  const eraProfiles = profiles.filter((p) => p.era === item.era);
+  const otherProfiles = profiles.filter((p) => p.era !== item.era);
+  const chosenProfile = profiles.find((p) => p.id === effectiveProfileId) ?? null;
+  const expectedEmulator = (ERA_TO_EMULATOR as Record<string, string | undefined>)[item.era];
   const profileEraMismatch =
-    chosenProfile && expectedEmulator != null && chosenProfile.emulator_slug !== expectedEmulator
-  const isPcLaunchable = isPcEra(form.era)
+    chosenProfile && expectedEmulator != null && chosenProfile.emulator_slug !== expectedEmulator;
+  const isPcLaunchable = isPcEra(form.era);
 
   // Console items have no per-item Environment (fixed era-to-emulator
   // mapping), so switching away from a PC era clears any previously
@@ -72,221 +72,236 @@ export function EditForm({
   // would 422 against the console+environment backend rule on save.
   // Mirrors AppEditForm's handleEraChange for the same reason.
   function handleEraChange(era: string) {
-    setField('era', era)
-    if (!isPcEra(era)) setField('environment_item_id', '')
+    setField('era', era);
+    if (!isPcEra(era)) setField('environment_item_id', '');
   }
 
   return (
     <div className="space-y-6">
       <Card>
-      <Card.Header>Profile</Card.Header>
-      <div className="space-y-4">
+        <Card.Header>Profile</Card.Header>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Title" htmlFor="detail-title" required>
+              <Input
+                id="detail-title"
+                value={form.title}
+                onChange={(e) => setField('title', e.target.value)}
+                placeholder="Game or software title"
+              />
+            </FormField>
 
-      <div className="grid grid-cols-2 gap-4">
-        <FormField label="Title" htmlFor="detail-title" required>
-          <Input
-            id="detail-title"
-            value={form.title}
-            onChange={(e) => setField('title', e.target.value)}
-            placeholder="Game or software title"
-          />
-        </FormField>
+            <FormField
+              label="Sort Title"
+              htmlFor="detail-sort-title"
+              hint="Used for alphabetical sorting (e.g. 'Doom, The')"
+            >
+              <Input
+                id="detail-sort-title"
+                value={form.sort_title}
+                onChange={(e) => setField('sort_title', e.target.value)}
+                placeholder="Optional"
+              />
+            </FormField>
+          </div>
 
-        <FormField label="Sort Title" htmlFor="detail-sort-title" hint="Used for alphabetical sorting (e.g. 'Doom, The')">
-          <Input
-            id="detail-sort-title"
-            value={form.sort_title}
-            onChange={(e) => setField('sort_title', e.target.value)}
-            placeholder="Optional"
-          />
-        </FormField>
-      </div>
+          <FormField label="Description" htmlFor="detail-description">
+            <Textarea
+              id="detail-description"
+              value={form.description}
+              onChange={(e) => setField('description', e.target.value)}
+              placeholder="Short description…"
+              rows={3}
+            />
+          </FormField>
 
-      <FormField label="Description" htmlFor="detail-description">
-        <Textarea
-          id="detail-description"
-          value={form.description}
-          onChange={(e) => setField('description', e.target.value)}
-          placeholder="Short description…"
-          rows={3}
-        />
-      </FormField>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Publisher" htmlFor="detail-publisher">
+              <Input
+                id="detail-publisher"
+                value={form.publisher}
+                onChange={(e) => setField('publisher', e.target.value)}
+                placeholder="Publisher name"
+              />
+            </FormField>
 
-      <div className="grid grid-cols-2 gap-4">
-        <FormField label="Publisher" htmlFor="detail-publisher">
-          <Input
-            id="detail-publisher"
-            value={form.publisher}
-            onChange={(e) => setField('publisher', e.target.value)}
-            placeholder="Publisher name"
-          />
-        </FormField>
+            <FormField label="Year" htmlFor="detail-year">
+              <Input
+                id="detail-year"
+                type="number"
+                min={1950}
+                max={2099}
+                value={form.year}
+                onChange={(e) => setField('year', e.target.value)}
+                placeholder="1993"
+              />
+            </FormField>
+          </div>
 
-        <FormField label="Year" htmlFor="detail-year">
-          <Input
-            id="detail-year"
-            type="number"
-            min={1950}
-            max={2099}
-            value={form.year}
-            onChange={(e) => setField('year', e.target.value)}
-            placeholder="1993"
-          />
-        </FormField>
-      </div>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              label="Category (custom)"
+              htmlFor="detail-category"
+              hint="Your own free-text label — separate from the fetched Genre field above, which comes from metadata enrichment."
+            >
+              <Input
+                id="detail-category"
+                value={form.category}
+                onChange={(e) => setField('category', e.target.value)}
+                placeholder="e.g. Action, RPG"
+              />
+            </FormField>
 
-      <div className="grid grid-cols-2 gap-4">
-        <FormField
-          label="Category (custom)"
-          htmlFor="detail-category"
-          hint="Your own free-text label — separate from the fetched Genre field above, which comes from metadata enrichment."
-        >
-          <Input
-            id="detail-category"
-            value={form.category}
-            onChange={(e) => setField('category', e.target.value)}
-            placeholder="e.g. Action, RPG"
-          />
-        </FormField>
+            <FormField label="Content Rating" htmlFor="detail-rating">
+              <Select
+                id="detail-rating"
+                value={form.content_rating || 'none'}
+                onValueChange={(v) => setField('content_rating', v === 'none' ? '' : v)}
+                options={RATING_OPTIONS.map((o) => ({ value: o.value || 'none', label: o.label }))}
+              />
+            </FormField>
+          </div>
 
-        <FormField label="Content Rating" htmlFor="detail-rating">
-          <Select
-            id="detail-rating"
-            value={form.content_rating || 'none'}
-            onValueChange={(v) => setField('content_rating', v === 'none' ? '' : v)}
-            options={RATING_OPTIONS.map((o) => ({ value: o.value || 'none', label: o.label }))}
-          />
-        </FormField>
-      </div>
-
-      <FormField label="Cover Art Path" htmlFor="detail-cover">
-        <PathInput
-          id="detail-cover"
-          mode="file"
-          accept=".png,.jpg,.jpeg,.webp"
-          value={form.cover_art_path}
-          onChange={(v) => setField('cover_art_path', v)}
-          placeholder="C:\Images\cover.png"
-        />
-      </FormField>
-
-      {showLaunchFile && <FormField label="Launch File" htmlFor="detail-executable">
-        <div className="flex items-center gap-2">
-          <span
-            className="min-w-0 flex-1 truncate rounded-md border border-neutral-200 bg-surface-2 px-3 py-2 text-sm dark:border-neutral-700"
-            title={form.executable_path || undefined}
-          >
-            {form.executable_path
-              ? <span className="font-mono text-neutral-700 dark:text-neutral-300">{form.executable_path.split(/[\\/]/).pop()}</span>
-              : <span className="italic text-neutral-400 dark:text-neutral-500">No launch file detected — browse to set one.</span>
-            }
-          </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="shrink-0"
-            onClick={() => setExecBrowserOpen(!execBrowserOpen)}
-          >
-            Browse…
-          </Button>
-        </div>
-        {execBrowserOpen && (
-          <div className="mt-2">
-            <BrowsePanel
-              open={execBrowserOpen}
-              onClose={() => setExecBrowserOpen(false)}
-              onSelect={(path) => { setField('executable_path', path); setExecBrowserOpen(false) }}
+          <FormField label="Cover Art Path" htmlFor="detail-cover">
+            <PathInput
+              id="detail-cover"
               mode="file"
-              extensions={launchFileExtensions?.extensions?.join(',')}
-              title="Select Launch File"
-              rootPath={item.folder_path ?? null}
+              accept=".png,.jpg,.jpeg,.webp"
+              value={form.cover_art_path}
+              onChange={(v) => setField('cover_art_path', v)}
+              placeholder="C:\Images\cover.png"
+            />
+          </FormField>
+
+          {showLaunchFile && (
+            <FormField label="Launch File" htmlFor="detail-executable">
+              <div className="flex items-center gap-2">
+                <span
+                  className="min-w-0 flex-1 truncate rounded-md border border-neutral-200 bg-surface-2 px-3 py-2 text-sm dark:border-neutral-700"
+                  title={form.executable_path || undefined}
+                >
+                  {form.executable_path ? (
+                    <span className="font-mono text-neutral-700 dark:text-neutral-300">
+                      {form.executable_path.split(/[\\/]/).pop()}
+                    </span>
+                  ) : (
+                    <span className="italic text-neutral-400 dark:text-neutral-500">
+                      No launch file detected — browse to set one.
+                    </span>
+                  )}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => setExecBrowserOpen(!execBrowserOpen)}
+                >
+                  Browse…
+                </Button>
+              </div>
+              {execBrowserOpen && (
+                <div className="mt-2">
+                  <BrowsePanel
+                    open={execBrowserOpen}
+                    onClose={() => setExecBrowserOpen(false)}
+                    onSelect={(path) => {
+                      setField('executable_path', path);
+                      setExecBrowserOpen(false);
+                    }}
+                    mode="file"
+                    extensions={launchFileExtensions?.extensions?.join(',')}
+                    title="Select Launch File"
+                    rootPath={item.folder_path ?? null}
+                  />
+                </div>
+              )}
+              <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+                {isRomEra
+                  ? 'ROM-based media — auto-resolved from your media folder. Override below if it picked the wrong file.'
+                  : 'The file Peach 1UP will launch. Auto-detected from your media folder — override if incorrect.'}
+              </p>
+            </FormField>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Era" htmlFor="detail-era">
+              <Select
+                id="detail-era"
+                value={form.era || 'none'}
+                onValueChange={(v) => handleEraChange(v === 'none' ? '' : v)}
+                options={[
+                  { value: 'none', label: '— No era —' },
+                  ...Object.entries(ERA_LABELS).map(([key, label]) => ({ value: key, label })),
+                ]}
+              />
+              {item.detection_reason ? (
+                <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+                  Era was detected automatically from your media. You can change it if the detection
+                  was wrong.{' '}
+                  <span className="italic">Detected because: {item.detection_reason}</span>
+                </p>
+              ) : item.era === 'unknown' || !item.era ? (
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                  Era could not be detected automatically. Please select one.
+                </p>
+              ) : null}
+            </FormField>
+
+            <PlatformField
+              isPcLaunchable={isPcLaunchable}
+              itemEra={form.era}
+              value={form.environment_item_id}
+              onChange={(v) => setField('environment_item_id', v)}
+              platforms={platforms}
+              disabledNote="Determined automatically by era, no environment needed."
             />
           </div>
-        )}
-        <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-          {isRomEra
-            ? 'ROM-based media — auto-resolved from your media folder. Override below if it picked the wrong file.'
-            : 'The file Peach 1UP will launch. Auto-detected from your media folder — override if incorrect.'}
-        </p>
-      </FormField>}
 
-      <div className="grid grid-cols-2 gap-4">
-        <FormField label="Era" htmlFor="detail-era">
-          <Select
-            id="detail-era"
-            value={form.era || 'none'}
-            onValueChange={(v) => handleEraChange(v === 'none' ? '' : v)}
-            options={[
-              { value: 'none', label: '— No era —' },
-              ...Object.entries(ERA_LABELS).map(([key, label]) => ({ value: key, label })),
-            ]}
-          />
-          {item.detection_reason ? (
-            <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-              Era was detected automatically from your media. You can change it if the detection was wrong.
-              {' '}<span className="italic">Detected because: {item.detection_reason}</span>
-            </p>
-          ) : (item.era === 'unknown' || !item.era) ? (
-            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-              Era could not be detected automatically. Please select one.
-            </p>
-          ) : null}
-        </FormField>
-
-        <PlatformField
-          isPcLaunchable={isPcLaunchable}
-          itemEra={form.era}
-          value={form.environment_item_id}
-          onChange={(v) => setField('environment_item_id', v)}
-          platforms={platforms}
-          disabledNote="Determined automatically by era, no environment needed."
-        />
-      </div>
-
-      <FormField label="Launch Profile" htmlFor="detail-profile">
-        <Select
-          id="detail-profile"
-          value={form.profile_item_id || 'none'}
-          onValueChange={(v) => setField('profile_item_id', v === 'none' ? '' : v)}
-          options={[
-            { value: 'none', label: '— No profile —' },
-            ...(eraProfiles.length > 0
-              ? [{
-                  groupLabel: `Matching era (${eraLabel})`,
-                  options: eraProfiles.map((p) => ({
-                    value: String(p.id),
-                    label: `${p.name}${p.is_bundled ? ' (default)' : ''}`,
-                  })),
-                }]
-              : []),
-            ...(otherProfiles.length > 0
-              ? [{
-                  groupLabel: 'Other eras',
-                  options: otherProfiles.map((p) => ({
-                    value: String(p.id),
-                    label: `${p.name} (${ERA_LABELS[p.era] ?? p.era})`,
-                  })),
-                }]
-              : []),
-          ]}
-        />
-        {profileEraMismatch && (
-          <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-            Selected profile targets a different era — launch may fail.
-          </p>
-        )}
-      </FormField>
-
-      </div>
+          <FormField label="Launch Profile" htmlFor="detail-profile">
+            <Select
+              id="detail-profile"
+              value={form.profile_item_id || 'none'}
+              onValueChange={(v) => setField('profile_item_id', v === 'none' ? '' : v)}
+              options={[
+                { value: 'none', label: '— No profile —' },
+                ...(eraProfiles.length > 0
+                  ? [
+                      {
+                        groupLabel: `Matching era (${eraLabel})`,
+                        options: eraProfiles.map((p) => ({
+                          value: String(p.id),
+                          label: `${p.name}${p.is_bundled ? ' (default)' : ''}`,
+                        })),
+                      },
+                    ]
+                  : []),
+                ...(otherProfiles.length > 0
+                  ? [
+                      {
+                        groupLabel: 'Other eras',
+                        options: otherProfiles.map((p) => ({
+                          value: String(p.id),
+                          label: `${p.name} (${ERA_LABELS[p.era] ?? p.era})`,
+                        })),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+            {profileEraMismatch && (
+              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                Selected profile targets a different era — launch may fail.
+              </p>
+            )}
+          </FormField>
+        </div>
       </Card>
 
       <div className="flex items-center gap-3">
         <Button onClick={handleSave} loading={saving}>
           Save Changes
         </Button>
-        {saveSuccess && (
-          <span className="text-sm text-green-600 dark:text-green-400">Saved ✓</span>
-        )}
+        {saveSuccess && <span className="text-sm text-green-600 dark:text-green-400">Saved ✓</span>}
       </div>
 
       {saveError && (
@@ -295,5 +310,5 @@ export function EditForm({
         </p>
       )}
     </div>
-  )
+  );
 }

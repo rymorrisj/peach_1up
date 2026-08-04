@@ -1,3 +1,18 @@
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+src = ["backend"]
+
+[tool.ruff.lint]
+# Ruff's documented default selection, pinned explicitly so it doesn't drift
+# with whatever a given Ruff version treats as its implicit default.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# __init__.py re-exports symbols for the package's public API; the imports
+# are intentionally "unused" within the file itself.
+"__init__.py" = ["F401"]
+
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
 python_files = ["test_*.py"]

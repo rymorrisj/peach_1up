@@ -1,15 +1,15 @@
-import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, ApiError } from '@/api/client'
-import { useConfirm } from './useConfirm'
-import { useConfirmToken } from './useConfirmToken'
+import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiFetch, ApiError } from '@/api/client';
+import { useConfirm } from './useConfirm';
+import { useConfirmToken } from './useConfirmToken';
 
 interface UseDeleteCollectionOptions {
-  collectionId: number | undefined
-  title: string | undefined
-  resolvedDeleteMedia: boolean
-  detailQueryKey: unknown[]
-  onDeleted: () => void
+  collectionId: number | undefined;
+  title: string | undefined;
+  resolvedDeleteMedia: boolean;
+  detailQueryKey: unknown[];
+  onDeleted: () => void;
 }
 
 // Persistent per-collection override for delete_media_on_removal, checking
@@ -34,18 +34,18 @@ export function useDeleteCollection({
   detailQueryKey,
   onDeleted,
 }: UseDeleteCollectionOptions) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   const deleteMediaOverrideMutation = useMutation<void, Error, boolean>({
     mutationFn: (value) => {
-      if (collectionId == null) return Promise.resolve()
+      if (collectionId == null) return Promise.resolve();
       return apiFetch(`/api/v1/game-item-bundle/${collectionId}`, {
         method: 'PATCH',
         body: JSON.stringify({ delete_media_override: value }),
-      })
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: detailQueryKey })
+      queryClient.invalidateQueries({ queryKey: detailQueryKey });
       // Also invalidate the grid/list query, its own delete-confirm modal seeds
       // its checkbox from this same collection's delete_media_override, and
       // without this it can read stale data if the user navigates back there
@@ -54,12 +54,14 @@ export function useDeleteCollection({
       // key matches EntityListPage's invalidate() for gameDomainConfig
       // (['game', 'list', ...]) — was ['library'], the pre-cutover Games.tsx
       // list query key, dead since Games.tsx moved onto EntityListPage.
-      queryClient.invalidateQueries({ queryKey: ['game', 'list'] })
+      queryClient.invalidateQueries({ queryKey: ['game', 'list'] });
     },
-  })
+  });
   const deleteMediaOverrideError = deleteMediaOverrideMutation.isError
-    ? (deleteMediaOverrideMutation.error instanceof ApiError ? deleteMediaOverrideMutation.error.detail : 'Failed to update.')
-    : null
+    ? deleteMediaOverrideMutation.error instanceof ApiError
+      ? deleteMediaOverrideMutation.error.detail
+      : 'Failed to update.'
+    : null;
 
   const {
     confirm: confirmDelete,
@@ -68,36 +70,38 @@ export function useDeleteCollection({
     handleConfirm: handleDeleteConfirm,
     handleCancel: handleDeleteCancel,
     getCheckboxValue: getDeleteCheckboxValue,
-  } = useConfirm()
-  const { issue: issueDeleteToken, consume: consumeDeleteToken } = useConfirmToken()
-  const [deleting, setDeleting] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
+  } = useConfirm();
+  const { issue: issueDeleteToken, consume: consumeDeleteToken } = useConfirmToken();
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleDelete() {
-    if (collectionId == null || title == null) return
+    if (collectionId == null || title == null) return;
     const confirmed = await confirmDelete({
       title: `Delete "${title}"?`,
       consequence: 'This removes the game from your library.',
       destructive: true,
       checkbox: { label: 'Also delete media files from disk', defaultChecked: resolvedDeleteMedia },
-    })
-    if (!confirmed) return
-    setDeleting(true)
-    setDeleteError(null)
+    });
+    if (!confirmed) return;
+    setDeleting(true);
+    setDeleteError(null);
     try {
-      const checkedDeleteMedia = getDeleteCheckboxValue()
+      const checkedDeleteMedia = getDeleteCheckboxValue();
       // See the module comment above, this write must stay unconditional.
       await apiFetch(`/api/v1/game-item-bundle/${collectionId}`, {
         method: 'PATCH',
         body: JSON.stringify({ delete_media_override: checkedDeleteMedia }),
-      })
-      const token = await issueDeleteToken(`/api/v1/game-item-bundle/${collectionId}/confirm-delete`)
-      await consumeDeleteToken(`/api/v1/game-item-bundle/${collectionId}`, token)
-      queryClient.invalidateQueries({ queryKey: ['game', 'list'] })
-      onDeleted()
+      });
+      const token = await issueDeleteToken(
+        `/api/v1/game-item-bundle/${collectionId}/confirm-delete`,
+      );
+      await consumeDeleteToken(`/api/v1/game-item-bundle/${collectionId}`, token);
+      queryClient.invalidateQueries({ queryKey: ['game', 'list'] });
+      onDeleted();
     } catch (err) {
-      setDeleteError(err instanceof ApiError ? err.detail : 'Delete failed.')
-      setDeleting(false)
+      setDeleteError(err instanceof ApiError ? err.detail : 'Delete failed.');
+      setDeleting(false);
     }
   }
 
@@ -111,5 +115,5 @@ export function useDeleteCollection({
     deleting,
     deleteError,
     handleDelete,
-  }
+  };
 }

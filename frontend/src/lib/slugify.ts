@@ -5,8 +5,8 @@
 // itself. Keep this in lockstep with the Python implementation so the
 // preview never diverges from what the server will actually save.
 export function slugify(name: string, fallback = 'item'): string {
-  const hyphenated = name.toLowerCase().replace(/\s+/g, '-')
-  const stripped = hyphenated.replace(/[^a-z0-9-]/g, '')
-  const trimmed = stripped.replace(/^-+|-+$/g, '')
-  return trimmed || fallback
+  const hyphenated = name.toLowerCase().replace(/\s+/g, '-');
+  const stripped = hyphenated.replace(/[^a-z0-9-]/g, '');
+  const trimmed = stripped.replace(/^-+|-+$/g, '');
+  return trimmed || fallback;
 }

@@ -1,49 +1,59 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, ApiError } from '@/api/client'
-import { useEditForm } from '@/hooks/useEditForm'
-import { formFromCollection, type SoftwareAppForm } from '../types/appForm'
-import { AppEditForm } from '../components/AppEditForm'
-import { LinkedItemsSection } from '../components/LinkedItemsSection'
-import type { LibraryModalConfig } from '../components/LibraryModal'
-import type { EntityBundleBase, EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types'
-import { resolveLeafCoverArt, launchGateFromReason, SOFTWARE_SORT_OPTIONS, APP_ROUTE_BASE } from '../types'
-import type { components } from '@shared/types'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiFetch, ApiError } from '@/api/client';
+import { useEditForm } from '@/hooks/useEditForm';
+import { formFromCollection, type SoftwareAppForm } from '../types/appForm';
+import { AppEditForm } from '../components/AppEditForm';
+import { LinkedItemsSection } from '../components/LinkedItemsSection';
+import type { LibraryModalConfig } from '../components/LibraryModal';
+import type {
+  EntityBundleBase,
+  EntityDetailExtras,
+  EntityDetailExtrasContext,
+  EntityDomainConfig,
+} from '../types';
+import {
+  resolveLeafCoverArt,
+  launchGateFromReason,
+  SOFTWARE_SORT_OPTIONS,
+  APP_ROUTE_BASE,
+} from '../types';
+import type { components } from '@shared/types';
 
-type Platform = components['schemas']['EnvironmentItemRead']
-type LaunchHistory = components['schemas']['LaunchHistoryRead']
+type Platform = components['schemas']['EnvironmentItemRead'];
+type LaunchHistory = components['schemas']['LaunchHistoryRead'];
 
 export interface AppItemLeaf {
-  id: number
-  app_item_bundle_id: number
-  file_path: string
-  executable_path: string | null
-  cover_art_path: string | null
-  cover_art_url: string | null
+  id: number;
+  app_item_bundle_id: number;
+  file_path: string;
+  executable_path: string | null;
+  cover_art_path: string | null;
+  cover_art_url: string | null;
 }
 
 export interface AppItemBundleData extends EntityBundleBase {
-  era: string
-  is_pc: boolean
-  category: string | null
-  publisher: string | null
-  developer: string | null
-  year: number | null
-  installed: boolean
+  era: string;
+  is_pc: boolean;
+  category: string | null;
+  publisher: string | null;
+  developer: string | null;
+  year: number | null;
+  installed: boolean;
   // None = inherit the global delete_media_on_removal setting; true/false
   // overrides it. Present on the backend's AppItemBundleRead (see
   // backend/models/app.py) but previously unused by the frontend, added for
   // EntityListPage's deleteConfig (see appDomainConfig below).
-  delete_media_override: boolean | null
-  environment_item_id: number | null
-  profile_item_id: number | null
-  launch_disk_id: number | null
-  display_disk_id: number | null
-  last_launched_at: string | null
-  launch_count: number
+  delete_media_override: boolean | null;
+  environment_item_id: number | null;
+  profile_item_id: number | null;
+  launch_disk_id: number | null;
+  display_disk_id: number | null;
+  last_launched_at: string | null;
+  launch_count: number;
   // Backend-computed pre-launch gate: "no_profile" | "no_environment" | null.
   // The single source of truth for launch gating (see launchGateFromReason).
-  launch_blocked_reason: string | null
-  items: AppItemLeaf[]
+  launch_blocked_reason: string | null;
+  items: AppItemLeaf[];
 }
 
 // Minimal edit form: title, description, cover_art_path, era, environment_item_id
@@ -53,15 +63,15 @@ export interface AppItemBundleData extends EntityBundleBase {
 // its (single, collection-of-one) leaf item, not the bundle, confirmed
 // against backend/models/app.py rather than assumed.
 function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): EntityDetailExtras {
-  const collection = ctx.entity
-  const collectionId = ctx.entityId
-  const { detailQueryKey, refetchEntity, isLaunching } = ctx
-  const queryClient = useQueryClient()
+  const collection = ctx.entity;
+  const collectionId = ctx.entityId;
+  const { detailQueryKey, refetchEntity, isLaunching } = ctx;
+  const queryClient = useQueryClient();
 
   const { data: platforms = [] } = useQuery<Platform[]>({
     queryKey: ['platforms'],
     queryFn: () => apiFetch<Platform[]>('/api/v1/environment-items'),
-  })
+  });
 
   // App has no dedicated collection-launches route like Game's
   // /game-item-bundle/{id}/launches, so this uses the generic scoped launches
@@ -70,11 +80,16 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
   const { data: launchHistory = [] } = useQuery<LaunchHistory[]>({
     queryKey: ['launches', 'app', collectionId],
     queryFn: () =>
-      apiFetch<LaunchHistory[]>(`/api/v1/launches?target_id=${collectionId}&target_type=app_item_bundle`),
+      apiFetch<LaunchHistory[]>(
+        `/api/v1/launches?target_id=${collectionId}&target_type=app_item_bundle`,
+      ),
     enabled: collectionId != null,
-  })
+  });
 
-  const { form, setFormField, resyncFromCollection } = useEditForm({ collection, formFromCollection })
+  const { form, setFormField, resyncFromCollection } = useEditForm({
+    collection,
+    formFromCollection,
+  });
 
   const saveMutation = useMutation<AppItemBundleData, Error, SoftwareAppForm>({
     mutationFn: async (f) => {
@@ -86,32 +101,33 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
           era: f.era || null,
           environment_item_id: f.environment_item_id ? parseInt(f.environment_item_id, 10) : null,
         }),
-      })
+      });
 
-      const leafId = collection?.display_disk_id ?? collection?.launch_disk_id ?? collection?.items[0]?.id
+      const leafId =
+        collection?.display_disk_id ?? collection?.launch_disk_id ?? collection?.items[0]?.id;
       if (leafId != null) {
         await apiFetch(`/api/v1/app-item/${leafId}`, {
           method: 'PATCH',
           body: JSON.stringify({ cover_art_path: f.cover_art_path.trim() || null }),
-        })
+        });
       }
 
-      return refetchEntity()
+      return refetchEntity();
     },
     onSuccess: (fresh) => {
-      resyncFromCollection(fresh)
-      queryClient.invalidateQueries({ queryKey: detailQueryKey })
+      resyncFromCollection(fresh);
+      queryClient.invalidateQueries({ queryKey: detailQueryKey });
     },
-  })
+  });
 
   if (!collection || form == null) {
-    return {}
+    return {};
   }
 
   // Launch gating mirrors Game: driven solely by the backend launch_blocked_reason,
   // no client-side profile/environment check. Apps have no in-form profile picker,
   // so onLaunch launches with the stored profile (default null payload).
-  const launchGate = launchGateFromReason(collection.launch_blocked_reason, isLaunching)
+  const launchGate = launchGateFromReason(collection.launch_blocked_reason, isLaunching);
 
   return {
     era: collection.era,
@@ -133,15 +149,19 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
         setField={setFormField}
         handleSave={() => saveMutation.mutate(form)}
         saving={saveMutation.isPending}
-        saveError={saveMutation.isError
-          ? (saveMutation.error instanceof ApiError ? saveMutation.error.detail : 'Failed to save.')
-          : null}
+        saveError={
+          saveMutation.isError
+            ? saveMutation.error instanceof ApiError
+              ? saveMutation.error.detail
+              : 'Failed to save.'
+            : null
+        }
         saveSuccess={saveMutation.isSuccess}
         platforms={platforms}
       />
     ),
     afterContent: <LinkedItemsSection items={collection.linked_items} />,
-  }
+  };
 }
 
 // App had no creation UI at all before this. Mode is 'upload' only (no scan
@@ -162,7 +182,7 @@ export const appUploadModalConfig: LibraryModalConfig = {
   modalTitle: 'Add App',
   entityLabel: 'app',
   entityLabelPlural: 'apps',
-}
+};
 
 // App's cover art lives on the leaf item (same indirection as Game — see
 // resolveLeafCoverArt). Launch is domain-enabled ('app' targetType) but
@@ -175,7 +195,8 @@ export const appDomainConfig: EntityDomainConfig<AppItemBundleData> = {
   tagEntityType: 'app_item_bundle',
   entityLabel: 'app',
   entityLabelPlural: 'apps',
-  coverArt: (bundle) => resolveLeafCoverArt(bundle.items, bundle.display_disk_id, bundle.launch_disk_id),
+  coverArt: (bundle) =>
+    resolveLeafCoverArt(bundle.items, bundle.display_disk_id, bundle.launch_disk_id),
   launchTargetType: 'app',
   isLaunchable: (bundle) => bundle.is_pc,
   // The edit form already renders Description; showing it a second time as
@@ -208,4 +229,4 @@ export const appDomainConfig: EntityDomainConfig<AppItemBundleData> = {
     bundleByIdApiPath: (id) => `/api/v1/app-item-bundle/${id}`,
     resolveDeleteMediaOverride: (bundle) => bundle.delete_media_override,
   },
-}
+};

@@ -1,11 +1,11 @@
-import { useRef, useEffect } from 'react'
-import { Input, Button } from '@/ui'
+import { useRef, useEffect } from 'react';
+import { Input, Button } from '@/ui';
 
 interface LaunchCommandListProps {
-  value: string[]
-  onChange: (commands: string[]) => void
-  placeholder?: string
-  disabled?: boolean
+  value: string[];
+  onChange: (commands: string[]) => void;
+  placeholder?: string;
+  disabled?: boolean;
 }
 
 export default function LaunchCommandList({
@@ -14,50 +14,50 @@ export default function LaunchCommandList({
   placeholder = 'e.g. D:\\DOOMCD\\DOOM.EXE',
   disabled = false,
 }: LaunchCommandListProps) {
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([])
-  const pendingFocusRef = useRef<number | null>(null)
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const pendingFocusRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (pendingFocusRef.current !== null) {
-      inputRefs.current[pendingFocusRef.current]?.focus()
-      pendingFocusRef.current = null
+      inputRefs.current[pendingFocusRef.current]?.focus();
+      pendingFocusRef.current = null;
     }
-  })
+  });
 
   function handleChange(index: number, newVal: string) {
-    onChange(value.map((v, i) => (i === index ? newVal : v)))
+    onChange(value.map((v, i) => (i === index ? newVal : v)));
   }
 
   function handleBlur(index: number) {
     if (value[index].trim() === '') {
-      onChange(value.filter((_, i) => i !== index))
+      onChange(value.filter((_, i) => i !== index));
     }
   }
 
   function handleRemove(index: number) {
-    onChange(value.filter((_, i) => i !== index))
+    onChange(value.filter((_, i) => i !== index));
   }
 
   function handleMoveUp(index: number) {
-    if (index === 0) return
-    const next = [...value]
-    ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
-    onChange(next)
+    if (index === 0) return;
+    const next = [...value];
+    [next[index - 1], next[index]] = [next[index], next[index - 1]];
+    onChange(next);
   }
 
   function handleMoveDown(index: number) {
-    if (index === value.length - 1) return
-    const next = [...value]
-    ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
-    onChange(next)
+    if (index === value.length - 1) return;
+    const next = [...value];
+    [next[index], next[index + 1]] = [next[index + 1], next[index]];
+    onChange(next);
   }
 
   function handleAdd() {
-    pendingFocusRef.current = value.length
-    onChange([...value, ''])
+    pendingFocusRef.current = value.length;
+    onChange([...value, '']);
   }
 
-  const preview = value.filter(Boolean).join(' && ') || '—'
+  const preview = value.filter(Boolean).join(' && ') || '—';
 
   return (
     <div className="space-y-3">
@@ -96,7 +96,9 @@ export default function LaunchCommandList({
               </Button>
             </div>
             <Input
-              ref={(el) => { inputRefs.current[i] = el }}
+              ref={(el) => {
+                inputRefs.current[i] = el;
+              }}
               value={cmd}
               placeholder={placeholder}
               disabled={disabled}
@@ -121,5 +123,5 @@ export default function LaunchCommandList({
         + Add command
       </Button>
     </div>
-  )
+  );
 }

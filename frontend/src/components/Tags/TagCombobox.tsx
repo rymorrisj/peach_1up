@@ -1,58 +1,59 @@
-import { useState, type KeyboardEvent } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { apiFetch } from '@/api/client'
-import { swatchHex } from './swatches'
-import { Input } from '@/ui'
-import type { components } from '@shared/types'
-type TagRead = components['schemas']['TagRead']
+import { useState, type KeyboardEvent } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { apiFetch } from '@/api/client';
+import { swatchHex } from './swatches';
+import { Input } from '@/ui';
+import type { components } from '@shared/types';
+type TagRead = components['schemas']['TagRead'];
 
 interface Props {
-  assignedTagIds: number[]
-  onAssign: (tagId: number) => void
+  assignedTagIds: number[];
+  onAssign: (tagId: number) => void;
 }
 
 export default function TagCombobox({ assignedTagIds, onAssign }: Props) {
-  const [input, setInput] = useState('')
-  const [open, setOpen] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(-1)
+  const [input, setInput] = useState('');
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
 
   const { data: allTags = [] } = useQuery<TagRead[]>({
     queryKey: ['tags'],
     queryFn: () => apiFetch<TagRead[]>('/api/v1/tags'),
-  })
+  });
 
-  const assignedSet = new Set(assignedTagIds)
+  const assignedSet = new Set(assignedTagIds);
   // System tags are read-only, they can be filtered by but never assigned to an
   // entity, so they are excluded from the assignable options here. The backend
   // enforces the same rule with a 403 on the assignment routes.
   const filtered = allTags.filter(
-    (t) => !t.is_system && !assignedSet.has(t.id) && t.name.toLowerCase().includes(input.toLowerCase()),
-  )
+    (t) =>
+      !t.is_system && !assignedSet.has(t.id) && t.name.toLowerCase().includes(input.toLowerCase()),
+  );
 
   function handleSelect(tag: TagRead) {
-    onAssign(tag.id)
-    setInput('')
-    setOpen(false)
-    setActiveIndex(-1)
+    onAssign(tag.id);
+    setInput('');
+    setOpen(false);
+    setActiveIndex(-1);
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Escape') {
-      setOpen(false)
-      setActiveIndex(-1)
-      return
+      setOpen(false);
+      setActiveIndex(-1);
+      return;
     }
-    if (!open || filtered.length === 0) return
+    if (!open || filtered.length === 0) return;
     if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setActiveIndex((i) => (i + 1) % filtered.length)
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % filtered.length);
     } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setActiveIndex((i) => (i <= 0 ? filtered.length - 1 : i - 1))
+      e.preventDefault();
+      setActiveIndex((i) => (i <= 0 ? filtered.length - 1 : i - 1));
     } else if (e.key === 'Enter') {
-      e.preventDefault()
+      e.preventDefault();
       if (activeIndex >= 0 && activeIndex < filtered.length) {
-        handleSelect(filtered[activeIndex])
+        handleSelect(filtered[activeIndex]);
       }
     }
   }
@@ -62,15 +63,15 @@ export default function TagCombobox({ assignedTagIds, onAssign }: Props) {
       <Input
         value={input}
         onChange={(e) => {
-          setInput(e.target.value)
-          setOpen(true)
-          setActiveIndex(-1)
+          setInput(e.target.value);
+          setOpen(true);
+          setActiveIndex(-1);
         }}
         onFocus={() => setOpen(true)}
         onBlur={() =>
           setTimeout(() => {
-            setOpen(false)
-            setActiveIndex(-1)
+            setOpen(false);
+            setActiveIndex(-1);
           }, 150)
         }
         onKeyDown={handleKeyDown}
@@ -101,5 +102,5 @@ export default function TagCombobox({ assignedTagIds, onAssign }: Props) {
         </ul>
       )}
     </div>
-  )
+  );
 }

@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react';
 
 interface ConfirmModalProps {
-  open: boolean
-  title: string
-  consequence: string
-  onConfirm: (checked?: boolean) => void
-  onCancel: () => void
-  destructive?: boolean
-  checkbox?: { label: string; defaultChecked: boolean }
+  open: boolean;
+  title: string;
+  consequence: string;
+  onConfirm: (checked?: boolean) => void;
+  onCancel: () => void;
+  destructive?: boolean;
+  checkbox?: { label: string; defaultChecked: boolean };
 }
 
 export default function ConfirmModal({
@@ -19,25 +19,25 @@ export default function ConfirmModal({
   destructive = false,
   checkbox,
 }: ConfirmModalProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
-  const [checked, setChecked] = useState(checkbox?.defaultChecked ?? false)
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [checked, setChecked] = useState(checkbox?.defaultChecked ?? false);
 
   useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
+    const dialog = dialogRef.current;
+    if (!dialog) return;
     if (open && !dialog.open) {
-      dialog.showModal()
+      dialog.showModal();
     } else if (!open && dialog.open) {
-      dialog.close()
+      dialog.close();
     }
-  }, [open])
+  }, [open]);
 
   // Re-seed the checkbox from defaultChecked every time a new confirmation
   // opens, since callers may pass a different seed value on each invocation.
   useEffect(() => {
-    if (open) setChecked(checkbox?.defaultChecked ?? false)
+    if (open) setChecked(checkbox?.defaultChecked ?? false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open]);
 
   return (
     <dialog
@@ -79,5 +79,5 @@ export default function ConfirmModal({
         </button>
       </div>
     </dialog>
-  )
+  );
 }

@@ -1,21 +1,21 @@
-import { Component, type ReactNode } from 'react'
+import { Component, type ReactNode } from 'react';
 
 interface Props {
-  children: ReactNode
+  children: ReactNode;
 }
 
 interface State {
-  hasError: boolean
+  hasError: boolean;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
-    super(props)
-    this.state = { hasError: false }
+    super(props);
+    this.state = { hasError: false };
   }
 
   static getDerivedStateFromError(): State {
-    return { hasError: true }
+    return { hasError: true };
   }
 
   render() {
@@ -34,8 +34,8 @@ export class ErrorBoundary extends Component<Props, State> {
             Reload
           </button>
         </main>
-      )
+      );
     }
-    return this.props.children
+    return this.props.children;
   }
 }

@@ -1,34 +1,34 @@
-import { useState, useEffect } from 'react'
-import { Button, FormField, Input, Modal, Textarea } from '@/ui'
-import PathInput from '@/components/common/PathInput'
-import FileUpload from '@/components/common/FileUpload'
-import BrowsePanel from '@/components/common/BrowsePanel'
-import LaunchCommandList from '@/components/LaunchCommandList'
-import type { HardwareProfile } from '@/generated/constants'
+import { useState, useEffect } from 'react';
+import { Button, FormField, Input, Modal, Textarea } from '@/ui';
+import PathInput from '@/components/common/PathInput';
+import FileUpload from '@/components/common/FileUpload';
+import BrowsePanel from '@/components/common/BrowsePanel';
+import LaunchCommandList from '@/components/LaunchCommandList';
+import type { HardwareProfile } from '@/generated/constants';
 
-type PCEra = 'dos' | 'win95' | 'win98' | 'winxp'
+type PCEra = 'dos' | 'win95' | 'win98' | 'winxp';
 
 const PC_ERAS: { value: PCEra; label: string }[] = [
   { value: 'dos', label: 'DOS' },
   { value: 'win95', label: 'Windows 95' },
   { value: 'win98', label: 'Windows 98' },
   { value: 'winxp', label: 'Windows XP' },
-]
+];
 
 const ERA_TO_EMULATOR: Record<PCEra, string> = {
   dos: 'dosbox-x',
   win95: '86box',
   win98: '86box',
   winxp: '86box',
-}
+};
 
 const EMULATOR_LABELS: Record<string, string> = {
   'dosbox-x': 'DOSBox-X',
   '86box': '86Box',
-}
+};
 
-const BOX86_ERAS = new Set<PCEra>(['win95', 'win98', 'winxp'])
-const INSTALL_MEDIA_ERAS = new Set<PCEra>(['win95', 'win98', 'winxp'])
+const BOX86_ERAS = new Set<PCEra>(['win95', 'win98', 'winxp']);
+const INSTALL_MEDIA_ERAS = new Set<PCEra>(['win95', 'win98', 'winxp']);
 
 const HARDWARE_PROFILES: { value: HardwareProfile; label: string; description: string }[] = [
   {
@@ -51,17 +51,17 @@ const HARDWARE_PROFILES: { value: HardwareProfile; label: string; description: s
     label: 'MIDI Music',
     description: 'For strategy and adventure games with Roland MIDI soundtracks (C&C, X-COM, etc.)',
   },
-]
+];
 
 export interface EnvironmentForm {
-  name: string
-  era: PCEra | null
-  base_image_path: string
-  working_image_path: string
-  hardware_profile: HardwareProfile
-  machine_override: string
-  notes: string
-  launch_commands: string[]
+  name: string;
+  era: PCEra | null;
+  base_image_path: string;
+  working_image_path: string;
+  hardware_profile: HardwareProfile;
+  machine_override: string;
+  notes: string;
+  launch_commands: string[];
 }
 
 export const EMPTY_ENV_FORM: EnvironmentForm = {
@@ -73,9 +73,9 @@ export const EMPTY_ENV_FORM: EnvironmentForm = {
   machine_override: '',
   notes: '',
   launch_commands: [],
-}
+};
 
-export { ERA_TO_EMULATOR }
+export { ERA_TO_EMULATOR };
 
 // Whether an item's era makes it PC-launchable (Environment-driven) rather
 // than console (fixed era-to-emulator mapping, no per-item Environment
@@ -83,24 +83,24 @@ export { ERA_TO_EMULATOR }
 // to keep is_pc in sync with era, pulled out so Games' Platform-field gating
 // (era-based) can share it without duplicating the check.
 export function isPcEra(era: string): boolean {
-  return era in ERA_TO_EMULATOR
+  return era in ERA_TO_EMULATOR;
 }
 
 interface EnvironmentModalProps {
-  open: boolean
-  mode: 'create' | 'edit'
+  open: boolean;
+  mode: 'create' | 'edit';
   /** The Environment's slug — only defined in edit mode, once the record (and
    *  its slug) already exist. Install-media upload resolves the target
    *  Environment by slug server-side, so it has nothing to upload to yet
    *  during create; FileUpload renders nothing when this is undefined. */
-  slug?: string
-  form: EnvironmentForm
-  formErrors: Partial<Record<keyof EnvironmentForm, string>>
-  submitError: string | null
-  submitting: boolean
-  onClose: () => void
-  onSubmit: () => void
-  onFieldChange: <K extends keyof EnvironmentForm>(key: K, value: EnvironmentForm[K]) => void
+  slug?: string;
+  form: EnvironmentForm;
+  formErrors: Partial<Record<keyof EnvironmentForm, string>>;
+  submitError: string | null;
+  submitting: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+  onFieldChange: <K extends keyof EnvironmentForm>(key: K, value: EnvironmentForm[K]) => void;
 }
 
 export default function EnvironmentModal({
@@ -115,18 +115,23 @@ export default function EnvironmentModal({
   onSubmit,
   onFieldChange,
 }: EnvironmentModalProps) {
-  const emulatorLabel = form.era ? (EMULATOR_LABELS[ERA_TO_EMULATOR[form.era]] ?? null) : null
-  const isBox86Era = form.era !== null && BOX86_ERAS.has(form.era)
-  const showInstallMediaAbove = form.era !== null && INSTALL_MEDIA_ERAS.has(form.era) && mode === 'create'
+  const emulatorLabel = form.era ? (EMULATOR_LABELS[ERA_TO_EMULATOR[form.era]] ?? null) : null;
+  const isBox86Era = form.era !== null && BOX86_ERAS.has(form.era);
+  const showInstallMediaAbove =
+    form.era !== null && INSTALL_MEDIA_ERAS.has(form.era) && mode === 'create';
   const hasAdvancedValues = !!(
     (!showInstallMediaAbove && form.base_image_path) ||
-    form.working_image_path || form.machine_override || form.notes ||
+    form.working_image_path ||
+    form.machine_override ||
+    form.notes ||
     form.launch_commands.length > 0
-  )
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (open) setShowAdvanced(hasAdvancedValues) }, [open])
-  const [machineBrowserOpen, setMachineBrowserOpen] = useState(false)
+  );
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  useEffect(() => {
+    if (open) setShowAdvanced(hasAdvancedValues);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  const [machineBrowserOpen, setMachineBrowserOpen] = useState(false);
 
   return (
     <Modal
@@ -158,7 +163,7 @@ export default function EnvironmentModal({
       <FormField label="Era" required error={formErrors.era}>
         <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {PC_ERAS.map((era) => {
-            const selected = form.era === era.value
+            const selected = form.era === era.value;
             return (
               <button
                 key={era.value}
@@ -174,7 +179,7 @@ export default function EnvironmentModal({
               >
                 {era.label}
               </button>
-            )
+            );
           })}
         </div>
       </FormField>
@@ -197,7 +202,7 @@ export default function EnvironmentModal({
           </h4>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {HARDWARE_PROFILES.map((profile) => {
-              const selected = form.hardware_profile === profile.value
+              const selected = form.hardware_profile === profile.value;
               return (
                 <button
                   key={profile.value}
@@ -213,9 +218,7 @@ export default function EnvironmentModal({
                 >
                   <span
                     className={`block text-sm font-medium ${
-                      selected
-                        ? 'text-accent'
-                        : 'text-neutral-800 dark:text-neutral-200'
+                      selected ? 'text-accent' : 'text-neutral-800 dark:text-neutral-200'
                     }`}
                   >
                     {profile.label}
@@ -224,7 +227,7 @@ export default function EnvironmentModal({
                     {profile.description}
                   </span>
                 </button>
-              )
+              );
             })}
           </div>
         </div>
@@ -273,28 +276,28 @@ export default function EnvironmentModal({
         {showAdvanced && (
           <div className="mt-3 space-y-4">
             {!showInstallMediaAbove && (
-            <FormField
-              label="Base Image Path"
-              htmlFor="env-base"
-              hint="Provide an ISO or disk image. Peach 1UP will set up the environment automatically."
-            >
-              <PathInput
-                id="env-base"
-                mode="file"
-                accept=".img,.iso,.vhd,.cue,.chd,.xiso"
-                value={form.base_image_path}
-                onChange={(v) => onFieldChange('base_image_path', v)}
-                placeholder="/path/to/images/os/win98/base.img"
-                className="mt-1"
-              />
-              {form.era && (
-                <FileUpload
-                  slug={slug}
+              <FormField
+                label="Base Image Path"
+                htmlFor="env-base"
+                hint="Provide an ISO or disk image. Peach 1UP will set up the environment automatically."
+              >
+                <PathInput
+                  id="env-base"
+                  mode="file"
                   accept=".img,.iso,.vhd,.cue,.chd,.xiso"
-                  onComplete={(path) => onFieldChange('base_image_path', path)}
+                  value={form.base_image_path}
+                  onChange={(v) => onFieldChange('base_image_path', v)}
+                  placeholder="/path/to/images/os/win98/base.img"
+                  className="mt-1"
                 />
-              )}
-            </FormField>
+                {form.era && (
+                  <FileUpload
+                    slug={slug}
+                    accept=".img,.iso,.vhd,.cue,.chd,.xiso"
+                    onComplete={(path) => onFieldChange('base_image_path', path)}
+                  />
+                )}
+              </FormField>
             )}
 
             <FormField
@@ -363,9 +366,10 @@ export default function EnvironmentModal({
                       open={machineBrowserOpen}
                       onClose={() => setMachineBrowserOpen(false)}
                       onSelect={(path) => {
-                        const slug = path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? ''
-                        onFieldChange('machine_override', slug)
-                        setMachineBrowserOpen(false)
+                        const slug =
+                          path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? '';
+                        onFieldChange('machine_override', slug);
+                        setMachineBrowserOpen(false);
                       }}
                       mode="folder"
                       title="Select Machine (ROM pack › machines)"
@@ -375,7 +379,10 @@ export default function EnvironmentModal({
               </FormField>
             )}
 
-            <FormField label="Launch commands" hint="Commands run inside the environment when launching software">
+            <FormField
+              label="Launch commands"
+              hint="Commands run inside the environment when launching software"
+            >
               <LaunchCommandList
                 value={form.launch_commands}
                 onChange={(v) => onFieldChange('launch_commands', v)}
@@ -401,5 +408,5 @@ export default function EnvironmentModal({
         </p>
       )}
     </Modal>
-  )
+  );
 }

@@ -1,26 +1,26 @@
-import { Lock, Unlock, Trash2, KeyRound, Pencil } from "lucide-react";
-import { Button } from "@/ui";
-import type { components } from "@shared/types";
+import { Lock, Unlock, Trash2, KeyRound, Pencil } from 'lucide-react';
+import { Button } from '@/ui';
+import type { components } from '@shared/types';
 
-type User = components["schemas"]["UserItemRead"];
+type User = components['schemas']['UserItemRead'];
 
 type ActionState = {
   userId: number;
-  action: "unlock" | "delete";
+  action: 'unlock' | 'delete';
   submitting: boolean;
 } | null;
 
 function permissionSummary(user: User): string {
   const labels: string[] = [];
-  if (user.can_launch_media) labels.push("launch");
-  if (user.can_manage_game) labels.push("software");
-  if (user.can_manage_environment) labels.push("environments");
-  if (user.can_manage_media) labels.push("media");
-  if (user.can_manage_controllerMapping) labels.push("controllers");
-  if (user.can_manage_settings) labels.push("settings");
-  if (user.can_manage_users) labels.push("self-manage");
-  if (user.is_admin) labels.push("admin");
-  return labels.length ? labels.join(", ") : "no permissions";
+  if (user.can_launch_media) labels.push('launch');
+  if (user.can_manage_game) labels.push('software');
+  if (user.can_manage_environment) labels.push('environments');
+  if (user.can_manage_media) labels.push('media');
+  if (user.can_manage_controllerMapping) labels.push('controllers');
+  if (user.can_manage_settings) labels.push('settings');
+  if (user.can_manage_users) labels.push('self-manage');
+  if (user.is_admin) labels.push('admin');
+  return labels.length ? labels.join(', ') : 'no permissions';
 }
 
 interface UserListProps {
@@ -47,18 +47,12 @@ export function UserList({
   onDelete,
 }: UserListProps) {
   return (
-    <ul
-      role="list"
-      className="mt-4 divide-y divide-neutral-200 dark:divide-neutral-800"
-    >
+    <ul role="list" className="mt-4 divide-y divide-neutral-200 dark:divide-neutral-800">
       {users.map((user) => {
-        const isBusy =
-          actionState?.userId === user.id && actionState.submitting;
+        const isBusy = actionState?.userId === user.id && actionState.submitting;
         const canManage =
           !user.is_owner &&
-          (isAdmin ||
-            isOwner ||
-            (user.id === activeUserId && user.can_manage_users));
+          (isAdmin || isOwner || (user.id === activeUserId && user.can_manage_users));
         return (
           <li key={user.id} className="py-3">
             <div className="flex items-start justify-between gap-4">
@@ -81,9 +75,8 @@ export function UserList({
                 </div>
                 <p className="mt-0.5 truncate text-xs text-neutral-400 dark:text-neutral-500">
                   {permissionSummary(user)}
-                  {user.max_content_rating &&
-                    ` · max ${user.max_content_rating}`}
-                  {user.block_unrated_media && " · block unrated"}
+                  {user.max_content_rating && ` · max ${user.max_content_rating}`}
+                  {user.block_unrated_media && ' · block unrated'}
                 </p>
               </div>
 
@@ -117,7 +110,7 @@ export function UserList({
                       disabled={isBusy}
                       loading={
                         actionState?.userId === user.id &&
-                        actionState.action === "unlock" &&
+                        actionState.action === 'unlock' &&
                         actionState.submitting
                       }
                       onClick={() => onUnlock(user)}

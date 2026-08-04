@@ -1,17 +1,17 @@
-import { useState } from 'react'
-import { Input, Button } from '@/ui'
-import BrowsePanel from '@/components/common/BrowsePanel'
+import { useState } from 'react';
+import { Input, Button } from '@/ui';
+import BrowsePanel from '@/components/common/BrowsePanel';
 
 interface PathInputProps {
-  id?: string
-  value: string
-  onChange: (value: string) => void
-  placeholder?: string
-  hasError?: boolean
-  mode: 'folder' | 'file' | 'both'
-  accept?: string
-  className?: string
-  rootPath?: string | null
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  hasError?: boolean;
+  mode: 'folder' | 'file' | 'both';
+  accept?: string;
+  className?: string;
+  rootPath?: string | null;
 }
 
 export default function PathInput({
@@ -25,7 +25,7 @@ export default function PathInput({
   className,
   rootPath,
 }: PathInputProps) {
-  const [browserOpen, setBrowserOpen] = useState(false)
+  const [browserOpen, setBrowserOpen] = useState(false);
 
   const extensions =
     (mode === 'file' || mode === 'both') && accept
@@ -33,7 +33,7 @@ export default function PathInput({
           .split(',')
           .map((e) => e.trim().replace(/^\./, ''))
           .join(',')
-      : undefined
+      : undefined;
 
   return (
     <div className={className}>
@@ -61,14 +61,23 @@ export default function PathInput({
           <BrowsePanel
             open={browserOpen}
             onClose={() => setBrowserOpen(false)}
-            onSelect={(path) => { onChange(path); setBrowserOpen(false) }}
+            onSelect={(path) => {
+              onChange(path);
+              setBrowserOpen(false);
+            }}
             extensions={extensions}
             mode={mode}
-            title={mode === 'folder' ? 'Select Folder' : mode === 'both' ? 'Select File or Folder' : 'Select File'}
+            title={
+              mode === 'folder'
+                ? 'Select Folder'
+                : mode === 'both'
+                  ? 'Select File or Folder'
+                  : 'Select File'
+            }
             rootPath={rootPath}
           />
         </div>
       )}
     </div>
-  )
+  );
 }

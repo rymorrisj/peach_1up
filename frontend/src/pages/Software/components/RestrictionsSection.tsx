@@ -1,16 +1,16 @@
-import { Button, Checkbox } from '@/ui'
-import type { components } from '@shared/types'
+import { Button, Checkbox } from '@/ui';
+import type { components } from '@shared/types';
 
-type User = components['schemas']['UserItemRead']
+type User = components['schemas']['UserItemRead'];
 
 interface RestrictionsSectionProps {
-  users: User[]
-  restrictedIds: Set<number>
-  restrictionsDirty: boolean
-  toggleRestriction: (userId: number) => void
-  onSave: () => void
-  saving: boolean
-  error: string | null
+  users: User[];
+  restrictedIds: Set<number>;
+  restrictionsDirty: boolean;
+  toggleRestriction: (userId: number) => void;
+  onSave: () => void;
+  saving: boolean;
+  error: string | null;
 }
 
 export function RestrictionsSection({
@@ -61,5 +61,5 @@ export function RestrictionsSection({
         </p>
       )}
     </section>
-  )
+  );
 }

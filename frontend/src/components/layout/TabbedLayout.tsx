@@ -1,23 +1,23 @@
-import type { ReactNode } from 'react'
-import { NavLink, Navigate, Outlet, Route } from 'react-router-dom'
-import TopBar from './TopBar'
+import type { ReactNode } from 'react';
+import { NavLink, Navigate, Outlet, Route } from 'react-router-dom';
+import TopBar from './TopBar';
 
 export interface TabConfig {
   /** Visible tab label, e.g. "Games". */
-  label: string
+  label: string;
   /** Path segment relative to the section mount point, e.g. "games". */
-  segment: string
+  segment: string;
   /** The collection view mounted for this segment. */
-  element: ReactNode
+  element: ReactNode;
   /** Defaults to true; set false to hide a tab without unmounting siblings. */
-  visible?: boolean
+  visible?: boolean;
 }
 
 export interface TabbedLayoutProps {
-  tabs: TabConfig[]
+  tabs: TabConfig[];
   /** Page title/header, passed in by the consuming page/section — TabbedLayout
    *  displays it alongside the nav buttons, it does not own or derive it. */
-  title: string
+  title: string;
 }
 
 /**
@@ -28,7 +28,7 @@ export interface TabbedLayoutProps {
  * "which tab is active" separately from the route.
  */
 export default function TabbedLayout({ tabs, title }: TabbedLayoutProps) {
-  const visibleTabs = tabs.filter((tab) => tab.visible !== false)
+  const visibleTabs = tabs.filter((tab) => tab.visible !== false);
 
   return (
     <div className="flex flex-col min-h-full">
@@ -42,7 +42,9 @@ export default function TabbedLayout({ tabs, title }: TabbedLayoutProps) {
                 padding: '10px 14px',
                 border: 0,
                 background: 'transparent',
-                borderBottom: isActive ? '2px solid rgb(var(--peach-500))' : '2px solid transparent',
+                borderBottom: isActive
+                  ? '2px solid rgb(var(--peach-500))'
+                  : '2px solid transparent',
                 color: isActive ? 'rgb(var(--fg-1))' : 'rgb(var(--fg-3))',
                 fontFamily: 'var(--font-display)',
                 fontWeight: 600,
@@ -61,7 +63,7 @@ export default function TabbedLayout({ tabs, title }: TabbedLayoutProps) {
         <Outlet />
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -80,14 +82,26 @@ export default function TabbedLayout({ tabs, title }: TabbedLayoutProps) {
  *   </Route>
  */
 export function buildTabRoutes(tabs: TabConfig[]): ReactNode[] {
-  const visibleTabs = tabs.filter((tab) => tab.visible !== false)
-  const defaultSegment = visibleTabs[0]?.segment
+  const visibleTabs = tabs.filter((tab) => tab.visible !== false);
+  const defaultSegment = visibleTabs[0]?.segment;
   const routes: ReactNode[] = visibleTabs.map((tab) => (
     <Route key={tab.segment} path={tab.segment} element={tab.element} />
-  ))
+  ));
   if (defaultSegment) {
-    routes.push(<Route key="__tabbed-layout-index" index element={<Navigate to={defaultSegment} replace />} />)
-    routes.push(<Route key="__tabbed-layout-catchall" path="*" element={<Navigate to={defaultSegment} replace />} />)
+    routes.push(
+      <Route
+        key="__tabbed-layout-index"
+        index
+        element={<Navigate to={defaultSegment} replace />}
+      />,
+    );
+    routes.push(
+      <Route
+        key="__tabbed-layout-catchall"
+        path="*"
+        element={<Navigate to={defaultSegment} replace />}
+      />,
+    );
   }
-  return routes
+  return routes;
 }

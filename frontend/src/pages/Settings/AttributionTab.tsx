@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "@/api/client";
+import { useQuery } from '@tanstack/react-query';
+import { apiFetch } from '@/api/client';
 
 // Distinct from the Emulators page's CatalogEntryResponse — this list merges
 // emulator catalog entries with non-emulator third-party tools (extract-xiso)
@@ -13,8 +13,8 @@ interface AttributionEntry {
 
 export default function AttributionTab() {
   const { data: attribution } = useQuery<AttributionEntry[]>({
-    queryKey: ["attribution"],
-    queryFn: () => apiFetch<AttributionEntry[]>("/api/v1/emulator-items/attribution"),
+    queryKey: ['attribution'],
+    queryFn: () => apiFetch<AttributionEntry[]>('/api/v1/emulator-items/attribution'),
     staleTime: 60_000,
   });
 
@@ -25,8 +25,8 @@ export default function AttributionTab() {
           Attribution
         </h2>
         <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-          Open-source software used by Peach 1UP, bundled with the app or downloaded
-          on first use. Source code is available via the links below.
+          Open-source software used by Peach 1UP, bundled with the app or downloaded on first use.
+          Source code is available via the links below.
         </p>
         <ul className="mt-4 divide-y divide-neutral-100 dark:divide-neutral-800">
           {(attribution ?? []).map((entry) => (

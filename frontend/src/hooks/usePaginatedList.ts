@@ -1,63 +1,63 @@
-import { useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { apiFetch } from '@/api/client'
+import { useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { apiFetch } from '@/api/client';
 
 // Server-side pagination envelope (backend/models/pagination.py: items/total/
 // limit/offset). Typed locally, same as Software/index.tsx's own Page<T>, so
 // this hook builds before @shared/types (which only has per-endpoint
 // Page_XRead_ instantiations, not a reusable generic) is regenerated.
 export interface Page<T> {
-  items: T[]
-  total: number
-  limit: number
-  offset: number
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface UsePaginatedListOptions {
   /** API path with no query string, e.g. "/api/v1/game-items". */
-  path: string
+  path: string;
   /** Requested page size (sent as `limit`). Defaults to 50. */
-  pageSize?: number
+  pageSize?: number;
   /**
    * Extra query params to forward alongside limit/offset — e.g. filters like
    * `{ era: 'dos' }`. The hook has no knowledge of what these mean; it only
    * merges them into the request and into the query key so a filter change
    * triggers a refetch (and resets back to the first page, see below).
    */
-  params?: Record<string, string>
+  params?: Record<string, string>;
   /** Query-param name used to track page position in the URL. Defaults to
    *  "offset"; override if a route ever needs two independent paginated
    *  lists side by side. */
-  offsetParam?: string
+  offsetParam?: string;
   /** Passed through to the underlying useQuery — set false to defer fetching. */
-  enabled?: boolean
+  enabled?: boolean;
 }
 
 export interface UsePaginatedListResult<T> {
-  items: T[]
-  total: number
-  offset: number
-  limit: number
+  items: T[];
+  total: number;
+  offset: number;
+  limit: number;
   /** 1-indexed current page. */
-  page: number
-  pageCount: number
-  isLoading: boolean
-  isFetching: boolean
-  isError: boolean
-  error: unknown
-  hasPrevPage: boolean
-  hasNextPage: boolean
+  page: number;
+  pageCount: number;
+  isLoading: boolean;
+  isFetching: boolean;
+  isError: boolean;
+  error: unknown;
+  hasPrevPage: boolean;
+  hasNextPage: boolean;
   /** Jump to a 1-indexed page number. */
-  goToPage: (page: number) => void
-  goToOffset: (offset: number) => void
-  nextPage: () => void
-  prevPage: () => void
+  goToPage: (page: number) => void;
+  goToOffset: (offset: number) => void;
+  nextPage: () => void;
+  prevPage: () => void;
 }
 
 function serializeParams(params: Record<string, string> | undefined): string {
-  if (!params) return ''
-  return JSON.stringify(Object.entries(params).sort(([a], [b]) => a.localeCompare(b)))
+  if (!params) return '';
+  return JSON.stringify(Object.entries(params).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 /**
@@ -79,20 +79,20 @@ export function usePaginatedList<T>({
   offsetParam = 'offset',
   enabled = true,
 }: UsePaginatedListOptions): UsePaginatedListResult<T> {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const parsedOffset = Number(searchParams.get(offsetParam))
-  const offset = Number.isFinite(parsedOffset) && parsedOffset > 0 ? Math.floor(parsedOffset) : 0
+  const parsedOffset = Number(searchParams.get(offsetParam));
+  const offset = Number.isFinite(parsedOffset) && parsedOffset > 0 ? Math.floor(parsedOffset) : 0;
 
   const setOffset = (next: number) => {
-    const clamped = Math.max(0, Math.floor(next))
+    const clamped = Math.max(0, Math.floor(next));
     setSearchParams((prev) => {
-      const nextParams = new URLSearchParams(prev)
-      if (clamped > 0) nextParams.set(offsetParam, String(clamped))
-      else nextParams.delete(offsetParam)
-      return nextParams
-    })
-  }
+      const nextParams = new URLSearchParams(prev);
+      if (clamped > 0) nextParams.set(offsetParam, String(clamped));
+      else nextParams.delete(offsetParam);
+      return nextParams;
+    });
+  };
 
   // A filter change (params changing identity/value) invalidates whatever
   // page the URL currently points at — e.g. going from "all games" to "DOS
@@ -100,32 +100,32 @@ export function usePaginatedList<T>({
   // the filtered result set. Reset to the first page whenever the caller's
   // params actually change value, mirroring what Software/index.tsx already
   // does by hand today for its own era filter.
-  const paramsKey = serializeParams(params)
-  const prevParamsKeyRef = useRef(paramsKey)
+  const paramsKey = serializeParams(params);
+  const prevParamsKeyRef = useRef(paramsKey);
   useEffect(() => {
     if (prevParamsKeyRef.current !== paramsKey) {
-      prevParamsKeyRef.current = paramsKey
-      setOffset(0)
+      prevParamsKeyRef.current = paramsKey;
+      setOffset(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paramsKey])
+  }, [paramsKey]);
 
-  const requestParams = new URLSearchParams(params)
-  requestParams.set('limit', String(pageSize))
-  requestParams.set('offset', String(offset))
+  const requestParams = new URLSearchParams(params);
+  requestParams.set('limit', String(pageSize));
+  requestParams.set('offset', String(offset));
 
   const { data, isLoading, isFetching, isError, error } = useQuery<Page<T>>({
     queryKey: ['paginated-list', path, paramsKey, offset, pageSize],
     queryFn: () => apiFetch<Page<T>>(`${path}?${requestParams.toString()}`),
     placeholderData: keepPreviousData,
     enabled,
-  })
+  });
 
-  const items = data?.items ?? []
-  const total = data?.total ?? 0
-  const limit = data?.limit ?? pageSize
-  const page = limit > 0 ? Math.floor(offset / limit) + 1 : 1
-  const pageCount = limit > 0 ? Math.max(1, Math.ceil(total / limit)) : 1
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const limit = data?.limit ?? pageSize;
+  const page = limit > 0 ? Math.floor(offset / limit) + 1 : 1;
+  const pageCount = limit > 0 ? Math.max(1, Math.ceil(total / limit)) : 1;
 
   return {
     items,
@@ -144,5 +144,5 @@ export function usePaginatedList<T>({
     goToPage: (targetPage: number) => setOffset(Math.max(0, (targetPage - 1) * limit)),
     nextPage: () => setOffset(offset + limit),
     prevPage: () => setOffset(Math.max(0, offset - limit)),
-  }
+  };
 }

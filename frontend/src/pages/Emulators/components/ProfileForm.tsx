@@ -1,30 +1,44 @@
-import { Button, FormField, Input, Modal, Textarea } from '@/ui'
-import LaunchCommandList from '@/components/LaunchCommandList'
-import { DGVOODOO2_SUPPORTED_ERAS } from '@/generated/constants'
-import type { EmulatorCatalogSlug } from '@/generated/constants'
-import type { EmulatorEntry, ProfileForm as ProfileFormData, ProfileModalState } from '@/types/profiles'
+import { Button, FormField, Input, Modal, Textarea } from '@/ui';
+import LaunchCommandList from '@/components/LaunchCommandList';
+import { DGVOODOO2_SUPPORTED_ERAS } from '@/generated/constants';
+import type { EmulatorCatalogSlug } from '@/generated/constants';
+import type {
+  EmulatorEntry,
+  ProfileForm as ProfileFormData,
+  ProfileModalState,
+} from '@/types/profiles';
 
 const SELECT_CLASS =
-  'w-full rounded-md border border-neutral-300 bg-surface-2 px-3 py-2 text-sm text-neutral-900 focus:border-accent focus:outline-none dark:border-neutral-700 dark:text-neutral-100'
+  'w-full rounded-md border border-neutral-300 bg-surface-2 px-3 py-2 text-sm text-neutral-900 focus:border-accent focus:outline-none dark:border-neutral-700 dark:text-neutral-100';
 
 interface ProfileFormProps {
-  modal: ProfileModalState
-  form: ProfileFormData
-  formErrors: Partial<Record<keyof ProfileFormData, string>>
-  submitError: string | null
-  submitting: boolean
-  emulators: EmulatorEntry[]
-  eraOptions: Array<{ value: string; label: string }>
-  emulatorOptions: Array<{ value: string; label: string }>
-  setField: <K extends keyof ProfileFormData>(key: K, value: ProfileFormData[K]) => void
-  onSubmit: () => void
-  onClose: () => void
+  modal: ProfileModalState;
+  form: ProfileFormData;
+  formErrors: Partial<Record<keyof ProfileFormData, string>>;
+  submitError: string | null;
+  submitting: boolean;
+  emulators: EmulatorEntry[];
+  eraOptions: Array<{ value: string; label: string }>;
+  emulatorOptions: Array<{ value: string; label: string }>;
+  setField: <K extends keyof ProfileFormData>(key: K, value: ProfileFormData[K]) => void;
+  onSubmit: () => void;
+  onClose: () => void;
 }
 
 export function ProfileForm({
-  modal, form, formErrors, submitError, submitting, emulators, eraOptions, emulatorOptions, setField, onSubmit, onClose,
+  modal,
+  form,
+  formErrors,
+  submitError,
+  submitting,
+  emulators,
+  eraOptions,
+  emulatorOptions,
+  setField,
+  onSubmit,
+  onClose,
 }: ProfileFormProps) {
-  const modalTitle = modal?.mode === 'create' ? 'Add Launch Profile' : 'Edit Launch Profile'
+  const modalTitle = modal?.mode === 'create' ? 'Add Launch Profile' : 'Edit Launch Profile';
 
   return (
     <Modal
@@ -69,7 +83,12 @@ export function ProfileForm({
         />
       </FormField>
 
-      <FormField label="Emulator Slug" htmlFor="lp-emulator" required error={formErrors.emulator_slug}>
+      <FormField
+        label="Emulator Slug"
+        htmlFor="lp-emulator"
+        required
+        error={formErrors.emulator_slug}
+      >
         <select
           id="lp-emulator"
           value={form.emulator_slug}
@@ -182,7 +201,10 @@ export function ProfileForm({
         />
       </FormField>
 
-      <FormField label="Launch commands" hint="Default commands run when launching software with this profile">
+      <FormField
+        label="Launch commands"
+        hint="Default commands run when launching software with this profile"
+      >
         <LaunchCommandList
           value={form.launch_commands}
           onChange={(v) => setField('launch_commands', v)}
@@ -200,8 +222,8 @@ export function ProfileForm({
             id="lp-container"
             value={form.container_enabled === null ? '' : form.container_enabled ? 'true' : 'false'}
             onChange={(e) => {
-              const v = e.target.value
-              setField('container_enabled', v === '' ? null : v === 'true')
+              const v = e.target.value;
+              setField('container_enabled', v === '' ? null : v === 'true');
             }}
             className={SELECT_CLASS}
           >
@@ -218,5 +240,5 @@ export function ProfileForm({
         </p>
       )}
     </Modal>
-  )
+  );
 }

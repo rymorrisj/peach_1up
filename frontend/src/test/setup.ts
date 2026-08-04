@@ -1,4 +1,4 @@
-import '@testing-library/jest-dom'
+import '@testing-library/jest-dom';
 
 // jsdom does not implement ResizeObserver, which Radix UI's popper positioning
 // (used by Tooltip, Select, etc.) requires during layout effects.
@@ -8,7 +8,7 @@ class MockResizeObserver {
   disconnect() {}
 }
 if (typeof globalThis.ResizeObserver === 'undefined') {
-  globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
+  globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
 }
 
 // jsdom implements neither the pointer capture methods nor scrollIntoView.
@@ -19,16 +19,16 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 // these. Harmless no-ops, only their presence matters here, not their
 // behavior, real pointer capture has no jsdom-observable effect anyway.
 if (!Element.prototype.hasPointerCapture) {
-  Element.prototype.hasPointerCapture = () => false
+  Element.prototype.hasPointerCapture = () => false;
 }
 if (!Element.prototype.setPointerCapture) {
-  Element.prototype.setPointerCapture = () => {}
+  Element.prototype.setPointerCapture = () => {};
 }
 if (!Element.prototype.releasePointerCapture) {
-  Element.prototype.releasePointerCapture = () => {}
+  Element.prototype.releasePointerCapture = () => {};
 }
 if (!Element.prototype.scrollIntoView) {
-  Element.prototype.scrollIntoView = () => {}
+  Element.prototype.scrollIntoView = () => {};
 }
 
 // jsdom does not implement HTMLDialogElement.showModal() / close(). Re-applied
@@ -42,12 +42,12 @@ beforeEach(() => {
   HTMLDialogElement.prototype.showModal = vi.fn().mockImplementation(function (
     this: HTMLDialogElement,
   ) {
-    this.setAttribute('open', '')
-  })
+    this.setAttribute('open', '');
+  });
 
   HTMLDialogElement.prototype.close = vi.fn().mockImplementation(function (
     this: HTMLDialogElement,
   ) {
-    this.removeAttribute('open')
-  })
-})
+    this.removeAttribute('open');
+  });
+});

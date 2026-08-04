@@ -1,39 +1,39 @@
-import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { apiFetch, ApiError } from '@/api/client'
-import { parseNaiveUtc } from '@/lib/date'
-import type { components } from '@shared/types'
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiFetch, ApiError } from '@/api/client';
+import { parseNaiveUtc } from '@/lib/date';
+import type { components } from '@shared/types';
 
-type LaunchHistory = components['schemas']['LaunchHistoryRead']
+type LaunchHistory = components['schemas']['LaunchHistoryRead'];
 
 interface LaunchHistorySectionProps {
-  history: LaunchHistory[]
+  history: LaunchHistory[];
   /** Owner/admin only: enables checkbox selection and the delete action.
    *  Deletion is enforced owner/admin on the backend regardless. */
-  canDelete?: boolean
+  canDelete?: boolean;
 }
 
 export function LaunchHistorySection({ history, canDelete = false }: LaunchHistorySectionProps) {
-  const queryClient = useQueryClient()
-  const [selected, setSelected] = useState<Set<number>>(new Set())
-  const [deleting, setDeleting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient();
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  if (history.length === 0) return null
+  if (history.length === 0) return null;
 
   function toggle(id: number) {
     setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   async function handleDelete() {
-    if (selected.size === 0) return
-    setDeleting(true)
-    setError(null)
+    if (selected.size === 0) return;
+    setDeleting(true);
+    setError(null);
     try {
       // One endpoint for both "delete this one" (a single checked row) and
       // "delete these N". Invalidate the shared 'launches' key prefix so every
@@ -42,13 +42,13 @@ export function LaunchHistorySection({ history, canDelete = false }: LaunchHisto
       await apiFetch('/api/v1/launches', {
         method: 'DELETE',
         body: JSON.stringify({ ids: Array.from(selected) }),
-      })
-      setSelected(new Set())
-      await queryClient.invalidateQueries({ queryKey: ['launches'] })
+      });
+      setSelected(new Set());
+      await queryClient.invalidateQueries({ queryKey: ['launches'] });
     } catch (err) {
-      setError(err instanceof ApiError ? err.detail : 'Failed to delete history.')
+      setError(err instanceof ApiError ? err.detail : 'Failed to delete history.');
     } finally {
-      setDeleting(false)
+      setDeleting(false);
     }
   }
 
@@ -76,17 +76,17 @@ export function LaunchHistorySection({ history, canDelete = false }: LaunchHisto
       )}
       <div className="divide-y divide-neutral-100 dark:divide-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm">
         {history.map((h) => {
-          const started = parseNaiveUtc(h.started_at)
+          const started = parseNaiveUtc(h.started_at);
           const durationMs = h.ended_at
             ? parseNaiveUtc(h.ended_at).getTime() - started.getTime()
-            : null
+            : null;
           const duration =
             durationMs != null
               ? durationMs < 60_000
                 ? `${Math.round(durationMs / 1000)}s`
                 : `${Math.floor(durationMs / 60_000)}m ${Math.round((durationMs % 60_000) / 1000)}s`
-              : null
-          const isError = h.exit_code != null && h.exit_code !== 0
+              : null;
+          const isError = h.exit_code != null && h.exit_code !== 0;
 
           return (
             <div key={h.id} className="flex flex-wrap items-start gap-x-4 gap-y-1 px-3 py-2">
@@ -122,13 +122,14 @@ export function LaunchHistorySection({ history, canDelete = false }: LaunchHisto
               )}
               {isError && (
                 <span className="w-full text-xs text-red-600 dark:text-red-400 truncate">
-                  exit {h.exit_code}{h.error_message ? ` · ${h.error_message}` : ''}
+                  exit {h.exit_code}
+                  {h.error_message ? ` · ${h.error_message}` : ''}
                 </span>
               )}
             </div>
-          )
+          );
         })}
       </div>
     </section>
-  )
+  );
 }

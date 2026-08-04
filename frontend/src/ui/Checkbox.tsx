@@ -29,38 +29,38 @@
 //   labelClassName?: string    merged onto the label span, overrides the
 //                               default text-fg-1 (e.g. a warning-toned label)
 
-import * as RadixCheckbox from '@radix-ui/react-checkbox'
-import { Check } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import type { ReactNode } from 'react'
+import * as RadixCheckbox from '@radix-ui/react-checkbox';
+import { Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { ReactNode } from 'react';
 
-type CheckboxSize = 'sm' | 'md'
+type CheckboxSize = 'sm' | 'md';
 
 interface CheckboxProps {
-  checked?: boolean
-  onCheckedChange?: (checked: boolean) => void
-  disabled?: boolean
-  id?: string
-  label?: ReactNode
-  size?: CheckboxSize
-  className?: string
-  labelClassName?: string
+  checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+  disabled?: boolean;
+  id?: string;
+  label?: ReactNode;
+  size?: CheckboxSize;
+  className?: string;
+  labelClassName?: string;
 }
 
 const BOX_SIZE: Record<CheckboxSize, string> = {
   sm: 'h-3.5 w-3.5',
   md: 'h-4 w-4',
-}
+};
 
 const LABEL_SIZE: Record<CheckboxSize, string> = {
   sm: 'text-xs',
   md: 'text-sm',
-}
+};
 
 const CHECK_SIZE: Record<CheckboxSize, number> = {
   sm: 10,
   md: 12,
-}
+};
 
 export function Checkbox({
   checked,
@@ -88,14 +88,14 @@ export function Checkbox({
         <Check size={CHECK_SIZE[size]} strokeWidth={3} className="text-accent-fg" />
       </RadixCheckbox.Indicator>
     </RadixCheckbox.Root>
-  )
+  );
 
-  if (!label) return box
+  if (!label) return box;
 
   return (
     <label className="flex items-center gap-3">
       {box}
       <span className={cn(LABEL_SIZE[size], 'text-fg-1', labelClassName)}>{label}</span>
     </label>
-  )
+  );
 }

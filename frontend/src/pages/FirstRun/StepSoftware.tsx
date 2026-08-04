@@ -1,5 +1,5 @@
 interface StepSoftwareProps {
-  onNext: () => void
+  onNext: () => void;
 }
 
 export default function StepSoftware({ onNext }: StepSoftwareProps) {
@@ -11,9 +11,9 @@ export default function StepSoftware({ onNext }: StepSoftwareProps) {
       <p className="mb-8 text-sm text-neutral-500 dark:text-neutral-400">
         Peach 1UP tracks three kinds of Software: Games, Apps, and Media. Each item can carry its
         own era, platform, tags, and restrictions. When you add something, Peach 1UP tries to
-        identify it automatically using file signatures and, where possible, cross-checks it
-        against known preservation hash databases (Redump, No-Intro) to confirm you have an
-        authentic, unmodified copy.
+        identify it automatically using file signatures and, where possible, cross-checks it against
+        known preservation hash databases (Redump, No-Intro) to confirm you have an authentic,
+        unmodified copy.
       </p>
 
       {/* No Back button here, mirrors the original Emulators step's lack of one:
@@ -29,5 +29,5 @@ export default function StepSoftware({ onNext }: StepSoftwareProps) {
         </button>
       </div>
     </section>
-  )
+  );
 }

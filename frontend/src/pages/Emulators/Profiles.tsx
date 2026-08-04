@@ -1,21 +1,26 @@
-import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, ApiError } from '@/api/client'
-import { Button } from '@/ui'
-import ConfirmModal from '@/components/common/ConfirmModal'
-import EmptyState from '@/components/common/EmptyState'
-import LoadingSpinner from '@/components/common/LoadingSpinner'
-import { useConfirm } from '@/hooks/useConfirm'
-import { useToast } from '@/ui/ToastProvider'
-import { usePaginatedList } from '@/hooks/usePaginatedList'
-import { slugify } from '@/lib/slugify'
-import { ERA_LABELS, EMULATOR_CATALOG_SLUGS } from '@/generated/constants'
-import { ProfilesList } from './components/ProfilesList'
-import { ProfileForm } from './components/ProfileForm'
-import type { EmulatorEntry, LaunchProfile, ProfileForm as ProfileFormData, ProfileModalState } from '@/types/profiles'
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiFetch, ApiError } from '@/api/client';
+import { Button } from '@/ui';
+import ConfirmModal from '@/components/common/ConfirmModal';
+import EmptyState from '@/components/common/EmptyState';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { useConfirm } from '@/hooks/useConfirm';
+import { useToast } from '@/ui/ToastProvider';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { slugify } from '@/lib/slugify';
+import { ERA_LABELS, EMULATOR_CATALOG_SLUGS } from '@/generated/constants';
+import { ProfilesList } from './components/ProfilesList';
+import { ProfileForm } from './components/ProfileForm';
+import type {
+  EmulatorEntry,
+  LaunchProfile,
+  ProfileForm as ProfileFormData,
+  ProfileModalState,
+} from '@/types/profiles';
 
-const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }))
-const EMULATOR_OPTIONS = EMULATOR_CATALOG_SLUGS.map((slug) => ({ value: slug, label: slug }))
+const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }));
+const EMULATOR_OPTIONS = EMULATOR_CATALOG_SLUGS.map((slug) => ({ value: slug, label: slug }));
 
 const EMPTY_PROFILE_FORM: ProfileFormData = {
   name: '',
@@ -28,21 +33,21 @@ const EMPTY_PROFILE_FORM: ProfileFormData = {
   notes: '',
   launch_commands: [],
   container_enabled: null,
-}
+};
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-  })
+  });
 }
 
 // Cross-emulator, flat list; editing is modal-only, no /emulators/profiles/:slug route.
 export default function Profiles() {
-  const queryClient = useQueryClient()
-  const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm()
-  const { showToast } = useToast()
+  const queryClient = useQueryClient();
+  const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm();
+  const { showToast } = useToast();
 
   const {
     items: profiles,
@@ -53,36 +58,36 @@ export default function Profiles() {
     hasNextPage,
     prevPage,
     nextPage,
-  } = usePaginatedList<LaunchProfile>({ path: '/api/v1/profile-items' })
+  } = usePaginatedList<LaunchProfile>({ path: '/api/v1/profile-items' });
 
   function invalidateProfiles() {
-    return queryClient.invalidateQueries({ queryKey: ['paginated-list', '/api/v1/profile-items'] })
+    return queryClient.invalidateQueries({ queryKey: ['paginated-list', '/api/v1/profile-items'] });
   }
 
   const { data: emulators = [] } = useQuery<EmulatorEntry[]>({
     queryKey: ['emulators'],
     queryFn: () => apiFetch<EmulatorEntry[]>('/api/v1/emulator-items'),
-  })
+  });
 
-  const [modal, setModal] = useState<ProfileModalState>(null)
-  const [form, setForm] = useState<ProfileFormData>(EMPTY_PROFILE_FORM)
-  const [formErrors, setFormErrors] = useState<Partial<Record<keyof ProfileFormData, string>>>({})
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
+  const [modal, setModal] = useState<ProfileModalState>(null);
+  const [form, setForm] = useState<ProfileFormData>(EMPTY_PROFILE_FORM);
+  const [formErrors, setFormErrors] = useState<Partial<Record<keyof ProfileFormData, string>>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   function openCreate() {
-    setForm(EMPTY_PROFILE_FORM)
-    setFormErrors({})
-    setSubmitError(null)
-    setModal({ mode: 'create' })
+    setForm(EMPTY_PROFILE_FORM);
+    setFormErrors({});
+    setSubmitError(null);
+    setModal({ mode: 'create' });
   }
 
   function openEdit(profile: LaunchProfile) {
     const ext = profile as LaunchProfile & {
-      launch_commands?: string[] | null
-      container_enabled?: boolean | null
-      enable_dgvoodoo2?: boolean
-    }
+      launch_commands?: string[] | null;
+      container_enabled?: boolean | null;
+      enable_dgvoodoo2?: boolean;
+    };
     setForm({
       name: profile.name,
       slug: profile.slug,
@@ -94,41 +99,41 @@ export default function Profiles() {
       notes: profile.notes ?? '',
       launch_commands: ext.launch_commands ?? [],
       container_enabled: ext.container_enabled ?? null,
-    })
-    setFormErrors({})
-    setSubmitError(null)
-    setModal({ mode: 'edit', profile })
+    });
+    setFormErrors({});
+    setSubmitError(null);
+    setModal({ mode: 'edit', profile });
   }
 
   function closeModal() {
-    setModal(null)
+    setModal(null);
   }
 
   function setField<K extends keyof ProfileFormData>(key: K, value: ProfileFormData[K]) {
     setForm((prev) => {
-      const next = { ...prev, [key]: value }
+      const next = { ...prev, [key]: value };
       if (key === 'name' && modal?.mode === 'create') {
-        next.slug = slugify(value as string)
+        next.slug = slugify(value as string);
       }
-      return next
-    })
-    setFormErrors((prev) => ({ ...prev, [key]: undefined }))
+      return next;
+    });
+    setFormErrors((prev) => ({ ...prev, [key]: undefined }));
   }
 
   function validate(): boolean {
-    const errors: Partial<Record<keyof ProfileFormData, string>> = {}
-    if (!form.name.trim()) errors.name = 'Name is required.'
-    if (!form.slug.trim()) errors.slug = 'Slug is required.'
-    if (!form.emulator_slug.trim()) errors.emulator_slug = 'Emulator slug is required.'
-    if (!form.era) errors.era = 'Era is required.'
-    setFormErrors(errors)
-    return Object.keys(errors).length === 0
+    const errors: Partial<Record<keyof ProfileFormData, string>> = {};
+    if (!form.name.trim()) errors.name = 'Name is required.';
+    if (!form.slug.trim()) errors.slug = 'Slug is required.';
+    if (!form.emulator_slug.trim()) errors.emulator_slug = 'Emulator slug is required.';
+    if (!form.era) errors.era = 'Era is required.';
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   }
 
   async function handleSubmit() {
-    if (!validate()) return
-    setSubmitting(true)
-    setSubmitError(null)
+    if (!validate()) return;
+    setSubmitting(true);
+    setSubmitError(null);
     try {
       const body: Record<string, unknown> = {
         name: form.name.trim(),
@@ -139,24 +144,24 @@ export default function Profiles() {
         enable_dgvoodoo2: form.enable_dgvoodoo2,
         launch_commands: form.launch_commands,
         container_enabled: form.container_enabled,
-      }
-      if (form.extra_args.trim()) body.extra_args = form.extra_args.trim()
-      if (form.notes.trim()) body.notes = form.notes.trim()
+      };
+      if (form.extra_args.trim()) body.extra_args = form.extra_args.trim();
+      if (form.notes.trim()) body.notes = form.notes.trim();
 
       if (modal?.mode === 'create') {
-        await apiFetch('/api/v1/profile-items', { method: 'POST', body: JSON.stringify(body) })
+        await apiFetch('/api/v1/profile-items', { method: 'POST', body: JSON.stringify(body) });
       } else if (modal?.mode === 'edit') {
         await apiFetch(`/api/v1/profile-items/${modal.profile.slug}`, {
           method: 'PATCH',
           body: JSON.stringify(body),
-        })
+        });
       }
-      await invalidateProfiles()
-      closeModal()
+      await invalidateProfiles();
+      closeModal();
     } catch (err) {
-      setSubmitError(err instanceof ApiError ? err.detail : 'Something went wrong.')
+      setSubmitError(err instanceof ApiError ? err.detail : 'Something went wrong.');
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
   }
 
@@ -166,17 +171,17 @@ export default function Profiles() {
       consequence:
         'This launch profile will be permanently removed. Any library items using it will lose their profile assignment.',
       destructive: true,
-    })
-    if (!confirmed) return
+    });
+    if (!confirmed) return;
     try {
-      await apiFetch(`/api/v1/profile-items/${profile.slug}`, { method: 'DELETE' })
-      await invalidateProfiles()
+      await apiFetch(`/api/v1/profile-items/${profile.slug}`, { method: 'DELETE' });
+      await invalidateProfiles();
     } catch (err) {
-      showToast(err instanceof ApiError ? err.detail : 'Delete failed.', 'error')
+      showToast(err instanceof ApiError ? err.detail : 'Delete failed.', 'error');
     }
   }
 
-  const eraLabel = (era: string) => ERA_OPTIONS.find((e) => e.value === era)?.label ?? era
+  const eraLabel = (era: string) => ERA_OPTIONS.find((e) => e.value === era)?.label ?? era;
 
   return (
     <div className="p-6">
@@ -248,5 +253,5 @@ export default function Profiles() {
         onCancel={handleCancel}
       />
     </div>
-  )
+  );
 }

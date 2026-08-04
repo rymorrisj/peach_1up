@@ -1,13 +1,13 @@
-import * as Collapsible from '@radix-ui/react-collapsible'
-import { Button } from '@/ui'
-import LaunchCommandList from '@/components/LaunchCommandList'
+import * as Collapsible from '@radix-ui/react-collapsible';
+import { Button } from '@/ui';
+import LaunchCommandList from '@/components/LaunchCommandList';
 interface AdvancedSectionProps {
-  item: { launch_review_flagged: boolean }
-  flagging: boolean
-  flagError: string | null
-  onFlagLaunch: () => void
-  launchCommands: string[] | null
-  setLaunchCommands: (cmds: string[]) => void
+  item: { launch_review_flagged: boolean };
+  flagging: boolean;
+  flagError: string | null;
+  onFlagLaunch: () => void;
+  launchCommands: string[] | null;
+  setLaunchCommands: (cmds: string[]) => void;
 }
 
 export function AdvancedSection({
@@ -22,8 +22,12 @@ export function AdvancedSection({
     <Collapsible.Root className="space-y-4">
       <Collapsible.Trigger className="group flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300">
         <span>Advanced</span>
-        <span aria-hidden="true" className="hidden group-data-[state=open]:inline">▲</span>
-        <span aria-hidden="true" className="group-data-[state=open]:hidden">▼</span>
+        <span aria-hidden="true" className="hidden group-data-[state=open]:inline">
+          ▲
+        </span>
+        <span aria-hidden="true" className="group-data-[state=open]:hidden">
+          ▼
+        </span>
       </Collapsible.Trigger>
 
       <Collapsible.Content>
@@ -54,23 +58,17 @@ export function AdvancedSection({
                   />
                 </svg>
                 <span className="pointer-events-none absolute bottom-full left-1/2 mb-1.5 w-64 -translate-x-1/2 rounded bg-neutral-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 dark:bg-neutral-700">
-                  Commands run in sequence when the game launches, like a DOS autoexec.bat. Use CD to navigate directories, then run your executable. Example: CD DOOMCD then DOOM.EXE
+                  Commands run in sequence when the game launches, like a DOS autoexec.bat. Use CD
+                  to navigate directories, then run your executable. Example: CD DOOMCD then
+                  DOOM.EXE
                 </span>
               </span>
             </div>
-            <LaunchCommandList
-              value={launchCommands ?? []}
-              onChange={setLaunchCommands}
-            />
+            <LaunchCommandList value={launchCommands ?? []} onChange={setLaunchCommands} />
           </div>
 
           <div className="flex items-center gap-3">
-            <Button
-              variant="secondary"
-              size="sm"
-              loading={flagging}
-              onClick={onFlagLaunch}
-            >
+            <Button variant="secondary" size="sm" loading={flagging} onClick={onFlagLaunch}>
               Flag broken launch
             </Button>
           </div>
@@ -82,5 +80,5 @@ export function AdvancedSection({
         </div>
       </Collapsible.Content>
     </Collapsible.Root>
-  )
+  );
 }

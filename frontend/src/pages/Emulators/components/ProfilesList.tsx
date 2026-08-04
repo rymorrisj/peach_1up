@@ -1,15 +1,21 @@
-import { Button } from '@/ui'
-import type { LaunchProfile } from '@/types/profiles'
+import { Button } from '@/ui';
+import type { LaunchProfile } from '@/types/profiles';
 
 interface ProfilesListProps {
-  profiles: LaunchProfile[]
-  eraLabel: (era: string) => string
-  formatDate: (iso: string) => string
-  onEdit: (profile: LaunchProfile) => void
-  onDelete: (profile: LaunchProfile) => void
+  profiles: LaunchProfile[];
+  eraLabel: (era: string) => string;
+  formatDate: (iso: string) => string;
+  onEdit: (profile: LaunchProfile) => void;
+  onDelete: (profile: LaunchProfile) => void;
 }
 
-export function ProfilesList({ profiles, eraLabel, formatDate, onEdit, onDelete }: ProfilesListProps) {
+export function ProfilesList({
+  profiles,
+  eraLabel,
+  formatDate,
+  onEdit,
+  onDelete,
+}: ProfilesListProps) {
   return (
     <ul role="list" className="divide-y divide-neutral-200 dark:divide-neutral-800">
       {profiles.map((profile) => (
@@ -50,5 +56,5 @@ export function ProfilesList({ profiles, eraLabel, formatDate, onEdit, onDelete 
         </li>
       ))}
     </ul>
-  )
+  );
 }

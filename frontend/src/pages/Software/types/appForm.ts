@@ -1,4 +1,4 @@
-import type { BaseSoftwareForm } from './softwareForm'
+import type { BaseSoftwareForm } from './softwareForm';
 
 // is_pc stays boolean, not string, unlike era/environment_item_id below,
 // since it's toggle-driven rather than a text/select control value and
@@ -8,20 +8,20 @@ import type { BaseSoftwareForm } from './softwareForm'
 // component keeps this in sync with era rather than exposing its own
 // checkbox for it.
 export interface SoftwareAppForm extends BaseSoftwareForm {
-  is_pc: boolean
-  era: string
-  environment_item_id: string
+  is_pc: boolean;
+  era: string;
+  environment_item_id: string;
 }
 
 export interface EditableAppCollection {
-  title: string
-  description: string | null
-  era: string
-  is_pc: boolean
-  environment_item_id: number | null
-  display_disk_id: number | null
-  launch_disk_id: number | null
-  items: { id: number; cover_art_path: string | null }[]
+  title: string;
+  description: string | null;
+  era: string;
+  is_pc: boolean;
+  environment_item_id: number | null;
+  display_disk_id: number | null;
+  launch_disk_id: number | null;
+  items: { id: number; cover_art_path: string | null }[];
 }
 
 // App is always a collection-of-one (see create_app_item_bundle), but cover
@@ -30,8 +30,8 @@ export interface EditableAppCollection {
 // in ../types.ts), confirmed against backend/models/app.py rather than
 // assumed, since Media's cover_art_path lives directly on the bundle instead.
 export function formFromCollection(c: EditableAppCollection): SoftwareAppForm {
-  const effectiveLeafId = c.display_disk_id ?? c.launch_disk_id
-  const leaf = c.items.find((i) => i.id === effectiveLeafId) ?? c.items[0]
+  const effectiveLeafId = c.display_disk_id ?? c.launch_disk_id;
+  const leaf = c.items.find((i) => i.id === effectiveLeafId) ?? c.items[0];
   return {
     title: c.title,
     description: c.description ?? '',
@@ -39,5 +39,5 @@ export function formFromCollection(c: EditableAppCollection): SoftwareAppForm {
     is_pc: c.is_pc,
     era: c.era && c.era !== 'unknown' ? c.era : '',
     environment_item_id: c.environment_item_id?.toString() ?? '',
-  }
+  };
 }

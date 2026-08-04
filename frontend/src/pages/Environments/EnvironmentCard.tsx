@@ -1,27 +1,27 @@
-import { useNavigate } from 'react-router-dom'
-import { Button } from '@/ui'
-import ConfirmModal from '@/components/common/ConfirmModal'
-import EmulatorStatus from '@/components/emulators/EmulatorStatus'
-import { ERA_LABELS } from '@/generated/constants'
-import type { components } from '@shared/types'
-import LaunchHistory from '@/components/launches/LaunchHistory'
-import { useLaunch } from '@/hooks/useLaunch'
-import { useEnvironmentInstalledToggle } from '@/hooks/useEnvironmentInstalledToggle'
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/ui';
+import ConfirmModal from '@/components/common/ConfirmModal';
+import EmulatorStatus from '@/components/emulators/EmulatorStatus';
+import { ERA_LABELS } from '@/generated/constants';
+import type { components } from '@shared/types';
+import LaunchHistory from '@/components/launches/LaunchHistory';
+import { useLaunch } from '@/hooks/useLaunch';
+import { useEnvironmentInstalledToggle } from '@/hooks/useEnvironmentInstalledToggle';
 
-type PlatformBase = components['schemas']['EnvironmentItemRead']
-type Platform = PlatformBase & { installed_at?: string | null }
+type PlatformBase = components['schemas']['EnvironmentItemRead'];
+type Platform = PlatformBase & { installed_at?: string | null };
 
 const EMULATOR_LABELS: Record<string, string> = {
   'dosbox-x': 'DOSBox-X',
   '86box': '86Box',
-}
+};
 
 interface EnvironmentCardProps {
-  platform: PlatformBase
-  healthLoading: boolean
-  onEdit: (platform: PlatformBase) => void
-  onDelete: (platform: PlatformBase) => void
-  onHealthCheck: (platform: PlatformBase) => void
+  platform: PlatformBase;
+  healthLoading: boolean;
+  onEdit: (platform: PlatformBase) => void;
+  onDelete: (platform: PlatformBase) => void;
+  onHealthCheck: (platform: PlatformBase) => void;
 }
 
 export default function EnvironmentCard({
@@ -31,14 +31,20 @@ export default function EnvironmentCard({
   onDelete,
   onHealthCheck,
 }: EnvironmentCardProps) {
-  const platform = platformBase as Platform
-  const navigate = useNavigate()
-  const eraLabel = ERA_LABELS[platform.era] ?? platform.era
-  const emulatorLabel = EMULATOR_LABELS[platform.emulator_slug] ?? platform.emulator_slug
-  const { launch, stop, isLaunching, error: launchError, launchWarnings } = useLaunch({
+  const platform = platformBase as Platform;
+  const navigate = useNavigate();
+  const eraLabel = ERA_LABELS[platform.era] ?? platform.era;
+  const emulatorLabel = EMULATOR_LABELS[platform.emulator_slug] ?? platform.emulator_slug;
+  const {
+    launch,
+    stop,
+    isLaunching,
+    error: launchError,
+    launchWarnings,
+  } = useLaunch({
     targetId: platform.id,
     targetType: 'environment',
-  })
+  });
 
   const {
     handleToggleInstalled,
@@ -48,15 +54,28 @@ export default function EnvironmentCard({
     confirmOptions: installedConfirmOptions,
     handleConfirm: handleInstalledConfirm,
     handleCancel: handleInstalledCancel,
-  } = useEnvironmentInstalledToggle({ environmentId: platform.id })
+  } = useEnvironmentInstalledToggle({ environmentId: platform.id });
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-surface-1 p-4 dark:border-neutral-700">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-medium text-neutral-900 dark:text-neutral-100">
-            <button type="button" onClick={() => navigate(`/environments/${platform.id}`)}
-              className="hover:underline" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 'inherit', fontSize: 'inherit', color: 'inherit', fontFamily: 'inherit' }}>
+            <button
+              type="button"
+              onClick={() => navigate(`/environments/${platform.id}`)}
+              className="hover:underline"
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                fontWeight: 'inherit',
+                fontSize: 'inherit',
+                color: 'inherit',
+                fontFamily: 'inherit',
+              }}
+            >
               {platform.name}
             </button>
           </h3>
@@ -169,5 +188,5 @@ export default function EnvironmentCard({
         onCancel={handleInstalledCancel}
       />
     </div>
-  )
+  );
 }

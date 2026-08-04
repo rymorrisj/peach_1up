@@ -2,7 +2,7 @@
 // string, matching the form-state convention (controlled input values), not
 // the raw collection's nullable types.
 export interface BaseSoftwareForm {
-  title: string
-  description: string
-  cover_art_path: string
+  title: string;
+  description: string;
+  cover_art_path: string;
 }

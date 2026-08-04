@@ -1,6 +1,6 @@
-import { EntityListPage } from './templates/EntityListPage'
-import { appDomainConfig } from './configs/appConfig'
+import { EntityListPage } from './templates/EntityListPage';
+import { appDomainConfig } from './configs/appConfig';
 
 export default function Apps() {
-  return <EntityListPage config={appDomainConfig} />
+  return <EntityListPage config={appDomainConfig} />;
 }

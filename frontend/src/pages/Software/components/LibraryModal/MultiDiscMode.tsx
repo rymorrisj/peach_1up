@@ -1,32 +1,32 @@
-import { useRef } from 'react'
-import type { DragEvent } from 'react'
-import { UploadCloud, ChevronUp, ChevronDown, X } from 'lucide-react'
-import { Input, Button } from '@/ui'
-import type { BackgroundJob } from '@/context/_AppContext'
-import ProgressBar from './ProgressBar'
-import type { StagedDisc } from './types'
+import { useRef } from 'react';
+import type { DragEvent } from 'react';
+import { UploadCloud, ChevronUp, ChevronDown, X } from 'lucide-react';
+import { Input, Button } from '@/ui';
+import type { BackgroundJob } from '@/context/_AppContext';
+import ProgressBar from './ProgressBar';
+import type { StagedDisc } from './types';
 
 interface MultiDiscModeProps {
-  busy: boolean
-  folderMode: boolean
-  acceptFileTypes?: string
-  setTitle: string
-  onSetTitleChange: (value: string) => void
-  folderName: string
-  onFolderNameChange: (value: string) => void
-  dragActive: boolean
-  onDragActiveChange: (active: boolean) => void
-  onFiles: (fileList: FileList) => void
-  onDiscFolderPick: (fileList: FileList) => void
-  stagedDiscs: StagedDisc[]
-  onMoveDisc: (id: string, dir: -1 | 1) => void
-  onRemoveDisc: (id: string) => void
-  setStatus: 'idle' | 'uploading' | 'success' | 'error'
-  setError: string | null
-  setProgress: number
-  setBackground: boolean
-  setJobId: string | null
-  backgroundJobs: BackgroundJob[]
+  busy: boolean;
+  folderMode: boolean;
+  acceptFileTypes?: string;
+  setTitle: string;
+  onSetTitleChange: (value: string) => void;
+  folderName: string;
+  onFolderNameChange: (value: string) => void;
+  dragActive: boolean;
+  onDragActiveChange: (active: boolean) => void;
+  onFiles: (fileList: FileList) => void;
+  onDiscFolderPick: (fileList: FileList) => void;
+  stagedDiscs: StagedDisc[];
+  onMoveDisc: (id: string, dir: -1 | 1) => void;
+  onRemoveDisc: (id: string) => void;
+  setStatus: 'idle' | 'uploading' | 'success' | 'error';
+  setError: string | null;
+  setProgress: number;
+  setBackground: boolean;
+  setJobId: string | null;
+  backgroundJobs: BackgroundJob[];
 }
 
 export default function MultiDiscMode({
@@ -51,16 +51,16 @@ export default function MultiDiscMode({
   setJobId,
   backgroundJobs,
 }: MultiDiscModeProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const discFolderInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const discFolderInputRef = useRef<HTMLInputElement>(null);
 
   function handleDrop(e: DragEvent<HTMLDivElement>) {
-    e.preventDefault()
-    onDragActiveChange(false)
-    if (e.dataTransfer.files?.length) onFiles(e.dataTransfer.files)
+    e.preventDefault();
+    onDragActiveChange(false);
+    if (e.dataTransfer.files?.length) onFiles(e.dataTransfer.files);
   }
 
-  const setJob = setJobId ? backgroundJobs.find((j) => j.id === setJobId) : undefined
+  const setJob = setJobId ? backgroundJobs.find((j) => j.id === setJobId) : undefined;
 
   return (
     <>
@@ -69,8 +69,8 @@ export default function MultiDiscMode({
           than switching to the separate single-folder auto-detect pipeline. */}
       {folderMode && (
         <p className="mb-3 text-xs text-neutral-400 dark:text-neutral-500">
-          Folder upload mode: select one folder per disc below (click "Select Disc
-          Folder…" once per disc, in order) instead of picking loose files.
+          Folder upload mode: select one folder per disc below (click "Select Disc Folder…" once per
+          disc, in order) instead of picking loose files.
         </p>
       )}
 
@@ -118,20 +118,25 @@ export default function MultiDiscMode({
             tabIndex={-1}
             aria-hidden="true"
             onChange={(e) => {
-              if (e.target.files?.length) onDiscFolderPick(e.target.files)
-              e.target.value = ''
+              if (e.target.files?.length) onDiscFolderPick(e.target.files);
+              e.target.value = '';
             }}
           />
         </div>
       ) : (
         <div
-          onDragOver={(e) => { e.preventDefault(); onDragActiveChange(true) }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            onDragActiveChange(true);
+          }}
           onDragLeave={() => onDragActiveChange(false)}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click() }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click();
+          }}
           className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center cursor-pointer transition-colors ${
             dragActive
               ? 'border-accent bg-accent/5'
@@ -154,8 +159,8 @@ export default function MultiDiscMode({
             tabIndex={-1}
             aria-hidden="true"
             onChange={(e) => {
-              if (e.target.files?.length) onFiles(e.target.files)
-              e.target.value = ''
+              if (e.target.files?.length) onFiles(e.target.files);
+              e.target.value = '';
             }}
           />
         </div>
@@ -170,7 +175,9 @@ export default function MultiDiscMode({
               className="flex items-center gap-2 rounded-md border border-neutral-700 bg-neutral-800/60 px-3 py-2"
             >
               <span className="w-5 shrink-0 font-mono text-xs text-neutral-500">{idx + 1}</span>
-              <span className="min-w-0 flex-1 truncate text-sm text-neutral-200">{disc.file.name}</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-neutral-200">
+                {disc.file.name}
+              </span>
               <div className="flex shrink-0 items-center gap-1">
                 <button
                   type="button"
@@ -218,30 +225,34 @@ export default function MultiDiscMode({
       {setStatus === 'success' && !setBackground && (
         <p className="mt-3 text-sm text-emerald-400">Set created successfully.</p>
       )}
-      {setStatus === 'success' && setBackground && (() => {
-        if (setJob?.status === 'error') {
-          return (
-            <p className="mt-3 text-sm text-red-400">
-              Finalizing failed: {setJob.error ?? 'Unknown error.'}
-            </p>
-          )
-        }
-        if (setJob && setJob.status !== 'done') {
-          const pct = Math.round((setJob.progress ?? 0) * 100)
-          return (
-            <div className="mt-3">
-              <p className="text-sm text-neutral-400">{setJob.message}</p>
-              <div className="mt-1">
-                <ProgressBar pct={pct} slow />
+      {setStatus === 'success' &&
+        setBackground &&
+        (() => {
+          if (setJob?.status === 'error') {
+            return (
+              <p className="mt-3 text-sm text-red-400">
+                Finalizing failed: {setJob.error ?? 'Unknown error.'}
+              </p>
+            );
+          }
+          if (setJob && setJob.status !== 'done') {
+            const pct = Math.round((setJob.progress ?? 0) * 100);
+            return (
+              <div className="mt-3">
+                <p className="text-sm text-neutral-400">{setJob.message}</p>
+                <div className="mt-1">
+                  <ProgressBar pct={pct} slow />
+                </div>
               </div>
-            </div>
-          )
-        }
-        return <p className="mt-3 text-sm text-emerald-400">Set created successfully.</p>
-      })()}
+            );
+          }
+          return <p className="mt-3 text-sm text-emerald-400">Set created successfully.</p>;
+        })()}
       {setStatus === 'error' && setError && (
-        <p role="alert" className="mt-3 text-sm text-red-400">{setError}</p>
+        <p role="alert" className="mt-3 text-sm text-red-400">
+          {setError}
+        </p>
       )}
     </>
-  )
+  );
 }

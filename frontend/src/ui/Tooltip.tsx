@@ -1,10 +1,10 @@
-import * as RadixTooltip from '@radix-ui/react-tooltip'
-import type { ReactNode } from 'react'
+import * as RadixTooltip from '@radix-ui/react-tooltip';
+import type { ReactNode } from 'react';
 
 interface TooltipProps {
-  content: ReactNode
-  children: ReactNode
-  side?: 'top' | 'right' | 'bottom' | 'left'
+  content: ReactNode;
+  children: ReactNode;
+  side?: 'top' | 'right' | 'bottom' | 'left';
 }
 
 export function Tooltip({ content, children, side = 'top' }: TooltipProps) {
@@ -24,5 +24,5 @@ export function Tooltip({ content, children, side = 'top' }: TooltipProps) {
         </RadixTooltip.Portal>
       </RadixTooltip.Root>
     </RadixTooltip.Provider>
-  )
+  );
 }

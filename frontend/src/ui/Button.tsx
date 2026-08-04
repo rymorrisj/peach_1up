@@ -1,13 +1,13 @@
-import { cn } from '@/lib/utils'
-import type { ButtonHTMLAttributes } from 'react'
+import { cn } from '@/lib/utils';
+import type { ButtonHTMLAttributes } from 'react';
 
-type Variant = 'primary' | 'secondary' | 'destructive' | 'ghost'
-type Size = 'sm' | 'md'
+type Variant = 'primary' | 'secondary' | 'destructive' | 'ghost';
+type Size = 'sm' | 'md';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: Variant
-  size?: Size
-  loading?: boolean
+  variant?: Variant;
+  size?: Size;
+  loading?: boolean;
 }
 
 const VARIANT: Record<Variant, string> = {
@@ -15,12 +15,12 @@ const VARIANT: Record<Variant, string> = {
   secondary: 'bg-surface-2 text-fg-2 hover:bg-surface-3',
   destructive: 'bg-error text-fg-inverse hover:opacity-90',
   ghost: 'text-fg-3 hover:bg-surface-2 hover:text-fg-1',
-}
+};
 
 const SIZE: Record<Size, string> = {
   sm: 'px-3 py-1.5 text-xs',
   md: 'px-[1em] py-[0.5em] text-sm',
-}
+};
 
 export function Button({
   variant = 'primary',
@@ -52,5 +52,5 @@ export function Button({
       )}
       {children}
     </button>
-  )
+  );
 }

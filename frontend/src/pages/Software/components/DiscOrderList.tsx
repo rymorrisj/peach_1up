@@ -1,14 +1,14 @@
-import { useState } from 'react'
-import type { DragEvent, ReactNode } from 'react'
-import { ChevronUp, ChevronDown, GripVertical } from 'lucide-react'
-import type { GameItemData } from './CollectionCard'
+import { useState } from 'react';
+import type { DragEvent, ReactNode } from 'react';
+import { ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
+import type { GameItemData } from './CollectionCard';
 
 interface DiscOrderListProps {
-  discs: GameItemData[]
-  order: number[]
-  onReorder: (order: number[]) => void
-  disabled?: boolean
-  renderActions?: (disc: GameItemData) => ReactNode
+  discs: GameItemData[];
+  order: number[];
+  onReorder: (order: number[]) => void;
+  disabled?: boolean;
+  renderActions?: (disc: GameItemData) => ReactNode;
 }
 
 // Reorderable disc list for the Library edit view. Reordering is local-only —
@@ -17,46 +17,52 @@ interface DiscOrderListProps {
 // (matches the drag-event pattern already used in LibraryModal.tsx) plus
 // up/down buttons for keyboard/accessibility, mirroring the same affordance
 // already used for staging discs before upload.
-export function DiscOrderList({ discs, order, onReorder, disabled, renderActions }: DiscOrderListProps) {
-  const [dragIndex, setDragIndex] = useState<number | null>(null)
-  const byId = new Map(discs.map((d) => [d.id, d]))
-  const ordered = order.map((id) => byId.get(id)).filter((d): d is GameItemData => !!d)
+export function DiscOrderList({
+  discs,
+  order,
+  onReorder,
+  disabled,
+  renderActions,
+}: DiscOrderListProps) {
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const byId = new Map(discs.map((d) => [d.id, d]));
+  const ordered = order.map((id) => byId.get(id)).filter((d): d is GameItemData => !!d);
 
   function move(fromIndex: number, toIndex: number) {
-    if (toIndex < 0 || toIndex >= order.length || fromIndex === toIndex) return
-    const next = [...order]
-    const [moved] = next.splice(fromIndex, 1)
-    next.splice(toIndex, 0, moved)
-    onReorder(next)
+    if (toIndex < 0 || toIndex >= order.length || fromIndex === toIndex) return;
+    const next = [...order];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    onReorder(next);
   }
 
   function handleDragStart(index: number) {
     return (e: DragEvent<HTMLLIElement>) => {
-      if (disabled) return
-      setDragIndex(index)
-      e.dataTransfer.effectAllowed = 'move'
-    }
+      if (disabled) return;
+      setDragIndex(index);
+      e.dataTransfer.effectAllowed = 'move';
+    };
   }
 
   function handleDragOver(e: DragEvent<HTMLLIElement>) {
-    if (disabled) return
-    e.preventDefault()
+    if (disabled) return;
+    e.preventDefault();
   }
 
   function handleDrop(index: number) {
     return (e: DragEvent<HTMLLIElement>) => {
-      if (disabled) return
-      e.preventDefault()
-      if (dragIndex !== null) move(dragIndex, index)
-      setDragIndex(null)
-    }
+      if (disabled) return;
+      e.preventDefault();
+      if (dragIndex !== null) move(dragIndex, index);
+      setDragIndex(null);
+    };
   }
 
   return (
     <ul className="space-y-1.5">
       {ordered.map((disc, idx) => {
-        const filename = disc.file_path.split(/[\\/]/).pop() ?? disc.file_path
-        const isLaunch = idx === 0
+        const filename = disc.file_path.split(/[\\/]/).pop() ?? disc.file_path;
+        const isLaunch = idx === 0;
         return (
           <li
             key={disc.id}
@@ -75,7 +81,9 @@ export function DiscOrderList({ discs, order, onReorder, disabled, renderActions
               aria-hidden="true"
             />
             <span className="w-5 shrink-0 font-mono text-xs text-neutral-500">{idx + 1}</span>
-            <span className="min-w-0 flex-1 truncate font-mono text-xs text-neutral-400">{filename}</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-xs text-neutral-400">
+              {filename}
+            </span>
             {isLaunch && (
               <span className="shrink-0 rounded-[4px] border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-mono text-[0.625rem] text-accent">
                 Launch target
@@ -103,8 +111,8 @@ export function DiscOrderList({ discs, order, onReorder, disabled, renderActions
             </div>
             {renderActions?.(disc)}
           </li>
-        )
+        );
       })}
     </ul>
-  )
+  );
 }

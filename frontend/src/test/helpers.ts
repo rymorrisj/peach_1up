@@ -1,11 +1,11 @@
-import React from 'react'
-import { render } from '@testing-library/react'
-import type { RenderResult } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AppProvider } from '@/context/AppContext'
-import { ToastProvider } from '@/ui/ToastProvider'
-import type { components } from '@shared/types'
-type LibraryCollection = components['schemas']['GameItemBundleRead']
+import React from 'react';
+import { render } from '@testing-library/react';
+import type { RenderResult } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppProvider } from '@/context/AppContext';
+import { ToastProvider } from '@/ui/ToastProvider';
+import type { components } from '@shared/types';
+type LibraryCollection = components['schemas']['GameItemBundleRead'];
 
 function createTestQueryClient() {
   return new QueryClient({
@@ -13,22 +13,18 @@ function createTestQueryClient() {
       queries: { retry: false },
       mutations: { retry: false },
     },
-  })
+  });
 }
 
 export function renderWithProviders(ui: React.ReactElement): RenderResult {
-  const queryClient = createTestQueryClient()
+  const queryClient = createTestQueryClient();
   return render(
     React.createElement(
       QueryClientProvider,
       { client: queryClient },
-      React.createElement(
-        ToastProvider,
-        null,
-        React.createElement(AppProvider, null, ui),
-      ),
+      React.createElement(ToastProvider, null, React.createElement(AppProvider, null, ui)),
     ),
-  )
+  );
 }
 
 // Builds a collection-of-one (single leaf) — the unified library read shape.
@@ -49,7 +45,7 @@ export function createMockLibraryItem(overrides?: Partial<LibraryCollection>): L
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
-  } as LibraryCollection
+  } as LibraryCollection;
   // Provide a single leaf so CollectionCard/CollectionDetail can render, unless
   // the caller supplied their own items array.
   if (!('items' in (overrides ?? {}))) {
@@ -61,9 +57,9 @@ export function createMockLibraryItem(overrides?: Partial<LibraryCollection>): L
         media_path: '/images/test.iso',
         cover_art_url: null,
       },
-    ] as LibraryCollection['items']
+    ] as LibraryCollection['items'];
   }
-  return base
+  return base;
 }
 
-export const createMockCollection = createMockLibraryItem
+export const createMockCollection = createMockLibraryItem;

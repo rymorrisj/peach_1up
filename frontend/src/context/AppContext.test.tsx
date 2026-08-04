@@ -1,25 +1,25 @@
-import { screen, waitFor } from '@testing-library/react'
-import { render } from '@testing-library/react'
-import { AppProvider } from '@/context/AppContext'
-import { useAppContext } from '@/context/useAppContext'
-import { apiFetch, ApiError } from '@/api/client'
-import type { components } from '@shared/types'
+import { screen, waitFor } from '@testing-library/react';
+import { render } from '@testing-library/react';
+import { AppProvider } from '@/context/AppContext';
+import { useAppContext } from '@/context/useAppContext';
+import { apiFetch, ApiError } from '@/api/client';
+import type { components } from '@shared/types';
 
-type UserRead = components['schemas']['UserItemRead']
+type UserRead = components['schemas']['UserItemRead'];
 
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
   ApiError: class ApiError extends Error {
-    status: number
-    detail: string
+    status: number;
+    detail: string;
     constructor(status: number, detail: string) {
-      super(detail)
-      this.status = status
-      this.detail = detail
-      this.name = 'ApiError'
+      super(detail);
+      this.status = status;
+      this.detail = detail;
+      this.name = 'ApiError';
     }
   },
-}))
+}));
 
 const OWNER: UserRead = {
   id: 1,
@@ -35,16 +35,16 @@ const OWNER: UserRead = {
   is_locked: false,
   failed_pin_attempts: 0,
   created_at: '2024-01-01T00:00:00Z',
-} as UserRead
+} as UserRead;
 
 function Probe() {
-  const { state } = useAppContext()
+  const { state } = useAppContext();
   return (
     <div>
       <div data-testid="active-user">{state.activeUser ? state.activeUser.name : 'none'}</div>
       <div data-testid="show-unauth-modal">{String(state.showUnauthModal)}</div>
     </div>
-  )
+  );
 }
 
 function renderProbe() {
@@ -52,43 +52,43 @@ function renderProbe() {
     <AppProvider>
       <Probe />
     </AppProvider>,
-  )
+  );
 }
 
 describe('AppContext initial auth check', () => {
   afterEach(() => {
-    vi.resetAllMocks()
-  })
+    vi.resetAllMocks();
+  });
 
   it('sets the active user in context after a successful /api/v1/auth/me response', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (url === '/api/v1/auth/me') return Promise.resolve(OWNER)
-      if (url === '/api/v1/auth/refresh') return Promise.resolve({ user: OWNER })
-      return Promise.resolve([])
-    })
+      if (url === '/api/v1/auth/me') return Promise.resolve(OWNER);
+      if (url === '/api/v1/auth/refresh') return Promise.resolve({ user: OWNER });
+      return Promise.resolve([]);
+    });
 
-    renderProbe()
+    renderProbe();
 
     await waitFor(() => {
-      expect(screen.getByTestId('active-user')).toHaveTextContent('Owner')
-    })
-    expect(screen.getByTestId('show-unauth-modal')).toHaveTextContent('false')
-  })
+      expect(screen.getByTestId('active-user')).toHaveTextContent('Owner');
+    });
+    expect(screen.getByTestId('show-unauth-modal')).toHaveTextContent('false');
+  });
 
   it('clears the active user and shows the unauth modal on a 401 from /api/v1/auth/me', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
-      if (url === '/api/v1/auth/me') return Promise.reject(new ApiError(401, 'Not authenticated'))
-      return Promise.resolve([])
-    })
+      if (url === '/api/v1/auth/me') return Promise.reject(new ApiError(401, 'Not authenticated'));
+      return Promise.resolve([]);
+    });
 
-    renderProbe()
+    renderProbe();
 
     await waitFor(() => {
-      expect(screen.getByTestId('show-unauth-modal')).toHaveTextContent('true')
-    })
-    expect(screen.getByTestId('active-user')).toHaveTextContent('none')
-  })
-})
+      expect(screen.getByTestId('show-unauth-modal')).toHaveTextContent('true');
+    });
+    expect(screen.getByTestId('active-user')).toHaveTextContent('none');
+  });
+});
 
 // Note: the spec for this file also asked for a case covering a redirect to
 // "/setup" when first_run_complete is false. That logic is not part of

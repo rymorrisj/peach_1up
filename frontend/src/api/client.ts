@@ -11,23 +11,21 @@ export class ApiError extends Error {
     this.status = status;
     this.detail = detail;
     this.rawDetail = rawDetail;
-    this.name = "ApiError";
+    this.name = 'ApiError';
   }
 }
 
 export class TimeoutError extends Error {
   constructor() {
-    super("Request timed out");
-    this.name = "TimeoutError";
+    super('Request timed out');
+    this.name = 'TimeoutError';
   }
 }
 
-const baseURL =
-  (import.meta.env.VITE_API_URL as string | undefined) ??
-  "http://localhost:8000";
+const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
 
 export function getCsrfToken(): string {
-  const pair = document.cookie.split('; ').find(c => c.startsWith('peach_csrf='));
+  const pair = document.cookie.split('; ').find((c) => c.startsWith('peach_csrf='));
   return pair ? pair.slice('peach_csrf='.length) : '';
 }
 
@@ -53,8 +51,8 @@ class ApiClient {
   async fetch<T>(path: string, init: ApiFetchOptions = {}): Promise<T> {
     const { timeoutMs, abortKey, ...requestInit } = init;
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "X-Request-ID": crypto.randomUUID(),
+      'Content-Type': 'application/json',
+      'X-Request-ID': crypto.randomUUID(),
       ...(requestInit.headers as Record<string, string> | undefined),
     };
 
@@ -82,13 +80,13 @@ class ApiClient {
       res = await fetch(`${baseURL}${path}`, {
         ...requestInit,
         headers,
-        credentials: "include",
+        credentials: 'include',
         signal: controller.signal,
       });
     } catch (err) {
       clearTimeout(timeoutId);
       releaseAbortKey();
-      if (err instanceof DOMException && err.name === "AbortError") {
+      if (err instanceof DOMException && err.name === 'AbortError') {
         throw new TimeoutError();
       }
       throw err;
@@ -100,7 +98,7 @@ class ApiClient {
       const isSessionError = res.status === 401;
 
       if (isSessionError) {
-        window.dispatchEvent(new CustomEvent("session-expired"));
+        window.dispatchEvent(new CustomEvent('session-expired'));
       }
 
       let detail = res.statusText;
@@ -109,9 +107,13 @@ class ApiClient {
         const body = (await res.json()) as { detail?: unknown };
         const raw = body.detail;
         rawDetail = raw;
-        if (typeof raw === "string") {
+        if (typeof raw === 'string') {
           detail = raw;
-        } else if (raw != null && typeof raw === "object" && typeof (raw as { message?: unknown }).message === "string") {
+        } else if (
+          raw != null &&
+          typeof raw === 'object' &&
+          typeof (raw as { message?: unknown }).message === 'string'
+        ) {
           // Structured error bodies (e.g. { error_type, message, ... }) still
           // render as plain text here — only rawDetail carries the extra fields.
           detail = (raw as { message: string }).message;
@@ -123,7 +125,7 @@ class ApiClient {
       }
 
       if (!isSessionError) {
-        window.dispatchEvent(new CustomEvent("api-error", { detail }));
+        window.dispatchEvent(new CustomEvent('api-error', { detail }));
       }
 
       throw new ApiError(res.status, detail, rawDetail);

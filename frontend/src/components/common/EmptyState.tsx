@@ -1,13 +1,13 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from 'react';
 
 interface EmptyStateProps {
-  icon?: ReactNode
-  heading: string
-  subtext?: string
+  icon?: ReactNode;
+  heading: string;
+  subtext?: string;
   cta?: {
-    label: string
-    onClick: () => void
-  }
+    label: string;
+    onClick: () => void;
+  };
 }
 
 export default function EmptyState({ icon, heading, subtext, cta }: EmptyStateProps) {
@@ -32,5 +32,5 @@ export default function EmptyState({ icon, heading, subtext, cta }: EmptyStatePr
         </button>
       )}
     </section>
-  )
+  );
 }

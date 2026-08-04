@@ -7,34 +7,34 @@
  * User flow: page loads → emulator cards appear → user clicks "Auto-detect"
  * → page remains stable (no crash, cards still visible).
  */
-import { screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
-import { render } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AppProvider } from '@/context/AppContext'
-import Emulators from '@/pages/Emulators/Emulators'
-import { apiFetch } from '@/api/client'
-import type { components } from '@shared/types'
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+import { render } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppProvider } from '@/context/AppContext';
+import Emulators from '@/pages/Emulators/Emulators';
+import { apiFetch } from '@/api/client';
+import type { components } from '@shared/types';
 
-type CatalogEntry = components['schemas']['CatalogEntryResponse']
+type CatalogEntry = components['schemas']['CatalogEntryResponse'];
 
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
   ApiError: class ApiError extends Error {
-    status: number
-    detail: string
+    status: number;
+    detail: string;
     constructor(status: number, detail: string) {
-      super(detail)
-      this.status = status
-      this.detail = detail
-      this.name = 'ApiError'
+      super(detail);
+      this.status = status;
+      this.detail = detail;
+      this.name = 'ApiError';
     }
   },
-}))
+}));
 
 function renderPage() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
@@ -43,7 +43,7 @@ function renderPage() {
         </AppProvider>
       </QueryClientProvider>
     </MemoryRouter>,
-  )
+  );
 }
 
 const CATALOG: CatalogEntry[] = [
@@ -81,35 +81,35 @@ const CATALOG: CatalogEntry[] = [
     skip_memory_limit: false,
     known_limitations: [],
   },
-]
+];
 
 describe('Emulators acceptance', () => {
   afterEach(() => {
-    vi.resetAllMocks()
-  })
+    vi.resetAllMocks();
+  });
 
   it('loads emulator cards and the Auto-detect button remains functional', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup();
     vi.mocked(apiFetch).mockImplementation((url) => {
       if (typeof url === 'string' && url.includes('/api/v1/emulator-items')) {
-        return Promise.resolve(CATALOG)
+        return Promise.resolve(CATALOG);
       }
-      return Promise.resolve([])
-    })
+      return Promise.resolve([]);
+    });
 
-    renderPage()
+    renderPage();
 
     // Primary content appears after load
     await waitFor(() => {
-      expect(screen.getByText('DOSBox-X')).toBeInTheDocument()
-      expect(screen.getByText('DuckStation')).toBeInTheDocument()
-    })
+      expect(screen.getByText('DOSBox-X')).toBeInTheDocument();
+      expect(screen.getByText('DuckStation')).toBeInTheDocument();
+    });
 
     // User clicks Auto-detect — this invalidates the query; no crash expected
-    const autoDetectBtn = screen.getByRole('button', { name: /auto-detect/i })
-    await user.click(autoDetectBtn)
+    const autoDetectBtn = screen.getByRole('button', { name: /auto-detect/i });
+    await user.click(autoDetectBtn);
 
     // Cards should still be present after the action
-    expect(screen.getByText('DOSBox-X')).toBeInTheDocument()
-  })
-})
+    expect(screen.getByText('DOSBox-X')).toBeInTheDocument();
+  });
+});

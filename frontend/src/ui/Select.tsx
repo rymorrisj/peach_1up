@@ -38,36 +38,36 @@
 //   id?: string          forwarded to the trigger, pair with FormField's htmlFor
 //   className?: string   merged onto the trigger
 
-import * as RadixSelect from '@radix-ui/react-select'
-import { Check, ChevronDown } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import * as RadixSelect from '@radix-ui/react-select';
+import { Check, ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export interface SelectOption {
-  value: string
-  label: string
-  disabled?: boolean
+  value: string;
+  label: string;
+  disabled?: boolean;
 }
 
 export interface SelectOptionGroup {
-  groupLabel: string
-  options: SelectOption[]
+  groupLabel: string;
+  options: SelectOption[];
 }
 
-type SelectEntry = SelectOption | SelectOptionGroup
+type SelectEntry = SelectOption | SelectOptionGroup;
 
 function isGroup(entry: SelectEntry): entry is SelectOptionGroup {
-  return 'groupLabel' in entry
+  return 'groupLabel' in entry;
 }
 
 interface SelectProps {
-  value?: string
-  onValueChange?: (value: string) => void
-  options: SelectEntry[]
-  placeholder?: string
-  disabled?: boolean
-  hasError?: boolean
-  id?: string
-  className?: string
+  value?: string;
+  onValueChange?: (value: string) => void;
+  options: SelectEntry[];
+  placeholder?: string;
+  disabled?: boolean;
+  hasError?: boolean;
+  id?: string;
+  className?: string;
 }
 
 function SelectItemRow({ option }: { option: SelectOption }) {
@@ -82,7 +82,7 @@ function SelectItemRow({ option }: { option: SelectOption }) {
         <Check size={14} className="text-accent" />
       </RadixSelect.ItemIndicator>
     </RadixSelect.Item>
-  )
+  );
 }
 
 export function Select({
@@ -138,5 +138,5 @@ export function Select({
         </RadixSelect.Content>
       </RadixSelect.Portal>
     </RadixSelect.Root>
-  )
+  );
 }

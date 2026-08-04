@@ -9,7 +9,7 @@ html {
   font-size: calc(100% * var(--font-scale));
 }
 
-[data-skin="peach-classic"] {
+[data-skin='peach-classic'] {
   /* Font scale lives here, not in the light/dark override block below, so
      it is skin-independent and a user's scale preference survives a
      theme or skin switch. Applied via the html{} rule further down,
@@ -28,7 +28,7 @@ html {
   --surface-1: 19 24 32;
   --surface-2: 28 34 48;
   --surface-3: 38 46 62;
-  --border:    42 49 66;
+  --border: 42 49 66;
   --border-strong: 59 67 88;
 
   --fg-1: 243 238 231;
@@ -47,10 +47,10 @@ html {
 
   --success: 110 208 154;
   --warning: 255 181 71;
-  --error:   255 106 85;
-  --info:    106 169 214;
+  --error: 255 106 85;
+  --info: 106 169 214;
 
-  --era-dos:   214 166 74;
+  --era-dos: 214 166 74;
   --era-win95: 182 211 107;
   --era-win98: 110 168 214;
   --era-winxp: 102 178 122;
@@ -59,10 +59,10 @@ html {
      generated/constants.ts TAG_COLOR_HEX (config/constants.yaml), do not
      hand-edit these to a different value than that source of truth. */
   --tag-color-1: 122 132 153; /* slate */
-  --tag-color-2: 224 116 99;  /* coral */
-  --tag-color-3: 212 149 74;  /* amber */
-  --tag-color-4: 89 184 122;  /* mint */
-  --tag-color-5: 91 164 207;  /* sky */
+  --tag-color-2: 224 116 99; /* coral */
+  --tag-color-3: 212 149 74; /* amber */
+  --tag-color-4: 89 184 122; /* mint */
+  --tag-color-5: 91 164 207; /* sky */
   --tag-color-6: 139 109 196; /* violet */
   --tag-color-7: 196 109 139; /* rose */
 
@@ -81,18 +81,18 @@ html {
   --dur-base: 220ms;
   --dur-slow: 320ms;
 
-  --font-display: "Space Grotesk", "IBM Plex Sans", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  --font-display: 'Space Grotesk', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
 }
 
 /* Light theme, explicit override. Only reached when .dark is absent from
    the root element, i.e. the user has actively switched to light. */
-[data-skin="peach-classic"]:not(.dark) {
+[data-skin='peach-classic']:not(.dark) {
   --surface-0: 250 248 245;
   --surface-1: 242 239 234;
   --surface-2: 232 228 221;
   --surface-3: 222 218 210;
-  --border:    205 200 191;
+  --border: 205 200 191;
   --border-strong: 184 178 168;
 
   --fg-1: 28 26 23;
@@ -102,7 +102,7 @@ html {
   --topbar-glass: rgb(250 248 245 / 0.85);
 
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.08);
-  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.10);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 12px 28px rgb(0 0 0 / 0.14);
 }
 
@@ -133,12 +133,22 @@ a:active {
 
 /* Health dot pulse */
 @keyframes health-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 /* Launching pill pulse */
 @keyframes dot-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }

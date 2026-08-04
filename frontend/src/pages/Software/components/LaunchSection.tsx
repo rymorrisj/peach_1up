@@ -1,18 +1,18 @@
-import type { ReactNode } from 'react'
-import { Button } from '@/ui'
+import type { ReactNode } from 'react';
+import { Button } from '@/ui';
 
 interface LaunchSectionProps {
-  onLaunch: () => void
-  launching?: boolean
-  launchDisabled?: boolean
-  launchButtonLabel?: string
+  onLaunch: () => void;
+  launching?: boolean;
+  launchDisabled?: boolean;
+  launchButtonLabel?: string;
   /** Note rendered directly below the launch button */
-  launchNote?: ReactNode
-  launchSuccess?: boolean
-  launchWarnings?: string[]
-  launchError?: string | null
+  launchNote?: ReactNode;
+  launchSuccess?: boolean;
+  launchWarnings?: string[];
+  launchError?: string | null;
   /** Rendered directly below the launch error (e.g. a "Convert with extract-xiso" action) */
-  launchErrorAction?: ReactNode
+  launchErrorAction?: ReactNode;
 }
 
 // Callers only render this when they have an onLaunch handler — see the
@@ -63,5 +63,5 @@ export function LaunchSection({
 
       {launchError && launchErrorAction}
     </section>
-  )
+  );
 }

@@ -11,5 +11,5 @@ export function resolveLaunchCommands(
   launchCommands: string[] | null | undefined,
   storedLaunchCommands: string[] | null | undefined,
 ): string[] | null {
-  return launchCommands === undefined ? (storedLaunchCommands ?? null) : launchCommands
+  return launchCommands === undefined ? (storedLaunchCommands ?? null) : launchCommands;
 }

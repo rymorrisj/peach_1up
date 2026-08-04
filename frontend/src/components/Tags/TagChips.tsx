@@ -1,20 +1,20 @@
-import { swatchHex } from './swatches'
-import type { components } from '@shared/types'
-type TagRead = components['schemas']['TagRead']
+import { swatchHex } from './swatches';
+import type { components } from '@shared/types';
+type TagRead = components['schemas']['TagRead'];
 
 interface Props {
-  tags: TagRead[]
-  onRemove?: (tagId: number) => void
+  tags: TagRead[];
+  onRemove?: (tagId: number) => void;
 }
 
 export default function TagChips({ tags, onRemove }: Props) {
   if (tags.length === 0) {
-    return <span className="text-sm text-neutral-400 dark:text-neutral-500">No tags.</span>
+    return <span className="text-sm text-neutral-400 dark:text-neutral-500">No tags.</span>;
   }
   return (
     <div className="flex flex-wrap gap-2">
       {tags.map((tag) => {
-        const hex = swatchHex(tag.color)
+        const hex = swatchHex(tag.color);
         return (
           <span
             key={tag.id}
@@ -39,8 +39,8 @@ export default function TagChips({ tags, onRemove }: Props) {
               </button>
             )}
           </span>
-        )
+        );
       })}
     </div>
-  )
+  );
 }

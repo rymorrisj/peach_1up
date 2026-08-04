@@ -1,17 +1,17 @@
-import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { apiFetch, ApiError } from '@/api/client'
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiFetch, ApiError } from '@/api/client';
 
-type VerificationStatus = 'verified' | 'caution' | 'not_in_index' | 'mismatch' | 'unchecked'
+type VerificationStatus = 'verified' | 'caution' | 'not_in_index' | 'mismatch' | 'unchecked';
 
 interface VerifyGameCollectionResponse {
-  verification_status: VerificationStatus
-  verification_similarity: number | null
+  verification_status: VerificationStatus;
+  verification_similarity: number | null;
 }
 
 interface UseVerifyGameCollectionOptions {
-  collectionId: number | undefined
-  detailQueryKey: unknown[]
+  collectionId: number | undefined;
+  detailQueryKey: unknown[];
 }
 
 // On-demand re-check of every disc in a collection against the hash index,
@@ -20,31 +20,34 @@ interface UseVerifyGameCollectionOptions {
 // _prepare_item / _create_multi_disc_collection). Bundle-scoped rather than
 // per-leaf, since a multi-disc game's true state is the worst state among
 // all its discs, re-verifying only the launch disc would miss a bad disc 2.
-export function useVerifyGameCollection({ collectionId, detailQueryKey }: UseVerifyGameCollectionOptions) {
-  const queryClient = useQueryClient()
-  const [verifying, setVerifying] = useState(false)
-  const [verifyError, setVerifyError] = useState<string | null>(null)
-  const [lastResultStatus, setLastResultStatus] = useState<VerificationStatus | null>(null)
-  const [lastResultSimilarity, setLastResultSimilarity] = useState<number | null>(null)
+export function useVerifyGameCollection({
+  collectionId,
+  detailQueryKey,
+}: UseVerifyGameCollectionOptions) {
+  const queryClient = useQueryClient();
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [lastResultStatus, setLastResultStatus] = useState<VerificationStatus | null>(null);
+  const [lastResultSimilarity, setLastResultSimilarity] = useState<number | null>(null);
 
   async function handleVerify() {
-    if (collectionId == null) return
-    setVerifying(true)
-    setVerifyError(null)
+    if (collectionId == null) return;
+    setVerifying(true);
+    setVerifyError(null);
     try {
       const result = await apiFetch<VerifyGameCollectionResponse>(
         `/api/v1/game-item-bundle/${collectionId}/verify`,
         { method: 'POST' },
-      )
-      setLastResultStatus(result.verification_status)
-      setLastResultSimilarity(result.verification_similarity)
-      queryClient.invalidateQueries({ queryKey: detailQueryKey })
+      );
+      setLastResultStatus(result.verification_status);
+      setLastResultSimilarity(result.verification_similarity);
+      queryClient.invalidateQueries({ queryKey: detailQueryKey });
     } catch (err) {
-      setVerifyError(err instanceof ApiError ? err.detail : 'Failed to verify.')
+      setVerifyError(err instanceof ApiError ? err.detail : 'Failed to verify.');
     } finally {
-      setVerifying(false)
+      setVerifying(false);
     }
   }
 
-  return { verifying, verifyError, lastResultStatus, lastResultSimilarity, handleVerify }
+  return { verifying, verifyError, lastResultStatus, lastResultSimilarity, handleVerify };
 }

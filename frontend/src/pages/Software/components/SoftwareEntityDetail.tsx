@@ -1,114 +1,114 @@
-import type { ComponentProps, ReactNode } from 'react'
-import { Link } from 'react-router-dom'
-import TopBar from '@/components/layout/TopBar'
-import { Card } from '@/ui'
-import { ERA_LABEL, ERA_COLOR, ERA_PLACEHOLDER, ERA_PLACEHOLDER_DEFAULT } from '@/types/era'
-import { RestrictionsSection } from './RestrictionsSection'
-import { LaunchHistorySection } from './LaunchHistory'
-import { LaunchSection } from './LaunchSection'
-import { TagsSection } from './TagsSection'
-import { EditForm } from './EditForm'
-import { AdvancedSection } from './AdvancedSection'
-import { parseNaiveUtc } from '@/lib/date'
-import type { components } from '@shared/types'
+import type { ComponentProps, ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import TopBar from '@/components/layout/TopBar';
+import { Card } from '@/ui';
+import { ERA_LABEL, ERA_COLOR, ERA_PLACEHOLDER, ERA_PLACEHOLDER_DEFAULT } from '@/types/era';
+import { RestrictionsSection } from './RestrictionsSection';
+import { LaunchHistorySection } from './LaunchHistory';
+import { LaunchSection } from './LaunchSection';
+import { TagsSection } from './TagsSection';
+import { EditForm } from './EditForm';
+import { AdvancedSection } from './AdvancedSection';
+import { parseNaiveUtc } from '@/lib/date';
+import type { components } from '@shared/types';
 
-type User = components['schemas']['UserItemRead']
-type LaunchHistory = components['schemas']['LaunchHistoryRead']
+type User = components['schemas']['UserItemRead'];
+type LaunchHistory = components['schemas']['LaunchHistoryRead'];
 
 // Local to this file since it has one caller (the Media Size stat below), not
 // worth promoting to a shared lib for a single 4-line consumer. Mirrors
 // System/Health.tsx's own formatBytes, kept independent rather than shared
 // since the two have no other coupling.
 function formatBytes(n: number): string {
-  if (n >= 1_073_741_824) return `${(n / 1_073_741_824).toFixed(1)} GB`
-  if (n >= 1_048_576) return `${(n / 1_048_576).toFixed(0)} MB`
-  if (n >= 1_024) return `${(n / 1_024).toFixed(0)} KB`
-  return `${n} B`
+  if (n >= 1_073_741_824) return `${(n / 1_073_741_824).toFixed(1)} GB`;
+  if (n >= 1_048_576) return `${(n / 1_048_576).toFixed(0)} MB`;
+  if (n >= 1_024) return `${(n / 1_024).toFixed(0)} KB`;
+  return `${n} B`;
 }
 
 interface RestrictionsProps {
-  users: User[]
-  restrictedIds: Set<number>
-  restrictionsDirty: boolean
-  toggleRestriction: (userId: number) => void
-  onSave: () => void
-  saving: boolean
-  error: string | null
+  users: User[];
+  restrictedIds: Set<number>;
+  restrictionsDirty: boolean;
+  toggleRestriction: (userId: number) => void;
+  onSave: () => void;
+  saving: boolean;
+  error: string | null;
 }
 
 interface SoftwareEntityDetailProps {
-  title: string
+  title: string;
   /** Raw era slug (e.g. "ps1"), omitted entirely for domains with no era
    * concept (Media). Used to render the header's era chip via types/era.ts,
    * the same token/color source the grid cards already use. */
-  era?: string
-  year?: number | null
-  publisher?: string | null
+  era?: string;
+  year?: number | null;
+  publisher?: string | null;
   /** Header thumbnail. Same resolver every grid card already uses
    * (config.coverArt), just not previously threaded into the detail page.
    * Falls back to an era-tinted placeholder (types/era.ts) when null,
    * matching the grid cards' own placeholder treatment. */
-  coverArtUrl?: string | null
-  launchCount?: number
-  lastLaunchedAt?: string | null
+  coverArtUrl?: string | null;
+  launchCount?: number;
+  lastLaunchedAt?: string | null;
   /** At a Glance stat: real backing field (bundle.installed on Game/App),
    * omitted entirely (no tile rendered) when the domain doesn't supply one
    * rather than defaulting to false, so an unwired domain shows no tile
    * instead of a fabricated "No". */
-  installedStatus?: boolean
+  installedStatus?: boolean;
   /** At a Glance stat: summed from real per-item file_size_bytes fields
    * client-side (no bundle-level total exists in the API). Omitted or 0
    * renders no tile — see formatBytes call site for the > 0 gate. */
-  mediaSizeBytes?: number | null
+  mediaSizeBytes?: number | null;
   /** Rendered just below the header (e.g. the "delete media on removal"
    * danger-zone block) */
-  topControl?: ReactNode
+  topControl?: ReactNode;
   /** Extra read-only rows inserted before the launches row in the compact
    * meta line (e.g. slug, path) */
-  metaBefore?: ReactNode
+  metaBefore?: ReactNode;
   /** Extra read-only rows inserted after the launches row (e.g. genre,
    * developer, DOS install toggle) */
-  metaAfter?: ReactNode
+  metaAfter?: ReactNode;
   /** Tags section props — renders TagsSection when provided */
-  tags?: ComponentProps<typeof TagsSection>
+  tags?: ComponentProps<typeof TagsSection>;
   /** Edit form props — renders EditForm when provided. EditForm owns its own
    * internal Profile card and Save button, this slot is not wrapped in an
    * extra card here. */
-  editForm?: ComponentProps<typeof EditForm>
+  editForm?: ComponentProps<typeof EditForm>;
   /** Pre-rendered edit form content, for domains whose edit form isn't
    * EditForm (Media, App), rendered in the same slot position as editForm */
-  editFormContent?: ReactNode
+  editFormContent?: ReactNode;
   /** Advanced section props — renders AdvancedSection when provided */
-  advancedSection?: ComponentProps<typeof AdvancedSection>
+  advancedSection?: ComponentProps<typeof AdvancedSection>;
   /** Metadata actions (Fetch Metadata, Cover Art), rendered inside its own
    * Metadata card */
-  fetchMetadataAction?: ReactNode
+  fetchMetadataAction?: ReactNode;
   /** Extra content between the form sections and launch (e.g. disc list for sets) */
-  beforeLaunch?: ReactNode
+  beforeLaunch?: ReactNode;
   /** When omitted, the Launch section doesn't render at all (e.g. Media has no launch capability) */
-  onLaunch?: () => void
-  launching?: boolean
-  launchDisabled?: boolean
-  launchButtonLabel?: string
+  onLaunch?: () => void;
+  launching?: boolean;
+  launchDisabled?: boolean;
+  launchButtonLabel?: string;
   /** Note rendered directly below the launch button */
-  launchNote?: ReactNode
-  launchSuccess?: boolean
-  launchWarnings?: string[]
-  launchError?: string | null
+  launchNote?: ReactNode;
+  launchSuccess?: boolean;
+  launchWarnings?: string[];
+  launchError?: string | null;
   /** Rendered directly below the launch error (e.g. a "Convert with extract-xiso" action) */
-  launchErrorAction?: ReactNode
+  launchErrorAction?: ReactNode;
   /** When provided, renders the Restrictions section after launch */
-  restrictions?: RestrictionsProps
+  restrictions?: RestrictionsProps;
   /** Launch session history — renders when non-empty */
-  launchHistory?: LaunchHistory[]
+  launchHistory?: LaunchHistory[];
   /** Owner/admin only: enables bulk-select + delete on the session history. */
-  launchHistoryCanDelete?: boolean
+  launchHistoryCanDelete?: boolean;
   /** Extra full-width sections rendered after the two-column body, before
    * launch history (e.g. Media's file list, Linked Items). Kept inside this
    * component's own max-w-5xl/space-y-6 flow so it isn't pushed below the
    * min-h-full header/body, which would otherwise leave it stranded past a
    * full viewport of blank space on short pages. */
-  afterContent?: ReactNode
+  afterContent?: ReactNode;
 }
 
 export function SoftwareEntityDetail({
@@ -144,11 +144,13 @@ export function SoftwareEntityDetail({
   launchHistoryCanDelete,
   afterContent,
 }: SoftwareEntityDetailProps) {
-  const eraCode = era && era !== 'unknown' ? (ERA_LABEL[era] ?? era.toUpperCase()) : null
-  const eraColor = era ? (ERA_COLOR[eraCode ?? ''] ?? undefined) : undefined
-  const hasChipLine = eraCode || year || publisher
-  const placeholderStyle = era ? (ERA_PLACEHOLDER[era] ?? ERA_PLACEHOLDER_DEFAULT) : ERA_PLACEHOLDER_DEFAULT
-  const hasAtAGlance = installedStatus != null || (mediaSizeBytes != null && mediaSizeBytes > 0)
+  const eraCode = era && era !== 'unknown' ? (ERA_LABEL[era] ?? era.toUpperCase()) : null;
+  const eraColor = era ? (ERA_COLOR[eraCode ?? ''] ?? undefined) : undefined;
+  const hasChipLine = eraCode || year || publisher;
+  const placeholderStyle = era
+    ? (ERA_PLACEHOLDER[era] ?? ERA_PLACEHOLDER_DEFAULT)
+    : ERA_PLACEHOLDER_DEFAULT;
+  const hasAtAGlance = installedStatus != null || (mediaSizeBytes != null && mediaSizeBytes > 0);
 
   return (
     <div className="flex flex-col min-h-full">
@@ -156,13 +158,15 @@ export function SoftwareEntityDetail({
 
       <div className="p-6">
         <div className="mb-6">
-          <Link to="/software" className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200">
+          <Link
+            to="/software"
+            className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+          >
             ← Software
           </Link>
         </div>
 
         <div className="max-w-5xl space-y-6">
-
           {/* ── Header, not inside a card: cover art thumbnail left, title/era middle, Launch right (omitted entirely when onLaunch isn't supplied, e.g. Media) ── */}
           <div className="flex items-start gap-4">
             <div
@@ -231,7 +235,6 @@ export function SoftwareEntityDetail({
 
           {/* ── Two-column body ── */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
-
             <div className="min-w-0 space-y-6">
               {editForm && <EditForm {...editForm} />}
               {editFormContent}
@@ -296,15 +299,13 @@ export function SoftwareEntityDetail({
 
               {topControl}
             </div>
-
           </div>
 
           {afterContent}
 
           <LaunchHistorySection history={launchHistory ?? []} canDelete={launchHistoryCanDelete} />
-
         </div>
       </div>
     </div>
-  )
+  );
 }

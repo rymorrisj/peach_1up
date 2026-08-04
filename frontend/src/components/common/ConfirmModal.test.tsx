@@ -1,7 +1,7 @@
-import { screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { renderWithProviders } from '@/test/helpers'
-import ConfirmModal from './ConfirmModal'
+import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { renderWithProviders } from '@/test/helpers';
+import ConfirmModal from './ConfirmModal';
 
 describe('ConfirmModal', () => {
   it('renders title and consequence when open', () => {
@@ -13,16 +13,16 @@ describe('ConfirmModal', () => {
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
       />,
-    )
+    );
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText('Delete item?')).toBeInTheDocument()
-    expect(screen.getByText('This action cannot be undone.')).toBeInTheDocument()
-  })
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Delete item?')).toBeInTheDocument();
+    expect(screen.getByText('This action cannot be undone.')).toBeInTheDocument();
+  });
 
   it('calls onCancel when cancel is clicked', async () => {
-    const user = userEvent.setup()
-    const onCancel = vi.fn()
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
     renderWithProviders(
       <ConfirmModal
         open
@@ -31,15 +31,15 @@ describe('ConfirmModal', () => {
         onConfirm={vi.fn()}
         onCancel={onCancel}
       />,
-    )
+    );
 
-    await user.click(screen.getByRole('button', { name: /cancel/i }))
-    expect(onCancel).toHaveBeenCalledTimes(1)
-  })
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
 
   it('calls onConfirm when confirm is clicked', async () => {
-    const user = userEvent.setup()
-    const onConfirm = vi.fn()
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
     renderWithProviders(
       <ConfirmModal
         open
@@ -48,11 +48,11 @@ describe('ConfirmModal', () => {
         onConfirm={onConfirm}
         onCancel={vi.fn()}
       />,
-    )
+    );
 
-    await user.click(screen.getByRole('button', { name: /confirm/i }))
-    expect(onConfirm).toHaveBeenCalledTimes(1)
-  })
+    await user.click(screen.getByRole('button', { name: /confirm/i }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
 
   it('cancel button has autofocus', () => {
     renderWithProviders(
@@ -63,10 +63,10 @@ describe('ConfirmModal', () => {
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
       />,
-    )
+    );
 
-    const cancelBtn = screen.getByRole('button', { name: /cancel/i })
+    const cancelBtn = screen.getByRole('button', { name: /cancel/i });
     // React calls .focus() for autoFocus on commit — verify the element actually receives focus
-    expect(cancelBtn).toHaveFocus()
-  })
-})
+    expect(cancelBtn).toHaveFocus();
+  });
+});

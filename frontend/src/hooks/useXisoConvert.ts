@@ -1,77 +1,82 @@
-import { useEffect, useRef, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
-import { apiFetch, ApiError } from '@/api/client'
+import { useEffect, useRef, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { apiFetch, ApiError } from '@/api/client';
 
-type ConvertStatus = 'idle' | 'converting' | 'complete' | 'error'
+type ConvertStatus = 'idle' | 'converting' | 'complete' | 'error';
 
 interface ConvertStatusResponse {
-  status: ConvertStatus
-  error: string | null
-  output_path: string | null
+  status: ConvertStatus;
+  error: string | null;
+  output_path: string | null;
 }
 
-const POLL_INTERVAL_MS = 3000
+const POLL_INTERVAL_MS = 3000;
 // extract-xiso runs on multi-GB rips and can legitimately take a while, but
 // the poll still needs a ceiling, without one a backend that never reports
 // complete or error (crashed worker, lost job) polls every 3s forever until
 // unmount. 200 attempts at 3s is about 10 minutes.
-const MAX_POLL_ATTEMPTS = 200
+const MAX_POLL_ATTEMPTS = 200;
 
 /** Drives POST/{id}/convert-xiso then polls its status endpoint until the
  * background conversion finishes — mirrors useLaunch's poll-for-completion
  * shape since a multi-GB rip conversion is not instant either. */
 export function useXisoConvert(collectionId: number) {
-  const [status, setStatus] = useState<ConvertStatus>('idle')
-  const [error, setError] = useState<string | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const attemptsRef = useRef(0)
+  const [status, setStatus] = useState<ConvertStatus>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const attemptsRef = useRef(0);
 
-  useEffect(() => () => {
-    if (pollRef.current) clearInterval(pollRef.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    },
+    [],
+  );
 
   const startMutation = useMutation({
     mutationFn: () =>
       apiFetch(`/api/v1/game-item-bundle/${collectionId}/convert-xiso`, { method: 'POST' }),
     onSuccess: () => {
-      setStatus('converting')
-      setError(null)
-      attemptsRef.current = 0
+      setStatus('converting');
+      setError(null);
+      attemptsRef.current = 0;
       pollRef.current = setInterval(async () => {
-        attemptsRef.current += 1
+        attemptsRef.current += 1;
         if (attemptsRef.current > MAX_POLL_ATTEMPTS) {
-          setStatus('error')
-          setError('Conversion is taking longer than expected — check the destination folder for completion.')
-          if (pollRef.current) clearInterval(pollRef.current)
-          return
+          setStatus('error');
+          setError(
+            'Conversion is taking longer than expected — check the destination folder for completion.',
+          );
+          if (pollRef.current) clearInterval(pollRef.current);
+          return;
         }
         try {
           const res = await apiFetch<ConvertStatusResponse>(
             `/api/v1/game-item-bundle/${collectionId}/convert-xiso/status`,
-          )
+          );
           if (res.status === 'complete') {
-            setStatus('complete')
-            if (pollRef.current) clearInterval(pollRef.current)
+            setStatus('complete');
+            if (pollRef.current) clearInterval(pollRef.current);
           } else if (res.status === 'error') {
-            setStatus('error')
-            setError(res.error ?? 'Conversion failed.')
-            if (pollRef.current) clearInterval(pollRef.current)
+            setStatus('error');
+            setError(res.error ?? 'Conversion failed.');
+            if (pollRef.current) clearInterval(pollRef.current);
           }
         } catch {
           // transient poll errors are non-fatal
         }
-      }, POLL_INTERVAL_MS)
+      }, POLL_INTERVAL_MS);
     },
     onError: (err) => {
-      setStatus('error')
-      setError(err instanceof ApiError ? err.detail : 'Failed to start conversion.')
+      setStatus('error');
+      setError(err instanceof ApiError ? err.detail : 'Failed to start conversion.');
     },
-  })
+  });
 
   function convert() {
-    setStatus('idle')
-    setError(null)
-    startMutation.mutate()
+    setStatus('idle');
+    setError(null);
+    startMutation.mutate();
   }
 
   return {
@@ -79,5 +84,5 @@ export function useXisoConvert(collectionId: number) {
     status,
     isConverting: status === 'converting' || startMutation.isPending,
     error,
-  }
+  };
 }

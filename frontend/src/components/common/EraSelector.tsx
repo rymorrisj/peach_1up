@@ -1,7 +1,7 @@
-import type { Era } from '@/generated/constants'
-import { ERA_LABELS } from '@/generated/constants'
+import type { Era } from '@/generated/constants';
+import { ERA_LABELS } from '@/generated/constants';
 
-type EraFamily = 'PlayStation' | 'Xbox' | 'Nintendo' | 'PC' | 'Other'
+type EraFamily = 'PlayStation' | 'Xbox' | 'Nintendo' | 'PC' | 'Other';
 
 // Console family/generation grouping for the picker's layout. Record<Era, EraFamily>
 // is exhaustive over the generated Era union (frontend/src/generated/constants.ts,
@@ -24,13 +24,13 @@ const ERA_FAMILY: Record<Era, EraFamily> = {
   winxp: 'PC',
   dreamcast: 'Other',
   unknown: 'Other',
-}
+};
 
-const FAMILY_ORDER: EraFamily[] = ['PlayStation', 'Xbox', 'Nintendo', 'PC', 'Other']
+const FAMILY_ORDER: EraFamily[] = ['PlayStation', 'Xbox', 'Nintendo', 'PC', 'Other'];
 
 interface EraGroup {
-  label: EraFamily
-  eras: Era[]
+  label: EraFamily;
+  eras: Era[];
 }
 
 // Era order within each group follows ERA_LABELS' own key order (i.e. config/
@@ -38,12 +38,12 @@ interface EraGroup {
 const ERA_GROUPS: EraGroup[] = FAMILY_ORDER.map((label) => ({
   label,
   eras: (Object.keys(ERA_LABELS) as Era[]).filter((era) => ERA_FAMILY[era] === label),
-}))
+}));
 
 interface EraSelectorProps {
-  value: Era | null
-  onChange: (era: Era) => void
-  disabled?: boolean
+  value: Era | null;
+  onChange: (era: Era) => void;
+  disabled?: boolean;
 }
 
 export default function EraSelector({ value, onChange, disabled = false }: EraSelectorProps) {
@@ -56,7 +56,7 @@ export default function EraSelector({ value, onChange, disabled = false }: EraSe
           </h3>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {group.eras.map((era) => {
-              const selected = value === era
+              const selected = value === era;
               return (
                 <button
                   key={era}
@@ -72,11 +72,11 @@ export default function EraSelector({ value, onChange, disabled = false }: EraSe
                 >
                   {ERA_LABELS[era]}
                 </button>
-              )
+              );
             })}
           </div>
         </div>
       ))}
     </div>
-  )
+  );
 }

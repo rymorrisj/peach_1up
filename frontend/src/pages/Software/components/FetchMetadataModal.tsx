@@ -1,61 +1,61 @@
-import { useState, useEffect } from 'react'
-import { Button, Modal, Input, RadioGroup, Radio, Checkbox } from '@/ui'
-import { useToast } from '@/ui/ToastProvider'
-import { apiFetch } from '@/api/client'
+import { useState, useEffect } from 'react';
+import { Button, Modal, Input, RadioGroup, Radio, Checkbox } from '@/ui';
+import { useToast } from '@/ui/ToastProvider';
+import { apiFetch } from '@/api/client';
 
 // Accept All downloads every fetched asset (boxart, screenshots, etc.) from
 // the metadata provider server-side before responding, which can take well
 // past the default 10s client abort timeout. see backend/service/games/media_link.py
-const ACCEPT_METADATA_TIMEOUT_MS = 120_000
+const ACCEPT_METADATA_TIMEOUT_MS = 120_000;
 
 interface SearchResult {
-  game_id: number
-  title: string
-  release_date: string | null
+  game_id: number;
+  title: string;
+  release_date: string | null;
 }
 
 interface MetadataAsset {
-  url: string
-  type: string
-  thumb_url: string | null
+  url: string;
+  type: string;
+  thumb_url: string | null;
 }
 
 interface GameDetails {
-  game_id: number
-  title: string | null
-  release_date: string | null
-  overview: string | null
-  rating: string | null
-  cover_art_url: string | null
-  cover_art_thumb_url: string | null
-  genres: string[] | null
-  developer: string | null
-  publisher: string | null
-  video_urls: string[]
-  assets: MetadataAsset[]
+  game_id: number;
+  title: string | null;
+  release_date: string | null;
+  overview: string | null;
+  rating: string | null;
+  cover_art_url: string | null;
+  cover_art_thumb_url: string | null;
+  genres: string[] | null;
+  developer: string | null;
+  publisher: string | null;
+  video_urls: string[];
+  assets: MetadataAsset[];
 }
 
 interface FetchMetadataModalProps {
-  open: boolean
-  onClose: () => void
-  entityType: 'game_item_bundle' | 'game_item'
-  entityId: number
-  entityTitle: string
-  storageKey: string
-  onSuccess: () => void
+  open: boolean;
+  onClose: () => void;
+  entityType: 'game_item_bundle' | 'game_item';
+  entityId: number;
+  entityTitle: string;
+  storageKey: string;
+  onSuccess: () => void;
   /** Current content_rating on the collection, if any — used to warn when the
    *  fetched rating would lower or clear it. Only meaningful for entityType
    *  'game_item_bundle'; game_item has no content_rating field. */
-  currentContentRating?: string | null
+  currentContentRating?: string | null;
   /** Notified whenever a search/fetch/apply request is in flight, so the
    *  trigger button that opens this modal can show its own loading state. */
-  onBusyChange?: (busy: boolean) => void
+  onBusyChange?: (busy: boolean) => void;
   /** Display label for the currently active metadata provider ('TheGamesDB'
    *  or 'IGDB'), sourced from the DB-backed metadata_provider setting by the
    *  caller. Recorded as metadata_source on apply — only meaningful for
    *  entityType 'game_item_bundle'; game_item enrichment has no
    *  metadata_source field and rejects it. */
-  activeProviderLabel: string
+  activeProviderLabel: string;
 }
 
 export function FetchMetadataModal({
@@ -70,148 +70,148 @@ export function FetchMetadataModal({
   onBusyChange,
   activeProviderLabel,
 }: FetchMetadataModalProps) {
-  const { showToast } = useToast()
+  const { showToast } = useToast();
 
-  const [query, setQuery] = useState(entityTitle)
-  const [searching, setSearching] = useState(false)
-  const [searchError, setSearchError] = useState<string | null>(null)
-  const [results, setResults] = useState<SearchResult[] | null>(null)
-  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [query, setQuery] = useState(entityTitle);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [results, setResults] = useState<SearchResult[] | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const [phase, setPhase] = useState<'search' | 'preview' | 'accept-all'>('search')
-  const [fetching, setFetching] = useState(false)
-  const [details, setDetails] = useState<GameDetails | null>(null)
+  const [phase, setPhase] = useState<'search' | 'preview' | 'accept-all'>('search');
+  const [fetching, setFetching] = useState(false);
+  const [details, setDetails] = useState<GameDetails | null>(null);
 
-  const [applying, setApplying] = useState(false)
-  const [applyError, setApplyError] = useState<string | null>(null)
-  const [confirmRatingChange, setConfirmRatingChange] = useState(false)
+  const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  const [confirmRatingChange, setConfirmRatingChange] = useState(false);
 
-  const [acceptingAll, setAcceptingAll] = useState(false)
-  const [acceptError, setAcceptError] = useState<string | null>(null)
+  const [acceptingAll, setAcceptingAll] = useState(false);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
 
   // Pre-fill the search field with the item's title on open — editable, not
   // re-applied on every render (only when the modal transitions to open).
   useEffect(() => {
-    if (open) setQuery(entityTitle)
+    if (open) setQuery(entityTitle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open]);
 
   // Restore cached results from sessionStorage on modal open
   useEffect(() => {
-    if (!open) return
-    const cached = sessionStorage.getItem(storageKey)
+    if (!open) return;
+    const cached = sessionStorage.getItem(storageKey);
     if (cached) {
       try {
-        const parsed = JSON.parse(cached) as SearchResult[]
-        setResults(parsed)
+        const parsed = JSON.parse(cached) as SearchResult[];
+        setResults(parsed);
       } catch {
         // ignore malformed cache
       }
     }
-  }, [open, storageKey])
+  }, [open, storageKey]);
 
   // Reset transient state when modal closes
   useEffect(() => {
     if (!open) {
-      setQuery('')
-      setSearching(false)
-      setSearchError(null)
-      setResults(null)
-      setSelectedId(null)
-      setPhase('search')
-      setFetching(false)
-      setDetails(null)
-      setApplying(false)
-      setApplyError(null)
-      setConfirmRatingChange(false)
-      setAcceptingAll(false)
-      setAcceptError(null)
+      setQuery('');
+      setSearching(false);
+      setSearchError(null);
+      setResults(null);
+      setSelectedId(null);
+      setPhase('search');
+      setFetching(false);
+      setDetails(null);
+      setApplying(false);
+      setApplyError(null);
+      setConfirmRatingChange(false);
+      setAcceptingAll(false);
+      setAcceptError(null);
     }
-  }, [open])
+  }, [open]);
 
   async function handleSearch() {
-    const q = query.trim()
-    if (!q) return
-    setSearching(true)
-    setSearchError(null)
+    const q = query.trim();
+    if (!q) return;
+    setSearching(true);
+    setSearchError(null);
     try {
       const data = await apiFetch<{ results: SearchResult[] }>(
         `/api/v1/game-items/metadata-search?name=${encodeURIComponent(q)}`,
-      )
-      setResults(data.results)
-      setSelectedId(null)
-      sessionStorage.setItem(storageKey, JSON.stringify(data.results))
+      );
+      setResults(data.results);
+      setSelectedId(null);
+      sessionStorage.setItem(storageKey, JSON.stringify(data.results));
     } catch (err) {
-      setSearchError(err instanceof Error ? err.message : 'Search failed.')
+      setSearchError(err instanceof Error ? err.message : 'Search failed.');
     } finally {
-      setSearching(false)
+      setSearching(false);
     }
   }
 
   async function handleFetchNow() {
-    if (selectedId == null) return
-    setFetching(true)
-    setSearchError(null)
+    if (selectedId == null) return;
+    setFetching(true);
+    setSearchError(null);
     try {
       const data = await apiFetch<GameDetails>(
         `/api/v1/game-items/metadata-details?game_id=${selectedId}`,
-      )
+      );
       // Normalized here, once, so every downstream read of details.assets/
       // details.video_urls can rely on the GameDetails type contract (always
       // an array, never undefined) without re-guarding at each call site,
       // even against a response shape that predates these two fields.
-      setDetails({ ...data, assets: data.assets ?? [], video_urls: data.video_urls ?? [] })
-      setPhase('preview')
+      setDetails({ ...data, assets: data.assets ?? [], video_urls: data.video_urls ?? [] });
+      setPhase('preview');
     } catch (err) {
-      setSearchError(err instanceof Error ? err.message : 'Failed to fetch details.')
+      setSearchError(err instanceof Error ? err.message : 'Failed to fetch details.');
     } finally {
-      setFetching(false)
+      setFetching(false);
     }
   }
 
   async function handleKeep() {
-    if (!details) return
-    if (ratingChanged && !confirmRatingChange) return
-    setApplying(true)
-    setApplyError(null)
+    if (!details) return;
+    if (ratingChanged && !confirmRatingChange) return;
+    setApplying(true);
+    setApplyError(null);
 
     const payload: Record<string, unknown> = {
       entity_type: entityType,
       entity_id: entityId,
-    }
+    };
 
     if (entityType === 'game_item_bundle') {
       // Metadata lives on the collection — cover_art_url is not supported here.
       // metadata_source only belongs here: enrich.py rejects any metadata_fields
       // (including metadata_source) for entityType 'game_item'.
-      payload.metadata_source = activeProviderLabel
-      if (details.title) payload.title = details.title
-      if (details.overview) payload.description = details.overview
-      if (details.rating) payload.content_rating = details.rating
-      if (ratingChanged) payload.confirm_rating_change = confirmRatingChange
+      payload.metadata_source = activeProviderLabel;
+      if (details.title) payload.title = details.title;
+      if (details.overview) payload.description = details.overview;
+      if (details.rating) payload.content_rating = details.rating;
+      if (ratingChanged) payload.confirm_rating_change = confirmRatingChange;
       if (details.release_date) {
-        const year = parseInt(details.release_date.split('-')[0], 10)
-        if (!isNaN(year)) payload.year = year
+        const year = parseInt(details.release_date.split('-')[0], 10);
+        if (!isNaN(year)) payload.year = year;
       }
-      if (details.developer) payload.developer = details.developer
-      if (details.publisher) payload.publisher = details.publisher
-      if (details.genres && details.genres.length > 0) payload.genre = details.genres
+      if (details.developer) payload.developer = details.developer;
+      if (details.publisher) payload.publisher = details.publisher;
+      if (details.genres && details.genres.length > 0) payload.genre = details.genres;
       if (details.video_urls && details.video_urls.length > 0) {
-        payload.external_links = details.video_urls.map((url) => ({ type: 'trailer', url }))
+        payload.external_links = details.video_urls.map((url) => ({ type: 'trailer', url }));
       }
     } else if (entityType === 'game_item') {
       // Leaf: only per-disc cover_art_url is supported.
-      if (details.cover_art_url) payload.cover_art_url = details.cover_art_url
+      if (details.cover_art_url) payload.cover_art_url = details.cover_art_url;
     }
 
     try {
       await apiFetch('/api/v1/game-items/enrich', {
         method: 'POST',
         body: JSON.stringify(payload),
-      })
-      sessionStorage.removeItem(storageKey)
-      showToast(`Metadata applied: ${details.title ?? entityTitle}`, 'success')
-      onSuccess()
+      });
+      sessionStorage.removeItem(storageKey);
+      showToast(`Metadata applied: ${details.title ?? entityTitle}`, 'success');
+      onSuccess();
 
       // Accept All only applies at the game_item_bundle level (that's the
       // side the entity-link table's game_item_bundle<->media_item_bundle
@@ -220,78 +220,82 @@ export function FetchMetadataModal({
       // identical to today's Keep-only behavior.
       const hasAcceptables =
         entityType === 'game_item_bundle' &&
-        ((details.assets && details.assets.length > 0) || (details.video_urls && details.video_urls.length > 0))
+        ((details.assets && details.assets.length > 0) ||
+          (details.video_urls && details.video_urls.length > 0));
       if (hasAcceptables) {
-        setPhase('accept-all')
+        setPhase('accept-all');
       } else {
-        onClose()
+        onClose();
       }
     } catch (err) {
-      setApplyError(err instanceof Error ? err.message : 'Failed to apply metadata.')
+      setApplyError(err instanceof Error ? err.message : 'Failed to apply metadata.');
     } finally {
-      setApplying(false)
+      setApplying(false);
     }
   }
 
   async function handleAcceptAll() {
-    if (!details || details.assets.length === 0) return
-    setAcceptingAll(true)
-    setAcceptError(null)
+    if (!details || details.assets.length === 0) return;
+    setAcceptingAll(true);
+    setAcceptError(null);
     try {
       await apiFetch(`/api/v1/game-items/${entityId}/accept-metadata-assets`, {
         method: 'POST',
         body: JSON.stringify({ assets: details.assets }),
         timeoutMs: ACCEPT_METADATA_TIMEOUT_MS,
-      })
-      showToast(`Linked media created for "${details.title ?? entityTitle}".`, 'success')
+      });
+      showToast(`Linked media created for "${details.title ?? entityTitle}".`, 'success');
       // Same call handleKeep() makes above: the accepted assets can change
       // bundle-level fields (cover art, linked_items), and onSuccess's
       // refetchEntity()/resyncFromCollection() (see gameConfig.tsx) pulls a
       // full fresh copy of the bundle rather than patching individual
       // fields, so it picks up whatever accept-metadata-assets changed just
       // as correctly as it does for Keep's changes, no divergence needed.
-      onSuccess()
-      onClose()
+      onSuccess();
+      onClose();
     } catch (err) {
-      setAcceptError(err instanceof Error ? err.message : 'Failed to create linked media.')
+      setAcceptError(err instanceof Error ? err.message : 'Failed to create linked media.');
     } finally {
-      setAcceptingAll(false)
+      setAcceptingAll(false);
     }
   }
 
   function handleSkipAcceptAll() {
     // Zero additional calls — Keep already applied core metadata + cover art
     // above, this step only ever offers to go further than that.
-    onClose()
+    onClose();
   }
 
   function handleRedo() {
-    setPhase('search')
-    setDetails(null)
-    setApplyError(null)
+    setPhase('search');
+    setDetails(null);
+    setApplyError(null);
     // results stay in state (and sessionStorage) — no re-search needed
   }
 
-  const showCoverArt = entityType === 'game_item'
-  const showMetadata = entityType === 'game_item_bundle'
+  const showCoverArt = entityType === 'game_item';
+  const showMetadata = entityType === 'game_item_bundle';
   const busy =
-    phase === 'search' ? searching || fetching : phase === 'accept-all' ? acceptingAll : applying
+    phase === 'search' ? searching || fetching : phase === 'accept-all' ? acceptingAll : applying;
 
   useEffect(() => {
-    onBusyChange?.(busy)
-  }, [busy, onBusyChange])
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
 
   useEffect(() => {
-    if (!open) onBusyChange?.(false)
-  }, [open, onBusyChange])
+    if (!open) onBusyChange?.(false);
+  }, [open, onBusyChange]);
   // Coarse string comparison against the raw provider rating (not the normalized
   // form the backend will store) — this can flag changes the backend later decides
   // don't need confirmation (e.g. a same-rating restated differently, or a raise),
   // but it can never miss a real lower/clear. The backend's normalized comparison
   // in enrich.py is the actual safety gate; this is just visibility for the user.
   const ratingChanged = Boolean(
-    showMetadata && details?.rating && currentContentRating && details.rating !== currentContentRating,
-  )
+    showMetadata &&
+    details?.rating &&
+    currentContentRating &&
+    details.rating !== currentContentRating,
+  );
 
   return (
     <Modal
@@ -348,7 +352,9 @@ export function FetchMetadataModal({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void handleSearch() }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleSearch();
+              }}
               placeholder="Search game title…"
               disabled={searching}
               className="min-w-0 flex-1"
@@ -364,7 +370,9 @@ export function FetchMetadataModal({
           </div>
 
           {searchError && (
-            <p role="alert" className="text-sm text-red-400">{searchError}</p>
+            <p role="alert" className="text-sm text-red-400">
+              {searchError}
+            </p>
           )}
 
           {results !== null && results.length === 0 && (
@@ -445,7 +453,9 @@ export function FetchMetadataModal({
                     <dd className="text-neutral-100">
                       {ratingChanged ? (
                         <span>
-                          <span className="text-neutral-400 line-through">{currentContentRating}</span>
+                          <span className="text-neutral-400 line-through">
+                            {currentContentRating}
+                          </span>
                           {' → '}
                           <span className="font-medium text-amber-400">{details.rating}</span>
                         </span>
@@ -515,7 +525,9 @@ export function FetchMetadataModal({
           )}
 
           {applyError && (
-            <p role="alert" className="text-sm text-red-400">{applyError}</p>
+            <p role="alert" className="text-sm text-red-400">
+              {applyError}
+            </p>
           )}
         </div>
       ) : (
@@ -537,7 +549,9 @@ export function FetchMetadataModal({
                       alt={asset.type}
                       className="aspect-square w-full rounded-md border border-neutral-700 object-cover"
                     />
-                    <p className="truncate text-center text-[0.625rem] text-neutral-400">{asset.type}</p>
+                    <p className="truncate text-center text-[0.625rem] text-neutral-400">
+                      {asset.type}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -564,16 +578,19 @@ export function FetchMetadataModal({
                 ))}
               </ul>
               <p className="mt-1 text-xs text-neutral-400">
-                Already saved on the game (applied by Keep) — Accept All only affects the images above.
+                Already saved on the game (applied by Keep) — Accept All only affects the images
+                above.
               </p>
             </div>
           )}
 
           {acceptError && (
-            <p role="alert" className="text-sm text-red-400">{acceptError}</p>
+            <p role="alert" className="text-sm text-red-400">
+              {acceptError}
+            </p>
           )}
         </div>
       )}
     </Modal>
-  )
+  );
 }

@@ -1,7 +1,7 @@
-import { Button, FormField, Input, Modal } from "@/ui";
-import type { components } from "@shared/types";
+import { Button, FormField, Input, Modal } from '@/ui';
+import type { components } from '@shared/types';
 
-type User = components["schemas"]["UserItemRead"];
+type User = components['schemas']['UserItemRead'];
 
 export type ResetPinTarget = {
   user: User;
@@ -48,7 +48,7 @@ export function ResetPinModal({ target, onChangePin, onSubmit, onClose }: ResetP
           maxLength={6}
           autoFocus
           value={target.pin}
-          onChange={(e) => onChangePin(e.target.value.replace(/\D/g, ""))}
+          onChange={(e) => onChangePin(e.target.value.replace(/\D/g, ''))}
           placeholder="••••"
           hasError={!!target.error}
           className="text-center tracking-[0.5em] text-lg"

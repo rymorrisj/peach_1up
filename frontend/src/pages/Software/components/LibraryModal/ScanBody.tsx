@@ -1,45 +1,60 @@
-import { useEffect, useState } from 'react'
-import { useLibraryScan } from '@/hooks/useLibraryScan'
-import LoadingSpinner from '@/components/common/LoadingSpinner'
-import { Button, Modal, Checkbox } from '@/ui'
-import type { LibraryModalProps } from './types'
+import { useEffect, useState } from 'react';
+import { useLibraryScan } from '@/hooks/useLibraryScan';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { Button, Modal, Checkbox } from '@/ui';
+import type { LibraryModalProps } from './types';
 
-export default function ScanBody({ open, onClose, onComplete, mediaPath, config }: LibraryModalProps) {
+export default function ScanBody({
+  open,
+  onClose,
+  onComplete,
+  mediaPath,
+  config,
+}: LibraryModalProps) {
   const {
-    scanning, status, error, handleScan, handleCancelScan, cancelling,
-    importing, importResult, handleImport, scanProgress, scanMessage,
-  } = useLibraryScan({ open, onImported: onComplete })
-  const [selected, setSelected] = useState<Set<string>>(new Set())
+    scanning,
+    status,
+    error,
+    handleScan,
+    handleCancelScan,
+    cancelling,
+    importing,
+    importResult,
+    handleImport,
+    scanProgress,
+    scanMessage,
+  } = useLibraryScan({ open, onImported: onComplete });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const preview = status?.preview ?? []
-  const hasPreview = !status?.running && !importResult && preview.length > 0
-  const allSelected = preview.length > 0 && selected.size === preview.length
+  const preview = status?.preview ?? [];
+  const hasPreview = !status?.running && !importResult && preview.length > 0;
+  const allSelected = preview.length > 0 && selected.size === preview.length;
 
   // Auto-select all items when the preview first loads
   useEffect(() => {
     if (status && !status.running && !importResult && status.preview.length > 0) {
-      setSelected(new Set(status.preview.map((p) => p.file_path)))
+      setSelected(new Set(status.preview.map((p) => p.file_path)));
     }
-  }, [status, importResult])
+  }, [status, importResult]);
 
   useEffect(() => {
-    if (!open) setSelected(new Set())
-  }, [open])
+    if (!open) setSelected(new Set());
+  }, [open]);
 
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(preview.map((p) => p.file_path)))
+    setSelected(allSelected ? new Set() : new Set(preview.map((p) => p.file_path)));
   }
 
   function toggleItem(path: string) {
     setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
-      return next
-    })
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
   }
 
-  const busy = scanning || importing
+  const busy = scanning || importing;
 
   return (
     <Modal
@@ -50,7 +65,12 @@ export default function ScanBody({ open, onClose, onComplete, mediaPath, config 
       footer={
         <>
           {scanning && (
-            <Button variant="ghost" onClick={handleCancelScan} loading={cancelling} disabled={cancelling}>
+            <Button
+              variant="ghost"
+              onClick={handleCancelScan}
+              loading={cancelling}
+              disabled={cancelling}
+            >
               {cancelling ? 'Cancelling…' : 'Cancel Scan'}
             </Button>
           )}
@@ -161,7 +181,9 @@ export default function ScanBody({ open, onClose, onComplete, mediaPath, config 
         <div className="space-y-1">
           <p className="text-sm text-neutral-700 dark:text-neutral-300">
             Imported {importResult.imported} item{importResult.imported !== 1 ? 's' : ''}
-            {importResult.skipped > 0 && `, skipped ${importResult.skipped} duplicate${importResult.skipped !== 1 ? 's' : ''}`}.
+            {importResult.skipped > 0 &&
+              `, skipped ${importResult.skipped} duplicate${importResult.skipped !== 1 ? 's' : ''}`}
+            .
           </p>
           {importResult.errors.length > 0 && (
             <div className="mt-2">
@@ -180,7 +202,11 @@ export default function ScanBody({ open, onClose, onComplete, mediaPath, config 
         </div>
       )}
 
-      {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">❌ {error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          ❌ {error}
+        </p>
+      )}
     </Modal>
-  )
+  );
 }

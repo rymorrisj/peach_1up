@@ -1,6 +1,6 @@
 interface StepUsersProps {
-  onBack: () => void
-  onNext: () => void
+  onBack: () => void;
+  onNext: () => void;
 }
 
 export default function StepUsers({ onBack, onNext }: StepUsersProps) {
@@ -11,8 +11,8 @@ export default function StepUsers({ onBack, onNext }: StepUsersProps) {
       </h2>
       <p className="mb-8 text-sm text-neutral-500 dark:text-neutral-400">
         Peach 1UP supports an owner account plus admins and sub-accounts. Sub-accounts can be
-        restricted from specific items or content types, and every account can have its own PIN.
-        Set this up now, or add accounts later from Settings, Users.
+        restricted from specific items or content types, and every account can have its own PIN. Set
+        this up now, or add accounts later from Settings, Users.
       </p>
 
       <div className="flex items-center justify-between pt-2">
@@ -32,5 +32,5 @@ export default function StepUsers({ onBack, onNext }: StepUsersProps) {
         </button>
       </div>
     </section>
-  )
+  );
 }

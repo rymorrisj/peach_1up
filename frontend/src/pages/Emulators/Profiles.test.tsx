@@ -1,32 +1,32 @@
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation } from 'react-router-dom'
-import { render } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AppProvider } from '@/context/AppContext'
-import Profiles from '@/pages/Emulators/Profiles'
-import { apiFetch } from '@/api/client'
-import type { components } from '@shared/types'
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router-dom';
+import { render } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppProvider } from '@/context/AppContext';
+import Profiles from '@/pages/Emulators/Profiles';
+import { apiFetch } from '@/api/client';
+import type { components } from '@shared/types';
 
-type LaunchProfile = components['schemas']['ProfileItemRead']
-type CatalogEntry = components['schemas']['CatalogEntryResponse']
+type LaunchProfile = components['schemas']['ProfileItemRead'];
+type CatalogEntry = components['schemas']['CatalogEntryResponse'];
 
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
   ApiError: class ApiError extends Error {
-    status: number
-    detail: string
+    status: number;
+    detail: string;
     constructor(status: number, detail: string) {
-      super(detail)
-      this.status = status
-      this.detail = detail
-      this.name = 'ApiError'
+      super(detail);
+      this.status = status;
+      this.detail = detail;
+      this.name = 'ApiError';
     }
   },
-}))
+}));
 
 const PROFILE_ONE: LaunchProfile = {
   id: 1,
@@ -44,7 +44,7 @@ const PROFILE_ONE: LaunchProfile = {
   container_enabled: null,
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
-}
+};
 
 const PROFILE_TWO: LaunchProfile = {
   id: 2,
@@ -62,7 +62,7 @@ const PROFILE_TWO: LaunchProfile = {
   container_enabled: null,
   created_at: '2024-01-02T00:00:00Z',
   updated_at: '2024-01-02T00:00:00Z',
-}
+};
 
 const EMULATORS: CatalogEntry[] = [
   {
@@ -82,27 +82,27 @@ const EMULATORS: CatalogEntry[] = [
     skip_memory_limit: false,
     known_limitations: [],
   },
-]
+];
 
 function mockApi() {
   vi.mocked(apiFetch).mockImplementation((url) => {
     if (typeof url === 'string' && url.includes('/api/v1/profile-items')) {
-      return Promise.resolve({ items: [PROFILE_ONE, PROFILE_TWO], total: 2, limit: 50, offset: 0 })
+      return Promise.resolve({ items: [PROFILE_ONE, PROFILE_TWO], total: 2, limit: 50, offset: 0 });
     }
     if (typeof url === 'string' && url.includes('/api/v1/emulator-items')) {
-      return Promise.resolve(EMULATORS)
+      return Promise.resolve(EMULATORS);
     }
-    return Promise.resolve([])
-  })
+    return Promise.resolve([]);
+  });
 }
 
 function LocationProbe() {
-  const location = useLocation()
-  return <div data-testid="location-probe">{location.pathname}</div>
+  const location = useLocation();
+  return <div data-testid="location-probe">{location.pathname}</div>;
 }
 
 function renderPage() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <MemoryRouter initialEntries={['/emulators/profiles']}>
       <QueryClientProvider client={queryClient}>
@@ -112,65 +112,65 @@ function renderPage() {
         </AppProvider>
       </QueryClientProvider>
     </MemoryRouter>,
-  )
+  );
 }
 
 describe('Profiles (Emulators sibling tab) — CRUD via modal', () => {
   afterEach(() => {
-    vi.resetAllMocks()
-  })
+    vi.resetAllMocks();
+  });
 
   it('renders the promoted cross-emulator, paginated list', async () => {
-    mockApi()
-    renderPage()
+    mockApi();
+    renderPage();
     await waitFor(() => {
-      expect(screen.getByText('DOS 486DX2 / SB16')).toBeInTheDocument()
-      expect(screen.getByText('PS1 Default')).toBeInTheDocument()
-    })
-  })
+      expect(screen.getByText('DOS 486DX2 / SB16')).toBeInTheDocument();
+      expect(screen.getByText('PS1 Default')).toBeInTheDocument();
+    });
+  });
 
   it('opens the ProfileForm modal in create mode without navigating anywhere', async () => {
-    mockApi()
-    const user = userEvent.setup()
-    renderPage()
-    await waitFor(() => expect(screen.getByText('DOS 486DX2 / SB16')).toBeInTheDocument())
+    mockApi();
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => expect(screen.getByText('DOS 486DX2 / SB16')).toBeInTheDocument());
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '+ Add Profile' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '+ Add Profile' }));
 
     await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument()
-      expect(screen.getByRole('heading', { name: 'Add Launch Profile' })).toBeInTheDocument()
-    })
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Add Launch Profile' })).toBeInTheDocument();
+    });
     // Locked decision 11: editing is modal-only — there is no per-profile route.
-    expect(screen.getByTestId('location-probe')).toHaveTextContent('/emulators/profiles')
-  })
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('/emulators/profiles');
+  });
 
   it('opens the ProfileForm modal in edit mode, pre-filled, without navigating to a :slug route', async () => {
-    mockApi()
-    const user = userEvent.setup()
-    renderPage()
-    await waitFor(() => expect(screen.getByText('DOS 486DX2 / SB16')).toBeInTheDocument())
+    mockApi();
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => expect(screen.getByText('DOS 486DX2 / SB16')).toBeInTheDocument());
 
-    const editButtons = screen.getAllByRole('button', { name: 'Edit' })
-    await user.click(editButtons[0])
+    const editButtons = screen.getAllByRole('button', { name: 'Edit' });
+    await user.click(editButtons[0]);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Edit Launch Profile' })).toBeInTheDocument()
-    })
-    expect(screen.getByDisplayValue('DOS 486DX2 / SB16')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('dos-486dx2-sb16')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Edit Launch Profile' })).toBeInTheDocument();
+    });
+    expect(screen.getByDisplayValue('DOS 486DX2 / SB16')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('dos-486dx2-sb16')).toBeInTheDocument();
     // Still on the flat list route — clicking Edit opened a modal, not a navigation.
-    expect(screen.getByTestId('location-probe')).toHaveTextContent('/emulators/profiles')
-  })
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('/emulators/profiles');
+  });
 
   it('does not render a Delete action for a bundled/default profile', async () => {
-    mockApi()
-    renderPage()
-    await waitFor(() => expect(screen.getByText('PS1 Default')).toBeInTheDocument())
+    mockApi();
+    renderPage();
+    await waitFor(() => expect(screen.getByText('PS1 Default')).toBeInTheDocument());
     // PROFILE_ONE (not bundled) gets a Delete button, PROFILE_TWO (is_bundled) does not.
-    expect(screen.getAllByRole('button', { name: 'Delete' })).toHaveLength(1)
-  })
+    expect(screen.getAllByRole('button', { name: 'Delete' })).toHaveLength(1);
+  });
 
   it('regression guard: source never navigates to a per-profile URL (the retired P2 bug pattern)', () => {
     // dev_docs/v2/08_emulator_profiles_navigation.md, P2: the old read-only
@@ -182,13 +182,13 @@ describe('Profiles (Emulators sibling tab) — CRUD via modal', () => {
     const profilesSource = fs.readFileSync(
       path.join(path.dirname(fileURLToPath(import.meta.url)), 'Profiles.tsx'),
       'utf-8',
-    )
-    expect(profilesSource).not.toMatch(/navigate\(/)
+    );
+    expect(profilesSource).not.toMatch(/navigate\(/);
     // Scoped to an actual navigate() call target, not any string containing
     // `/profiles/${` — this guards the retired UI route pattern specifically
     // (the REST calls in handleSubmit/handleDelete now hit
     // `/api/v1/profile-items/${...}` and no longer risk matching this bare
     // substring at all).
-    expect(profilesSource).not.toMatch(/navigate\(\s*[`'"]\/(?:emulators\/)?profiles\/\$\{/)
-  })
-})
+    expect(profilesSource).not.toMatch(/navigate\(\s*[`'"]\/(?:emulators\/)?profiles\/\$\{/);
+  });
+});

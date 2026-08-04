@@ -1,31 +1,36 @@
-import { Link } from 'react-router-dom'
-import { Trash2 } from 'lucide-react'
-import type { CoverArtResolver, EntityBundleBase, EntityMultiDiscLeaf } from '../types'
+import { Link } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
+import type { CoverArtResolver, EntityBundleBase, EntityMultiDiscLeaf } from '../types';
 
 // Per-entity multi-disc data, computed by EntityListPage from
 // config.multiDisc for bundles with more than one leaf item. Undefined for
 // every domain without a multiDisc config (Media, App today), which renders
 // none of the strip markup below at all.
 export interface EntityCardMultiDiscProps {
-  discs: EntityMultiDiscLeaf[]
-  displayDiskId: number | null
-  launchDiskId: number | null
-  onSetDisplayDisk: (discId: number) => void
+  discs: EntityMultiDiscLeaf[];
+  displayDiskId: number | null;
+  launchDiskId: number | null;
+  onSetDisplayDisk: (discId: number) => void;
 }
 
 interface EntityCardProps<TBundle extends EntityBundleBase> {
-  entity: TBundle
-  routeBase: string
-  coverArt: CoverArtResolver<TBundle>
-  onRemove?: (entity: TBundle) => void
-  multiDisc?: EntityCardMultiDiscProps
+  entity: TBundle;
+  routeBase: string;
+  coverArt: CoverArtResolver<TBundle>;
+  onRemove?: (entity: TBundle) => void;
+  multiDisc?: EntityCardMultiDiscProps;
 }
 
 // Compact, hover-revealed strip of disc buttons, ported (trimmed down) from
 // CollectionCard.tsx's disc strip. Click promotes a disc to be the display
 // cover; the current display disc is shown disabled, the launch disc (if it
 // differs) is marked with a play glyph.
-function MultiDiscStrip({ discs, displayDiskId, launchDiskId, onSetDisplayDisk }: EntityCardMultiDiscProps) {
+function MultiDiscStrip({
+  discs,
+  displayDiskId,
+  launchDiskId,
+  onSetDisplayDisk,
+}: EntityCardMultiDiscProps) {
   return (
     <div
       className="absolute bottom-0 left-0 right-0 z-10 flex gap-1 overflow-x-auto bg-gradient-to-t from-black/80 to-transparent px-2 pb-2 pt-4 opacity-0 transition-opacity duration-[180ms] ease-out group-hover:opacity-100"
@@ -35,27 +40,37 @@ function MultiDiscStrip({ discs, displayDiskId, launchDiskId, onSetDisplayDisk }
         .slice()
         .sort((a, b) => a.disc_number - b.disc_number)
         .map((disc) => {
-          const isDisplay = disc.id === displayDiskId
-          const isLaunch = disc.id === launchDiskId
+          const isDisplay = disc.id === displayDiskId;
+          const isLaunch = disc.id === launchDiskId;
           return (
             <button
               key={disc.id}
               type="button"
-              onClick={(e) => { e.preventDefault(); if (!isDisplay) onSetDisplayDisk(disc.id) }}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!isDisplay) onSetDisplayDisk(disc.id);
+              }}
               disabled={isDisplay}
-              title={isDisplay ? 'Displayed' : isLaunch ? 'Set as display cover (launches this disc)' : 'Set as display cover'}
+              title={
+                isDisplay
+                  ? 'Displayed'
+                  : isLaunch
+                    ? 'Set as display cover (launches this disc)'
+                    : 'Set as display cover'
+              }
               className={`shrink-0 rounded border font-mono text-[0.5625rem] px-1.5 py-0.5 transition-colors duration-[120ms] ${
                 isDisplay
                   ? 'cursor-default border-accent/60 bg-accent/10 text-accent/90'
                   : 'cursor-pointer border-neutral-700 bg-black/40 text-neutral-400 hover:border-neutral-500 hover:text-neutral-200'
               }`}
             >
-              {isLaunch && !isDisplay ? '▶ ' : ''}{disc.disc_number}
+              {isLaunch && !isDisplay ? '▶ ' : ''}
+              {disc.disc_number}
             </button>
-          )
+          );
         })}
     </div>
-  )
+  );
 }
 
 // Simple, era/disc-agnostic card for domains without Game's multi-disc stack
@@ -70,8 +85,8 @@ export function EntityCard<TBundle extends EntityBundleBase>({
   onRemove,
   multiDisc,
 }: EntityCardProps<TBundle>) {
-  const to = `${routeBase}/${entity.id}`
-  const art = coverArt(entity)
+  const to = `${routeBase}/${entity.id}`;
+  const art = coverArt(entity);
 
   return (
     <div className="group relative flex flex-col gap-2.5">
@@ -81,12 +96,22 @@ export function EntityCard<TBundle extends EntityBundleBase>({
       >
         <div className="relative aspect-video overflow-hidden rounded-xl bg-[#1a1f27] shadow-[var(--shadow-sm)]">
           {art ? (
-            <img src={art} alt={entity.title} loading="lazy" className="h-full w-full object-cover" />
+            <img
+              src={art}
+              alt={entity.title}
+              loading="lazy"
+              className="h-full w-full object-cover"
+            />
           ) : (
             <div className="absolute inset-0 flex items-end p-3.5">
               <p
                 className="font-sans text-[0.9375rem] font-semibold leading-snug tracking-tight text-neutral-100"
-                style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}
+                style={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical' as const,
+                  overflow: 'hidden',
+                }}
               >
                 {entity.title}
               </p>
@@ -110,5 +135,5 @@ export function EntityCard<TBundle extends EntityBundleBase>({
         </button>
       )}
     </div>
-  )
+  );
 }

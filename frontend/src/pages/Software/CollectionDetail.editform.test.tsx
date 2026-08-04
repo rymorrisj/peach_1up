@@ -1,13 +1,13 @@
-import { screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import { render } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AppProvider } from '@/context/AppContext'
-import { ToastProvider } from '@/ui/ToastProvider'
-import CollectionDetail from '@/pages/Software/CollectionDetail'
-import { apiFetch } from '@/api/client'
-import { createMockLibraryItem } from '@/test/helpers'
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { render } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppProvider } from '@/context/AppContext';
+import { ToastProvider } from '@/ui/ToastProvider';
+import CollectionDetail from '@/pages/Software/CollectionDetail';
+import { apiFetch } from '@/api/client';
+import { createMockLibraryItem } from '@/test/helpers';
 
 // Field-level coverage for the edit form (EditForm.tsx) rendered inside
 // CollectionDetail.tsx. Only "title" was exercised end-to-end before this
@@ -18,18 +18,18 @@ import { createMockLibraryItem } from '@/test/helpers'
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
   ApiError: class ApiError extends Error {
-    status: number
-    detail: string
-    rawDetail: unknown
+    status: number;
+    detail: string;
+    rawDetail: unknown;
     constructor(status: number, detail: string, rawDetail?: unknown) {
-      super(detail)
-      this.status = status
-      this.detail = detail
-      this.rawDetail = rawDetail
-      this.name = 'ApiError'
+      super(detail);
+      this.status = status;
+      this.detail = detail;
+      this.rawDetail = rawDetail;
+      this.name = 'ApiError';
     }
   },
-}))
+}));
 
 function fullCollection(overrides?: Record<string, unknown>) {
   return createMockLibraryItem({
@@ -54,7 +54,7 @@ function fullCollection(overrides?: Record<string, unknown>) {
     last_launched_at: null,
     tags: [],
     ...overrides,
-  })
+  });
 }
 
 const adminUser = {
@@ -74,18 +74,18 @@ const adminUser = {
   block_unrated_media: false,
   is_locked: false,
   failed_pin_attempts: 0,
-}
+};
 
 interface Handler {
-  match: string | RegExp
-  method?: string
-  respond: () => unknown
+  match: string | RegExp;
+  method?: string;
+  respond: () => unknown;
 }
 
 interface RecordedCall {
-  url: string
-  method: string
-  body: unknown
+  url: string;
+  method: string;
+  body: unknown;
 }
 
 // Same flexible URL/method-keyed mock as CollectionDetail.mutations.test.tsx —
@@ -95,9 +95,15 @@ function setupApi(handlers: Handler[] = []): RecordedCall[] {
     ...handlers,
     { match: '/api/v1/auth/me', respond: () => adminUser },
     { match: '/api/v1/auth/refresh', respond: () => ({ user: adminUser }) },
-    { match: '/api/v1/settings/library-defaults', respond: () => ({ delete_media_on_removal: false, delete_original_on_upload: false }) },
+    {
+      match: '/api/v1/settings/library-defaults',
+      respond: () => ({ delete_media_on_removal: false, delete_original_on_upload: false }),
+    },
     { match: '/api/v1/settings', respond: () => ({ metadata_provider: 'thegamesdb' }) },
-    { match: /settings\/(thegamesdb-api-key\/status|igdb-status)/, respond: () => ({ enabled: true }) },
+    {
+      match: /settings\/(thegamesdb-api-key\/status|igdb-status)/,
+      respond: () => ({ enabled: true }),
+    },
     { match: '/api/v1/user-items', respond: () => [] },
     { match: /^\/api\/v1\/profile-items/, respond: () => ({ items: [] }) },
     { match: '/api/v1/environment-items', respond: () => [] },
@@ -106,29 +112,29 @@ function setupApi(handlers: Handler[] = []): RecordedCall[] {
     { match: /\/launches$/, respond: () => [] },
     { match: '/api/v1/filesystem/drives', respond: () => ({ drives: [] }) },
     { match: '/api/v1/filesystem/launch-file-extensions', respond: () => ({ extensions: [] }) },
-  ]
+  ];
 
-  const calls: RecordedCall[] = []
+  const calls: RecordedCall[] = [];
 
   vi.mocked(apiFetch).mockImplementation((url: unknown, init?: RequestInit) => {
-    const u = typeof url === 'string' ? url : ''
-    const method = (init?.method ?? 'GET').toUpperCase()
-    const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
-    calls.push({ url: u, method, body })
+    const u = typeof url === 'string' ? url : '';
+    const method = (init?.method ?? 'GET').toUpperCase();
+    const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+    calls.push({ url: u, method, body });
     for (const h of allHandlers) {
-      const matches = typeof h.match === 'string' ? u === h.match : h.match.test(u)
+      const matches = typeof h.match === 'string' ? u === h.match : h.match.test(u);
       if (matches && (!h.method || h.method === method)) {
-        return Promise.resolve().then(h.respond)
+        return Promise.resolve().then(h.respond);
       }
     }
-    return Promise.resolve([])
-  })
+    return Promise.resolve([]);
+  });
 
-  return calls
+  return calls;
 }
 
 function renderPage(slug = 'doom') {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <MemoryRouter initialEntries={[`/software/games/${slug}`]}>
       <QueryClientProvider client={queryClient}>
@@ -141,295 +147,449 @@ function renderPage(slug = 'doom') {
         </ToastProvider>
       </QueryClientProvider>
     </MemoryRouter>,
-  )
+  );
 }
 
 async function waitForLoaded() {
   await waitFor(() => {
-    expect(screen.getAllByText('Doom')[0]).toBeInTheDocument()
-  })
+    expect(screen.getAllByText('Doom')[0]).toBeInTheDocument();
+  });
 }
 
 function callsTo(calls: RecordedCall[], url: string, method: string) {
-  return calls.filter((c) => c.url === url && c.method === method)
+  return calls.filter((c) => c.url === url && c.method === method);
 }
 
 // Radix Select's trigger is not a native <select>, userEvent.selectOptions
 // does not work against it. Open the listbox by clicking the labeled
 // trigger, then click the option by its visible text (the option's label,
 // not its underlying value, Radix's listbox is queried by accessible name).
-async function selectRadixOption(user: ReturnType<typeof userEvent.setup>, triggerName: string, optionName: string) {
-  await user.click(screen.getByRole('combobox', { name: triggerName }))
-  await user.click(await screen.findByRole('option', { name: optionName }))
+async function selectRadixOption(
+  user: ReturnType<typeof userEvent.setup>,
+  triggerName: string,
+  optionName: string,
+) {
+  await user.click(screen.getByRole('combobox', { name: triggerName }));
+  await user.click(await screen.findByRole('option', { name: optionName }));
 }
 
 async function saveAndWait(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   await waitFor(() => {
-    expect(screen.getByText('Saved ✓')).toBeInTheDocument()
-  })
+    expect(screen.getByText('Saved ✓')).toBeInTheDocument();
+  });
 }
 
 describe('CollectionDetail edit form (field-level)', () => {
   afterEach(() => {
-    vi.resetAllMocks()
-  })
+    vi.resetAllMocks();
+  });
 
   it('edits sort_title and sends it on save', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup();
     const calls = setupApi([
-      { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection() },
+      {
+        match: '/api/v1/game-item-bundle/by-slug/doom',
+        method: 'GET',
+        respond: () => fullCollection(),
+      },
       { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
       { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
-    ])
-    renderPage()
-    await waitForLoaded()
+    ]);
+    renderPage();
+    await waitForLoaded();
 
-    const input = screen.getByLabelText('Sort Title')
-    await user.type(input, 'Doom, The')
-    expect(input).toHaveValue('Doom, The')
+    const input = screen.getByLabelText('Sort Title');
+    await user.type(input, 'Doom, The');
+    expect(input).toHaveValue('Doom, The');
 
-    await saveAndWait(user)
-    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
-    expect(patch[0].body).toMatchObject({ sort_title: 'Doom, The' })
-  })
+    await saveAndWait(user);
+    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');
+    expect(patch[0].body).toMatchObject({ sort_title: 'Doom, The' });
+  });
 
   it('edits description and sends it on save', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup();
     const calls = setupApi([
-      { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection() },
+      {
+        match: '/api/v1/game-item-bundle/by-slug/doom',
+        method: 'GET',
+        respond: () => fullCollection(),
+      },
       { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
       { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
-    ])
-    renderPage()
-    await waitForLoaded()
+    ]);
+    renderPage();
+    await waitForLoaded();
 
-    const textarea = screen.getByLabelText('Description')
-    await user.type(textarea, 'A classic shooter.')
-    expect(textarea).toHaveValue('A classic shooter.')
+    const textarea = screen.getByLabelText('Description');
+    await user.type(textarea, 'A classic shooter.');
+    expect(textarea).toHaveValue('A classic shooter.');
 
-    await saveAndWait(user)
-    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
-    expect(patch[0].body).toMatchObject({ description: 'A classic shooter.' })
-  })
+    await saveAndWait(user);
+    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');
+    expect(patch[0].body).toMatchObject({ description: 'A classic shooter.' });
+  });
 
   it('edits publisher and sends it on save', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup();
     const calls = setupApi([
-      { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection() },
+      {
+        match: '/api/v1/game-item-bundle/by-slug/doom',
+        method: 'GET',
+        respond: () => fullCollection(),
+      },
       { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
       { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
-    ])
-    renderPage()
-    await waitForLoaded()
+    ]);
+    renderPage();
+    await waitForLoaded();
 
-    const input = screen.getByLabelText('Publisher')
-    await user.type(input, 'id Software')
-    expect(input).toHaveValue('id Software')
+    const input = screen.getByLabelText('Publisher');
+    await user.type(input, 'id Software');
+    expect(input).toHaveValue('id Software');
 
-    await saveAndWait(user)
-    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
-    expect(patch[0].body).toMatchObject({ publisher: 'id Software' })
-  })
+    await saveAndWait(user);
+    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');
+    expect(patch[0].body).toMatchObject({ publisher: 'id Software' });
+  });
 
   it('edits category and sends it on save', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup();
     const calls = setupApi([
-      { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection() },
+      {
+        match: '/api/v1/game-item-bundle/by-slug/doom',
+        method: 'GET',
+        respond: () => fullCollection(),
+      },
       { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
       { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
-    ])
-    renderPage()
-    await waitForLoaded()
+    ]);
+    renderPage();
+    await waitForLoaded();
 
-    const input = screen.getByLabelText('Category (custom)')
-    await user.type(input, 'Shooter')
-    expect(input).toHaveValue('Shooter')
+    const input = screen.getByLabelText('Category (custom)');
+    await user.type(input, 'Shooter');
+    expect(input).toHaveValue('Shooter');
 
-    await saveAndWait(user)
-    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
-    expect(patch[0].body).toMatchObject({ category: 'Shooter' })
-  })
+    await saveAndWait(user);
+    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');
+    expect(patch[0].body).toMatchObject({ category: 'Shooter' });
+  });
 
   it('edits year and sends it as a parsed integer on save', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup();
     const calls = setupApi([
-      { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection() },
+      {
+        match: '/api/v1/game-item-bundle/by-slug/doom',
+        method: 'GET',
+        respond: () => fullCollection(),
+      },
       { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
       { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
-    ])
-    renderPage()
-    await waitForLoaded()
+    ]);
+    renderPage();
+    await waitForLoaded();
 
-    const input = screen.getByLabelText('Year')
-    await user.clear(input)
-    await user.type(input, '1995')
-    expect(input).toHaveValue(1995)
+    const input = screen.getByLabelText('Year');
+    await user.clear(input);
+    await user.type(input, '1995');
+    expect(input).toHaveValue(1995);
 
-    await saveAndWait(user)
-    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
-    expect(patch[0].body).toMatchObject({ year: 1995 })
-  })
+    await saveAndWait(user);
+    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');
+    expect(patch[0].body).toMatchObject({ year: 1995 });
+  });
 
   it('edits content rating and sends it on save', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup();
     const calls = setupApi([
-      { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection() },
+      {
+        match: '/api/v1/game-item-bundle/by-slug/doom',
+        method: 'GET',
+        respond: () => fullCollection(),
+      },
       { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
       { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
-    ])
-    renderPage()
-    await waitForLoaded()
+    ]);
+    renderPage();
+    await waitForLoaded();
 
-    await selectRadixOption(user, 'Content Rating', 'M — Mature')
-    expect(screen.getByRole('combobox', { name: 'Content Rating' })).toHaveTextContent('M — Mature')
+    await selectRadixOption(user, 'Content Rating', 'M — Mature');
+    expect(screen.getByRole('combobox', { name: 'Content Rating' })).toHaveTextContent(
+      'M — Mature',
+    );
 
-    await saveAndWait(user)
-    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
-    expect(patch[0].body).toMatchObject({ content_rating: 'M' })
-  })
+    await saveAndWait(user);
+    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');
+    expect(patch[0].body).toMatchObject({ content_rating: 'M' });
+  });
 
   it('edits the platform (environment_item_id) and sends it as a parsed integer on save', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup();
     const calls = setupApi([
-      { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection() },
-      { match: '/api/v1/environment-items', respond: () => [
-        { id: 5, name: 'My DOS PC', era: 'dos', emulator_slug: 'dosbox-x', is_present: true, is_system: false, hardware_profile: 'standard' },
-      ] },
+      {
+        match: '/api/v1/game-item-bundle/by-slug/doom',
+        method: 'GET',
+        respond: () => fullCollection(),
+      },
+      {
+        match: '/api/v1/environment-items',
+        respond: () => [
+          {
+            id: 5,
+            name: 'My DOS PC',
+            era: 'dos',
+            emulator_slug: 'dosbox-x',
+            is_present: true,
+            is_system: false,
+            hardware_profile: 'standard',
+          },
+        ],
+      },
       { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
       { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
-    ])
-    renderPage()
-    await waitForLoaded()
+    ]);
+    renderPage();
+    await waitForLoaded();
 
-    await selectRadixOption(user, 'Platform', 'My DOS PC')
-    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('My DOS PC')
+    await selectRadixOption(user, 'Platform', 'My DOS PC');
+    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('My DOS PC');
 
-    await saveAndWait(user)
-    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
-    expect(patch[0].body).toMatchObject({ environment_item_id: 5 })
-  })
+    await saveAndWait(user);
+    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');
+    expect(patch[0].body).toMatchObject({ environment_item_id: 5 });
+  });
 
   it('shows the platform field disabled with an explanatory note for a console era', async () => {
     setupApi([
-      { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ era: 'ps1' }) },
-      { match: '/api/v1/environment-items', respond: () => [
-        { id: 5, name: 'My DOS PC', era: 'dos', emulator_slug: 'dosbox-x', is_present: true, is_system: false, hardware_profile: 'standard' },
-      ] },
-    ])
-    renderPage()
-    await waitForLoaded()
+      {
+        match: '/api/v1/game-item-bundle/by-slug/doom',
+        method: 'GET',
+        respond: () => fullCollection({ era: 'ps1' }),
+      },
+      {
+        match: '/api/v1/environment-items',
+        respond: () => [
+          {
+            id: 5,
+            name: 'My DOS PC',
+            era: 'dos',
+            emulator_slug: 'dosbox-x',
+            is_present: true,
+            is_system: false,
+            hardware_profile: 'standard',
+          },
+        ],
+      },
+    ]);
+    renderPage();
+    await waitForLoaded();
 
-    const select = screen.getByLabelText('Platform')
-    expect(select).toBeInTheDocument()
-    expect(select).toBeDisabled()
-    expect(screen.getByText('Determined automatically by era, no environment needed.')).toBeInTheDocument()
-  })
+    const select = screen.getByLabelText('Platform');
+    expect(select).toBeInTheDocument();
+    expect(select).toBeDisabled();
+    expect(
+      screen.getByText('Determined automatically by era, no environment needed.'),
+    ).toBeInTheDocument();
+  });
 
   it('clears environment_item_id and disables the platform field when era changes to a console era', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup();
     const calls = setupApi([
-      { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ era: 'dos', environment_item_id: 5 }) },
-      { match: '/api/v1/environment-items', respond: () => [
-        { id: 5, name: 'My DOS PC', era: 'dos', emulator_slug: 'dosbox-x', is_present: true, is_system: false, hardware_profile: 'standard' },
-      ] },
+      {
+        match: '/api/v1/game-item-bundle/by-slug/doom',
+        method: 'GET',
+        respond: () => fullCollection({ era: 'dos', environment_item_id: 5 }),
+      },
+      {
+        match: '/api/v1/environment-items',
+        respond: () => [
+          {
+            id: 5,
+            name: 'My DOS PC',
+            era: 'dos',
+            emulator_slug: 'dosbox-x',
+            is_present: true,
+            is_system: false,
+            hardware_profile: 'standard',
+          },
+        ],
+      },
       { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
       { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
-    ])
-    renderPage()
-    await waitForLoaded()
+    ]);
+    renderPage();
+    await waitForLoaded();
 
-    const platformSelect = screen.getByRole('combobox', { name: 'Platform' })
-    expect(platformSelect).toHaveTextContent('My DOS PC')
-    expect(platformSelect).not.toBeDisabled()
+    const platformSelect = screen.getByRole('combobox', { name: 'Platform' });
+    expect(platformSelect).toHaveTextContent('My DOS PC');
+    expect(platformSelect).not.toBeDisabled();
 
-    await selectRadixOption(user, 'Era', 'PlayStation 1')
-    expect(platformSelect).toBeDisabled()
-    expect(platformSelect).toHaveTextContent('No platform selected')
+    await selectRadixOption(user, 'Era', 'PlayStation 1');
+    expect(platformSelect).toBeDisabled();
+    expect(platformSelect).toHaveTextContent('No platform selected');
 
-    await saveAndWait(user)
-    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
-    expect(patch[0].body).toMatchObject({ era: 'ps1', environment_item_id: null })
-  })
+    await saveAndWait(user);
+    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');
+    expect(patch[0].body).toMatchObject({ era: 'ps1', environment_item_id: null });
+  });
 
   it('edits the launch profile (a matching-era option) and sends it as a parsed integer on save', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup();
     const calls = setupApi([
-      { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection() },
-      { match: /^\/api\/v1\/profile-items/, respond: () => ({ items: [
-        { id: 10, name: 'DOSBox Default', slug: 'dosbox-default', era: 'dos', emulator_slug: 'dosbox-x', is_bundled: true, enable_networking: false, enable_dgvoodoo2: false, use_drive: true, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' },
-      ] }) },
+      {
+        match: '/api/v1/game-item-bundle/by-slug/doom',
+        method: 'GET',
+        respond: () => fullCollection(),
+      },
+      {
+        match: /^\/api\/v1\/profile-items/,
+        respond: () => ({
+          items: [
+            {
+              id: 10,
+              name: 'DOSBox Default',
+              slug: 'dosbox-default',
+              era: 'dos',
+              emulator_slug: 'dosbox-x',
+              is_bundled: true,
+              enable_networking: false,
+              enable_dgvoodoo2: false,
+              use_drive: true,
+              created_at: '2024-01-01T00:00:00Z',
+              updated_at: '2024-01-01T00:00:00Z',
+            },
+          ],
+        }),
+      },
       { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
       { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
-    ])
-    renderPage()
-    await waitForLoaded()
+    ]);
+    renderPage();
+    await waitForLoaded();
 
-    await selectRadixOption(user, 'Launch Profile', 'DOSBox Default (default)')
-    expect(screen.getByRole('combobox', { name: 'Launch Profile' })).toHaveTextContent('DOSBox Default (default)')
-    expect(screen.queryByText('Selected profile targets a different era — launch may fail.')).not.toBeInTheDocument()
+    await selectRadixOption(user, 'Launch Profile', 'DOSBox Default (default)');
+    expect(screen.getByRole('combobox', { name: 'Launch Profile' })).toHaveTextContent(
+      'DOSBox Default (default)',
+    );
+    expect(
+      screen.queryByText('Selected profile targets a different era — launch may fail.'),
+    ).not.toBeInTheDocument();
 
-    await saveAndWait(user)
-    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
-    expect(patch[0].body).toMatchObject({ profile_item_id: 10 })
-  })
+    await saveAndWait(user);
+    const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');
+    expect(patch[0].body).toMatchObject({ profile_item_id: 10 });
+  });
 
   describe('era change interactions (mismatch warning, profile grouping)', () => {
-    const dosProfile = { id: 10, name: 'DOSBox Default', slug: 'dosbox-default', era: 'dos', emulator_slug: 'dosbox-x', is_bundled: true, enable_networking: false, enable_dgvoodoo2: false, use_drive: true, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' }
-    const win95Profile = { id: 20, name: 'Win95 Default', slug: 'win95-default', era: 'win95', emulator_slug: '86box', is_bundled: false, enable_networking: false, enable_dgvoodoo2: false, use_drive: true, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' }
+    const dosProfile = {
+      id: 10,
+      name: 'DOSBox Default',
+      slug: 'dosbox-default',
+      era: 'dos',
+      emulator_slug: 'dosbox-x',
+      is_bundled: true,
+      enable_networking: false,
+      enable_dgvoodoo2: false,
+      use_drive: true,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    };
+    const win95Profile = {
+      id: 20,
+      name: 'Win95 Default',
+      slug: 'win95-default',
+      era: 'win95',
+      emulator_slug: '86box',
+      is_bundled: false,
+      enable_networking: false,
+      enable_dgvoodoo2: false,
+      use_drive: true,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    };
 
     it('groups profiles by era match and shows no mismatch warning while the era matches the assigned profile', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup();
       setupApi([
-        { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ era: 'dos', profile_item_id: 10 }) },
-        { match: /^\/api\/v1\/profile-items/, respond: () => ({ items: [dosProfile, win95Profile] }) },
-      ])
-      renderPage()
-      await waitForLoaded()
+        {
+          match: '/api/v1/game-item-bundle/by-slug/doom',
+          method: 'GET',
+          respond: () => fullCollection({ era: 'dos', profile_item_id: 10 }),
+        },
+        {
+          match: /^\/api\/v1\/profile-items/,
+          respond: () => ({ items: [dosProfile, win95Profile] }),
+        },
+      ]);
+      renderPage();
+      await waitForLoaded();
 
       // Radix does not render closed listbox content, open it first. Matching-era
       // profile renders without an era suffix; the other-era profile is labeled
       // with its own era so the "Other eras" grouping in EditForm.tsx is
       // distinguishable in the option list.
-      await user.click(screen.getByRole('combobox', { name: 'Launch Profile' }))
-      expect(screen.getByRole('option', { name: 'DOSBox Default (default)' })).toBeInTheDocument()
-      expect(screen.getByRole('option', { name: 'Win95 Default (Windows 95)' })).toBeInTheDocument()
-      expect(screen.queryByText('Selected profile targets a different era — launch may fail.')).not.toBeInTheDocument()
-    })
+      await user.click(screen.getByRole('combobox', { name: 'Launch Profile' }));
+      expect(screen.getByRole('option', { name: 'DOSBox Default (default)' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('option', { name: 'Win95 Default (Windows 95)' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText('Selected profile targets a different era — launch may fail.'),
+      ).not.toBeInTheDocument();
+    });
 
-    it('shows the mismatch warning once the era is changed away from the assigned profile\'s era', async () => {
-      const user = userEvent.setup()
+    it("shows the mismatch warning once the era is changed away from the assigned profile's era", async () => {
+      const user = userEvent.setup();
       const calls = setupApi([
-        { match: '/api/v1/game-item-bundle/by-slug/doom', method: 'GET', respond: () => fullCollection({ era: 'dos', profile_item_id: 10 }) },
-        { match: /^\/api\/v1\/profile-items/, respond: () => ({ items: [dosProfile, win95Profile] }) },
+        {
+          match: '/api/v1/game-item-bundle/by-slug/doom',
+          method: 'GET',
+          respond: () => fullCollection({ era: 'dos', profile_item_id: 10 }),
+        },
+        {
+          match: /^\/api\/v1\/profile-items/,
+          respond: () => ({ items: [dosProfile, win95Profile] }),
+        },
         { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
         { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
-      ])
-      renderPage()
-      await waitForLoaded()
+      ]);
+      renderPage();
+      await waitForLoaded();
 
-      await selectRadixOption(user, 'Era', 'Windows 95')
-      expect(screen.getByRole('combobox', { name: 'Era' })).toHaveTextContent('Windows 95')
+      await selectRadixOption(user, 'Era', 'Windows 95');
+      expect(screen.getByRole('combobox', { name: 'Era' })).toHaveTextContent('Windows 95');
 
-      expect(screen.getByText('Selected profile targets a different era — launch may fail.')).toBeInTheDocument()
+      expect(
+        screen.getByText('Selected profile targets a different era — launch may fail.'),
+      ).toBeInTheDocument();
 
-      await saveAndWait(user)
-      const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH')
-      expect(patch[0].body).toMatchObject({ era: 'win95' })
-    })
-  })
+      await saveAndWait(user);
+      const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');
+      expect(patch[0].body).toMatchObject({ era: 'win95' });
+    });
+  });
 
   it('sets executable_path via the file browser and sends it on save', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup();
     const calls = setupApi([
       {
         match: '/api/v1/game-item-bundle/by-slug/doom',
         method: 'GET',
-        respond: () => fullCollection({
-          items: [
-            { id: 100, game_item_bundle_id: 1, disc_number: 1, file_path: '/media/doom/disc1.iso', executable_path: null, cover_art_url: null },
-          ],
-        }),
+        respond: () =>
+          fullCollection({
+            items: [
+              {
+                id: 100,
+                game_item_bundle_id: 1,
+                disc_number: 1,
+                file_path: '/media/doom/disc1.iso',
+                executable_path: null,
+                cover_art_url: null,
+              },
+            ],
+          }),
       },
       {
         match: /^\/api\/v1\/filesystem\/browse/,
@@ -442,28 +602,30 @@ describe('CollectionDetail edit form (field-level)', () => {
       },
       { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
       { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
-    ])
-    renderPage()
-    await waitForLoaded()
+    ]);
+    renderPage();
+    await waitForLoaded();
 
-    expect(screen.getByText('No launch file detected — browse to set one.')).toBeInTheDocument()
+    expect(screen.getByText('No launch file detected — browse to set one.')).toBeInTheDocument();
 
     // Two "Browse…" buttons exist (Cover Art Path uses the same PathInput
     // control) — the second one belongs to the Launch File field, rendered
     // just after Cover Art Path in EditForm.tsx.
-    const browseButtons = screen.getAllByRole('button', { name: 'Browse…' })
-    await user.click(browseButtons[1])
-    await user.click(await screen.findByRole('button', { name: /DOOM\.EXE/ }))
+    const browseButtons = screen.getAllByRole('button', { name: 'Browse…' });
+    await user.click(browseButtons[1]);
+    await user.click(await screen.findByRole('button', { name: /DOOM\.EXE/ }));
 
-    expect(screen.queryByText('No launch file detected — browse to set one.')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('No launch file detected — browse to set one.'),
+    ).not.toBeInTheDocument();
     // getByTitle (rather than getByText) targets the Launch File display span
     // specifically via its title attribute (set to the full path), so this
     // stays unambiguous even if a file-listing row with matching text is
     // still in the DOM at the time of the assertion.
-    expect(screen.getByTitle('C:\\Games\\Doom\\DOOM.EXE')).toHaveTextContent('DOOM.EXE')
+    expect(screen.getByTitle('C:\\Games\\Doom\\DOOM.EXE')).toHaveTextContent('DOOM.EXE');
 
-    await saveAndWait(user)
-    const patch = callsTo(calls, '/api/v1/game-item-bundle/1/items/100', 'PATCH')
-    expect(patch[0].body).toMatchObject({ executable_path: 'C:\\Games\\Doom\\DOOM.EXE' })
-  })
-})
+    await saveAndWait(user);
+    const patch = callsTo(calls, '/api/v1/game-item-bundle/1/items/100', 'PATCH');
+    expect(patch[0].body).toMatchObject({ executable_path: 'C:\\Games\\Doom\\DOOM.EXE' });
+  });
+});

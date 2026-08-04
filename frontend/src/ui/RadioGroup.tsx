@@ -34,19 +34,25 @@
 //                                  px-3 py-2 has-[[data-state=checked]]:border-accent
 //                                  has-[[data-state=checked]]:bg-surface-2"
 
-import * as RadixRadioGroup from '@radix-ui/react-radio-group'
-import { cn } from '@/lib/utils'
-import type { ReactNode } from 'react'
+import * as RadixRadioGroup from '@radix-ui/react-radio-group';
+import { cn } from '@/lib/utils';
+import type { ReactNode } from 'react';
 
 interface RadioGroupProps {
-  value?: string
-  onValueChange?: (value: string) => void
-  disabled?: boolean
-  className?: string
-  children: ReactNode
+  value?: string;
+  onValueChange?: (value: string) => void;
+  disabled?: boolean;
+  className?: string;
+  children: ReactNode;
 }
 
-export function RadioGroup({ value, onValueChange, disabled, className, children }: RadioGroupProps) {
+export function RadioGroup({
+  value,
+  onValueChange,
+  disabled,
+  className,
+  children,
+}: RadioGroupProps) {
   return (
     <RadixRadioGroup.Root
       value={value}
@@ -56,16 +62,16 @@ export function RadioGroup({ value, onValueChange, disabled, className, children
     >
       {children}
     </RadixRadioGroup.Root>
-  )
+  );
 }
 
 interface RadioProps {
-  value: string
-  id?: string
-  disabled?: boolean
-  label?: ReactNode
-  className?: string
-  wrapperClassName?: string
+  value: string;
+  id?: string;
+  disabled?: boolean;
+  label?: ReactNode;
+  className?: string;
+  wrapperClassName?: string;
 }
 
 export function Radio({ value, id, disabled, label, className, wrapperClassName }: RadioProps) {
@@ -81,14 +87,14 @@ export function Radio({ value, id, disabled, label, className, wrapperClassName 
     >
       <RadixRadioGroup.Indicator className="h-2 w-2 rounded-full bg-accent" />
     </RadixRadioGroup.Item>
-  )
+  );
 
-  if (!label) return dot
+  if (!label) return dot;
 
   return (
     <label className={cn('flex items-center gap-3', wrapperClassName)}>
       {dot}
       <span className="text-sm text-fg-1">{label}</span>
     </label>
-  )
+  );
 }

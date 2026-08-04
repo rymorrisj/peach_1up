@@ -1,12 +1,12 @@
 interface StepSettingsProps {
-  onBack: () => void
-  onNext: () => void
+  onBack: () => void;
+  onNext: () => void;
 }
 
 const NOTES = [
   "Deleting is permanent. Removing an item from your library can optionally delete its files too, that action can't be undone, so Peach 1UP always asks first.",
   "Uploads are checked, not just accepted. When you add a file, Peach 1UP hashes it and checks it against known preservation databases where available. A confirmed match means your file matches a verified, authentic copy byte-for-byte. No match doesn't mean something's wrong, it just means we don't have data for it yet.",
-]
+];
 
 export default function StepSettings({ onBack, onNext }: StepSettingsProps) {
   return (
@@ -44,5 +44,5 @@ export default function StepSettings({ onBack, onNext }: StepSettingsProps) {
         </button>
       </div>
     </section>
-  )
+  );
 }

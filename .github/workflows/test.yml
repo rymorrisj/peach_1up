@@ -120,6 +120,10 @@ jobs:
         working-directory: frontend
         run: npx eslint .
 
+      - name: Check formatting
+        working-directory: frontend
+        run: npx prettier --check .
+
       - name: Typecheck and production build
         working-directory: frontend
         run: npm run build

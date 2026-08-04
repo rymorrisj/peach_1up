@@ -1,12 +1,12 @@
-import * as Tabs from '@radix-ui/react-tabs'
+import * as Tabs from '@radix-ui/react-tabs';
 
 interface Tab<T extends string> {
-  id: T
-  label: string
+  id: T;
+  label: string;
 }
 
 interface TabBarProps<T extends string> {
-  tabs: Tab<T>[]
+  tabs: Tab<T>[];
 }
 
 // Renders the tab list and triggers only, must be used inside a Radix
@@ -27,5 +27,5 @@ export default function TabBar<T extends string>({ tabs }: TabBarProps<T>) {
         </Tabs.Trigger>
       ))}
     </Tabs.List>
-  )
+  );
 }

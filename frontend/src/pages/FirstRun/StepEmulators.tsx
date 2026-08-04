@@ -1,20 +1,25 @@
-import { Tooltip } from '@/ui'
-import type { EmulatorStatus } from './types'
+import { Tooltip } from '@/ui';
+import type { EmulatorStatus } from './types';
 
 interface StepEmulatorsProps {
-  emulators: EmulatorStatus[]
-  onNext: () => void
-  onSkip: () => void
-  onFinishAndGoTo: (target: string) => void
+  emulators: EmulatorStatus[];
+  onNext: () => void;
+  onSkip: () => void;
+  onFinishAndGoTo: (target: string) => void;
 }
 
-export default function StepEmulators({ emulators, onNext, onSkip, onFinishAndGoTo }: StepEmulatorsProps) {
-  const required = emulators.filter((e) => e.required)
-  const ready = required.filter((e) => e.available).length
+export default function StepEmulators({
+  emulators,
+  onNext,
+  onSkip,
+  onFinishAndGoTo,
+}: StepEmulatorsProps) {
+  const required = emulators.filter((e) => e.required);
+  const ready = required.filter((e) => e.available).length;
   const summary =
     required.length > 0
       ? `${ready} of ${required.length} required emulators ready.`
-      : 'No emulators are marked required yet.'
+      : 'No emulators are marked required yet.';
 
   return (
     <section>
@@ -22,8 +27,8 @@ export default function StepEmulators({ emulators, onNext, onSkip, onFinishAndGo
         Emulators
       </h2>
       <p className="mb-4 text-sm text-neutral-500 dark:text-neutral-400">
-        Emulators run the software you add to your library, one per platform. Peach 1UP can
-        detect installs already on this machine and help you add the rest.
+        Emulators run the software you add to your library, one per platform. Peach 1UP can detect
+        installs already on this machine and help you add the rest.
       </p>
       <p className="mb-6 text-sm font-medium text-neutral-700 dark:text-neutral-300">{summary}</p>
 
@@ -62,5 +67,5 @@ export default function StepEmulators({ emulators, onNext, onSkip, onFinishAndGo
         </button>
       </div>
     </section>
-  )
+  );
 }

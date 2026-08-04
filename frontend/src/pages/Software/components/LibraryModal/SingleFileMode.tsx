@@ -1,17 +1,17 @@
-import { useRef } from 'react'
-import type { DragEvent } from 'react'
-import { UploadCloud } from 'lucide-react'
-import type { BackgroundJob } from '@/context/_AppContext'
-import ProgressBar from './ProgressBar'
-import type { UploadEntry } from './types'
+import { useRef } from 'react';
+import type { DragEvent } from 'react';
+import { UploadCloud } from 'lucide-react';
+import type { BackgroundJob } from '@/context/_AppContext';
+import ProgressBar from './ProgressBar';
+import type { UploadEntry } from './types';
 
 interface SingleFileModeProps {
-  accept?: string
-  dragActive: boolean
-  onDragActiveChange: (active: boolean) => void
-  onFiles: (fileList: FileList) => void
-  entries: UploadEntry[]
-  backgroundJobs: BackgroundJob[]
+  accept?: string;
+  dragActive: boolean;
+  onDragActiveChange: (active: boolean) => void;
+  onFiles: (fileList: FileList) => void;
+  entries: UploadEntry[];
+  backgroundJobs: BackgroundJob[];
 }
 
 export default function SingleFileMode({
@@ -22,25 +22,30 @@ export default function SingleFileMode({
   entries,
   backgroundJobs,
 }: SingleFileModeProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleDrop(e: DragEvent<HTMLDivElement>) {
-    e.preventDefault()
-    onDragActiveChange(false)
-    if (e.dataTransfer.files?.length) onFiles(e.dataTransfer.files)
+    e.preventDefault();
+    onDragActiveChange(false);
+    if (e.dataTransfer.files?.length) onFiles(e.dataTransfer.files);
   }
 
   return (
     <>
       {/* Drop zone */}
       <div
-        onDragOver={(e) => { e.preventDefault(); onDragActiveChange(true) }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          onDragActiveChange(true);
+        }}
         onDragLeave={() => onDragActiveChange(false)}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
         role="button"
         tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click() }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click();
+        }}
         className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center cursor-pointer transition-colors ${
           dragActive
             ? 'border-accent bg-accent/5'
@@ -63,8 +68,8 @@ export default function SingleFileMode({
           tabIndex={-1}
           aria-hidden="true"
           onChange={(e) => {
-            if (e.target.files?.length) onFiles(e.target.files)
-            e.target.value = ''
+            if (e.target.files?.length) onFiles(e.target.files);
+            e.target.value = '';
           }}
         />
       </div>
@@ -73,20 +78,29 @@ export default function SingleFileMode({
       {entries.length > 0 && (
         <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto">
           {entries.map((entry) => {
-            const liveJob = entry.jobId ? backgroundJobs.find((j) => j.id === entry.jobId) : undefined
-            const finalizing = entry.status === 'success' && liveJob && liveJob.status !== 'done'
-            const finalizeFailed = entry.status === 'success' && liveJob?.status === 'error'
-            const finalizePct = liveJob ? Math.round((liveJob.progress ?? 0) * 100) : 0
+            const liveJob = entry.jobId
+              ? backgroundJobs.find((j) => j.id === entry.jobId)
+              : undefined;
+            const finalizing = entry.status === 'success' && liveJob && liveJob.status !== 'done';
+            const finalizeFailed = entry.status === 'success' && liveJob?.status === 'error';
+            const finalizePct = liveJob ? Math.round((liveJob.progress ?? 0) * 100) : 0;
             return (
-              <li key={entry.id} className="rounded-md border border-neutral-200 dark:border-neutral-700 px-3 py-2">
+              <li
+                key={entry.id}
+                className="rounded-md border border-neutral-200 dark:border-neutral-700 px-3 py-2"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <span className="min-w-0 flex-1 truncate text-sm text-neutral-800 dark:text-neutral-200">
                     {entry.file.name}
                   </span>
                   <span className="shrink-0 text-xs font-medium">
-                    {entry.status === 'uploading' && <span className="text-neutral-400">{entry.progress}%</span>}
+                    {entry.status === 'uploading' && (
+                      <span className="text-neutral-400">{entry.progress}%</span>
+                    )}
                     {finalizeFailed && (
-                      <span className="text-red-500" title={liveJob?.error ?? undefined}>Finalize failed</span>
+                      <span className="text-red-500" title={liveJob?.error ?? undefined}>
+                        Finalize failed
+                      </span>
                     )}
                     {!finalizeFailed && finalizing && (
                       <span className="text-neutral-400">{liveJob?.message ?? 'Finalizing…'}</span>
@@ -94,7 +108,9 @@ export default function SingleFileMode({
                     {!finalizeFailed && !finalizing && entry.status === 'success' && (
                       <span className="text-emerald-500">✓ Added</span>
                     )}
-                    {entry.status === 'reused' && <span className="text-emerald-500">✓ Reused existing file</span>}
+                    {entry.status === 'reused' && (
+                      <span className="text-emerald-500">✓ Reused existing file</span>
+                    )}
                     {entry.status === 'error' && <span className="text-red-500">Failed</span>}
                   </span>
                 </div>
@@ -109,13 +125,15 @@ export default function SingleFileMode({
                   </div>
                 )}
                 {entry.status === 'error' && entry.error && (
-                  <p role="alert" className="mt-1 text-xs text-red-500">{entry.error}</p>
+                  <p role="alert" className="mt-1 text-xs text-red-500">
+                    {entry.error}
+                  </p>
                 )}
               </li>
-            )
+            );
           })}
         </ul>
       )}
     </>
-  )
+  );
 }

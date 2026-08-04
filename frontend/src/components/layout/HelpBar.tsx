@@ -1,12 +1,12 @@
 interface HelpBarProps {
-  hints?: Array<[string, string]>
+  hints?: Array<[string, string]>;
 }
 
 const DEFAULT_HINTS: Array<[string, string]> = [
   ['/', 'Search'],
   ['Esc', 'Back'],
   ['?', 'Help'],
-]
+];
 
 export default function HelpBar({ hints = DEFAULT_HINTS }: HelpBarProps) {
   return (
@@ -41,5 +41,5 @@ export default function HelpBar({ hints = DEFAULT_HINTS }: HelpBarProps) {
         </span>
       ))}
     </div>
-  )
+  );
 }

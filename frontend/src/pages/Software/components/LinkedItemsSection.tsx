@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom'
-import { GAME_ROUTE_BASE, MEDIA_ROUTE_BASE, APP_ROUTE_BASE } from '../types'
-import type { LinkedEntityRef } from '../types'
+import { Link } from 'react-router-dom';
+import { GAME_ROUTE_BASE, MEDIA_ROUTE_BASE, APP_ROUTE_BASE } from '../types';
+import type { LinkedEntityRef } from '../types';
 
 // Resolves a LinkedEntityRef's counterpart into a route path, or null when the
 // counterpart has no deep-linkable detail page. Game is slug-routed
@@ -12,22 +12,22 @@ import type { LinkedEntityRef } from '../types'
 export function linkedEntityRoute(ref: LinkedEntityRef): string | null {
   switch (ref.entity_type) {
     case 'game_item_bundle':
-      return ref.slug ? `${GAME_ROUTE_BASE}/${ref.slug}` : null
+      return ref.slug ? `${GAME_ROUTE_BASE}/${ref.slug}` : null;
     case 'app_item_bundle':
-      return `${APP_ROUTE_BASE}/${ref.entity_id}`
+      return `${APP_ROUTE_BASE}/${ref.entity_id}`;
     case 'media_item_bundle':
-      return `${MEDIA_ROUTE_BASE}/${ref.entity_id}`
+      return `${MEDIA_ROUTE_BASE}/${ref.entity_id}`;
     default:
-      return null
+      return null;
   }
 }
 
 interface LinkedItemsSectionProps {
-  items: LinkedEntityRef[]
+  items: LinkedEntityRef[];
 }
 
 export function LinkedItemsSection({ items }: LinkedItemsSectionProps) {
-  if (items.length === 0) return null
+  if (items.length === 0) return null;
 
   return (
     <section className="space-y-3">
@@ -36,7 +36,7 @@ export function LinkedItemsSection({ items }: LinkedItemsSectionProps) {
       </h2>
       <ul className="space-y-1">
         {items.map((item) => {
-          const to = linkedEntityRoute(item)
+          const to = linkedEntityRoute(item);
           return (
             <li key={item.link_id}>
               {to ? (
@@ -47,9 +47,9 @@ export function LinkedItemsSection({ items }: LinkedItemsSectionProps) {
                 <span className="text-sm text-neutral-500 dark:text-neutral-400">{item.title}</span>
               )}
             </li>
-          )
+          );
         })}
       </ul>
     </section>
-  )
+  );
 }

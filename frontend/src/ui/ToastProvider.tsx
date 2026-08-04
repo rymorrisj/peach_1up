@@ -1,36 +1,39 @@
-import { createContext, useCallback, useContext, useState } from 'react'
-import type { ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import * as RadixToast from '@radix-ui/react-toast'
-import { Toast } from './Toast'
-import type { ToastVariant } from './Toast'
+import { createContext, useCallback, useContext, useState } from 'react';
+import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import * as RadixToast from '@radix-ui/react-toast';
+import { Toast } from './Toast';
+import type { ToastVariant } from './Toast';
 
 interface ToastEntry {
-  id: string
-  message: string
-  variant: ToastVariant
-  duration?: number
+  id: string;
+  message: string;
+  variant: ToastVariant;
+  duration?: number;
 }
 
 interface ToastContextValue {
-  showToast: (message: string, variant?: ToastVariant, duration?: number) => string
-  dismissToast: (id: string) => void
+  showToast: (message: string, variant?: ToastVariant, duration?: number) => string;
+  dismissToast: (id: string) => void;
 }
 
-const ToastContext = createContext<ToastContextValue | null>(null)
+const ToastContext = createContext<ToastContextValue | null>(null);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toasts, setToasts] = useState<ToastEntry[]>([])
+  const [toasts, setToasts] = useState<ToastEntry[]>([]);
 
   const dismissToast = useCallback((id: string) => {
-    setToasts((current) => current.filter((t) => t.id !== id))
-  }, [])
+    setToasts((current) => current.filter((t) => t.id !== id));
+  }, []);
 
-  const showToast = useCallback((message: string, variant: ToastVariant = 'info', duration?: number) => {
-    const id = crypto.randomUUID()
-    setToasts((current) => [...current, { id, message, variant, duration }])
-    return id
-  }, [])
+  const showToast = useCallback(
+    (message: string, variant: ToastVariant = 'info', duration?: number) => {
+      const id = crypto.randomUUID();
+      setToasts((current) => [...current, { id, message, variant, duration }]);
+      return id;
+    },
+    [],
+  );
 
   return (
     <ToastContext.Provider value={{ showToast, dismissToast }}>
@@ -57,11 +60,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         )}
       </RadixToast.Provider>
     </ToastContext.Provider>
-  )
+  );
 }
 
 export function useToast(): ToastContextValue {
-  const ctx = useContext(ToastContext)
-  if (!ctx) throw new Error('useToast must be used within ToastProvider')
-  return ctx
+  const ctx = useContext(ToastContext);
+  if (!ctx) throw new Error('useToast must be used within ToastProvider');
+  return ctx;
 }

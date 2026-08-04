@@ -1,11 +1,8 @@
-import type { Config } from 'tailwindcss'
+import type { Config } from 'tailwindcss';
 
 const config: Config = {
   darkMode: 'class',
-  content: [
-    './index.html',
-    './src/**/*.{js,ts,jsx,tsx}',
-  ],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
@@ -38,7 +35,7 @@ const config: Config = {
         error: 'rgb(var(--error) / <alpha-value>)',
         info: 'rgb(var(--info) / <alpha-value>)',
         era: {
-          dos:   'rgb(var(--era-dos) / <alpha-value>)',
+          dos: 'rgb(var(--era-dos) / <alpha-value>)',
           win95: 'rgb(var(--era-win95) / <alpha-value>)',
           win98: 'rgb(var(--era-win98) / <alpha-value>)',
           winxp: 'rgb(var(--era-winxp) / <alpha-value>)',
@@ -66,6 +63,6 @@ const config: Config = {
     },
   },
   plugins: [],
-}
+};
 
-export default config
+export default config;

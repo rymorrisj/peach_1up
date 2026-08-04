@@ -1,10 +1,10 @@
 const DOCS_BASE_URL =
-  (import.meta.env.VITE_DOCS_BASE_URL as string | undefined) ?? 'http://localhost:3000'
+  (import.meta.env.VITE_DOCS_BASE_URL as string | undefined) ?? 'http://localhost:3000';
 
 interface StepGuidesProps {
-  onBack: () => void
-  onFinish: () => void
-  finishing: boolean
+  onBack: () => void;
+  onFinish: () => void;
+  finishing: boolean;
 }
 
 export default function StepGuides({ onBack, onFinish, finishing }: StepGuidesProps) {
@@ -49,5 +49,5 @@ export default function StepGuides({ onBack, onFinish, finishing }: StepGuidesPr
         </button>
       </div>
     </section>
-  )
+  );
 }

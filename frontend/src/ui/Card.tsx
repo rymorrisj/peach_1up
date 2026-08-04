@@ -14,21 +14,21 @@
 //   className?: string          merged onto the root, standard div props also pass through
 //   children: ReactNode
 
-import { cn } from '@/lib/utils'
-import type { HTMLAttributes, ReactNode } from 'react'
+import { cn } from '@/lib/utils';
+import type { HTMLAttributes, ReactNode } from 'react';
 
-type CardSize = 'sm' | 'md' | 'lg'
+type CardSize = 'sm' | 'md' | 'lg';
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
-  size?: CardSize
-  children: ReactNode
+  size?: CardSize;
+  children: ReactNode;
 }
 
 const SIZE: Record<CardSize, string> = {
   sm: 'p-4',
   md: 'p-5',
   lg: 'p-6',
-}
+};
 
 function CardRoot({ size = 'sm', className, children, ...props }: CardProps) {
   return (
@@ -42,7 +42,7 @@ function CardRoot({ size = 'sm', className, children, ...props }: CardProps) {
     >
       {children}
     </div>
-  )
+  );
 }
 
 // A real heading (h2), not a div, so a page with several cards still has a
@@ -53,15 +53,12 @@ function CardRoot({ size = 'sm', className, children, ...props }: CardProps) {
 function CardHeader({ className, children, ...props }: HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h2
-      className={cn(
-        'mb-3 text-xs font-semibold uppercase tracking-wider text-fg-3',
-        className,
-      )}
+      className={cn('mb-3 text-xs font-semibold uppercase tracking-wider text-fg-3', className)}
       {...props}
     >
       {children}
     </h2>
-  )
+  );
 }
 
-export const Card = Object.assign(CardRoot, { Header: CardHeader })
+export const Card = Object.assign(CardRoot, { Header: CardHeader });

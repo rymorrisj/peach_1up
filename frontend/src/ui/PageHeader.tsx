@@ -1,10 +1,10 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from 'react';
 
 interface PageHeaderProps {
-  title: string
-  description?: ReactNode
-  action?: ReactNode
-  count?: ReactNode
+  title: string;
+  description?: ReactNode;
+  action?: ReactNode;
+  count?: ReactNode;
 }
 
 export function PageHeader({ title, description, action, count }: PageHeaderProps) {
@@ -40,5 +40,5 @@ export function PageHeader({ title, description, action, count }: PageHeaderProp
       )}
       {action && <div className="ml-auto flex shrink-0 items-center gap-2">{action}</div>}
     </div>
-  )
+  );
 }

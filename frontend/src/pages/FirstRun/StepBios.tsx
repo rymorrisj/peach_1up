@@ -1,29 +1,29 @@
-import { useQuery } from '@tanstack/react-query'
-import { Tooltip } from '@/ui'
-import { apiFetch } from '@/api/client'
-import type { Page } from '@/hooks/usePaginatedList'
-import type { components } from '@shared/types'
+import { useQuery } from '@tanstack/react-query';
+import { Tooltip } from '@/ui';
+import { apiFetch } from '@/api/client';
+import type { Page } from '@/hooks/usePaginatedList';
+import type { components } from '@shared/types';
 
-type BiosItem = components['schemas']['BiosItem']
+type BiosItem = components['schemas']['BiosItem'];
 
 const DOCS_BASE_URL =
-  (import.meta.env.VITE_DOCS_BASE_URL as string | undefined) ?? 'http://localhost:3000'
+  (import.meta.env.VITE_DOCS_BASE_URL as string | undefined) ?? 'http://localhost:3000';
 
 interface StepBiosProps {
-  onBack: () => void
-  onFinish: () => void
-  onFinishAndGoTo: (target: string) => void
-  finishing: boolean
+  onBack: () => void;
+  onFinish: () => void;
+  onFinishAndGoTo: (target: string) => void;
+  finishing: boolean;
 }
 
 export default function StepBios({ onBack, onFinish, onFinishAndGoTo, finishing }: StepBiosProps) {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['first-run-bios-summary'],
     queryFn: () => apiFetch<Page<BiosItem>>('/api/v1/bios?limit=200'),
-  })
+  });
 
-  const required = (data?.items ?? []).filter((b) => b.required)
-  const present = required.filter((b) => b.is_present).length
+  const required = (data?.items ?? []).filter((b) => b.required);
+  const present = required.filter((b) => b.is_present).length;
 
   const summary = isLoading
     ? 'Checking BIOS status…'
@@ -31,7 +31,7 @@ export default function StepBios({ onBack, onFinish, onFinishAndGoTo, finishing 
       ? 'BIOS status could not be loaded right now, you can check it anytime on the BIOS tab.'
       : required.length > 0
         ? `${present} of ${required.length} required BIOS files present.`
-        : 'No BIOS files are marked required yet.'
+        : 'No BIOS files are marked required yet.';
 
   return (
     <section>
@@ -39,8 +39,8 @@ export default function StepBios({ onBack, onFinish, onFinishAndGoTo, finishing 
         BIOS Files
       </h2>
       <p className="mb-4 text-sm text-neutral-500 dark:text-neutral-400">
-        Some emulators, mostly consoles, need a copy of the original system BIOS to run. Peach
-        1UP can't provide these for you, they need to come from hardware you own.
+        Some emulators, mostly consoles, need a copy of the original system BIOS to run. Peach 1UP
+        can't provide these for you, they need to come from hardware you own.
       </p>
       <p className="mb-6 text-sm font-medium text-neutral-700 dark:text-neutral-300">{summary}</p>
 
@@ -94,5 +94,5 @@ export default function StepBios({ onBack, onFinish, onFinishAndGoTo, finishing 
         </button>
       </div>
     </section>
-  )
+  );
 }

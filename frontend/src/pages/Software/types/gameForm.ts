@@ -1,36 +1,36 @@
-import type { BaseSoftwareForm } from './softwareForm'
+import type { BaseSoftwareForm } from './softwareForm';
 
 export interface SoftwareGameForm extends BaseSoftwareForm {
-  sort_title: string
-  publisher: string
-  year: string
-  category: string
-  content_rating: string
-  era: string
-  environment_item_id: string
-  profile_item_id: string
-  executable_path: string
+  sort_title: string;
+  publisher: string;
+  year: string;
+  category: string;
+  content_rating: string;
+  era: string;
+  environment_item_id: string;
+  profile_item_id: string;
+  executable_path: string;
 }
 
 interface EditableItem {
-  id: number
-  cover_art_path: string | null
-  executable_path: string | null
+  id: number;
+  cover_art_path: string | null;
+  executable_path: string | null;
 }
 
 export interface EditableCollection {
-  title: string
-  sort_title: string | null
-  description: string | null
-  publisher: string | null
-  year: number | null
-  category: string | null
-  content_rating: string | null
-  era: string
-  environment_item_id: number | null
-  profile_item_id: number | null
-  launch_disk_id: number | null
-  items: EditableItem[]
+  title: string;
+  sort_title: string | null;
+  description: string | null;
+  publisher: string | null;
+  year: number | null;
+  category: string | null;
+  content_rating: string | null;
+  era: string;
+  environment_item_id: number | null;
+  profile_item_id: number | null;
+  launch_disk_id: number | null;
+  items: EditableItem[];
 }
 
 // Games-specific derivation, including the launch-disc lookup for
@@ -38,7 +38,7 @@ export interface EditableCollection {
 // (no launch-disc indirection), so this stays colocated with SoftwareGameForm
 // rather than folded into the generalized useEditForm hook.
 export function formFromCollection(c: EditableCollection): SoftwareGameForm {
-  const launchDisc = c.items.find((i) => i.id === c.launch_disk_id) ?? c.items[0]
+  const launchDisc = c.items.find((i) => i.id === c.launch_disk_id) ?? c.items[0];
   return {
     title: c.title,
     sort_title: c.sort_title ?? '',
@@ -52,5 +52,5 @@ export function formFromCollection(c: EditableCollection): SoftwareGameForm {
     environment_item_id: c.environment_item_id?.toString() ?? '',
     profile_item_id: c.profile_item_id?.toString() ?? '',
     executable_path: launchDisc?.executable_path ?? '',
-  }
+  };
 }

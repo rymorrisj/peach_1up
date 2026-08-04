@@ -1,35 +1,35 @@
-import * as RadixToast from '@radix-ui/react-toast'
-import { X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import * as RadixToast from '@radix-ui/react-toast';
+import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-export type ToastVariant = 'success' | 'error' | 'info'
+export type ToastVariant = 'success' | 'error' | 'info';
 
 interface ToastProps {
-  message: string
-  variant?: ToastVariant
-  duration?: number
-  onDismiss: () => void
+  message: string;
+  variant?: ToastVariant;
+  duration?: number;
+  onDismiss: () => void;
 }
 
 const VARIANT: Record<ToastVariant, string> = {
   success: 'border-success/50 text-success',
   error: 'border-error/50 text-error',
   info: 'border-border-strong text-fg-1',
-}
+};
 
 // Old behavior treated duration <= 0 as "never auto dismiss" by skipping the
 // setTimeout entirely. Radix's duration prop cannot take Infinity, a browser
 // setTimeout clamps an Infinity/NaN delay to fire immediately rather than
 // never, so a very large finite value is used instead to mean the same
 // thing without risking an immediate close.
-const NEVER_MS = 24 * 60 * 60 * 1000
+const NEVER_MS = 24 * 60 * 60 * 1000;
 
 export function Toast({ message, variant = 'info', duration = 5000, onDismiss }: ToastProps) {
   return (
     <RadixToast.Root
       duration={duration <= 0 ? NEVER_MS : duration}
       onOpenChange={(open) => {
-        if (!open) onDismiss()
+        if (!open) onDismiss();
       }}
       onClick={onDismiss}
       // Radix's own default role/live-region handling is internal and not
@@ -51,5 +51,5 @@ export function Toast({ message, variant = 'info', duration = 5000, onDismiss }:
         <X size={14} />
       </RadixToast.Close>
     </RadixToast.Root>
-  )
+  );
 }

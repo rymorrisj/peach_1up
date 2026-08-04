@@ -1,12 +1,22 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils';
 
 type Status =
-  | 'ok' | 'missing' | 'error' | 'unknown' | 'healthy' | 'degraded' | 'unconfigured'
-  | 'verified' | 'caution' | 'not_in_index' | 'mismatch' | 'unchecked'
+  | 'ok'
+  | 'missing'
+  | 'error'
+  | 'unknown'
+  | 'healthy'
+  | 'degraded'
+  | 'unconfigured'
+  | 'verified'
+  | 'caution'
+  | 'not_in_index'
+  | 'mismatch'
+  | 'unchecked';
 
 interface StatusBadgeProps {
-  status: string
-  label?: string
+  status: string;
+  label?: string;
 }
 
 const CONFIG: Record<Status, { classes: string; defaultLabel: string }> = {
@@ -68,13 +78,13 @@ const CONFIG: Record<Status, { classes: string; defaultLabel: string }> = {
     classes: 'bg-neutral-500/15 text-neutral-500',
     defaultLabel: 'Unchecked',
   },
-}
+};
 
 export function StatusBadge({ status, label }: StatusBadgeProps) {
-  const cfg = CONFIG[status as Status] ?? CONFIG.unknown
+  const cfg = CONFIG[status as Status] ?? CONFIG.unknown;
   return (
     <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium', cfg.classes)}>
       {label ?? cfg.defaultLabel}
     </span>
-  )
+  );
 }

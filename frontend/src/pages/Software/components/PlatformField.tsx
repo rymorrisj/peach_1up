@@ -1,24 +1,24 @@
-import { FormField, Select } from '@/ui'
-import type { components } from '@shared/types'
+import { FormField, Select } from '@/ui';
+import type { components } from '@shared/types';
 
-type Platform = components['schemas']['EnvironmentItemRead']
+type Platform = components['schemas']['EnvironmentItemRead'];
 
 interface PlatformFieldProps {
   /** Whether this item can launch via an Environment at all (Games: era is
    *  PC, Apps: is_pc). Everything else about the field derives from this. */
-  isPcLaunchable: boolean
+  isPcLaunchable: boolean;
   /** The item's own era (e.g. "win98"), an Environment option is only
    *  selectable if its era matches this exactly. Mirrors the backend
    *  authoritative gate (compute_launch_blocked_reason's
    *  "environment_era_mismatch") that closed the incident where a win98 item
    *  silently launched against a win95-era Environment. */
-  itemEra: string
-  value: string
-  onChange: (value: string) => void
-  platforms: Platform[]
+  itemEra: string;
+  value: string;
+  onChange: (value: string) => void;
+  platforms: Platform[];
   /** Shown as the field's hint only while disabled, explaining why there is
    *  no Environment picker for this item. */
-  disabledNote: string
+  disabledNote: string;
 }
 
 // DOS/DOSBox-X environments have no OS install step, so they are always
@@ -26,14 +26,14 @@ interface PlatformFieldProps {
 // era_defaults.environment_is_installed on the backend exactly, so the
 // frontend and backend gates can't drift apart.
 function isEnvironmentInstalled(p: Platform): boolean {
-  return p.era === 'dos' ? true : !!p.installed_at
+  return p.era === 'dos' ? true : !!p.installed_at;
 }
 
 function unselectableReason(p: Platform, itemEra: string): string | null {
-  if (p.era !== itemEra) return 'different era'
-  if (!p.is_present) return 'not present'
-  if (!isEnvironmentInstalled(p)) return 'OS not installed yet'
-  return null
+  if (p.era !== itemEra) return 'different era';
+  if (!p.is_present) return 'not present';
+  if (!isEnvironmentInstalled(p)) return 'OS not installed yet';
+  return null;
 }
 
 // Shared by EditForm.tsx (Games, gated on era) and AppEditForm.tsx (Apps,
@@ -49,9 +49,20 @@ function unselectableReason(p: Platform, itemEra: string): string | null {
 // installed yet shows as a disabled option with the reason appended, rather
 // than being silently omitted or silently selectable, same "explain why,
 // don't hide" philosophy as the field-level disabledNote.
-export function PlatformField({ isPcLaunchable, itemEra, value, onChange, platforms, disabledNote }: PlatformFieldProps) {
+export function PlatformField({
+  isPcLaunchable,
+  itemEra,
+  value,
+  onChange,
+  platforms,
+  disabledNote,
+}: PlatformFieldProps) {
   return (
-    <FormField label="Platform" htmlFor="detail-platform" hint={!isPcLaunchable ? disabledNote : undefined}>
+    <FormField
+      label="Platform"
+      htmlFor="detail-platform"
+      hint={!isPcLaunchable ? disabledNote : undefined}
+    >
       <Select
         id="detail-platform"
         value={value || 'none'}
@@ -61,16 +72,16 @@ export function PlatformField({ isPcLaunchable, itemEra, value, onChange, platfo
           { value: 'none', label: 'No platform selected' },
           ...(isPcLaunchable
             ? platforms.map((p) => {
-                const reason = unselectableReason(p, itemEra)
+                const reason = unselectableReason(p, itemEra);
                 return {
                   value: String(p.id),
                   label: reason ? `${p.name} — ${reason}` : p.name,
                   disabled: reason != null,
-                }
+                };
               })
             : []),
         ]}
       />
     </FormField>
-  )
+  );
 }

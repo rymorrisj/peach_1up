@@ -1,5 +1,5 @@
 interface LoadingSpinnerProps {
-  label?: string
+  label?: string;
 }
 
 export default function LoadingSpinner({ label }: LoadingSpinnerProps) {
@@ -9,11 +9,7 @@ export default function LoadingSpinner({ label }: LoadingSpinnerProps) {
         aria-hidden="true"
         className="block h-[1em] w-[1em] animate-spin rounded-full border-2 border-current border-t-transparent"
       />
-      {label ? (
-        <span className="sr-only">{label}</span>
-      ) : (
-        <span className="sr-only">Loading…</span>
-      )}
+      {label ? <span className="sr-only">{label}</span> : <span className="sr-only">Loading…</span>}
     </span>
-  )
+  );
 }

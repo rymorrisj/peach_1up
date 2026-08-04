@@ -1,25 +1,25 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import TopBar from "@/components/layout/TopBar";
-import { apiFetch, ApiError } from "@/api/client";
-import { useAppContext } from "@/context/useAppContext";
-import { Button } from "@/ui";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import UserSwitcher from "@/components/UserSwitcher";
-import { UserList } from "./components/UserList";
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import TopBar from '@/components/layout/TopBar';
+import { apiFetch, ApiError } from '@/api/client';
+import { useAppContext } from '@/context/useAppContext';
+import { Button } from '@/ui';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import UserSwitcher from '@/components/UserSwitcher';
+import { UserList } from './components/UserList';
 import {
   ManageUserModal,
   type ManageUserForm,
   type ManageUserMode,
-} from "./components/ManageUserModal";
-import { ResetPinModal, type ResetPinTarget } from "./components/ResetPinModal";
-import type { components } from "@shared/types";
+} from './components/ManageUserModal';
+import { ResetPinModal, type ResetPinTarget } from './components/ResetPinModal';
+import type { components } from '@shared/types';
 
-type User = components["schemas"]["UserItemRead"];
+type User = components['schemas']['UserItemRead'];
 
 const EMPTY_MANAGE_USER_FORM: ManageUserForm = {
-  name: "",
-  pin: "",
+  name: '',
+  pin: '',
   can_launch_media: true,
   can_manage_game: false,
   can_manage_environment: false,
@@ -28,14 +28,14 @@ const EMPTY_MANAGE_USER_FORM: ManageUserForm = {
   can_manage_settings: false,
   can_manage_users: false,
   is_admin: false,
-  max_content_rating: "",
+  max_content_rating: '',
   block_unrated_media: false,
-  session_token_ttl: "",
+  session_token_ttl: '',
 };
 
 type ActionState = {
   userId: number;
-  action: "unlock" | "delete";
+  action: 'unlock' | 'delete';
   submitting: boolean;
 } | null;
 
@@ -47,39 +47,34 @@ export default function Users() {
   const activeUserId = appState.activeUser?.id;
 
   const { data: users, isLoading: usersLoading } = useQuery<User[]>({
-    queryKey: ["users"],
-    queryFn: () => apiFetch<User[]>("/api/v1/user-items"),
+    queryKey: ['users'],
+    queryFn: () => apiFetch<User[]>('/api/v1/user-items'),
   });
 
   const [manageOpen, setManageOpen] = useState(false);
-  const [manageMode, setManageMode] = useState<ManageUserMode>("create");
+  const [manageMode, setManageMode] = useState<ManageUserMode>('create');
   const [manageTargetId, setManageTargetId] = useState<number | null>(null);
-  const [manageTargetName, setManageTargetName] = useState<string>("");
+  const [manageTargetName, setManageTargetName] = useState<string>('');
   const [manageCanEditAdminFields, setManageCanEditAdminFields] = useState(true);
   const [manageForm, setManageForm] = useState<ManageUserForm>(EMPTY_MANAGE_USER_FORM);
-  const [manageErrors, setManageErrors] = useState<
-    Partial<Record<keyof ManageUserForm, string>>
-  >({});
+  const [manageErrors, setManageErrors] = useState<Partial<Record<keyof ManageUserForm, string>>>(
+    {},
+  );
   const [manageSubmitting, setManageSubmitting] = useState(false);
   const [manageError, setManageError] = useState<string | null>(null);
 
-  const [resetPinTarget, setResetPinTarget] = useState<ResetPinTarget | null>(
-    null,
-  );
+  const [resetPinTarget, setResetPinTarget] = useState<ResetPinTarget | null>(null);
   const [actionState, setActionState] = useState<ActionState>(null);
 
-  function setManageField<K extends keyof ManageUserForm>(
-    key: K,
-    value: ManageUserForm[K],
-  ) {
+  function setManageField<K extends keyof ManageUserForm>(key: K, value: ManageUserForm[K]) {
     setManageForm((prev) => ({ ...prev, [key]: value }));
     setManageErrors((prev) => ({ ...prev, [key]: undefined }));
   }
 
   function openAddUser() {
-    setManageMode("create");
+    setManageMode('create');
     setManageTargetId(null);
-    setManageTargetName("");
+    setManageTargetName('');
     setManageCanEditAdminFields(true);
     setManageForm(EMPTY_MANAGE_USER_FORM);
     setManageErrors({});
@@ -88,13 +83,13 @@ export default function Users() {
   }
 
   function openEditUser(user: User) {
-    setManageMode("edit");
+    setManageMode('edit');
     setManageTargetId(user.id);
     setManageTargetName(user.name);
     setManageCanEditAdminFields(isOwner || isAdmin);
     setManageForm({
       name: user.name,
-      pin: "",
+      pin: '',
       can_launch_media: user.can_launch_media,
       can_manage_game: user.can_manage_game,
       can_manage_environment: user.can_manage_environment,
@@ -103,10 +98,9 @@ export default function Users() {
       can_manage_settings: user.can_manage_settings,
       can_manage_users: user.can_manage_users,
       is_admin: user.is_admin,
-      max_content_rating: user.max_content_rating ?? "",
+      max_content_rating: user.max_content_rating ?? '',
       block_unrated_media: user.block_unrated_media,
-      session_token_ttl:
-        user.session_token_ttl != null ? String(user.session_token_ttl) : "",
+      session_token_ttl: user.session_token_ttl != null ? String(user.session_token_ttl) : '',
     });
     setManageErrors({});
     setManageError(null);
@@ -115,9 +109,8 @@ export default function Users() {
 
   function validateManage(): boolean {
     const errors: Partial<Record<keyof ManageUserForm, string>> = {};
-    if (!manageForm.name.trim()) errors.name = "Name is required.";
-    if (manageForm.pin && !/^\d{4,6}$/.test(manageForm.pin))
-      errors.pin = "PIN must be 4–6 digits.";
+    if (!manageForm.name.trim()) errors.name = 'Name is required.';
+    if (manageForm.pin && !/^\d{4,6}$/.test(manageForm.pin)) errors.pin = 'PIN must be 4–6 digits.';
     setManageErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -127,9 +120,9 @@ export default function Users() {
     setManageSubmitting(true);
     setManageError(null);
     try {
-      if (manageMode === "create") {
-        await apiFetch("/api/v1/user-items", {
-          method: "POST",
+      if (manageMode === 'create') {
+        await apiFetch('/api/v1/user-items', {
+          method: 'POST',
           body: JSON.stringify({
             name: manageForm.name.trim(),
             pin: manageForm.pin || undefined,
@@ -170,26 +163,26 @@ export default function Users() {
           }
         }
         await apiFetch(`/api/v1/user-items/${manageTargetId}`, {
-          method: "PATCH",
+          method: 'PATCH',
           body: JSON.stringify(patchBody),
         });
         if (manageForm.pin) {
           await apiFetch(`/api/v1/user-items/${manageTargetId}/reset-pin`, {
-            method: "POST",
+            method: 'POST',
             body: JSON.stringify({ pin: manageForm.pin }),
           });
         }
       }
       setManageOpen(false);
       setManageForm(EMPTY_MANAGE_USER_FORM);
-      await queryClient.invalidateQueries({ queryKey: ["users"] });
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
     } catch (err) {
       setManageError(
         err instanceof ApiError
           ? err.detail
-          : manageMode === "create"
-            ? "Failed to create user."
-            : "Failed to update user.",
+          : manageMode === 'create'
+            ? 'Failed to create user.'
+            : 'Failed to update user.',
       );
     } finally {
       setManageSubmitting(false);
@@ -199,28 +192,28 @@ export default function Users() {
   async function handleResetPin() {
     if (!resetPinTarget || resetPinTarget.submitting) return;
     if (!/^\d{4,6}$/.test(resetPinTarget.pin)) {
-      setResetPinTarget((p) => p && { ...p, error: "PIN must be 4–6 digits." });
+      setResetPinTarget((p) => p && { ...p, error: 'PIN must be 4–6 digits.' });
       return;
     }
     setResetPinTarget((p) => p && { ...p, submitting: true, error: null });
     try {
       await apiFetch(`/api/v1/user-items/${resetPinTarget.user.id}/reset-pin`, {
-        method: "POST",
+        method: 'POST',
         body: JSON.stringify({ pin: resetPinTarget.pin }),
       });
-      await queryClient.invalidateQueries({ queryKey: ["users"] });
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
       setResetPinTarget(null);
     } catch (err) {
-      const msg = err instanceof ApiError ? err.detail : "Failed to reset PIN.";
+      const msg = err instanceof ApiError ? err.detail : 'Failed to reset PIN.';
       setResetPinTarget((p) => p && { ...p, submitting: false, error: msg });
     }
   }
 
   async function handleUnlock(user: User) {
-    setActionState({ userId: user.id, action: "unlock", submitting: true });
+    setActionState({ userId: user.id, action: 'unlock', submitting: true });
     try {
-      await apiFetch(`/api/v1/user-items/${user.id}/unlock`, { method: "POST" });
-      await queryClient.invalidateQueries({ queryKey: ["users"] });
+      await apiFetch(`/api/v1/user-items/${user.id}/unlock`, { method: 'POST' });
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
     } catch {
       // error silently — list will not change
     } finally {
@@ -229,12 +222,11 @@ export default function Users() {
   }
 
   async function handleDelete(user: User) {
-    if (!confirm(`Delete account "${user.name}"? This cannot be undone.`))
-      return;
-    setActionState({ userId: user.id, action: "delete", submitting: true });
+    if (!confirm(`Delete account "${user.name}"? This cannot be undone.`)) return;
+    setActionState({ userId: user.id, action: 'delete', submitting: true });
     try {
-      await apiFetch(`/api/v1/user-items/${user.id}`, { method: "DELETE" });
-      await queryClient.invalidateQueries({ queryKey: ["users"] });
+      await apiFetch(`/api/v1/user-items/${user.id}`, { method: 'DELETE' });
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
     } catch {
       // error silently
     } finally {
@@ -277,7 +269,7 @@ export default function Users() {
                 onResetPin={(user) =>
                   setResetPinTarget({
                     user,
-                    pin: "",
+                    pin: '',
                     error: null,
                     submitting: false,
                   })
@@ -307,9 +299,7 @@ export default function Users() {
         {resetPinTarget && (
           <ResetPinModal
             target={resetPinTarget}
-            onChangePin={(pin) =>
-              setResetPinTarget((p) => p && { ...p, pin, error: null })
-            }
+            onChangePin={(pin) => setResetPinTarget((p) => p && { ...p, pin, error: null })}
             onSubmit={handleResetPin}
             onClose={() => setResetPinTarget(null)}
           />

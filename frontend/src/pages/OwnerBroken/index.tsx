@@ -6,8 +6,8 @@ export default function OwnerBroken() {
           Owner account unavailable
         </h1>
         <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">
-          The owner account is missing or locked. Recovery requires running the
-          setup script from the host machine, in the project directory:
+          The owner account is missing or locked. Recovery requires running the setup script from
+          the host machine, in the project directory:
         </p>
         <pre className="rounded bg-surface-2 px-3 py-2 text-left text-sm font-mono text-neutral-800 dark:text-neutral-200">
           python scripts/setup_admin_user.py
@@ -17,5 +17,5 @@ export default function OwnerBroken() {
         </p>
       </div>
     </main>
-  )
+  );
 }

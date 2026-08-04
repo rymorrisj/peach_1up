@@ -1,21 +1,21 @@
-import { useRef } from 'react'
-import { Button, Input } from '@/ui'
-import type { BackgroundJob } from '@/context/_AppContext'
-import ProgressBar from './ProgressBar'
+import { useRef } from 'react';
+import { Button, Input } from '@/ui';
+import type { BackgroundJob } from '@/context/_AppContext';
+import ProgressBar from './ProgressBar';
 
 interface FolderUploadModeProps {
-  busy: boolean
-  folderTitle: string
-  onFolderTitleChange: (value: string) => void
-  folderFiles: File[]
-  onSelectFiles: (files: File[]) => void
-  folderStatus: 'idle' | 'uploading' | 'success' | 'error'
-  folderError: string | null
-  folderProgress: number
-  folderBackground: boolean
-  folderJobId: string | null
-  folderResult: { type: 'item' | 'set'; title: string; discCount?: number } | null
-  backgroundJobs: BackgroundJob[]
+  busy: boolean;
+  folderTitle: string;
+  onFolderTitleChange: (value: string) => void;
+  folderFiles: File[];
+  onSelectFiles: (files: File[]) => void;
+  folderStatus: 'idle' | 'uploading' | 'success' | 'error';
+  folderError: string | null;
+  folderProgress: number;
+  folderBackground: boolean;
+  folderJobId: string | null;
+  folderResult: { type: 'item' | 'set'; title: string; discCount?: number } | null;
+  backgroundJobs: BackgroundJob[];
 }
 
 export default function FolderUploadMode({
@@ -32,8 +32,8 @@ export default function FolderUploadMode({
   folderResult,
   backgroundJobs,
 }: FolderUploadModeProps) {
-  const folderInputRef = useRef<HTMLInputElement>(null)
-  const folderJob = folderJobId ? backgroundJobs.find((j) => j.id === folderJobId) : undefined
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const folderJob = folderJobId ? backgroundJobs.find((j) => j.id === folderJobId) : undefined;
 
   return (
     <div className="space-y-3">
@@ -67,18 +67,15 @@ export default function FolderUploadMode({
           tabIndex={-1}
           aria-hidden="true"
           onChange={(e) => {
-            if (e.target.files?.length) onSelectFiles(Array.from(e.target.files))
-            e.target.value = ''
+            if (e.target.files?.length) onSelectFiles(Array.from(e.target.files));
+            e.target.value = '';
           }}
         />
       </div>
       {folderFiles.length > 0 && (
         <ul className="max-h-40 space-y-1 overflow-y-auto">
           {folderFiles.map((f, i) => (
-            <li
-              key={i}
-              className="truncate rounded px-2 py-0.5 font-mono text-xs text-neutral-400"
-            >
+            <li key={i} className="truncate rounded px-2 py-0.5 font-mono text-xs text-neutral-400">
               {f.name}
             </li>
           ))}
@@ -100,30 +97,39 @@ export default function FolderUploadMode({
             : `Added "${folderResult.title}" as a library item.`}
         </p>
       )}
-      {folderStatus === 'success' && folderResult && folderBackground && (() => {
-        if (folderJob?.status === 'error') {
-          return (
-            <p className="text-sm text-red-400">
-              Finalizing "{folderResult.title}" failed: {folderJob.error ?? 'Unknown error.'}
-            </p>
-          )
-        }
-        if (folderJob && folderJob.status !== 'done') {
-          const pct = Math.round((folderJob.progress ?? 0) * 100)
-          return (
-            <div>
-              <p className="text-sm text-neutral-400">{folderJob.message}</p>
-              <div className="mt-1">
-                <ProgressBar pct={pct} slow />
+      {folderStatus === 'success' &&
+        folderResult &&
+        folderBackground &&
+        (() => {
+          if (folderJob?.status === 'error') {
+            return (
+              <p className="text-sm text-red-400">
+                Finalizing "{folderResult.title}" failed: {folderJob.error ?? 'Unknown error.'}
+              </p>
+            );
+          }
+          if (folderJob && folderJob.status !== 'done') {
+            const pct = Math.round((folderJob.progress ?? 0) * 100);
+            return (
+              <div>
+                <p className="text-sm text-neutral-400">{folderJob.message}</p>
+                <div className="mt-1">
+                  <ProgressBar pct={pct} slow />
+                </div>
               </div>
-            </div>
-          )
-        }
-        return <p className="text-sm text-emerald-400">Added "{folderResult.title}" as a library item.</p>
-      })()}
+            );
+          }
+          return (
+            <p className="text-sm text-emerald-400">
+              Added "{folderResult.title}" as a library item.
+            </p>
+          );
+        })()}
       {folderStatus === 'error' && folderError && (
-        <p role="alert" className="text-sm text-red-400">{folderError}</p>
+        <p role="alert" className="text-sm text-red-400">
+          {folderError}
+        </p>
       )}
     </div>
-  )
+  );
 }

@@ -1,51 +1,51 @@
-import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { apiFetch, ApiError } from '@/api/client'
-import { Button } from '@/ui'
-import LoadingSpinner from '@/components/common/LoadingSpinner'
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { apiFetch, ApiError } from '@/api/client';
+import { Button } from '@/ui';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 
 interface DriveEntry {
-  letter: string
-  path: string
-  label: string
+  letter: string;
+  path: string;
+  label: string;
 }
 
 interface DirEntry {
-  name: string
-  path: string
+  name: string;
+  path: string;
 }
 
 interface FileEntry {
-  name: string
-  path: string
-  size_bytes: number
+  name: string;
+  path: string;
+  size_bytes: number;
 }
 
 interface BrowseResult {
-  current_path: string | null
-  parent_path: string | null
-  dirs: DirEntry[]
-  files: FileEntry[]
+  current_path: string | null;
+  parent_path: string | null;
+  dirs: DirEntry[];
+  files: FileEntry[];
 }
 
 interface BrowsePanelProps {
-  open: boolean
-  onClose: () => void
+  open: boolean;
+  onClose: () => void;
   // isDir reflects which listing produced the selection (the folder-select
   // button vs. a row from `files`), callers that only care about the path
   // can ignore the second argument.
-  onSelect: (path: string, isDir: boolean) => void
-  extensions?: string
-  title?: string
-  mode?: 'file' | 'folder' | 'both'
-  rootPath?: string | null
+  onSelect: (path: string, isDir: boolean) => void;
+  extensions?: string;
+  title?: string;
+  mode?: 'file' | 'folder' | 'both';
+  rootPath?: string | null;
 }
 
 function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
-  return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 
 // Renders the server-side filesystem browser as plain in-content DOM, a
@@ -66,47 +66,51 @@ export default function BrowsePanel({
   mode = 'file',
   rootPath,
 }: BrowsePanelProps) {
-  const [currentPath, setCurrentPath] = useState<string | null>(rootPath ?? null)
+  const [currentPath, setCurrentPath] = useState<string | null>(rootPath ?? null);
 
   useEffect(() => {
-    if (open) setCurrentPath(rootPath ?? null)
-  }, [open, rootPath])
+    if (open) setCurrentPath(rootPath ?? null);
+  }, [open, rootPath]);
 
   const { data: drivesData } = useQuery({
     queryKey: ['filesystem', 'drives'],
     queryFn: async () => {
       try {
-        return await apiFetch<{ drives: DriveEntry[] }>('/api/v1/filesystem/drives')
+        return await apiFetch<{ drives: DriveEntry[] }>('/api/v1/filesystem/drives');
       } catch (err) {
-        if (err instanceof ApiError && err.status === 404) return null
-        throw err
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
       }
     },
     enabled: open,
     staleTime: 60_000,
-  })
+  });
 
-  const showFiles = mode === 'file' || mode === 'both'
+  const showFiles = mode === 'file' || mode === 'both';
 
-  const { data: browseData, isLoading, error } = useQuery<BrowseResult>({
+  const {
+    data: browseData,
+    isLoading,
+    error,
+  } = useQuery<BrowseResult>({
     queryKey: ['filesystem', 'browse', currentPath, extensions, showFiles],
     queryFn: () => {
-      const p = new URLSearchParams()
-      if (currentPath) p.set('path', currentPath)
-      if (extensions) p.set('extensions', extensions)
-      p.set('show_files', String(showFiles))
-      return apiFetch<BrowseResult>(`/api/v1/filesystem/browse?${p}`)
+      const p = new URLSearchParams();
+      if (currentPath) p.set('path', currentPath);
+      if (extensions) p.set('extensions', extensions);
+      p.set('show_files', String(showFiles));
+      return apiFetch<BrowseResult>(`/api/v1/filesystem/browse?${p}`);
     },
     enabled: open,
     gcTime: 0,
-  })
+  });
 
-  if (!open) return null
+  if (!open) return null;
 
   function handleSelectFolder() {
     if (currentPath) {
-      onSelect(currentPath, true)
-      onClose()
+      onSelect(currentPath, true);
+      onClose();
     }
   }
 
@@ -130,9 +134,7 @@ export default function BrowsePanel({
           {(!rootPath || currentPath !== rootPath) && (
             <button
               type="button"
-              onClick={() =>
-                setCurrentPath(browseData?.parent_path ?? rootPath ?? null)
-              }
+              onClick={() => setCurrentPath(browseData?.parent_path ?? rootPath ?? null)}
               className="shrink-0 text-xs text-accent hover:underline"
             >
               ← Back
@@ -185,10 +187,7 @@ export default function BrowsePanel({
 
         {error && (
           <p className="p-4 text-sm text-red-600 dark:text-red-400">
-            ❌{' '}
-            {error instanceof ApiError
-              ? error.detail
-              : 'Failed to load directory.'}
+            ❌ {error instanceof ApiError ? error.detail : 'Failed to load directory.'}
           </p>
         )}
 
@@ -201,26 +200,43 @@ export default function BrowsePanel({
             )}
             <ul>
               {browseData.dirs.map((d) => (
-                <li key={d.path} className="border-b border-neutral-100 last:border-0 dark:border-neutral-800">
+                <li
+                  key={d.path}
+                  className="border-b border-neutral-100 last:border-0 dark:border-neutral-800"
+                >
                   <button
                     type="button"
                     onClick={() => setCurrentPath(d.path)}
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-2"
                   >
-                    <span aria-hidden="true" className="shrink-0 text-neutral-400">📁</span>
-                    <span className="truncate text-neutral-900 dark:text-neutral-100">{d.name}</span>
+                    <span aria-hidden="true" className="shrink-0 text-neutral-400">
+                      📁
+                    </span>
+                    <span className="truncate text-neutral-900 dark:text-neutral-100">
+                      {d.name}
+                    </span>
                   </button>
                 </li>
               ))}
               {browseData.files.map((f) => (
-                <li key={f.path} className="border-b border-neutral-100 last:border-0 dark:border-neutral-800">
+                <li
+                  key={f.path}
+                  className="border-b border-neutral-100 last:border-0 dark:border-neutral-800"
+                >
                   <button
                     type="button"
-                    onClick={() => { onSelect(f.path, false); onClose() }}
+                    onClick={() => {
+                      onSelect(f.path, false);
+                      onClose();
+                    }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-2"
                   >
-                    <span aria-hidden="true" className="shrink-0 text-neutral-400">📄</span>
-                    <span className="min-w-0 flex-1 truncate text-neutral-900 dark:text-neutral-100">{f.name}</span>
+                    <span aria-hidden="true" className="shrink-0 text-neutral-400">
+                      📄
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-neutral-900 dark:text-neutral-100">
+                      {f.name}
+                    </span>
                     <span className="shrink-0 text-xs text-neutral-400 dark:text-neutral-500">
                       {formatSize(f.size_bytes)}
                     </span>
@@ -233,8 +249,10 @@ export default function BrowsePanel({
       </div>
 
       <div className="mt-4 flex justify-end">
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
       </div>
     </div>
-  )
+  );
 }

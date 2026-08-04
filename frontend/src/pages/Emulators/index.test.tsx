@@ -1,30 +1,30 @@
-import { screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
-import { render } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AppProvider } from '@/context/AppContext'
-import Emulators from '@/pages/Emulators/Emulators'
-import { apiFetch } from '@/api/client'
-import type { components } from '@shared/types'
+import { screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { render } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppProvider } from '@/context/AppContext';
+import Emulators from '@/pages/Emulators/Emulators';
+import { apiFetch } from '@/api/client';
+import type { components } from '@shared/types';
 
-type CatalogEntry = components['schemas']['CatalogEntryResponse']
+type CatalogEntry = components['schemas']['CatalogEntryResponse'];
 
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
   ApiError: class ApiError extends Error {
-    status: number
-    detail: string
+    status: number;
+    detail: string;
     constructor(status: number, detail: string) {
-      super(detail)
-      this.status = status
-      this.detail = detail
-      this.name = 'ApiError'
+      super(detail);
+      this.status = status;
+      this.detail = detail;
+      this.name = 'ApiError';
     }
   },
-}))
+}));
 
 function renderPage() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
@@ -33,7 +33,7 @@ function renderPage() {
         </AppProvider>
       </QueryClientProvider>
     </MemoryRouter>,
-  )
+  );
 }
 
 const DOSBOX_ENTRY: CatalogEntry = {
@@ -52,7 +52,7 @@ const DOSBOX_ENTRY: CatalogEntry = {
   skip_cpu_limit: false,
   skip_memory_limit: false,
   known_limitations: [],
-}
+};
 
 const PCSX2_ENTRY: CatalogEntry = {
   slug: 'pcsx2',
@@ -70,57 +70,57 @@ const PCSX2_ENTRY: CatalogEntry = {
   skip_cpu_limit: false,
   skip_memory_limit: false,
   known_limitations: [],
-}
+};
 
 describe('Emulators page', () => {
   afterEach(() => {
-    vi.resetAllMocks()
-  })
+    vi.resetAllMocks();
+  });
 
   it('shows a loading indicator while the catalog is fetching', () => {
-    vi.mocked(apiFetch).mockReturnValue(new Promise(() => {}))
-    renderPage()
-    expect(screen.getByText(/loading/i)).toBeInTheDocument()
-  })
+    vi.mocked(apiFetch).mockReturnValue(new Promise(() => {}));
+    renderPage();
+    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+  });
 
   it('renders emulator cards after a successful API response', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
       if (typeof url === 'string' && url.includes('/api/v1/emulator-items')) {
-        return Promise.resolve([DOSBOX_ENTRY, PCSX2_ENTRY])
+        return Promise.resolve([DOSBOX_ENTRY, PCSX2_ENTRY]);
       }
-      return Promise.resolve([])
-    })
-    renderPage()
+      return Promise.resolve([]);
+    });
+    renderPage();
     await waitFor(() => {
-      expect(screen.getByText('DOSBox-X')).toBeInTheDocument()
-      expect(screen.getByText('PCSX2')).toBeInTheDocument()
-    })
-  })
+      expect(screen.getByText('DOSBox-X')).toBeInTheDocument();
+      expect(screen.getByText('PCSX2')).toBeInTheDocument();
+    });
+  });
 
   it('shows the empty state when the catalog is empty', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
       if (typeof url === 'string' && url.includes('/api/v1/emulator-items')) {
-        return Promise.resolve([])
+        return Promise.resolve([]);
       }
-      return Promise.resolve([])
-    })
-    renderPage()
+      return Promise.resolve([]);
+    });
+    renderPage();
     await waitFor(() => {
-      expect(screen.getByText(/no emulators found/i)).toBeInTheDocument()
-    })
-  })
+      expect(screen.getByText(/no emulators found/i)).toBeInTheDocument();
+    });
+  });
 
   it('shows how many emulators are ready', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
       if (typeof url === 'string' && url.includes('/api/v1/emulator-items')) {
-        return Promise.resolve([DOSBOX_ENTRY, PCSX2_ENTRY])
+        return Promise.resolve([DOSBOX_ENTRY, PCSX2_ENTRY]);
       }
-      return Promise.resolve([])
-    })
-    renderPage()
+      return Promise.resolve([]);
+    });
+    renderPage();
     await waitFor(() => {
       // "1 of 2 ready" — only DOSBox-X is installed
-      expect(screen.getByText(/1 of 2 ready/i)).toBeInTheDocument()
-    })
-  })
-})
+      expect(screen.getByText(/1 of 2 ready/i)).toBeInTheDocument();
+    });
+  });
+});

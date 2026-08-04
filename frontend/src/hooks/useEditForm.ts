@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react';
 
 interface UseEditFormOptions<C, F> {
-  collection: C | undefined
-  formFromCollection: (collection: C) => F
+  collection: C | undefined;
+  formFromCollection: (collection: C) => F;
 }
 
 // Owns the edit-form field state for a collection detail page, domain-agnostic
@@ -12,21 +12,21 @@ interface UseEditFormOptions<C, F> {
 // reseed explicitly via resyncFromCollection(), e.g. after a save or a
 // metadata-apply completes.
 export function useEditForm<C, F>({ collection, formFromCollection }: UseEditFormOptions<C, F>) {
-  const [form, setFormState] = useState<F | null>(null)
+  const [form, setFormState] = useState<F | null>(null);
 
   useEffect(() => {
     if (collection && !form) {
-      setFormState(formFromCollection(collection))
+      setFormState(formFromCollection(collection));
     }
-  }, [collection, form, formFromCollection])
+  }, [collection, form, formFromCollection]);
 
   function setFormField<K extends keyof F>(key: K, value: F[K]) {
-    setFormState((prev) => prev && { ...prev, [key]: value })
+    setFormState((prev) => prev && { ...prev, [key]: value });
   }
 
   function resyncFromCollection(fresh: C) {
-    setFormState(formFromCollection(fresh))
+    setFormState(formFromCollection(fresh));
   }
 
-  return { form, setFormField, resyncFromCollection }
+  return { form, setFormField, resyncFromCollection };
 }

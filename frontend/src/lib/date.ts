@@ -6,5 +6,5 @@
 // call site treats these values the same way instead of some appending 'Z'
 // and others not (the offset drift this previously caused).
 export function parseNaiveUtc(value: string): Date {
-  return new Date(value.endsWith('Z') ? value : `${value}Z`)
+  return new Date(value.endsWith('Z') ? value : `${value}Z`);
 }

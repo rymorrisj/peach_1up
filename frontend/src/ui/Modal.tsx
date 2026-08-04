@@ -1,13 +1,13 @@
-import * as Dialog from '@radix-ui/react-dialog'
-import type { ReactNode } from 'react'
+import * as Dialog from '@radix-ui/react-dialog';
+import type { ReactNode } from 'react';
 
 interface ModalProps {
-  open: boolean
-  title: string
-  onClose: () => void
-  children: ReactNode
-  footer?: ReactNode
-  busy?: boolean
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  footer?: ReactNode;
+  busy?: boolean;
 }
 
 export function Modal({ open, title, onClose, children, footer, busy = false }: ModalProps) {
@@ -21,7 +21,7 @@ export function Modal({ open, title, onClose, children, footer, busy = false }: 
         // covers every dismiss path at the source the same way, callers that
         // also want their own footer buttons disabled while busy still do
         // that themselves, unchanged.
-        if (!next && !busy) onClose()
+        if (!next && !busy) onClose();
       }}
     >
       <Dialog.Portal>
@@ -36,8 +36,8 @@ export function Modal({ open, title, onClose, children, footer, busy = false }: 
             // so Radix's DismissableLayer sees every click inside it as an
             // outside interaction. A click landing inside that top-layer
             // <dialog> must not dismiss this modal underneath it.
-            const target = event.target instanceof Element ? event.target : null
-            if (target?.closest('dialog')) event.preventDefault()
+            const target = event.target instanceof Element ? event.target : null;
+            if (target?.closest('dialog')) event.preventDefault();
           }}
         >
           <Dialog.Title className="mb-5 text-lg font-semibold text-fg-1">{title}</Dialog.Title>
@@ -46,5 +46,5 @@ export function Modal({ open, title, onClose, children, footer, busy = false }: 
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-  )
+  );
 }

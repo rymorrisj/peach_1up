@@ -1,21 +1,21 @@
-import { useState } from 'react'
-import type { ComponentProps } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, ApiError } from '@/api/client'
-import LoadingSpinner from '@/components/common/LoadingSpinner'
-import { useAppContext } from '@/context/useAppContext'
-import { useLaunch } from '@/hooks/useLaunch'
-import { useCollectionRestrictions } from '@/hooks/useCollectionRestrictions'
-import { SoftwareEntityDetail } from '../components/SoftwareEntityDetail'
-import type { EntityBundleBase, EntityDomainConfig } from '../types'
-import type { components } from '@shared/types'
+import { useState } from 'react';
+import type { ComponentProps } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiFetch, ApiError } from '@/api/client';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { useAppContext } from '@/context/useAppContext';
+import { useLaunch } from '@/hooks/useLaunch';
+import { useCollectionRestrictions } from '@/hooks/useCollectionRestrictions';
+import { SoftwareEntityDetail } from '../components/SoftwareEntityDetail';
+import type { EntityBundleBase, EntityDomainConfig } from '../types';
+import type { components } from '@shared/types';
 
-type User = components['schemas']['UserItemRead']
-type SoftwareEntityDetailProps = ComponentProps<typeof SoftwareEntityDetail>
+type User = components['schemas']['UserItemRead'];
+type SoftwareEntityDetailProps = ComponentProps<typeof SoftwareEntityDetail>;
 
 interface EntityDetailPageProps<TBundle extends EntityBundleBase> {
-  config: EntityDomainConfig<TBundle>
+  config: EntityDomainConfig<TBundle>;
 }
 
 // Generic detail page: fetch by id (or slug, see config.identifierParam),
@@ -26,46 +26,57 @@ interface EntityDetailPageProps<TBundle extends EntityBundleBase> {
 // configs/gameConfig.tsx) rather than hardcoded here, so this shell carries
 // no game-specific knowledge. useRenderExtras is omitted entirely for App/Media,
 // so their rendered output is unaffected by its existence.
-export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: EntityDetailPageProps<TBundle>) {
-  const params = useParams<{ id?: string; slug?: string }>()
-  const usesSlug = config.identifierParam === 'slug'
-  const routeIdentifier = usesSlug ? params.slug : params.id
-  const queryClient = useQueryClient()
-  const { state: appState } = useAppContext()
-  const isAdminOrOwner = (appState.activeUser?.is_admin ?? false) || (appState.activeUser?.is_owner ?? false)
-  const isOwner = appState.activeUser?.is_owner ?? false
-  const [tagError, setTagError] = useState<string | null>(null)
+export function EntityDetailPage<TBundle extends EntityBundleBase>({
+  config,
+}: EntityDetailPageProps<TBundle>) {
+  const params = useParams<{ id?: string; slug?: string }>();
+  const usesSlug = config.identifierParam === 'slug';
+  const routeIdentifier = usesSlug ? params.slug : params.id;
+  const queryClient = useQueryClient();
+  const { state: appState } = useAppContext();
+  const isAdminOrOwner =
+    (appState.activeUser?.is_admin ?? false) || (appState.activeUser?.is_owner ?? false);
+  const isOwner = appState.activeUser?.is_owner ?? false;
+  const [tagError, setTagError] = useState<string | null>(null);
 
-  const detailQueryKey = [config.domain, 'detail', routeIdentifier]
+  const detailQueryKey = [config.domain, 'detail', routeIdentifier];
 
   const { data: entity, isLoading } = useQuery<TBundle>({
     queryKey: detailQueryKey,
     queryFn: () => apiFetch<TBundle>(config.bundleApiPath(routeIdentifier as string)),
     enabled: routeIdentifier != null,
-  })
+  });
 
   // The numeric id used for everything except the initial fetch (tags,
   // restrictions, launch, and any config.useRenderExtras hooks). For id-routed
   // domains this is just the route param parsed as a number, exactly as
   // before. For slug-routed domains (Game) it isn't known until the entity
   // itself has loaded.
-  const entityId = usesSlug ? entity?.id : (routeIdentifier != null ? Number(routeIdentifier) : undefined)
+  const entityId = usesSlug
+    ? entity?.id
+    : routeIdentifier != null
+      ? Number(routeIdentifier)
+      : undefined;
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users'],
     queryFn: () => apiFetch<User[]>('/api/v1/user-items'),
     enabled: isAdminOrOwner,
-  })
-  const restrictionUsers = config.filterRestrictionUsers ? config.filterRestrictionUsers(users) : users
+  });
+  const restrictionUsers = config.filterRestrictionUsers
+    ? config.filterRestrictionUsers(users)
+    : users;
 
   const { data: restrictionsData, refetch: refetchRestrictions } = useQuery<{
-    restricted_user_item_ids: number[]
+    restricted_user_item_ids: number[];
   }>({
     queryKey: ['restrictions', config.domain, entityId],
     queryFn: () =>
-      apiFetch<{ restricted_user_item_ids: number[] }>(`/api/v1/restrictions/${config.domain}/${entityId}`),
+      apiFetch<{ restricted_user_item_ids: number[] }>(
+        `/api/v1/restrictions/${config.domain}/${entityId}`,
+      ),
     enabled: isAdminOrOwner && entityId != null,
-  })
+  });
 
   const restrictions = useCollectionRestrictions({
     domain: config.domain,
@@ -73,10 +84,15 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
     isAdminOrOwner,
     restrictionsData,
     refetchRestrictions,
-  })
+  });
 
   const {
-    launch, isLaunching, error: launchError, errorType: launchErrorType, launchSuccess, launchWarnings,
+    launch,
+    isLaunching,
+    error: launchError,
+    errorType: launchErrorType,
+    launchSuccess,
+    launchWarnings,
   } = useLaunch({
     targetId: entityId ?? 0,
     // useLaunch must be called unconditionally (rules of hooks), but Media
@@ -85,7 +101,7 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
     // exercised, its value just has to satisfy the type.
     targetType: config.launchTargetType ?? 'game_item_bundle',
     onSettled: () => queryClient.invalidateQueries({ queryKey: detailQueryKey }),
-  })
+  });
 
   // Called unconditionally every render (config is a fixed module-level
   // object per mounted page, so whether useRenderExtras exists never varies
@@ -93,42 +109,43 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
   // domain-specific hooks it needs, exactly like a custom hook. Named with the
   // use* prefix (unlike a plain object-property call) so the react-hooks lint
   // rule can actually see and verify the hooks called inside it.
-  const extras = config.useRenderExtras?.({
-    entity,
-    entityId,
-    detailQueryKey,
-    isOwner,
-    launch,
-    isLaunching,
-    launchErrorType,
-    refetchEntity: () => apiFetch<TBundle>(config.bundleApiPath(routeIdentifier as string)),
-  }) ?? {}
+  const extras =
+    config.useRenderExtras?.({
+      entity,
+      entityId,
+      detailQueryKey,
+      isOwner,
+      launch,
+      isLaunching,
+      launchErrorType,
+      refetchEntity: () => apiFetch<TBundle>(config.bundleApiPath(routeIdentifier as string)),
+    }) ?? {};
 
   async function handleAssignTag(tagId: number) {
-    if (entityId == null) return
-    setTagError(null)
+    if (entityId == null) return;
+    setTagError(null);
     try {
       await apiFetch(`/api/v1/tags/${tagId}/assignments`, {
         method: 'POST',
         body: JSON.stringify({ entity_type: config.tagEntityType, entity_id: entityId }),
-      })
-      queryClient.invalidateQueries({ queryKey: detailQueryKey })
+      });
+      queryClient.invalidateQueries({ queryKey: detailQueryKey });
     } catch (err) {
-      setTagError(err instanceof ApiError ? err.detail : 'Failed to add tag.')
+      setTagError(err instanceof ApiError ? err.detail : 'Failed to add tag.');
     }
   }
 
   async function handleRemoveTag(tagId: number) {
-    if (entityId == null) return
-    setTagError(null)
+    if (entityId == null) return;
+    setTagError(null);
     try {
       await apiFetch(`/api/v1/tags/${tagId}/assignments`, {
         method: 'DELETE',
         body: JSON.stringify({ entity_type: config.tagEntityType, entity_id: entityId }),
-      })
-      queryClient.invalidateQueries({ queryKey: detailQueryKey })
+      });
+      queryClient.invalidateQueries({ queryKey: detailQueryKey });
     } catch (err) {
-      setTagError(err instanceof ApiError ? err.detail : 'Failed to remove tag.')
+      setTagError(err instanceof ApiError ? err.detail : 'Failed to remove tag.');
     }
   }
 
@@ -138,7 +155,7 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
         <LoadingSpinner label={`Loading ${config.entityLabel}…`} />
         <span aria-hidden="true">Loading {config.entityLabel}…</span>
       </div>
-    )
+    );
   }
 
   if (!entity) {
@@ -147,15 +164,18 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
         <p className="mb-2 text-sm text-neutral-500">
           {config.entityLabel[0].toUpperCase() + config.entityLabel.slice(1)} not found.
         </p>
-        <Link to={config.routeBase} className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200">
+        <Link
+          to={config.routeBase}
+          className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+        >
           ← {config.backLabel ?? 'Back'}
         </Link>
       </div>
-    )
+    );
   }
 
-  const hasLaunch = config.launchTargetType != null && (config.isLaunchable?.(entity) ?? true)
-  const showDescriptionMeta = config.showDescriptionMeta ?? true
+  const hasLaunch = config.launchTargetType != null && (config.isLaunchable?.(entity) ?? true);
+  const showDescriptionMeta = config.showDescriptionMeta ?? true;
 
   return (
     <SoftwareEntityDetail
@@ -169,7 +189,9 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
       installedStatus={extras.installedStatus}
       mediaSizeBytes={extras.mediaSizeBytes}
       topControl={extras.topControl}
-      metaBefore={showDescriptionMeta && entity.description ? <p>{entity.description}</p> : undefined}
+      metaBefore={
+        showDescriptionMeta && entity.description ? <p>{entity.description}</p> : undefined
+      }
       metaAfter={extras.metaAfter}
       tags={
         isAdminOrOwner || entity.tags.length > 0
@@ -213,5 +235,5 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({ config }: E
       launchHistoryCanDelete={isAdminOrOwner}
       afterContent={extras.afterContent}
     />
-  )
+  );
 }
