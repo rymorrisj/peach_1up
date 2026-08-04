@@ -34,7 +34,7 @@ guidance_url = "https://www.pj64-emu.com"
 
 [[container_broker_files]]
 path_key = "install_dir"
-access = "r"
+access = "rw"
 mode = "grant"
 
 

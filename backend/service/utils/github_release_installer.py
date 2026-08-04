@@ -425,6 +425,13 @@ def install_from_github_release(slug: str) -> dict:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
     binary_path = target_dir / binary
+    if not binary_path.exists():
+        landed = sorted(p.relative_to(target_dir).as_posix() for p in target_dir.rglob("*"))
+        raise RuntimeError(
+            f"Expected binary {binary!r} not found in {target_dir} after extracting "
+            f"{asset_name!r}. Contents of {target_dir}: {landed}"
+        )
+
     # (6) Ensure the portable sentinel exists post-extraction.
     ensure_portable_mode(slug, binary_path)
 

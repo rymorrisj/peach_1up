@@ -76,11 +76,26 @@ def detect_from_pvd(iso_path: Path) -> ScanResult:
         publisher = _field(pvd[318:446])
         preparer = _field(pvd[446:574])
 
+        # Structural checks run before the loose volume-label keyword match
+        # below: PS3_DISC.SFB and the XBE filesystem scan are unambiguous
+        # signals, unlike a substring match against a title's volume label
+        # (e.g. "COMMANDOS" containing "DOS"), so they must not be
+        # short-circuited by the weaker keyword check running first.
+        if "PS3_DISC.SFB" in _root_dir_entry_names(iso_path, pvd):
+            return ScanResult(
+                title=None, platform=None, era="ps3", confidence=0.9,
+                reason="ISO 9660 root directory contains PS3_DISC.SFB — PS3 disc image",
+            )
+
+        xbe_result = _detect_from_xbe_scan(iso_path)
+        if xbe_result.era is not None:
+            return xbe_result
+
         for kw, era in (
             (("WINDOWS XP", "WINXP", "WXPEVOL", "XP_"), "winxp"),
             (("WIN98", "WINDOWS 98", "W98", "MEMPHIS"), "win98"),
             (("WIN95", "WINDOWS 95", "CHICAGO"), "win95"),
-            (("MSDOS", "MS-DOS", "PCDOS", "FREEDOS", "CDROM", "DOS"), "dos"),
+            (("MSDOS", "MS-DOS", "PCDOS", "FREEDOS"), "dos"),
         ):
             if any(k in vol_id for k in kw):
                 return ScanResult(
@@ -115,13 +130,7 @@ def detect_from_pvd(iso_path: Path) -> ScanResult:
                 reason=f"ISO volume label '{vol_id}', publisher '{publisher[:30]}' match PS1",
             )
 
-        if "PS3_DISC.SFB" in _root_dir_entry_names(iso_path, pvd):
-            return ScanResult(
-                title=None, platform=None, era="ps3", confidence=0.9,
-                reason="ISO 9660 root directory contains PS3_DISC.SFB — PS3 disc image",
-            )
-
-        return _detect_from_xbe_scan(iso_path)
+        return _null
 
     except Exception as exc:
         return ScanResult(
