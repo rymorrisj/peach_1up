@@ -1,5 +1,6 @@
 """Generate backend/constants_generated.py and frontend/src/generated/constants.ts
-from config/constants.yaml.
+from config/constants.yaml. Also writes the repo-root VERSION file and syncs the
+"version" field of frontend/package.json and docs/package.json to app_version.
 
 Run from the project root:
     python scripts/gen_constants.py
@@ -18,6 +19,9 @@ CONFIG = ROOT / "config" / "constants.yaml"
 EMULATORS_DIR = ROOT / "config" / "emulators"
 PY_OUT = ROOT / "backend" / "constants_generated.py"
 TS_OUT = ROOT / "frontend" / "src" / "generated" / "constants.ts"
+VERSION_OUT = ROOT / "VERSION"
+FRONTEND_PKG = ROOT / "frontend" / "package.json"
+DOCS_PKG = ROOT / "docs" / "package.json"
 
 HEADER_PY = "# Auto-generated from config/constants.yaml — do not edit.\n"
 HEADER_TS = "// Auto-generated from config/constants.yaml — do not edit.\n"
@@ -70,6 +74,7 @@ def discover_catalog_slugs() -> list[str]:
 
 
 def generate_python(data: dict, catalog_slugs: list[str]) -> str:
+    app_version: str = data["app_version"]
     eras: dict[str, str] = data["eras"]
     backends: dict[str, str] = data["backend_slugs"]
     system_labels: dict[str, str] = data["backend_system_labels"]
@@ -84,6 +89,10 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     era_backends: dict[str, str] = data["era_backends"]
 
     lines: list[str] = [HEADER_PY, "from enum import Enum\n", "from typing import Literal\n\n\n"]
+
+    # APP_VERSION — single source of truth, also mirrored to VERSION (repo root),
+    # frontend/package.json, docs/package.json, and installer/peach1up.nsi (via build.bat).
+    lines.append(f'APP_VERSION = "{app_version}"\n\n\n')
 
     # Era enum
     lines.append("class Era(Enum):\n")
@@ -180,6 +189,7 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
 
 
 def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
+    app_version: str = data["app_version"]
     eras: dict[str, str] = data["eras"]
     backends: dict[str, str] = data["backend_slugs"]
     system_labels: dict[str, str] = data["backend_system_labels"]
@@ -194,6 +204,10 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     era_backends: dict[str, str] = data["era_backends"]
 
     lines: list[str] = [HEADER_TS, "\n"]
+
+    # APP_VERSION — single source of truth, also mirrored to VERSION (repo root),
+    # frontend/package.json, docs/package.json, and installer/peach1up.nsi (via build.bat).
+    lines.append(f'export const APP_VERSION = "{app_version}"\n\n')
 
     # Era union
     lines.append(_ts_union_type("Era", list(eras)))
@@ -297,10 +311,25 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     return "".join(lines)
 
 
+def sync_package_json_version(path: Path, version: str) -> None:
+    """Overwrite the top-level "version" field of a package.json in place.
+
+    Uses a targeted regex substitution rather than json.load/dump so that
+    dependency ordering, spacing, and every other field are left byte-for-byte
+    untouched — only the version string changes.
+    """
+    text = path.read_text(encoding="utf-8")
+    new_text, count = re.subn(r'"version":\s*"[^"]*"', f'"version": "{version}"', text, count=1)
+    if count == 0:
+        raise RuntimeError(f'{path}: no "version" field found to sync')
+    path.write_text(new_text, encoding="utf-8")
+
+
 def main() -> None:
     with CONFIG.open("r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
 
+    app_version: str = data["app_version"]
     catalog_slugs = discover_catalog_slugs()
 
     py_src = generate_python(data, catalog_slugs)
@@ -312,6 +341,15 @@ def main() -> None:
     TS_OUT.parent.mkdir(parents=True, exist_ok=True)
     TS_OUT.write_text(ts_src, encoding="utf-8")
     print(f"wrote {TS_OUT.relative_to(ROOT)}")
+
+    VERSION_OUT.write_text(f"{app_version}\n", encoding="utf-8")
+    print(f"wrote {VERSION_OUT.relative_to(ROOT)}")
+
+    sync_package_json_version(FRONTEND_PKG, app_version)
+    print(f"synced version in {FRONTEND_PKG.relative_to(ROOT)}")
+
+    sync_package_json_version(DOCS_PKG, app_version)
+    print(f"synced version in {DOCS_PKG.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

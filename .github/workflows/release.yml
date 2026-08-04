@@ -1,0 +1,162 @@
+name: Release
+
+# Triggered by pushing a beta release tag (e.g. v0.1.0-beta). The pushed tag's
+# version must match config/constants.yaml's app_version exactly, or the
+# workflow fails before any build step runs — see "Verify tag matches
+# app_version" below.
+on:
+  push:
+    tags:
+      - "v*-beta"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    # contents: write is scoped to this job only — it is the one thing this
+    # workflow needs beyond the read-only default above, to publish the
+    # installer as a GitHub Release asset.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # Only for the version-gate step below (python -c reading YAML). Kept
+      # separate from build.bat's own Python bootstrap: build.bat creates its
+      # own venv via the `py` launcher and installs backend/requirements.txt
+      # into it, entirely self-contained, exactly as it does on a developer
+      # machine — this step does not feed into that.
+      - name: Set up Python (version-gate check only)
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.14.6"
+
+      - name: Install PyYAML for the version-gate check
+        shell: pwsh
+        run: python -m pip install pyyaml --quiet
+
+      - name: Read app_version from config/constants.yaml
+        id: app_version
+        shell: pwsh
+        run: |
+          $version = python -c "import yaml; print(yaml.safe_load(open('config/constants.yaml'))['app_version'])"
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($version)) {
+            Write-Host "::error::Failed to read app_version from config/constants.yaml"
+            exit 1
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Verify tag matches app_version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^v(.+)-beta$') {
+            Write-Host "::error::Tag '$tag' does not match the expected v<version>-beta pattern"
+            exit 1
+          }
+          $tagVersion = $Matches[1]
+          $appVersion = "${{ steps.app_version.outputs.version }}"
+          if ($tagVersion -ne $appVersion) {
+            Write-Host "::error::Tag '$tag' implies version '$tagVersion' but config/constants.yaml app_version is '$appVersion'. Update constants.yaml (and regenerate) or retag before releasing."
+            exit 1
+          }
+          Write-Host "Tag '$tag' matches app_version '$appVersion' — proceeding with release build."
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.22.1"
+          cache: "npm"
+          cache-dependency-path: |
+            frontend/package-lock.json
+            docs/package-lock.json
+
+      # windows-latest ships MSYS2 preinstalled at C:\msys64 but without the
+      # gcc/cmake/ninja packages build.bat's UCRT64 guard expects, and not on
+      # PATH. release: false reuses that preinstalled MSYS2 in place (matching
+      # build.bat's own %SystemDrive%\msys64\ucrt64\bin\g++.exe check) instead
+      # of downloading a second copy.
+      - name: Set up MSYS2 UCRT64 toolchain
+        uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2.32.0
+        with:
+          release: false
+          msystem: UCRT64
+          update: false
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+
+      # build.bat's own steps for these two binaries are commented out today
+      # (developer runs build.sh manually first, per the comments in
+      # build.bat and services/vendor/extract-xiso/build.sh). Neither binary
+      # is committed to git, so CI must do this manual pre-step itself before
+      # build.bat's "if not exist ...exe" guards run — this mirrors the
+      # documented local workflow, it does not reimplement any build.bat step.
+      - name: Build sandbox_host.exe (MSYS2 UCRT64 g++)
+        shell: msys2 {0}
+        run: bash backend/service/utils/platform/windows/sandbox/build.sh
+
+      # CMAKE_GENERATOR=Ninja pins the generator explicitly rather than
+      # relying on cmake's ambient auto-detection (which, left to itself on a
+      # Visual-Studio-equipped runner, is not guaranteed to pick the MSYS2
+      # UCRT64 GCC toolchain just set up above). build.sh itself is vendored,
+      # unmodified upstream source — not edited here.
+      - name: Build extract-xiso.exe (MSYS2 UCRT64 gcc + cmake/ninja)
+        shell: msys2 {0}
+        env:
+          CMAKE_GENERATOR: Ninja
+        run: bash services/vendor/extract-xiso/build.sh
+
+      - name: Confirm INCLUDE_TEST_MEDIA is not set
+        shell: pwsh
+        run: |
+          if ($env:INCLUDE_TEST_MEDIA) {
+            Write-Host "::error::INCLUDE_TEST_MEDIA is set — a release build must never bundle library/ test media."
+            exit 1
+          }
+          Write-Host "INCLUDE_TEST_MEDIA is unset, as required for a release build."
+
+      # The actual build: venv + backend deps, frontend build, docs build,
+      # gen_constants.py + export_and_build_types.py, PyInstaller, NSIS.
+      # Invoked as-is so CI and a local build.bat run never drift apart.
+      - name: Run build.bat
+        shell: cmd
+        run: build.bat
+
+      # Stub — conditional on a secret that does not exist yet. Signing is
+      # blocked on obtaining an OSS code signing certificate (see
+      # DECISIONS.md). Once that secret exists and real signing is
+      # implemented here, this becomes a one-step change, not a workflow
+      # redesign. If the secret is ever set before signing is implemented,
+      # this fails loudly instead of silently shipping an unsigned installer
+      # under a false assumption that it was signed.
+      - name: Sign installer (stub — no signing certificate yet)
+        shell: pwsh
+        run: |
+          if ("${{ secrets.CODE_SIGNING_CERT }}" -eq "") {
+            Write-Host "::notice::Skipping code signing — CODE_SIGNING_CERT secret is not configured yet. Installer will ship unsigned."
+          } else {
+            Write-Host "::error::CODE_SIGNING_CERT is set but this step does not implement signing yet. Implement real signing here before configuring the secret."
+            exit 1
+          }
+
+      # peach1up.nsi's OutFile is a relative path, so it lands at the repo
+      # root (build.bat never cds elsewhere before invoking makensis).
+      - name: Publish installer to GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if (-not (Test-Path "Peach1UP-Setup.exe")) {
+            Write-Host "::error::Peach1UP-Setup.exe not found at repo root after build.bat — the installer build must have failed silently."
+            exit 1
+          }
+          gh release create "${{ github.ref_name }}" "Peach1UP-Setup.exe" `
+            --repo "${{ github.repository }}" `
+            --title "Peach 1UP ${{ github.ref_name }}" `
+            --notes "Beta build ${{ github.ref_name }}. Installer is unsigned pending an OSS code signing certificate." `
+            --prerelease

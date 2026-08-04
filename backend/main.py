@@ -30,11 +30,12 @@ from backend.api.middleware.security import CSRFMiddleware, FirstRunGuardMiddlew
 from backend.api.middleware.request_logging import RequestLoggingMiddleware  # noqa: E402
 from backend.api.routes import ROUTERS  # noqa: E402
 from backend.core.lifespan import lifespan  # noqa: E402
+from backend.constants_generated import APP_VERSION  # noqa: E402
 
 app = FastAPI(
     title="Peach 1UP",
     description="Preservation automation — REST API",
-    version="0.1.0",
+    version=APP_VERSION,
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",

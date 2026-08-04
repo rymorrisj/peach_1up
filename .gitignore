@@ -104,6 +104,7 @@ dev_docs/
 # Generated constants
 frontend/src/generated/constants.ts
 /backend/constants_generated.py
+/VERSION
 
 # Generated OpenAPI artifacts
 shared/openapi.json

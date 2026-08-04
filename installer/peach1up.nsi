@@ -7,7 +7,13 @@
 ; Build: makensis installer\peach1up.nsi
 
 !define APP_NAME    "Peach 1UP"
-!define APP_VERSION "0.1.0"
+; APP_VERSION is normally passed on the command line via
+; /DAPP_VERSION=<version> (see build.bat, which reads it from the repo-root
+; VERSION file generated from config/constants.yaml). This fallback only
+; covers a manual `makensis installer\peach1up.nsi` run without that flag.
+!ifndef APP_VERSION
+  !define APP_VERSION "0.0.0-dev"
+!endif
 !define SERVICE_NAME "Peach1UP"
 !define EXE_NAME    "peach1up.exe"
 !define INSTALL_DIR "$PROGRAMFILES\Peach1UP"

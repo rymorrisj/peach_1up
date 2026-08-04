@@ -1,3 +1,5 @@
+app_version: "0.1.0"
+
 eras:
   dos:   "DOS"
   win95: "Windows 95"
