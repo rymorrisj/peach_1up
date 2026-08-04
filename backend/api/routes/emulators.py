@@ -285,20 +285,20 @@ def get_xemu_asset_paths(_: UserItem = require_permission("is_admin")):
             status_code=404,
             detail="xemu config not found at emulators/xemu/xemu.toml. Use PATCH to create it with the required asset paths.",
         )
+    from backend.service.backends.xemu import XEMU_ASSET_TOML_KEYS
+
     with xemu_toml.open("rb") as fh:
         config = tomllib.load(fh)
     files = config.get("sys", {}).get("files", {})
     return XemuAssetPathsResponse(
-        bootrom=files.get("bootrom", ""),
-        flashrom=files.get("flashrom", ""),
-        hdd_image=files.get("hdd_image", ""),
-        eeprom_image=files.get("eeprom_image", ""),
+        **{field: files.get(key, "") for field, key in XEMU_ASSET_TOML_KEYS.items()}
     )
 
 
 @router.patch("/xemu/asset-paths", response_model=XemuAssetPathsResponse)
 def patch_xemu_asset_paths(body: XemuAssetPathsPatch, _: UserItem = require_permission("is_admin")):
     import tomllib
+    from backend.service.backends.xemu import XEMU_ASSET_TOML_KEYS
     from backend.service.utils.path_utils import normalise_path
 
     updates = body.model_dump(exclude_none=True)
@@ -320,10 +320,13 @@ def patch_xemu_asset_paths(body: XemuAssetPathsPatch, _: UserItem = require_perm
         xemu_toml.parent.mkdir(parents=True, exist_ok=True)
         config = {}
 
+    # Store under the [sys.files] key names xemu itself reads. The API field
+    # names are shorter and are kept as-is; writing them literally meant the
+    # endpoint had never set a key xemu looks at.
     files = dict(config.get("sys", {}).get("files", {}))
-    for key in ("bootrom", "flashrom", "hdd_image", "eeprom_image"):
-        if key in validated:
-            files[key] = validated[key]
+    for field, key in XEMU_ASSET_TOML_KEYS.items():
+        if field in validated:
+            files[key] = validated[field]
 
     sections: dict = {}
     for section_name, section_data in config.items():
@@ -334,10 +337,7 @@ def patch_xemu_asset_paths(body: XemuAssetPathsPatch, _: UserItem = require_perm
     _write_xemu_toml(xemu_toml, sections)
 
     return XemuAssetPathsResponse(
-        bootrom=files.get("bootrom", ""),
-        flashrom=files.get("flashrom", ""),
-        hdd_image=files.get("hdd_image", ""),
-        eeprom_image=files.get("eeprom_image", ""),
+        **{field: files.get(key, "") for field, key in XEMU_ASSET_TOML_KEYS.items()}
     )
 
 

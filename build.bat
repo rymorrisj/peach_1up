@@ -226,10 +226,51 @@ echo === Running PyInstaller ===
 .venv\Scripts\python.exe -m PyInstaller --clean --noconfirm peach1up.spec
 if errorlevel 1 goto :error
 
-echo === Copying emulators, library and config beside exe ===
-xcopy /E /I /Y emulators dist\peach1up\emulators
-REM NOTE: xcopy of library includes bundled alpha test media. Remove for release builds.
-xcopy /E /I /Y library dist\peach1up\library
+REM ── Emulator license and attribution files ───────────────────
+REM Emulator binaries are NOT bundled. Every emulator installs on demand from
+REM its upstream GitHub release (see config/emulators/*.toml install_type), so
+REM the working-tree emulators\ directory holds local installs and user data
+REM (BIOS, saves, memory cards) that must never enter a release build. Only the
+REM git-tracked license and attribution files ship, which is the exact set the
+REM .gitignore negations under /emulators/** keep under version control.
+echo === Copying emulator license and attribution files beside exe ===
+where git >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: git not found on PATH.
+    echo git is required to determine which emulator attribution files to ship.
+    goto :error
+)
+setlocal enabledelayedexpansion
+for /f "usebackq delims=" %%f in (`git ls-files emulators`) do (
+    set "REL=%%f"
+    set "REL=!REL:/=\!"
+    for %%p in ("dist\peach1up\!REL!") do (
+        if not exist "%%~dpp" mkdir "%%~dpp"
+        copy /Y "!REL!" "%%~dpp" >nul
+    )
+)
+endlocal
+echo [OK] emulator attribution files copied
+
+REM ── Optional alpha test media ────────────────────────────────
+REM library\ holds user media (disc images, OS install media, BIOS/ROM assets)
+REM and is many tens of GB on a populated checkout. It is excluded from release
+REM builds. Set INCLUDE_TEST_MEDIA=1 before running this script to bundle it
+REM for internal alpha builds only.
+if defined INCLUDE_TEST_MEDIA (
+    echo === Copying library beside exe ^(INCLUDE_TEST_MEDIA is set^) ===
+    echo WARNING: this bundles the full library\ tree, including any commercial
+    echo          media it contains. Do not distribute this build.
+    xcopy /E /I /Y library dist\peach1up\library
+    if errorlevel 1 (
+        echo ERROR: Failed to copy library to dist.
+        goto :error
+    )
+) else (
+    echo === Skipping library ^(set INCLUDE_TEST_MEDIA=1 to bundle test media^) ===
+)
+
+echo === Copying config beside exe ===
 xcopy /E /I /Y config dist\peach1up\config
 if not exist "dist\peach1up\database\data\" mkdir "dist\peach1up\database\data\"
 
@@ -306,12 +347,27 @@ if errorlevel 1 (
 )
 echo [OK] vendored 7-Zip copied
 
-echo === Build complete ===
+REM ── NSIS installer ───────────────────────────────────────────
+REM Must run after the copy steps above: peach1up.nsi packages dist\peach1up\
+REM wholesale, so whatever those steps placed there ends up in the installer.
+echo === Building NSIS installer ===
+set "MAKENSIS=makensis"
+where makensis >nul 2>&1
+if not errorlevel 1 goto :nsis_ready
+set "NSIS_DEFAULT=%ProgramFiles(x86)%\NSIS\makensis.exe"
+if exist "%NSIS_DEFAULT%" set "MAKENSIS=%NSIS_DEFAULT%"
+if exist "%NSIS_DEFAULT%" goto :nsis_ready
+echo ERROR: makensis not found on PATH and not present at
+echo        %NSIS_DEFAULT%
+echo Install NSIS from https://nsis.sourceforge.io/Download, then re-run this script.
+goto :error
 
-REM === Building NSIS installer ===
-REM makensis installer\peach1up.nsi
-REM if errorlevel 1 goto :error
-REM echo === Installer built: Peach1UP-Setup.exe ===
+:nsis_ready
+"%MAKENSIS%" installer\peach1up.nsi
+if errorlevel 1 goto :error
+echo [OK] Installer built: Peach1UP-Setup.exe
+
+echo === Build complete ===
 
 goto :eof
 

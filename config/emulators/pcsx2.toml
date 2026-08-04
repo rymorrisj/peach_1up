@@ -16,13 +16,18 @@ skip_cpu_limit = true
 capabilities = []
 description = "PlayStation 2 emulation"
 required = false
-install_type = "bundled"
+install_type = "github_release"
 install_scope = "portable"
+# The Windows Qt build is published as a .7z. Anchored so the -symbols archive,
+# the installer .exe, and the non-Windows assets cannot produce an ambiguous
+# match. Confirmed against pcsx2-v2.6.3-windows-x64-Qt.7z (26.8 MB compressed,
+# roughly 140 MB extracted, within the installer's 500 MB extraction cap).
+asset_pattern = '^pcsx2-v[\d.]+-windows-x64-Qt\.7z$'
 license = "GPL-3.0"
 copyright = "Copyright 2002–2024 PCSX2 Dev Team"
 source_url = "https://github.com/PCSX2/pcsx2"
 supported_formats = [".iso", ".bin", ".cue", ".chd"]
-guidance_text = "PCSX2 is bundled — binaries are included in emulators/pcsx2/."
+guidance_text = "PCSX2 is not included with Peach 1UP. Click Install to download the current Windows release from github.com/PCSX2/pcsx2 into emulators/pcsx2/."
 guidance_url = "https://pcsx2.net"
 
 [[container_broker_files]]

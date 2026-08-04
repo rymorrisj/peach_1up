@@ -74,7 +74,7 @@ def _get_eras_config() -> Dict[str, Any]:
 def get_settings_key(slug: str) -> str:
     """Return the settings key for a given emulator slug.
 
-    Reads the ``settings_key`` field from emulators.toml if present;
+    Reads the ``settings_key`` field from config/emulators/<slug>.toml if present;
     otherwise derives it as ``slug.upper().replace("-", "") + "_PATH"``.
     Falls back to the derived key for slugs not present in the catalog
     (e.g. emulators managed outside the TOML registry).
@@ -264,23 +264,27 @@ def configure_emulator(slug: str) -> None:
     exe_dir = path.parent
 
     if slug == "xemu":
-        # xemu needs a fully-populated config, not just an empty sentinel file —
+        # xemu needs a fully-populated config, not just an empty sentinel file:
         # touching xemu.toml would produce invalid TOML and break xemu startup.
+        # Reads through the same helper provision_xemu_defaults uses, so this
+        # startup check and launch-time provisioning agree on which keys count
+        # as set. Keys left unset here are defaulted from the resolved config
+        # directory at launch; keys already set are preserved as-is.
+        from backend.service.backends.xemu import (
+            XEMU_ASSET_KEY_ORDER,
+            read_xemu_asset_paths,
+        )
+
         toml_path = exe_dir / "xemu.toml"
-        configured = False
-        if toml_path.exists():
-            try:
-                _cfg = tomllib.loads(toml_path.read_text(encoding="utf-8"))
-                _files = _cfg.get("sys", {}).get("files", {})
-                if _files.get("bootrom_path") and _files.get("flashrom_path") and _files.get("hdd_path"):
-                    configured = True
-            except Exception:
-                pass
-        if not configured:
-            _logger.warning(
-                "xemu global config at %s is missing or incomplete. "
-                "bootrom_path, flashrom_path, and hdd_path must be set before launching Xbox titles.",
+        unset = [k for k in XEMU_ASSET_KEY_ORDER if k not in read_xemu_asset_paths(toml_path)]
+        if unset:
+            _logger.info(
+                "xemu global config at %s has no explicit value for %s. "
+                "These will be provisioned from the resolved config directory "
+                "(emulators/xemu/data/default/) at launch; set them explicitly via "
+                "PATCH /api/v1/emulator-items/xemu/asset-paths to override.",
                 toml_path,
+                ", ".join(unset),
             )
     else:
         ensure_portable_mode(slug, path)
@@ -301,7 +305,7 @@ def detect_and_sync_all() -> None:
 
 
 def get_emulator_era(slug: str) -> str:
-    """Return the era key for a given emulator slug from emulators.toml.
+    """Return the era key for a given emulator slug from config/emulators/<slug>.toml.
 
     The era is used to look up CPU and memory limits in eras.yaml.  For
     emulators that span multiple eras (e.g. 86box), the most-demanding era

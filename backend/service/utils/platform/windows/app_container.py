@@ -1,10 +1,10 @@
 """
 AppContainer provisioning module for Peach 1UP.
 
-Reads container_broker_files from the emulator descriptor in emulators.toml
-and builds the SandboxConfig that is passed to sandbox.launch().  This is
-Python-side provisioning only — sandbox_host.exe handles AppContainer
-creation and resource brokering at the Win32 level.
+Reads container_broker_files from the emulator descriptor in
+config/emulators/<slug>.toml and builds the SandboxConfig that is passed to
+sandbox.launch().  This is Python-side provisioning only: sandbox_host.exe
+handles AppContainer creation and resource brokering at the Win32 level.
 """
 
 from __future__ import annotations
@@ -54,7 +54,8 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
     2. Derived path map keyed by descriptive name (install_dir, saves_dir, etc.).
 
     Args:
-        path_key: Value from ``container_broker_files[].path_key`` in emulators.toml.
+        path_key: Value from ``container_broker_files[].path_key`` in the
+            emulator's config/emulators/<slug>.toml descriptor.
         slug: Emulator slug; used to derive slug-specific sub-paths.
 
     Raises:
@@ -158,7 +159,7 @@ def get_container_config(
     limits into a SandboxConfig ready to pass to sandbox.launch().
 
     Args:
-        emulator_slug: Slug matching an entry in emulators.toml.
+        emulator_slug: Slug matching a config/emulators/<slug>.toml descriptor.
         exe_path: Absolute path to the emulator executable.
         launch_paths: Optional mapping of path_key → absolute path.  When a
             path_key appears in this dict, the provided value is used directly
@@ -274,7 +275,7 @@ def reset_container(emulator_slug: str, user_item_id: int | None = None) -> None
     sandbox_host.exe --reset command treats a missing moniker as a no-op.
 
     Args:
-        emulator_slug: Slug matching an entry in emulators.toml.
+        emulator_slug: Slug matching a config/emulators/<slug>.toml descriptor.
         user_item_id: The user scope to reset (matches the user_item_id used to build
             the moniker at launch time). None resets the "shared" scope.
 

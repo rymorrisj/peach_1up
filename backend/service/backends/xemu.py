@@ -100,29 +100,98 @@ def resolve_launch_config() -> str:
     return DEFAULT_CONFIG_NAME
 
 
+# The [sys.files] keys xemu itself reads out of xemu.toml, keyed by the field
+# name the asset-paths API exposes. Both writers of this file (the API endpoint
+# and provision_xemu_defaults below) go through this map, so an admin-set path
+# and a provisioned default always land on the same key.
+XEMU_ASSET_TOML_KEYS: dict[str, str] = {
+    "bootrom": "bootrom_path",
+    "flashrom": "flashrom_path",
+    "hdd_image": "hdd_path",
+    "eeprom_image": "eeprom_path",
+}
+
+XEMU_ASSET_KEY_ORDER: tuple[str, ...] = (
+    "bootrom_path",
+    "flashrom_path",
+    "eeprom_path",
+    "hdd_path",
+)
+
+
+def read_xemu_asset_paths(toml_path: Path) -> dict[str, str]:
+    """Return the currently-set [sys.files] asset paths from *toml_path*.
+
+    Only the four keys in XEMU_ASSET_KEY_ORDER are returned, and only when
+    they hold a non-empty string. A missing, unreadable, or malformed
+    xemu.toml yields an empty dict rather than raising: an unparseable config
+    is exactly the "stale config from a previous broken run" case that
+    provisioning exists to repair.
+
+    Returned values are re-emitted into a basic TOML string by the caller, so
+    a value carrying a quote, a backslash escape, or a newline is dropped
+    rather than preserved: a hand-edited config must not be able to break out
+    of the quoted value and inject arbitrary xemu settings. Plain Windows
+    backslash separators are normalised to forward slashes instead, matching
+    how the asset-paths endpoint stores them.
+    """
+    import tomllib
+
+    try:
+        with toml_path.open("rb") as fh:
+            config = tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+
+    files = config.get("sys", {}).get("files", {})
+    if not isinstance(files, dict):
+        return {}
+
+    resolved: dict[str, str] = {}
+    for key in XEMU_ASSET_KEY_ORDER:
+        value = files.get(key)
+        if not isinstance(value, str):
+            continue
+        value = value.replace("\\", "/").strip()
+        if not value or '"' in value or "\n" in value:
+            continue
+        resolved[key] = value
+    return resolved
+
+
 def provision_xemu_defaults(
     exe_path: Path,
     data_dir: Path,
     dvd_path: str | None = None,
     enable_networking: bool = False,
 ) -> Path:
-    """Write (or overwrite) the xemu.toml portable-mode sentinel; return its path.
+    """Write the xemu.toml portable-mode sentinel; return its path.
 
     xemu detects xemu.toml next to its own binary on startup and treats that
-    directory as its data root (see EMULATORS.md) — so the sentinel is always
-    written to exe_path.parent, never into data_dir. Always overwrites any
-    existing xemu.toml so stale configs from previous broken runs are
-    corrected on every launch. Uses an atomic rename so a failed write never
-    leaves a partial config on disk.
+    directory as its data root (see EMULATORS.md), so the sentinel is always
+    written to exe_path.parent, never into data_dir. Uses an atomic rename so
+    a failed write never leaves a partial config on disk.
 
-    BIOS files (mcpx_1.0.bin, flash *.bin, eeprom.bin) and xbox_hdd.qcow2 are
-    read from data_dir — the config directory resolved by
-    resolve_launch_config() (e.g. emulators/xemu/data/default/) — not from
-    the executable's directory. Peach 1UP does not provide, link to, or
-    assist with acquiring these files.
+    Asset paths (bootrom, flashrom, eeprom, hdd) are only defaulted when they
+    are missing or empty. A value already present in xemu.toml is preserved
+    verbatim, because that is where an admin-set path from
+    PATCH /api/v1/emulator-items/xemu/asset-paths lives, and silently
+    recomputing it on every launch discarded that configuration. Stale or
+    unparseable configs still get corrected, since an unreadable file and an
+    absent key are both treated as unset.
+
+    Everything outside those four keys is rewritten on every launch: dvd_path
+    is per-launch media, and the [net] section is governed by the launching
+    profile rather than by the file's previous contents.
+
+    Default BIOS files (mcpx_1.0.bin, flash *.bin, eeprom.bin) and
+    xbox_hdd.qcow2 are read from data_dir, the config directory resolved by
+    resolve_launch_config() (e.g. emulators/xemu/data/default/), not from the
+    executable's directory. Peach 1UP does not provide, link to, or assist
+    with acquiring these files.
 
     Presence of these files is gated upstream by
-    validate_bios_from_descriptor("xemu") before this is called — this
+    validate_bios_from_descriptor("xemu") before this is called, so this
     function only resolves the actual flash BIOS filename for the toml.
 
     Args:
@@ -136,19 +205,41 @@ def provision_xemu_defaults(
 
     Returns:
         Path to the xemu.toml sentinel file inside exe_path.parent.
+
+    Raises:
+        FileNotFoundError: If a flash BIOS default is needed (no flashrom_path
+            is already configured) and no candidate .bin exists in data_dir.
     """
     import os
 
     exe_dir = exe_path.parent
     toml_path = exe_dir / "xemu.toml"
-    hdd_path = data_dir / "xbox_hdd.qcow2"
-    eeprom_path = data_dir / "eeprom.bin"
-    mcpx = data_dir / "mcpx_1.0.bin"
 
-    flash_bins = [
-        f for f in sorted(data_dir.glob("*.bin"))
-        if f.name.lower() not in ("mcpx_1.0.bin", "eeprom.bin")
-    ]
+    existing = read_xemu_asset_paths(toml_path)
+
+    def _resolve_flash_default() -> str:
+        flash_bins = [
+            f for f in sorted(data_dir.glob("*.bin"))
+            if f.name.lower() not in ("mcpx_1.0.bin", "eeprom.bin")
+        ]
+        if not flash_bins:
+            raise FileNotFoundError(
+                f"No Xbox flash BIOS .bin found in {data_dir}. Place the flash ROM "
+                "there, or set flashrom via PATCH /api/v1/emulator-items/xemu/asset-paths."
+            )
+        return flash_bins[0].resolve().as_posix()
+
+    defaults = {
+        "bootrom_path": lambda: (data_dir / "mcpx_1.0.bin").resolve().as_posix(),
+        "flashrom_path": _resolve_flash_default,
+        "eeprom_path": lambda: (data_dir / "eeprom.bin").resolve().as_posix(),
+        "hdd_path": lambda: (data_dir / "xbox_hdd.qcow2").resolve().as_posix(),
+    }
+
+    asset_lines = "".join(
+        f'{key} = "{existing[key] if key in existing else defaults[key]()}"\n'
+        for key in XEMU_ASSET_KEY_ORDER
+    )
 
     net_section = "" if enable_networking else "\n[net]\nenable = false\n"
 
@@ -156,10 +247,7 @@ def provision_xemu_defaults(
         "[general]\n"
         "show_welcome = false\n\n"
         "[sys.files]\n"
-        f'bootrom_path = "{mcpx.resolve().as_posix()}"\n'
-        f'flashrom_path = "{flash_bins[0].resolve().as_posix()}"\n'
-        f'eeprom_path = "{eeprom_path.resolve().as_posix()}"\n'
-        f'hdd_path = "{hdd_path.resolve().as_posix()}"\n'
+        f"{asset_lines}"
         f'dvd_path = "{dvd_path or ""}"\n'
         f"{net_section}"
     )

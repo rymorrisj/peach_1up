@@ -49,8 +49,9 @@ _DOWNLOAD_TIMEOUT = 300.0
 _DOWNLOAD_CHUNK = 1024 * 1024  # 1 MiB
 # RPCS3's win64_msvc build decompresses to ~143 MiB (149996575 bytes,
 # confirmed by extracting the live release with 7za.exe), compressed size is
-# ~35 MiB. 500 MiB leaves headroom for growth while still bounding
-# decompression-bomb archives.
+# ~35 MiB. PCSX2's Qt build is similar, ~140 MiB extracted from a ~27 MiB
+# archive (config/emulators/pcsx2.toml). 500 MiB leaves headroom for growth
+# while still bounding decompression-bomb archives.
 _MAX_7Z_EXTRACT_SIZE = 500 * 1024 * 1024
 _GITHUB_HEADERS = {
     "Accept": "application/vnd.github+json",

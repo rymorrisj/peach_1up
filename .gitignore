@@ -94,10 +94,6 @@ profiles/conf/
 !/emulators/*/license.md
 !/emulators/*/SOURCE_OFFER.txt
 
-# Merged config outputs
-config/86box-profiles.toml
-config/emulators.toml
-
 # Temporary files
 *.tmp
 *.temp

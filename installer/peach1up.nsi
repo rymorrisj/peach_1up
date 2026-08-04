@@ -47,12 +47,12 @@ Section "Peach 1UP" SecMain
     ExecWait '"$INSTDIR\tools\Peach1UP.exe" stop' $0
 
     ; --- Application bundle (PyInstaller one-dir output) ---
+    ; This already carries $INSTDIR\emulators (license and attribution files
+    ; only). Emulator binaries are downloaded on demand at first use, so the
+    ; working-tree ..\emulators\ directory is deliberately not packaged: it
+    ; holds local installs and user data (BIOS, saves, memory cards).
     SetOutPath "$INSTDIR"
     File /r /x "vms" "..\dist\peach1up\*.*"
-
-    ; --- Emulators ---
-    SetOutPath "$INSTDIR\emulators"
-    File /r "..\emulators\*.*"
 
     ; --- WinSW ---
     SetOutPath "$INSTDIR\tools"
@@ -116,14 +116,20 @@ Section "Uninstall"
 
     ; Files — preserve user config
     RMDir /r "$INSTDIR\frontend"
-    RMDir /r "$INSTDIR\emulators"
     RMDir /r "$INSTDIR\logs"
     RMDir /r "$INSTDIR\tools"
     Delete   "$INSTDIR\${EXE_NAME}"
     Delete   "$INSTDIR\reset_owner.bat"
     Delete   "$INSTDIR\Uninstall.exe"
-    ; Leave $INSTDIR\config\ so user data survives uninstall
+    ; Leave $INSTDIR\config\, $INSTDIR\emulators\ and $INSTDIR\library\ so user
+    ; data (BIOS, saves, memory cards, downloaded emulator installs, media,
+    ; ROMs) survives uninstall
     RMDir    "$INSTDIR"   ; removes only if empty
+
+    MessageBox MB_OK|MB_ICONINFORMATION "${APP_NAME} has been uninstalled. \
+        Your config, emulators, and library folders were left in place under \
+        $INSTDIR so your emulator installs, BIOS, saves, and media are not lost. \
+        Delete them manually if you no longer need them."
 
     ; Registry
     DeleteRegKey HKLM "${REG_UNINSTALL}"

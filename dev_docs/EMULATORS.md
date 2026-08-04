@@ -116,7 +116,10 @@ the correct one is selected automatically per disc.
 
 **BIOS/ROM source:** Dump from your own PS1 hardware.
 
-**Bundleable:** Yes
+**Bundleable:** No. DuckStation is CC BY-NC-ND 4.0 (non-commercial, no
+derivatives), so it is not redistributed. Installed on demand from
+`github.com/stenzek/duckstation`, whose Rolling Release is published under the
+fixed tag `latest`.
 
 **Portable mode confirmed:** Yes
 
@@ -157,7 +160,8 @@ The `bios/` subdirectory path is configurable in PCSX2 settings.
 
 **BIOS/ROM source:** Dump from your own PS2 hardware.
 
-**Bundleable:** Yes
+**Bundleable:** Not bundled. Installed on demand from `github.com/PCSX2/pcsx2`.
+The Windows Qt build is a `.7z` and is extracted with the vendored 7-Zip.
 
 **Portable mode confirmed:** Yes
 
@@ -281,7 +285,9 @@ application path (`AppPath\Config\`).
 
 **BIOS/ROM source:** N/A
 
-**Bundleable:** Yes
+**Bundleable:** Not bundled, and not auto-installable either: the project
+publishes git tags but no GitHub release assets. The user downloads the Windows
+build from pj64-emu.com and extracts it into `emulators/project64/`.
 
 **Portable mode confirmed:** Yes
 
@@ -332,17 +338,153 @@ cmake -S . -B build -A x64 -DUSE_DX9=OFF -DUSE_VULKAN=ON -DUSE_DX11=ON -DUSE_OPE
 
 ---
 
+## RPCS3
+
+**Supported eras:** PS3
+
+**Portable mode mechanism:** Automatic on Windows. RPCS3 treats its own
+executable directory as the data root, so no sentinel file is created or
+needed. `config/emulators/rpcs3.toml` accordingly has no `portable_sentinel`.
+
+**Default user data path (Windows):** the install directory itself
+(`emulators/rpcs3/`), holding `dev_flash/`, `dev_hdd0/`, `dev_bdvd/`,
+`config/`, `cache/`, and `games/`.
+
+**Required files:**
+
+| Filename/Path  | Purpose         | Location                            | Notes                                                            |
+| -------------- | --------------- | ----------------------------------- | ---------------------------------------------------------------- |
+| `PS3UPDAT.PUP` | PS3 firmware    | installed into `dev_flash/` by RPCS3 | Not copied into place. Install from `File > Install Firmware` inside RPCS3, or pass `--installfw`. |
+
+Peach 1UP does not provide, link to, or assist with acquiring firmware files.
+
+**Optional files:** None.
+
+**ROM/BIOS version coupling:** None. Any reasonably current firmware works.
+
+**Official download:** https://rpcs3.net/download
+
+**BIOS/ROM source:** Sony's own PS3 firmware update package, obtained by the
+user.
+
+**Bundleable:** No. Installed on demand from
+`github.com/RPCS3/rpcs3-binaries-win`, a companion binaries repo to the
+primary `RPCS3/rpcs3` source repo, which publishes no downloadable releases of
+its own. The asset is a `.7z` and is extracted with the vendored 7-Zip.
+
+**Portable mode confirmed:** Yes
+
+**Multi-disc capability:** Not applicable. PS3 titles are single-disc.
+
+### Known limitations
+
+**AppContainer isolation not supported (critical).** RPCS3 is a heavily
+JIT-based recompiler (Cell PPU/SPU and RSX) that relies on runtime code
+generation and low-level system calls incompatible with AppContainer's
+restricted token, the same class of limitation as xemu. It is marked
+`container_permanently_excluded`, and Job Object isolation (kill-on-close, CPU
+cap) is the only available isolation layer on Windows. Note that RPCS3 is the
+only emulator that still keeps the Job Object CPU cap; see the corresponding
+xemu limitation for the contrast.
+
+**Digital content (.pkg) installs need two launch attempts (info).** RPCS3
+cannot install a `.pkg` headlessly (it refuses `--installpkg` combined with
+`--no-gui`) and never exits on its own once an unattended install finishes, so
+a single launch call cannot both install and boot within the coordinator's 30s
+dispatch window. The first launch of an uninstalled `.pkg` starts the install
+and returns once it stabilizes on disk (RPCS3 itself is terminated
+automatically, no manual dialog dismissal needed); launching the same title
+again afterward boots it normally from the resulting
+`dev_hdd0/game/<TITLE_ID>/` folder.
+
+**First-launch shader and JIT compilation stutter (info).** RPCS3 precompiles
+shaders and recompiles PPU/SPU code the first time a title is launched. Expect
+stutter and reduced performance on a title's first boot; subsequent launches
+are smoother once the caches are warm.
+
+**Controller input requires manual configuration (info).** RPCS3 does not
+auto-detect controllers. On first run, open Pads Settings inside RPCS3 and
+manually bind a gamepad, otherwise keyboard input is used by default.
+
+---
+
+## Xenia
+
+**Supported eras:** Xbox 360
+
+**Portable mode mechanism:** Place an empty `portable.txt` next to the binary.
+Xenia then resolves its `storage_root` to the executable's directory
+(`emulators/xenia/`) instead of `Documents\Xenia`. Peach 1UP creates the
+sentinel automatically after install via `ensure_portable_mode`, driven by
+`portable_sentinel = "portable.txt"` in the descriptor.
+
+**Default user data path (Windows):** `Documents\Xenia\` without the sentinel;
+`emulators/xenia/` with it, holding `content/` (saves and DLC) and `cache/`
+(shader cache).
+
+**Required files:** None. No BIOS or firmware required.
+
+**Optional files:** None.
+
+**ROM/BIOS version coupling:** None.
+
+**Official download:** https://xenia.jp
+
+**BIOS/ROM source:** N/A
+
+**Bundleable:** No. Installed on demand from
+`github.com/xenia-project/release-builds-windows`, a companion CI repo to the
+primary `xenia-project/xenia` source repo, which publishes no downloadable
+releases of its own. The asset is `xenia_master.zip`.
+
+**Portable mode confirmed:** Yes
+
+**Multi-disc capability:** Not applicable for the supported formats
+(`.iso`, `.xex`).
+
+---
+
 ## Legal
 
-The root `LICENSE` file for this repository is GPL-2.0-or-later. DuckStation is distributed unmodified under CC BY-NC-ND 4.0 (non-GPL, non-commercial only). All other bundled emulators are GPL-2.0 or GPL-3.0.
+The root `LICENSE` file for this repository is GPL-2.0-or-later.
+
+**Peach 1UP does not redistribute emulator binaries.** Every emulator listed
+below is fetched from its own upstream release at the user's request and
+installed into `emulators/<slug>/` on first use, or (Project64 only) downloaded
+manually by the user. What ships in this repository and in a release build is
+the license and attribution set: each emulator's own license file plus, for the
+GPL emulators, a `SOURCE_OFFER.txt` pointing at the corresponding source.
+
+This also settles the DuckStation case. DuckStation is CC BY-NC-ND 4.0
+(non-GPL, non-commercial only); fetching it unmodified from the project's own
+GitHub release avoids redistributing it at all. Every other emulator here is
+GPL-2.0, GPL-3.0, or BSD-3-Clause.
+
+The `Install Type` column is the `install_type` field in
+`config/emulators/<slug>.toml` and is the source of truth for how a binary
+arrives.
 
 | Emulator    | License         | License File   | SOURCE_OFFER.txt | Install Type     |
 | ----------- | --------------- | -------------- | ---------------- | ---------------- |
 | 86Box       | GPL-2.0         | COPYING        | Yes              | github_release   |
 | DOSBox-X    | GPL-2.0         | COPYING        | Yes              | github_release   |
-| DuckStation | CC BY-NC-ND 4.0 | LICENSE.txt    | No               | zip              |
+| DuckStation | CC BY-NC-ND 4.0 | LICENSE.txt    | No               | github_release   |
 | Flycast     | GPL-2.0         | LICENSE        | Yes              | github_release   |
 | Mesen       | GPL-3.0         | LICENSE        | Yes              | github_release   |
-| PCSX2       | GPL-3.0         | COPYING.GPLv3  | Yes              | bundled          |
-| Project64   | GPL-2.0         | license.md     | Yes              | bundled          |
+| PCSX2       | GPL-3.0         | COPYING.GPLv3  | Yes              | github_release   |
+| Project64   | GPL-2.0         | license.md     | Yes              | zip (manual)     |
+| RPCS3       | GPL-2.0         | LICENSE.txt    | No               | github_release   |
+| Xenia       | BSD-3-Clause    | LICENSE        | No               | github_release   |
 | xemu        | GPL-2.0         | LICENSE.txt    | Yes              | github_release   |
+
+Project64 is the one exception to one-click install: the project publishes git
+tags but no GitHub release assets, so there is nothing for the installer to
+match. The user downloads it from pj64-emu.com and extracts it into
+`emulators/project64/` themselves.
+
+RPCS3 has no `SOURCE_OFFER.txt` yet. Its binary comes from
+`RPCS3/rpcs3-binaries-win` (which is what `source_url` points at, because the
+installer derives the release repo from that field), and the corresponding
+source is the public `RPCS3/rpcs3` repository. Add a `SOURCE_OFFER.txt` naming
+that repository to match the other GPL emulators. Xenia needs none, because
+BSD-3-Clause carries no source-offer obligation.

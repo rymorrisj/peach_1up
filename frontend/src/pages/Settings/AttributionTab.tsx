@@ -25,8 +25,8 @@ export default function AttributionTab() {
           Attribution
         </h2>
         <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-          Open-source software included with Peach 1UP. Source code is available
-          via the links below.
+          Open-source software used by Peach 1UP, bundled with the app or downloaded
+          on first use. Source code is available via the links below.
         </p>
         <ul className="mt-4 divide-y divide-neutral-100 dark:divide-neutral-800">
           {(attribution ?? []).map((entry) => (

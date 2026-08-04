@@ -16,13 +16,19 @@ skip_cpu_limit = true
 capabilities = []
 description = "PlayStation 1 emulation"
 required = false
-install_type = "zip"
+install_type = "github_release"
 install_scope = "portable"
+# stenzek/duckstation publishes its Rolling Release under the fixed tag
+# "latest", which is a full release and is what /releases/latest resolves to.
+# The Preview channel is published as a prerelease and never shadows it.
+# Anchored to the plain x64 build so the sse2 and arm64 variants, the installer
+# .exe, and the -symbols archive cannot produce an ambiguous match.
+asset_pattern = '^duckstation-windows-x64-release\.zip$'
 license = "CC BY-NC-ND 4.0"
 copyright = "Copyright 2019–2024 Connor McLaughlin and contributors"
 source_url = "https://github.com/stenzek/duckstation"
 supported_formats = [".iso", ".bin", ".cue", ".chd"]
-guidance_text = "DuckStation is bundled — binaries are included in emulators/duckstation/."
+guidance_text = "DuckStation is not included with Peach 1UP. Click Install to download the current Windows release from github.com/stenzek/duckstation into emulators/duckstation/. DuckStation is licensed CC BY-NC-ND 4.0, so it is fetched unmodified from the project's own release rather than redistributed."
 guidance_url = "https://www.duckstation.org"
 
 [[container_broker_files]]

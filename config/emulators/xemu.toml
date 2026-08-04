@@ -72,6 +72,11 @@ severity = "warning"
 description = "xemu pre-allocates a 1 GB JIT buffer at startup. The Job Object memory cap must be disabled (skip_memory_limit = true) or set above 2048 MB — otherwise xemu exits immediately with a paging file error."
 
 [[known_limitations]]
+title = "CPU rate cap is disabled"
+severity = "warning"
+description = "The Job Object CPU rate cap is waived for xemu (skip_cpu_limit = true), matching every other emulator except RPCS3. Because xemu is also container_permanently_excluded, this leaves kill-on-close as the only resource control still active on it: a runaway or hung xemu process can saturate host CPU until it is closed. The waiver is deliberate rather than an oversight, but the specific behaviour that motivated it is not recorded here; treat re-enabling the cap as a change that needs a fresh smoke test rather than a config edit."
+
+[[known_limitations]]
 title = "Shader cache writes to AppData"
 severity = "info"
 description = "xemu writes its shader cache to %APPDATA%\\xemu\\ regardless of portable mode. This is a known xemu limitation and cannot be overridden via config."

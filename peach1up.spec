@@ -60,12 +60,24 @@ a = Analysis(
     noarchive=False,
 )
 
+# User-supplied asset directories that must never be packaged. Matched as whole
+# path components, never as substrings: a substring match here also dropped
+# config/emulators/86box-roms.toml (the 86Box ROM-pack catalog entry, leaving
+# the packaged build with no such emulator) and the built bios-sourcing docs
+# page, because their names merely contain "roms" and "bios".
+_USER_ASSET_DIRS = frozenset(("roms", "bios", "saves", "vms"))
+
+
+def _in_user_asset_dir(dest):
+    return bool(_USER_ASSET_DIRS.intersection(dest.replace("\\", "/").split("/")))
+
+
 a.datas = [
     (dest, src, kind)
     for dest, src, kind in a.datas
     if "__pycache__" not in dest
     and not any(seg in dest for seg in ("test_", "_test.", "/tests/", "/test/"))
-    and not any(part in dest for part in ("roms", "bios", "saves", "vms"))
+    and not _in_user_asset_dir(dest)
     and dest.replace("\\", "/") != "config/emulators.yaml"
     and dest.replace("\\", "/") not in (
         "scripts/manage_test_users.py",
