@@ -3,11 +3,11 @@ import { Trash2 } from 'lucide-react'
 import { ERA_LABEL, ERA_PLACEHOLDER, ERA_PLACEHOLDER_DEFAULT } from '@/types/era'
 import type { EntityBundleBase } from '../types'
 
-// Leaf (per-disc) record within a collection. Renamed from the former
-// LibrarySetItemData; single-disc games are collections-of-one.
+// Leaf (per-disc) record within a bundle. Renamed from the former
+// LibrarySetItemData; single-disc games are bundles-of-one.
 export interface GameItemData {
   id: number
-  software_collection_id: number
+  game_item_bundle_id: number
   disc_number: number
   file_path: string
   executable_path: string | null
@@ -80,9 +80,9 @@ function eraHex(era: string) {
 }
 
 // Full placeholder for the front face when no cover art exists
-function ArtPlaceholder({ collection }: { collection: GameItemBundleData }) {
-  const style = ERA_PLACEHOLDER[collection.era] ?? ERA_PLACEHOLDER_DEFAULT
-  const label = ERA_LABEL[collection.era] ?? (collection.era?.toUpperCase() ?? '—')
+function ArtPlaceholder({ bundle }: { bundle: GameItemBundleData }) {
+  const style = ERA_PLACEHOLDER[bundle.era] ?? ERA_PLACEHOLDER_DEFAULT
+  const label = ERA_LABEL[bundle.era] ?? (bundle.era?.toUpperCase() ?? '—')
   return (
     <div
       className="absolute inset-0 flex flex-col overflow-hidden p-3.5"
@@ -99,18 +99,18 @@ function ArtPlaceholder({ collection }: { collection: GameItemBundleData }) {
       />
       <div className="flex items-center justify-between">
         <span className="font-mono text-[0.625rem] font-bold uppercase tracking-[0.18em]">{label}</span>
-        {collection.year && <span className="font-mono text-[0.625rem] text-neutral-500">{collection.year}</span>}
+        {bundle.year && <span className="font-mono text-[0.625rem] text-neutral-500">{bundle.year}</span>}
       </div>
       <div className="mt-auto">
         <p
           className="font-sans text-[0.9375rem] font-semibold leading-snug tracking-tight text-neutral-100"
           style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}
         >
-          {collection.title}
+          {bundle.title}
         </p>
-        {collection.publisher && (
+        {bundle.publisher && (
           <p className="mt-1 truncate font-mono text-[0.625rem] tracking-[0.04em] text-neutral-500">
-            {collection.publisher}
+            {bundle.publisher}
           </p>
         )}
       </div>
@@ -164,35 +164,35 @@ const LAYER_BASE =
   'transition-[transform,box-shadow] duration-[220ms] ease-[cubic-bezier(0.16,1,0.3,1)]'
 
 interface CollectionCardProps {
-  collection: GameItemBundleData
-  onRemove?: (collection: GameItemBundleData) => void
-  onSetDisplayDisk?: (collectionId: number, discId: number) => void
+  bundle: GameItemBundleData
+  onRemove?: (bundle: GameItemBundleData) => void
+  onSetDisplayDisk?: (bundleId: number, discId: number) => void
 }
 
-export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: CollectionCardProps) {
+export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: CollectionCardProps) {
   // Effective display disc — display_disk_id overrides, falls back to launch_disk_id
-  const effectiveDisplayId = collection.display_disk_id ?? collection.launch_disk_id
-  const displayDisc = collection.items.find((d) => d.id === effectiveDisplayId) ?? collection.items[0]
-  const launchDisc = collection.items.find((d) => d.id === collection.launch_disk_id) ?? collection.items[0]
+  const effectiveDisplayId = bundle.display_disk_id ?? bundle.launch_disk_id
+  const displayDisc = bundle.items.find((d) => d.id === effectiveDisplayId) ?? bundle.items[0]
+  const launchDisc = bundle.items.find((d) => d.id === bundle.launch_disk_id) ?? bundle.items[0]
   const launchDiffersFromDisplay = !!displayDisc && !!launchDisc && displayDisc.id !== launchDisc.id
 
   // Background layers: remaining items sorted by disc_number; b=mid (closer), c=back (farther)
-  const bgItems = collection.items
+  const bgItems = bundle.items
     .filter((d) => d.id !== displayDisc?.id)
     .sort((a, b) => a.disc_number - b.disc_number)
   const layerB = bgItems[0]
   const layerC = bgItems[1]
 
-  const discCount = collection.items.length
+  const discCount = bundle.items.length
   const isMultiDisc = discCount > 1
-  const chipHex = eraHex(collection.era)
+  const chipHex = eraHex(bundle.era)
   // The detail route is slug-only (/software/games/:slug -> GET
   // /api/v1/game-item-bundle/by-slug/{slug}) — there is no id-based lookup, so
   // a numeric-id fallback here would always resolve to "Game not found."
   // slug is nullable at the DB layer even though the create path always
   // generates one; prevent navigation entirely for the theoretical null case
   // rather than linking to a route guaranteed to 404.
-  const to = collection.slug ? `/software/games/${collection.slug}` : null
+  const to = bundle.slug ? `/software/games/${bundle.slug}` : null
 
   return (
     <div className="group relative flex flex-col gap-2.5">
@@ -212,7 +212,7 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
               {layerC.cover_art_url ? (
                 <img src={layerC.cover_art_url} alt={`Disc ${layerC.disc_number}`} loading="lazy" className="h-full w-full object-cover" />
               ) : (
-                <MiniPlaceholder discNumber={layerC.disc_number} era={collection.era} />
+                <MiniPlaceholder discNumber={layerC.disc_number} era={bundle.era} />
               )}
               <div className="absolute inset-0 bg-[rgb(8_10_13/0.55)]" />
             </div>
@@ -224,7 +224,7 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
               {layerB.cover_art_url ? (
                 <img src={layerB.cover_art_url} alt={`Disc ${layerB.disc_number}`} loading="lazy" className="h-full w-full object-cover" />
               ) : (
-                <MiniPlaceholder discNumber={layerB.disc_number} era={collection.era} />
+                <MiniPlaceholder discNumber={layerB.disc_number} era={bundle.era} />
               )}
               <div className="absolute inset-0 bg-[rgb(8_10_13/0.34)]" />
             </div>
@@ -233,12 +233,12 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
           {/* Layer A — front (display disc), z=3 */}
           <div className={`${LAYER_BASE} z-[3] group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-md)]`}>
             {displayDisc?.cover_art_url ? (
-              <img src={displayDisc.cover_art_url} alt={collection.title} loading="lazy" className="h-full w-full object-cover" />
+              <img src={displayDisc.cover_art_url} alt={bundle.title} loading="lazy" className="h-full w-full object-cover" />
             ) : (
-              <ArtPlaceholder collection={collection} />
+              <ArtPlaceholder bundle={bundle} />
             )}
 
-            {/* Stack count badge — bottom right, only for multi-disc collections */}
+            {/* Stack count badge — bottom right, only for multi-disc bundles */}
             {isMultiDisc && (
               <div className="absolute bottom-2 right-2 z-[4] inline-flex items-center gap-1.5 rounded-[4px] border border-white/[0.16] bg-surface-0/80 px-[7px] py-[4px] font-mono text-[0.6875rem] font-bold leading-none tracking-[0.04em] text-[#f3efe9] backdrop-blur-[6px]">
                 <StackGlyph />
@@ -273,17 +273,17 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
           {/* Disc strip — hover-revealed, z above all layers; click to promote display disc */}
           {isMultiDisc && (
             <div className="absolute bottom-0 left-0 right-0 z-[10] flex gap-1 overflow-x-auto bg-gradient-to-t from-black/80 to-transparent px-2 pb-2 pt-4 opacity-0 transition-opacity duration-[180ms] ease-out group-hover:opacity-100">
-              {collection.items
+              {bundle.items
                 .slice()
                 .sort((a, b) => a.disc_number - b.disc_number)
                 .map((disc) => {
                   const isDisplay = disc.id === displayDisc?.id
-                  const isLaunch = disc.id === collection.launch_disk_id
+                  const isLaunch = disc.id === bundle.launch_disk_id
                   return (
                     <button
                       key={disc.id}
                       type="button"
-                      onClick={() => !isDisplay && onSetDisplayDisk?.(collection.id, disc.id)}
+                      onClick={() => !isDisplay && onSetDisplayDisk?.(bundle.id, disc.id)}
                       disabled={isDisplay}
                       title={isDisplay ? 'Displayed' : isLaunch ? 'Set as display cover (launches this disc)' : 'Set as display cover'}
                       className={`shrink-0 rounded border font-mono text-[0.5625rem] px-1.5 py-0.5 transition-colors duration-[120ms] ${
@@ -304,15 +304,15 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
       {/* Title + tag row */}
       <div className="flex min-w-0 flex-col gap-[5px]">
         <span className="min-w-0 truncate font-sans text-sm font-semibold tracking-tight text-neutral-100">
-          {collection.title}
+          {bundle.title}
         </span>
         <div className="flex gap-[5px] overflow-hidden">
-          {collection.era && collection.era !== 'unknown' && (
+          {bundle.era && bundle.era !== 'unknown' && (
             <span
               className="inline-flex shrink-0 items-center rounded-[4px] border px-[7px] py-1 font-mono text-[0.65625rem] font-medium leading-none tracking-[0.08em]"
               style={{ color: chipHex, borderColor: `${chipHex}6a`, background: `${chipHex}1a` }}
             >
-              {ERA_LABEL[collection.era] ?? collection.era.toUpperCase()}
+              {ERA_LABEL[bundle.era] ?? bundle.era.toUpperCase()}
             </span>
           )}
           {isMultiDisc && (
@@ -333,9 +333,9 @@ export function CollectionCard({ collection, onRemove, onSetDisplayDisk }: Colle
       {onRemove && (
         <button
           type="button"
-          onClick={() => onRemove(collection)}
+          onClick={() => onRemove(bundle)}
           className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-md border border-transparent bg-black/70 text-neutral-400 opacity-0 backdrop-blur-sm transition-opacity duration-[120ms] group-hover:opacity-100 hover:border-red-500/40 hover:text-red-400"
-          aria-label={`Remove ${collection.title}`}
+          aria-label={`Remove ${bundle.title}`}
         >
           <Trash2 size={14} />
         </button>

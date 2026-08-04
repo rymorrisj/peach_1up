@@ -55,11 +55,11 @@ function confirmRefetchIfAlreadyFetched(metadataFetchedAt: string | null | undef
 // edit form, launch_commands, flag launch, delete flow, metadata enrich) into
 // the slot shape EntityDetailPage renders. Called unconditionally on every
 // render of EntityDetailPage when mounted with gameDomainConfig — every hook
-// below must tolerate `collection`/`collectionId` being undefined (pre-load),
+// below must tolerate `bundle`/`bundleId` being undefined (pre-load),
 // exactly like CollectionDetail.tsx's pre-composition body did.
 function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>): EntityDetailExtras {
-  const collection = ctx.entity
-  const collectionId = ctx.entityId
+  const bundle = ctx.entity
+  const bundleId = ctx.entityId
   const { detailQueryKey, isOwner, launch, isLaunching, launchErrorType, refetchEntity } = ctx
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -90,11 +90,11 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
   const [fetchMetadataOpen, setFetchMetadataOpen] = useState(false)
   const [fetchDiscId, setFetchDiscId] = useState<number | null>(null)
   // Two independent instances of <FetchMetadataModal> mount below (one for
-  // the whole collection, one per-disc) — each needs its own busy flag so a
-  // per-disc fetch doesn't show as loading on the collection-level button
+  // the whole bundle, one per-disc) — each needs its own busy flag so a
+  // per-disc fetch doesn't show as loading on the bundle-level button
   // (and vice versa). Not currently reachable since fetchMetadataOpen and
   // fetchDiscId are mutually exclusive, but the flags must stay independent.
-  const [collectionMetadataBusy, setCollectionMetadataBusy] = useState(false)
+  const [bundleMetadataBusy, setBundleMetadataBusy] = useState(false)
   const [discMetadataBusy, setDiscMetadataBusy] = useState(false)
 
   const { data: libraryDefaults } = useQuery<{ delete_media_on_removal: boolean; delete_original_on_upload: boolean }>({
@@ -103,7 +103,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
     staleTime: 60_000,
   })
   const deleteMediaOnRemoval = Boolean(libraryDefaults?.delete_media_on_removal)
-  const resolvedDeleteMedia = collection?.delete_media_override ?? deleteMediaOnRemoval
+  const resolvedDeleteMedia = bundle?.delete_media_override ?? deleteMediaOnRemoval
 
   const { data: profiles = [] } = useQuery<LaunchProfile[]>({
     queryKey: ['profiles'],
@@ -116,9 +116,9 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
   })
 
   const { data: launchHistory = [] } = useQuery<LaunchHistory[]>({
-    queryKey: ['launches', 'collection', collectionId],
-    queryFn: () => apiFetch<LaunchHistory[]>(`/api/v1/game-item-bundle/${collectionId}/launches`),
-    enabled: collectionId != null,
+    queryKey: ['launches', 'game', bundleId],
+    queryFn: () => apiFetch<LaunchHistory[]>(`/api/v1/game-item-bundle/${bundleId}/launches`),
+    enabled: bundleId != null,
   })
 
   const [execBrowserOpen, setExecBrowserOpen] = useState(false)
@@ -137,33 +137,33 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
     confirmOptions: installedConfirmOptions,
     handleConfirm: handleInstalledConfirm,
     handleCancel: handleInstalledCancel,
-  } = useInstalledToggle({ collectionId, detailQueryKey, era: collection?.era })
+  } = useInstalledToggle({ collectionId: bundleId, detailQueryKey, era: bundle?.era })
 
   // Bundle-scoped, re-verifies every disc in one call (see Part B, every
   // disc gets its own persisted sha1/verification_status now, so a
   // single-leaf re-check would miss a bad disc 2 in a multi-disc set).
   const { verifying, verifyError, lastResultStatus, lastResultSimilarity, handleVerify } = useVerifyGameCollection({
-    collectionId,
+    collectionId: bundleId,
     detailQueryKey,
   })
 
-  const { form, setFormField, resyncFromCollection } = useEditForm({ collection, formFromCollection })
+  const { form, setFormField, resyncFromCollection } = useEditForm({ collection: bundle, formFromCollection })
 
   useEffect(() => {
-    if (collection && !form) {
-      setLaunchCommandsState(collection.launch_commands ?? null)
-      setLocalInstalled(collection.installed)
+    if (bundle && !form) {
+      setLaunchCommandsState(bundle.launch_commands ?? null)
+      setLocalInstalled(bundle.installed)
     }
-  }, [collection, form])
+  }, [bundle, form])
 
   const { discOrder, setDiscOrder, displayedOrder, isReorderStaged, reset: resetDiscOrder } = useDiscOrder({
-    discs: collection?.items ?? [],
+    discs: bundle?.items ?? [],
     onLaunchDiscChange: (executable_path) => setFormField('executable_path', executable_path),
   })
 
   const saveMutation = useMutation<GameItemBundleData, Error, EditFormFields>({
     mutationFn: async (f) => {
-      await apiFetch<GameItemBundleData>(`/api/v1/game-item-bundle/${collectionId}`, {
+      await apiFetch<GameItemBundleData>(`/api/v1/game-item-bundle/${bundleId}`, {
         method: 'PATCH',
         body: JSON.stringify({
           title: f.title.trim() || undefined,
@@ -181,7 +181,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
           era: f.era || undefined,
           environment_item_id : f.environment_item_id  ? parseInt(f.environment_item_id , 10) : null,
           profile_item_id: f.profile_item_id ? parseInt(f.profile_item_id, 10) : null,
-          launch_commands: resolveLaunchCommands(launchCommands, collection?.launch_commands),
+          launch_commands: resolveLaunchCommands(launchCommands, bundle?.launch_commands),
         }),
       })
 
@@ -189,13 +189,13 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
       // executable_path edit below — otherwise an edit made after reordering
       // would land on the disc that *was* the launch disc before this save,
       // not the one the user just dragged to the top.
-      const currentOrderIds = (collection?.items ?? [])
+      const currentOrderIds = (bundle?.items ?? [])
         .slice()
         .sort((a, b) => a.disc_number - b.disc_number)
         .map((i) => i.id)
       const reorderStaged = isReorderStaged(currentOrderIds)
-      if (reorderStaged && collectionId != null) {
-        await apiFetch(`/api/v1/game-item-bundle/${collectionId}/items/reorder`, {
+      if (reorderStaged && bundleId != null) {
+        await apiFetch(`/api/v1/game-item-bundle/${bundleId}/items/reorder`, {
           method: 'PATCH',
           body: JSON.stringify({ disc_order: discOrder }),
         })
@@ -203,9 +203,9 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
 
       const launchDiscId = reorderStaged
         ? discOrder![0]
-        : (collection?.launch_disk_id ?? collection?.items[0]?.id)
-      if (launchDiscId != null && collectionId != null) {
-        await apiFetch(`/api/v1/game-item-bundle/${collectionId}/items/${launchDiscId}`, {
+        : (bundle?.launch_disk_id ?? bundle?.items[0]?.id)
+      if (launchDiscId != null && bundleId != null) {
+        await apiFetch(`/api/v1/game-item-bundle/${bundleId}/items/${launchDiscId}`, {
           method: 'PATCH',
           body: JSON.stringify({
             executable_path: f.executable_path.trim() || null,
@@ -214,7 +214,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
         })
       }
 
-      // Fetch fresh, fully up-to-date collection data (reflecting the collection
+      // Fetch fresh, fully up-to-date bundle data (reflecting the bundle
       // fields, disc order, and launch-disc executable_path changes above) so
       // the form can resync deterministically in onSuccess rather than relying
       // on invalidateQueries' background refetch timing.
@@ -238,46 +238,46 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
     deleteError,
     handleDelete,
   } = useDeleteCollection({
-    collectionId,
-    title: collection?.title,
+    collectionId: bundleId,
+    title: bundle?.title,
     resolvedDeleteMedia,
     detailQueryKey,
     onDeleted: () => navigate('/software'),
   })
 
-  const { flagging, flagError, handleFlagLaunch } = useFlagLaunch({ collectionId, detailQueryKey })
+  const { flagging, flagError, handleFlagLaunch } = useFlagLaunch({ collectionId: bundleId, detailQueryKey })
 
-  const xisoConvert = useXisoConvert(collectionId ?? 0)
+  const xisoConvert = useXisoConvert(bundleId ?? 0)
 
-  if (!collection || !formIsReady(form)) {
-    // Mirrors the pre-composition `!collection || !form` guard — while the
-    // collection is loaded but the form hasn't seeded yet (one render tick),
+  if (!bundle || !formIsReady(form)) {
+    // Mirrors the pre-composition `!bundle || !form` guard — while the
+    // bundle is loaded but the form hasn't seeded yet (one render tick),
     // render no game-only slots at all rather than a partial form. Every
     // hook above still ran unconditionally, satisfying Rules of Hooks.
     return {}
   }
 
-  const sortedItems = collection.items.slice().sort((a, b) => a.disc_number - b.disc_number)
-  // Single-disc games are collections-of-one — suppress the disc list entirely.
+  const sortedItems = bundle.items.slice().sort((a, b) => a.disc_number - b.disc_number)
+  // Single-disc games are bundles-of-one — suppress the disc list entirely.
   const isMultiDisc = sortedItems.length > 1
   // lastResultStatus (set the instant a verify POST resolves) takes priority
-  // over the collection's own data so the badge updates immediately, without
+  // over the bundle's own data so the badge updates immediately, without
   // waiting on detailQueryKey's background refetch to land. Bundle-level
   // rollup, not any single disc's status, see _rollup_verification_item
   // in backend/models/game.py for the worst-status-wins ordering.
-  const displayedVerificationStatus = lastResultStatus ?? collection.verification_status ?? 'unchecked'
+  const displayedVerificationStatus = lastResultStatus ?? bundle.verification_status ?? 'unchecked'
   // Paired with displayedVerificationStatus above, same precedence, always
   // sourced from whichever leaf's status the rollup actually picked. Only
   // meaningful when displayedVerificationStatus is 'mismatch'.
   const displayedVerificationSimilarity =
-    lastResultStatus != null ? lastResultSimilarity : collection.verification_similarity
+    lastResultStatus != null ? lastResultSimilarity : bundle.verification_similarity
   // At a Glance "media size" stat: no bundle-level total exists in the API,
   // so this sums each disc's real file_size_bytes client-side. Null items
   // (size not yet known) contribute 0 rather than breaking the sum — the
   // SoftwareEntityDetail.tsx render side only shows the tile when this is > 0,
-  // so an all-null collection still renders no tile rather than a fake "0 B".
+  // so an all-null bundle still renders no tile rather than a fake "0 B".
   const mediaSizeBytes = sortedItems.reduce((sum, item) => sum + (item.file_size_bytes ?? 0), 0)
-  const showDiscSwapWarning = (collection.era === 'ps1' || collection.era === 'ps2') && isMultiDisc
+  const showDiscSwapWarning = (bundle.era === 'ps1' || bundle.era === 'ps2') && isMultiDisc
 
   // Staged order takes precedence over the server's disc_number order once
   // the user has dragged/moved a disc, so the "Launch File" field below and
@@ -288,25 +288,25 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
 
   const effectiveProfileId = form.profile_item_id
     ? parseInt(form.profile_item_id, 10)
-    : (collection.profile_item_id ?? null)
+    : (bundle.profile_item_id ?? null)
   // Launch gating is driven solely by the backend-computed launch_blocked_reason
   // now, no parallel client-side profile check. effectiveProfileId is still used
   // as the launch payload so a saved profile override is honored, but it no
   // longer decides whether the button is enabled.
-  const launchGate = launchGateFromReason(collection.launch_blocked_reason, isLaunching)
+  const launchGate = launchGateFromReason(bundle.launch_blocked_reason, isLaunching)
 
   const storageKey = `fetch_metadata_${window.location.pathname}_${activeProvider}`
   const activeDisc = fetchDiscId != null ? sortedItems.find((d) => d.id === fetchDiscId) : undefined
 
   return {
-    era: collection.era,
-    year: collection.year,
-    publisher: collection.publisher,
-    launchCount: collection.launch_count,
-    lastLaunchedAt: collection.last_launched_at,
+    era: bundle.era,
+    year: bundle.year,
+    publisher: bundle.publisher,
+    launchCount: bundle.launch_count,
+    lastLaunchedAt: bundle.last_launched_at,
     launchHistory,
     // At a Glance stats — see EntityDetailExtras (types.ts) for the omit-vs-
-    // fabricate contract. localInstalled mirrors collection.installed and
+    // fabricate contract. localInstalled mirrors bundle.installed and
     // already exists for the DOS-only editable toggle below (metaAfter), this
     // just also surfaces it as a read-only tile for every era.
     installedStatus: localInstalled,
@@ -348,23 +348,23 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
       <>
         {isMultiDisc && (
           <div>
-            <span className="font-medium">Discs:</span> {collection.items.length}
+            <span className="font-medium">Discs:</span> {bundle.items.length}
           </div>
         )}
-        {collection.genres.length > 0 && (
+        {bundle.genres.length > 0 && (
           <div>
-            <span className="font-medium">Genre:</span> {collection.genres.join(', ')}
+            <span className="font-medium">Genre:</span> {bundle.genres.join(', ')}
           </div>
         )}
-        {collection.developer && (
+        {bundle.developer && (
           <div>
-            <span className="font-medium">Developer:</span> {collection.developer}
+            <span className="font-medium">Developer:</span> {bundle.developer}
           </div>
         )}
-        {collection.metadata_fetched_at && (
+        {bundle.metadata_fetched_at && (
           <div>
             <span className="font-medium">Metadata fetched:</span>{' '}
-            {parseNaiveUtc(collection.metadata_fetched_at).toLocaleDateString()}
+            {parseNaiveUtc(bundle.metadata_fetched_at).toLocaleDateString()}
           </div>
         )}
         <div className="flex items-center gap-2">
@@ -389,7 +389,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
         {verifyError && (
           <p role="alert" className="text-xs text-red-600 dark:text-red-400">{verifyError}</p>
         )}
-        {(collection.era === 'dos' || collection.era === 'ps3') && (
+        {(bundle.era === 'dos' || bundle.era === 'ps3') && (
           <div className="flex items-center gap-2">
             <span className="font-medium shrink-0">Installed:</span>
             <span className="text-neutral-500 dark:text-neutral-400">
@@ -410,7 +410,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
 
     editForm: {
       item: {
-        era: form.era || collection.era,
+        era: form.era || bundle.era,
         file_path: currentLaunchDisc?.file_path,
         folder_path: currentLaunchDisc?.folder_path,
       },
@@ -429,7 +429,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
     },
 
     advancedSection: {
-      item: { launch_review_flagged: collection.launch_review_flagged },
+      item: { launch_review_flagged: bundle.launch_review_flagged },
       flagging,
       flagError,
       onFlagLaunch: handleFlagLaunch,
@@ -444,10 +444,10 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
             variant="primary"
             size="sm"
             onClick={() => {
-              if (confirmRefetchIfAlreadyFetched(collection.metadata_fetched_at)) setFetchMetadataOpen(true)
+              if (confirmRefetchIfAlreadyFetched(bundle.metadata_fetched_at)) setFetchMetadataOpen(true)
             }}
-            disabled={!metadataProviderEnabled || collectionMetadataBusy}
-            loading={collectionMetadataBusy}
+            disabled={!metadataProviderEnabled || bundleMetadataBusy}
+            loading={bundleMetadataBusy}
             title={!metadataProviderEnabled ? `${activeProviderLabel} credentials not configured — set them in Settings > Advanced` : undefined}
           >
             Fetch Metadata
@@ -477,7 +477,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
 
     beforeLaunch: (
       <>
-        {/* Disc list is shown only for multi-disc collections. Drag (or use
+        {/* Disc list is shown only for multi-disc bundles. Drag (or use
             the up/down buttons) to reorder — staged locally, persisted only
             when "Save Changes" above is pressed. */}
         {isMultiDisc && (
@@ -576,15 +576,15 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
 
     afterContent: (
       <>
-        <LinkedItemsSection items={collection.linked_items} />
+        <LinkedItemsSection items={bundle.linked_items} />
 
         <FetchMetadataModal
           open={fetchMetadataOpen}
           onClose={() => setFetchMetadataOpen(false)}
           entityType="game_item_bundle"
-          entityId={collection.id}
-          entityTitle={collection.title}
-          currentContentRating={collection.content_rating}
+          entityId={bundle.id}
+          entityTitle={bundle.title}
+          currentContentRating={bundle.content_rating}
           storageKey={storageKey}
           activeProviderLabel={activeProviderLabel}
           onSuccess={async () => {
@@ -595,14 +595,14 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
             // moved onto EntityListPage's ['game', 'list', ...] list query.
             queryClient.invalidateQueries({ queryKey: ['game', 'list'] })
             // Fetch fresh data directly and resync the edit form — the form is only
-            // built from `collection` once (see the formIsReady guard above), so it
+            // built from `bundle` once (see the formIsReady guard above), so it
             // would otherwise show stale publisher/description/category/rating/
             // cover art fields until a full page reload even after the invalidated
             // query refetches in the background.
             const fresh = await refetchEntity()
             resyncFromCollection(fresh)
           }}
-          onBusyChange={setCollectionMetadataBusy}
+          onBusyChange={setBundleMetadataBusy}
         />
 
         {fetchDiscId != null && activeDisc != null && (
@@ -611,7 +611,7 @@ function useGameDetailExtras(ctx: EntityDetailExtrasContext<GameItemBundleData>)
             onClose={() => setFetchDiscId(null)}
             entityType="game_item"
             entityId={fetchDiscId}
-            entityTitle={activeDisc.file_path.split(/[\\/]/).pop() ?? collection.title}
+            entityTitle={activeDisc.file_path.split(/[\\/]/).pop() ?? bundle.title}
             storageKey={`${storageKey}#disc-${fetchDiscId}`}
             activeProviderLabel={activeProviderLabel}
             onSuccess={async () => {
@@ -741,6 +741,6 @@ export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
   // grid's visuals and disc-strip interaction are pixel-for-pixel identical
   // to the pre-cutover page, not just data-plumbing-equivalent.
   renderCard: ({ entity, onRemove, onSetDisplayDisk }) => (
-    <CollectionCard collection={entity} onRemove={onRemove} onSetDisplayDisk={onSetDisplayDisk} />
+    <CollectionCard bundle={entity} onRemove={onRemove} onSetDisplayDisk={onSetDisplayDisk} />
   ),
 }
