@@ -42,47 +42,6 @@ def detect_binary(slug: str) -> Path | None:
     return None
 
 
-def launch_installer(slug: str) -> dict:
-    import ctypes
-
-    entry = get_emulator(slug)
-    if entry.get("install_type") != "installer":
-        raise ValueError(f"'{slug}' is not an installer-type emulator.")
-
-    installer_glob = entry.get("windows_installer_glob")
-    if not installer_glob:
-        raise ValueError(f"No windows_installer_glob configured for '{slug}'.")
-
-    slug_dir = (_BASE_DIR / slug).resolve()
-    matches = _glob.glob(str(slug_dir / installer_glob))
-
-    valid = []
-    for m in matches:
-        resolved = Path(m).resolve()
-        try:
-            resolved.relative_to(slug_dir)
-            valid.append(resolved)
-        except ValueError:
-            pass
-
-    if not valid:
-        raise FileNotFoundError(
-            f"No installer matching '{installer_glob}' found in emulators/{slug}/. "
-            "Download the installer and place it there."
-        )
-
-    installer = valid[0]
-    result = ctypes.windll.shell32.ShellExecuteW(
-        None, "runas", str(installer), None, str(slug_dir), 1
-    )
-    if result <= 32:
-        raise RuntimeError(
-            f"ShellExecuteW failed with code {result} for '{installer.name}'."
-        )
-
-    return {"installer": str(installer)}
-
-
 def check_git() -> bool:
     return shutil.which("git") is not None
 

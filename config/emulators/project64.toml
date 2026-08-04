@@ -5,14 +5,11 @@ name = "Project64"
 version = "3.0.1"
 binary = "Project64.exe"
 download_url = "https://www.pj64-emu.com"
-release_url = "https://github.com/project64/project64/releases"
 portable_sentinel = ""
 cli_args_prefix = []
-sandbox_mode = "appcontainer"
 container_enabled = true
 skip_memory_limit = true
 skip_cpu_limit = true
-capabilities = []
 description = "Nintendo 64 emulation"
 required = false
 # NOT github_release: project64/project64 publishes git tags but has no
@@ -23,8 +20,6 @@ required = false
 # instead of the previous "bundled" no-op.
 install_type = "zip"
 install_scope = "portable"
-windows_installer_glob = ""
-known_path = ""
 license = "GPL-2.0"
 copyright = "Copyright 2001–2024 Project64 Ltd and contributors"
 source_url = "https://github.com/project64/project64"

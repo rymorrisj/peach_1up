@@ -5,9 +5,10 @@ version = "v5.3"
 install_type = "rom_pack"
 install_scope = "portable"
 binary = "emulators/86box/roms"
-acquire_method = "git_clone"
-acquire_url = "https://github.com/86Box/roms"
-acquire_tag = "v5.3"
+# Inert for a rom_pack (it never launches as a Job Object process); set for
+# schema uniformity since EmulatorDescriptor requires both fields.
+skip_memory_limit = true
+skip_cpu_limit = true
 required = true
 license = "Various"
 source_url = "https://github.com/86Box/roms"

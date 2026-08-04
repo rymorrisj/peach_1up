@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, ApiError } from '@/api/client';
@@ -15,29 +14,14 @@ function initials(name: string) {
 function EmulatorCard({
   entry,
   onClick,
-  editing,
-  editPath,
-  onEditPathChange,
-  onEdit,
-  onSave,
-  onCancelEdit,
   onDelete,
-  saving,
 }: {
   entry: CatalogEntry;
   onClick: () => void;
-  editing: boolean;
-  editPath: string;
-  onEditPathChange: (v: string) => void;
-  onEdit: () => void;
-  onSave: () => void;
-  onCancelEdit: () => void;
   onDelete: () => void;
-  saving: boolean;
 }) {
   const eras = EMULATOR_ERA_MAP[entry.slug] ?? [];
   const isReady = entry.is_installed && entry.install_path;
-  const canEdit = false;
 
   return (
     <div
@@ -183,115 +167,32 @@ function EmulatorCard({
         </div>
       </div>
 
-      {/* Inline edit / action bar */}
-      {editing ? (
-        <div
-          className="px-[18px] pb-[14px] pt-3 flex gap-2 items-center"
-          style={{ borderTop: '1px solid rgb(var(--border))' }}
+      {/* Action bar */}
+      <div
+        className="px-[18px] py-2.5 flex gap-2 justify-end items-center"
+        style={{ borderTop: '1px solid rgb(var(--border))' }}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          style={{
+            border: '1px solid rgb(var(--error))',
+            fontFamily: 'var(--font-display)',
+            fontSize: '0.75rem',
+            fontWeight: 500,
+            padding: '5px 10px',
+            borderRadius: 'var(--r-2)',
+            cursor: 'pointer',
+            background: 'transparent',
+            color: 'rgb(var(--error))',
+          }}
         >
-          <input
-            value={editPath}
-            onChange={(e) => onEditPathChange(e.target.value)}
-            placeholder="Path to executable"
-            autoFocus
-            style={{
-              flex: 1,
-              background: 'rgb(var(--surface-2))',
-              border: '1px solid rgb(var(--border))',
-              borderRadius: 'var(--r-2)',
-              padding: '7px 10px',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.75rem',
-              color: 'rgb(var(--fg-1))',
-              outline: 'none',
-            }}
-          />
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saving}
-            style={{
-              border: 'none',
-              fontFamily: 'var(--font-display)',
-              fontSize: '0.8125rem',
-              fontWeight: 600,
-              padding: '7px 12px',
-              borderRadius: 'var(--r-2)',
-              cursor: saving ? 'not-allowed' : 'pointer',
-              background: 'rgb(var(--peach-500))',
-              color: 'rgb(var(--accent-ink))',
-              opacity: saving ? 0.6 : 1,
-            }}
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-          <button
-            type="button"
-            onClick={onCancelEdit}
-            style={{
-              border: '1px solid rgb(var(--border))',
-              fontFamily: 'var(--font-display)',
-              fontSize: '0.8125rem',
-              fontWeight: 500,
-              padding: '7px 12px',
-              borderRadius: 'var(--r-2)',
-              cursor: 'pointer',
-              background: 'transparent',
-              color: 'rgb(var(--fg-2))',
-            }}
-          >
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <div
-          className="px-[18px] py-2.5 flex gap-2 justify-end items-center"
-          style={{ borderTop: '1px solid rgb(var(--border))' }}
-        >
-          {canEdit && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-              style={{
-                border: '1px solid rgb(var(--border))',
-                fontFamily: 'var(--font-display)',
-                fontSize: '0.75rem',
-                fontWeight: 500,
-                padding: '5px 10px',
-                borderRadius: 'var(--r-2)',
-                cursor: 'pointer',
-                background: 'transparent',
-                color: 'rgb(var(--fg-3))',
-              }}
-            >
-              Edit path
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            style={{
-              border: '1px solid rgb(var(--error))',
-              fontFamily: 'var(--font-display)',
-              fontSize: '0.75rem',
-              fontWeight: 500,
-              padding: '5px 10px',
-              borderRadius: 'var(--r-2)',
-              cursor: 'pointer',
-              background: 'transparent',
-              color: 'rgb(var(--error))',
-            }}
-          >
-            Remove
-          </button>
-        </div>
-      )}
+          Remove
+        </button>
+      </div>
     </div>
   );
 }
@@ -300,9 +201,6 @@ export default function Emulators() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const [editingSlug, setEditingSlug] = useState<string | null>(null);
-  const [editPath, setEditPath] = useState('');
-  const [saving, setSaving] = useState(false);
 
   const { data: catalog = [], isLoading } = useQuery<CatalogEntry[]>({
     queryKey: ['emulators-catalog'],
@@ -312,23 +210,6 @@ export default function Emulators() {
 
   const emulatorEntries = catalog.filter((e) => e.install_type !== 'rom_pack');
   const installedCount = emulatorEntries.filter((e) => e.is_installed).length;
-
-  function handleStartEdit(entry: CatalogEntry) {
-    setEditingSlug(entry.slug);
-    setEditPath(entry.install_path ?? '');
-  }
-
-  async function handleSavePath(_slug: string) {
-    setSaving(true);
-    try {
-      await queryClient.invalidateQueries({ queryKey: ['emulators-catalog'] });
-      setEditingSlug(null);
-    } catch (err) {
-      showToast(err instanceof ApiError ? err.detail : 'Save failed.', 'error');
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function handleDelete(entry: CatalogEntry) {
     if (
@@ -429,14 +310,7 @@ export default function Emulators() {
                 key={entry.slug}
                 entry={entry}
                 onClick={() => navigate(`/emulators/${entry.slug}`)}
-                editing={editingSlug === entry.slug}
-                editPath={editPath}
-                onEditPathChange={setEditPath}
-                onEdit={() => handleStartEdit(entry)}
-                onSave={() => handleSavePath(entry.slug)}
-                onCancelEdit={() => setEditingSlug(null)}
                 onDelete={() => handleDelete(entry)}
-                saving={saving && editingSlug === entry.slug}
               />
             ))}
           </div>

@@ -16,13 +16,13 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Tuple
 
-from backend.constants import ERA_FILE_TYPES
 from backend.constants_generated import Era
 from backend.service.utils.emulator_catalog import (
     resolve_container_enabled,
     get_install_path,
     validate_bios_from_descriptor,
 )
+from backend.service.utils.file_types import supported_extensions_for_era
 from backend.service.utils.xbox_image import XboxDvdRipDetected, detect_xbox_image_type
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
 from backend.service.utils.platform.windows.sandbox import BrokerFile
@@ -36,7 +36,10 @@ if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
 
 SUPPORTED_ERAS = {Era.XBOX.value}
-SUPPORTED_MEDIA = ERA_FILE_TYPES[Era.XBOX]
+# eras.yaml is the same source scan/upload/directory-resolution already use
+# (file_types.py), rather than the separate constants.py dict this backend
+# used to read its own launch-time check from.
+SUPPORTED_MEDIA = frozenset(supported_extensions_for_era(Era.XBOX.value))
 
 # Portable-mode data root, next to the binary — matches Flycast's data/ convention.
 DATA_DIR_NAME = "data"

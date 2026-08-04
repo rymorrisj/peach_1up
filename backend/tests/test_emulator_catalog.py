@@ -12,12 +12,6 @@ def test_load_catalog_returns_all_emulators():
     assert required <= slugs
 
 
-def test_is_installed_returns_false_when_binary_absent(monkeypatch):
-    from backend.service.utils import emulator_catalog
-    monkeypatch.setattr(emulator_catalog, "get_install_path", lambda slug: None)
-    assert emulator_catalog.is_installed("dosbox-x") is False
-
-
 def test_get_install_path_returns_correct_path(tmp_path, monkeypatch):
     from backend.service.utils import emulator_catalog
     monkeypatch.setattr(emulator_catalog, "_BASE_DIR", tmp_path)

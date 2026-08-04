@@ -16,14 +16,12 @@ from backend.models.user import UserItem
 from backend.service.utils.emulator_catalog import (
     get_emulator,
     get_install_path,
-    installer_present as _installer_present,
     is_container_permanently_excluded,
     load_catalog,
 )
 from backend.service.utils.emulator_installer import (
     clone_rom_pack,
     detect_binary,
-    launch_installer,
     remove_emulator,
 )
 from backend.service.utils.github_release_installer import install_from_github_release
@@ -144,7 +142,13 @@ def list_emulators():
         slug = entry["slug"]
         binary = get_install_path(slug)
         install_type = entry.get("install_type", "zip")
-        installer_present = _installer_present(slug)
+        # install_type == "installer" has no producer (VirtualBox, the only
+        # emulator that ever used it, was removed 2026-05-17) and no
+        # descriptor sets windows_installer_glob any more either, so this is
+        # unconditionally False for every current descriptor. Kept as a
+        # response field rather than removed outright to avoid a generated
+        # OpenAPI/types.ts + frontend UI change outside this step's scope.
+        installer_present = False
 
         item: dict = {
             "slug": slug,
@@ -363,22 +367,6 @@ async def install_emulator(slug: str, background_tasks: BackgroundTasks, _: User
         install_registry.set_status(slug, "complete", install_path=str(binary))
         return {"status": "detected", "slug": slug, "install_path": str(binary)}
 
-    if install_type == "installer":
-        current = install_registry.get_status(slug)
-        if current.get("status") == "installer_launched":
-            raise HTTPException(
-                status_code=409,
-                detail=f"Installer already launched for '{slug}'.",
-            )
-        try:
-            info = launch_installer(slug)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc))
-        except (ValueError, RuntimeError) as exc:
-            raise HTTPException(status_code=500, detail=str(exc))
-        install_registry.set_status(slug, "installer_launched")
-        return {"status": "installer_launched", "slug": slug, **info}
-
     if install_type == "rom_pack":
         current = install_registry.get_status(slug)
         if current.get("status") == "cloning":
@@ -447,14 +435,15 @@ def get_emulator_status(slug: str, _: UserItem = require_permission("is_admin"))
         raise HTTPException(status_code=404, detail=f"Emulator '{slug}' not found.")
 
     binary = get_install_path(slug)
-    installer_present = _installer_present(slug)
 
     return {
         "slug": slug,
         "install_type": entry.get("install_type", "zip"),
         "binary_detected": binary is not None,
         "binary_path": str(binary) if binary else None,
-        "installer_present": installer_present,
+        # See list_emulators()'s installer_present comment: unconditionally
+        # False, no descriptor uses install_type == "installer" any more.
+        "installer_present": False,
         **install_registry.get_status(slug),
     }
 

@@ -17,10 +17,9 @@ import time
 from pathlib import Path
 from typing import List, TYPE_CHECKING, Tuple
 
-from backend.constants import ERA_FILE_TYPES
 from backend.service.utils.fat.geometry import _is_bare_fat_superfloppy, _read_geometry
-from backend.constants_generated import Era
 from backend.service.utils.era_defaults import DOS_WIN_ERAS
+from backend.service.utils.file_types import supported_extensions_for_era
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import resolve_container_enabled
@@ -35,7 +34,11 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 SUPPORTED_ERAS = DOS_WIN_ERAS
-SUPPORTED_MEDIA = ERA_FILE_TYPES[Era.DOS]
+# eras.yaml is the same source scan/upload/directory-resolution already use
+# (file_types.py) — closes a prior drift where this backend's own launch-time
+# check used a separate constants.py dict that lacked ".com", so a DOS folder
+# containing only a .com executable could pass ingestion and then fail here.
+SUPPORTED_MEDIA = frozenset(supported_extensions_for_era("dos"))
 
 
 def validate_media(media_path: Path) -> None:

@@ -1,13 +1,14 @@
-import glob as _glob
 import logging
-import os
 import tomllib
 from pathlib import Path
 from typing import Dict, Any, TYPE_CHECKING, get_args
 
+from pydantic import ValidationError
+
 from backend.constants_generated import InstallType
 from backend.core.settings import get_base_path
 from backend.service.utils import settings as _settings
+from backend.service.utils.emulator_descriptor import EmulatorDescriptor
 from backend.service.utils.eras_config import get_eras as _get_eras
 
 if TYPE_CHECKING:
@@ -35,15 +36,28 @@ def _load_raw_catalog() -> dict:
         emulators = []
         bios_requirements = []
         for path in sorted(_EMULATORS_DIR.glob("*.toml")):
-            entry = tomllib.loads(path.read_text(encoding="utf-8"))
-            install_type = entry.get("install_type", "zip")
-            if install_type not in _VALID_INSTALL_TYPES:
-                raise ValueError(
-                    f"{path.name} has install_type '{install_type}', which is not "
-                    f"a valid InstallType {sorted(_VALID_INSTALL_TYPES)}. Fix the "
-                    "TOML or add the value to config/constants.yaml install_types "
-                    "and regenerate constants."
+            raw = tomllib.loads(path.read_text(encoding="utf-8"))
+            install_type = raw.get("install_type", "zip")
+            try:
+                if install_type not in _VALID_INSTALL_TYPES:
+                    raise ValueError(
+                        f"{path.name} has install_type '{install_type}', which is not "
+                        f"a valid InstallType {sorted(_VALID_INSTALL_TYPES)}. Fix the "
+                        "TOML or add the value to config/constants.yaml install_types "
+                        "and regenerate constants."
+                    )
+                descriptor = EmulatorDescriptor.model_validate(raw)
+            except (ValidationError, ValueError) as exc:
+                _logger.error(
+                    "Skipping invalid emulator descriptor %s: %s", path.name, exc
                 )
+                continue
+            # model_dump(exclude_none=True) keeps every existing consumer's
+            # bare-dict .get()/[...] contract intact: unset Optional fields
+            # stay absent from the dict (as they were pre-Pydantic) rather
+            # than appearing with an explicit None value, which would flip
+            # "key" in entry checks (e.g. get_settings_key) from False to True.
+            entry = descriptor.model_dump(exclude_none=True)
             emulators.append(entry)
             for dep in entry.get("dependencies", []):
                 bios_path = dep.get("bios_path", "")
@@ -170,21 +184,7 @@ def get_emulator(slug: str) -> dict:
 def get_install_path(slug: str) -> Path | None:
     entry = get_emulator(slug)
     install_type = entry.get("install_type", "zip")
-    install_scope = entry.get("install_scope", "portable")
     binary = entry.get("binary", "")
-
-    # Check the settings user override first — user path always wins.
-    if install_type != "rom_pack":
-        settings_key = get_settings_key(slug)
-        try:
-            from backend.service.utils import settings as _settings_mod
-            val = _settings_mod.get(settings_key, "")
-            if val:
-                p = Path(str(val))
-                if p.exists():
-                    return p
-        except Exception:
-            pass
 
     if install_type == "rom_pack":
         if binary:
@@ -196,67 +196,12 @@ def get_install_path(slug: str) -> Path | None:
                 pass
         return None
 
-    if install_scope == "system":
-        known_path_env = entry.get("known_path_env", "")
-        known_path_suffix = entry.get("known_path_suffix", "")
-        if known_path_env and known_path_suffix:
-            env_val = os.environ.get(known_path_env, "")
-            if env_val:
-                candidate = Path(env_val) / known_path_suffix
-                if candidate.exists():
-                    return candidate
-
-        known_path = entry.get("known_path", "")
-        if known_path:
-            p = Path(known_path)
-            if p.exists():
-                return p
-
-        if known_path_env and known_path_suffix and binary:
-            env_val = os.environ.get(known_path_env, "")
-            if env_val:
-                candidate = Path(env_val) / Path(known_path_suffix).parent / binary
-                if candidate.exists():
-                    return candidate
-
-        return None
-
     if binary:
         path = _BASE_DIR / slug / binary
         if path.exists():
             return path
 
     return None
-
-
-def is_installed(slug: str) -> bool:
-    entry = get_emulator(slug)
-    install_type = entry.get("install_type", "zip")
-    path = get_install_path(slug)
-    if path is None:
-        return False
-    if install_type == "rom_pack":
-        try:
-            return path.is_dir() and any(path.iterdir())
-        except PermissionError:
-            return False
-    return path.is_file()
-
-
-def installer_present(slug: str) -> bool:
-    entry = get_emulator(slug)
-    install_scope = entry.get("install_scope", "portable")
-    install_type = entry.get("install_type", "zip")
-
-    if install_scope == "system" and install_type == "installer" and is_installed(slug):
-        return True
-
-    installer_glob = entry.get("windows_installer_glob", "")
-    if installer_glob:
-        slug_dir = _BASE_DIR / slug
-        return bool(_glob.glob(str(slug_dir / installer_glob)))
-
-    return False
 
 
 def configure_emulator(slug: str) -> None:

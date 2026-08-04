@@ -8,13 +8,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Tuple
 
-from backend.constants import ERA_FILE_TYPES
 from backend.constants_generated import Era
 from backend.service.utils.emulator_catalog import (
     resolve_container_enabled,
     build_media_broker_config,
     validate_bios_from_descriptor,
 )
+from backend.service.utils.file_types import supported_extensions_for_era
 from backend.service.utils.ini_writer import set_ini_key
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
 from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
@@ -24,7 +24,10 @@ if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
 
 SUPPORTED_ERAS = {Era.DREAMCAST.value}
-SUPPORTED_MEDIA = ERA_FILE_TYPES[Era.DREAMCAST]
+# eras.yaml is the same source scan/upload/directory-resolution already use
+# (file_types.py), rather than the separate constants.py dict this backend
+# used to read its own launch-time check from.
+SUPPORTED_MEDIA = frozenset(supported_extensions_for_era(Era.DREAMCAST.value))
 
 
 def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
