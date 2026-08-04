@@ -1,13 +1,14 @@
 """Route-level (TestClient/HTTP) tests closing the remaining gap in
 backend/api/routes/game_item_bundles.py identified by dev_docs/P1_AUDIT.md
-TST-5: of its 19 routes, test_game_item_bundles_routes.py /
-test_dependencies_content_rating.py / test_upload.py cover list, detail,
-import-from-path, scan/import, flag-launch, confirm-delete, delete, and
-items/reorder — leaving scan status/cancel, the full scan trigger, by-slug,
-bundle-level verify, convert-xiso + its status, and the per-leaf patch
-route (nested under the bundle path) untested. Covers those, plus two extra
-routes (create, update) found uncovered during this pass that TST-5 did not
-call out by name.
+TST-5: of its 19 routes, test_dependencies_content_rating.py covers list and
+detail (both rating-ceiling and manual MediaRestriction filtering, HTTP
+level), test_game_item_bundles_routes.py covers import-from-path,
+scan/import, flag-launch, and items/reorder, and test_upload.py covers
+confirm-delete and delete. That leaves scan status/cancel, the full scan
+trigger, by-slug, bundle-level verify, convert-xiso plus its status, and the
+per-leaf patch route (nested under the bundle path) untested. Covers those,
+plus two extra routes (create, update) found uncovered during this pass that
+TST-5 did not call out by name.
 
 Fixed: GET /game-items/scan/status and POST /game-items/scan/{job_id}/cancel
 now require can_manage_game (P1_AUDIT.md P3-S2), matching every sibling

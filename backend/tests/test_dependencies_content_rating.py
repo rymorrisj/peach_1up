@@ -271,6 +271,14 @@ def _make_user(db, **overrides):
     return user
 
 
+def _restrict(db, user, collection):
+    from backend.models.media_restriction import MediaRestriction
+
+    restriction = MediaRestriction(user_item_id=user.id, game_item_bundle_id=collection.id)
+    db.add(restriction)
+    db.commit()
+
+
 class TestGetFilteredCollectionsOwnerBypass:
     def test_owner_sees_everything_including_unrated_and_restricted(self, mem_db_session):
         from backend.core.dependencies import get_filtered_game_item_bundles
@@ -503,6 +511,22 @@ class TestSoftwareListRouteFiltering:
         ids = {item["id"] for item in resp.json()["items"]}
         assert unknown_rated.id not in ids
 
+    def test_restricted_bundle_absent_from_list_payload_no_error_leak(self, http_client):
+        """Same no-leak shape as the rating-ceiling case above, but for the
+        manual MediaRestriction blocklist rather than max_content_rating."""
+        c, db, app = http_client
+        user = _make_user(db)
+        allowed = _make_collection(db, slug="allowed", content_rating="E")
+        restricted = _make_collection(db, slug="restricted", content_rating="E")
+        _restrict(db, user, restricted)
+        _set_active_user(app, user)
+
+        resp = c.get("/api/v1/game-items")
+        assert resp.status_code == 200, resp.text
+        ids = {item["id"] for item in resp.json()["items"]}
+        assert allowed.id in ids
+        assert restricted.id not in ids
+
 
 class TestGameItemBundleDetailRouteNoLeak:
     def test_over_rated_collection_returns_404_not_403(self, http_client):
@@ -538,3 +562,44 @@ class TestGameItemBundleDetailRouteNoLeak:
         resp = c.get(f"/api/v1/game-item-bundle/{allowed.id}")
         assert resp.status_code == 200, resp.text
         assert resp.json()["id"] == allowed.id
+
+    def test_restricted_bundle_returns_404_not_403(self, http_client):
+        """Same no-leak shape as the rating-ceiling case above, but for the
+        manual MediaRestriction blocklist rather than max_content_rating."""
+        c, db, app = http_client
+        user = _make_user(db)
+        restricted = _make_collection(db, slug="restricted", content_rating="E")
+        _restrict(db, user, restricted)
+        _set_active_user(app, user)
+
+        resp = c.get(f"/api/v1/game-item-bundle/{restricted.id}")
+        assert resp.status_code == 404
+        assert resp.status_code != 403
+
+    def test_restricted_bundle_404_matches_nonexistent_id_404(self, http_client):
+        """No leak via error differentiation: a blocklisted real ID and a
+        nonexistent ID must produce the same status and error shape."""
+        c, db, app = http_client
+        user = _make_user(db)
+        restricted = _make_collection(db, slug="restricted", content_rating="E")
+        _restrict(db, user, restricted)
+        _set_active_user(app, user)
+
+        filtered_resp = c.get(f"/api/v1/game-item-bundle/{restricted.id}")
+        missing_resp = c.get("/api/v1/game-item-bundle/999999")
+
+        assert filtered_resp.status_code == missing_resp.status_code == 404
+        assert filtered_resp.json() == missing_resp.json()
+
+    def test_owner_bypasses_restriction_on_detail(self, http_client):
+        c, db, app = http_client
+        owner = _make_user(db, is_owner=True)
+        restricted = _make_collection(db, slug="restricted", content_rating="E")
+        # Restriction row targets a different (non-owner) user; irrelevant
+        # here since the owner check short-circuits before any filter.
+        other = _make_user(db, name="other")
+        _restrict(db, other, restricted)
+        _set_active_user(app, owner)
+
+        resp = c.get(f"/api/v1/game-item-bundle/{restricted.id}")
+        assert resp.status_code == 200, resp.text
