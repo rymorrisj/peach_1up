@@ -186,15 +186,21 @@ def _detect_from_directory(root: Path) -> ScanResult:
         if cnf_path is not None:
             from .magic.magic_detect import resolve_ps_generation_from_file
             era = resolve_ps_generation_from_file(cnf_path)
+            if era == "unknown":
+                return ScanResult(
+                    title=None, platform=None, era=None, confidence=0.4,
+                    reason="directory contains SYSTEM.CNF but BOOT/BOOT2 key could not be read to confirm PS1 vs PS2",
+                    warnings=["SYSTEM.CNF present but unreadable, select PS1 or PS2 manually"],
+                )
             boot_key = "BOOT2" if era == "ps2" else "BOOT"
             return ScanResult(
                 title=None, platform=None, era=era, confidence=0.8,
                 reason=f"directory SYSTEM.CNF {boot_key} key indicates {era.upper()}",
             )
         return ScanResult(
-            title=None, platform=None, era="ps1", confidence=0.4,
+            title=None, platform=None, era=None, confidence=0.4,
             reason="directory contains SYSTEM.CNF but file could not be read to confirm generation",
-            warnings=["heuristic fallback: defaulted to PS1 without confirming BOOT/BOOT2 key"],
+            warnings=["SYSTEM.CNF present but unreadable, select PS1 or PS2 manually"],
         )
     if "INSTALL.BAT" in entries or "INSTALL.COM" in entries:
         return ScanResult(

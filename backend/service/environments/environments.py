@@ -122,10 +122,20 @@ def create_environment_item(body: EnvironmentItemCreate, db: Session) -> Environ
             db.commit()
             db.refresh(platform)
         except Exception as exc:
-            logger.warning(
+            logger.error(
                 "Auto-provisioning failed for platform %d (%s/%s): %s",
                 platform.id, platform.era, platform.slug, exc,
             )
+            # Provisioning failed after the row was already committed above,
+            # so delete it rather than leave a half-provisioned environment
+            # (no working_image_path, but a real id) that looks like a normal,
+            # healthy row to both the DB and the caller.
+            db.delete(platform)
+            db.commit()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Environment provisioning failed: {exc}",
+            ) from exc
 
     return platform
 

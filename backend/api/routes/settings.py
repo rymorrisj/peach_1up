@@ -211,26 +211,54 @@ def patch_pin_pepper(
 
     owner = db.query(UserItem).filter(UserItem.is_owner.is_(True)).first()
     owner_rehashed = False
+    new_owner_hash: str | None = None
     if owner is not None and owner.pin_hash is not None:
         if not body.owner_pin or not verify_pin(body.owner_pin, owner.pin_hash, pepper=current_pepper):
             raise HTTPException(
                 status_code=401,
                 detail="Current owner PIN required to change the pepper.",
             )
-        owner.pin_hash = hash_pin(body.owner_pin, pepper=new_pepper)
+        new_owner_hash = hash_pin(body.owner_pin, pepper=new_pepper)
+        # Self-verify the new hash round-trips under the new pepper before
+        # anything is persisted. Without this, a rotation that silently
+        # produced a bad hash would still commit, and the owner has no
+        # remote/bypass recovery path (see SECURITY.md), so a bad hash here
+        # means permanently locked out on the very next login.
+        if not verify_pin(body.owner_pin, new_owner_hash, pepper=new_pepper):
+            raise HTTPException(
+                status_code=500,
+                detail="Pepper rotation aborted: new pepper/PIN combination "
+                "failed self-verification. No changes were made.",
+            )
         owner_rehashed = True
 
     affected: list[str] = []
     others = db.query(UserItem).filter(UserItem.is_owner.is_(False), UserItem.pin_hash.isnot(None)).all()
-    for user in others:
-        user.pin_hash = None
-        user.pin_required = True
-        user.failed_pin_attempts = 0
-        user.is_locked = False
-        affected.append(user.name)
 
-    db.commit()
+    # Verification passed. Persist the pepper to .env first: if this raises
+    # (disk full, permission error), nothing below has run yet, so the
+    # owner's existing pin_hash (still valid under current_pepper) and
+    # PIN_PEPPER stay in sync and the owner can still log in.
     set_env_secret("PIN_PEPPER", new_pepper)
+
+    try:
+        if new_owner_hash is not None:
+            owner.pin_hash = new_owner_hash
+        for user in others:
+            user.pin_hash = None
+            user.pin_required = True
+            user.failed_pin_attempts = 0
+            user.is_locked = False
+            affected.append(user.name)
+        db.commit()
+    except Exception:
+        # DB commit failed after the pepper was already written to .env, so
+        # revert .env back to the previous pepper so the two stores don't
+        # diverge (owner.pin_hash, still under current_pepper, would
+        # otherwise never verify again).
+        db.rollback()
+        set_env_secret("PIN_PEPPER", current_pepper)
+        raise
 
     return {
         "pepper_enabled": bool(new_pepper),

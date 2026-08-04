@@ -33,16 +33,26 @@ def resolve_ps_generation_from_file(cnf_path: Path) -> str:
     Classify PS1 vs PS2 from an already-extracted SYSTEM.CNF file on disk
     (directory-based items — no CD sector arithmetic needed since the file
     is directly readable). Same BOOT/BOOT2 marker logic as _resolve_ps_generation.
+
+    Returns "unknown" (never a guessed console) if the file cannot be read.
+    Callers must treat "unknown" as no signal, not as PS1.
     """
     try:
         with cnf_path.open("rb") as fh:
             content = fh.read(512).decode("ascii", errors="replace")
         return _classify_system_cnf(content)
     except Exception:
-        return "ps1"
+        return "unknown"
 
 
 def _resolve_ps_generation(path: Path) -> str:
+    """Classify PS1 vs PS2 from a raw CD-ROM sector read.
+
+    Returns "unknown" (never a guessed console) whenever SYSTEM.CNF cannot be
+    located or read. The sync pattern that gates this call is a generic
+    Mode 2 CD-ROM marker, not proof the disc is a PlayStation title at all,
+    so callers must treat "unknown" as no signal rather than default to PS1.
+    """
     # Mode 2 raw BIN: 2352-byte sectors, data payload starts at byte 24
     SECTOR = 2352
     DATA_OFF = 24
@@ -51,7 +61,7 @@ def _resolve_ps_generation(path: Path) -> str:
             fh.seek(16 * SECTOR + DATA_OFF)
             pvd = fh.read(2048)
             if len(pvd) < 190 or pvd[0] != 1:
-                return "ps1"
+                return "unknown"
 
             root_lba = struct.unpack_from("<I", pvd, 158)[0]
             root_size = struct.unpack_from("<I", pvd, 166)[0]
@@ -81,13 +91,13 @@ def _resolve_ps_generation(path: Path) -> str:
                 i += rec_len
 
             if system_cnf_lba is None:
-                return "ps1"
+                return "unknown"
 
             fh.seek(system_cnf_lba * SECTOR + DATA_OFF)
             content = fh.read(min(system_cnf_size or 512, 512)).decode("ascii", errors="replace")
             return _classify_system_cnf(content)
     except Exception:
-        return "ps1"
+        return "unknown"
 
 
 def detect_from_magic(path: Path, extension: str) -> tuple[str | None, str]:
@@ -104,11 +114,17 @@ def detect_from_magic(path: Path, extension: str) -> tuple[str | None, str]:
                 fh.seek(sig["offset"])
                 data = fh.read(len(sig["magic_bytes"]))
                 if data == sig["magic_bytes"]:
-                    if sig["era"] in ("ps1", "ps2"):
+                    if sig["era"] == "cdrom_sync_ambiguous":
                         resolved = _resolve_ps_generation(path)
                         if resolved == "ps2":
                             return "ps2", "CD-ROM sector sync matched; SYSTEM.CNF BOOT2 key indicates PS2"
-                        return "ps1", "CD-ROM sector sync matched; SYSTEM.CNF BOOT key indicates PS1"
+                        if resolved == "ps1":
+                            return "ps1", "CD-ROM sector sync matched; SYSTEM.CNF BOOT key indicates PS1"
+                        # resolved == "unknown": sync pattern alone doesn't prove
+                        # PS1/PS2 (it's a generic Mode 2 CD-ROM marker) and
+                        # SYSTEM.CNF couldn't confirm which, so fall through to
+                        # the next detection tier instead of guessing a console.
+                        return None, ""
                     return sig["era"], sig["reason"]
 
         return None, ""
