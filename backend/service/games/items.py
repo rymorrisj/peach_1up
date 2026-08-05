@@ -181,24 +181,27 @@ def _rewrite_paths_after_folder_rename(
 def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     if executable_path and Path(executable_path).suffix.lower() != ".img":
         return Path(executable_path)
-    # PS3_DISC.SFB at the folder root marks a disc-format dump. The folder
-    # itself, not the nested EBOOT.BIN, is both the detection target (only
-    # directory_detect.py's structural PS3_DISC.SFB check recognizes this
-    # shape, EBOOT.BIN alone carries no such signal) and the launch target
-    # (mirrors rpcs3.launch()'s own is_dir() handling), so this must run
-    # before find_eboot's file resolution below can ever apply here.
-    from backend.service.backends.rpcs3 import is_disc_format_folder
-    if is_disc_format_folder(folder):
-        return folder
+    # PS3 folders (either shape: PS3_DISC.SFB disc dump, or an installed/
+    # extracted dev_hdd0/game/<ID>/-style folder with no SFB marker) resolve
+    # via the shared resolver instead of this function re-deriving the shape
+    # itself. The folder itself, not the nested EBOOT.BIN, is returned as the
+    # detection target: only directory_detect.py's structural PS3 check
+    # recognizes either shape (a bare EBOOT.BIN carries no signal once
+    # suffix-dispatched as a generic .bin file), and the folder is also the
+    # launch target (mirrors rpcs3.launch()'s own is_dir() handling), so this
+    # must run before the xex/generic-extension resolution below can apply.
+    from backend.service.utils.smart_media_detector.directory_detect import resolve_ps3_target, resolve_xex_target
+    ps3_target = resolve_ps3_target(folder)
+    if ps3_target is not None:
+        return ps3_target.launch_path
     # Extracted Xbox 360 XEX folders can contain multiple top-level .xex
     # files. Resolve those first, before the generic top-level scan below,
     # so the same file is always chosen deterministically (exact
     # default.xex, else alphabetically first) instead of whatever order
     # the generic scan's directory iteration happens to return.
-    from backend.service.utils.smart_media_detector.directory_detect import find_default_xex
-    xex = find_default_xex(folder)
-    if xex is not None:
-        return xex
+    xex_target = resolve_xex_target(folder)
+    if xex_target is not None:
+        return xex_target.launch_path
     from backend.service.utils.file_types import all_supported_extensions
     all_exts = _MEDIA_SUFFIXES | all_supported_extensions()
     folder_name = folder.name
@@ -212,18 +215,7 @@ def best_detect_path(folder: Path, executable_path: str | None) -> Path:
         )
     except OSError:
         hit = None
-    if hit is not None:
-        return hit
-    # Extracted PS3 disc folders have no top-level launchable file, era.yaml
-    # only declares .iso for ps3, and the real target is nested two levels
-    # down (USRDIR/EBOOT.BIN or PS3_GAME/USRDIR/EBOOT.BIN). Without this,
-    # the raw folder falls through unchanged and reaches hash_file(), which
-    # opens it as a file and raises PermissionError. This check is
-    # inherently PS3-specific (no other era's folder ever has an EBOOT.BIN),
-    # so it is a no-op for every other era's folder.
-    from backend.service.backends.rpcs3 import find_eboot
-    eboot = find_eboot(folder)
-    return eboot if eboot is not None else folder
+    return hit if hit is not None else folder
 
 
 def _collection_for_leaf(leaf: GameItem | None, db: Session) -> GameItemBundle | None:
@@ -437,8 +429,8 @@ def _prepare_item(
                     # so row["file_path"] is deliberately left pointing at the
                     # folder. Only warn when the folder isn't valid PS3 content
                     # either, i.e. resolution has no other explanation.
-                    from backend.service.backends.rpcs3 import find_eboot
-                    if find_eboot(media_src) is None:
+                    from backend.service.utils.smart_media_detector.directory_detect import resolve_ps3_target
+                    if resolve_ps3_target(media_src) is None:
                         log.warning(
                             "Could not find EBOOT.BIN in expected PS3 folder structure "
                             "for '%s' at '%s' (expected USRDIR/EBOOT.BIN, optionally "

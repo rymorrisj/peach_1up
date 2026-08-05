@@ -8,42 +8,49 @@ operation. This module is the single choke-point for that normalisation.
 import re
 from pathlib import Path
 
-from backend.service.utils.slug_generator import slugify
 
+def safe_basename(filename: str, *, fallback: str = "upload") -> str:
+    """Reduce a user-supplied filename to a safe basename, preserving case and underscores.
 
-def sanitize_filename(filename: str, *, fallback: str = "upload") -> str:
-    """Reduce a user-supplied filename to a safe basename.
-
-    Unifies separators and takes only the final path segment, then slugifies
-    the stem and extension independently. The result can never contain a
-    path separator or a ``..`` segment, so it is safe to join onto a
-    destination directory without further escaping.
+    Unifies separators and takes only the final path segment, then filters
+    the stem and extension independently to a safe character class. Unlike
+    the old sanitize_filename (which this replaces), it does not route
+    through slugify(): slugify lowercases and drops underscores outright,
+    which is fine for a generated slug/ID but silently corrupts a
+    content-derived filename that is meant to be preserved verbatim, most
+    concretely PS3 .rap license filenames (e.g.
+    "UP0177-NPUB30724_00-00BAYONETTAHDDUS.rap"), which RPCS3 will not
+    recognize once lowercased and stripped of their underscore. The result
+    can still never contain a path separator or a ``..`` segment, so it
+    remains safe to join onto a destination directory without further
+    escaping.
 
     Args:
         filename: Raw filename from a multipart upload (``UploadFile.filename``).
         fallback: Base name to use when the stem normalises to an empty string.
 
     Returns:
-        A sanitized ``stem.ext`` (or bare ``stem`` if no extension survives).
+        A sanitized ``stem.ext`` (or bare ``stem`` if no extension survives),
+        case and underscores preserved.
     """
     name = filename.replace("\\", "/").rsplit("/", 1)[-1]
     stem, dot, ext = name.rpartition(".")
     if not dot:
         stem, ext = name, ""
-    safe_stem = slugify(stem, fallback=fallback)
-    safe_ext = re.sub(r"[^a-zA-Z0-9]", "", ext).lower()
+    safe_stem = re.sub(r"[^a-zA-Z0-9_-]", "", stem) or fallback
+    safe_ext = re.sub(r"[^a-zA-Z0-9]", "", ext)
     return f"{safe_stem}.{safe_ext}" if safe_ext else safe_stem
 
 
 def sanitize_relative_path(path: str) -> list[str]:
     """Validate a caller-supplied relative path and return its safe segments.
 
-    Unlike sanitize_filename, which deliberately collapses any input to a
+    Unlike safe_basename, which deliberately collapses any input to a
     single flat basename, this preserves the full segment list for callers
     that have already gated on needing real nested-path handling (today:
-    chunked-upload folders detected as PS3_DISC.SFB discs, see
-    backend.service.uploads.core.init_session). It only validates path
-    *shape*, rejecting an empty path and any segment that is empty, ".",
+    chunked-upload folders whose kind resolves to a directory-based media
+    shape, see backend.service.uploads.core.init_session). It only validates
+    path *shape*, rejecting an empty path and any segment that is empty, ".",
     "..", or looks like a drive letter or home-relative prefix. It does not
     itself check containment against any destination directory, callers must
     still pass the returned segments through resolve_under(base, *segments)

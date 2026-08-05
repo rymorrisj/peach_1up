@@ -19,7 +19,7 @@ from pathlib import Path
 
 from fastapi import UploadFile
 
-from backend.service.utils.path_utils import normalise_path, resolve_under, sanitize_filename
+from backend.service.utils.path_utils import normalise_path, resolve_under, safe_basename
 from backend.service.utils.smart_media_detector.hashing.hash_lookup import hash_file
 from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES, stream_upload_to_disk
 
@@ -93,7 +93,7 @@ async def _place_flat_pattern(
         for up in uploads:
             if not up.filename:
                 continue
-            safe_name = sanitize_filename(up.filename)
+            safe_name = safe_basename(up.filename)
             if not pattern.search(safe_name):
                 result.warnings.append(
                     f"Skipped '{up.filename}' — does not look like a {label} file."

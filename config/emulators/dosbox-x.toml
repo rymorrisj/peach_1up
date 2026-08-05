@@ -18,7 +18,7 @@ asset_pattern = '^dosbox-x-mingw64-.*-portable\.zip$'
 license = "GPL-2.0"
 copyright = "Copyright 2011–2024 The DOSBox-X Team"
 source_url = "https://github.com/joncampbell123/dosbox-x"
-supported_formats = [".iso", ".img", ".cue"]
+supported_formats = [".iso", ".img", ".cue", ".exe", ".bat", ".com"]
 guidance_text = "Download the DOSBox-X Windows release and extract it to emulators/dosbox-x/ so that dosbox-x.exe is inside."
 guidance_url = "https://dosbox-x.com"
 

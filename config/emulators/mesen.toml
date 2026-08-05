@@ -19,7 +19,7 @@ asset_pattern = '^Mesen_[\d.]+_Windows\.zip$'
 license = "GPL-3.0"
 copyright = "Copyright 2014–2024 M. Bibeau and contributors"
 source_url = "https://github.com/SourMesen/Mesen2"
-supported_formats = [".nes", ".chd", ".sfc", ".smc", ".fig", ".swc"]
+supported_formats = [".nes", ".chd", ".sfc", ".smc", ".fig", ".swc", ".zip"]
 guidance_text = "Download the Mesen Windows release and extract it to emulators/mesen/ so that Mesen.exe is inside."
 guidance_url = "https://www.mesen.ca"
 

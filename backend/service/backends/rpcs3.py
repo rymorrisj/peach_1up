@@ -25,6 +25,7 @@ installer on the next launch attempt, with no coordinator changes needed.
 from __future__ import annotations
 
 import re
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -36,10 +37,14 @@ from backend.service.utils.emulator_catalog import (
     get_install_path,
     resolve_container_enabled,
 )
+from backend.service.utils.file_types import supported_extensions_for_era
 from backend.service.utils.ini_writer import set_ini_key
+from backend.service.utils.path_utils import resolve_under
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
 from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
 from backend.service.utils.platform.windows.process.job_objects import WindowsJobObject
+from backend.service.utils.smart_media_detector import MediaTarget
+from backend.service.utils.smart_media_detector.directory_detect import resolve_ps3_target
 
 logger = get_logger(__name__)
 
@@ -79,36 +84,58 @@ def _check_firmware_installed(install_dir: Path) -> None:
         )
 
 
-# PS3_DISC.SFB at a folder's root (alongside PS3_GAME/, optionally PS3_UPDATE/)
-# marks the folder as a disc-format dump. RPCS3's own "Boot Game" targets the
-# folder itself in this case and does its own internal walk, so the folder is
-# the launch unit, not a resolved EBOOT.BIN, this is a distinct shape from the
-# dev_hdd0/game/<TITLE_ID>/ and loose extracted folders find_eboot resolves.
-_DISC_MARKER_FILENAME = "PS3_DISC.SFB"
+# is_disc_format_folder/find_eboot moved to smart_media_detector.directory_detect
+# (this module used to define them and detection/ingest code imported them
+# from here, backend-into-detector, backwards from that package's
+# standalone-vendorable goal). resolve_ps3_target there is now the single
+# resolver both this backend and the ingest layer call.
+
+# RPCS3's fixed exdata location for PlayStation Network license (.rap) files.
+# Confirmed against RPCS3's own quickstart/wiki guidance: the folder name is
+# lowercase, and files placed there must retain their original filename
+# verbatim, RPCS3 will not recognize a renamed .rap. This is exactly why the
+# safe_basename fix (path_utils.py) matters here: a .rap sanitized through the
+# old slugify-based sanitize_filename lost case and its underscore, which
+# would have made a freshly-uploaded .rap unrecognizable even after being
+# placed here under its (mangled) name.
+_EXDATA_RELATIVE_PATH = Path("dev_hdd0") / "home" / "00000001" / "exdata"
 
 
-def is_disc_format_folder(folder: Path) -> bool:
-    """Return True if *folder* is a disc-format dump (has PS3_DISC.SFB at its root)."""
-    return (folder / _DISC_MARKER_FILENAME).is_file()
+def _find_license_files(pkg_path: Path) -> tuple[Path, ...]:
+    """Return every sibling .rap file next to *pkg_path*, in glob order.
 
-
-def find_eboot(folder: Path) -> Path | None:
-    """Return the EBOOT.BIN path for *folder*, checking both known layouts.
-
-    dev_hdd0/game/<TITLE_ID>/ folders (installed pkgs) hold USRDIR directly;
-    extracted disc folders hold it one level down, under PS3_GAME/.
-
-    Public (not module-private): also imported by the detection/ingest layer
-    (backend.service.games.items.best_detect_path) via a deferred, function-local
-    import, the same "one sanctioned import site" pattern emulator_catalog.py
-    uses for box86.resolve_rom_path, to resolve an extracted PS3 disc folder to
-    its actual hashable file without detection code depending on this launch
-    backend module at import time.
+    Not all .pkg content ships a .rap, some needs no per-console license
+    file, so an empty tuple is a normal result, not a failure.
     """
-    for candidate in (folder / "USRDIR" / "EBOOT.BIN", folder / "PS3_GAME" / "USRDIR" / "EBOOT.BIN"):
-        if candidate.is_file():
-            return candidate
-    return None
+    return tuple(pkg_path.parent.glob("*.rap"))
+
+
+def _place_license_files(license_files: tuple[Path, ...], install_dir: Path) -> None:
+    """Copy *license_files* into RPCS3's exdata folder under their own names.
+
+    RPCS3 scans dev_hdd0/home/00000001/exdata/ at launch and links whatever
+    .rap files it finds there to their matching installed titles by content
+    ID, itself parsed from the file's own bytes, not the filename, but RPCS3
+    still requires the on-disk filename to be unchanged from how it was
+    originally distributed (see _EXDATA_RELATIVE_PATH). Security note: the
+    source paths here come from a filesystem glob against the library's own
+    upload-managed folder, not from a raw request field, but the destination
+    join still goes through resolve_under as defense-in-depth, matching the
+    pattern every other path built from an upload-influenced segment in this
+    codebase already follows — a Path.name can't itself contain a separator
+    or traversal segment, but this keeps the guarantee structural rather than
+    relying on that fact staying true.
+    """
+    if not license_files:
+        return
+    exdata_dir = install_dir / _EXDATA_RELATIVE_PATH
+    exdata_dir.mkdir(parents=True, exist_ok=True)
+    for rap in license_files:
+        try:
+            dest = resolve_under(exdata_dir, rap.name)
+            shutil.copy2(str(rap), str(dest))
+        except (OSError, ValueError) as exc:
+            logger.error("rpcs3: failed to place license file '%s' into exdata: %s", rap, exc)
 
 
 def _title_id_from_rap(pkg_path: Path) -> str | None:
@@ -117,7 +144,11 @@ def _title_id_from_rap(pkg_path: Path) -> str | None:
     RAP filenames follow Sony's convention (e.g.
     "UP0177-NPUB30724_00-00BAYONETTAHDDUS.rap" -> "NPUB30724"). Not all pkgs
     ship a .rap, some content needs no per-console license file, so this
-    returns None rather than raising when one isn't found.
+    returns None rather than raising when one isn't found. Filename-based, so
+    a .rap whose case/underscores were stripped by upload sanitization prior
+    to the safe_basename fix will silently miss here and fall through to the
+    pkg-header fallback below, which reads the actual file bytes rather than
+    the filename and is unaffected either way.
     """
     for rap in pkg_path.parent.glob("*.rap"):
         match = _TITLE_ID_RE.search(rap.name)
@@ -286,7 +317,12 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """
     entry = get_emulator("rpcs3")
     display_name = entry.get("display_name", "rpcs3")
-    supported_formats = set(entry.get("supported_formats", []))
+    # eras.yaml is the single enforced source for launch-time format
+    # validation (matches dosbox.py/flycast.py/xemu.py's pattern), not the
+    # TOML descriptor's own supported_formats field, which stays display-only
+    # (surfaced by GET /emulators) and is now cross-checked against eras.yaml
+    # at startup by EmulatorDescriptor's validator instead of trusted here.
+    supported_formats = frozenset(supported_extensions_for_era("ps3"))
 
     install_path = get_install_path("rpcs3")
     if install_path is None or not install_path.is_file():
@@ -304,16 +340,31 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             raise FileNotFoundError(f"Media file not found: {media_path}")
 
         if media_path.is_dir():
-            if not is_disc_format_folder(media_path):
-                eboot = find_eboot(media_path)
-                if eboot is None:
-                    raise FileNotFoundError(
-                        f"No bootable PS3 title found in '{media_path}' "
-                        "(expected USRDIR/EBOOT.BIN, optionally under PS3_GAME/)."
-                    )
-            target_path = media_path
+            # resolve_ps3_target validates both folder shapes identically now
+            # (N3): a PS3_DISC.SFB-marked folder with no findable EBOOT.BIN
+            # used to skip this check entirely and reach launch_under_job_object
+            # anyway, only to fail inside RPCS3 itself instead of here.
+            ps3_target = resolve_ps3_target(media_path)
+            if ps3_target is None:
+                raise FileNotFoundError(
+                    f"No bootable PS3 title found in '{media_path}' "
+                    "(expected USRDIR/EBOOT.BIN, optionally under PS3_GAME/)."
+                )
+            target_path = ps3_target.launch_path
         elif media_path.suffix.lower() == ".pkg":
             title_id = _title_id_from_rap(media_path) or _title_id_from_pkg_header(media_path)
+            license_files = _find_license_files(media_path)
+            pkg_target = MediaTarget(
+                kind="file", detect_path=media_path, launch_path=media_path,
+                era="ps3", requires_install=False, license_files=license_files,
+            )
+            # Placed before either branch below: RPCS3 scans exdata for
+            # licenses at its own next launch, which for an uninstalled title
+            # is the install-triggering launch started by _start_pkg_install
+            # just below, and for an already-installed title is the boot
+            # about to happen in the eboot.is_file() branch. Either way the
+            # license must already be in place before RPCS3's process starts.
+            _place_license_files(pkg_target.license_files, install_dir)
             game_dir = install_dir / "dev_hdd0" / "game" / title_id
             eboot = game_dir / "USRDIR" / "EBOOT.BIN"
             if eboot.is_file():

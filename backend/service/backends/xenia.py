@@ -25,9 +25,11 @@ from backend.service.utils.emulator_catalog import (
     resolve_container_enabled,
     build_media_broker_config,
 )
+from backend.service.utils.file_types import supported_extensions_for_era
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
 from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
 from backend.service.utils.platform.windows.process.job_objects import WindowsJobObject
+from backend.service.utils.smart_media_detector.directory_detect import resolve_xex_target
 
 logger = get_logger(__name__)
 
@@ -73,7 +75,12 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """
     entry = get_emulator("xenia")
     display_name = entry.get("display_name", "xenia")
-    supported_formats = set(entry.get("supported_formats", []))
+    # eras.yaml is the single enforced source for launch-time format
+    # validation (matches dosbox.py/flycast.py/xemu.py's pattern), not the
+    # TOML descriptor's own supported_formats field, which stays display-only
+    # (surfaced by GET /emulators) and is now cross-checked against eras.yaml
+    # at startup by EmulatorDescriptor's validator instead of trusted here.
+    supported_formats = frozenset(supported_extensions_for_era("xbox360"))
 
     install_path = get_install_path("xenia")
     if install_path is None or not install_path.is_file():
@@ -88,13 +95,16 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         raise FileNotFoundError(f"Media file not found: {spec.media_path}")
 
     if spec.media_path.is_dir():
-        from backend.service.utils.smart_media_detector.directory_detect import find_default_xex
-        target_path = find_default_xex(spec.media_path)
-        if target_path is None:
+        # resolve_xex_target is the same resolver best_detect_path calls at
+        # ingest time (items.py), instead of each independently calling
+        # find_default_xex.
+        xex_target = resolve_xex_target(spec.media_path)
+        if xex_target is None:
             raise FileNotFoundError(
                 f"No bootable Xbox 360 title found in '{spec.media_path}' "
                 "(expected a .xex file, ideally named default.xex)."
             )
+        target_path = xex_target.launch_path
     else:
         if spec.media_path.suffix.lower() not in supported_formats:
             raise ValueError(

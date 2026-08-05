@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
 
-from backend.service.utils.path_utils import resolve_under, sanitize_filename
+from backend.service.utils.path_utils import resolve_under, safe_basename
 from backend.service.utils.slug_generator import unique_slug
 
 DEFAULT_MAX_BYTES = 25 * 1024 ** 3  # 25 GB — absolute per-file cap
@@ -46,7 +46,7 @@ def begin_upload(base_dir: Path, filename: str) -> tuple[Path, Path]:
     Raises:
         HTTPException(400): If the resolved destination would escape base_dir.
     """
-    safe_name = sanitize_filename(filename)
+    safe_name = safe_basename(filename)
     safe_stem = Path(safe_name).stem
 
     base_dir.mkdir(parents=True, exist_ok=True)

@@ -287,15 +287,23 @@ a hash match.
 ## Standalone-package intent
 
 The package is written to eventually be extracted into its own repository,
-`__init__.py` exposes a minimal two-name surface (`detect`, `ScanResult`), and
-the bulk of the code, `detector.py`'s dispatch logic, `magic/`, `validators/`,
-`iso_detect.py`, `exe_detect.py`, `directory_detect.py`, and the hashing
-pipeline, has no dependency on the rest of Peach 1UP. That said, a few things
-would need cleanup before extraction is actually clean:
+`__init__.py` exposes `detect`, `ScanResult`, `verify`, `VerifyResult`,
+`classify`, `ClassifyResult`, `MediaTarget`, `resolve_ps3_target`, and
+`resolve_xex_target`, and the bulk of the code, `detector.py`'s dispatch
+logic, `magic/`, `validators/`, `iso_detect.py`, `exe_detect.py`,
+`directory_detect.py`, and the hashing pipeline, has no dependency on the
+rest of Peach 1UP. That said, a few things would need cleanup before
+extraction is actually clean:
 
-- `detector.py` imports `backend.core.logger` for its module logger. Small,
-  but it is a real `backend.*` import inside the package today, this is the
-  one remaining `backend.*` import in the package.
+- `detector.py` and `directory_detect.py` both import `backend.core.logger`
+  for their module loggers. Small, but a real `backend.*` import inside the
+  package today. `directory_detect.py` previously also imported
+  `backend.service.backends.rpcs3` (for `is_disc_format_folder`), a much more
+  significant backend-into-detector dependency, backwards from this
+  package's own vendorability goal; that import is gone as of the
+  MediaTarget refactor (Step 3) — `is_disc_format_folder`/`find_eboot` now
+  live in `directory_detect.py` itself, and `rpcs3.py` imports them from
+  here instead. The two `backend.core.logger` imports are what remains.
 - `iso_detect.py` imports `from ..xbox_image import is_xiso`, a sibling
   module at `backend/service/utils/xbox_image.py`, one directory above this
   package. It has no `backend.*` imports itself, but it lives outside

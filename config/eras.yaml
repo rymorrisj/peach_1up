@@ -77,7 +77,12 @@ snes:
   backend: mesen
   memory_limit_mb: 256
   cpu_limit_percent: 50
-  supported_media: [".sfc", ".smc", ".zip"]
+  # .fig/.swc are legitimate SNES ROM header variants Mesen already opens
+  # (config/emulators/mesen.toml's supported_formats already listed them);
+  # added here so eras.yaml, the single enforced source for launch-time
+  # format validation, doesn't reject a file mesen.toml always claimed to
+  # support.
+  supported_media: [".sfc", ".smc", ".zip", ".fig", ".swc"]
   mount_type: rom
 
 n64:

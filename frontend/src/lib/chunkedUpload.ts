@@ -54,24 +54,22 @@ interface InitResponse {
   chunk_max_bytes: number;
 }
 
-// PS3 disc dumps (PS3_GAME/, PS3_DISC.SFB, optionally PS3_UPDATE/) are the one
-// upload shape where nested folder structure must survive the transport,
-// RPCS3 walks EBOOT.BIN from inside PS3_GAME/USRDIR/ itself, and the backend
-// already treats a PS3_DISC.SFB-marked folder as its own launch unit (see
-// backend/service/backends/rpcs3.py). Every other upload keeps flattening to
-// a bare basename unchanged; only this detection opts a "folder" upload into
-// sending relative_path at all.
+// Folder uploads preserve their full relative path structure unconditionally,
+// not just for a PS3_DISC.SFB folder found exactly one path segment deep.
+// That narrow heuristic (N1) missed every other directory-based media shape
+// the backend now resolves the same way: an installed_dir PS3 folder with no
+// SFB marker (PS3_GAME/USRDIR or bare USRDIR/EBOOT.BIN, which can sit at any
+// depth, not just one level in), and an extracted Xbox 360 XEX folder. Trying
+// to mirror the backend's shape detection here client-side would mean
+// keeping two independent implementations of the same MediaTarget-kind
+// classification in sync (exactly the kind of drift the MediaTarget refactor
+// exists to close on the backend side) — nesting is comparatively cheap to
+// always preserve and let the server's own resolvers (smart_media_detector's
+// resolve_ps3_target/resolve_xex_target) sort out the shape, the same way a
+// plain flat DOS/console folder upload already reassembles correctly whether
+// or not it happens to carry relative_path.
 function webkitRelativePathOf(file: File): string | undefined {
   return (file as unknown as { webkitRelativePath?: string }).webkitRelativePath || undefined;
-}
-
-function isDiscFormatFolderUpload(files: File[]): boolean {
-  return files.some((f) => {
-    const relPath = webkitRelativePathOf(f);
-    if (!relPath) return false;
-    const parts = relPath.split('/');
-    return parts.length === 2 && parts[1].toUpperCase() === 'PS3_DISC.SFB';
-  });
 }
 
 // Drops the selected root folder's own name (parts[0]): the server's dest_dir
@@ -125,14 +123,14 @@ export function chunkedUpload(
   const headers = () => ({ 'X-CSRF-Token': getCsrfToken() });
 
   async function run(): Promise<ChunkedUploadResult> {
-    const discFormat = kind === 'folder' && isDiscFormatFolderUpload(files);
+    const preserveNesting = kind === 'folder';
     const manifest = files.map((f) => {
       const entry: { name: string; size: number; chunks: number; relative_path?: string } = {
         name: f.name,
         size: f.size,
         chunks: Math.max(1, Math.ceil(f.size / chunkSize)),
       };
-      if (discFormat) {
+      if (preserveNesting) {
         const relativePath = relativePathWithinSelection(f);
         if (relativePath) entry.relative_path = relativePath;
       }

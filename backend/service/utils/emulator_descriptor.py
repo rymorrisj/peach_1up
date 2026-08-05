@@ -167,3 +167,50 @@ class EmulatorDescriptor(BaseModel):
             "install_dir is access='r' and no other rw+grant broker entry resolves "
             "to the identical directory."
         )
+
+    @model_validator(mode="after")
+    def _validate_supported_formats_matches_eras(self) -> "EmulatorDescriptor":
+        """supported_formats is display-only (GET /emulators) today, no launch
+        backend trusts it for validation, they all read config/eras.yaml's
+        supported_media directly (see backend.service.utils.file_types.
+        supported_extensions_for_era) so a drift here can never cause a real
+        launch to accept or reject the wrong file. But a drifted display list
+        actively misinforms users on the Emulators page, so this closes it at
+        the same producer choke-point every other TOML field already goes
+        through: fail loud at load time rather than let it silently diverge
+        from the one enforced source of truth.
+
+        supported_eras (when set, e.g. mesen serving both nes and snes) is
+        checked in full instead of just era, since a multi-era emulator's
+        supported_formats is expected to cover every era it serves, not only
+        its single most-demanding one (era's role is AppContainer sizing, a
+        different axis, see DECISIONS.md 2026-05-28).
+
+        Skipped entirely for a descriptor with neither era nor supported_eras
+        set (the rom_pack config, 86box-roms.toml, has no era of its own).
+        """
+        eras_to_check = self.supported_eras or ([self.era] if self.era else [])
+        if not eras_to_check:
+            return self
+
+        # Deferred import: file_types.py -> eras_config.py has no import-time
+        # dependency on this module, but every other cross-module import in
+        # this file is deferred for consistency with the cycle-avoidance
+        # pattern _validate_install_dir_write_access already established.
+        from backend.service.utils.file_types import supported_extensions_for_era
+
+        expected: set[str] = set()
+        for era in eras_to_check:
+            expected.update(supported_extensions_for_era(era))
+        actual = set(self.supported_formats)
+        if actual != expected:
+            missing = sorted(expected - actual)
+            extra = sorted(actual - expected)
+            raise ValueError(
+                f"{self.slug}: supported_formats {sorted(actual)} does not match "
+                f"config/eras.yaml's supported_media for era(s) {sorted(eras_to_check)} "
+                f"(expected {sorted(expected)}). Missing: {missing or 'none'}; "
+                f"unexpected: {extra or 'none'}. Update config/emulators/{self.slug}.toml "
+                "or config/eras.yaml so they agree."
+            )
+        return self

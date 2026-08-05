@@ -1,6 +1,6 @@
 """Tests for the browser-upload ingestion path:
 
-- path_utils.sanitize_filename / resolve_under — the path-traversal fix.
+- path_utils.safe_basename / resolve_under — the path-traversal fix.
 - upload_utils.begin_upload — collision-free destination allocation built on those.
 - POST /api/v1/game-items/uploads/{init,chunks,complete} — chunked software-media
   upload, chains into upload_finalize._ingest_media_entry et al.
@@ -31,34 +31,43 @@ def _reset_media_dup_index():
 
 
 # ---------------------------------------------------------------------------
-# sanitize_filename / resolve_under — unit level
+# safe_basename / resolve_under — unit level
 # ---------------------------------------------------------------------------
 
-class TestSanitizeFilename:
+class TestSafeBasename:
     def test_strips_posix_directory_components(self):
-        from backend.service.utils.path_utils import sanitize_filename
-        assert sanitize_filename("../../etc/passwd") == "passwd"
+        from backend.service.utils.path_utils import safe_basename
+        assert safe_basename("../../etc/passwd") == "passwd"
 
     def test_strips_backslash_traversal(self):
-        from backend.service.utils.path_utils import sanitize_filename
-        assert sanitize_filename("..\\..\\evil.iso") == "evil.iso"
+        from backend.service.utils.path_utils import safe_basename
+        assert safe_basename("..\\..\\evil.iso") == "evil.iso"
 
     def test_strips_embedded_separators(self):
-        from backend.service.utils.path_utils import sanitize_filename
-        assert "/" not in sanitize_filename("a/b/c.iso")
-        assert "\\" not in sanitize_filename("a\\b\\c.iso")
+        from backend.service.utils.path_utils import safe_basename
+        assert "/" not in safe_basename("a/b/c.iso")
+        assert "\\" not in safe_basename("a\\b\\c.iso")
 
-    def test_preserves_clean_name_and_extension(self):
-        from backend.service.utils.path_utils import sanitize_filename
-        assert sanitize_filename("Doom.iso") == "doom.iso"
+    def test_preserves_case_and_extension(self):
+        # Case is deliberately preserved (unlike the old slugify-based
+        # sanitize_filename this replaces) — see safe_basename's docstring
+        # for why a content-derived filename (PS3 .rap license files) can't
+        # be lowercased without breaking RPCS3's own filename matching.
+        from backend.service.utils.path_utils import safe_basename
+        assert safe_basename("Doom.iso") == "Doom.iso"
+
+    def test_preserves_underscores(self):
+        from backend.service.utils.path_utils import safe_basename
+        assert safe_basename("UP0177-NPUB30724_00-00BAYONETTAHDDUS.rap") == \
+            "UP0177-NPUB30724_00-00BAYONETTAHDDUS.rap"
 
     def test_empty_stem_falls_back(self):
-        from backend.service.utils.path_utils import sanitize_filename
-        assert sanitize_filename("../../") == "upload"
+        from backend.service.utils.path_utils import safe_basename
+        assert safe_basename("../../") == "upload"
 
     def test_extension_is_alnum_only(self):
-        from backend.service.utils.path_utils import sanitize_filename
-        result = sanitize_filename("game.is/o")
+        from backend.service.utils.path_utils import safe_basename
+        result = safe_basename("game.is/o")
         assert "/" not in result
 
 

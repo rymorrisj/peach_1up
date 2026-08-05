@@ -16,6 +16,7 @@ from backend.service.utils.emulator_catalog import (
     build_media_broker_config,
     validate_bios_from_descriptor,
 )
+from backend.service.utils.file_types import supported_extensions_for_era
 from backend.core.logger import get_logger
 from backend.service.utils.ini_writer import set_ini_key
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
@@ -57,7 +58,20 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     entry = get_emulator(spec.slug)
     display_name = entry.get("display_name", spec.slug)
-    supported_formats = set(entry.get("supported_formats", []))
+    # eras.yaml is the single enforced source for launch-time format
+    # validation (matches dosbox.py/flycast.py/xemu.py's pattern), not the
+    # TOML descriptor's own supported_formats field, which stays display-only
+    # (surfaced by GET /emulators) and is now cross-checked against eras.yaml
+    # at startup by EmulatorDescriptor's validator instead of trusted here.
+    # Mesen alone serves two eras (nes, snes, see mesen.toml's supported_eras);
+    # every other console slug serves exactly one, so unioning
+    # supported_eras-or-[era] here is correct for all four without a
+    # slug-specific branch.
+    _formats_eras = entry.get("supported_eras") or [entry.get("era")]
+    supported_formats: set[str] = set()
+    for _era in _formats_eras:
+        if _era:
+            supported_formats.update(supported_extensions_for_era(_era))
 
     if not spec.executable_path or not Path(spec.executable_path).exists():
         raise FileNotFoundError(f"{display_name} executable not found: {spec.executable_path}")

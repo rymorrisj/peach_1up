@@ -46,7 +46,7 @@ from backend.core.logger import get_logger
 from backend.service.games import items as lib_svc
 from backend.service.uploads import core as cu
 from backend.service.uploads import software_games as upload_finalize
-from backend.service.utils.path_utils import is_within_roots, resolve_under, sanitize_filename
+from backend.service.utils.path_utils import is_within_roots, resolve_under, safe_basename
 from backend.service.utils.slug_generator import unique_slug
 from backend.service.utils.upload_utils import DEFAULT_BACKGROUND_THRESHOLD_BYTES, DEFAULT_MAX_BYTES
 
@@ -148,7 +148,7 @@ def stage_from_source(
         if kind == "file":
             source_bytes = source.stat().st_size
             dest_dir.mkdir(parents=True, exist_ok=False)
-            dest_path = resolve_under(dest_dir, sanitize_filename(source.name))
+            dest_path = resolve_under(dest_dir, safe_basename(source.name))
             if move:
                 renamed = _rename_same_filesystem(source, dest_path)
             if not renamed:

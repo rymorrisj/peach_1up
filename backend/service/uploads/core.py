@@ -30,7 +30,7 @@ from fastapi import HTTPException, UploadFile
 
 from backend.core import jobs
 from backend.core.logger import get_logger
-from backend.service.utils.path_utils import resolve_under, sanitize_filename, sanitize_relative_path
+from backend.service.utils.path_utils import resolve_under, safe_basename, sanitize_relative_path
 from backend.service.utils.slug_generator import unique_slug
 from backend.service.utils.upload_utils import (
     DEFAULT_MAX_BYTES,
@@ -102,7 +102,7 @@ def init_session(kind: str, title: str, files: list[dict], chunk_max_bytes: int)
     declared_total = 0
     slots: list[dict] = []
     for f in files:
-        name = sanitize_filename(str(f.get("name") or ""))
+        name = safe_basename(str(f.get("name") or ""))
         size = int(f.get("size") or 0)
         chunks = int(f.get("chunks") or 0)
         if not name:
@@ -145,10 +145,10 @@ def init_session(kind: str, title: str, files: list[dict], chunk_max_bytes: int)
                 f"declared size ({size} bytes) (max {max_allowed_chunks})."
             )
         declared_total += size
-        # relative_path is only ever sent by the frontend for a folder upload
-        # already detected client-side as PS3_DISC.SFB-marked (see
-        # chunkedUpload.ts); every other upload omits it, so segments stays
-        # None and reassemble() falls back to the existing flat basename.
+        # relative_path is sent by the frontend for every "folder"-kind upload
+        # (see chunkedUpload.ts), so nested structure always survives the
+        # transport; a "file"/"set" upload never sets it, so segments stays
+        # None and reassemble() falls back to the flat basename in that case.
         raw_relative_path = f.get("relative_path")
         segments = sanitize_relative_path(str(raw_relative_path)) if raw_relative_path else None
         slots.append({
