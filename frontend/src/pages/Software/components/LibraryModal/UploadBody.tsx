@@ -98,6 +98,24 @@ export default function UploadBody({
     folderStatus === 'uploading' ||
     browseImporting;
 
+  // Narrower than `busy` above: this is what actually gates the Modal's own
+  // dismiss paths (Escape, overlay click, Dialog.Close). Once an operation
+  // has a job_id, it continues server-side and is tracked in the nav bell
+  // regardless of whether this modal stays open, so dismissing it is safe,
+  // only the pre-job_id window (the /init round-trip, or a browse-import
+  // entry's request before it resolves to either a job_id or an inline
+  // result) still needs to block dismissal. `busy` itself keeps its broad
+  // meaning ("this operation's client-side work isn't done yet") because
+  // it's also used to disable in-flight controls throughout this file and
+  // MultiDiscMode/FolderUploadMode/BrowseImportPanel for their own full
+  // duration, and by the reset effect below to know when it's actually safe
+  // to discard local state, neither of those should narrow.
+  const dismissBlocked =
+    entries.some((e) => e.status === 'uploading' && !e.jobId) ||
+    (setStatus === 'uploading' && !setJobId) ||
+    (folderStatus === 'uploading' && !folderJobId) ||
+    browseImports.some((e) => e.status === 'importing');
+
   useEffect(() => {
     if (!open && !busy) {
       setEntries([]);
@@ -259,9 +277,9 @@ export default function UploadBody({
       (jobId) => {
         // Fires right after /init, before any chunk has been transferred, so
         // the nav bell tracks this upload from the start of the transfer,
-        // not just its server-side finalize tail, and the dismiss-to-
-        // background button below can appear as soon as there's a job to
-        // track.
+        // not just its server-side finalize tail, and dismissBlocked above
+        // (fed by this same jobId) can drop as soon as there's a job to
+        // track, letting Escape/overlay dismiss the modal early.
         dispatch({
           type: 'UPSERT_JOB',
           payload: {
@@ -308,9 +326,9 @@ export default function UploadBody({
       (jobId) => {
         // Fires right after /init, before any chunk has been transferred, so
         // the nav bell tracks this upload from the start of the transfer,
-        // not just its server-side finalize tail, and the dismiss-to-
-        // background button below can appear as soon as there's a job to
-        // track.
+        // not just its server-side finalize tail, and dismissBlocked above
+        // (fed by this same jobId) can drop as soon as there's a job to
+        // track, letting Escape/overlay dismiss the modal early.
         dispatch({
           type: 'UPSERT_JOB',
           payload: {
@@ -480,7 +498,7 @@ export default function UploadBody({
         open={open}
         title={config.modalTitle}
         onClose={onClose}
-        busy={busy}
+        busy={dismissBlocked}
         footer={
           multiDisc ? (
             <div className="flex items-center gap-3">
@@ -496,28 +514,18 @@ export default function UploadBody({
               >
                 Cancel
               </Button>
-              {setStatus === 'uploading' && setJobId ? (
-                // Once a job exists (tracked in the nav bell above, see the
-                // onJobId callback in submitSet), the transfer no longer
-                // needs this modal open to keep going, same bypass-onClose
-                // pattern single-file mode uses below, Radix's own dismiss
-                // paths stay blocked by Modal's busy gate, this button calls
-                // onClose() directly instead of going through them.
-                <Button onClick={onClose}>Upload in progress…</Button>
-              ) : (
-                <Button
-                  onClick={setStatus === 'success' ? onClose : submitSet}
-                  disabled={
-                    busy || !(folderName.trim() || discSetTitle.trim()) || stagedDiscs.length === 0
-                  }
-                >
-                  {setStatus === 'uploading'
-                    ? 'Creating set…'
-                    : setStatus === 'success'
-                      ? 'Done'
-                      : 'Create Set'}
-                </Button>
-              )}
+              <Button
+                onClick={setStatus === 'success' ? onClose : submitSet}
+                disabled={
+                  busy || !(folderName.trim() || discSetTitle.trim()) || stagedDiscs.length === 0
+                }
+              >
+                {setStatus === 'uploading'
+                  ? 'Creating set…'
+                  : setStatus === 'success'
+                    ? 'Done'
+                    : 'Create Set'}
+              </Button>
             </div>
           ) : folderMode ? (
             <div className="flex items-center gap-3">
@@ -533,20 +541,16 @@ export default function UploadBody({
               >
                 Cancel
               </Button>
-              {folderStatus === 'uploading' && folderJobId ? (
-                <Button onClick={onClose}>Upload in progress…</Button>
-              ) : (
-                <Button
-                  onClick={folderStatus === 'success' ? onClose : submitFolderUpload}
-                  disabled={busy || !folderTitle.trim() || folderFiles.length === 0}
-                >
-                  {folderStatus === 'uploading'
-                    ? 'Uploading…'
-                    : folderStatus === 'success'
-                      ? 'Done'
-                      : 'Upload Folder'}
-                </Button>
-              )}
+              <Button
+                onClick={folderStatus === 'success' ? onClose : submitFolderUpload}
+                disabled={busy || !folderTitle.trim() || folderFiles.length === 0}
+              >
+                {folderStatus === 'uploading'
+                  ? 'Uploading…'
+                  : folderStatus === 'success'
+                    ? 'Done'
+                    : 'Upload Folder'}
+              </Button>
             </div>
           ) : entries.some((e) => e.status === 'uploading') ? (
             <div className="flex items-center gap-3">
@@ -558,7 +562,7 @@ export default function UploadBody({
               >
                 Cancel
               </Button>
-              <Button onClick={onClose}>Upload in progress…</Button>
+              <Button disabled>Uploading…</Button>
             </div>
           ) : (
             <Button onClick={onClose}>Done</Button>

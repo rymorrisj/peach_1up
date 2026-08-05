@@ -180,10 +180,15 @@ describe('useLibraryScan', () => {
 
   it('a stale in-flight import does not clobber a later successful import after Escape-closing and reopening the modal', async () => {
     // Regression test for a race where the modal's native <dialog> Escape-key
-    // close bypasses the disabled Cancel button and does not cancel the
-    // in-flight import request. If the user then reopens the modal and runs
-    // a second, successful import, the first (now-stale) request's eventual
-    // failure must not resurrect the error banner over the fresh success.
+    // close does not cancel the in-flight import request. If the user then
+    // reopens the modal and runs a second, successful import, the first
+    // (now-stale) request's eventual failure must not resurrect the error
+    // banner over the fresh success. `importing` itself now stays true across
+    // the close/reopen (the reset effect only clears local state once nothing
+    // is genuinely still in flight, so a reopen doesn't lie about an import
+    // that hasn't actually settled yet); what this test guards is the
+    // generation counter still correctly ignoring the first request's outcome
+    // once a second one has started and won.
     let resolveFirst!: (v: unknown) => void;
     const firstImportPromise = new Promise((resolve) => {
       resolveFirst = resolve;
@@ -221,7 +226,8 @@ describe('useLibraryScan', () => {
       rerender({ open: true });
     });
 
-    expect(result.current.importing).toBe(false);
+    // Still genuinely in flight, so the reset effect left it alone.
+    expect(result.current.importing).toBe(true);
     expect(result.current.error).toBeNull();
     expect(result.current.importResult).toBeNull();
 

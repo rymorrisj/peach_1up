@@ -23,6 +23,7 @@ export default function ScanBody({
     handleImport,
     scanProgress,
     scanMessage,
+    activeJobId,
   } = useLibraryScan({ open, onImported: onComplete });
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -54,7 +55,14 @@ export default function ScanBody({
     });
   }
 
-  const busy = scanning || importing;
+  // Blocks Modal's own dismiss paths (Escape/overlay/Dialog.Close) only
+  // while there's an operation with nothing yet tracking it server-side.
+  // Once activeJobId exists, the scan continues as a tracked background job
+  // regardless of this modal's open state, so dismissing is safe. importing
+  // has no job/background tracking at all (see useLibraryScan's top-of-file
+  // comment, it's a single synchronous request), so it keeps blocking for
+  // its full duration, there's nothing to fall back on if dismissed early.
+  const busy = (scanning && !activeJobId) || importing;
 
   return (
     <Modal
@@ -74,6 +82,12 @@ export default function ScanBody({
               {cancelling ? 'Cancelling…' : 'Cancel Scan'}
             </Button>
           )}
+          {/* Once activeJobId exists, Escape/overlay now dismiss on their own
+              (busy above has already dropped), making the 'Hide' wording here
+              redundant as a bypass. Kept anyway: this same button slot is the
+              genuine primary Cancel/Close action in the other two states, and
+              a labeled, always-visible "Hide" is more discoverable than
+              Escape/backdrop-click for a scan that can run for minutes. */}
           <Button variant="ghost" onClick={onClose} disabled={importing}>
             {importResult ? 'Close' : scanning ? 'Hide' : 'Cancel'}
           </Button>

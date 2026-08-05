@@ -70,51 +70,65 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
   // must not be read outside effects/handlers.
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
-  // Monotonic "generation" counter. Every new scan/import operation — and
-  // every modal close — bumps this. Any async callback (mutation onSuccess/
-  // onError, the status poll, the job-hydration fetch, handleImport's own
-  // await) captures the value current at its own start and re-checks it
-  // before writing state; if the value has moved on, that callback has been
-  // superseded and becomes a no-op instead of clobbering newer state.
+  // Monotonic "generation" counter. Every new scan/import operation bumps
+  // this, and so does the reset effect below, once a close finds nothing
+  // still running. Any async callback (mutation onSuccess/onError, the
+  // status poll, the job-hydration fetch, handleImport's own await) captures
+  // the value current at its own start and re-checks it before writing
+  // state; if the value has moved on, that callback has been superseded and
+  // becomes a no-op instead of clobbering newer state.
   //
   // This matters because Games.tsx always keeps <LibraryModal> (scan mode)
-  // mounted (only toggles `open`), so this hook instance — and any in-flight promise's
-  // closures — stay alive across opens/closes. Modal.tsx blocks Escape while
-  // busy, and the Cancel button is disabled during import, but scanning can
-  // now be dismissed early (the scan continues as a tracked background job).
-  // A user can dismiss mid-scan, reopen, run a second scan/import that
-  // succeeds, and then have the first (now-stale) operation's catch/then fire
-  // afterward and overwrite the freshly-successful UI state. The generation
-  // guard makes that stale completion inert.
+  // mounted (only toggles `open`), so this hook instance, and any in-flight
+  // promise's closures, stay alive across opens/closes. Modal.tsx blocks
+  // Escape while busy, and the Cancel button is disabled during import, but
+  // scanning can be dismissed early once a job exists (the scan continues as
+  // a tracked background job). A user can dismiss mid-scan, reopen, run a
+  // second scan/import that succeeds, and then have the first (now-stale)
+  // operation's catch/then fire afterward and overwrite the freshly-
+  // successful UI state. The generation guard makes that stale completion
+  // inert.
   const generationRef = useRef(0);
 
+  // Only resets once this hook's own scan/import has actually finished, not
+  // merely whenever the modal closes. A scan (or import) still in flight
+  // keeps running as a tracked background job regardless of this modal's
+  // open state (see the busy comment in ScanBody), so resetting scanning/
+  // activeJobId just because the user dismissed (now possible via Escape/
+  // overlay once activeJobId exists, not only the Hide button) would orphan
+  // this hook's only link to that job and make a reopen show the blank
+  // "before scan" screen instead of live progress, even though the
+  // terminal-resolution effect below keeps resolving it correctly in the
+  // background either way.
   useEffect(() => {
-    if (!open) {
-      generationRef.current += 1;
-      setScanning(false);
-      setStatus(null);
-      setError(null);
-      setImporting(false);
-      setImportResult(null);
-      setCancelling(false);
-      setActiveJobId(null);
-    } else {
-      const generation = generationRef.current;
-      // Hydrate an already-finished background scan's preview so reopening the
-      // modal (e.g. from the Activity bell) shows results without re-scanning.
-      // The preview no longer lives behind /scan/status (stateless now) — it's
-      // read from the most recent finished scan job's result instead.
-      apiFetch<BackgroundJob[]>('/api/v1/jobs')
-        .then((allJobs) => {
-          if (generationRef.current !== generation) return;
-          const lastScan = [...allJobs]
-            .reverse()
-            .find((j) => j.kind === 'scan' && j.status === 'done');
-          const preview = (lastScan?.result as ScanJobResult | undefined)?.preview ?? [];
-          if (preview.length > 0) setStatus({ running: false, preview, error: null });
-        })
-        .catch(() => {});
-    }
+    if (open || scanning || importing) return;
+    generationRef.current += 1;
+    setScanning(false);
+    setStatus(null);
+    setError(null);
+    setImporting(false);
+    setImportResult(null);
+    setCancelling(false);
+    setActiveJobId(null);
+  }, [open, scanning, importing]);
+
+  useEffect(() => {
+    if (!open) return;
+    const generation = generationRef.current;
+    // Hydrate an already-finished background scan's preview so reopening the
+    // modal (e.g. from the Activity bell) shows results without re-scanning.
+    // The preview no longer lives behind /scan/status (stateless now) — it's
+    // read from the most recent finished scan job's result instead.
+    apiFetch<BackgroundJob[]>('/api/v1/jobs')
+      .then((allJobs) => {
+        if (generationRef.current !== generation) return;
+        const lastScan = [...allJobs]
+          .reverse()
+          .find((j) => j.kind === 'scan' && j.status === 'done');
+        const preview = (lastScan?.result as ScanJobResult | undefined)?.preview ?? [];
+        if (preview.length > 0) setStatus({ running: false, preview, error: null });
+      })
+      .catch(() => {});
   }, [open]);
 
   const scanMutation = useMutation<ScanTriggerResponse, Error>({
@@ -286,5 +300,8 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
     handleImport,
     scanProgress,
     scanMessage,
+    // Exposed so ScanBody can narrow its own Modal dismiss gate to "no job
+    // yet" instead of "not finished".
+    activeJobId,
   };
 }
