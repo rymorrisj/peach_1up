@@ -1,3 +1,39 @@
+[project]
+name = "peach1up"
+version = "0.0.0"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "sqlalchemy>=2.0.0",
+    "sqlmodel>=0.0.21",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+    "bcrypt>=4.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "httpx>=0.27.0",
+    "itsdangerous>=2.0.0",
+    "argon2-cffi>=23.1.0",
+    "pillow>=10.0.0",
+    "pystray>=0.19.0",
+    "python-multipart>=0.0.18",
+    "pycdlib>=1.14.0",
+]
+
+# Not distributed via PyPI or installed as an importable package (the app is
+# invoked as `python -m uvicorn backend.main:app` / via peach1up_launcher.py,
+# never `import peach1up`). package = false tells uv this is a dependency
+# manifest for a venv, not a buildable project, so no [build-system] is needed.
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = ["pytest==9.1.1", "pytest-cov==7.1.0", "ruff==0.16.1"]
+build = ["pyinstaller>=6.0.0"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py314"
@@ -28,7 +64,7 @@ omit = [
 
 [tool.coverage.report]
 # Enforced when running: pytest --cov=backend --cov-report=term-missing
-# Requires: pip install pytest-cov
+# Requires: uv sync --group dev (installs pytest-cov)
 fail_under = 65
 show_missing = true
 skip_covered = false

@@ -31,9 +31,10 @@ Emulators marked "requires BIOS" need a BIOS image sourced from your own hardwar
 
 ### Python
 
-| Requirement         | Notes                                                                              |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| Python 3.11 or later | [python.org](https://www.python.org/downloads/) — `build.bat` requires ≥ 3.11; CI runs on 3.14.6 |
+| Requirement          | Notes                                                                                          |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| Python 3.14 or later | [python.org](https://www.python.org/downloads/) — pinned via `requires-python` in `pyproject.toml`, matches CI |
+| uv                   | [docs.astral.sh/uv](https://docs.astral.sh/uv/getting-started/installation/) — manages the venv and dependencies |
 
 ---
 
@@ -41,7 +42,7 @@ Emulators marked "requires BIOS" need a BIOS image sourced from your own hardwar
 
 ```bash
 # Backend
-pip install -r backend/requirements-dev.txt
+uv sync --group dev
 start.bat
 
 # Frontend (separate terminal)
@@ -73,7 +74,7 @@ cd frontend && npm run build && cd ..
 ### 3. Package with PyInstaller
 
 ```bash
-.venv\Scripts\python.exe -m pip install pyinstaller
+uv sync --group build
 .venv\Scripts\python.exe -m PyInstaller peach1up.spec
 ```
 

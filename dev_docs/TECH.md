@@ -30,7 +30,7 @@ Postgres is a future config change not a rewrite.
 
 ## Backend
 
-**Python 3.11 or later (CI runs 3.14.6), FastAPI, Pydantic, python-dotenv, PyYAML.**
+**Python 3.14 or later (pinned via `requires-python` in `pyproject.toml`, matches CI), FastAPI, Pydantic, python-dotenv, PyYAML.**
 
 Python chosen for existing codebase and emulator scripting ecosystem. FastAPI
 for async performance, automatic OpenAPI generation, and Pydantic validation.
@@ -139,6 +139,7 @@ folder ingest is possible.
 
 ## Developer Tooling
 
+- uv — Python dependency management, lockfile (`uv.lock`), and virtual environments
 - Ruff — Python linting
 - pytest — Python testing
 - ESLint and Prettier — Frontend linting and formatting

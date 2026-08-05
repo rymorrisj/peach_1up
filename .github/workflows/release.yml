@@ -24,11 +24,21 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      # build.bat now calls `uv sync` to create its venv and install backend
+      # dependencies (see the pyproject.toml/uv.lock migration) — installed
+      # here, ahead of the "Run build.bat" step below, rather than assumed
+      # present on the windows-latest image.
+      - name: Install uv (for build.bat's dependency sync)
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          python-version: "3.14.6"
+          enable-cache: true
+
       # Only for the version-gate step below (python -c reading YAML). Kept
-      # separate from build.bat's own Python bootstrap: build.bat creates its
-      # own venv via the `py` launcher and installs backend/requirements.txt
-      # into it, entirely self-contained, exactly as it does on a developer
-      # machine — this step does not feed into that.
+      # separate from build.bat's own Python bootstrap: build.bat syncs its
+      # own venv and dependencies via `uv sync --group build`, entirely
+      # self-contained, exactly as it does on a developer machine, this step
+      # does not feed into that.
       - name: Set up Python (version-gate check only)
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:

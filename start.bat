@@ -11,7 +11,7 @@ REM ── Python check ──────────────────�
 for /f "tokens=2 delims= " %%v in ('py --version 2^>^&1') do set PYVER=%%v
 if "%PYVER%"=="" (
     echo ERROR: Python not found.
-    echo Install Python 3.11 or later from https://www.python.org/downloads/
+    echo Install Python 3.14 or later from https://www.python.org/downloads/
     echo Make sure to check "Add Python to PATH" during installation.
     exit /b 1
 )
@@ -22,12 +22,12 @@ for /f "tokens=1,2 delims=." %%a in ("%PYVER%") do (
 )
 
 if %PY_MAJOR% LSS 3 (
-    echo ERROR: Python 3.11 or later is required. Found %PYVER%.
+    echo ERROR: Python 3.14 or later is required. Found %PYVER%.
     exit /b 1
 )
 
-if %PY_MAJOR% EQU 3 if %PY_MINOR% LSS 11 (
-    echo ERROR: Python 3.11 or later is required. Found %PYVER%.
+if %PY_MAJOR% EQU 3 if %PY_MINOR% LSS 14 (
+    echo ERROR: Python 3.14 or later is required. Found %PYVER%.
     exit /b 1
 )
 
@@ -43,37 +43,19 @@ if errorlevel 1 (
 for /f "tokens=*" %%n in ('node --version 2^>^&1') do set NODEVER=%%n
 echo [OK] Node.js %NODEVER%
 
-REM ── Virtual environment ──────────────────────────────────────
-if not exist ".venv" (
-    echo Creating virtual environment...
-    py -m venv .venv
-    if errorlevel 1 (
-        echo ERROR: Failed to create virtual environment.
-        exit /b 1
-    )
-    echo [OK] Virtual environment created at .venv\
-) else (
-    echo [OK] Virtual environment already exists at .venv\
-)
-
-REM ── Activate venv and install backend deps ───────────────────
-echo Installing backend dependencies...
-
-call ".venv\Scripts\activate.bat"
+REM ── uv check ──────────────────────────────────────────────────
+where uv >nul 2>&1
 if errorlevel 1 (
-    echo ERROR: Failed to activate virtual environment.
+    echo ERROR: uv not found.
+    echo Install uv from https://docs.astral.sh/uv/getting-started/installation/
     exit /b 1
 )
 
-".venv\Scripts\python.exe" -m pip install --upgrade pip --quiet
+REM ── Sync venv and backend deps (dev group includes pytest/ruff) ──
+echo Syncing backend dependencies via uv...
+uv sync --group dev
 if errorlevel 1 (
-    echo ERROR: Failed to upgrade pip.
-    exit /b 1
-)
-
-".venv\Scripts\python.exe" -m pip install -r "backend\requirements-dev.txt"
-if errorlevel 1 (
-    echo ERROR: Failed to install backend dependencies.
+    echo ERROR: Failed to sync backend dependencies.
     exit /b 1
 )
 
@@ -142,12 +124,6 @@ echo [OK] API reference docs generated
 
 REM ── Uploading peach_1up\backend\service\utils\smart_media_detector\hashing\hash_index.json ──
 echo Uploading index of file hashes to DB
-
-".venv\Scripts\python.exe" -m pip install --upgrade pip --quiet
-if errorlevel 1 (
-    echo ERROR: Failed to upgrade pip.
-    exit /b 1
-)
 
 ".venv\Scripts\python.exe" ".\scripts\ingest_hash_index.py"
 if errorlevel 1 (
