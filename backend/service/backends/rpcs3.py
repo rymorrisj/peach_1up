@@ -177,7 +177,7 @@ def _title_id_from_pkg_header(pkg_path: Path) -> str:
     return match.group(1)
 
 
-def _write_installed_state(spec: "LaunchSpec", installed: bool) -> None:
+def _write_installed_state(spec: "LaunchSpec", installed: bool, *, reraise: bool = False) -> None:
     """Write pkg install completion back onto the matching GameItemBundle.
 
     era-gated to "ps3" and source_type "game", the install-completion signal
@@ -187,6 +187,12 @@ def _write_installed_state(spec: "LaunchSpec", installed: bool) -> None:
     in _wait_for_stable_and_terminate, long after the launch request that
     started the install has returned, mirrors monitor._flag_short_lived_item,
     the codebase's existing pattern for a DB write from outside a request.
+
+    reraise defaults to False: the launch() call site writes this as
+    best-effort bookkeeping and a failure there must not fail an otherwise
+    successful launch. The background install-poll call site passes
+    reraise=True, matching monitor._flag_short_lived_item, since that write
+    failing is a genuine background job failure with no launch to protect.
     """
     if spec.era != "ps3" or spec.source_type != "game" or spec.collection_id is None:
         return
@@ -205,6 +211,8 @@ def _write_installed_state(spec: "LaunchSpec", installed: bool) -> None:
             "rpcs3: failed to write installed=%s for collection_id=%s: %s",
             installed, spec.collection_id, exc, exc_info=True,
         )
+        if reraise:
+            raise
 
 
 def _snapshot_dir(path: Path) -> tuple[int, int]:
@@ -248,12 +256,12 @@ def _wait_for_stable_and_terminate(proc: SandboxProcess, game_dir: Path, eboot: 
         return
 
     logger.info("rpcs3: pkg install for %s appears complete, terminating installer process", game_dir)
-    _write_installed_state(spec, True)
     try:
         proc.terminate()
         proc.wait(timeout_ms=10_000)
     except Exception as exc:
         logger.error("rpcs3: failed to terminate install process pid=%s: %s", proc.pid, exc)
+    _write_installed_state(spec, True, reraise=True)
 
 
 def _start_pkg_install(
