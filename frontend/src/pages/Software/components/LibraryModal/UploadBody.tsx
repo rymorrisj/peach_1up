@@ -173,42 +173,17 @@ export default function UploadBody({
     );
     entryAbortsRef.current.set(entry.id, abort);
     promise
-      .then(async (res) => {
+      .then((res) => {
         // Every upload finalizes as a background job now, surfaced in the
         // nav bell (dispatched above, at init time). The item appears in the
-        // grid once that job finishes.
-        if (res.status === 202 && res.body.job_id) {
-          const jobId = res.body.job_id;
-          setEntries((prev) =>
-            prev.map((e) =>
-              e.id === entry.id ? { ...e, status: 'success', progress: 100, jobId } : e,
-            ),
-          );
-          return;
-        }
-        if (config.createFromUpload) {
-          try {
-            await config.createFromUpload(res.body, entry.file.name);
-          } catch (err) {
-            setEntries((prev) =>
-              prev.map((e) =>
-                e.id === entry.id
-                  ? {
-                      ...e,
-                      status: 'error',
-                      error: err instanceof Error ? err.message : 'Failed to save.',
-                    }
-                  : e,
-              ),
-            );
-            return;
-          }
-        }
-        const status = res.body.reused_existing_media ? 'reused' : 'success';
+        // grid once that job finishes (via the shared 'upload-complete'
+        // window event, not onComplete() here).
+        const jobId = res.body.job_id;
         setEntries((prev) =>
-          prev.map((e) => (e.id === entry.id ? { ...e, status, progress: 100 } : e)),
+          prev.map((e) =>
+            e.id === entry.id ? { ...e, status: 'success', progress: 100, jobId } : e,
+          ),
         );
-        onComplete();
       })
       .catch((err: Error) => {
         setEntries((prev) =>

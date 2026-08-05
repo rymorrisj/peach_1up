@@ -1,4 +1,4 @@
-import type { ChunkedUploadResult, UploadDomain } from '@/lib/chunkedUpload';
+import type { UploadDomain } from '@/lib/chunkedUpload';
 
 // Domain-agnostic upload/scan modal, extracted from the former (games-only)
 // AddMediaModal.tsx and ScanModal.tsx. A domain wires this in by supplying a
@@ -32,16 +32,6 @@ export interface LibraryModalConfig {
   // (see AddMediaModal's former import-from-path flow), only supply
   // importFromPathApiPath when a domain actually has one.
   importFromPathApiPath?: string;
-  // Only software_media's finalize does not create a DB row (it stages bytes
-  // and returns {path, slug, size_bytes}, see
-  // backend/service/uploads/software_media.py). When set, this runs after a
-  // successful *inline* (non-background) finalize and before onComplete(),
-  // to make the actual POST that creates the row. Undefined for every other
-  // domain, whose finalize already creates the row server-side. Only reached
-  // from the single-file upload flow (startUpload) today, software_media's
-  // allowed_kinds is {"file"} only, so supportsMultiDisc/supportsFolderMode
-  // must stay unset for a domain that sets this.
-  createFromUpload?: (body: ChunkedUploadResult['body'], fileName: string) => Promise<void>;
 }
 
 export interface UploadEntry {

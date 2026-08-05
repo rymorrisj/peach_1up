@@ -15,6 +15,7 @@ from backend.models.environment import HealthSummary, StorageStats
 from backend.models.user import UserItem
 from backend.service.environments import environments as env_svc
 from backend.service.environments.environments import get_drive_images_bytes
+from backend.service.games.items import _target_size
 
 router = APIRouter(prefix="/api/v1", tags=["health"])
 
@@ -215,15 +216,19 @@ def rescan_file_sizes(
     ).fetchall()
     updated = 0
     for item_id, file_path in rows:
-        try:
-            size = os.path.getsize(file_path)
-            db.execute(
-                text("UPDATE game_items SET file_size_bytes = :size WHERE id = :id"),
-                {"size": size, "id": item_id},
-            )
-            updated += 1
-        except (OSError, TypeError):
-            pass
+        # _target_size matches the sizing ingest uses (a .cue/.gdi pointer
+        # sums its referenced tracks instead of reporting the pointer file's
+        # own few hundred bytes), so backfilled rows agree with freshly
+        # ingested ones. It returns None (rather than raising) on directories
+        # and OSError, which this loop treats as "could not determine, skip".
+        size = _target_size(Path(file_path))
+        if size is None:
+            continue
+        db.execute(
+            text("UPDATE game_items SET file_size_bytes = :size WHERE id = :id"),
+            {"size": size, "id": item_id},
+        )
+        updated += 1
     db.commit()
     _get_storage_footprint(db, force_refresh=True)
     return {"updated": updated}

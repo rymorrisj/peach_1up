@@ -4,7 +4,6 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.constants_generated import EraValue
@@ -455,7 +454,9 @@ def import_scan_results(
     drive here — the drive is created lazily on first launch
     (drive_hydration.hydrate_drive_for_entity).
     """
-    from backend.service.games.items import _ItemAlreadyExists, _persist_collection_of_one, _prepare_item
+    from backend.service.games.items import (
+        _ingest_transaction, _ItemAlreadyExists, _persist_collection_of_one, _prepare_item, _SlugCollision,
+    )
 
     used_slugs: set[str] = {
         s
@@ -469,40 +470,46 @@ def import_scan_results(
     for item in body.selected:
         path = item.path
         title = item.title or Path(path).stem.replace("-", " ").title()
+        # Each item gets its own _ingest_transaction (undo_ops is per-item, not
+        # shared across the batch): a staging failure on item N must roll back
+        # and replay only item N's filesystem moves, not abort or undo the items
+        # already committed before it. This route already treats the batch as
+        # independent per-item units (skip/continue on failure), not all-or-
+        # nothing, so per-item transaction scope matches existing semantics.
+        undo_ops: list = []
+        row: dict | None = None
         try:
-            # item.era is the era the scan preview auto-detected, echoed back by
-            # the client from an earlier request. _prepare_item no longer trusts
-            # it for the persisted era or detection_reason (it always re-detects
-            # against the file on disk at import time instead), it is passed
-            # through only as a directory-file-selection hint for multi-format
-            # folders. See _prepare_item's docstring for why the client echo is
-            # not trusted.
-            row = _prepare_item(path, title, db, used_slugs=used_slugs, detected_era=item.era)
+            with _ingest_transaction(db, undo_ops):
+                # item.era is the era the scan preview auto-detected, echoed
+                # back by the client from an earlier request. _prepare_item no
+                # longer trusts it for the persisted era or detection_reason
+                # (it always re-detects against the file on disk at import
+                # time instead), it is passed through only as a directory-
+                # file-selection hint for multi-format folders. See
+                # _prepare_item's docstring for why the client echo is not
+                # trusted.
+                row = _prepare_item(
+                    path, title, db, used_slugs=used_slugs, detected_era=item.era, _undo_stack=undo_ops,
+                )
+                _persist_collection_of_one(row, db)
+                db.commit()
+            imported += 1
         except _ItemAlreadyExists:
             skipped += 1
-            continue
+        except _SlugCollision as exc:
+            if row is not None:
+                used_slugs.discard(row.get("slug"))
+            errors.append({"path": path, "reason": str(exc)})
         except HTTPException as exc:
             errors.append({"path": path, "reason": exc.detail})
-            continue
         except Exception as exc:
-            logger.exception("Import: error preparing '%s'", path)
-            errors.append({"path": path, "reason": str(exc)})
-            continue
-        try:
-            _persist_collection_of_one(row, db)
-            db.commit()
-            imported += 1
-        except IntegrityError:
-            db.rollback()
-            used_slugs.discard(row.get("slug"))
-            errors.append({"path": path, "reason": "Import collided with a concurrent import, please retry."})
-        except Exception as exc:
-            # A single item's persist failure must never abort the rest of the
-            # batch or leave a poisoned session for the next iteration — same
-            # per-item containment as the _prepare_item exception handling above.
-            db.rollback()
-            used_slugs.discard(row.get("slug"))
-            logger.exception("Import: error persisting '%s'", path)
+            # A single item's failure must never abort the rest of the batch or
+            # leave a poisoned session for the next iteration.
+            if row is not None:
+                used_slugs.discard(row.get("slug"))
+            logger.exception(
+                "Import: error %s '%s'", "persisting" if row is not None else "preparing", path,
+            )
             errors.append({"path": path, "reason": str(exc)})
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
