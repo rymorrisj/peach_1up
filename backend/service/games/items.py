@@ -666,23 +666,25 @@ def _stage_file_source(
     return dest_folder
 
 
-def _reconcile_owned_folder(row: dict, owned_root: Path | None, db: Session, undo_stack, log) -> None:
-    """Rename the ingest-owned folder to match row["slug"], then rewrite every
-    path field that lived under it.
+def _reconcile_owned_folder(
+    collection_fields: dict, leaf_fields: dict, owned_root: Path | None, db: Session, undo_stack, log
+) -> None:
+    """Rename the ingest-owned folder to match collection_fields["slug"], then
+    rewrite every leaf path field that lived under it.
 
     Covers both directory ingest (folder named from the source directory) and
     file ingest with SOFTWARE_PATH configured (folder named from the file's
     stem); the two start from different source strings and different uniqueness
-    checks, so without this step the folder name and row["slug"] can diverge.
+    checks, so without this step the folder name and the slug can diverge.
     No-op when this ingest owns no directory.
     """
     if owned_root is None:
         return
-    slug_folder = _reconcile_folder_to_slug(owned_root, row["slug"], db, undo_stack=undo_stack)
-    row["slug"] = slug_folder.name
+    slug_folder = _reconcile_folder_to_slug(owned_root, collection_fields["slug"], db, undo_stack=undo_stack)
+    collection_fields["slug"] = slug_folder.name
     if slug_folder != owned_root:
         _rewrite_paths_after_folder_rename(
-            row, ("folder_path", "file_path", "executable_path", "cover_art_path"),
+            leaf_fields, ("folder_path", "file_path", "executable_path", "cover_art_path"),
             owned_root, slug_folder, log,
         )
 
@@ -817,12 +819,13 @@ def _prepare_item(
     detected_era: str | None = None,
     user_override_era: str | None = None,
     _undo_stack: list | None = None,
-) -> dict:
+) -> tuple[dict, list[dict]]:
     """
     Run validate_source, detect and stage_files for one media path, without
-    writing to the DB, and return a mapping of all column values (collection-
-    and leaf-level) for a collection-of-one. The caller runs the persist stage
-    (_persist_collection_of_one) and owns the transaction.
+    writing to the DB, and return ``(collection_fields, [leaf_fields])`` for a
+    collection-of-one, the single-leaf counterpart to _prepare_multi_disc's
+    return shape. The caller runs the persist stage
+    (_persist_multi_disc_collection) and owns the transaction.
 
     Filesystem side effects (folder creation, file move, slug rename) happen in
     the staging stage only, and each one registers an undo callable on
@@ -859,34 +862,36 @@ def _prepare_item(
     src = _validate_source(media_path, db)
     media_src = src.path
 
-    row: dict = {
+    collection_fields: dict = {
         "title": title,
         "era": "unknown",
-        "file_path": str(media_src),
-        "original_name": media_src.name,
         "slug": None,
         "sort_title": None,
         "category": None,
-        "file_type": None,
-        "folder_path": None,
-        "folder_owned": None,
-        "cover_art_path": None,
         "description": None,
         "publisher": None,
         "year": None,
         "external_game_id": None,
         "metadata_source": None,
         "content_rating": None,
-        "executable_path": None,
         "launch_commands": None,
         "launch_review_flagged": False,
         "installed": False,
         "requires_install": False,
-        "detection_reason": None,
         "environment_item_id": None,
         "profile_item_id": None,
         "last_launched_at": None,
         "launch_count": 0,
+    }
+    leaf_fields: dict = {
+        "file_path": str(media_src),
+        "original_name": media_src.name,
+        "file_type": None,
+        "folder_path": None,
+        "folder_owned": None,
+        "cover_art_path": None,
+        "executable_path": None,
+        "detection_reason": None,
         "file_size_bytes": None,
         "verification_status": "unchecked",
         "verification_similarity": None,
@@ -912,7 +917,7 @@ def _prepare_item(
             log=log,
         )
         # Stage 3: stage_files.
-        _owned_folder_root = _stage_directory_source(row, media_src, detection)
+        _owned_folder_root = _stage_directory_source(leaf_fields, media_src, detection)
     else:
         # A loose file runs Stage 3 before Stage 2, deliberately. Staging can
         # resolve file_path to an already-present identical file at the
@@ -921,35 +926,35 @@ def _prepare_item(
         # up tracked, not against the source bytes. A directory source has no
         # equivalent case, which is why it is the branch that detects first.
         _owned_folder_root = _stage_file_source(
-            row, media_src, db, games_root_str=games_root_str, undo_stack=_undo_stack,
+            leaf_fields, media_src, db, games_root_str=games_root_str, undo_stack=_undo_stack,
         )
-        detection = _detect_file_source(Path(row["file_path"]), log)
-        row["executable_path"] = str(detection.executable_path)
+        detection = _detect_file_source(Path(leaf_fields["file_path"]), log)
+        leaf_fields["executable_path"] = str(detection.executable_path)
 
     # Slug, using the in-memory set when batching to avoid N DB round-trips.
     if used_slugs is not None:
-        row["slug"] = unique_slug(title, lambda s: s in used_slugs)
-        used_slugs.add(row["slug"])
+        collection_fields["slug"] = unique_slug(title, lambda s: s in used_slugs)
+        used_slugs.add(collection_fields["slug"])
     else:
-        row["slug"] = generate_collection_slug(title, db)
+        collection_fields["slug"] = generate_collection_slug(title, db)
 
-    _reconcile_owned_folder(row, _owned_folder_root, db, _undo_stack, log)
+    _reconcile_owned_folder(collection_fields, leaf_fields, _owned_folder_root, db, _undo_stack, log)
 
     # Stage 3.5: the shared persist-adjacent stage, run against the
     # post-reconciliation paths so classify(), the size probe and the rating
     # scan all see the file where it finally lives.
-    collection_fields, leaf_fields = _finalize_row_fields(
+    collection_result, leaf_result = _finalize_row_fields(
         title,
-        [Path(row["file_path"])],
+        [Path(leaf_fields["file_path"])],
         detection.scan,
         db,
         user_override_era=user_override_era,
         override_profile_item_id=override_profile_item_id,
     )
-    row.update(collection_fields)
-    row.update(leaf_fields[0])
+    collection_fields.update(collection_result)
+    leaf_fields.update(leaf_result[0])
 
-    return row
+    return collection_fields, [leaf_fields]
 
 
 def _enforce_environment_binding(collection: GameItemBundle) -> None:
@@ -964,32 +969,6 @@ def _enforce_environment_binding(collection: GameItemBundle) -> None:
             status_code=422,
             detail="Console software cannot have an environment_item_id; Environment is strictly PC.",
         )
-
-
-def _persist_collection_of_one(row: dict, db: Session) -> GameItemBundle:
-    """Create a GameItemBundle + its single GameItem leaf from a prepared row.
-
-    Flushes both so ids exist and launch/display disk pointers are set to the
-    leaf. Does NOT commit — the caller owns the transaction (and any undo of
-    filesystem side effects on IntegrityError).
-    """
-    collection = GameItemBundle(**{k: row[k] for k in _COLLECTION_COLUMNS if k in row})
-    _enforce_environment_binding(collection)
-    db.add(collection)
-    db.flush()
-
-    leaf = GameItem(
-        game_item_bundle_id=collection.id,
-        disc_number=1,
-        **{k: row[k] for k in _LEAF_COLUMNS if k in row},
-    )
-    db.add(leaf)
-    db.flush()
-
-    collection.launch_disk_id = leaf.id
-    collection.display_disk_id = leaf.id
-    db.add(collection)
-    return collection
 
 
 def _replay_undo(undo_stack: list) -> None:
@@ -1057,12 +1036,12 @@ def _ingest_media_entry(
     """
     undo_ops: list = []
     with _ingest_transaction(db, undo_ops):
-        row = _prepare_item(
+        collection_fields, leaf_rows = _prepare_item(
             media_path, title, db,
             override_profile_item_id=override_profile_item_id,
             _undo_stack=undo_ops,
         )
-        collection = _persist_collection_of_one(row, db)
+        collection = _persist_multi_disc_collection(collection_fields, leaf_rows, db)
         db.commit()
 
     db.refresh(collection)
@@ -1218,7 +1197,8 @@ def _persist_multi_disc_collection(
     collection_fields: dict, leaf_rows: list[dict], db: Session
 ) -> GameItemBundle:
     """Create a GameItemBundle plus one GameItem leaf per disc from prepared
-    rows, the N-leaf counterpart to _persist_collection_of_one.
+    rows. Shared by every ingest shape, including the collection-of-one case
+    (called with a single-element leaf_rows list).
 
     Flushes so ids exist and the launch/display disk pointers can be set to
     disc 1. Does NOT commit: the caller owns the transaction (and any undo of

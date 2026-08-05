@@ -455,7 +455,7 @@ def import_scan_results(
     (drive_hydration.hydrate_drive_for_entity).
     """
     from backend.service.games.items import (
-        _ingest_transaction, _ItemAlreadyExists, _persist_collection_of_one, _prepare_item, _SlugCollision,
+        _ingest_transaction, _ItemAlreadyExists, _persist_multi_disc_collection, _prepare_item, _SlugCollision,
     )
 
     used_slugs: set[str] = {
@@ -477,7 +477,7 @@ def import_scan_results(
         # independent per-item units (skip/continue on failure), not all-or-
         # nothing, so per-item transaction scope matches existing semantics.
         undo_ops: list = []
-        row: dict | None = None
+        collection_fields: dict | None = None
         try:
             with _ingest_transaction(db, undo_ops):
                 # item.era is the era the scan preview auto-detected, echoed
@@ -488,27 +488,27 @@ def import_scan_results(
                 # file-selection hint for multi-format folders. See
                 # _prepare_item's docstring for why the client echo is not
                 # trusted.
-                row = _prepare_item(
+                collection_fields, leaf_rows = _prepare_item(
                     path, title, db, used_slugs=used_slugs, detected_era=item.era, _undo_stack=undo_ops,
                 )
-                _persist_collection_of_one(row, db)
+                _persist_multi_disc_collection(collection_fields, leaf_rows, db)
                 db.commit()
             imported += 1
         except _ItemAlreadyExists:
             skipped += 1
         except _SlugCollision as exc:
-            if row is not None:
-                used_slugs.discard(row.get("slug"))
+            if collection_fields is not None:
+                used_slugs.discard(collection_fields.get("slug"))
             errors.append({"path": path, "reason": str(exc)})
         except HTTPException as exc:
             errors.append({"path": path, "reason": exc.detail})
         except Exception as exc:
             # A single item's failure must never abort the rest of the batch or
             # leave a poisoned session for the next iteration.
-            if row is not None:
-                used_slugs.discard(row.get("slug"))
+            if collection_fields is not None:
+                used_slugs.discard(collection_fields.get("slug"))
             logger.exception(
-                "Import: error %s '%s'", "persisting" if row is not None else "preparing", path,
+                "Import: error %s '%s'", "persisting" if collection_fields is not None else "preparing", path,
             )
             errors.append({"path": path, "reason": str(exc)})
 

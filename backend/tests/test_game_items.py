@@ -44,16 +44,17 @@ def _patch_settings(monkeypatch, media_path: Path):
     monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings(str(media_path)))
 
 
-def _call_prepare(path: str, title: str, session) -> dict:
+def _call_prepare(path: str, title: str, session) -> tuple[dict, dict]:
     from backend.service.games.items import _prepare_item
-    return _prepare_item(path, title, session)
+    collection_fields, leaf_rows = _prepare_item(path, title, session)
+    return collection_fields, leaf_rows[0]
 
 
-def _commit_row(row: dict, session):
+def _commit_row(collection_fields: dict, leaf_fields: dict, session):
     # Persist a collection-of-one (parent + leaf) so dedup queries against the
     # leaf's folder_path/media_path find it on re-import.
-    from backend.service.games.items import _persist_collection_of_one
-    collection = _persist_collection_of_one(row, session)
+    from backend.service.games.items import _persist_multi_disc_collection
+    collection = _persist_multi_disc_collection(collection_fields, [leaf_fields], session)
     session.commit()
     return collection
 
@@ -80,14 +81,14 @@ class TestPrepareFolderRename:
         src_file.write_bytes(b"fake exe")
 
         _patch_settings(monkeypatch, media_root)
-        row = _call_prepare(str(src_file), "Doom", mem_session)
+        collection_fields, leaf_fields = _call_prepare(str(src_file), "Doom", mem_session)
 
         canonical = games_root / "doom"
         assert canonical.is_dir(), "Canonical folder must exist after rename"
         assert not src_folder.exists(), "Original folder must be gone after rename"
         assert (canonical / "doom.exe").is_file()
-        assert row["folder_path"] == str(canonical)
-        assert row["file_path"] == str(canonical / "doom.exe")
+        assert leaf_fields["folder_path"] == str(canonical)
+        assert leaf_fields["file_path"] == str(canonical / "doom.exe")
 
     def test_already_canonically_named_folder_no_rename(self, tmp_path, mem_session, monkeypatch):
         """File in games_root/doom/doom.exe — folder name already matches stem,
@@ -102,12 +103,12 @@ class TestPrepareFolderRename:
         src_file.write_bytes(b"fake exe")
 
         _patch_settings(monkeypatch, media_root)
-        row = _call_prepare(str(src_file), "Doom", mem_session)
+        collection_fields, leaf_fields = _call_prepare(str(src_file), "Doom", mem_session)
 
         assert src_folder.is_dir(), "Correctly-named folder must still be there"
         assert src_file.is_file(), "File must not have moved"
-        assert row["folder_path"] == str(src_folder)
-        assert row["file_path"] == str(src_file)
+        assert leaf_fields["folder_path"] == str(src_folder)
+        assert leaf_fields["file_path"] == str(src_file)
 
     def test_canonical_target_exists_falls_back_to_move(self, tmp_path, mem_session, monkeypatch):
         """If games_root/doom/ already exists on disk, the rename branch is
@@ -124,11 +125,11 @@ class TestPrepareFolderRename:
         src_file.write_bytes(b"fake exe")
 
         _patch_settings(monkeypatch, media_root)
-        row = _call_prepare(str(src_file), "Doom", mem_session)
+        collection_fields, leaf_fields = _call_prepare(str(src_file), "Doom", mem_session)
 
         assert (existing_canonical / "doom.exe").is_file()
-        assert row["folder_path"] == str(existing_canonical)
-        assert row["file_path"] == str(existing_canonical / "doom.exe")
+        assert leaf_fields["folder_path"] == str(existing_canonical)
+        assert leaf_fields["file_path"] == str(existing_canonical / "doom.exe")
 
     def test_loose_file_at_games_root_still_creates_canonical_folder(self, tmp_path, mem_session, monkeypatch):
         """A file placed directly inside games_root (loose, no parent subfolder)
@@ -141,13 +142,13 @@ class TestPrepareFolderRename:
         src_file.write_bytes(b"fake exe")
 
         _patch_settings(monkeypatch, media_root)
-        row = _call_prepare(str(src_file), "Doom", mem_session)
+        collection_fields, leaf_fields = _call_prepare(str(src_file), "Doom", mem_session)
 
         canonical = games_root / "doom"
         assert canonical.is_dir()
         assert (canonical / "doom.exe").is_file()
         assert not src_file.exists(), "Loose file must have been moved into the canonical folder"
-        assert row["folder_path"] == str(canonical)
+        assert leaf_fields["folder_path"] == str(canonical)
 
     def test_file_in_deeply_nested_subfolder_not_renamed(self, tmp_path, mem_session, monkeypatch):
         """A file two levels deep (games_root/a/b/file.exe) does not trigger the
@@ -194,8 +195,8 @@ class TestPrepareDuplication:
         from backend.service.games.items import _ItemAlreadyExists
 
         _patch_settings(monkeypatch, media_root)
-        row = _call_prepare(str(folder), "Doom", mem_session)
-        _commit_row(row, mem_session)
+        collection_fields, leaf_fields = _call_prepare(str(folder), "Doom", mem_session)
+        _commit_row(collection_fields, leaf_fields, mem_session)
 
         with pytest.raises(_ItemAlreadyExists):
             _call_prepare(str(folder), "Doom", mem_session)
@@ -213,10 +214,10 @@ class TestPrepareDuplication:
         from backend.service.games.items import _ItemAlreadyExists
 
         _patch_settings(monkeypatch, media_root)
-        row = _call_prepare(str(src_file), "Doom", mem_session)
-        _commit_row(row, mem_session)
+        collection_fields, leaf_fields = _call_prepare(str(src_file), "Doom", mem_session)
+        _commit_row(collection_fields, leaf_fields, mem_session)
 
-        canonical_file = Path(row["file_path"])
+        canonical_file = Path(leaf_fields["file_path"])
         assert canonical_file.exists(), "canonical file must exist after rename"
 
         with pytest.raises(_ItemAlreadyExists):
@@ -234,10 +235,10 @@ class TestPrepareDuplication:
         from backend.service.games.items import _ItemAlreadyExists
 
         _patch_settings(monkeypatch, media_root)
-        row = _call_prepare(str(src_folder / "doom.exe"), "Doom", mem_session)
-        _commit_row(row, mem_session)
+        collection_fields, leaf_fields = _call_prepare(str(src_folder / "doom.exe"), "Doom", mem_session)
+        _commit_row(collection_fields, leaf_fields, mem_session)
 
-        canonical_folder = Path(row["folder_path"])
+        canonical_folder = Path(leaf_fields["folder_path"])
         assert canonical_folder.is_dir()
 
         with pytest.raises(_ItemAlreadyExists):
@@ -254,10 +255,10 @@ class TestPrepareDuplication:
         from backend.service.games.items import _ItemAlreadyExists
 
         _patch_settings(monkeypatch, media_root)
-        row = _call_prepare(str(src_file), "Doom", mem_session)
-        _commit_row(row, mem_session)
+        collection_fields, leaf_fields = _call_prepare(str(src_file), "Doom", mem_session)
+        _commit_row(collection_fields, leaf_fields, mem_session)
 
         # The file was moved to the canonical path; that path is now tracked.
-        canonical_file = Path(row["file_path"])
+        canonical_file = Path(leaf_fields["file_path"])
         with pytest.raises(_ItemAlreadyExists):
             _call_prepare(str(canonical_file), "Doom Again", mem_session)
