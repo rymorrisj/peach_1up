@@ -103,7 +103,7 @@ def dedup_disc_anchor(media_root: Path, anchor: Path, db: Session) -> Path:
     one exists on disk, avoiding a redundant copy — the same treatment a
     ``kind == "file"`` upload already gets via ``find_existing_duplicate``.
 
-    ``_create_multi_disc_collection`` has no existing-file_path guard the way
+    The multi-disc ingest stages carry no existing-file_path guard the way
     ``_prepare_item`` does for single items, so a duplicate that is still a
     live ``GameItem.file_path`` is rejected here with ``_ItemAlreadyExists``
     (same exception the file-kind path raises, caught by the upload route as a
@@ -138,13 +138,31 @@ def ingest_folder(
     collection-of-one). Raises the same 4xx HTTPExceptions as the ingester
     on a duplicate/collision — callers translate those (inline route) or mark the
     job failed (background finalizer).
+
+    This function owns the multi-disc transaction: it drives the ingest stages
+    itself and commits. On failure ``_ingest_transaction`` rolls the session
+    back and replays the staging stage's undo callables, which is what renames
+    ``dest_dir`` back from its slug name so this module's caller
+    (``software_games.finalize_reassembled``) can still find and remove it by
+    the pre-rename path it holds. The collection-of-one branch below delegates
+    to ``_ingest_media_entry``, which runs the identical sequence internally.
     """
     disc_files = detect_disc_files(written_paths)
     if disc_files:
         disc_files[0] = dedup_disc_anchor(media_root, disc_files[0], db)
-        collection = lib_svc._create_multi_disc_collection(
-            disc_files, title.strip(), db, staging_dir=dest_dir
-        )
+        clean_title = title.strip()
+        undo_ops: list = []
+        with lib_svc._ingest_transaction(
+            db,
+            undo_ops,
+            slug_collision_detail=lib_svc.multi_disc_slug_collision_detail(clean_title, disc_files),
+        ):
+            collection_fields, leaf_rows = lib_svc._prepare_multi_disc(
+                disc_files, clean_title, db, staging_dir=dest_dir, undo_stack=undo_ops
+            )
+            collection = lib_svc._persist_multi_disc_collection(collection_fields, leaf_rows, db)
+            db.commit()
+        db.refresh(collection)
         return "game_item_bundle", collection, len(disc_files)
 
     pick_folder_launch_file(written_paths)

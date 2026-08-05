@@ -6,8 +6,8 @@ Covers three functions introduced in the folder-upload / multi-disc feature:
   selection including GDI-first priority.
 - _detect_disc_files (library route): multi-disc detection and 422 guard for
   ambiguous mixed .cue/.gdi uploads.
-- _create_multi_disc_collection (library service): DB creation of LibraryCollection +
-  LibraryItem records for a multi-disc folder.
+- the multi-disc ingest stages (library service): _prepare_multi_disc plus
+  _persist_multi_disc_collection, creating a bundle + one leaf per disc.
 
 GDI divergence note: _EXECUTABLE_PRIORITY in profile_builder.py did NOT include
 .gdi, so _prepare_item would store executable_path=None for Dreamcast folders
@@ -109,7 +109,7 @@ class TestDetectDiscFiles:
 
 
 # ---------------------------------------------------------------------------
-# _create_multi_disc_collection — DB integration
+# Multi-disc ingest stages: DB integration
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
@@ -126,6 +126,33 @@ def mem_session():
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
         yield session
+
+
+def _create_multi_disc_collection(disc_files, title, db, *, staging_dir=None):
+    """Test-local driver for the multi-disc ingest stages.
+
+    _create_multi_disc_collection was split into _prepare_multi_disc (detect +
+    stage_files, no DB writes) and _persist_multi_disc_collection (no commit),
+    with the transaction owned by the caller. This runs the same
+    prepare/persist/commit sequence folder_ingest.ingest_folder and
+    software_games.finalize_reassembled now run, so these tests keep exercising
+    the production sequence rather than a shortcut through it.
+    """
+    from backend.service.games.items import (
+        _ingest_transaction,
+        _persist_multi_disc_collection,
+        _prepare_multi_disc,
+    )
+
+    undo_ops: list = []
+    with _ingest_transaction(db, undo_ops):
+        collection_fields, leaf_rows = _prepare_multi_disc(
+            disc_files, title, db, staging_dir=staging_dir, undo_stack=undo_ops
+        )
+        collection = _persist_multi_disc_collection(collection_fields, leaf_rows, db)
+        db.commit()
+    db.refresh(collection)
+    return collection
 
 
 class _FakeScanResult:
@@ -155,7 +182,6 @@ class TestCreateMultiDiscSet:
         return files
 
     def test_two_disc_set_creates_one_set_and_two_items(self, tmp_path, mem_session):
-        from backend.service.games.items import _create_multi_disc_collection
         from backend.models.game import GameItemBundle, GameItem
 
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
@@ -169,7 +195,6 @@ class TestCreateMultiDiscSet:
         assert len(items) == 2
 
     def test_launch_disk_id_points_to_first_disc(self, tmp_path, mem_session):
-        from backend.service.games.items import _create_multi_disc_collection
         from backend.models.game import GameItem
 
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
@@ -184,7 +209,6 @@ class TestCreateMultiDiscSet:
         assert library_set.launch_disk_id == items[0].id
 
     def test_each_item_has_gdi_as_executable_path(self, tmp_path, mem_session):
-        from backend.service.games.items import _create_multi_disc_collection
         from backend.models.game import GameItem
 
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
@@ -202,7 +226,6 @@ class TestCreateMultiDiscSet:
             assert Path(item.executable_path).suffix.lower() == ".gdi"
 
     def test_disc_numbers_are_sequential_from_one(self, tmp_path, mem_session):
-        from backend.service.games.items import _create_multi_disc_collection
         from backend.models.game import GameItem
 
         disc_files = self._make_disc_files(tmp_path, ["disc1.cue", "disc2.cue", "disc3.cue"])
@@ -217,7 +240,6 @@ class TestCreateMultiDiscSet:
         assert [i.disc_number for i in items] == [1, 2, 3]
 
     def test_era_from_detector_stored_on_set(self, tmp_path, mem_session):
-        from backend.service.games.items import _create_multi_disc_collection
         from backend.models.game import GameItemBundle
 
         disc_files = self._make_disc_files(tmp_path, ["d1.gdi", "d2.gdi"])
@@ -230,7 +252,6 @@ class TestCreateMultiDiscSet:
         """detect_rating is called with disc_files[0] only — a bracketed rating
         tag on disc 1's filename must land on the GameItemBundle, matching
         rating_detect's strict (bracket-guarded) filename-stem fallback."""
-        from backend.service.games.items import _create_multi_disc_collection
         from backend.models.game import GameItemBundle
 
         disc_files = self._make_disc_files(tmp_path, ["disc1 [M].gdi", "disc2.gdi"])
@@ -242,7 +263,6 @@ class TestCreateMultiDiscSet:
     def test_cover_art_found_next_to_disc_one_lands_on_first_disc_only(self, tmp_path, mem_session):
         """_find_cover is called on disc_files[0]'s parent — a cover image found
         there must land on disc 1's item only, never on later discs."""
-        from backend.service.games.items import _create_multi_disc_collection
         from backend.models.game import GameItem
 
         (tmp_path / "cover.jpg").write_bytes(b"\xff\xd8\xff")
@@ -280,7 +300,6 @@ class TestDedupDiscAnchor:
         reused: the anchor is repointed at it and the newly-uploaded copy is
         deleted rather than kept as a redundant second copy."""
         from backend.service.games.folder_ingest import dedup_disc_anchor
-        from backend.service.games.items import _create_multi_disc_collection
         from backend.models.game import GameItem
 
         media_root = tmp_path

@@ -74,10 +74,29 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, domain_root: Path, db: Ses
             # unique-slugged reasm.dest_dir together, and must stay together.
             # Repointing disc 1 at a byte-identical file elsewhere on disk would
             # split the set across two folders.
+            #
+            # This branch owns its transaction: it drives the ingest stages and
+            # commits. _ingest_transaction rolls back and replays the staging
+            # stage's undo callables on failure, which renames reasm.dest_dir
+            # back from its slug name so the except clause below can still
+            # rmtree it by the path it holds.
             disc_files = folder_ingest.select_disc_pointer_files(reasm.paths)
-            collection = lib_svc._create_multi_disc_collection(
-                disc_files, reasm.title, db, staging_dir=reasm.dest_dir
-            )
+            undo_ops: list = []
+            with lib_svc._ingest_transaction(
+                db,
+                undo_ops,
+                slug_collision_detail=lib_svc.multi_disc_slug_collision_detail(
+                    reasm.title, disc_files
+                ),
+            ):
+                collection_fields, leaf_rows = lib_svc._prepare_multi_disc(
+                    disc_files, reasm.title, db, staging_dir=reasm.dest_dir, undo_stack=undo_ops
+                )
+                collection = lib_svc._persist_multi_disc_collection(
+                    collection_fields, leaf_rows, db
+                )
+                db.commit()
+            db.refresh(collection)
             return {
                 "result_type": "game_item_bundle",
                 "id": collection.id,

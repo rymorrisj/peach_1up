@@ -82,7 +82,7 @@ class GameItem(SQLModel, table=True):
     # its own tracking column rather than being folded into the bundle's.
     metadata_fetched_at: Optional[datetime] = None
     # Set automatically at ingest time from smart_media_detector.classify()
-    # (see _prepare_item / _create_multi_disc_collection in
+    # (see _prepare_item / _prepare_multi_disc in
     # backend/service/games/items.py, one classify() call per disc), and
     # refreshed on demand by the /api/v1/game-item/{leaf_id}/verify and
     # /api/v1/game-item-bundle/{collection_id}/verify endpoints.
