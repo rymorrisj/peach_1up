@@ -27,18 +27,16 @@ from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
 from backend.service.utils.path_utils import allowed_browse_roots, is_within_roots, normalise_path
 from backend.service.utils.sort_utils import apply_bundle_sort
-from backend.service.utils.upload_utils import DEFAULT_BACKGROUND_THRESHOLD_BYTES, DEFAULT_MAX_BYTES
+from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES
 
 router = APIRouter(prefix="/api/v1", tags=["games"])
 logger = get_logger(__name__)
 
-# Guards re-entry ("one scan running at a time") only — no preview or other
-# scan output is cached here. A finished scan's results live solely in the
-# core.jobs result payload; this state is purely a running/error/job_id flag.
+# Guards re-entry ("one scan running at a time") only. Scan state itself
+# (running/error/job_id) lives entirely in core.jobs now, not in a parallel
+# set of module globals, this lock's scope is narrowed to just the
+# check-then-create race in trigger_scan below, not a running/error mirror.
 _scan_lock = threading.Lock()
-_scan_running = False
-_scan_error: str | None = None
-_scan_job_id: str | None = None
 
 _SCAN_RATE_LIMIT = 5
 _SCAN_RATE_WINDOW_SECONDS = 60.0
@@ -196,34 +194,20 @@ def import_from_path(
             detail=f"Import exceeds the maximum allowed size ({DEFAULT_MAX_BYTES // 1024 ** 3} GB).",
         )
 
-    from backend.core.settings import get_settings
     from backend.service.utils.path_utils import library_domain_root
-    svc = get_settings()
     # Games-only route today, so the destination domain is always "games".
     domain_root = library_domain_root("games")
-    try:
-        threshold = int(svc.get("UPLOAD_BACKGROUND_THRESHOLD_BYTES", DEFAULT_BACKGROUND_THRESHOLD_BYTES)
-                         or DEFAULT_BACKGROUND_THRESHOLD_BYTES)
-    except (TypeError, ValueError):
-        threshold = DEFAULT_BACKGROUND_THRESHOLD_BYTES
 
-    if size > threshold:
-        job_id = jobs.create("upload", message=f"Importing \"{title}\"…")
-        background_tasks.add_task(
-            path_import.import_background,
-            str(resolved), title, str(domain_root), job_id, body.delete_original,
-        )
-        return JSONResponse(status_code=202, content={"job_id": job_id, "status": "processing"})
-
-    try:
-        result = path_import.import_inline(resolved, title, domain_root, db, body.delete_original)
-    except lib_svc._ItemAlreadyExists:
-        raise HTTPException(status_code=409, detail="This item is already in the library.")
-    except lib_svc._SlugCollision as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return JSONResponse(status_code=201, content=result)
+    # Always a background job, same "one job lifecycle" decision as chunked
+    # upload, no inline/background size split. _ItemAlreadyExists/_SlugCollision
+    # are reported into the job via jobs.fail() inside import_background
+    # itself, not translated into an HTTP response here.
+    job_id = jobs.create("upload", message=f"Importing \"{title}\"…")
+    background_tasks.add_task(
+        path_import.import_background,
+        str(resolved), title, str(domain_root), job_id, body.delete_original,
+    )
+    return JSONResponse(status_code=202, content={"job_id": job_id, "status": "processing"})
 
 
 # ---------------------------------------------------------------------------
@@ -231,10 +215,24 @@ def import_from_path(
 # ---------------------------------------------------------------------------
 
 
+def _latest_scan_job() -> dict | None:
+    """Most recent "scan"-kind job, if any have ever run this process
+    lifetime. jobs.list_recent() returns oldest-first, so the last match is
+    the most recent."""
+    scans = [j for j in jobs.list_recent() if j["kind"] == "scan"]
+    return scans[-1] if scans else None
+
+
 @router.get("/game-items/scan/status", response_model=ScanStatus)
 def scan_status(_: UserItem = require_permission("can_manage_game")):
-    with _scan_lock:
-        return {"running": _scan_running, "job_id": _scan_job_id, "error": _scan_error}
+    job = _latest_scan_job()
+    if job is None:
+        return {"running": False, "job_id": None, "error": None}
+    return {
+        "running": job["status"] in ("processing", "cancelling"),
+        "job_id": job["id"],
+        "error": job["error"],
+    }
 
 
 @router.post("/game-items/scan/{job_id}/cancel")
@@ -280,35 +278,22 @@ def _resolve_scan_directory(domain: str) -> Path:
     return resolved
 
 
-def _dir_size_fast(root: Path) -> int:
-    """Sum of file sizes under *root* using stat only (no hashing/detection)."""
-    total = 0
-    for path in root.rglob("*"):
-        try:
-            if path.is_file():
-                total += path.stat().st_size
-        except OSError:
-            continue
-    return total
-
-
-def _scan_nav_threshold() -> int:
-    from backend.core.settings import get_settings
-    from backend.service.utils.upload_utils import DEFAULT_SCAN_NAV_THRESHOLD_BYTES
-    try:
-        return int(get_settings().get("SCAN_NAV_THRESHOLD_BYTES", DEFAULT_SCAN_NAV_THRESHOLD_BYTES)
-                   or DEFAULT_SCAN_NAV_THRESHOLD_BYTES)
-    except (TypeError, ValueError):
-        return DEFAULT_SCAN_NAV_THRESHOLD_BYTES
-
-
 def _check_known_items_findable(db: Session) -> None:
     """Fail loud if a DB-known item's file has vanished from disk (moved or
     renamed outside Peach 1UP) instead of letting scan silently work around it.
     Scan is stateless now — it re-walks disk every call and relies on
     original_name/file_path to reconcile against existing rows, so a
     known item that can no longer be found on disk is surfaced immediately
-    rather than dropped without explanation."""
+    rather than dropped without explanation.
+
+    Runs inside _run_scan's background task, not the trigger_scan route
+    itself: for a large, long-lived library this is a full DB-row scan plus
+    one Path.exists() per row, exactly the kind of pre-flight work that used
+    to make the route synchronously block before returning job_id. Raising
+    HTTPException here still produces a clean message, _run_scan's own
+    generic except Exception clause reads str(exc), which for an HTTPException
+    is just its detail (Starlette's HTTPException stores detail as the
+    exception's own message)."""
     rows = db.query(GameItem.file_path, GameItem.original_name).filter(
         GameItem.file_path.isnot(None)
     ).all()
@@ -317,7 +302,7 @@ def _check_known_items_findable(db: Session) -> None:
             name = original_name or Path(file_path).name
             raise HTTPException(
                 status_code=400,
-                detail=f"Cannot find {name} — did you move or rename it?",
+                detail=f"Cannot find {name}, did you move or rename it?",
             )
 
 
@@ -325,27 +310,25 @@ def _check_known_items_findable(db: Session) -> None:
 def trigger_scan(
     request: Request,
     background_tasks: BackgroundTasks = BackgroundTasks(),
-    db: Session = Depends(get_db),
     _: UserItem = require_permission("can_manage_game"),
 ):
-    global _scan_running, _scan_error, _scan_job_id
     _enforce_rate_limit("library-scan", request, _SCAN_RATE_LIMIT, _SCAN_RATE_WINDOW_SECONDS)
+    # Single lock scope covers the whole check-then-create sequence, so two
+    # concurrent trigger_scan calls can't both observe "no active scan" and
+    # both start one. _resolve_scan_directory is cheap (a settings lookup
+    # plus an is_dir() check, not a directory walk) so it stays synchronous
+    # here too, its 400s (unconfigured/missing SOFTWARE_PATH) are still an
+    # immediate response, not a job that fails. The expensive pre-flight
+    # check (_check_known_items_findable) is NOT run here, see _run_scan.
     with _scan_lock:
-        if _scan_running:
+        active = _latest_scan_job()
+        if active is not None and active["status"] in ("processing", "cancelling"):
             raise HTTPException(status_code=409, detail="A scan is already running.")
-    # This route is games-only today (mounted at /api/v1/game-items/scan).
-    resolved = _resolve_scan_directory("games")
-    _check_known_items_findable(db)
-    # Fast stat-only pre-pass classifies the scan so the UI knows immediately
-    # whether to keep the inline modal (small) or drop to the nav bell (large).
-    background = _dir_size_fast(resolved) > _scan_nav_threshold()
-    job_id = jobs.create("scan", message="Scanning media library…")
-    with _scan_lock:
-        _scan_running = True
-        _scan_error = None
-        _scan_job_id = job_id
+        # This route is games-only today (mounted at /api/v1/game-items/scan).
+        resolved = _resolve_scan_directory("games")
+        job_id = jobs.create("scan", message="Scanning media library…")
     background_tasks.add_task(_run_scan, str(resolved), job_id)
-    return {"started": True, "directory": str(resolved), "job_id": job_id, "background": background}
+    return {"started": True, "directory": str(resolved), "job_id": job_id}
 
 
 def _run_scan(directory: str, job_id: str | None = None) -> None:
@@ -361,18 +344,21 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
     from backend.service.utils.profile_builder import scan_media_folders
     from sqlalchemy.orm import Session as _Session
 
-    global _scan_running, _scan_error
-
     base_path = Path(directory).resolve()
     preview: list[dict] = []
     error_msg: str | None = None
     cancelled = False
 
     try:
-        entries = scan_media_folders(base_path)
-        total_entries = len(entries) or 1
         db = _Session(get_engine())
         try:
+            # Moved here from the trigger_scan route (see _check_known_items_findable's
+            # docstring): this is the pre-flight validation that used to block
+            # the route's response until it finished walking every known
+            # item's file_path.
+            _check_known_items_findable(db)
+            entries = scan_media_folders(base_path)
+            total_entries = len(entries) or 1
             existing_folder_paths: set[str] = {
                 str(Path(fp).resolve())
                 for (fp,) in db.query(GameItem.folder_path)
@@ -442,9 +428,8 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
         logger.error("Scan failed: %s", exc, exc_info=True)
         error_msg = str(exc)
     finally:
-        with _scan_lock:
-            _scan_running = False
-            _scan_error = error_msg
+        # Running/error state lives in the job itself now (core.jobs), there
+        # is no separate module-global mirror left to update.
         if job_id is not None:
             if cancelled:
                 jobs.cancel(job_id, message="Scan cancelled.")

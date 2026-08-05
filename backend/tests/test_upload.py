@@ -151,11 +151,27 @@ def _owner_user():
 # ---------------------------------------------------------------------------
 
 class TestSoftwareUploadRoute:
+    @pytest.fixture(autouse=True)
+    def _reset_jobs(self):
+        """core.jobs is a module-level, in-memory store shared across the
+        whole test process (matching _scan_state / install_registry, see its
+        own docstring), not reset by any app/DB fixture below. Every upload
+        in this class now finalizes as a background job (no inline path),
+        so tests here actually populate it, clear it before and after each
+        test so one test's job never leaks into another's assertions."""
+        from backend.core import jobs
+
+        jobs._jobs.clear()
+        jobs._cancel_events.clear()
+        yield
+        jobs._jobs.clear()
+        jobs._cancel_events.clear()
+
     @pytest.fixture
     def client(self, tmp_path, mem_db_session, monkeypatch):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
-        from backend.api.routes import game_item_bundles, uploads
+        from backend.api.routes import game_item_bundles, jobs as jobs_routes, uploads
         from backend.core.database import get_db
         from backend.core.dependencies import get_active_user
         from backend.core.lifespan import _register_upload_domains
@@ -187,6 +203,7 @@ class TestSoftwareUploadRoute:
         app = FastAPI()
         app.include_router(uploads.software_games_router)
         app.include_router(game_item_bundles.router)
+        app.include_router(jobs_routes.router)
         app.dependency_overrides[get_active_user] = _owner_user
         app.dependency_overrides[get_db] = lambda: mem_db_session
 
@@ -195,7 +212,15 @@ class TestSoftwareUploadRoute:
 
     @staticmethod
     def _upload(c, filename: str, content: bytes, title: str | None = None):
-        """Run the full init → PUT chunk → complete flow. Returns the complete response."""
+        """Run the full init → PUT chunk → complete flow, then resolve the
+        background finalize job to its terminal state and return that GET
+        /api/v1/jobs/{id} response. Every upload finalizes as a background
+        job now (no inline path), but TestClient/httpx's ASGI transport runs
+        BackgroundTasks to completion as part of the same request/response
+        cycle (no real async boundary/thread), so the job is already
+        terminal ("done" or "error") by the time /complete responds, this
+        just fetches its final state rather than the (now content-free,
+        always {job_id, status: "processing"}) /complete response body."""
         size = len(content)
         init = c.post(
             "/api/v1/uploads/software-games/init",
@@ -212,19 +237,64 @@ class TestSoftwareUploadRoute:
             f"/api/v1/uploads/software-games/{uid}/chunks/0/0",
             files={"chunk": (filename, content, "application/octet-stream")},
         )
-        return c.post(f"/api/v1/uploads/software-games/{uid}/complete")
+        complete = c.post(f"/api/v1/uploads/software-games/{uid}/complete")
+        if complete.status_code != 202:
+            return complete
+        return c.get(f"/api/v1/jobs/{complete.json()['job_id']}")
 
     @staticmethod
     def _media_files(media_path: Path) -> list[Path]:
         """Return files under media_path, excluding the tmp_chunks staging area."""
         return [p for p in media_path.rglob("*") if p.is_file() and "tmp_chunks" not in p.parts]
 
+    def test_init_job_is_pollable_before_any_bytes_transferred(self, client):
+        """Closes 2B: job creation moved from /complete to /init, so job_id
+        is usable against GET /api/v1/jobs/{id} immediately, before any
+        chunk has been PUT and long before /complete is ever called."""
+        c, _media_path = client
+        init = c.post(
+            "/api/v1/uploads/software-games/init",
+            json={"kind": "file", "title": None, "files": [{"name": "doom.iso", "size": 4, "chunks": 1}]},
+        )
+        assert init.status_code == 200, init.text
+        job_id = init.json()["job_id"]
+
+        job_resp = c.get(f"/api/v1/jobs/{job_id}")
+        assert job_resp.status_code == 200, job_resp.text
+        job = job_resp.json()
+        assert job["status"] == "processing"
+        assert job["kind"] == "upload"
+
+    def test_same_job_id_threads_from_init_through_finalize(self, client):
+        """The job /init creates is the same one /complete backgrounds and
+        finalize_background eventually completes, not a second job minted
+        somewhere along the way."""
+        c, _media_path = client
+        init = c.post(
+            "/api/v1/uploads/software-games/init",
+            json={"kind": "file", "title": None, "files": [{"name": "doom.iso", "size": 4, "chunks": 1}]},
+        )
+        job_id = init.json()["job_id"]
+        uid = init.json()["upload_id"]
+
+        c.put(
+            f"/api/v1/uploads/software-games/{uid}/chunks/0/0",
+            files={"chunk": ("doom.iso", b"data", "application/octet-stream")},
+        )
+        complete = c.post(f"/api/v1/uploads/software-games/{uid}/complete")
+        assert complete.status_code == 202, complete.text
+        assert complete.json()["job_id"] == job_id
+
+        job = c.get(f"/api/v1/jobs/{job_id}").json()
+        assert job["status"] == "done", job
+
     def test_successful_upload_creates_library_item(self, client):
         c, media_path = client
         resp = self._upload(c, "Doom.iso", b"not a real iso but enough bytes")
-        assert resp.status_code == 201, resp.text
-        body = resp.json()
-        assert body["title"] == "Doom"
+        assert resp.status_code == 200, resp.text
+        job = resp.json()
+        assert job["status"] == "done", job
+        assert job["result"]["title"] == "Doom"
         files = self._media_files(media_path)
         assert len(files) == 1
         assert files[0].is_relative_to(media_path.resolve())
@@ -254,21 +324,26 @@ class TestSoftwareUploadRoute:
     def test_traversal_filename_stays_inside_media_root(self, client):
         c, media_path = client
         resp = self._upload(c, "../../../etc/passwd", b"payload")
-        assert resp.status_code == 201, resp.text
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["status"] == "done", resp.text
         files = self._media_files(media_path)
         assert all(f.is_relative_to(media_path.resolve()) for f in files)
 
     def test_duplicate_content_on_still_tracked_item_is_rejected_without_extra_copy(self, client):
         """Uploading byte-identical content under a different filename, while the
         first upload is still a tracked library item, triggers _ItemAlreadyExists
-        at complete → 409, leaving no second physical copy behind."""
+        inside finalize_background → the job ends in 'error' with a clean
+        message, leaving no second physical copy behind."""
         c, media_path = client
         content = b"identical bytes for dedup test"
         first = self._upload(c, "doom.iso", content)
-        assert first.status_code == 201, first.text
+        assert first.json()["status"] == "done", first.text
 
         second = self._upload(c, "doom-copy.iso", content)
-        assert second.status_code == 409, second.text
+        assert second.status_code == 200, second.text
+        second_job = second.json()
+        assert second_job["status"] == "error", second_job
+        assert second_job["error"] == "This upload's content is already in the library."
 
         assert len(self._media_files(media_path)) == 1
 
@@ -279,8 +354,8 @@ class TestSoftwareUploadRoute:
         c, media_path = client
         content = b"identical bytes for dedup test"
         first = self._upload(c, "doom.iso", content)
-        assert first.status_code == 201, first.text
-        collection_id = first.json()["id"]
+        assert first.json()["status"] == "done", first.text
+        collection_id = first.json()["result"]["id"]
 
         token_resp = c.post(f"/api/v1/game-item-bundle/{collection_id}/confirm-delete")
         assert token_resp.status_code == 200, token_resp.text
@@ -293,8 +368,8 @@ class TestSoftwareUploadRoute:
         original_file = files_after_remove[0]
 
         second = self._upload(c, "doom-readded.iso", content)
-        assert second.status_code == 201, second.text
-        assert second.json()["reused_existing_media"] is True
+        assert second.json()["status"] == "done", second.text
+        assert second.json()["result"]["reused_existing_media"] is True
 
         files_after_readd = self._media_files(media_path)
         assert len(files_after_readd) == 1
@@ -325,11 +400,11 @@ class TestSoftwareUploadRoute:
 
         content = b"identical bytes for warm-index test"
         first = self._upload(c, "warm-a.iso", content)
-        assert first.status_code == 201, first.text
+        assert first.json()["status"] == "done", first.text
         assert len(rglob_calls_on_root) == 1  # initial index build
 
         second = self._upload(c, "warm-b.iso", content)
-        assert second.status_code == 409, second.text  # still-tracked duplicate, via the index
+        assert second.json()["status"] == "error", second.text  # still-tracked duplicate, via the index
         assert len(rglob_calls_on_root) == 1  # no rebuild — index stayed warm
 
     def test_index_does_not_return_stale_match_after_file_removed_from_disk(self, client):
@@ -339,7 +414,7 @@ class TestSoftwareUploadRoute:
         c, media_path = client
         content = b"identical bytes for stale-index test"
         first = self._upload(c, "gone.iso", content)
-        assert first.status_code == 201, first.text
+        assert first.json()["status"] == "done", first.text
 
         original_files = self._media_files(media_path)
         assert len(original_files) == 1
@@ -347,9 +422,8 @@ class TestSoftwareUploadRoute:
         original_path.unlink()  # simulates the file genuinely disappearing
 
         second = self._upload(c, "gone-again.iso", content)
-        assert second.status_code == 201, second.text
-        body = second.json()
-        assert body["reused_existing_media"] is False
+        assert second.json()["status"] == "done", second.text
+        assert second.json()["result"]["reused_existing_media"] is False
 
         new_files = self._media_files(media_path)
         assert len(new_files) == 1

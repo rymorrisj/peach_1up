@@ -123,11 +123,26 @@ class _FakeSettings:
 
 
 class TestImportFromPath:
+    @pytest.fixture(autouse=True)
+    def _reset_jobs(self):
+        """core.jobs is a module-level, in-memory store shared across the
+        whole test process. import-from-path always finalizes as a
+        background job now (no inline path), so this class actually
+        populates it, clear it before/after so tests don't leak jobs into
+        each other or into other test files sharing the process."""
+        from backend.core import jobs
+
+        jobs._jobs.clear()
+        jobs._cancel_events.clear()
+        yield
+        jobs._jobs.clear()
+        jobs._cancel_events.clear()
+
     @pytest.fixture
     def client(self, tmp_path, mem_db_session, monkeypatch):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
-        from backend.api.routes import game_item_bundles
+        from backend.api.routes import game_item_bundles, jobs as jobs_routes
         from backend.core.database import get_db
 
         source_dir = tmp_path / "incoming"
@@ -146,6 +161,7 @@ class TestImportFromPath:
 
         app = FastAPI()
         app.include_router(game_item_bundles.router)
+        app.include_router(jobs_routes.router)
         app.dependency_overrides[get_db] = lambda: mem_db_session
 
         with TestClient(app) as c:
@@ -165,6 +181,11 @@ class TestImportFromPath:
         assert resp.status_code == 403, resp.text
 
     def test_permitted_user_succeeds(self, client):
+        """import-from-path always finalizes as a background job now (see
+        service.games.path_import.import_background); TestClient/httpx's
+        ASGI transport runs BackgroundTasks to completion as part of the same
+        request/response cycle, so the job is already 'done' by the time
+        this polls it, same pattern as test_upload.py's _upload helper."""
         c, db, app, source_dir = client
         source_file = source_dir / "game.iso"
         source_file.write_bytes(b"not a real iso but enough bytes")
@@ -175,8 +196,14 @@ class TestImportFromPath:
             "/api/v1/game-items/import-from-path",
             json={"source_path": str(source_file), "title": "Game"},
         )
-        assert resp.status_code == 201, resp.text
-        assert resp.json()["title"] == "Game"
+        assert resp.status_code == 202, resp.text
+        job_id = resp.json()["job_id"]
+
+        job_resp = c.get(f"/api/v1/jobs/{job_id}")
+        assert job_resp.status_code == 200, job_resp.text
+        job = job_resp.json()
+        assert job["status"] == "done", job
+        assert job["result"]["title"] == "Game"
 
 
 # ---------------------------------------------------------------------------

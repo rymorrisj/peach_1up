@@ -317,3 +317,70 @@ class TestPerLeafPatch:
         resp = c.patch(f"/api/v1/game-item-bundle/{bundle.id}/items/1", json={})
 
         assert resp.status_code == 403, resp.text
+
+
+# ---------------------------------------------------------------------------
+# trigger_scan job-creation timing (refactor Step 5, closes 2E): the route
+# must hand back job_id without first running _check_known_items_findable,
+# the pre-flight DB-row walk that used to run synchronously in the route and
+# block the response. It now runs inside _run_scan (the background task)
+# instead. Exercised as a direct function call rather than over TestClient,
+# TestClient/httpx's ASGI transport runs BackgroundTasks to completion as
+# part of the same request/response cycle, which would hide the very
+# ordering this test needs to observe.
+# ---------------------------------------------------------------------------
+
+
+class TestTriggerScanJobTiming:
+    @pytest.fixture(autouse=True)
+    def _reset_jobs(self):
+        from backend.core import jobs
+
+        jobs._jobs.clear()
+        jobs._cancel_events.clear()
+        yield
+        jobs._jobs.clear()
+        jobs._cancel_events.clear()
+
+    def test_route_returns_job_id_without_running_the_known_items_check(self, tmp_path, monkeypatch):
+        from fastapi import BackgroundTasks
+        from backend.api.routes import game_item_bundles
+        from backend.core import jobs
+        from backend.models.user import UserItem
+
+        software_path = tmp_path / "software"
+        (software_path / "games").mkdir(parents=True)
+
+        class _FakeSettings:
+            def get_env_var(self, key):
+                return str(software_path) if key == "SOFTWARE_PATH" else ""
+
+            def get(self, key, default=None):
+                return str(software_path) if key == "SOFTWARE_PATH" else default
+
+        import backend.core.settings as settings_mod
+        monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings())
+        monkeypatch.setattr(game_item_bundles, "_enforce_rate_limit", lambda *a, **kw: None)
+
+        calls: list = []
+        monkeypatch.setattr(game_item_bundles, "_check_known_items_findable", lambda db: calls.append(db))
+
+        background_tasks = BackgroundTasks()
+        result = game_item_bundles.trigger_scan(
+            request=None,
+            background_tasks=background_tasks,
+            _=UserItem(id=1, name="Tester", is_owner=False, can_manage_game=True),
+        )
+
+        assert result["started"] is True
+        assert result["job_id"]
+        # The slow check never ran as part of producing this response...
+        assert calls == []
+        # ...it's scheduled inside _run_scan instead, to run only once the
+        # background task itself actually executes.
+        assert any(t.func is game_item_bundles._run_scan for t in background_tasks.tasks)
+
+        job = jobs.get(result["job_id"])
+        assert job is not None
+        assert job["status"] == "processing"
+        assert job["kind"] == "scan"

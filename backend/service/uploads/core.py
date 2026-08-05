@@ -182,6 +182,16 @@ def get_session(upload_id: str) -> dict | None:
         return dict(s) if s else None
 
 
+def set_job_id(upload_id: str, job_id: str) -> None:
+    """Associate *job_id* (created by the route layer right after a successful
+    init_session) with this session, so /complete can look it up itself rather
+    than trusting a client-supplied job_id to identify which job to update."""
+    with _lock:
+        session = _sessions.get(upload_id)
+        if session is not None:
+            session["job_id"] = job_id
+
+
 async def store_chunk(
     upload_id: str, file_index: int, chunk_index: int, upload: UploadFile, chunk_max_bytes: int
 ) -> dict:

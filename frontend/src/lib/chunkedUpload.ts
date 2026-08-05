@@ -22,25 +22,27 @@ const DOMAIN_PATH: Record<UploadDomain, string> = {
 };
 
 export interface ChunkedUploadResult {
-  /** 201 when finalized inline, 202 when a background job was created. */
+  /** Always 202, every upload finalizes as a background job now. */
   status: number;
   body: {
-    // Present for software_games/software_apps, whose finalize creates the
-    // DB row directly.
+    // The finalize result itself (result_type/id/title/disc_count/
+    // reused_existing_media for software_games/software_apps, path/slug/
+    // size_bytes for software_media) no longer comes back in this response,
+    // it lands in the job's own `result` once GET /api/v1/jobs/{job_id}
+    // reports it done, since finalize always runs after this call returns.
+    // These fields are kept optional here only so callers that still read
+    // them (pending their own follow-up update to read from the job
+    // instead) don't hit a type error, they will always be undefined.
     result_type?: 'game_item_bundle' | 'app_item_bundle' | 'media_upload';
     id?: number;
     title?: string;
     disc_count?: number;
     reused_existing_media?: boolean;
-    // Present for software_media only, that domain's finalize stages bytes
-    // and returns the staged path/slug instead of creating a row (see
-    // backend/service/uploads/software_media.py). The caller is responsible
-    // for a follow-up POST /api/v1/media-items with this path.
     path?: string;
     slug?: string;
     size_bytes?: number;
-    job_id?: string;
-    status?: string;
+    job_id: string;
+    status: string;
   };
 }
 
@@ -52,6 +54,7 @@ export interface ChunkedUploadHandle {
 interface InitResponse {
   upload_id: string;
   chunk_max_bytes: number;
+  job_id: string;
 }
 
 // Folder uploads preserve their full relative path structure unconditionally,
@@ -95,10 +98,12 @@ async function asError(res: Response): Promise<Error> {
  * Upload one file (kind "file"), a folder of files (kind "folder"), or an
  * explicitly ordered multi-disc set (kind "set") to the chunked upload
  * endpoints for one domain, reporting 0-100 progress across all chunks.
- * Small uploads resolve with status 201; uploads over the server's
- * background threshold resolve with 202 and a `job_id` to track in the nav
- * bell. On abort or any error the server-side staging dir is cleaned up via
- * DELETE.
+ * Every upload creates a job on the server at /init (before any bytes have
+ * been transferred) and always resolves with status 202 plus that same
+ * `job_id`; onJobId, if given, fires as soon as /init returns, so the caller
+ * can start tracking the job (e.g. in the nav bell) from the very start of
+ * the transfer rather than waiting for /complete. On abort or any error the
+ * server-side staging dir is cleaned up via DELETE.
  *
  * Not every domain accepts every kind, software_media accepts "file" only,
  * software_apps accepts "file"/"folder" (no "set"), software_games accepts
@@ -111,6 +116,7 @@ export function chunkedUpload(
   files: File[],
   onProgress: (pct: number) => void,
   domain: UploadDomain,
+  onJobId?: (jobId: string) => void,
   chunkSize: number = DEFAULT_CHUNK_SIZE,
 ): ChunkedUploadHandle {
   const controller = new AbortController();
@@ -147,6 +153,7 @@ export function chunkedUpload(
     if (!initRes.ok) throw await asError(initRes);
     const init = (await initRes.json()) as InitResponse;
     uploadId = init.upload_id;
+    onJobId?.(init.job_id);
 
     let uploaded = 0;
     for (let fi = 0; fi < files.length; fi++) {

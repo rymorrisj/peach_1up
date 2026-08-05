@@ -53,7 +53,6 @@ interface ScanTriggerResponse {
   started: boolean;
   directory: string;
   job_id?: string;
-  background?: boolean;
 }
 
 export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {

@@ -27,8 +27,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sqlalchemy.orm import Session
-
 from backend.core import jobs
 from backend.core.logger import get_logger
 from backend.service.uploads import core as cu
@@ -45,14 +43,6 @@ def _result(reasm: cu.ReassembledUpload) -> dict:
         "title": reasm.title,
         "size_bytes": reasm.total_bytes,
     }
-
-
-def finalize_inline(upload_id: str, media_root: Path, db: Session) -> dict:
-    # db is accepted only to match the registry's FinalizeInline signature,
-    # this domain never touches the database (see module docstring).
-    del db
-    reasm = cu.reassemble(upload_id, media_root)
-    return _result(reasm)
 
 
 def finalize_background(upload_id: str, media_root: str, job_id: str) -> None:
@@ -81,7 +71,6 @@ def register() -> None:
             name="software_media",
             allowed_kinds=frozenset({"file"}),
             root_resolver=_root,
-            finalize_inline=finalize_inline,
             finalize_background=finalize_background,
         )
     )

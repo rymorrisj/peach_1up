@@ -1,16 +1,15 @@
 """Upload finalization for the software_games domain, the single funnel from
 a reassembled upload into the Game library ingester.
 
-`finalize_inline` runs in the request (small uploads, <= threshold) and returns
-a normalized result the route sends as 201. `finalize_background` runs as a
-BackgroundTask (large uploads) with its own DB session, reporting progress into
-core.jobs and reaping the destination on failure. Both reassemble from staged
-upload chunks, then call `finalize_reassembled`, so the ingest -> cleanup
-sequence lives in exactly one place, `service.games.path_import` reuses
-`finalize_reassembled` directly for server-side-path imports, whose "reassembly"
-is a filesystem copy instead of a chunk reassembly. Anchor dedup (content-hash
-reuse of an existing on-disk file) only applies to the "file" and auto-detected
-"folder" kinds, not explicit "set" uploads, see the "set" branch.
+`finalize_background` runs as a BackgroundTask (every upload, regardless of
+size) with its own DB session, reporting progress into core.jobs and reaping
+the destination on failure. It reassembles from staged upload chunks, then
+calls `finalize_reassembled`, so the ingest -> cleanup sequence lives in
+exactly one place, `service.games.path_import` reuses `finalize_reassembled`
+directly for server-side-path imports, whose "reassembly" is a filesystem
+copy instead of a chunk reassembly. Anchor dedup (content-hash reuse of an
+existing on-disk file) only applies to the "file" and auto-detected "folder"
+kinds, not explicit "set" uploads, see the "set" branch.
 
 Unlike software_media, this domain's finalize creates the GameItemBundle row
 directly, Game ingest (era detection, multi-disc handling, dedup) has always
@@ -121,13 +120,17 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, domain_root: Path, db: Ses
         raise
 
 
-def finalize_inline(upload_id: str, domain_root: Path, db: Session) -> dict:
-    reasm = cu.reassemble(upload_id, domain_root)
-    return finalize_reassembled(reasm, domain_root, db)
-
-
 def finalize_background(upload_id: str, domain_root: str, job_id: str) -> None:
-    """BackgroundTask entry: own DB session, report to core.jobs, never raise."""
+    """BackgroundTask entry: own DB session, report to core.jobs, never raise.
+
+    _ItemAlreadyExists/_SlugCollision are caught ahead of the generic handler
+    below so a duplicate-content or slug-collision upload gets the same clean,
+    specific job error message the old inline finalize path's HTTP 409 used to
+    carry (_ItemAlreadyExists in particular never sets its own message, so
+    falling through to the generic `str(exc)` handler would leave the job's
+    error blank, mirrors service.games.path_import.import_background's
+    handling of the same exception for server-side-path imports).
+    """
     from backend.core.database import get_engine
 
     db = Session(get_engine())
@@ -136,6 +139,17 @@ def finalize_background(upload_id: str, domain_root: str, job_id: str) -> None:
         reasm = cu.reassemble(upload_id, Path(domain_root), job_id=job_id)
         result = finalize_reassembled(reasm, Path(domain_root), db)
         jobs.complete(job_id, result=result, message=f"Added \"{result.get('title', 'upload')}\".")
+    except lib_svc._ItemAlreadyExists:
+        # Matches the fixed message the old route-level 409 used for this
+        # exception (it never set its own message, see the class docstring).
+        logger.info("Upload finalize skipped, already in library: upload_id=%s", upload_id)
+        db.rollback()
+        cu.abort(upload_id)
+        jobs.fail(job_id, "This upload's content is already in the library.")
+    except lib_svc._SlugCollision as exc:
+        db.rollback()
+        cu.abort(upload_id)
+        jobs.fail(job_id, str(exc))
     except Exception as exc:  # noqa: BLE001, background tasks must not propagate
         logger.exception("Background upload finalize failed: upload_id=%s", upload_id)
         db.rollback()
@@ -156,7 +170,6 @@ def register() -> None:
             name="software_games",
             allowed_kinds=frozenset({"file", "folder", "set"}),
             root_resolver=_root,
-            finalize_inline=finalize_inline,
             finalize_background=finalize_background,
         )
     )

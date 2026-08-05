@@ -48,21 +48,20 @@ from backend.service.uploads import core as cu
 from backend.service.uploads import software_games as upload_finalize
 from backend.service.utils.path_utils import is_within_roots, resolve_under, safe_basename
 from backend.service.utils.slug_generator import unique_slug
-from backend.service.utils.upload_utils import DEFAULT_BACKGROUND_THRESHOLD_BYTES, DEFAULT_MAX_BYTES
+from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES
 
 logger = get_logger(__name__)
 
 
 def source_size(source: Path) -> int:
-    """Best-effort size of *source* (file or folder), for the max-size guard
-    and the inline/background threshold decision. Symlinked entries are
-    skipped, matching stage_from_source's copytree(symlinks=True) — they are
-    never dereferenced, so their target's size must not count either. Never
-    raises — an unreadable size falls back to just over the background
-    threshold (routing the import to the background path rather than
-    blocking the request thread on a source whose true size is unknown),
-    while staying under DEFAULT_MAX_BYTES so it is not falsely rejected by
-    the max-size guard."""
+    """Best-effort size of *source* (file or folder), for the max-size guard.
+    Symlinked entries are skipped, matching stage_from_source's
+    copytree(symlinks=True), they are never dereferenced, so their target's
+    size must not count either. Never raises, an unreadable size falls back
+    to just under DEFAULT_MAX_BYTES, a genuinely oversized source is caught
+    later by the post-copy integrity check in stage_from_source instead of a
+    guess here falsely tripping the guard on a source whose true size is
+    simply unknown."""
     try:
         if source.is_file():
             return source.stat().st_size
@@ -75,7 +74,7 @@ def source_size(source: Path) -> int:
                 continue
         return total
     except OSError:
-        return DEFAULT_BACKGROUND_THRESHOLD_BYTES + 1
+        return DEFAULT_MAX_BYTES - 1
 
 
 # Windows' ERROR_NOT_SAME_DEVICE. CPython's Windows errno mapping already
@@ -224,19 +223,6 @@ def _import_in_place(source: Path, title: str, db: Session, delete_original: boo
     return result
 
 
-def import_inline(
-    source: Path, title: str, domain_root: Path, db: Session, delete_original: bool
-) -> dict:
-    in_place = is_within_roots(source, [domain_root])
-    if in_place:
-        # Ingesting in place adopts the source itself as the library item
-        # (moving/renaming it into its canonical spot at most), there is no
-        # separate "original" left over to delete afterward.
-        return _import_in_place(source, title, db, delete_original)
-    reasm = stage_from_source(source, title, domain_root, move=delete_original)
-    return upload_finalize.finalize_reassembled(reasm, domain_root, db)
-
-
 def import_background(
     source_path: str, title: str, domain_root: str, job_id: str, delete_original: bool,
 ) -> None:
@@ -267,8 +253,9 @@ def import_background(
         # only stores the colliding collection), so str(exc) is always empty
         # here, that's what previously left jobs.fail() writing an empty
         # message, and the Activity panel falling back to a bare status word.
-        # This mirrors the message import_inline's own caller already builds
-        # for the same exception at the route level (game_item_bundles.py).
+        # This mirrors software_games.finalize_background's handling of the
+        # same exception for chunked uploads, both give a clean message
+        # instead of the blank one str(exc) would otherwise produce.
         title = exc.collection.title if exc.collection else None
         message = f'"{title}" is already in the library.' if title else "This item is already in the library."
         logger.info("Background path import skipped, already in library: source=%s", source)

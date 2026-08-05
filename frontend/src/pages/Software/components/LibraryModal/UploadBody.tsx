@@ -154,24 +154,31 @@ export default function UploadBody({
         setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, progress: pct } : e)));
       },
       config.uploadDomain,
+      (jobId) => {
+        // Fires right after /init, before any chunk has been transferred, so
+        // the nav bell tracks this upload from the start of the transfer,
+        // not just its server-side finalize tail.
+        dispatch({
+          type: 'UPSERT_JOB',
+          payload: {
+            id: jobId,
+            kind: 'upload',
+            status: 'processing',
+            progress: 0,
+            message: `Uploading "${title}"…`,
+          },
+        });
+        setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, jobId } : e)));
+      },
     );
     entryAbortsRef.current.set(entry.id, abort);
     promise
       .then(async (res) => {
-        // Over the server threshold: finalize runs as a background job surfaced
-        // in the nav bell. The item appears in the grid once that job finishes.
+        // Every upload finalizes as a background job now, surfaced in the
+        // nav bell (dispatched above, at init time). The item appears in the
+        // grid once that job finishes.
         if (res.status === 202 && res.body.job_id) {
           const jobId = res.body.job_id;
-          dispatch({
-            type: 'UPSERT_JOB',
-            payload: {
-              id: jobId,
-              kind: 'upload',
-              status: 'processing',
-              progress: 0,
-              message: `Finalizing "${title}"…`,
-            },
-          });
           setEntries((prev) =>
             prev.map((e) =>
               e.id === entry.id ? { ...e, status: 'success', progress: 100, jobId } : e,
@@ -274,28 +281,31 @@ export default function UploadBody({
       stagedDiscs.map((d) => d.file),
       setSetProgress,
       config.uploadDomain,
+      (jobId) => {
+        // Fires right after /init, before any chunk has been transferred, so
+        // the nav bell tracks this upload from the start of the transfer,
+        // not just its server-side finalize tail, and the dismiss-to-
+        // background button below can appear as soon as there's a job to
+        // track.
+        dispatch({
+          type: 'UPSERT_JOB',
+          payload: {
+            id: jobId,
+            kind: 'upload',
+            status: 'processing',
+            progress: 0,
+            message: `Uploading "${title}"…`,
+          },
+        });
+        setSetJobId(jobId);
+      },
     );
     setAbortRef.current = abort;
     try {
       const res = await promise;
-      if (res.status === 202 && res.body.job_id) {
-        dispatch({
-          type: 'UPSERT_JOB',
-          payload: {
-            id: res.body.job_id,
-            kind: 'upload',
-            status: 'processing',
-            progress: 0,
-            message: `Finalizing "${title}"…`,
-          },
-        });
-        setSetBackground(true);
-        setSetJobId(res.body.job_id);
-        setSetStatus('success');
-        return;
-      }
+      setSetBackground(true);
+      setSetJobId(res.body.job_id);
       setSetStatus('success');
-      onComplete();
     } catch (err) {
       setSetStatus('error');
       setSetError(err instanceof Error ? err.message : 'Upload failed.');
@@ -320,34 +330,32 @@ export default function UploadBody({
       folderFiles,
       setFolderProgress,
       config.uploadDomain,
+      (jobId) => {
+        // Fires right after /init, before any chunk has been transferred, so
+        // the nav bell tracks this upload from the start of the transfer,
+        // not just its server-side finalize tail, and the dismiss-to-
+        // background button below can appear as soon as there's a job to
+        // track.
+        dispatch({
+          type: 'UPSERT_JOB',
+          payload: {
+            id: jobId,
+            kind: 'upload',
+            status: 'processing',
+            progress: 0,
+            message: `Uploading "${title}"…`,
+          },
+        });
+        setFolderJobId(jobId);
+      },
     );
     folderAbortRef.current = abort;
     try {
       const res = await promise;
-      if (res.status === 202 && res.body.job_id) {
-        dispatch({
-          type: 'UPSERT_JOB',
-          payload: {
-            id: res.body.job_id,
-            kind: 'upload',
-            status: 'processing',
-            progress: 0,
-            message: `Finalizing "${title}"…`,
-          },
-        });
-        setFolderBackground(true);
-        setFolderJobId(res.body.job_id);
-        setFolderResult({ type: 'item', title });
-        setFolderStatus('success');
-        return;
-      }
-      setFolderResult(
-        (res.body.disc_count ?? 1) > 1
-          ? { type: 'set', title: res.body.title ?? title, discCount: res.body.disc_count }
-          : { type: 'item', title: res.body.title ?? title },
-      );
+      setFolderBackground(true);
+      setFolderJobId(res.body.job_id);
+      setFolderResult({ type: 'item', title });
       setFolderStatus('success');
-      onComplete();
     } catch (err) {
       setFolderStatus('error');
       setFolderError(err instanceof Error ? err.message : 'Upload failed.');
@@ -513,18 +521,28 @@ export default function UploadBody({
               >
                 Cancel
               </Button>
-              <Button
-                onClick={setStatus === 'success' ? onClose : submitSet}
-                disabled={
-                  busy || !(folderName.trim() || discSetTitle.trim()) || stagedDiscs.length === 0
-                }
-              >
-                {setStatus === 'uploading'
-                  ? 'Creating set…'
-                  : setStatus === 'success'
-                    ? 'Done'
-                    : 'Create Set'}
-              </Button>
+              {setStatus === 'uploading' && setJobId ? (
+                // Once a job exists (tracked in the nav bell above, see the
+                // onJobId callback in submitSet), the transfer no longer
+                // needs this modal open to keep going, same bypass-onClose
+                // pattern single-file mode uses below, Radix's own dismiss
+                // paths stay blocked by Modal's busy gate, this button calls
+                // onClose() directly instead of going through them.
+                <Button onClick={onClose}>Upload in progress…</Button>
+              ) : (
+                <Button
+                  onClick={setStatus === 'success' ? onClose : submitSet}
+                  disabled={
+                    busy || !(folderName.trim() || discSetTitle.trim()) || stagedDiscs.length === 0
+                  }
+                >
+                  {setStatus === 'uploading'
+                    ? 'Creating set…'
+                    : setStatus === 'success'
+                      ? 'Done'
+                      : 'Create Set'}
+                </Button>
+              )}
             </div>
           ) : folderMode ? (
             <div className="flex items-center gap-3">
@@ -540,16 +558,20 @@ export default function UploadBody({
               >
                 Cancel
               </Button>
-              <Button
-                onClick={folderStatus === 'success' ? onClose : submitFolderUpload}
-                disabled={busy || !folderTitle.trim() || folderFiles.length === 0}
-              >
-                {folderStatus === 'uploading'
-                  ? 'Uploading…'
-                  : folderStatus === 'success'
-                    ? 'Done'
-                    : 'Upload Folder'}
-              </Button>
+              {folderStatus === 'uploading' && folderJobId ? (
+                <Button onClick={onClose}>Upload in progress…</Button>
+              ) : (
+                <Button
+                  onClick={folderStatus === 'success' ? onClose : submitFolderUpload}
+                  disabled={busy || !folderTitle.trim() || folderFiles.length === 0}
+                >
+                  {folderStatus === 'uploading'
+                    ? 'Uploading…'
+                    : folderStatus === 'success'
+                      ? 'Done'
+                      : 'Upload Folder'}
+                </Button>
+              )}
             </div>
           ) : entries.some((e) => e.status === 'uploading') ? (
             <div className="flex items-center gap-3">

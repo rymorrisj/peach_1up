@@ -1,9 +1,10 @@
 """Chunked upload endpoints, one router per upload domain.
 
-Flow: init (create session) -> PUT chunks -> complete (reassemble + ingest).
-Small uploads finalize inline and return 201; uploads over the background
-threshold return 202 with a job_id and finalize in a BackgroundTask surfaced
-in the nav bell.
+Flow: init (create session + job) -> PUT chunks -> complete (reassemble +
+ingest). init_upload creates the job.jobs entry immediately, before any bytes
+have been transferred, so the nav bell can track an upload from the very
+start; complete_upload always finalizes as a BackgroundTask and returns 202,
+there is no separate inline-finalize path.
 
 Route-per-domain replaces the earlier single-endpoint-plus-target_type shape:
 each domain (software_games, software_media, software_apps) gets its own URL
@@ -20,22 +21,17 @@ by the time any request reaches these routes, lifespan has already run.
 from pathlib import Path
 from typing import Literal, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 from backend.core import jobs, rate_limit
-from backend.core.database import get_db
 from backend.core.dependencies import require_permission
 from backend.core.logger import get_logger
 from backend.models.user import UserItem
 from backend.service.uploads import core as cu
 from backend.service.uploads import registry
-from backend.service.utils.upload_utils import (
-    DEFAULT_BACKGROUND_THRESHOLD_BYTES,
-    DEFAULT_CHUNK_MAX_BYTES,
-)
+from backend.service.utils.upload_utils import DEFAULT_CHUNK_MAX_BYTES
 
 logger = get_logger(__name__)
 
@@ -107,9 +103,18 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+        # Created only after init_session succeeds, a malformed-manifest 422
+        # never leaves an orphaned "processing" job with nothing left to ever
+        # resolve it. Attached to the session (not returned for the client to
+        # echo back at /complete) so /complete resolves it itself instead of
+        # trusting a client-supplied job_id to identify which job to update.
+        job_id = jobs.create("upload", message=f"Uploading \"{title or 'upload'}\"…")
+        cu.set_job_id(upload_id, job_id)
+
         return {
             "upload_id": upload_id,
             "chunk_max_bytes": chunk_max_bytes,
+            "job_id": job_id,
         }
 
     @router.put("/{upload_id}/chunks/{file_index}/{chunk_index}")
@@ -132,7 +137,6 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
     def complete_upload(
         upload_id: str,
         background_tasks: BackgroundTasks = BackgroundTasks(),
-        db: Session = Depends(get_db),
         _: UserItem = require_permission(permission_flag),
     ):
         session = cu.get_session(upload_id)
@@ -143,35 +147,20 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
 
         domain = registry.get_domain(domain_name)
         media_root: Path = domain.root_resolver()
-        threshold = _setting_int("UPLOAD_BACKGROUND_THRESHOLD_BYTES", DEFAULT_BACKGROUND_THRESHOLD_BYTES)
-
-        if cu.total_size(upload_id) > threshold:
-            job_id = jobs.create("upload", message=f"Finalizing \"{session['title'] or 'upload'}\"…")
-            background_tasks.add_task(
-                domain.finalize_background, upload_id, str(media_root), job_id
-            )
-            return JSONResponse(status_code=202, content={"job_id": job_id, "status": "processing"})
-
-        try:
-            result = domain.finalize_inline(upload_id, media_root, db)
-        except HTTPException:
-            raise
-        except Exception as exc:  # noqa: BLE001, surfaced as a clean 409 rather than a bare 500
-            # _ItemAlreadyExists/_SlugCollision (software_games) are the two
-            # expected domain-specific exceptions here; every other domain
-            # either can't raise them or has no equivalent, so they are
-            # imported lazily to avoid a hard dependency from this generic
-            # route module onto software_games internals.
-            from backend.service.games.items import _ItemAlreadyExists, _SlugCollision
-
-            if isinstance(exc, _ItemAlreadyExists):
-                raise HTTPException(status_code=409, detail="This upload's content is already in the library.")
-            if isinstance(exc, _SlugCollision):
-                raise HTTPException(status_code=409, detail=str(exc)) from exc
-            if isinstance(exc, ValueError):
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
-            raise
-        return JSONResponse(status_code=201, content=result)
+        # job_id was created and attached to the session back at /init, not
+        # here, so the nav bell tracks the upload from the start of byte
+        # transfer, not just its server-side finalize tail. Every upload
+        # finalizes as a BackgroundTask now, there is no inline/small-upload
+        # branch, exceptions (including domain-specific ones like a duplicate
+        # or slug collision) are reported into the job via jobs.fail() inside
+        # finalize_background itself, not translated into an HTTP response
+        # here, there is nothing left running synchronously in this request
+        # to raise one from.
+        job_id = session["job_id"]
+        background_tasks.add_task(
+            domain.finalize_background, upload_id, str(media_root), job_id
+        )
+        return JSONResponse(status_code=202, content={"job_id": job_id, "status": "processing"})
 
     @router.delete("/{upload_id}", status_code=204)
     def abort_upload(

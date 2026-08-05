@@ -95,11 +95,6 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Sess
         raise
 
 
-def finalize_inline(upload_id: str, media_root: Path, db: Session) -> dict:
-    reasm = cu.reassemble(upload_id, media_root)
-    return finalize_reassembled(reasm, media_root, db)
-
-
 def finalize_background(upload_id: str, media_root: str, job_id: str) -> None:
     """BackgroundTask entry: own DB session, report to core.jobs, never raise."""
     from backend.core.database import get_engine
@@ -130,7 +125,6 @@ def register() -> None:
             name="software_apps",
             allowed_kinds=frozenset({"file", "folder"}),
             root_resolver=_root,
-            finalize_inline=finalize_inline,
             finalize_background=finalize_background,
         )
     )
