@@ -111,7 +111,7 @@ function mockApi(app: unknown, environments: unknown[] = []) {
       return Promise.resolve(app);
     if (url === '/api/v1/app-item-bundle/1' && method === 'PATCH') return Promise.resolve({});
     if (url === '/api/v1/app-item/100' && method === 'PATCH') return Promise.resolve({});
-    if (url === '/api/v1/environment-items') return Promise.resolve(environments);
+    if (url.startsWith('/api/v1/environment-items')) return Promise.resolve(environments);
     return Promise.resolve([]);
   });
   return calls;

@@ -114,7 +114,7 @@ function mockApi(opts: MockApiOptions) {
     if (url.startsWith('/api/v1/profile-items')) {
       return Promise.resolve({ items: [] });
     }
-    if (url === '/api/v1/environment-items') {
+    if (url.startsWith('/api/v1/environment-items')) {
       return Promise.resolve([]);
     }
     if (url === '/api/v1/settings/library-defaults') {

@@ -116,9 +116,15 @@ function useGameDetailExtras(
       (await apiFetch<{ items: LaunchProfile[] }>('/api/v1/profile-items?limit=200')).items,
   });
 
+  // era in the query key so switching bundles (a different era) refetches
+  // with the right per-candidate launch_blocked_reason instead of serving a
+  // stale list computed against the previous bundle's era.
   const { data: platforms = [] } = useQuery<Platform[]>({
-    queryKey: ['platforms'],
-    queryFn: () => apiFetch<Platform[]>('/api/v1/environment-items'),
+    queryKey: ['platforms', bundle?.era],
+    queryFn: () =>
+      apiFetch<Platform[]>(
+        `/api/v1/environment-items${bundle?.era ? `?era=${encodeURIComponent(bundle.era)}` : ''}`,
+      ),
   });
 
   const { data: launchHistory = [] } = useQuery<LaunchHistory[]>({

@@ -13,13 +13,28 @@ from backend.models.user import UserItem
 from backend.service.environments import environments as plat_svc
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
+from backend.service.utils.era_defaults import (
+    CANDIDATE_EVAL_PROFILE_SENTINEL, evaluate_launch_readiness,
+)
 
 router = APIRouter(prefix="/api/v1/environment-items", tags=["environments"], redirect_slashes=False)
 logger = get_logger(__name__)
 
 
 @router.get("", response_model=list[EnvironmentItemRead])
-def list_environment_items(db: Session = Depends(get_db), _: UserItem = Depends(get_active_user)):
+def list_environment_items(
+    era: str | None = Query(
+        default=None,
+        description=(
+            "When supplied, each row's launch_blocked_reason is computed against "
+            "this era, for a platform-picker candidate list. Omitted, the response "
+            "is the unfiltered platform catalog with launch_blocked_reason left null "
+            "on every row, unchanged from before this parameter existed."
+        ),
+    ),
+    db: Session = Depends(get_db),
+    _: UserItem = Depends(get_active_user),
+):
     platforms = db.query(EnvironmentItem).all()
     result = []
     for p in platforms:
@@ -38,6 +53,30 @@ def list_environment_items(db: Session = Depends(get_db), _: UserItem = Depends(
                 data.base_image_size_bytes = Path(p.base_image_path).stat().st_size
             except OSError:
                 pass
+        if era is not None:
+            # Precedence matches PlatformField.tsx's pre-existing client-side
+            # order (era mismatch, then presence, then installed): era
+            # mismatch and "not present" are checked here directly since
+            # evaluate_launch_readiness covers neither (era mismatch it does
+            # cover, but checking it here first avoids a wasted call into it
+            # for the common "wrong era" case; presence it structurally never
+            # covers, see CANDIDATE_EVAL_PROFILE_SENTINEL's neighbor comment
+            # in era_defaults.py). Whatever remains (not provisioned, not
+            # installed) is exactly what evaluate_launch_readiness already
+            # computes correctly per candidate, no new query, this loops the
+            # platforms list already fetched above.
+            if p.era != era:
+                data.launch_blocked_reason = "environment_era_mismatch"
+            elif not data.is_present:
+                data.launch_blocked_reason = "environment_not_present"
+            else:
+                data.launch_blocked_reason = evaluate_launch_readiness(
+                    call_site="item",
+                    environment=p,
+                    is_pc=True,
+                    era=era,
+                    profile_item_id=CANDIDATE_EVAL_PROFILE_SENTINEL,
+                )
         result.append(data)
     return result
 

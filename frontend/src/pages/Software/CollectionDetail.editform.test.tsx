@@ -106,7 +106,7 @@ function setupApi(handlers: Handler[] = []): RecordedCall[] {
     },
     { match: '/api/v1/user-items', respond: () => [] },
     { match: /^\/api\/v1\/profile-items/, respond: () => ({ items: [] }) },
-    { match: '/api/v1/environment-items', respond: () => [] },
+    { match: /^\/api\/v1\/environment-items/, respond: () => [] },
     { match: '/api/v1/tags', respond: () => [] },
     { match: /^\/api\/v1\/restrictions\//, respond: () => ({ restricted_user_item_ids: [] }) },
     { match: /\/launches$/, respond: () => [] },
@@ -334,7 +334,7 @@ describe('CollectionDetail edit form (field-level)', () => {
         respond: () => fullCollection(),
       },
       {
-        match: '/api/v1/environment-items',
+        match: /^\/api\/v1\/environment-items/,
         respond: () => [
           {
             id: 5,
@@ -369,7 +369,7 @@ describe('CollectionDetail edit form (field-level)', () => {
         respond: () => fullCollection({ era: 'ps1' }),
       },
       {
-        match: '/api/v1/environment-items',
+        match: /^\/api\/v1\/environment-items/,
         respond: () => [
           {
             id: 5,
@@ -403,7 +403,7 @@ describe('CollectionDetail edit form (field-level)', () => {
         respond: () => fullCollection({ era: 'dos', environment_item_id: 5 }),
       },
       {
-        match: '/api/v1/environment-items',
+        match: /^\/api\/v1\/environment-items/,
         respond: () => [
           {
             id: 5,

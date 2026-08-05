@@ -68,9 +68,15 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
   const { detailQueryKey, refetchEntity, isLaunching } = ctx;
   const queryClient = useQueryClient();
 
+  // era in the query key so switching bundles (a different era) refetches
+  // with the right per-candidate launch_blocked_reason instead of serving a
+  // stale list computed against the previous bundle's era.
   const { data: platforms = [] } = useQuery<Platform[]>({
-    queryKey: ['platforms'],
-    queryFn: () => apiFetch<Platform[]>('/api/v1/environment-items'),
+    queryKey: ['platforms', collection?.era],
+    queryFn: () =>
+      apiFetch<Platform[]>(
+        `/api/v1/environment-items${collection?.era ? `?era=${encodeURIComponent(collection.era)}` : ''}`,
+      ),
   });
 
   // App has no dedicated collection-launches route like Game's

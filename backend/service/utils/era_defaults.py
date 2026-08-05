@@ -150,16 +150,39 @@ def lookup_system_environment_by_era(era: str, db: Session):
     )
 
 
-# The full reason vocabulary for both evaluate_launch_readiness call sites.
-# "environment_not_installed" is only ever returned for call_site="item";
-# see evaluate_launch_readiness's docstring.
+# The full reason vocabulary for both evaluate_launch_readiness call sites,
+# plus "environment_not_present". "environment_not_installed" is only ever
+# returned for call_site="item"; see evaluate_launch_readiness's docstring.
+# "environment_not_present" is never returned by evaluate_launch_readiness
+# itself, it needs a live filesystem/install-path check
+# (compute_environment_presence) that this function deliberately excludes to
+# stay cheap on every list/detail read (see the docstring below). It is part
+# of this shared Literal so the one caller that does have that check already
+# computed (GET /api/v1/environment-items?era=..., which loops
+# compute_environment_presence per row regardless) can report it using the
+# same vocabulary instead of inventing a parallel reason field.
 LaunchBlockedReason = Literal[
     "no_profile",
     "no_environment",
     "environment_era_mismatch",
     "environment_not_provisioned",
     "environment_not_installed",
+    "environment_not_present",
 ]
+
+# Placeholder passed as evaluate_launch_readiness's profile_item_id when
+# evaluating a single Environment candidate out of context (e.g. one row of a
+# platform picker), where "does this item have a profile assigned" is
+# meaningless per-candidate (it doesn't vary by which Environment you'd pick)
+# and would otherwise make every candidate report "no_profile" regardless of
+# its actual era/presence/installed state. Must be a value evaluate_launch_
+# readiness only ever null-checks (`profile_item_id is None`), never resolves
+# against a real ProfileItem row, real IDs are positive auto-increment
+# integers (see SECURITY.md), so a negative sentinel can never collide with
+# one. Safe only because evaluate_launch_readiness never dereferences
+# profile_item_id beyond that None-check; do not reuse this constant anywhere
+# a profile actually gets looked up.
+CANDIDATE_EVAL_PROFILE_SENTINEL = -1
 
 
 def evaluate_launch_readiness(

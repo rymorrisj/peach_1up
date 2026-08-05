@@ -112,7 +112,7 @@ function setupApi(user: unknown, handlers: Handler[] = []): RecordedCall[] {
     },
     { match: '/api/v1/user-items', respond: () => [] },
     { match: /^\/api\/v1\/profile-items/, respond: () => ({ items: [] }) },
-    { match: '/api/v1/environment-items', respond: () => [] },
+    { match: /^\/api\/v1\/environment-items/, respond: () => [] },
     { match: '/api/v1/tags', respond: () => [] },
     { match: /^\/api\/v1\/restrictions\//, respond: () => ({ restricted_user_item_ids: [] }) },
     { match: /\/launches$/, respond: () => [] },

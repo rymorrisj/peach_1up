@@ -88,6 +88,14 @@ class EnvironmentItemRead(EnvironmentItemBase):
     # state needed to actually launch through this Environment exist right
     # now. See compute_environment_presence.
     is_present: bool = False
+    # Populated only by GET /api/v1/environment-items?era=<value>, one of
+    # era_defaults.LaunchBlockedReason's string values, or null when this
+    # Environment is a selectable candidate for that era (or when no era
+    # query param was supplied at all). Same plain-str typing as
+    # GameItemBundleRead/AppItemBundleRead's own launch_blocked_reason field,
+    # not the era_defaults.LaunchBlockedReason Literal itself, for the same
+    # reason those use plain str.
+    launch_blocked_reason: Optional[str] = None
 
 
 class StorageStats(SQLModel):

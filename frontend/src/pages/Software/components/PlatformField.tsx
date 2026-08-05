@@ -1,18 +1,20 @@
 import { FormField, Select } from '@/ui';
 import type { components } from '@shared/types';
 
-type Platform = components['schemas']['EnvironmentItemRead'];
+// Extends the generated EnvironmentItemRead with launch_blocked_reason, not
+// yet present in shared/types.ts (typed Optional[str] on the backend model,
+// same as GameItemBundleRead/AppItemBundleRead's own launch_blocked_reason
+// field, see backend/models/environment.py) until the OpenAPI export is
+// regenerated. Extended locally rather than hand-edited into the generated
+// file.
+type Platform = components['schemas']['EnvironmentItemRead'] & {
+  launch_blocked_reason?: string | null;
+};
 
 interface PlatformFieldProps {
   /** Whether this item can launch via an Environment at all (Games: era is
    *  PC, Apps: is_pc). Everything else about the field derives from this. */
   isPcLaunchable: boolean;
-  /** The item's own era (e.g. "win98"), an Environment option is only
-   *  selectable if its era matches this exactly. Mirrors the backend
-   *  authoritative gate (compute_launch_blocked_reason's
-   *  "environment_era_mismatch") that closed the incident where a win98 item
-   *  silently launched against a win95-era Environment. */
-  itemEra: string;
   value: string;
   onChange: (value: string) => void;
   platforms: Platform[];
@@ -21,19 +23,24 @@ interface PlatformFieldProps {
   disabledNote: string;
 }
 
-// DOS/DOSBox-X environments have no OS install step, so they are always
-// treated as installed regardless of installed_at, mirrors
-// era_defaults.environment_is_installed on the backend exactly, so the
-// frontend and backend gates can't drift apart.
-function isEnvironmentInstalled(p: Platform): boolean {
-  return p.era === 'dos' ? true : !!p.installed_at;
-}
+// Maps era_defaults.LaunchBlockedReason's string values (backend/service/
+// utils/era_defaults.py) to the option label shown next to a disabled
+// candidate. The reason itself is computed server-side, by
+// GET /api/v1/environment-items?era=<item era>, looping evaluate_launch_
+// readiness() per row, this component no longer re-implements era-match,
+// presence, or installed checks of its own; an unrecognized reason string
+// falls back to showing the raw code rather than hiding it.
+const REASON_LABELS: Record<string, string> = {
+  environment_era_mismatch: 'different era',
+  environment_not_present: 'not present',
+  environment_not_provisioned: 'not yet provisioned',
+  environment_not_installed: 'OS not installed yet',
+};
 
-function unselectableReason(p: Platform, itemEra: string): string | null {
-  if (p.era !== itemEra) return 'different era';
-  if (!p.is_present) return 'not present';
-  if (!isEnvironmentInstalled(p)) return 'OS not installed yet';
-  return null;
+function unselectableReason(p: Platform): string | null {
+  const reason = p.launch_blocked_reason;
+  if (!reason) return null;
+  return REASON_LABELS[reason] ?? reason;
 }
 
 // Shared by EditForm.tsx (Games, gated on era) and AppEditForm.tsx (Apps,
@@ -44,14 +51,12 @@ function unselectableReason(p: Platform, itemEra: string): string | null {
 // label's existing meaning, only what populates and gates it changes here.
 //
 // Per-option gating mirrors the same disabled+note pattern used for the
-// whole field: an Environment that does not match the item's era, is not
-// live-present (compute_environment_presence), or has not had its OS
-// installed yet shows as a disabled option with the reason appended, rather
-// than being silently omitted or silently selectable, same "explain why,
-// don't hide" philosophy as the field-level disabledNote.
+// whole field: an Environment the server reports as blocked shows as a
+// disabled option with the reason appended, rather than being silently
+// omitted or silently selectable, same "explain why, don't hide" philosophy
+// as the field-level disabledNote.
 export function PlatformField({
   isPcLaunchable,
-  itemEra,
   value,
   onChange,
   platforms,
@@ -72,10 +77,10 @@ export function PlatformField({
           { value: 'none', label: 'No platform selected' },
           ...(isPcLaunchable
             ? platforms.map((p) => {
-                const reason = unselectableReason(p, itemEra);
+                const reason = unselectableReason(p);
                 return {
                   value: String(p.id),
-                  label: reason ? `${p.name} — ${reason}` : p.name,
+                  label: reason ? `${p.name}, ${reason}` : p.name,
                   disabled: reason != null,
                 };
               })

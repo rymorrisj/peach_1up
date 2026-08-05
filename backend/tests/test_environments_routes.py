@@ -115,6 +115,89 @@ class TestListAndGetEnvironment:
         assert resp.status_code == 404
 
 
+class TestListWithEraParam:
+    """?era=<value> on GET /api/v1/environment-items computes a per-row
+    launch_blocked_reason for the platform-picker candidate list (PlatformField.tsx),
+    reusing evaluate_launch_readiness for the not-provisioned/not-installed
+    checks and a direct era/is_present comparison for the other two, per the
+    precedence documented at the call site in environments.py."""
+
+    def _present_win98_environment(self, db, tmp_path, **overrides):
+        working_image = tmp_path / "working.img"
+        working_image.write_bytes(b"x" * 1024)
+        base_image = tmp_path / "base.img"
+        base_image.write_bytes(b"x" * 1024)
+        kwargs = dict(
+            working_image_path=str(working_image),
+            base_image_path=str(base_image),
+        )
+        kwargs.update(overrides)
+        return _make_environment(db, **kwargs)
+
+    def test_no_era_param_leaves_reason_null(self, client):
+        c, db = client
+        _make_environment(db)
+
+        resp = c.get("/api/v1/environment-items")
+
+        assert resp.status_code == 200
+        assert resp.json()[0]["launch_blocked_reason"] is None
+
+    def test_era_mismatch(self, client, tmp_path):
+        c, db = client
+        self._present_win98_environment(db, tmp_path, era="win98")
+
+        resp = c.get("/api/v1/environment-items?era=winxp")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body[0]["is_present"] is True
+        assert body[0]["launch_blocked_reason"] == "environment_era_mismatch"
+
+    def test_not_present(self, client):
+        c, db = client
+        # No working/base image paths on disk: is_present is False, and era
+        # matches the query, so the reason must come from the presence check,
+        # not evaluate_launch_readiness (which never sees a not-present row).
+        _make_environment(db, era="win98")
+
+        resp = c.get("/api/v1/environment-items?era=win98")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body[0]["is_present"] is False
+        assert body[0]["launch_blocked_reason"] == "environment_not_present"
+
+    def test_not_installed(self, client, tmp_path):
+        c, db = client
+        # Present on disk (both images valid) but installed_at was never set,
+        # win98 has a real install step (unlike dos), so this must fall
+        # through to evaluate_launch_readiness's environment_not_installed.
+        self._present_win98_environment(db, tmp_path, era="win98", installed_at=None)
+
+        resp = c.get("/api/v1/environment-items?era=win98")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body[0]["is_present"] is True
+        assert body[0]["launch_blocked_reason"] == "environment_not_installed"
+
+    def test_selectable_when_matched_present_and_installed(self, client, tmp_path):
+        c, db = client
+        from datetime import datetime, timezone
+
+        self._present_win98_environment(
+            db, tmp_path, era="win98", installed_at=datetime.now(timezone.utc)
+        )
+
+        resp = c.get("/api/v1/environment-items?era=win98")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body[0]["is_present"] is True
+        assert body[0]["launch_blocked_reason"] is None
+
+
 class TestCreateEnvironment:
     def test_rejects_non_pc_era(self, client):
         c, _ = client
