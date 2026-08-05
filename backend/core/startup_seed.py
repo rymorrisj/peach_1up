@@ -4,17 +4,20 @@ from backend.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+# DOSBox-X is deliberately absent from this list. DOS is the one PC era that
+# _seed_dosbox_environments below also seeds as an is_system=True Environment
+# (the real launch target, with working_image_path set), and era is what
+# lookup_system_environment_by_era/_resolve_environment_for_pc_entity match
+# on for a PC item with no explicit environment_item_id. A DOSBox-X catalog
+# row here would create a second is_system row for era="dos" with no
+# working_image_path, exactly the duplicate that made era-fallback resolution
+# non-deterministic (fixed at the source here; era_defaults.py's ORDER BY is
+# defense in depth for any future case, not a substitute for not creating
+# this duplicate in the first place). Every other emulator in this list is
+# console-only or 86Box, neither of which has this collision: console eras
+# never resolve an Environment at all, and 86Box's catalog row (era="win95")
+# has no seeded real-launch-target counterpart the way DOS does.
 _SYSTEM_PLATFORMS = [
-    {
-        "name": "DOSBox-X",
-        "slug": "dosbox-x",
-        "era": "dos",
-        "emulator_slug": "dosbox-x",
-        "is_system": True,
-        "supported_eras": json.dumps(["dos"]),
-        "download_url": "https://dosbox-x.com",
-        "status": "unknown",
-    },
     {
         "name": "86Box",
         "slug": "86box",
@@ -23,7 +26,6 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["win95", "win98", "winxp"]),
         "download_url": "https://86box.net",
-        "status": "unknown",
     },
     {
         "name": "DuckStation",
@@ -33,7 +35,6 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["ps1"]),
         "download_url": "https://www.duckstation.org",
-        "status": "unknown",
     },
     {
         "name": "PCSX2",
@@ -43,7 +44,6 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["ps2"]),
         "download_url": "https://pcsx2.net",
-        "status": "unknown",
     },
     {
         "name": "Mesen (NES, SNES)",
@@ -53,7 +53,6 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["nes", "snes"]),
         "download_url": "https://www.mesen.ca",
-        "status": "unknown",
     },
     {
         "name": "Project64",
@@ -63,7 +62,6 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["n64"]),
         "download_url": "https://www.pj64-emu.com",
-        "status": "unknown",
     },
     {
         "name": "Flycast",
@@ -73,7 +71,6 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["dreamcast"]),
         "download_url": "https://github.com/flyinghead/flycast",
-        "status": "unknown",
     },
     {
         "name": "xemu",
@@ -83,7 +80,6 @@ _SYSTEM_PLATFORMS = [
         "is_system": True,
         "supported_eras": json.dumps(["xbox"]),
         "download_url": "https://xemu.app",
-        "status": "unknown",
     },
 ]
 
@@ -242,7 +238,6 @@ def _seed_dosbox_environments(db) -> bool:
                 profile_item_id=profile.id,
                 working_image_path=image_path,
                 is_system=True,
-                status="unconfigured",
             ))
             added += 1
         if added:

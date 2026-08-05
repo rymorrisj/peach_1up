@@ -368,13 +368,16 @@ class GameItemBundleRead(SQLModel):
     linked_items: list[LinkedEntityRef] = []
     # Pre-launch UX gate. Computed at read time (not stored) in
     # game_item_bundle_to_read / game_item_bundles_to_read_bulk via the shared
-    # compute_launch_blocked_reason. "no_profile" when the bundle has no launch
-    # profile (pc or console); "no_environment" when this is a PC bundle with no
-    # resolvable Environment (neither environment_item_id nor an era-matched
-    # system Environment fallback); "environment_era_mismatch" when a resolved
-    # Environment's era does not match the bundle's era; "environment_not_installed"
-    # when a resolved, era-matched Environment has not had its OS installed yet;
-    # None when the item clears every gate.
+    # evaluate_launch_readiness (call_site="item"). "no_profile" when the bundle
+    # has no launch profile (pc or console); "no_environment" when this is a PC
+    # bundle with no resolvable Environment (neither environment_item_id nor an
+    # era-matched system Environment fallback); "environment_era_mismatch" when
+    # a resolved Environment's era does not match the bundle's era;
+    # "environment_not_provisioned" when a resolved Environment has no working
+    # image and its era can never get one auto-provisioned;
+    # "environment_not_installed" when a resolved, era-matched, provisioned
+    # Environment has not had its OS installed yet; None when the item clears
+    # every gate.
     launch_blocked_reason: Optional[str] = None
     # Computed at read time (not stored) by _rollup_verification_item below,
     # the worst-severity status among this bundle's items. "verified" only
@@ -512,16 +515,19 @@ def _leaves_for_bundle(bundle_id: int, db: "Session") -> list[GameItem]:
 
 
 def _launch_blocked_reason(c: "GameItemBundle", environment) -> Optional[str]:
-    """Thin adapter over the shared compute_launch_blocked_reason (see
-    backend/service/utils/era_defaults.py). Returns "no_profile" when the bundle
-    has no profile (pc or console), "no_environment" for a PC bundle with no
-    resolvable Environment, "environment_era_mismatch" or
+    """Thin adapter over the shared evaluate_launch_readiness (see
+    backend/service/utils/era_defaults.py), call_site="item" since this is the
+    read-time signal for a launchable bundle, never a direct Environment
+    launch. Returns "no_profile" when the bundle has no profile (pc or
+    console), "no_environment" for a PC bundle with no resolvable Environment,
+    "environment_era_mismatch", "environment_not_provisioned", or
     "environment_not_installed" for a resolvable-but-unlaunchable Environment,
     else None. is_pc is derived from item_type. *environment* is the already
     -resolved EnvironmentItem (or None) for this bundle."""
-    from backend.service.utils.era_defaults import compute_launch_blocked_reason
+    from backend.service.utils.era_defaults import evaluate_launch_readiness
 
-    return compute_launch_blocked_reason(
+    return evaluate_launch_readiness(
+        call_site="item",
         is_pc=c.item_type == "pc",
         era=c.era,
         profile_item_id=c.profile_item_id,

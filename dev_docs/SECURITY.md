@@ -141,11 +141,13 @@ rules, as implemented in `users.py::reset_pin` and locked by
 - **No user-supplied string may reach a subprocess call directly.** There must be at
   least one validation layer between input and execution.
 - Emulator binary paths are **never taken from request input**, query parameters, or
-  profile fields. Paths resolve through three tiers: (1) user override stored in
-  `settings` (per-slug `<SLUG>_PATH` key — ⚠ no UI or API write path exists,
-  settable only via direct DB write; see Known Gaps), (2) bundled project
-  `emulators/{slug}/` directory, (3) catalog-detected known installation paths
-  from `config/emulators/*.toml`. No registry scanning. This rule has no exceptions.
+  profile fields. `get_install_path()` (`backend/service/utils/emulator_catalog.py`)
+  resolves exactly two ways, by `install_type` from the per-slug TOML descriptor:
+  a ROM pack resolves to its bundled directory under `library/system/roms/`, everything
+  else resolves to the bundled project path `emulators/{slug}/{binary}`. There is no
+  settings-based user-override tier and no system/registry-detected installation-path
+  tier; both were removed as dead code in the Pydantic-descriptor refactor
+  (`616bb4f`, 2026-08-04). No registry scanning. This rule has no exceptions.
 - CLI arguments passed to emulator processes come from validated `Profile` config fields
   only. There is no freeform command construction anywhere in the codebase.
 - All validated inputs must be checked again at the point of use — do not rely on prior
@@ -157,10 +159,11 @@ rules, as implemented in `users.py::reset_pin` and locked by
 
 **Mandatory.**
 
-- Emulator binary paths are never derived from request input. Paths resolve through
-  three tiers: `settings` per-slug user override, bundled `emulators/{slug}/`
-  project directory, or catalog-detected system installation paths from
-  `config/emulators/*.toml`. No registry scanning.
+- Emulator binary paths are never derived from request input. `get_install_path()`
+  resolves to exactly one of two places depending on `install_type`: the bundled
+  ROM pack directory, or the bundled `emulators/{slug}/{binary}` project path.
+  No settings-based user override and no system-installation-path detection tier
+  exist today (see Input Validation Rules above). No registry scanning.
 - Arguments are constructed from validated `Profile` fields only. No string interpolation
   of raw user input into argument lists.
 - A launch cooldown is enforced between successive requests to prevent rapid-fire

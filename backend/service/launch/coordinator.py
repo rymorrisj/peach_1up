@@ -19,7 +19,7 @@ from backend.service.launch.drive_hydration import hydrate_drive_for_entity
 from backend.service.launch.history import write_session_ends
 from backend.service.launch.launch_spec import LaunchSpec
 from backend.service.launch.monitor import register_short_lived_check
-from backend.service.utils.era_defaults import DOS_WIN_ERAS
+from backend.service.utils.era_defaults import PROVISIONABLE_ERAS, evaluate_launch_readiness
 from backend.service.utils.file_types import resolve_media_file_from_directory
 from backend.service.utils.fat.directory import _to_83_str
 from backend.service.utils.xbox_image import XboxDvdRipDetected
@@ -546,7 +546,7 @@ def _resolve_environment_for_pc_entity(entity: "LaunchableEntity", db: Session) 
     a runtime fallback for the backfill transition window, not a migration.
 
     Last line of defense against era mismatch: the read-time gate
-    (compute_launch_blocked_reason) and the frontend PlatformField both filter
+    (evaluate_launch_readiness) and the frontend PlatformField both filter
     on era match already, but neither is trusted alone (fail-loud standard,
     CLAUDE.md). A win98 item bound to a win95-era Environment previously
     launched silently here because only presence, not era, was ever checked —
@@ -589,7 +589,23 @@ async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None
     resolved_rom_path: str | None = None
     if entity.item_type == "pc":
         platform_record = _resolve_environment_for_pc_entity(entity, db)
-        if platform_record is None:
+
+        # Single source of truth for the PC pre-launch gates (evaluate_launch_readiness,
+        # backend/service/utils/era_defaults.py). "no_profile" and
+        # "environment_era_mismatch" cannot actually surface here: the profile
+        # resolve above and _resolve_environment_for_pc_entity above already
+        # raise for those cases before this line is ever reached. They're
+        # still evaluated (harmlessly unreachable) because this same function
+        # also backs the read-time launch_blocked_reason signal in
+        # models/game.py / models/app.py, which has no such upstream guards.
+        blocked = evaluate_launch_readiness(
+            call_site="item",
+            environment=platform_record,
+            is_pc=True,
+            era=entity.era,
+            profile_item_id=profile.id,
+        )
+        if blocked == "no_environment":
             raise HTTPException(
                 status_code=422,
                 detail={
@@ -601,6 +617,24 @@ async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None
                     "collection_id": entity.collection_id,
                 },
             )
+        if blocked == "environment_not_provisioned":
+            raise HTTPException(
+                status_code=422,
+                detail="Environment has no working image. Provisioning is not available for this era.",
+            )
+        if blocked == "environment_not_installed":
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error_type": "environment_not_installed",
+                    "message": (
+                        "This item's Environment has not had its OS installed yet. "
+                        "Launch the Environment directly and complete the installer first."
+                    ),
+                    "collection_id": entity.collection_id,
+                },
+            )
+
         resolved_install_path, resolved_rom_path = await _ensure_environment_provisioned(platform_record, db)
 
     drive = hydrate_drive_for_entity(entity, db)
@@ -687,7 +721,7 @@ async def _ensure_environment_provisioned(
     """
     resolved_install_path: str | None = None
     resolved_rom_path: str | None = None
-    if platform.working_image_path is None and platform.era in ({"win95", "win98", "winxp"} | DOS_WIN_ERAS):
+    if platform.working_image_path is None and platform.era in PROVISIONABLE_ERAS:
         try:
             from backend.service.utils.vm import provision_platform
             (
@@ -733,6 +767,19 @@ async def launch_environment(platform: EnvironmentItem, profile_item_id: int | N
         await asyncio.to_thread(write_session_ends, exited)
 
     profile = _resolve_profile_for_environment(platform, profile_item_id, db)
+
+    # call_site="environment": this is a direct Environment launch, how a user
+    # boots in to run the OS installer in the first place, so
+    # evaluate_launch_readiness structurally never checks environment_not_installed
+    # on this call site. Only environment_not_provisioned applies (no working
+    # image and this era can never get one auto-provisioned). Do not widen this
+    # to the item-launch gate set here.
+    blocked = evaluate_launch_readiness(call_site="environment", environment=platform)
+    if blocked == "environment_not_provisioned":
+        raise HTTPException(
+            status_code=422,
+            detail="Environment has no working image. Provisioning is not available for this era.",
+        )
 
     resolved_install_path, resolved_rom_path = await _ensure_environment_provisioned(platform, db)
 

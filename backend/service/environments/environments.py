@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -8,16 +9,16 @@ from sqlalchemy.orm import Session
 
 from backend.models.environment import EnvironmentItem, EnvironmentItemCreate, EnvironmentItemUpdate
 from backend.service.utils.confirmation_tokens import consume as _consume
-from backend.service.utils.era_defaults import DOS_WIN_ERAS
+from backend.service.utils.era_defaults import DOS_WIN_ERAS, PROVISIONABLE_ERAS as _PROVISIONABLE_ERAS
 from backend.service.utils.slug_generator import unique_slug
 
 _PLATFORM_ERAS = frozenset({"dos", "win95", "win98", "winxp"})
-# Eras that get an auto-provisioned working image at create time. 86Box eras
-# get a VHD + config via provision_86box_vm; the DOS environment gets a
-# FAT16 C: drive via provision_dosbox_drive (dosbox.py's write_environment_conf
-# mounts platform.working_image_path directly for these, distinct from the
-# per-item drive_image_path used by library-item launches via drive_hydration).
-_PROVISIONABLE_ERAS = frozenset({"win95", "win98", "winxp"}) | DOS_WIN_ERAS
+# _PROVISIONABLE_ERAS: eras that get an auto-provisioned working image at
+# create time (86Box VHD+config via provision_86box_vm, or the DOS FAT16 C:
+# drive via provision_dosbox_drive). Shared definition, see
+# era_defaults.PROVISIONABLE_ERAS; also used by coordinator.py's
+# _ensure_environment_provisioned so create-time and launch-time provisioning
+# agree on exactly the same era set.
 
 
 def _validate_image_path(path_str: str) -> Path:
@@ -97,6 +98,14 @@ def create_environment_item(body: EnvironmentItemCreate, db: Session) -> Environ
         platform_data["base_image_path"] = str(_validate_image_path(body.base_image_path))
     if body.working_image_path:
         platform_data["working_image_path"] = str(_validate_image_path(body.working_image_path))
+        # A working_image_path supplied directly in the create request is the
+        # pre-installed-HDD-image path (SCOPE.md P2's primary media path): the
+        # OS is already present the moment it's registered, launch-ready
+        # immediately. Do not set this for the installer-media path below
+        # (working_image_path absent here, auto-provisioned as an empty VHD/
+        # drive), that one genuinely is not installed until the user runs the
+        # installer inside the emulator.
+        platform_data["installed_at"] = datetime.now(timezone.utc)
 
     platform = EnvironmentItem(**platform_data)
     if not platform.slug:
@@ -196,12 +205,24 @@ def update_environment_item(platform_id: int, body: EnvironmentItemUpdate, db: S
     platform = db.get(EnvironmentItem, platform_id)
     if not platform:
         raise HTTPException(status_code=404, detail="Environment not found.")
-    updates = body.model_dump(exclude_none=True)
+    # exclude_unset (not exclude_none): a PATCH must distinguish "field absent
+    # from the request" (leave untouched) from "field explicitly sent as null"
+    # (clear it). exclude_none dropped every explicit-null field before
+    # setattr ever ran, silently no-op'ing every clear-to-null PATCH for every
+    # nullable field on this model (installed_at, working_image_path,
+    # base_image_path, config_path, notes, ...) — confirmed live in
+    # EnvironmentDetail.tsx's edit form, which sends `... || null` for exactly
+    # this purpose.
+    updates = body.model_dump(exclude_unset=True)
     if "era" in updates and updates["era"] not in _PLATFORM_ERAS:
         raise HTTPException(status_code=422, detail=f"Only PC eras are supported: {', '.join(sorted(_PLATFORM_ERAS))}.")
-    if "base_image_path" in updates:
+    # Validate-and-normalise only when a non-empty path was actually sent; an
+    # explicit null/empty value is a real clear and must pass through as None,
+    # not be handed to _validate_image_path (which requires a real path and
+    # would reject/crash on None).
+    if updates.get("base_image_path"):
         updates["base_image_path"] = str(_validate_image_path(updates["base_image_path"]))
-    if "working_image_path" in updates:
+    if updates.get("working_image_path"):
         updates["working_image_path"] = str(_validate_image_path(updates["working_image_path"]))
     for key, value in updates.items():
         setattr(platform, key, value)

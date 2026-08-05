@@ -280,11 +280,12 @@ class AppItemBundleRead(SQLModel):
     linked_items: list[LinkedEntityRef] = []
     # Pre-launch UX gate, same semantics and shared computation as
     # GameItemBundleRead.launch_blocked_reason (see backend/models/game.py and
-    # the shared compute_launch_blocked_reason). "no_profile" when the bundle has
-    # no launch profile (pc or console); "no_environment" for a PC app with no
-    # resolvable Environment; "environment_era_mismatch" or
-    # "environment_not_installed" for a resolvable-but-unlaunchable one; None
-    # otherwise. Computed at read time, not stored.
+    # the shared evaluate_launch_readiness, call_site="item"). "no_profile"
+    # when the bundle has no launch profile (pc or console); "no_environment"
+    # for a PC app with no resolvable Environment; "environment_era_mismatch",
+    # "environment_not_provisioned", or "environment_not_installed" for a
+    # resolvable-but-unlaunchable one; None otherwise. Computed at read time,
+    # not stored.
     launch_blocked_reason: Optional[str] = None
 
 
@@ -335,11 +336,13 @@ def app_item_bundle_to_read(c: "AppItemBundle", db: "Session") -> AppItemBundleR
 
     era/is_pc come straight off the AppItemBundle row via model_validate
     (see AppItemBundle.era/is_pc). launch_blocked_reason mirrors game.py:
-    Environment is only resolved for a PC app (era match and is_installed
-    are checked inside compute_launch_blocked_reason once resolved).
+    Environment is only resolved for a PC app (era match, provisioned, and
+    installed are all checked inside evaluate_launch_readiness once resolved,
+    call_site="item" since this is the read-time signal, never a direct
+    Environment launch).
     """
     from backend.models.media import _linked_items_for
-    from backend.service.utils.era_defaults import compute_launch_blocked_reason, resolve_environment_for_launch_gate
+    from backend.service.utils.era_defaults import evaluate_launch_readiness, resolve_environment_for_launch_gate
 
     read = AppItemBundleRead.model_validate(c)
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
@@ -349,7 +352,8 @@ def app_item_bundle_to_read(c: "AppItemBundle", db: "Session") -> AppItemBundleR
         resolve_environment_for_launch_gate(c.environment_item_id, c.era, db)
         if c.is_pc else None
     )
-    read.launch_blocked_reason = compute_launch_blocked_reason(
+    read.launch_blocked_reason = evaluate_launch_readiness(
+        call_site="item",
         is_pc=c.is_pc,
         era=c.era,
         profile_item_id=c.profile_item_id,
@@ -363,7 +367,7 @@ def app_item_bundles_to_read_bulk(bundles: list["AppItemBundle"], db: "Session")
     from sqlalchemy import select as _select
 
     from backend.models.media import _linked_items_for_many
-    from backend.service.utils.era_defaults import compute_launch_blocked_reason, resolve_environments_for_launch_gate_bulk
+    from backend.service.utils.era_defaults import evaluate_launch_readiness, resolve_environments_for_launch_gate_bulk
 
     if not bundles:
         return []
@@ -396,7 +400,8 @@ def app_item_bundles_to_read_bulk(bundles: list["AppItemBundle"], db: "Session")
         read.items = leaves_by_bundle.get(c.id, [])
         read.tags = tag_map.get(c.id, [])
         read.linked_items = linked_map.get(c.id, [])
-        read.launch_blocked_reason = compute_launch_blocked_reason(
+        read.launch_blocked_reason = evaluate_launch_readiness(
+            call_site="item",
             is_pc=c.is_pc,
             era=c.era,
             profile_item_id=c.profile_item_id,

@@ -1,9 +1,18 @@
+from typing import Literal
+
 from sqlalchemy.orm import Session
 
 from backend.constants_generated import ERA_BACKENDS
 
 # Eras served by DOSBox-X (per-item FAT16 C: drive, not a shared working image).
 DOS_WIN_ERAS: frozenset[str] = frozenset({"dos"})
+
+# Eras that get an auto-provisioned working image (86Box VHD+config, or the
+# DOSBox-X FAT16 C: drive) when an Environment is created or launched without
+# one. Single definition, previously duplicated as an inline literal in both
+# coordinator.py's _ensure_environment_provisioned and environments.py's
+# create_environment_item.
+PROVISIONABLE_ERAS: frozenset[str] = frozenset({"win95", "win98", "winxp"}) | DOS_WIN_ERAS
 
 
 def defaults_for_era(era_slug: str) -> tuple[str | None, str | None]:
@@ -57,7 +66,7 @@ def environment_is_installed(env) -> bool:
 
 
 def resolve_environment_for_launch_gate(environment_item_id: int | None, era: str, db: Session):
-    """Resolve the Environment compute_launch_blocked_reason should gate
+    """Resolve the Environment evaluate_launch_readiness should gate
     against for a single item: environment_item_id if set, else the
     era-matched is_system fallback. Mirrors
     coordinator._resolve_environment_for_pc_entity exactly, so the read-time
@@ -91,12 +100,20 @@ def resolve_environments_for_launch_gate_bulk(items: list, db: Session) -> dict[
 
     by_era: dict[str, EnvironmentItem] = {}
     if fallback_eras:
+        # Deterministic tiebreaker for the (should-not-happen, defended anyway)
+        # case of two is_system rows sharing an era: prefer the row that
+        # actually has a working_image_path (a real launch target) over one
+        # that doesn't (a catalog/presence-only artifact), lowest id as the
+        # final tiebreaker. setdefault keeps the first (best-ranked) row per
+        # era and ignores any later ones, instead of the previous unordered
+        # .all() where the last row iterated silently won.
         for row in (
             db.query(EnvironmentItem)
             .filter(EnvironmentItem.era.in_(fallback_eras), EnvironmentItem.is_system == True)  # noqa: E712
+            .order_by(EnvironmentItem.working_image_path.is_(None), EnvironmentItem.id)
             .all()
         ):
-            by_era[row.era] = row
+            by_era.setdefault(row.era, row)
 
     result: dict[int, EnvironmentItem | None] = {}
     for i in items:
@@ -115,55 +132,89 @@ def lookup_system_environment_by_era(era: str, db: Session):
     Era-matched rather than emulator_slug-matched (unlike
     lookup_environment_and_profile above) because the caller already knows the
     collection's era and has no emulator_slug to key off.
+
+    Deterministic ORDER BY as defense in depth: seeding is expected to produce
+    at most one is_system row per era (fixed at the source after the DOS
+    dosbox-x/dos duplicate-row bug), but if a duplicate is ever reintroduced
+    (e.g. a manual is_system=True PATCH), this prefers the row with a real
+    working_image_path over a presence-only catalog artifact, lowest id as
+    the final tiebreaker, instead of leaving the choice to unordered .first().
     """
     from backend.models.environment import EnvironmentItem
 
     return (
         db.query(EnvironmentItem)
         .filter(EnvironmentItem.era == era, EnvironmentItem.is_system == True)  # noqa: E712
+        .order_by(EnvironmentItem.working_image_path.is_(None), EnvironmentItem.id)
         .first()
     )
 
 
-def compute_launch_blocked_reason(
+# The full reason vocabulary for both evaluate_launch_readiness call sites.
+# "environment_not_installed" is only ever returned for call_site="item";
+# see evaluate_launch_readiness's docstring.
+LaunchBlockedReason = Literal[
+    "no_profile",
+    "no_environment",
+    "environment_era_mismatch",
+    "environment_not_provisioned",
+    "environment_not_installed",
+]
+
+
+def evaluate_launch_readiness(
     *,
-    is_pc: bool,
-    era: str,
-    profile_item_id: int | None,
+    call_site: Literal["item", "environment"],
     environment,
-) -> str | None:
-    """Read-time mirror of the coordinator's precomputable pre-launch gates.
+    is_pc: bool = False,
+    era: str | None = None,
+    profile_item_id: int | None = None,
+) -> LaunchBlockedReason | None:
+    """Single source of truth for pre-launch gating. Real enforcement in
+    coordinator.py (_launch_entity, launch_environment) and the read-time
+    launch_blocked_reason UI signal (models/game.py, models/app.py) both call
+    this instead of each re-implementing the sequence.
 
-    Shared by both Game (backend/models/game.py) and App (backend/models/app.py)
-    read builders so the two domains never drift. Checks the gates in the exact
-    order coordinator._launch_entity enforces them:
+    Two call sites, deliberately different gate sets, this distinction is
+    security-relevant and must not be collapsed into one shared check:
 
-    1. Profile is resolved first for every item, pc or console
-       (coordinator._resolve_profile_for_item). An item with no profile_item_id
-       would 422 "No profile associated" -> "no_profile".
-    2. Environment is a PC-only gate resolved after the profile
-       (coordinator._resolve_environment_for_pc_entity). *environment* is the
-       already-resolved EnvironmentItem (or None) from
-       resolve_environment_for_launch_gate / resolve_environments_for_launch_gate_bulk
-      , environment_item_id if set, else the era-matched is_system fallback,
-       exactly mirroring the coordinator's own resolution order. No resolvable
-       Environment at all -> "no_environment".
-    3. Era match is the authoritative gate, added after a real incident where a
-       win98 item was bound to a win95-era Environment and silently launched
-       because the bound profile happened to carry the correct backend
-       (86Box). A resolved Environment whose era does not match the item's
-       era -> "environment_era_mismatch", checked before is_installed so the
-       more specific, more dangerous mismatch is reported first.
-    4. is_installed gates Win9x/WinXp Environments that have never had the OS
-       installed inside them (DOS/DOSBox-X environments always pass this,
-       see environment_is_installed) -> "environment_not_installed".
+    call_site="item" is a game/app bundle launch (coordinator._launch_entity's
+    PC branch) or its read-time signal. Runs the full sequence in order:
+    no profile -> no_environment (PC only, no resolvable Environment) ->
+    environment_era_mismatch -> environment_not_provisioned (no working image
+    and this era can never get one auto-provisioned) -> environment_not_installed
+    (a provisioned Environment whose OS has never actually been installed, see
+    environment_is_installed). "environment_not_installed" only ever applies
+    to this call site.
 
-    Returns the reason for the first gate that would block, or None if the item
-    clears all of them. These gates are determinable from stored state; the
-    coordinator's other hard blocks (emulator not installed, media resolution,
-    provisioning, 8.3 path, concurrency, spawn/timeout/crash) are runtime
-    conditions that cannot be known without attempting the launch.
+    call_site="environment" is a direct Environment launch
+    (coordinator.launch_environment), how a user boots an Environment to run
+    its own OS installer in the first place. Only environment_not_provisioned
+    applies here. Profile resolution, era match, and environment_not_installed
+    are meaningless or actively wrong to check on this path: blocking a direct
+    Environment launch on "not installed yet" would make it impossible to ever
+    finish installing. This function must never return
+    "environment_not_installed" for call_site="environment", enforced
+    structurally below (that branch is not reachable from this call_site at
+    all, not merely skipped by a condition).
+
+    All checks are pure reads of already-resolved state, no filesystem
+    provisioning and no writes, safe to call from a GET-triggered read-model
+    builder. Media resolution, path containment, and emulator-installed remain
+    enforced inline in _launch_entity / _build_spec_for_entity, not here: they
+    need the entity's actually-resolved media/executable paths and do real
+    filesystem work, folding them in here would mean every library list/detail
+    response pays that I/O cost per row.
     """
+    if call_site == "environment":
+        if (
+            environment is not None
+            and environment.working_image_path is None
+            and environment.era not in PROVISIONABLE_ERAS
+        ):
+            return "environment_not_provisioned"
+        return None
+
     if profile_item_id is None:
         return "no_profile"
     if not is_pc:
@@ -172,6 +223,8 @@ def compute_launch_blocked_reason(
         return "no_environment"
     if environment.era != era:
         return "environment_era_mismatch"
+    if environment.working_image_path is None and environment.era not in PROVISIONABLE_ERAS:
+        return "environment_not_provisioned"
     if not environment_is_installed(environment):
         return "environment_not_installed"
     return None
