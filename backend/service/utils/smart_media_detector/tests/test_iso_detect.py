@@ -423,6 +423,100 @@ class TestDetectIso:
 
 
 # ---------------------------------------------------------------------------
+# detect_cue, resolves the .bin sibling, then re-runs the same magic-byte
+# and PVD checks detect_iso() runs, falling back to
+# bin_validator.resolve_bin_cue() when neither finds a signal.
+# _cue_bin_path()'s own FILE-line parsing is already covered above
+# (TestCueBinPath); these tests use a cue with no FILE line throughout, so
+# the bin is resolved via the cue.with_suffix(".bin") fallback branch
+# instead, and exercise detect_cue()'s own downstream dispatch, not that
+# helper. No mocking anywhere below, every check is the real dependency.
+# ---------------------------------------------------------------------------
+
+class TestDetectCue:
+    def _call(self, cue_path: Path, dir_cache=None):
+        from backend.service.utils.smart_media_detector.iso_detect import detect_cue
+        return detect_cue(cue_path, dir_cache)
+
+    def test_no_resolvable_bin_returns_zero_confidence_with_warning(self, tmp_path: Path):
+        """Neither a FILE line in the cue nor a same-stem sibling .bin exists."""
+        cue = tmp_path / "game.cue"
+        cue.write_text("TRACK 01 MODE2/2352\n")
+
+        result = self._call(cue)
+        assert result.era is None
+        assert result.confidence == 0.0
+        assert result.reason == "no .bin file found for .cue sheet"
+        assert result.warnings and "game.cue" in result.warnings[0]
+
+    def test_magic_byte_match_on_bin_resolved_via_with_suffix_fallback(self, tmp_path: Path):
+        """Cue has no FILE line, so the bin is resolved via
+        cue.with_suffix(".bin") rather than _cue_bin_path(). The bin's real
+        Dreamcast IP.BIN magic must still be found and win immediately.
+        """
+        (tmp_path / "game.bin").write_bytes(fx.DREAMCAST_IP_BIN_BLOB)
+        cue = tmp_path / "game.cue"
+        cue.write_text("TRACK 01 MODE2/2352\n")
+
+        result = self._call(cue)
+        assert result.era == "dreamcast"
+        assert result.confidence == 0.9
+
+    def test_pvd_fallback_when_no_magic_match(self, tmp_path: Path):
+        """No magic-byte signature present, but the resolved bin has a valid
+        ISO9660 PVD with a recognisable DOS volume label.
+        """
+        (tmp_path / "game.bin").write_bytes(fx.build_pvd_iso(volume_id="MSDOS"))
+        cue = tmp_path / "game.cue"
+        cue.write_text("TRACK 01 MODE2/2352\n")
+
+        result = self._call(cue)
+        assert result.era == "dos"
+        assert result.confidence == 0.75
+        assert "MSDOS" in result.reason
+
+    def test_falls_through_to_bin_validator_when_no_magic_or_pvd_signal(self, tmp_path: Path):
+        """No magic match, no PVD (all-zero bin), cue declares MODE2/2352.
+        resolve_bin_cue()'s own re-derived cue lookup (by matching stem, not
+        the FILE line, see _find_cue in bin_validator.py) must find this
+        exact cue file and read its track type from it.
+        """
+        (tmp_path / "game.bin").write_bytes(b"\x00" * 4096)
+        cue = tmp_path / "game.cue"
+        cue.write_text("TRACK 01 MODE2/2352\n")
+
+        result = self._call(cue)
+        assert result.era is None
+        assert result.confidence == 0.4
+        assert "MODE2/2352" in result.reason
+        assert "platform ambiguous" in result.reason
+
+    def test_dir_cache_is_threaded_through_to_bin_validator(self, tmp_path: Path, monkeypatch):
+        """dir_cache is detect_cue()'s second parameter purely to hand off to
+        bin_validator.resolve_bin_cue()'s own dir_cache-aware _find_cue, not
+        used directly by detect_cue() itself. Proven decisively, not just by
+        checking the result is correct (a correct result alone wouldn't rule
+        out a fresh iterdir() ignoring the cache and re-deriving the same
+        answer): Path.iterdir() is broken outright, so the test only passes
+        if resolution genuinely comes from the pre-populated cache entry.
+        """
+        bin_path = tmp_path / "game.bin"
+        bin_path.write_bytes(b"\x00" * 4096)
+        cue = tmp_path / "game.cue"
+        cue.write_text("TRACK 01 AUDIO\n")
+        dir_cache = {tmp_path: [bin_path, cue]}
+
+        def _boom(self):
+            raise AssertionError("iterdir() must not be called when dir_cache already has this directory")
+
+        monkeypatch.setattr(Path, "iterdir", _boom)
+
+        result = self._call(cue, dir_cache)
+        assert result.confidence == 0.2
+        assert "AUDIO" in result.reason
+
+
+# ---------------------------------------------------------------------------
 # detect_chd — thin delegation to validators.chd_validator.detect(). Full
 # CHD parsing logic already covered by test_chd_validator.py; this only
 # confirms the wiring.

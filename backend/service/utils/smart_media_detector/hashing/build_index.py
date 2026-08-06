@@ -11,7 +11,6 @@ from pathlib import Path
 
 from .dat_parser import parse_dat
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 _DEFAULT_OUTPUT = Path(__file__).parent / "hash_index.json"
@@ -25,6 +24,7 @@ def _load_existing(output_path: Path) -> dict:
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     parser = argparse.ArgumentParser(
         description="Build or update the smart_media_detector hash index from DAT files."
     )

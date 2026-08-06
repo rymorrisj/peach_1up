@@ -534,3 +534,55 @@ def build_xex_folder(tmp_path: Path, *, xex_names: list[str] | None = None, name
     for xex_name in (xex_names or ["default.xex"]):
         (folder / xex_name).write_bytes(b"\x00")
     return folder
+
+
+# ---------------------------------------------------------------------------
+# Part 4, minimal No-Intro/Redump-shaped DAT XML builder, for
+# hashing/dat_parser.py's parse_dat() and hashing/build_index.py's main().
+#
+# Schema mirrors parse_dat()'s own reads exactly, verified by reading that
+# module directly, not assumed from a generic DAT description:
+#   root element (any tag name, parse_dat() never checks it)
+#     header/name           -> platform hint (root.find("header").find("name").text)
+#     game[@name]            -> game.get("name"), a <game> with no name attribute
+#                               at all is skipped (logs a warning), not an error
+#       rom[@sha1|@md5|@crc|@crc32] -> a <rom> with none of these four attributes
+#                               at all is skipped (logs a warning); parse_dat()
+#                               accepts "crc" (Redump's own attribute name) or
+#                               "crc32" interchangeably via rom.get("crc") or
+#                               rom.get("crc32")
+# One record is produced per <rom>, not per <game>. A <game> with two <rom>
+# children (a real multi-track Redump shape) yields two records sharing the
+# same title/platform/era/source.
+# ---------------------------------------------------------------------------
+
+def build_dat_xml(
+    *, header_name: str | None = None, games: list[dict] | None = None,
+) -> str:
+    """games: list of {"name": str, "roms": [dict, ...]} dicts.
+
+    Omit the "name" key entirely (not name=None) to build a <game> with no
+    name attribute at all, parse_dat()'s missing-name-skip case. Each entry
+    in "roms" is a dict of XML attribute name to value, rendered verbatim
+    onto a <rom/> element, an empty dict builds a <rom/> with no hash
+    attributes at all, parse_dat()'s no-hash-fields-skip case.
+    """
+    lines = ["<datafile>"]
+    if header_name is not None:
+        lines.append(f"  <header><name>{header_name}</name></header>")
+    for game in (games or []):
+        if "name" in game:
+            lines.append(f'  <game name="{game["name"]}">')
+        else:
+            lines.append("  <game>")
+        for rom in game.get("roms", []):
+            attrs = " ".join(f'{k}="{v}"' for k, v in rom.items())
+            lines.append(f"    <rom {attrs}/>" if attrs else "    <rom/>")
+        lines.append("  </game>")
+    lines.append("</datafile>")
+    return "\n".join(lines)
+
+
+def write_dat_xml(path: Path, **kwargs) -> Path:
+    path.write_text(build_dat_xml(**kwargs), encoding="utf-8")
+    return path
