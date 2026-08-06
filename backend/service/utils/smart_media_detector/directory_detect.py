@@ -242,31 +242,30 @@ def _detect_from_directory(root: Path) -> ScanResult:
             reason="cannot list directory",
         )
 
-    if "PS3_DISC.SFB" in entries and is_disc_format_folder(root):
-        # PS3_DISC.SFB at a folder's root marks a disc-format PS3 dump, the
-        # same structural marker iso_detect.detect_iso checks for inside an
-        # ISO 9660 root directory record. Mirrored here at confidence 0.9 to
-        # match that check, since the file is the same reliable Sony
-        # disc-format signal whether it's read from an ISO or a plain folder.
-        return ScanResult(
-            title=None, platform=None, era="ps3", confidence=0.9,
-            reason="directory root contains PS3_DISC.SFB, PS3 disc dump",
-        )
-    # No SFB marker (or one that turned out not to be a real file): a folder
-    # can still be a valid PS3 title, an installed dev_hdd0/game/<TITLE_ID>/
-    # dump or any other extracted layout, if it structurally resolves to a
-    # bootable EBOOT.BIN (USRDIR/EBOOT.BIN, optionally under PS3_GAME/). This
-    # was previously undetected at the directory level (N2): best_detect_path
-    # would fall through to a generic top-level extension scan, resolve to
-    # the EBOOT.BIN file as a last resort, and hand that file to detect(),
-    # which has no PS3 awareness for a bare .bin file and would misclassify
-    # it via the generic BIN/CUE disc-image path. Resolving the era here,
-    # structurally, against the folder itself, is what lets
-    # resolve_ps3_target's callers avoid ever reaching that misclassification.
-    if find_eboot(root) is not None:
+    # Delegates to resolve_ps3_target for both PS3 folder shapes (disc-format
+    # dump with PS3_DISC.SFB, or an installed/extracted dev_hdd0/game/<ID>/
+    # layout) rather than re-deriving the SFB/EBOOT check inline. A folder
+    # with PS3_DISC.SFB but no resolvable EBOOT.BIN is not a valid PS3 target
+    # and falls through to the remaining dispatch below, matching
+    # resolve_ps3_target's own contract instead of trusting the SFB marker
+    # alone.
+    ps3_target = resolve_ps3_target(root)
+    if ps3_target is not None:
+        if ps3_target.kind == "disc_folder":
+            return ScanResult(
+                title=None, platform=None, era="ps3", confidence=0.9,
+                reason="directory root contains PS3_DISC.SFB, PS3 disc dump",
+            )
         return ScanResult(
             title=None, platform=None, era="ps3", confidence=0.85,
             reason="directory contains USRDIR/EBOOT.BIN (optionally under PS3_GAME/), installed or extracted PS3 title",
+        )
+
+    xex_target = resolve_xex_target(root)
+    if xex_target is not None:
+        return ScanResult(
+            title=None, platform=None, era="xbox360", confidence=0.85,
+            reason="directory contains a bootable .xex file (default.xex or resolved fallback)",
         )
 
     if "XPSP" in entries or "I386" in entries:
