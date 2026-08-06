@@ -92,6 +92,21 @@ def _attach_file_handlers(logger: logging.Logger) -> None:
         logger.setLevel(logging.INFO)
 
 
+def _attach_console_handler(logger: logging.Logger) -> None:
+    """Add the dev or prod console handler to logger if it doesn't already have one.
+
+    Mirrors _attach_file_handlers's name-prefix sweep in setup_logging() below, so a
+    logger built with plain logging.getLogger(name) (bypassing get_logger() entirely)
+    still gets the same console output a get_logger()-built logger already has.
+    _get_dev_handler()/_get_prod_console_handler() are singletons, so the "already in
+    logger.handlers" check below is the same handler object get_logger() itself would
+    have attached, this stays idempotent for a logger get_logger() already configured.
+    """
+    handler = _get_dev_handler() if _is_dev() else _get_prod_console_handler()
+    if handler not in logger.handlers:
+        logger.addHandler(handler)
+
+
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
     if logger.handlers:
@@ -109,11 +124,17 @@ def get_logger(name: str) -> logging.Logger:
 
 
 def setup_logging() -> None:
-    """Create RotatingFileHandlers and attach them to all existing and future backend loggers.
+    """Create RotatingFileHandlers and sweep them, plus the console handler, onto
+    every existing backend/peach logger, regardless of whether it was built via
+    get_logger() or plain logging.getLogger(name).
 
-    Safe to call multiple times; only the first call has any effect.
-    File handlers write to logs/ under the project root and are independent
-    of stdout/stderr — they work correctly even in windowless frozen builds.
+    Safe to call multiple times; only the first call has any effect. Only sweeps
+    loggers that already exist in logging.root.manager.loggerDict at call time,
+    a backend/peach logger first created after this call still needs get_logger()
+    (or a future call to this function, which this guard prevents) to pick up
+    either handler type. File handlers write to logs/ under the project root and
+    are independent of stdout/stderr, they work correctly even in windowless
+    frozen builds.
     """
     global _logging_setup_done
     if _logging_setup_done:
@@ -148,6 +169,18 @@ def setup_logging() -> None:
             log_name.startswith("backend") or log_name.startswith("peach")
         ):
             _attach_file_handlers(log_obj)
+            _attach_console_handler(log_obj)
+            # _attach_file_handlers only lowers a level that is explicitly
+            # above INFO; NOTSET is 0, so a plain logging.getLogger(name)
+            # logger (never given its own level) sails through that check
+            # untouched, keeps resolving its effective level from root
+            # (WARNING by default), and silently drops INFO records even
+            # though it now has handlers. Set it explicitly here to match
+            # what get_logger() itself would leave a logger at, DEBUG in
+            # dev, INFO in prod, given the file handlers already attached
+            # above.
+            if log_obj.level == logging.NOTSET:
+                log_obj.setLevel(logging.DEBUG if _is_dev() else logging.INFO)
 
     _logging_setup_done = True
 
