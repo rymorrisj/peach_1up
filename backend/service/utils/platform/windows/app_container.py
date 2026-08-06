@@ -13,8 +13,12 @@ import os
 from pathlib import Path
 
 from backend.core.logger import get_logger
-from backend.core.settings import get_base_path
-from backend.service.utils.emulator_catalog import get_emulator, get_emulator_era
+from backend.service.utils.emulator_catalog import (
+    get_emulator,
+    get_emulator_era,
+    get_skip_cpu_limit,
+)
+from backend.service.utils.emulator_paths import resolve_derived_path
 from backend.service.utils.eras_config import get_cpu_min_rate, get_era
 from backend.service.utils.platform.windows.sandbox import sandbox
 from backend.service.utils.platform.windows.sandbox.sandbox_config import BrokerFile, SandboxConfig
@@ -70,52 +74,13 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
     except RuntimeError:
         pass
 
-    # Step 2: derived paths — keyed by descriptive name, resolved relative to base.
-    base = get_base_path()
-    derived: dict[str, Path] = {
-        # Emulator install root (binary directory).
-        "install_dir":  base / "emulators" / slug,
-        # Per-emulator save-state directory (e.g. Flycast, Mesen, Project64).
-        "saves_dir":    base / "emulators" / slug / "saves",
-        # Per-emulator quick save-state directory (DuckStation, PCSX2).
-        "savestates_dir": base / "emulators" / slug / "savestates",
-        # Per-emulator memory-card directory (PCSX2, DuckStation).
-        "memcards_dir": base / "emulators" / slug / "memcards",
-        # Per-emulator screenshot/snapshot directory (PCSX2).
-        "snaps_dir":    base / "emulators" / slug / "snaps",
-        # Emulator config directory (same as install root for portable layout).
-        "config_dir":   base / "emulators" / slug,
-        # xemu NVRAM/VM state directory.
-        "nvram":        base / "emulators" / slug / "vms",
-        # Per-emulator shader/disk cache directory.
-        "cache_dir":    base / "emulators" / slug / "cache",
-        # Per-emulator plugin directory (Project64).
-        "plugin_dir":   base / "emulators" / slug / "plugins",
-        # Project64 portable EEPROM/save directory (capital-S as PJ64 writes it).
-        "pj64_save_dir": base / "emulators" / slug / "Save",
-        # Project64 portable config directory (capital-C as PJ64 writes it).
-        "pj64_config_dir": base / "emulators" / slug / "Config",
-        # PCSX2 portable inis directory (needs rw; install_dir grant is r-only).
-        "inis_dir":     base / "emulators" / slug / "inis",
-        # Per-emulator BIOS/firmware directory (Flycast: data/).
-        "bios_dir":     base / "emulators" / slug / "data",
-        # xemu HDD image fallback: grants the whole xemu emulator dir when launch_paths
-        # does not supply the specific .qcow2 path.
-        "hdd_image":    base / "emulators" / "xemu",
-        # RPCS3 portable virtual HDD (game installs, saves, trophies).
-        "dev_hdd0":     base / "emulators" / slug / "dev_hdd0",
-        # RPCS3 portable firmware directory (populated by File > Install Firmware).
-        "dev_flash":    base / "emulators" / slug / "dev_flash",
-        # RPCS3 portable mounted-disc directory.
-        "dev_bdvd":     base / "emulators" / slug / "dev_bdvd",
-        # Xenia portable content directory (saves/DLC), under storage_root.
-        "content":      base / "emulators" / slug / "content",
-        # Xenia portable shader cache directory, under storage_root.
-        "cache":        base / "emulators" / slug / "cache",
-    }
-
-    if path_key in derived:
-        return str(derived[path_key])
+    # Step 2: derived paths, keyed by descriptive name, resolved relative to
+    # base. The map itself lives in emulator_paths.py, a leaf module depending
+    # only on backend.core.settings, so emulator_descriptor.py can import it at
+    # module level without the cycle this module would otherwise create.
+    derived_path = resolve_derived_path(path_key, slug)
+    if derived_path is not None:
+        return derived_path
 
     if path_key == "appdata_xemu":
         appdata = os.environ.get("APPDATA", "")
@@ -132,7 +97,7 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
         stage=SandboxStage.CONFIG_VALIDATION,
         suggestions=[
             f"Add '{path_key}' to settings or define it as a derived "
-            "path in app_container._resolve_path_key()",
+            "path in emulator_paths.resolve_derived_path()",
         ],
     )
 
@@ -229,6 +194,13 @@ def get_container_config(
         broker_files=broker_files,
         cpu_max_rate=cpu_max_rate,
         cpu_min_rate=_CPU_MIN_RATE,
+        # Resolved through get_skip_cpu_limit (not descriptor.get) so the
+        # sandbox_<slug>_skip_cpu_limit settings override set by
+        # PATCH /emulators/{slug}/sandbox is honoured here too, matching the
+        # resolution launcher.py uses for the Python-side Job Object. Without
+        # this the container path applied the CPU cap unconditionally, ignoring
+        # both tiers.
+        skip_cpu_limit=get_skip_cpu_limit(emulator_slug),
         memory_limit_mb=memory_limit_mb,
     )
 
@@ -264,7 +236,7 @@ def validate_descriptor_grant_surface() -> None:
             "container_broker_files cannot be resolved by _resolve_path_key:\n"
             + "\n".join(failures)
             + "\nFix: add the key to settings._DEFAULTS/_PATH_DEFAULTS or to the "
-            "derived map in app_container._resolve_path_key()."
+            "derived map in emulator_paths.resolve_derived_path()."
         )
 
 

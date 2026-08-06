@@ -22,6 +22,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from backend.constants_generated import InstallType
+from backend.service.utils.emulator_paths import resolve_derived_path
 
 
 class EmulatorDependency(BaseModel):
@@ -133,6 +134,15 @@ class EmulatorDescriptor(BaseModel):
         than a bug. Path identity is checked via _resolve_path_key's derived
         paths, not by comparing path_key names, since two different keys can
         legitimately resolve to the same directory.
+
+        Path identity is checked against the derived-path map only
+        (emulator_paths.resolve_derived_path). The settings tier and the
+        appdata_xemu branch of app_container._resolve_path_key are deliberately
+        not consulted here: this validator runs at TOML-parse time, so it must
+        not pull the settings/database stack into the catalog load, and neither
+        tier can produce a path equal to a derived install_dir anyway. An entry
+        keyed on either tier resolves to None here, which simply fails to match
+        install_dir, exactly as a settings-resolved path would.
         """
         if not (self.container_enabled and self.portable_sentinel):
             return self
@@ -140,21 +150,12 @@ class EmulatorDescriptor(BaseModel):
         if not install_dir_entries or install_dir_entries[0].access != "r":
             return self
 
-        # Deferred import: app_container.py imports get_emulator/get_emulator_era
-        # from emulator_catalog.py at module level, so importing it at module
-        # level here would create a cycle (this module is imported by
-        # emulator_catalog.py to build the catalog in the first place).
-        from backend.service.utils.platform.windows.app_container import _resolve_path_key
-
         def _resolve(entry: ContainerBrokerFile) -> Optional[str]:
             if entry.path:
                 return entry.path
             if not entry.path_key:
                 return None
-            try:
-                return _resolve_path_key(entry.path_key, self.slug)
-            except Exception:
-                return None
+            return resolve_derived_path(entry.path_key, self.slug)
 
         install_dir_path = _resolve(install_dir_entries[0])
         for entry in self.container_broker_files:
