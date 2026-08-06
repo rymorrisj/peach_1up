@@ -18,6 +18,7 @@ echo "Building $OUT_NAME ..."
 
 g++ \
     -std=c++20 \
+    -D_WIN32_WINNT=0x0602 -DWINVER=0x0602 \
     -Wall -Wextra -Werror \
     -fstack-protector-strong \
     -O2 \
