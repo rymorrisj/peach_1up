@@ -7,12 +7,6 @@ enum class EventResult {
     Failed,
 };
 
-struct SignalState {
-    std::wstring state;
-    int exit_code;
-    std::wstring error;
-};
-
 class SandboxEvent {
 public:
     explicit SandboxEvent(const std::wstring& moniker, DWORD pid);
@@ -22,7 +16,7 @@ public:
     SandboxEvent& operator=(const SandboxEvent&) = delete;
 
     EventResult create();
-    HRESULT signal(const SignalState& state);
+    HRESULT signal();
     const std::wstring& name() const { return name_; }
     HANDLE handle() const { return handle_; }
 

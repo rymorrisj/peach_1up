@@ -90,7 +90,7 @@ static DWORD access_to_mask(const std::wstring& access) {
 struct BrokerFile {
     std::wstring path;
     std::wstring access; // "r", "rw", or "x"
-    std::wstring mode;   // "create", "inherit", or "grant"
+    std::wstring mode;   // "secure", "inherit", or "grant"
 };
 
 struct LaunchConfig {
@@ -646,10 +646,7 @@ static int run_launch(const LaunchConfig& cfg) {
     std::cout.flush();
 
     // 14. Signal the named event so Python watcher unblocks.
-    SignalState ss;
-    ss.state     = L"exited";
-    ss.exit_code = static_cast<int>(exit_code);
-    evt.signal(ss);
+    evt.signal();
 
     return static_cast<int>(exit_code);
 }
@@ -659,7 +656,18 @@ static int run_launch(const LaunchConfig& cfg) {
 int main(int argc, char* argv[]) {
     // --reset <moniker> mode.
     if (argc == 3 && std::string(argv[1]) == "--reset") {
-        return run_reset(argv[2]);
+        // to_wide() inside run_reset() throws std::runtime_error on
+        // malformed-UTF-8 input; unlike the launch path below, --reset has
+        // no JSON stdout protocol to report through, so this catches
+        // locally and reports to stderr the same way run_reset()'s own
+        // FAILED(hr) branch already does, instead of letting an uncaught
+        // exception reach std::terminate().
+        try {
+            return run_reset(argv[2]);
+        } catch (const std::exception& ex) {
+            std::cerr << "sandbox_host --reset: " << ex.what() << "\n";
+            return 1;
+        }
     }
 
     // Launch mode: read JSON config from stdin.

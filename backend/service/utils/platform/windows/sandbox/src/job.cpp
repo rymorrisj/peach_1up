@@ -83,11 +83,20 @@ HRESULT JobObject::apply_limits(const JobConfig& cfg) {
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION eli = {};
         // BREAKAWAY_OK: see create() comment because the same caveat applies when
         // memory limits are re-applied via apply_limits().
+        //
+        // PROCESS_MEMORY, not JOB_MEMORY: this must match job.py's
+        // set_memory_limit(), which caps memory_limit_mb per-process via
+        // JOB_OBJECT_LIMIT_PROCESS_MEMORY on the non-container Job-Object-only
+        // launch path. JOB_MEMORY caps the job's cumulative usage across every
+        // process it contains instead of any single one, a different meaning
+        // for the same config value; nothing here documented that divergence
+        // as intentional, so the container path is aligned to the same
+        // per-process semantics rather than left to drift.
         eli.BasicLimitInformation.LimitFlags =
-            JOB_OBJECT_LIMIT_JOB_MEMORY |
+            JOB_OBJECT_LIMIT_PROCESS_MEMORY |
             JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE |
             JOB_OBJECT_LIMIT_BREAKAWAY_OK;
-        eli.JobMemoryLimit = cfg.memory_limit_bytes;
+        eli.ProcessMemoryLimit = cfg.memory_limit_bytes;
 
         if (!SetInformationJobObject(handle_,
                 JobObjectExtendedLimitInformation,

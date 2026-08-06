@@ -45,7 +45,7 @@ EventResult SandboxEvent::create() {
     return EventResult::Created;
 }
 
-HRESULT SandboxEvent::signal(const SignalState& /*state*/) {
+HRESULT SandboxEvent::signal() {
     if (!handle_) return E_HANDLE;
     if (!SetEvent(handle_)) {
         return HRESULT_FROM_WIN32(GetLastError());

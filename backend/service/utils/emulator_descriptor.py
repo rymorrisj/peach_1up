@@ -93,7 +93,14 @@ class EmulatorDescriptor(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    slug: str
+    # slug feeds directly into filesystem paths via
+    # emulator_paths.resolve_derived_path (base / "emulators" / slug / ...)
+    # with no further sanitisation there, so a value containing "..", a path
+    # separator, or a leading dot could escape the intended emulators/<slug>/
+    # directory. Every real slug in config/emulators/*.toml today is
+    # lowercase alphanumeric with optional internal hyphens; the pattern
+    # matches that convention rather than merely blocking traversal.
+    slug: str = Field(pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$")
     name: str
     display_name: str = ""
     description: str = ""

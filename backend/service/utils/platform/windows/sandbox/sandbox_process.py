@@ -117,7 +117,13 @@ class SandboxProcess:
             )
             self.returncode = exit_code.value
         self._close_handles()
-        return self.returncode
+        # self.returncode is int | None; every path above that clears
+        # _process_handle also sets it to an int first, but that isn't
+        # structurally guaranteed, so fall back to the same -1 sentinel used
+        # by the timeout branch rather than letting the -> int annotation
+        # silently lie if a future caller reaches this with no handle and no
+        # recorded exit code.
+        return self.returncode if self.returncode is not None else -1
 
     def resume(self) -> None:
         """Resume the suspended main thread using the stored thread handle.

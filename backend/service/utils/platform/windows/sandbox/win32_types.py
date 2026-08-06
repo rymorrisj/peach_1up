@@ -54,7 +54,12 @@ class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
         ("MinimumWorkingSetSize", ctypes.c_size_t),
         ("MaximumWorkingSetSize", ctypes.c_size_t),
         ("ActiveProcessLimit", ctypes.wintypes.DWORD),
-        ("Affinity", ctypes.POINTER(ctypes.wintypes.ULONG)),
+        # Win32's ULONG_PTR Affinity is a pointer-sized bitmask value, not an
+        # actual pointer to a ULONG. c_size_t is the correct ctypes mapping
+        # for ULONG_PTR; POINTER(ULONG) previously declared it as a real
+        # pointer type, which is the wrong shape even though no code in this
+        # package reads or writes this field today.
+        ("Affinity", ctypes.c_size_t),
         ("PriorityClass", ctypes.wintypes.DWORD),
         ("SchedulingClass", ctypes.wintypes.DWORD),
     ]

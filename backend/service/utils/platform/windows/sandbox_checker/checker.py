@@ -4,8 +4,7 @@ import asyncio
 from collections.abc import Mapping
 from pathlib import Path
 
-from .. import sandbox as _sandbox_pkg
-from ..sandbox import SandboxConfig, SandboxError, launch
+from ..sandbox import SandboxConfig, SandboxError, launch, reset_container
 from .results import CheckResult, CheckStatus
 
 _SRC = Path(__file__).parent / "src"
@@ -64,7 +63,22 @@ async def _async_run_one(
             affects=affects,
         )
 
-    exit_code = await asyncio.to_thread(handle._proc.wait)
+    try:
+        exit_code = await asyncio.to_thread(handle._proc.wait)
+        # sandbox_host.exe writes a final "exited" JSON line to stdout after
+        # the started-line sandbox.launch() already consumed; nothing else
+        # reads it, so drain it here rather than leaving it unread on the pipe.
+        if handle._proc.stdout is not None:
+            await asyncio.to_thread(handle._proc.stdout.read)
+    finally:
+        # Each probe provisions a real, persistent AppContainer profile
+        # (moniker_prefix.name). Without this, repeated check runs leave
+        # every prior run's profile behind with nothing to clean it up.
+        try:
+            reset_container(config.moniker)
+        except SandboxError:
+            pass
+
     if exit_code == 0:
         return CheckResult(
             name=name,
@@ -133,9 +147,8 @@ def run_checks(
     Returns:
         A list of CheckResult, one per entry in _CHECKS, in declaration order.
     """
-    # sandbox_host.exe must be built alongside sandbox/ before calling run_checks().
-    _sandbox_pkg.EXE_NAME = "sandbox_host.exe"
-
+    # sandbox_host.exe must be built alongside sandbox/ before calling
+    # run_checks(), see ../sandbox/README.md.
     affects_map: Mapping[str, list[str]] = affects or {}
 
     results: list[CheckResult] = []
