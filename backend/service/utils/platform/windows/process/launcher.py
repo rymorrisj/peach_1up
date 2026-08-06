@@ -1,43 +1,32 @@
 """
 Emulator launch orchestration for Peach 1UP.
 
-Provides the public entry point ``launch_under_job_object`` which runs an
-emulator executable under the current user account inside a Windows Job Object
-with memory and CPU limits sourced from eras.yaml.
+Provides the public entry point ``launch_under_job_object``, which resolves
+per-launch resource limits from eras.yaml and the emulator catalog, then
+delegates to sandbox/process.py for the actual launch and Job Object
+lifecycle:
 
-Native (non-container) processes are launched with CREATE_SUSPENDED; the main
-thread is resumed only after the Job Object's memory and CPU limits have been
-applied and the process assigned, so an emulator can never execute even briefly
-outside its resource cap.  Container launches are created suspended and resumed
-inside sandbox_host.exe, which enforces the same ordering.  If Job Object
-assignment fails the process is terminated and the launch is aborted — there is
-no unsandboxed fallback.
+  * ``launch_suspended`` starts the emulator suspended, natively or inside an
+    AppContainer.
+  * ``run_under_job`` creates the Job Object, applies limits (or not, for
+    container launches — see its docstring), assigns the process (retrying
+    with CREATE_BREAKAWAY_FROM_JOB if needed), and resumes it.
+
+If Job Object assignment fails the process is terminated and the launch is
+aborted — there is no unsandboxed fallback.
 """
 
-import asyncio
-import ctypes
-import ctypes.wintypes
-import os
 import subprocess
 import yaml
 from pathlib import Path
 
-from backend.service.utils.platform.windows.win32_types import (
-    _CREATE_BREAKAWAY_FROM_JOB,
-    _CREATE_SUSPENDED,
-    _STARTF_USESHOWWINDOW,
-    _SW_SHOWNORMAL,
-    STARTUPINFOW,
-    PROCESS_INFORMATION,
-)
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
-from backend.service.utils.eras_config import get_eras
-from backend.service.utils.platform.windows.sandbox import sandbox as _sandbox
-from backend.service.utils.platform.windows.sandbox.sandbox_config import SandboxConfig
-from backend.service.utils.platform.windows.sandbox.sandbox_error import SandboxError
-from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
-from backend.service.utils.platform.windows.process.job_objects import WindowsJobObject
+from backend.service.utils.eras_config import get_eras, get_cpu_min_rate
+from ..sandbox.sandbox_config import SandboxConfig
+from ..sandbox.sandbox_process import SandboxProcess
+from ..sandbox.job import WindowsJobObject
+from ..sandbox.process import launch_suspended, run_under_job
 from backend.service.utils.emulator_catalog import get_skip_memory_limit, get_skip_cpu_limit
 
 logger = get_logger(__name__)
@@ -76,120 +65,6 @@ def _load_era_limits(era: str) -> tuple[int, int]:
     return int(memory_limit_mb), int(cpu_limit_percent)
 
 
-def _launch_process(
-    executable_path: str,
-    args: list[str],
-    creation_flags: int,
-    cwd: str | None = None,
-) -> SandboxProcess:
-    """Launch a suspended process under the current user account via CreateProcessW.
-
-    The process is created with CREATE_SUSPENDED and the returned
-    SandboxProcess retains the main-thread handle; the caller MUST call
-    ``process.resume()`` exactly once after the process is assigned to its Job
-    Object (or terminate it), otherwise the process is left permanently
-    suspended and its thread handle leaks.
-    """
-    cmd_line = subprocess.list2cmdline([executable_path] + args)
-    cmd_buf = ctypes.create_unicode_buffer(cmd_line)
-
-    cwd = cwd if cwd is not None else str(Path(executable_path).parent)
-
-    si = STARTUPINFOW()
-    si.cb = ctypes.sizeof(STARTUPINFOW)
-    si.dwFlags = _STARTF_USESHOWWINDOW
-    si.wShowWindow = _SW_SHOWNORMAL
-    pi = PROCESS_INFORMATION()
-
-    # CREATE_SUSPENDED: the process must not run before the Job Object limits
-    # are applied and it is assigned, so it can never execute uncapped.
-    suspended_flags = creation_flags | _CREATE_SUSPENDED
-
-    logger.debug(
-        "launch_process: exe=%s cwd=%s flags=%#x args=%s cmd=%s",
-        executable_path, cwd, suspended_flags, args, cmd_line,
-    )
-
-    result = ctypes.windll.kernel32.CreateProcessW(
-        ctypes.c_wchar_p(executable_path),
-        cmd_buf,
-        None,
-        None,
-        False,
-        ctypes.wintypes.DWORD(suspended_flags),
-        None,
-        ctypes.c_wchar_p(cwd) if cwd else None,
-        ctypes.byref(si),
-        ctypes.byref(pi),
-    )
-
-    if not result:
-        error_code = ctypes.windll.kernel32.GetLastError()
-        raise RuntimeError(
-            f"Failed to launch '{os.path.basename(executable_path)}'. "
-            f"Error code: {error_code}."
-        )
-
-    # Retain hThread — it is needed for ResumeThread after Job Object
-    # assignment. resume() (or _close_handles() on teardown) closes it.
-    return SandboxProcess(
-        pid=pi.dwProcessId,
-        process_handle=pi.hProcess,
-        thread_handle=pi.hThread,
-        args=[executable_path] + args,
-    )
-
-
-def _launch_process_in_container(
-    executable_path: str,
-    args: list[str],
-    creation_flags: int,
-    sandbox_config: SandboxConfig,
-    cwd: str | None = None,
-) -> SandboxProcess:
-    """Launch a process in a Windows AppContainer via the sandbox package."""
-    logger.debug(
-        "launch_process_in_container: exe=%s cwd=%s flags=%#x args=%s",
-        executable_path, cwd, creation_flags, args,
-    )
-
-    if cwd is not None:
-        sandbox_config.working_dir = cwd
-
-    sandbox_config.args = list(args)
-
-    if creation_flags & _CREATE_BREAKAWAY_FROM_JOB:
-        sandbox_config.breakaway = True
-
-    sandbox_handle = _sandbox.launch(sandbox_config)
-
-    PROCESS_ALL_ACCESS = 0x001FFFFF
-    win32_handle = ctypes.windll.kernel32.OpenProcess(
-        PROCESS_ALL_ACCESS, False, sandbox_handle.pid
-    )
-    if not win32_handle:
-        error_code = ctypes.windll.kernel32.GetLastError()
-        try:
-            asyncio.run(sandbox_handle.terminate())
-        except Exception as te:
-            logger.warning(
-                "Failed to terminate container pid %d during OpenProcess cleanup: %s",
-                sandbox_handle.pid, te,
-            )
-        raise RuntimeError(
-            f"OpenProcess failed for container pid {sandbox_handle.pid} "
-            f"(error {error_code}) after sandbox.launch() succeeded."
-        )
-
-    return SandboxProcess(
-        pid=sandbox_handle.pid,
-        process_handle=win32_handle,
-        thread_handle=None,
-        args=[executable_path] + args,
-        sandbox_handle=sandbox_handle,
-    )
-
-
 def launch_under_job_object(
     executable_path: str,
     args: list[str],
@@ -217,153 +92,41 @@ def launch_under_job_object(
             "pass a SandboxConfig to launch_under_job_object."
         )
 
-    job_object = None
-    process = None
     base_flags = subprocess.CREATE_NEW_PROCESS_GROUP
 
-    try:
-        memory_limit_mb, cpu_limit_percent = _load_era_limits(era)
+    memory_limit_mb, cpu_limit_percent = _load_era_limits(era)
+    skip_cpu_limit = get_skip_cpu_limit(slug)
+    skip_memory_limit = get_skip_memory_limit(slug)
+    cpu_min_rate_percent = get_cpu_min_rate(era)
 
-        if container_enabled:
-            process = _launch_process_in_container(
-                executable_path, args, base_flags, sandbox_config, cwd=cwd
-            )
-        else:
-            process = _launch_process(executable_path, args, base_flags, cwd=cwd)
+    if container_enabled:
+        # sandbox_host.exe applies these via its own Job Object
+        # (main.cpp/job.cpp) before the emulator ever runs — the resolved
+        # era numbers must reach it through sandbox_config, otherwise it
+        # silently falls back to SandboxConfig's inert defaults (50% CPU, no
+        # memory cap). run_under_job is called below with
+        # apply_limits=False for this reason: the Python-side Job Object
+        # created there exists only as the teardown handle and for
+        # launch-history reporting (coordinator.py), not as an enforcer.
+        sandbox_config.cpu_max_rate = cpu_limit_percent
+        sandbox_config.cpu_min_rate = cpu_min_rate_percent
+        sandbox_config.skip_cpu_limit = skip_cpu_limit
+        sandbox_config.memory_limit_mb = None if skip_memory_limit else memory_limit_mb
 
-        job_name = f"{job_name_prefix}_{process.pid}"
-        job_object = WindowsJobObject(job_name, memory_limit_mb, cpu_limit_percent)
-        job_object.create()
+    process = launch_suspended(
+        executable_path, args, base_flags, cwd,
+        sandbox_config if container_enabled else None,
+    )
 
-        if not get_skip_cpu_limit(slug):
-            job_object.set_cpu_limit(job_object.cpu_limit_percent)
+    job_name = f"{job_name_prefix}_{process.pid}"
 
-        if get_skip_memory_limit(slug):
-            job_object.set_kill_on_close()
-        else:
-            job_object.set_memory_limit(job_object.memory_limit_mb)
-
-    except SandboxError:
-        if job_object:
-            try:
-                job_object.teardown()
-            except Exception:
-                pass
-        raise
-    except Exception as e:
-        cleanup_errors = []
-        if process:
-            # Terminate directly while suspended — TerminateProcess works on a
-            # suspended process, so there is no need to resume it first (which
-            # would let this doomed process run uncapped, however briefly).
-            try:
-                process.kill()
-                process.wait()
-            except Exception as exc:
-                logger.error("kill failed for pid=%s during phase 1 cleanup: %s", process.pid, exc)
-        if job_object:
-            try:
-                job_object.teardown()
-            except Exception as ce:
-                cleanup_errors.append(str(ce))
-        msg = f"Failed to launch {executable_path} under job object: {str(e)}"
-        if cleanup_errors:
-            msg += f" (Cleanup errors: {'; '.join(cleanup_errors)})"
-        raise RuntimeError(msg)
-
-    # SAFETY: handle is closed by wait(); do not call add_process after kill/wait
-    _needs_breakaway_retry = False
-    try:
-        job_object.add_process(process)
-    except RuntimeError as exc:
-        if "retry_with_breakaway" not in str(exc):
-            # Terminate the still-suspended process directly (see phase 1).
-            try:
-                process.kill()
-                process.wait()
-            except Exception as exc2:
-                logger.error("kill failed for pid=%s during job assignment cleanup: %s", process.pid, exc2)
-            try:
-                job_object.teardown()
-            except Exception:
-                pass
-            raise RuntimeError(f"Failed to assign process to job object: {exc}")
-        _needs_breakaway_retry = True
-
-    if _needs_breakaway_retry:
-        # Terminate the still-suspended process directly (see phase 1).
-        try:
-            process.kill()
-            process.wait()
-        except Exception as exc:
-            logger.error("kill failed for pid=%s during breakaway retry teardown: %s", process.pid, exc)
-        try:
-            if container_enabled:
-                process = _launch_process_in_container(
-                    executable_path, args,
-                    base_flags | _CREATE_BREAKAWAY_FROM_JOB,
-                    sandbox_config, cwd=cwd
-                )
-            else:
-                process = _launch_process(
-                    executable_path, args, base_flags | _CREATE_BREAKAWAY_FROM_JOB, cwd=cwd
-                )
-        except SandboxError:
-            try:
-                job_object.teardown()
-            except Exception:
-                pass
-            raise
-        except Exception as exc2:
-            try:
-                job_object.teardown()
-            except Exception:
-                pass
-            raise RuntimeError(
-                f"Cannot launch '{os.path.basename(executable_path)}': "
-                f"CREATE_BREAKAWAY_FROM_JOB failed after assignment error 5 ({exc2})."
-            )
-        try:
-            job_object.add_process(process)
-        except Exception as exc3:
-            # Terminate the still-suspended breakaway process directly (see phase 1).
-            try:
-                process.kill()
-                process.wait()
-            except Exception as exc4:
-                logger.error("kill failed for pid=%s during post-breakaway assignment cleanup: %s", process.pid, exc4)
-            try:
-                job_object.teardown()
-            except Exception:
-                pass
-            raise RuntimeError(
-                f"Failed to assign breakaway process to job object: {exc3}"
-            )
-
-    # Assignment succeeded and limits are in force — resume the suspended main
-    # thread (native launches only; container launches were resumed inside
-    # sandbox_host.exe and carry no thread handle). resume() closes hThread.
-    # A resume failure here would leave the emulator hung, so it is fatal:
-    # terminate and abort rather than return a permanently-suspended process.
-    if not container_enabled:
-        try:
-            process.resume()
-        except Exception as exc:
-            try:
-                process.kill()
-                process.wait()
-            except Exception as exc2:
-                logger.error(
-                    "kill failed for pid=%s after resume failure: %s", process.pid, exc2
-                )
-            try:
-                job_object.teardown()
-            except Exception:
-                pass
-            raise RuntimeError(
-                f"Failed to resume process {process.pid} after job assignment: {exc}"
-            )
-
-    # pi.hProcess is kept open so SandboxProcess.poll() can call
-    # GetExitCodeProcess. _close_handles() (from poll() on exit) closes it once.
-    return (process, job_object)
+    return run_under_job(
+        executable_path, args, base_flags, cwd,
+        process, job_name,
+        memory_limit_mb, cpu_limit_percent,
+        apply_limits=not container_enabled,
+        cpu_min_rate_percent=cpu_min_rate_percent,
+        skip_cpu_limit=skip_cpu_limit,
+        skip_memory_limit=skip_memory_limit,
+        sandbox_config=sandbox_config if container_enabled else None,
+    )

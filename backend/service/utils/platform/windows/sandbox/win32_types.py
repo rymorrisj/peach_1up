@@ -171,11 +171,11 @@ class PROCESS_INFORMATION(ctypes.Structure):
 # one WinDLL instance per name), and each named function is itself cached as
 # an attribute on first access. Declaring argtypes/restype here, once, at
 # import time therefore fixes every ctypes.windll.kernel32.X(...) call site
-# across this package (job_objects.py, launcher.py, sandbox_process.py,
-# sandbox/sandbox.py) without changing any of those call sites, as long as
-# this module has been imported first. sandbox/sandbox.py does not otherwise
-# depend on win32_types, so it imports this module explicitly for that
-# side effect.
+# across this package (sandbox/job.py, sandbox/process.py,
+# sandbox/sandbox_process.py, sandbox/sandbox.py) without changing any of
+# those call sites, as long as this module has been imported first.
+# sandbox/sandbox.py does not otherwise depend on win32_types, so it imports
+# this module explicitly for that side effect.
 _kernel32 = ctypes.windll.kernel32
 _wt = ctypes.wintypes
 

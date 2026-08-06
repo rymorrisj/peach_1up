@@ -21,10 +21,10 @@ from backend.service.utils.emulator_catalog import (
 )
 from backend.service.utils.emulator_paths import resolve_derived_path
 from backend.service.utils.eras_config import get_cpu_min_rate, get_era
-from backend.service.utils.platform.windows.sandbox import sandbox
-from backend.service.utils.platform.windows.sandbox.sandbox_config import BrokerFile, SandboxConfig
-from backend.service.utils.platform.windows.sandbox.sandbox_error import SandboxError
-from backend.service.utils.platform.windows.sandbox.sandbox_event import SandboxStage
+from .sandbox import sandbox
+from .sandbox.sandbox_config import BrokerFile, SandboxConfig
+from .sandbox.sandbox_error import SandboxError
+from .sandbox.sandbox_event import SandboxStage
 
 logger = get_logger(__name__)
 

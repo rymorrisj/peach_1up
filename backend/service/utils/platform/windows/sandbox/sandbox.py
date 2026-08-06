@@ -16,10 +16,10 @@ from backend.core.logger import get_logger
 # used below (OpenEventW, WaitForSingleObject, CloseHandle) on the shared
 # ctypes.windll.kernel32 singleton. See win32_types.py's "kernel32 function
 # signatures" section for why this must be imported before those calls run.
-from backend.service.utils.platform.windows import win32_types as _win32_types  # noqa: F401
-from backend.service.utils.platform.windows.sandbox.sandbox_config import SandboxConfig
-from backend.service.utils.platform.windows.sandbox.sandbox_error import SandboxError
-from backend.service.utils.platform.windows.sandbox.sandbox_event import (
+from . import win32_types as _win32_types  # noqa: F401
+from .sandbox_config import SandboxConfig
+from .sandbox_error import SandboxError
+from .sandbox_event import (
     SandboxEvent,
     SandboxPayload,
     SandboxStage,

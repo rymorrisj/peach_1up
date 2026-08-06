@@ -14,10 +14,10 @@ import ctypes.wintypes
 from typing import TYPE_CHECKING
 
 from backend.core.logger import get_logger
-from backend.service.utils.platform.windows.win32_types import _RESUME_THREAD_FAILED, _STILL_ACTIVE
+from .win32_types import _RESUME_THREAD_FAILED, _STILL_ACTIVE
 
 if TYPE_CHECKING:
-    from backend.service.utils.platform.windows.sandbox.sandbox import SandboxHandle
+    from .sandbox import SandboxHandle
 
 _log = get_logger(__name__)
 

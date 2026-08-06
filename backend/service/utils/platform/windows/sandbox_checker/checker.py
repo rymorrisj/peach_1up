@@ -4,9 +4,9 @@ import asyncio
 from collections.abc import Mapping
 from pathlib import Path
 
-import backend.service.utils.platform.windows.sandbox as _sandbox_pkg
-from backend.service.utils.platform.windows.sandbox import SandboxConfig, SandboxError, launch
-from backend.service.utils.platform.windows.sandbox_checker.results import CheckResult, CheckStatus
+from .. import sandbox as _sandbox_pkg
+from ..sandbox import SandboxConfig, SandboxError, launch
+from .results import CheckResult, CheckStatus
 
 _SRC = Path(__file__).parent / "src"
 

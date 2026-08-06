@@ -26,8 +26,8 @@ from backend.service.utils.emulator_catalog import resolve_container_enabled
 from backend.service.utils.path_utils import normalise_path
 from backend.service.utils.platform.windows.sandbox import BrokerFile
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
-from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
-from backend.service.utils.platform.windows.process.job_objects import WindowsJobObject
+from backend.service.utils.platform.windows.sandbox.sandbox_process import SandboxProcess
+from backend.service.utils.platform.windows.sandbox.job import WindowsJobObject
 
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
@@ -225,6 +225,13 @@ def _build_drive_mount_lines(
     drive_setup_lines: list[str] = []
 
     if has_persistent_drive:
+        # Resolved (symlinks/junctions followed) once here so every use below
+        # (the mount line, the IMGMAKE/IMGMOUNT path, the containment check,
+        # and the superfloppy geometry read) agrees with launch()'s DACL
+        # grant, which applies normalise_path(str(spec.drive_image_path)) to
+        # the same value. A raw path here would mount through a symlink
+        # while the grant lands on its resolved target.
+        drive_image_path = normalise_path(str(drive_image_path))
         library_path = get_base_path() / "library"
         if not drive_image_path.resolve().is_relative_to(library_path.resolve()):
             raise ValueError(
@@ -326,6 +333,45 @@ def _build_drive_mount_lines(
             )
 
     return drive_setup_lines, mount_line, drive_line, media_drive
+
+
+def _media_read_grants(spec: "LaunchSpec", has_persistent_drive: bool) -> list[BrokerFile]:
+    """Return the AppContainer read grants DOSBox-X needs for spec.media_path
+    and spec.disc_paths, mirroring exactly what _build_drive_mount_lines
+    mounts for this launch -- no more.
+
+    Returns [] when media needs no grant of its own: has_persistent_drive
+    with run_from_c (files hydrated onto the writable C: drive) or a
+    directory media_path (same; a directory media_path is only reachable
+    with a persistent drive, see the ValueError in the no-persistent-drive
+    branch above) both already read their files off drive_image_path, which
+    is granted separately by the caller.
+
+    disc_paths is not assumed to share a directory with media_path or with
+    each other -- dedup_disc_anchor can repoint disc_files[0] (media_path) at
+    a pre-existing file elsewhere under the library tree, so each path is
+    granted individually rather than granting a common parent directory.
+    """
+    media_path = spec.media_path
+    if has_persistent_drive and (spec.run_from_c or media_path.is_dir()):
+        return []
+
+    disc_paths = spec.disc_paths or []
+    if disc_paths and len(disc_paths) > 1:
+        return [
+            BrokerFile(path=str(normalise_path(str(dp))), access="r", mode="secure")
+            for dp in disc_paths
+        ]
+
+    suffix = media_path.suffix.lower()
+    if suffix in {".exe", ".bat"}:
+        # MOUNT exposes the whole parent directory as a drive (see the
+        # ".exe"/".bat" branches of _build_drive_mount_lines above); the DOS
+        # program can reference sibling files in it by relative path.
+        return [BrokerFile(
+            path=str(normalise_path(str(media_path.parent))), access="r", mode="grant")]
+
+    return [BrokerFile(path=str(normalise_path(str(media_path))), access="r", mode="secure")]
 
 
 def _build_autoexec(
@@ -473,7 +519,15 @@ def _validate_environment_drive(working_image_path: Path | None) -> Path:
             f"Environment working image not found: {working_image_path}. "
             "Re-provision the environment to recreate its C: drive."
         )
-    return working_image_path
+    # Resolved (symlinks/junctions followed) so the IMGMOUNT line built from
+    # this return value targets the same file launch()'s DACL grant covers
+    # below (env_image = normalise_path(str(spec.working_image_path))). Both
+    # apply the identical resolve() to the identical input, so they agree; a
+    # raw, un-resolved path here would mount through the symlink while the
+    # grant lands on its resolved target, and DOSBox-X's open would fail
+    # resolving the symlink itself if the AppContainer lacks traverse access
+    # to whatever directory the symlink lives in.
+    return normalise_path(str(working_image_path))
 
 
 def _build_environment_drive_mount_line(working_image_path: Path) -> str:
@@ -641,9 +695,8 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         from backend.service.utils.platform.windows.app_container import get_container_config as _build_cfg
         sandbox_config = _build_cfg("dosbox-x", spec.executable_path, user_item_id=spec.user_item_id)
         sandbox_config.broker_files.append(
-            BrokerFile(path=str(get_base_path() / "library"), access="r", mode="grant"))
-        sandbox_config.broker_files.append(
             BrokerFile(path=str(tmpdir), access="r", mode="grant"))
+        has_persistent_drive = spec.drive_image_path is not None and spec.use_drive
         if is_environment_launch and spec.working_image_path is not None:
             # Environment launches have no per-item drive_image_path. The
             # persistent C: drive is spec.working_image_path instead.
@@ -686,7 +739,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
                     access="rw",
                     mode="secure",
                 ))
-        elif spec.drive_image_path is not None and spec.use_drive:
+        elif has_persistent_drive:
             # Per-item drives genuinely need directory-level write access: when
             # the image does not exist yet, _build_drive_mount_lines emits an
             # IMGMAKE line and DOSBox-X creates the .img in place, which needs
@@ -710,6 +763,15 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
                     access="rw",
                     mode="secure",
                 ))
+
+        if not is_environment_launch:
+            # media_path (and any disc_paths) live somewhere under library/,
+            # but not necessarily under drive_image_path's directory or each
+            # other's -- see _media_read_grants for why each is granted
+            # individually instead of recursively granting the whole library
+            # tree, which no DOSBox-X operation here actually needs.
+            sandbox_config.broker_files.extend(
+                _media_read_grants(spec, has_persistent_drive))
     else:
         sandbox_config = None
 

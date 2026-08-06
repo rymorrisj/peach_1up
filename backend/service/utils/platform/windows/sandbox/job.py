@@ -24,7 +24,7 @@ import ctypes
 import ctypes.wintypes
 import sys
 
-from backend.service.utils.platform.windows.win32_types import (
+from .win32_types import (
     _JOB_OBJECT_LIMIT_PROCESS_MEMORY,
     _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     _JOB_OBJECT_CPU_RATE_CONTROL_ENABLE,
@@ -35,27 +35,9 @@ from backend.service.utils.platform.windows.win32_types import (
     JOBOBJECT_BASIC_ACCOUNTING_INFORMATION,
 )
 from backend.core.logger import get_logger
-from backend.service.utils.eras_config import get_cpu_min_rate
-from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
+from .sandbox_process import SandboxProcess
 
 logger = get_logger(__name__)
-
-_CPU_MIN_RATE_PERCENT: int = get_cpu_min_rate("")
-
-
-def _process_in_job(pid: int) -> bool:
-    """Return True if the process with *pid* is inside any Windows Job Object."""
-
-    # SAFETY: handle is closed by wait(); do not call add_process after kill/wait
-    handle = ctypes.windll.kernel32.OpenProcess(0x0400, False, pid)
-    if not handle:
-        return False
-    try:
-        in_job = ctypes.wintypes.BOOL(False)
-        ctypes.windll.kernel32.IsProcessInJob(handle, None, ctypes.byref(in_job))
-        return bool(in_job)
-    finally:
-        ctypes.windll.kernel32.CloseHandle(handle)
 
 
 class WindowsJobObject:
@@ -70,7 +52,7 @@ class WindowsJobObject:
         # ... emulator runs ...
         job.teardown()
 
-    ``launch_under_job_object`` in launcher.py handles this sequence and is
+    ``run_under_job`` in sandbox/process.py handles this sequence and is
     the preferred entry point for callers outside this file.
 
     Attributes:
@@ -78,14 +60,25 @@ class WindowsJobObject:
         memory_limit_mb: Per-process memory cap in MB, applied at creation.
         cpu_limit_percent: CPU hard cap as a percentage of all logical
             processors (1–100), applied at creation.
+        cpu_min_rate_percent: CPU scheduling floor used as MinRate by
+            set_cpu_limit's MIN_MAX_RATE path; sourced from eras.yaml's
+            top-level cpu_min_rate_percent by the caller (see
+            launcher.py::launch_under_job_object), not read internally.
         job_handle: Raw Win32 handle; ``None`` until ``create()`` is called.
         pid: PID of the emulator process added via ``add_process``.
     """
 
-    def __init__(self, name: str, memory_limit_mb: int, cpu_limit_percent: int):
+    def __init__(
+        self,
+        name: str,
+        memory_limit_mb: int,
+        cpu_limit_percent: int,
+        cpu_min_rate_percent: int = 5,
+    ):
         self.name = name
         self.memory_limit_mb = memory_limit_mb
         self.cpu_limit_percent = cpu_limit_percent
+        self.cpu_min_rate_percent = cpu_min_rate_percent
         self.job_handle = None
         self.pid = None
 
@@ -168,7 +161,7 @@ class WindowsJobObject:
         if not self.job_handle:
             raise RuntimeError("Job object not created. Call create() first.")
 
-        _MIN_RATE = _CPU_MIN_RATE_PERCENT * 100
+        _MIN_RATE = self.cpu_min_rate_percent * 100
 
         win_build = sys.getwindowsversion().build
         if win_build >= 14393:
