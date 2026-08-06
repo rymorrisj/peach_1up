@@ -1,6 +1,5 @@
+import logging
 from pathlib import Path
-
-from backend.core.logger import get_logger
 
 from .hashing import hash_lookup as _hash_lookup
 from .magic.magic_detect import detect_from_magic
@@ -12,7 +11,7 @@ from .directory_detect import detect_directory
 
 _INDEX_PATH = Path(__file__).parent / "hashing" / "hash_index.json"
 
-log = get_logger(__name__)
+log = logging.getLogger(__name__)
 
 
 # ── requires_install heuristic ───────────────────────────────────────────────

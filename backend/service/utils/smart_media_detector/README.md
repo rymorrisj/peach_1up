@@ -292,23 +292,52 @@ The package is written to eventually be extracted into its own repository,
 `resolve_xex_target`, and the bulk of the code, `detector.py`'s dispatch
 logic, `magic/`, `validators/`, `iso_detect.py`, `exe_detect.py`,
 `directory_detect.py`, and the hashing pipeline, has no dependency on the
-rest of Peach 1UP. That said, a few things would need cleanup before
-extraction is actually clean:
+rest of Peach 1UP.
 
-- `detector.py` and `directory_detect.py` both import `backend.core.logger`
-  for their module loggers. Small, but a real `backend.*` import inside the
-  package today. `directory_detect.py` previously also imported
+- `detector.py` and `directory_detect.py` previously both imported
+  `backend.core.logger.get_logger` for their module loggers, the last
+  `backend.*` imports anywhere in the package (excluding `tests/`, confirmed
+  by grepping every `.py` file under this directory). Both now construct
+  their logger with stdlib `logging.getLogger(__name__)` instead, zero
+  functional change to any log call site (same level, same message, same
+  arguments). `directory_detect.py` previously also imported
   `backend.service.backends.rpcs3` (for `is_disc_format_folder`), a much more
   significant backend-into-detector dependency, backwards from this
   package's own vendorability goal; that import is gone as of the
-  MediaTarget refactor (Step 3) — `is_disc_format_folder`/`find_eboot` now
+  MediaTarget refactor (Step 3). `is_disc_format_folder`/`find_eboot` now
   live in `directory_detect.py` itself, and `rpcs3.py` imports them from
-  here instead. The two `backend.core.logger` imports are what remains.
+  here instead.
+  Because `logging.getLogger(__name__)` still produces a logger named
+  `backend.service.utils.smart_media_detector.<module>`, it is still picked
+  up automatically by `setup_logging()` in `backend/core/logger.py`, which
+  attaches its `RotatingFileHandler`s to every already-instantiated logger
+  whose name starts with `"backend"` or `"peach"`. No wiring change was
+  needed for file logging to keep working. One real behavior difference
+  worth knowing: `get_logger()` also attached a console handler directly
+  (colored stderr in dev, plain stderr in prod) at logger-construction time,
+  with `propagate=False`. Plain `logging.getLogger(__name__)` does neither.
+  It has no handler of its own until `setup_logging()` attaches the file
+  handlers, and it propagates by default. Since nothing in this app calls
+  `logging.basicConfig()` or otherwise attaches a handler to the root
+  logger, this package's `log.warning(...)` calls (in `detector.py`'s hash-
+  lookup-received-a-directory case and `directory_detect.py`'s XEX tie-break
+  case) still land in `logs/app.log` after `setup_logging()` runs, but no
+  longer also echo to the console the way every other `backend.*` module's
+  logger does. Purely a visibility difference for these two warning call
+  sites, not a correctness one, worth knowing if console output from this
+  package ever seems to go quiet after extraction-prep work like this.
 - `iso_detect.py` imports `from ..xbox_image import is_xiso`, a sibling
   module at `backend/service/utils/xbox_image.py`, one directory above this
-  package. It has no `backend.*` imports itself, but it lives outside
-  `smart_media_detector/`, so it would need to move into the package (or be
-  vendored as a copy) before extraction.
+  package. Checked every caller of `xbox_image.py` across the whole backend
+  before deciding whether to move it: `backend/service/backends/xemu.py`,
+  `backend/service/launch/coordinator.py`, and
+  `backend/service/utils/extract_xiso.py` all import from it too, so this
+  package is not its only consumer. It was **not** moved into the package,
+  since moving it would have broken those three call sites for no benefit. It
+  stays a known external dependency: `xbox_image.py` itself has no
+  `backend.*` imports of its own, so it is a clean, small, dependency-free
+  file to vendor as a copy (or keep as a separate shared dependency) at
+  actual extraction time, whichever the extraction plan prefers.
 - `utils/file_helpers.py` (unused `get_compatible_media()`, three `backend.*`
   imports) and the stub `validators/iso_validator.py`/`validators/rom_validator.py`
   files (`raise NotImplementedError`, never imported anywhere) have since been
@@ -319,6 +348,73 @@ No packaging scaffolding (`pyproject.toml`, `setup.py`, version metadata, its
 own test runner config) exists yet inside this directory, extraction has not
 been started beyond the import-hygiene intent described above.
 
+### Extraction readiness checklist
+
+- [x] Zero `backend.*` imports anywhere under the package (excluding
+  `tests/`). Confirmed by grep; the two `backend.core.logger` imports in
+  `detector.py`/`directory_detect.py` are the only ones that ever existed
+  and both are now removed.
+- [ ] Sibling dependency on `backend/service/utils/xbox_image.py`
+  (`iso_detect.py`). Confirmed to have three other callers elsewhere in the
+  backend (`xemu.py`, `coordinator.py`, `extract_xiso.py`), so it was
+  deliberately left in place rather than moved. Extraction still needs a
+  decision: vendor a copy of `xbox_image.py` into the new package, or keep
+  it as a small shared dependency between the two repositories.
+- [x] Test suite fully colocated under the package's own `tests/` folder,
+  nothing left in `backend/tests/` for this package.
+- [ ] No packaging scaffolding yet (`pyproject.toml`, `setup.py`, version
+  metadata, a standalone test-runner config independent of the monorepo's
+  root `pyproject.toml`). Not started.
+- [ ] Storage model is local-`Path`-only (see Known limitations below), not
+  yet storage-agnostic in the broader sense a standalone package's public
+  API might want to promise.
+- [ ] `hash_index.json` is ~88MB and lives inside the package directory
+  today (`hashing/hash_index.json`); an extraction plan needs to decide
+  whether that ships inside the new package's own repo, as a release
+  asset, or as a separately-distributed data file, before this can be
+  called packaging-ready.
+
+## Current test coverage
+
+All tests live under this package's own `tests/` folder, nothing for this
+package remains in `backend/tests/`. One `test_*.py` file per source module:
+
+- `test_classify.py` tests `classify.py`
+- `test_magic_detect.py` tests `magic/magic_detect.py`, including the
+  malformed-TOML-at-import-time case below
+- `test_chd_validator.py` tests `validators/chd_validator.py`
+- `test_bin_validator.py` tests `validators/bin_validator.py`
+- `test_hash_lookup.py` tests `hashing/hash_lookup.py`
+- `test_exe_detect.py` tests `exe_detect.py`
+- `test_verify.py` tests `verify.py`
+- `test_iso_detect.py` tests `iso_detect.py`
+- `test_directory_detect.py` tests `directory_detect.py`
+
+`tests/smart_media_fixtures.py` holds shared synthetic fixtures (fake
+hash-index entries, minimal CHD/ISO/PE/CD-sector byte builders) used across
+several of the files above, it is not itself collected as a test module.
+
+The one previously-deferred gap, magic_detect.py parsing
+`magic_signatures.toml` at module-import time rather than inside a function,
+so a malformed TOML fails on `import`, not on any later call, is now closed:
+`TestMalformedTomlAtImportTime` in `test_magic_detect.py` copies
+`magic_detect.py` next to a deliberately malformed TOML file in a `tmp_path`
+and imports that copy in a subprocess, confirming it fails with
+`tomllib.TOMLDecodeError` at import time, plus a control case confirming the
+same copy-and-subprocess-import mechanism still imports cleanly against the
+real, well-formed TOML.
+
+### Running just this package's tests
+
+```bash
+pytest backend/service/utils/smart_media_detector/tests/
+```
+
+Run from the repository root. `pyproject.toml`'s `[tool.pytest.ini_options]`
+already lists this folder in `testpaths` alongside `backend/tests`, so a
+bare `pytest` from the repo root also picks it up, this command is for
+running only this package's tests in isolation.
+
 ## Known limitations
 
 - Xbox OG ISOs without `DEFAULT.XBE` at the ISO root will not resolve via the
@@ -327,6 +423,16 @@ been started beyond the import-hygiene intent described above.
   expected to be rare in practice.
 - `.bin`/`.cue` pairs without a matching `.cue` sibling return low confidence
   and a warning, the scanner cannot resolve CD layout without a cue sheet.
+- Every entry point (`detect()`, `verify()`, `classify()`, `hash_file()`) takes
+  a local, seekable `Path` and calls `.open("rb")`/`.stat()`/`.iterdir()`
+  directly. There is no `BinaryIO`/stream-based entry point anywhere in the
+  package. "Storage-agnostic" in this package's own description (see the top
+  of this file and `dev_docs/TECH.md`) means disk-agnostic within a local
+  filesystem, for example it does not care whether that filesystem is a
+  network share or a local disk, not stream-agnostic in the broader sense of
+  accepting an in-memory buffer or a remote object-storage handle without a
+  local path at all. Worth resolving before extraction if the standalone
+  package's intended audience includes non-local-filesystem callers.
 - The `requires_install` heuristic (DOS/Windows installer-only directory
   detection) is approximate, it checks whether every root-level executable
   is on the install/setup blocklist. May need tuning based on real-world

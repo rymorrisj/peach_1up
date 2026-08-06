@@ -1,5 +1,8 @@
 """Tests for backend.service.utils.smart_media_detector.magic.magic_detect."""
 
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 from backend.service.utils.smart_media_detector.tests import smart_media_fixtures as fx
@@ -180,3 +183,67 @@ class TestClassifySystemCnf:
         not fall to the ps1 branch because "BOOT" also matched.
         """
         assert self._call("BOOT2 = cdrom0:\\SLUS_200.01;1\r\n") == "ps2"
+
+
+# ---------------------------------------------------------------------------
+# Malformed magic_signatures.toml at import time
+#
+# magic_detect.py parses its TOML at module level (`_TOML_PATH =
+# Path(__file__).parent / "magic_signatures.toml"`, then `tomllib.load()`
+# called directly in the module body, not inside any function). A malformed
+# TOML file therefore fails the moment the module is imported, not on any
+# later function call. A normal monkeypatch of _TOML_PATH can't reproduce
+# this, since by the time a test could patch that attribute the module has
+# already imported successfully against the real, well-formed file.
+#
+# Reproducing the failure means putting a malformed magic_signatures.toml
+# next to a copy of magic_detect.py *before* it is ever imported, then
+# importing that copy in a subprocess so the already-cached, successfully
+# imported real module in this test process's sys.modules is never touched.
+# ---------------------------------------------------------------------------
+
+class TestMalformedTomlAtImportTime:
+    def test_malformed_toml_raises_at_import_not_at_call(self, tmp_path: Path):
+        import backend.service.utils.smart_media_detector.magic.magic_detect as _real_module
+
+        real_source = Path(_real_module.__file__)
+        copied_module = tmp_path / "magic_detect_import_test.py"
+        shutil.copy(real_source, copied_module)
+
+        malformed_toml = tmp_path / "magic_signatures.toml"
+        malformed_toml.write_text("this is [ not valid toml ===\n", encoding="utf-8")
+
+        proc = subprocess.run(
+            [sys.executable, "-c", "import magic_detect_import_test"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        assert proc.returncode != 0
+        assert "TOMLDecodeError" in proc.stderr
+
+    def test_wellformed_toml_sibling_still_imports_cleanly(self, tmp_path: Path):
+        """Control case: the same copy-and-subprocess-import mechanism, but
+        with the real magic_signatures.toml alongside the copied module, to
+        confirm the failure above is caused by the malformed content and not
+        by some artifact of running magic_detect.py as a standalone copy.
+        """
+        import backend.service.utils.smart_media_detector.magic.magic_detect as _real_module
+
+        real_source = Path(_real_module.__file__)
+        real_toml = real_source.parent / "magic_signatures.toml"
+        copied_module = tmp_path / "magic_detect_import_test.py"
+        shutil.copy(real_source, copied_module)
+        shutil.copy(real_toml, tmp_path / "magic_signatures.toml")
+
+        proc = subprocess.run(
+            [sys.executable, "-c", "import magic_detect_import_test"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        assert proc.returncode == 0, proc.stderr

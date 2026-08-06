@@ -1,12 +1,11 @@
+import logging
 import struct
 from pathlib import Path
-
-from backend.core.logger import get_logger
 
 from .iso_detect import _POINTER_FILE_READ_CAP_BYTES
 from .result import MediaTarget, ScanResult
 
-log = get_logger(__name__)
+log = logging.getLogger(__name__)
 
 _WINDOWS_MARKERS = frozenset({"WINDOWS", "WIN", "SYSTEM", "SYSTEM32", "PROGRAM FILES", "PROGRA~1"})
 _DOS_TOOLS = frozenset({"DEICE.EXE", "PKUNZIP.EXE", "PKUNZIP.COM", "LZMA.EXE"})
