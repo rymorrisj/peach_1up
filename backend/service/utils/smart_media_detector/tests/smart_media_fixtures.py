@@ -66,6 +66,23 @@ def patch_verify_index(monkeypatch, index_path: Path) -> None:
     monkeypatch.setattr(verify_module, "_INDEX_PATH", index_path)
 
 
+def patch_detector_index(monkeypatch, index_path: Path) -> None:
+    """Points detector.py's module-level _INDEX_PATH constant at *index_path*,
+    same rationale as patch_classify_index()/patch_verify_index(). Needed
+    whenever a test drives detect() itself (as opposed to detect_directory()
+    or another dispatch target directly) on a directory: detect()'s Tier-1
+    hash_lookup.lookup() call reads and caches the real ~88MB hash_index.json
+    on first use otherwise. Pointing at a tmp_path with no file at all is the
+    normal case here (not a synthetic index) — hash_lookup._load_cached()
+    raises FileNotFoundError immediately for a missing path, which detect()
+    already catches and falls through on, so this is the fast, minimal way to
+    isolate a directory-dispatch test from the real index without building one.
+    """
+    from backend.service.utils.smart_media_detector import detector as detector_module
+
+    monkeypatch.setattr(detector_module, "_INDEX_PATH", index_path)
+
+
 # ---------------------------------------------------------------------------
 # Part 1.1 — synthetic hash_index.json (5 entries)
 # ---------------------------------------------------------------------------
@@ -359,3 +376,161 @@ def build_pe_header(
     struct.pack_into("<H", buf, pe_offset + 64, major_os_version)
     struct.pack_into("<H", buf, pe_offset + 92, subsystem)
     return bytes(buf)
+
+
+# ---------------------------------------------------------------------------
+# Part 2 — plain ISO 9660 image builder (2048 bytes/sector, no Mode-2/2352
+# raw-CD framing), for iso_detect.detect_from_pvd() / _root_dir_entry_names()
+# / _detect_from_xbe_scan(). Distinct from Part 1.2's Mode-2 BIN sector
+# builder above: detect_from_pvd() reads a plain .iso file directly at
+# 2048-byte sector boundaries (fh.seek(32768) for the PVD sector, root_lba *
+# 2048 for the root directory), no 24-byte Mode-2 data offset involved.
+#
+# Field offsets mirrored from detect_from_pvd()'s own reads exactly:
+#   type code   @0            (must be 1 for a PVD)
+#   system_id   @8,   32 bytes
+#   volume_id   @40,  32 bytes
+#   publisher   @318, 128 bytes
+#   preparer    @446, 128 bytes
+#   root LBA    @158, 4 bytes little-endian (sector number)
+#   root size   @166, 4 bytes little-endian (bytes)
+# ---------------------------------------------------------------------------
+
+ISO_SECTOR = 2048
+_ISO_PVD_SECTOR = 16
+_ISO_ROOT_DIR_SECTOR = 20
+
+
+def _pad_field(value: str, length: int) -> bytes:
+    return value.encode("ascii")[:length].ljust(length, b" ")
+
+
+def build_pvd_iso(
+    *,
+    system_id: str = "",
+    volume_id: str = "",
+    publisher: str = "",
+    preparer: str = "",
+    root_entries: list[str] | None = None,
+) -> bytes:
+    """Full plain-ISO image covering the PVD sector (16) and, when
+    root_entries is given, a root directory sector (20) referenced by the
+    PVD's own root LBA/size fields.
+
+    root_entries reuses Part 1.2's _dir_record() builder (rec_len@0,
+    name_len@32, name@33+ — the only fields _root_dir_entry_names() reads),
+    with dummy lba/size of 0 since detect_from_pvd()'s own directory-entry
+    checks (PS3_DISC.SFB / .XBE scan) only ever look at the name.
+
+    root_entries=None (the default) leaves root LBA/size at 0, matching a
+    disc with no directory data to scan — used for the plain volume-label/
+    publisher/preparer keyword-match variants, where the structural checks
+    (PS3_DISC.SFB, .xbe scan) must have nothing to match against.
+    """
+    total_sectors = max(_ISO_ROOT_DIR_SECTOR, _ISO_PVD_SECTOR) + 1
+    buf = bytearray(total_sectors * ISO_SECTOR)
+
+    pvd_start = _ISO_PVD_SECTOR * ISO_SECTOR
+    buf[pvd_start] = 1
+    buf[pvd_start + 8:pvd_start + 40] = _pad_field(system_id, 32)
+    buf[pvd_start + 40:pvd_start + 72] = _pad_field(volume_id, 32)
+    buf[pvd_start + 318:pvd_start + 446] = _pad_field(publisher, 128)
+    buf[pvd_start + 446:pvd_start + 574] = _pad_field(preparer, 128)
+
+    if root_entries:
+        root_dir_bytes = bytearray()
+        for name in root_entries:
+            root_dir_bytes += _dir_record(name.encode("ascii"), 0, 0)
+        struct.pack_into("<I", buf, pvd_start + 158, _ISO_ROOT_DIR_SECTOR)
+        struct.pack_into("<I", buf, pvd_start + 166, len(root_dir_bytes))
+        root_start = _ISO_ROOT_DIR_SECTOR * ISO_SECTOR
+        buf[root_start:root_start + len(root_dir_bytes)] = root_dir_bytes
+
+    return bytes(buf)
+
+
+def write_pvd_iso(path: Path, **kwargs) -> Path:
+    """Writes build_pvd_iso(**kwargs)'s bytes to *path* and returns it, for
+    tests that need a real on-disk file (detect_from_pvd() takes a Path).
+    """
+    path.write_bytes(build_pvd_iso(**kwargs))
+    return path
+
+
+# Exact volume-label substring keywords from iso_detect.detect_from_pvd()'s
+# own keyword loop, transcribed verbatim so a typo here can't silently make a
+# parametrized test pass against the wrong string.
+WINXP_VOLUME_KEYWORDS = ("WINDOWS XP", "WINXP", "WXPEVOL", "XP_")
+WIN98_VOLUME_KEYWORDS = ("WIN98", "WINDOWS 98", "W98", "MEMPHIS")
+WIN95_VOLUME_KEYWORDS = ("WIN95", "WINDOWS 95", "CHICAGO")
+DOS_VOLUME_KEYWORDS = ("MSDOS", "MS-DOS", "PCDOS", "FREEDOS")
+# Exact publisher/preparer substrings from iso_detect._DOS_PUBLISHERS.
+DOS_PUBLISHERS = (
+    "GT INTERACTIVE", "ID SOFTWARE", "APOGEE", "3D REALMS", "SIERRA ON-LINE",
+    "SIERRA", "ACTIVISION", "MICROPROSE", "LUCASARTS", "INTERPLAY", "BRODERBUND",
+)
+
+
+# ---------------------------------------------------------------------------
+# Part 3 — PS3/XEX folder-shape builders, for directory_detect.py's
+# is_disc_format_folder() / find_eboot() / find_default_xex() /
+# resolve_ps3_target() / resolve_xex_target() and the _detect_from_directory()
+# dispatch that delegates to them.
+# ---------------------------------------------------------------------------
+
+def build_ps3_disc_folder(tmp_path: Path, *, with_eboot: bool = True, name: str = "ps3_disc") -> Path:
+    """PS3_DISC.SFB at root, optionally + PS3_GAME/USRDIR/EBOOT.BIN (the
+    disc-format dump shape).
+
+    with_eboot=False reproduces the original bug's exact case: PS3_DISC.SFB
+    present at the root, but no EBOOT.BIN anywhere under the folder. Before
+    the fix, the disc-format branch trusted the SFB marker alone and never
+    checked for a resolvable boot file at all.
+    """
+    folder = tmp_path / name
+    folder.mkdir()
+    (folder / "PS3_DISC.SFB").write_bytes(b"\x00")
+    if with_eboot:
+        usrdir = folder / "PS3_GAME" / "USRDIR"
+        usrdir.mkdir(parents=True)
+        (usrdir / "EBOOT.BIN").write_bytes(b"\x00")
+    return folder
+
+
+def build_ps3_installed_folder(tmp_path: Path, *, name: str = "ps3_installed") -> Path:
+    """USRDIR/EBOOT.BIN directly under the folder, no PS3_DISC.SFB — the
+    installed/extracted dev_hdd0/game/<TITLE_ID>/ shape.
+    """
+    folder = tmp_path / name
+    usrdir = folder / "USRDIR"
+    usrdir.mkdir(parents=True)
+    (usrdir / "EBOOT.BIN").write_bytes(b"\x00")
+    return folder
+
+
+def build_non_ps3_folder(tmp_path: Path, *, name: str = "not_ps3") -> Path:
+    """Neither PS3_DISC.SFB nor a resolvable EBOOT.BIN present — negative case.
+
+    Uses a .bin filename deliberately: directory_detect._detect_from_directory()
+    has a generic "DOS-only extensions" fallback heuristic keyed off a fixed
+    extension set ({.exe, .com, .bat, .cfg, .txt, .ini, ""}) that would
+    misclassify this folder as era="dos" if given a .txt/.exe/etc. file
+    instead — .bin isn't in that set, so this fixture stays a clean "no
+    signal" negative case for the PS3/XEX resolvers specifically.
+    """
+    folder = tmp_path / name
+    folder.mkdir()
+    (folder / "OTHERFILE.BIN").write_bytes(b"nothing ps3-shaped here")
+    return folder
+
+
+def build_xex_folder(tmp_path: Path, *, xex_names: list[str] | None = None, name: str = "xex_folder") -> Path:
+    """Extracted Xbox 360 folder containing the given .xex filenames
+    (default: a single "default.xex"). Pass multiple non-"default.xex" names
+    to build find_default_xex()'s tie-break/fallback case.
+    """
+    folder = tmp_path / name
+    folder.mkdir()
+    for xex_name in (xex_names or ["default.xex"]):
+        (folder / xex_name).write_bytes(b"\x00")
+    return folder
