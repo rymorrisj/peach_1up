@@ -56,6 +56,16 @@ def patch_classify_index(monkeypatch, index_path: Path) -> None:
     monkeypatch.setattr(classify_module, "_INDEX_PATH", index_path)
 
 
+def patch_verify_index(monkeypatch, index_path: Path) -> None:
+    """Points verify.py's own module-level _INDEX_PATH constant at *index_path*,
+    same rationale and pattern as patch_classify_index(). verify.py declares its
+    own private _INDEX_PATH separate from classify.py's, so it needs its own patch.
+    """
+    from backend.service.utils.smart_media_detector import verify as verify_module
+
+    monkeypatch.setattr(verify_module, "_INDEX_PATH", index_path)
+
+
 # ---------------------------------------------------------------------------
 # Part 1.1 — synthetic hash_index.json (5 entries)
 # ---------------------------------------------------------------------------
@@ -163,6 +173,67 @@ def build_synthetic_chd(embedded_sha1_hex: str) -> bytes:
 
 
 # ---------------------------------------------------------------------------
+# Part 1.1b, CHD header and metadata-chain builder, for chd_validator.detect()
+# ---------------------------------------------------------------------------
+#
+# CHD v5 fixed-header field offsets (chd.h, mirrored from chd_validator.py):
+#   magic        @0,  8 bytes literal "MComprHD"
+#   logicalbytes @32, 8 bytes big-endian uint64 (uncompressed image size)
+#   meta_offset  @48, 8 bytes big-endian uint64 (offset of first metadata entry, 0 = none)
+#   rawsha1      @64, 20 bytes (all-zero = unset)
+#
+# A metadata entry is a 16-byte header at its own offset in the file:
+#   tag(4) + flags(1)+length(3) packed as one big-endian uint32 + next_offset(8, big-endian uint64)
+# chd_validator.detect() only reads the tag and next_offset fields, flags/length
+# content is never inspected, so build_chd_metadata_entry() leaves them zeroed.
+
+CHD_HEADER_SIZE = 124  # real CHD v5 header size; only matters as a safe minimum buffer length
+CHD_META_ENTRY_LEN = 16
+_CHD_MAGIC_FOR_FIXTURES = b"MComprHD"
+
+
+def build_chd_header(
+    *, rawsha1: bytes | None = None, logical_bytes: int = 0, meta_offset: int = 0, size: int = CHD_HEADER_SIZE,
+) -> bytearray:
+    """Base CHD v5-shaped header buffer, no metadata entries placed yet.
+
+    rawsha1=None leaves the field all-zero (the "unset" case extract_embedded_sha1()
+    must treat distinctly from a real hash). size may be extended by the caller to
+    make room for metadata entries appended after the header.
+    """
+    buf = bytearray(max(size, 84))
+    buf[0:8] = _CHD_MAGIC_FOR_FIXTURES
+    struct.pack_into(">Q", buf, 32, logical_bytes)
+    struct.pack_into(">Q", buf, 48, meta_offset)
+    if rawsha1 is not None:
+        assert len(rawsha1) == 20
+        buf[64:84] = rawsha1
+    return buf
+
+
+def build_chd_metadata_entry(tag: bytes, next_offset: int) -> bytes:
+    """16-byte metadata entry header: tag(4) + flags/length(4, left zero) + next_offset(8, big-endian).
+
+    tag must be exactly 4 bytes (e.g. b"CHGD", b"CHTR", b"CHT2", or any other
+    4-byte value to build an unrecognised-tag entry for chain-termination tests).
+    """
+    assert len(tag) == 4
+    entry = bytearray(CHD_META_ENTRY_LEN)
+    entry[0:4] = tag
+    struct.pack_into(">Q", entry, 8, next_offset)
+    return bytes(entry)
+
+
+def place_chd_metadata_entry(buf: bytearray, offset: int, tag: bytes, next_offset: int) -> None:
+    """Writes a metadata entry into buf at offset. buf must already be long
+    enough (extend it via build_chd_header(size=...) or bytearray padding
+    before calling this).
+    """
+    entry = build_chd_metadata_entry(tag, next_offset)
+    buf[offset:offset + len(entry)] = entry
+
+
+# ---------------------------------------------------------------------------
 # Part 1.2 — synthetic 2352-byte Mode-2 CD sector builder, for
 # magic_detect._resolve_ps_generation() / resolve_ps_generation_from_file()
 # ---------------------------------------------------------------------------
@@ -241,3 +312,50 @@ N64_BIG_ENDIAN_BLOB = _magic_blob("80 37 12 40", 0x00)
 N64_BYTESWAPPED_BLOB = _magic_blob("37 80 40 12", 0x00)
 N64_LITTLE_ENDIAN_BLOB = _magic_blob("40 12 37 80", 0x00)
 NES_HEADER_BLOB = _magic_blob("4E 45 53 1A", 0x00)
+
+
+# ---------------------------------------------------------------------------
+# Part 1.4, minimal PE/MZ header builder, for exe_detect.detect_exe()
+# ---------------------------------------------------------------------------
+#
+# Field offsets mirrored from exe_detect.py's own reading code:
+#   e_lfanew (PE offset pointer) @0x3C in the MZ header, 4 bytes little-endian
+#   PE signature "PE\0\0"        @pe_offset, 4 bytes
+#   MajorOperatingSystemVersion  @pe_offset+64, 2 bytes little-endian (IMAGE_OPTIONAL_HEADER)
+#   Subsystem                    @pe_offset+92, 2 bytes little-endian
+# exe_detect.py requires pe_offset + 96 <= len(header) before reading either
+# field, so a too-large pe_offset with no room left is its own branch
+# ("garbage PE offset"), distinct from a too-short MZ-only header.
+
+
+def build_pe_header(
+    *,
+    mz: bool = True,
+    total_len: int = 512,
+    pe_offset: int | None = 0x80,
+    pe_signature: bytes = b"PE\x00\x00",
+    major_os_version: int = 4,
+    subsystem: int = 2,
+) -> bytes:
+    """pe_offset=None builds an MZ-only header (no e_lfanew written at all).
+    Use this for the too-short-for-a-PE-offset case by also passing a small
+    total_len (< 0x40). Passing a pe_offset that leaves no room for the
+    Subsystem/MajorOperatingSystemVersion fields (pe_offset + 96 > total_len)
+    builds the "garbage PE offset" case; the PE signature and version fields
+    are silently not written in that case since exe_detect.py never reads
+    that far.
+    """
+    buf = bytearray(total_len)
+    if mz:
+        buf[0:2] = b"MZ"
+    if pe_offset is None:
+        return bytes(buf)
+
+    struct.pack_into("<I", buf, 0x3C, pe_offset)
+    if pe_offset + 96 > total_len:
+        return bytes(buf)
+
+    buf[pe_offset:pe_offset + 4] = pe_signature
+    struct.pack_into("<H", buf, pe_offset + 64, major_os_version)
+    struct.pack_into("<H", buf, pe_offset + 92, subsystem)
+    return bytes(buf)
