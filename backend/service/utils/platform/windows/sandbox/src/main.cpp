@@ -15,11 +15,30 @@
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+static std::string hex32(DWORD v) {
+    std::ostringstream oss;
+    oss << "0x" << std::hex << v;
+    return oss.str();
+}
+
 static std::wstring to_wide(const std::string& s) {
     if (s.empty()) return {};
     int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
+    // On failure MultiByteToWideChar returns 0. Un-checked, `n - 1` becomes
+    // -1 and std::wstring(-1, ...) reinterprets that as a huge size_t
+    // allocation request. This is reachable from parse_config() on any
+    // malformed-UTF-8 string field in the launch JSON, before any Win32
+    // resource has been allocated, so throwing here is caught cleanly by
+    // main()'s try/catch with nothing left to leak.
+    if (n <= 0) {
+        throw std::runtime_error(
+            "MultiByteToWideChar (size query) failed (" + hex32(GetLastError()) + ")");
+    }
     std::wstring w(n - 1, L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, w.data(), n);
+    if (MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, w.data(), n) == 0) {
+        throw std::runtime_error(
+            "MultiByteToWideChar (convert) failed (" + hex32(GetLastError()) + ")");
+    }
     return w;
 }
 
@@ -39,12 +58,6 @@ static std::string to_utf8(const std::wstring& w) {
     return s;
 }
 
-static std::string hex32(DWORD v) {
-    std::ostringstream oss;
-    oss << "0x" << std::hex << v;
-    return oss.str();
-}
-
 static std::string sid_to_string(PSID sid) {
     LPWSTR str = nullptr;
     if (!ConvertSidToStringSidW(sid, &str)) return "";
@@ -54,13 +67,11 @@ static std::string sid_to_string(PSID sid) {
 }
 
 static void emit_error(const std::string& stage,
-                       const std::string& message,
-                       bool disable_sandbox = false) {
+                       const std::string& message) {
     std::cout << JsonOut()
         .set("stage",           std::string("error"))
         .set("error_stage",     stage)
         .set("error",           message)
-        .set("disable_sandbox", disable_sandbox)
         .set("sid",             std::string(""))
         .set("pid",             0LL)
         .set("event_name",      std::string(""))
@@ -129,14 +140,59 @@ static LaunchConfig parse_config(const JVal& j) {
 
 // ── build command line ────────────────────────────────────────────────────────
 
+// Quotes a single argument per the CommandLineToArgvW escaping rules, i.e.
+// the same rules Python's subprocess.list2cmdline() implements on the
+// native (non-container) launch path in launcher.py. The previous
+// implementation here just wrapped every argument in a bare pair of quotes:
+// an argument containing a literal '"', or ending in an odd run of '\',
+// would break out of its quoted region and let its content be reinterpreted
+// as separate arguments (or flags) by the child process's own argv parser.
+//
+// Ported term-for-term from CPython's list2cmdline, including its
+// asymmetric trailing-backslash handling: backslashes immediately before
+// the closing quote are doubled (so they aren't read as escaping that
+// quote), but trailing backslashes in an argument that ends up unquoted are
+// left exactly as-is.
+static std::wstring quote_arg(const std::wstring& arg) {
+    std::wstring result;
+    bool needquote = arg.empty()
+                   || arg.find(L' ')  != std::wstring::npos
+                   || arg.find(L'\t') != std::wstring::npos;
+    if (needquote) result += L'"';
+
+    size_t bs_count = 0;
+    for (wchar_t c : arg) {
+        if (c == L'\\') {
+            ++bs_count;
+        } else if (c == L'"') {
+            result.append(bs_count * 2, L'\\');
+            bs_count = 0;
+            result += L"\\\"";
+        } else {
+            if (bs_count) {
+                result.append(bs_count, L'\\');
+                bs_count = 0;
+            }
+            result += c;
+        }
+    }
+
+    if (bs_count) result.append(bs_count, L'\\');
+    if (needquote) {
+        result.append(bs_count, L'\\');
+        result += L'"';
+    }
+    return result;
+}
+
 static std::wstring build_cmdline(const std::wstring& exe,
                                   const std::vector<std::wstring>& args) {
-    std::wostringstream oss;
-    oss << L"\"" << exe << L"\"";
+    std::wstring result = quote_arg(exe);
     for (auto& a : args) {
-        oss << L" \"" << a << L"\"";
+        result += L' ';
+        result += quote_arg(a);
     }
-    return oss.str();
+    return result;
 }
 
 // ── environment block helpers ─────────────────────────────────────────────────
@@ -438,10 +494,16 @@ static int run_launch(const LaunchConfig& cfg) {
         return 1;
     }
 
-    if (FAILED(job.apply_limits(cfg.job_config))) {
+    HRESULT hr_apply_limits = job.apply_limits(cfg.job_config);
+    if (FAILED(hr_apply_limits)) {
         kill_process();
         close_inherit_handles();
-        emit_error("JOB_ASSIGN", "JobObject::apply_limits failed");
+        // Embeds the HRESULT, matching job.assign()'s failure report below,
+        // so an out-of-range cpu_min_rate/cpu_max_rate (E_INVALIDARG) reads
+        // as distinct from a genuine SetInformationJobObject Win32 failure.
+        emit_error("JOB_ASSIGN",
+                   "JobObject::apply_limits failed ("
+                       + hex32(static_cast<DWORD>(hr_apply_limits)) + ")");
         return 1;
     }
 
@@ -484,9 +546,21 @@ static int run_launch(const LaunchConfig& cfg) {
     // Close our inheritable copies. The child holds inherited duplicates.
     close_inherit_handles();
 
-    // 9. Resume.
-    ResumeThread(pi.hThread);
+    // 9. Resume. A failure here leaves the emulator permanently suspended
+    //    while stage="started" has not yet been emitted (that happens next,
+    //    in step 10), so treat it as fatal here rather than reporting a
+    //    successful start, mirroring how launcher.py's
+    //    SandboxProcess.resume() treats the equivalent Win32 call's failure
+    //    as fatal on the native (non-container) path.
+    DWORD resume_result = ResumeThread(pi.hThread);
     CloseHandle(pi.hThread);
+    if (resume_result == static_cast<DWORD>(-1)) {
+        std::string err = "ResumeThread failed (" + hex32(GetLastError()) + ")";
+        TerminateProcess(pi.hProcess, 0);
+        CloseHandle(pi.hProcess);
+        emit_error("PROCESS_CREATE", err);
+        return 1;
+    }
 
     // 10. Emit startup JSON to stdout.
     std::wstring evt_name_w = evt.name();
@@ -500,26 +574,69 @@ static int run_launch(const LaunchConfig& cfg) {
         .dump() << "\n";
     std::cout.flush();
 
-    // 11. Watchdog.
-    HANDLE done_event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-    Watchdog watchdog(cfg.parent_pid, done_event);
-    watchdog.start();
+    // 11. Watchdog: open the parent handle once, before the thread starts,
+    //     so the wait is on this exact process object rather than
+    //     re-resolving parent_pid on every poll, a PID Windows could have
+    //     reassigned to an unrelated process between polls.
+    //
+    //     "started" has already been reported to Python above, so a failure
+    //     to set up the watchdog here cannot abort the launch outright (the
+    //     emulator is already running and Python is depending on it); it
+    //     degrades to a direct wait on the child process alone, losing only
+    //     the "kill the emulator promptly if the parent dies" property.
+    HANDLE parent_handle = OpenProcess(SYNCHRONIZE, FALSE, cfg.parent_pid);
+    HANDLE done_event    = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    bool watchdog_usable = (parent_handle != nullptr) && (done_event != nullptr);
+    if (!parent_handle) {
+        std::cerr << "sandbox_host: OpenProcess(parent_pid=" << cfg.parent_pid
+                  << ") failed (" << hex32(GetLastError())
+                  << "); parent-death detection disabled for this launch.\n";
+    }
+    if (!done_event) {
+        std::cerr << "sandbox_host: CreateEventW(done_event) failed ("
+                  << hex32(GetLastError())
+                  << "); parent-death detection disabled for this launch.\n";
+    }
+    if (!watchdog_usable && parent_handle) {
+        // Watchdog would otherwise take ownership of this handle; since it
+        // won't be started, close it here instead.
+        CloseHandle(parent_handle);
+        parent_handle = nullptr;
+    }
 
-    // 12. Wait for child process to exit OR watchdog to signal.
-    HANDLE wait_handles[2] = { pi.hProcess, done_event };
-    DWORD wait_result = WaitForMultipleObjects(2, wait_handles, FALSE, INFINITE);
+    Watchdog watchdog(parent_handle, done_event);
+    if (watchdog_usable) watchdog.start();
+
+    // 12. Wait for child process to exit OR watchdog to signal parent death.
+    DWORD wait_result;
+    if (watchdog_usable) {
+        HANDLE wait_handles[2] = { pi.hProcess, done_event };
+        wait_result = WaitForMultipleObjects(2, wait_handles, FALSE, INFINITE);
+    } else {
+        wait_result = WaitForSingleObject(pi.hProcess, INFINITE);
+    }
 
     watchdog.stop();
+
+    if (watchdog_usable && wait_result == WAIT_FAILED) {
+        // Neither "child exited" nor "parent died" was actually observed,
+        // don't fall through and misread this as either. Fail loud to
+        // stderr and fall back to a direct, unambiguous wait on the child.
+        std::cerr << "sandbox_host: WaitForMultipleObjects failed ("
+                  << hex32(GetLastError())
+                  << "); falling back to a direct wait on the child process.\n";
+        wait_result = WaitForSingleObject(pi.hProcess, INFINITE);
+    }
 
     DWORD exit_code = 0;
     GetExitCodeProcess(pi.hProcess, &exit_code);
     CloseHandle(pi.hProcess);
 
-    if (wait_result == WAIT_OBJECT_0 + 1) {
+    if (watchdog_usable && wait_result == WAIT_OBJECT_0 + 1) {
         // Parent died. job object destructor kills child via JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE.
     }
 
-    CloseHandle(done_event);
+    if (done_event) CloseHandle(done_event);
 
     // 13. Write exit JSON to stdout so the Python reader unblocks.
     std::cout << JsonOut()

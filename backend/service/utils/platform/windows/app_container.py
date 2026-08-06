@@ -17,6 +17,7 @@ from backend.service.utils.emulator_catalog import (
     get_emulator,
     get_emulator_era,
     get_skip_cpu_limit,
+    get_skip_memory_limit,
 )
 from backend.service.utils.emulator_paths import resolve_derived_path
 from backend.service.utils.eras_config import get_cpu_min_rate, get_era
@@ -53,9 +54,15 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
     """Resolve a path_key to an absolute path string.
 
     Resolution order:
-    1. Direct settings key — ``settings.get(path_key)`` (covers uppercase keys
-       such as ROMS_PATH).
-    2. Derived path map keyed by descriptive name (install_dir, saves_dir, etc.).
+    1. Derived path map keyed by descriptive name (install_dir, saves_dir,
+       etc.). Checked first because this vocabulary is descriptor-controlled
+       (fixed by the schema, not by user-editable settings), so it must win
+       over a same-named settings row rather than be silently shadowed by
+       one. A settings key happening to be spelled "cache", "content",
+       "nvram", or "config_dir" must not redirect a grant the descriptor
+       already gave a fixed meaning to.
+    2. Direct settings key, ``settings.get(path_key)`` (covers uppercase
+       keys such as ROMS_PATH that the derived map doesn't recognize).
 
     Args:
         path_key: Value from ``container_broker_files[].path_key`` in the
@@ -65,6 +72,15 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
     Raises:
         SandboxError: stage=CONFIG_VALIDATION if the key cannot be resolved.
     """
+    # Step 1: derived paths, keyed by descriptive name, resolved relative to
+    # base. The map itself lives in emulator_paths.py, a leaf module depending
+    # only on backend.core.settings, so emulator_descriptor.py can import it at
+    # module level without the cycle this module would otherwise create.
+    derived_path = resolve_derived_path(path_key, slug)
+    if derived_path is not None:
+        return derived_path
+
+    # Step 2: settings tier, only for keys the derived map doesn't recognize.
     from backend.service.utils import settings as _settings
 
     try:
@@ -73,14 +89,6 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
             return str(val)
     except RuntimeError:
         pass
-
-    # Step 2: derived paths, keyed by descriptive name, resolved relative to
-    # base. The map itself lives in emulator_paths.py, a leaf module depending
-    # only on backend.core.settings, so emulator_descriptor.py can import it at
-    # module level without the cycle this module would otherwise create.
-    derived_path = resolve_derived_path(path_key, slug)
-    if derived_path is not None:
-        return derived_path
 
     if path_key == "appdata_xemu":
         appdata = os.environ.get("APPDATA", "")
@@ -180,7 +188,12 @@ def get_container_config(
     cpu_max_rate: int = int(cpu_limit_percent)
 
     memory_limit_mb: int | None = None
-    if not descriptor.get("skip_memory_limit", False):
+    # Resolved through get_skip_memory_limit (not descriptor.get), the same
+    # bug class as skip_cpu_limit below: descriptor.get() ignores the
+    # sandbox_<slug>_skip_memory_limit settings override set by
+    # PATCH /emulators/{slug}/sandbox, which launcher.py's Python-side Job
+    # Object path already honours via this resolver.
+    if not get_skip_memory_limit(emulator_slug):
         memory_limit_mb_cfg = era.get("memory_limit_mb")
         if memory_limit_mb_cfg is None:
             raise RuntimeError(

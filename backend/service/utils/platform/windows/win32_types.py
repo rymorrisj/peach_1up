@@ -29,6 +29,14 @@ _JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE  = 0x10  # requires Windows 10 version
 # GetExitCodeProcess sentinel — process has not yet exited.
 _STILL_ACTIVE = 259
 
+# ResumeThread failure sentinel. MSDN documents this as "(DWORD) -1"; with
+# ResumeThread's restype declared as the unsigned DWORD it actually returns
+# (see the kernel32 function signatures below), ctypes surfaces that bit
+# pattern as 0xFFFFFFFF, not Python's -1. Comparing against this constant
+# instead of -1 keeps that comparison correct now that the ctypes-default
+# signed-int restype is no longer silently reinterpreting it.
+_RESUME_THREAD_FAILED = 0xFFFFFFFF
+
 # STARTUPINFO dwFlags / wShowWindow values for foreground placement hints.
 _STARTF_USESHOWWINDOW = 0x00000001
 _SW_SHOWNORMAL = 1
@@ -145,3 +153,84 @@ class PROCESS_INFORMATION(ctypes.Structure):
         ("dwProcessId", ctypes.wintypes.DWORD),
         ("dwThreadId",  ctypes.wintypes.DWORD),
     ]
+
+
+# ---------------------------------------------------------------------------
+# kernel32 function signatures
+# ---------------------------------------------------------------------------
+#
+# An undeclared ctypes foreign function defaults to argtypes=None (arguments
+# converted by ctypes' best guess from the Python type) and restype=c_int
+# (32-bit signed). HANDLE is pointer-sized; on Win64 a c_int restype
+# silently truncates a returned HANDLE to its low 32 bits. This has worked
+# by accident so far only because Windows guarantees kernel object handle
+# values fit in 32 bits (a documented WOW64-interop requirement), not
+# because the calls were actually declared correctly.
+#
+# ctypes.windll.kernel32 is a process-wide singleton (LibraryLoader caches
+# one WinDLL instance per name), and each named function is itself cached as
+# an attribute on first access. Declaring argtypes/restype here, once, at
+# import time therefore fixes every ctypes.windll.kernel32.X(...) call site
+# across this package (job_objects.py, launcher.py, sandbox_process.py,
+# sandbox/sandbox.py) without changing any of those call sites, as long as
+# this module has been imported first. sandbox/sandbox.py does not otherwise
+# depend on win32_types, so it imports this module explicitly for that
+# side effect.
+_kernel32 = ctypes.windll.kernel32
+_wt = ctypes.wintypes
+
+_kernel32.OpenProcess.argtypes = [_wt.DWORD, _wt.BOOL, _wt.DWORD]
+_kernel32.OpenProcess.restype = _wt.HANDLE
+
+_kernel32.OpenEventW.argtypes = [_wt.DWORD, _wt.BOOL, _wt.LPCWSTR]
+_kernel32.OpenEventW.restype = _wt.HANDLE
+
+_kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, _wt.LPCWSTR]
+_kernel32.CreateJobObjectW.restype = _wt.HANDLE
+
+_kernel32.CloseHandle.argtypes = [_wt.HANDLE]
+_kernel32.CloseHandle.restype = _wt.BOOL
+
+_kernel32.TerminateProcess.argtypes = [_wt.HANDLE, _wt.UINT]
+_kernel32.TerminateProcess.restype = _wt.BOOL
+
+_kernel32.TerminateJobObject.argtypes = [_wt.HANDLE, _wt.UINT]
+_kernel32.TerminateJobObject.restype = _wt.BOOL
+
+_kernel32.AssignProcessToJobObject.argtypes = [_wt.HANDLE, _wt.HANDLE]
+_kernel32.AssignProcessToJobObject.restype = _wt.BOOL
+
+_kernel32.IsProcessInJob.argtypes = [_wt.HANDLE, _wt.HANDLE, ctypes.POINTER(_wt.BOOL)]
+_kernel32.IsProcessInJob.restype = _wt.BOOL
+
+_kernel32.QueryInformationJobObject.argtypes = [
+    _wt.HANDLE, _wt.DWORD, ctypes.c_void_p, _wt.DWORD, ctypes.POINTER(_wt.DWORD),
+]
+_kernel32.QueryInformationJobObject.restype = _wt.BOOL
+
+_kernel32.SetInformationJobObject.argtypes = [
+    _wt.HANDLE, _wt.DWORD, ctypes.c_void_p, _wt.DWORD,
+]
+_kernel32.SetInformationJobObject.restype = _wt.BOOL
+
+_kernel32.GetExitCodeProcess.argtypes = [_wt.HANDLE, ctypes.POINTER(_wt.DWORD)]
+_kernel32.GetExitCodeProcess.restype = _wt.BOOL
+
+_kernel32.WaitForSingleObject.argtypes = [_wt.HANDLE, _wt.DWORD]
+_kernel32.WaitForSingleObject.restype = _wt.DWORD
+
+_kernel32.ResumeThread.argtypes = [_wt.HANDLE]
+_kernel32.ResumeThread.restype = _wt.DWORD
+
+_kernel32.CreateProcessW.argtypes = [
+    _wt.LPCWSTR, _wt.LPWSTR, ctypes.c_void_p, ctypes.c_void_p,
+    _wt.BOOL, _wt.DWORD, ctypes.c_void_p, _wt.LPCWSTR,
+    ctypes.POINTER(STARTUPINFOW), ctypes.POINTER(PROCESS_INFORMATION),
+]
+_kernel32.CreateProcessW.restype = _wt.BOOL
+
+_kernel32.GetLastError.argtypes = []
+_kernel32.GetLastError.restype = _wt.DWORD
+
+_kernel32.SetLastError.argtypes = [_wt.DWORD]
+_kernel32.SetLastError.restype = None

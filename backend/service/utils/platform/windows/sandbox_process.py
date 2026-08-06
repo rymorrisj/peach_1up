@@ -14,7 +14,7 @@ import ctypes.wintypes
 from typing import TYPE_CHECKING
 
 from backend.core.logger import get_logger
-from backend.service.utils.platform.windows.win32_types import _STILL_ACTIVE
+from backend.service.utils.platform.windows.win32_types import _RESUME_THREAD_FAILED, _STILL_ACTIVE
 
 if TYPE_CHECKING:
     from backend.service.utils.platform.windows.sandbox.sandbox import SandboxHandle
@@ -138,7 +138,7 @@ class SandboxProcess:
         result = ctypes.windll.kernel32.ResumeThread(self._thread_handle)
         ctypes.windll.kernel32.CloseHandle(self._thread_handle)
         self._thread_handle = None
-        if result == -1:
+        if result == _RESUME_THREAD_FAILED:
             error_code = ctypes.windll.kernel32.GetLastError()
             raise RuntimeError(
                 f"ResumeThread failed for process {self.pid}. Error code: {error_code}"

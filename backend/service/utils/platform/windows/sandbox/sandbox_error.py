@@ -9,7 +9,6 @@ class SandboxError(Exception):
     message: str
     stage: SandboxStage
     suggestions: list[str] = field(default_factory=list)
-    disable_sandbox: bool = False
 
     def __str__(self) -> str:
         return self.message

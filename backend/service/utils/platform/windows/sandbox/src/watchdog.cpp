@@ -1,33 +1,38 @@
 #include "watchdog.h"
 
-Watchdog::Watchdog(DWORD parent_pid, HANDLE done_event)
-    : parent_pid_(parent_pid), done_event_(done_event) {}
+Watchdog::Watchdog(HANDLE parent_handle, HANDLE done_event)
+    : parent_handle_(parent_handle), done_event_(done_event) {
+    cancel_event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+}
 
 Watchdog::~Watchdog() {
     stop();
+    if (parent_handle_) CloseHandle(parent_handle_);
+    if (cancel_event_) CloseHandle(cancel_event_);
 }
 
 void Watchdog::start() {
-    stop_flag_.store(false);
+    // No usable parent handle or no cancel event to block on with it: stay
+    // idle rather than spin up a thread that could never observe a cancel.
+    if (!parent_handle_ || !cancel_event_) return;
     thread_ = std::thread(&Watchdog::monitor_loop, this);
 }
 
 void Watchdog::stop() {
-    stop_flag_.store(true);
+    if (cancel_event_) SetEvent(cancel_event_);
     if (thread_.joinable()) {
         thread_.join();
     }
 }
 
 void Watchdog::monitor_loop() {
-    while (!stop_flag_.load()) {
-        HANDLE parent = OpenProcess(SYNCHRONIZE, FALSE, parent_pid_);
-        if (!parent) {
-            // Parent is gone so signal the done event to trigger cleanup.
-            SetEvent(done_event_);
-            return;
-        }
-        CloseHandle(parent);
-        Sleep(1000);
+    HANDLE handles[2] = { parent_handle_, cancel_event_ };
+    DWORD result = WaitForMultipleObjects(2, handles, FALSE, INFINITE);
+    if (result == WAIT_OBJECT_0) {
+        // parent_handle_ signaled: the parent process has exited.
+        SetEvent(done_event_);
     }
+    // WAIT_OBJECT_0 + 1 (cancel_event_) or WAIT_FAILED: normal shutdown or
+    // an unexpected wait error. Either way don't signal done_event; the
+    // caller's own wait on the child process handle remains authoritative.
 }

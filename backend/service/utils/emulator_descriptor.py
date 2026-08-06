@@ -56,6 +56,21 @@ class ContainerBrokerFile(BaseModel):
     access: Literal["r", "rw", "x"]
     mode: Literal["grant", "secure", "inherit"] = "grant"
 
+    @model_validator(mode="after")
+    def _validate_exactly_one_path_source(self) -> "ContainerBrokerFile":
+        """An entry with neither field previously passed every check here and
+        only failed with a bare KeyError inside app_container.py at actual
+        launch time (``entry["path_key"]``), long after descriptor load. Fail
+        loud at the TOML-parse choke-point instead, matching every other
+        field in this schema.
+        """
+        if (self.path_key is None) == (self.path is None):
+            raise ValueError(
+                "container_broker_files entry must set exactly one of "
+                f"'path_key' or 'path' (path_key={self.path_key!r}, path={self.path!r})"
+            )
+        return self
+
 
 class KnownLimitation(BaseModel):
     """One [[known_limitations]] entry, surfaced verbatim on the Emulators page."""

@@ -37,12 +37,21 @@ template<> inline std::string        JVal::get<std::string>()           const {
     if (tag != T::Str)  throw std::runtime_error("expected string");
     return str;
 }
+// Casting an out-of-range or negative double to an unsigned integer type is
+// undefined behaviour in C++ (not just a truncating wraparound), so every
+// numeric field pulled from the launch JSON (cpu_max_rate, parent_pid,
+// memory_limit_mb, ...) is range-checked here before the cast, rather than
+// trusting the Python side to have only ever sent well-formed values.
 template<> inline unsigned long      JVal::get<unsigned long>()         const {
     if (tag != T::Num)  throw std::runtime_error("expected number");
+    if (num < 0 || num > 4294967295.0 /* ULONG_MAX on Win32/Win64 */)
+        throw std::runtime_error("number out of range for unsigned long");
     return static_cast<unsigned long>(num);
 }
 template<> inline unsigned long long JVal::get<unsigned long long>()    const {
     if (tag != T::Num)  throw std::runtime_error("expected number");
+    if (num < 0 || num > 18446744073709551615.0 /* ULLONG_MAX, nearest double */)
+        throw std::runtime_error("number out of range for unsigned long long");
     return static_cast<unsigned long long>(num);
 }
 template<> inline bool               JVal::get<bool>()                  const {

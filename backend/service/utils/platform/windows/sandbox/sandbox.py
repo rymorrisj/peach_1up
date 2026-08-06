@@ -11,6 +11,12 @@ from pathlib import Path
 from typing import Callable
 
 from backend.core.logger import get_logger
+
+# Side-effect import: registers argtypes/restype for the kernel32 functions
+# used below (OpenEventW, WaitForSingleObject, CloseHandle) on the shared
+# ctypes.windll.kernel32 singleton. See win32_types.py's "kernel32 function
+# signatures" section for why this must be imported before those calls run.
+from backend.service.utils.platform.windows import win32_types as _win32_types  # noqa: F401
 from backend.service.utils.platform.windows.sandbox.sandbox_config import SandboxConfig
 from backend.service.utils.platform.windows.sandbox.sandbox_error import SandboxError
 from backend.service.utils.platform.windows.sandbox.sandbox_event import (
@@ -52,6 +58,33 @@ def _build_stdin_payload(config: SandboxConfig) -> dict:
         "parent_pid": os.getpid(),
         "breakaway": config.breakaway,
     }
+
+def _kill_and_drain(proc: subprocess.Popen) -> str:
+    """Ensure *proc* is terminated and its pipes drained/closed.
+
+    Called on every error branch in launch() after the child has spawned. A
+    child that already provisioned the AppContainer and resumed the emulator
+    before hitting a Python-side error (bad JSON, missing fields, a stalled
+    handshake) would otherwise keep running untracked, and its stderr pipe
+    would go unread, risking a fill-and-block if it ever writes enough to it.
+
+    Returns the decoded stderr text (possibly empty) for the caller to log.
+    """
+    proc.kill()
+    try:
+        _, stderr_bytes = proc.communicate(timeout=5)
+    except Exception:
+        stderr_bytes = b""
+    if not stderr_bytes:
+        return ""
+    return stderr_bytes.decode(errors="replace").strip()
+
+
+# Reasonable upper bound for a Win32 PID: DWORD-sized but Windows never
+# actually assigns process IDs anywhere near the top of that range, so this
+# is a sanity check against a corrupted/malicious value, not a real limit.
+_MAX_SANE_PID = 0x7FFFFFFF
+
 
 def _validate(config: SandboxConfig) -> None:
     errors: list[str] = []
@@ -268,7 +301,9 @@ def launch(config: SandboxConfig) -> SandboxHandle:
         proc.stdin.flush()
         proc.stdin.close()
     except OSError as exc:
-        proc.kill()
+        stderr_text = _kill_and_drain(proc)
+        if stderr_text:
+            logger.error("%s stderr: %s", EXE_NAME, stderr_text)
         raise SandboxError(
             message=f"Failed to write to {EXE_NAME} stdin: {exc}",
             stage=SandboxStage.PROCESS_CREATE,
@@ -286,6 +321,9 @@ def launch(config: SandboxConfig) -> SandboxHandle:
     try:
         stdout_line = proc.stdout.readline()
     except OSError as exc:
+        stderr_text = _kill_and_drain(proc)
+        if stderr_text:
+            logger.error("%s stderr: %s", EXE_NAME, stderr_text)
         raise SandboxError(
             message=f"Communication with {EXE_NAME} failed: {exc}",
             stage=SandboxStage.PROCESS_CREATE,
@@ -295,6 +333,9 @@ def launch(config: SandboxConfig) -> SandboxHandle:
         _timer.cancel()
 
     if _timed_out.is_set():
+        stderr_text = _kill_and_drain(proc)
+        if stderr_text:
+            logger.error("%s stderr: %s", EXE_NAME, stderr_text)
         raise SandboxError(
             message=f"{EXE_NAME} did not respond within 15 seconds",
             stage=SandboxStage.PROCESS_CREATE,
@@ -302,7 +343,9 @@ def launch(config: SandboxConfig) -> SandboxHandle:
         )
 
     if not stdout_line:
-        proc.kill()
+        stderr_text = _kill_and_drain(proc)
+        if stderr_text:
+            logger.error("%s stderr: %s", EXE_NAME, stderr_text)
         raise SandboxError(
             message=f"{EXE_NAME} produced no output",
             stage=SandboxStage.PROCESS_CREATE,
@@ -313,6 +356,9 @@ def launch(config: SandboxConfig) -> SandboxHandle:
     try:
         response = json.loads(first_line)
     except json.JSONDecodeError as exc:
+        stderr_text = _kill_and_drain(proc)
+        if stderr_text:
+            logger.error("%s stderr: %s", EXE_NAME, stderr_text)
         raise SandboxError(
             message=f"Invalid JSON from {EXE_NAME}: {exc}",
             stage=SandboxStage.PROCESS_CREATE,
@@ -322,6 +368,9 @@ def launch(config: SandboxConfig) -> SandboxHandle:
     required = {"sid", "pid", "event_name", "stage"}
     missing = required - response.keys()
     if missing:
+        stderr_text = _kill_and_drain(proc)
+        if stderr_text:
+            logger.error("%s stderr: %s", EXE_NAME, stderr_text)
         raise SandboxError(
             message=f"{EXE_NAME} response missing fields: {missing}",
             stage=SandboxStage.PROCESS_CREATE,
@@ -329,17 +378,46 @@ def launch(config: SandboxConfig) -> SandboxHandle:
         )
 
     if response.get("stage") == "error":
+        stderr_text = _kill_and_drain(proc)
+        if stderr_text:
+            logger.error("%s stderr: %s", EXE_NAME, stderr_text)
+        # error_stage is attacker/bug-controlled from the child's own JSON;
+        # SandboxStage[...] raises a bare KeyError on any value that isn't an
+        # exact member name, which would surface as an unhandled exception
+        # instead of the SandboxError this function promises. Fall back to
+        # PROCESS_CREATE for any unrecognized value instead.
+        error_stage_raw = str(response.get("error_stage", "PROCESS_CREATE")).upper()
+        try:
+            error_stage = SandboxStage[error_stage_raw]
+        except KeyError:
+            error_stage = SandboxStage.PROCESS_CREATE
         raise SandboxError(
             message=response.get("error", f"Unknown error from {EXE_NAME}"),
-            stage=SandboxStage[response.get("error_stage", "PROCESS_CREATE").upper()],
+            stage=error_stage,
             suggestions=response.get("suggestions", []),
-            disable_sandbox=response.get("disable_sandbox", False),
+        )
+
+    # response["pid"] is child-controlled and is about to reach
+    # OpenProcess(PROCESS_ALL_ACCESS, ...) followed by Job Object assignment
+    # with KILL_ON_JOB_CLOSE (see launcher.py::_launch_process_in_container).
+    # A wrong-but-plausible integer here would have a destructive effect on
+    # an unrelated process, so it is sanity-checked before use rather than
+    # trusted outright.
+    pid = response["pid"]
+    if isinstance(pid, bool) or not isinstance(pid, int) or not (0 < pid <= _MAX_SANE_PID):
+        stderr_text = _kill_and_drain(proc)
+        if stderr_text:
+            logger.error("%s stderr: %s", EXE_NAME, stderr_text)
+        raise SandboxError(
+            message=f"{EXE_NAME} reported an invalid pid: {pid!r}",
+            stage=SandboxStage.PROCESS_CREATE,
+            suggestions=[],
         )
 
     handle = SandboxHandle(
         moniker=config.moniker,
         container_sid=response["sid"],
-        pid=response["pid"],
+        pid=pid,
         _callbacks=defaultdict(list),
         _proc=proc,
     )
@@ -358,7 +436,7 @@ def launch(config: SandboxConfig) -> SandboxHandle:
     started_payload = SandboxPayload(
         event=SandboxEvent.STARTED,
         moniker=config.moniker,
-        pid=response["pid"],
+        pid=pid,
         exit_code=None,
         error=None,
         stage=None,

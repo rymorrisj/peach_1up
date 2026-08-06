@@ -40,6 +40,18 @@ HRESULT JobObject::apply_limits(const JobConfig& cfg) {
     if (!handle_) return E_HANDLE;
 
     if (!cfg.skip_cpu_limit) {
+        // Defense-in-depth: sandbox.py::_validate() already enforces this
+        // exact 1-100 range before the JSON payload reaches this process,
+        // but the WORD packing below has no bounds check of its own. An
+        // out-of-range value here (corrupted config, future caller bypassing
+        // sandbox.launch()) would silently produce a wrong CPU cap via
+        // truncation instead of a loud failure, so it is rejected explicitly
+        // rather than trusting the upstream validator alone.
+        if (cfg.cpu_min_rate < 1 || cfg.cpu_min_rate > 100 ||
+            cfg.cpu_max_rate < 1 || cfg.cpu_max_rate > 100) {
+            return E_INVALIDARG;
+        }
+
         JOBOBJECT_CPU_RATE_CONTROL_INFORMATION cpu = {};
 #ifdef JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE
         // MIN_MAX_RATE requires Windows 10+ SDK headers.
