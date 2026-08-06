@@ -23,6 +23,7 @@ from backend.service.utils.file_types import supported_extensions_for_era
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import resolve_container_enabled
+from backend.service.utils.path_utils import normalise_path
 from backend.service.utils.platform.windows.sandbox import BrokerFile
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
 from backend.service.utils.platform.windows.sandbox_process import SandboxProcess
@@ -644,26 +645,59 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         sandbox_config.broker_files.append(
             BrokerFile(path=str(tmpdir), access="r", mode="grant"))
         if is_environment_launch and spec.working_image_path is not None:
-            # Environment launches have no per-item drive_image_path — the
-            # persistent C: drive is spec.working_image_path instead. Same
-            # rw grant + explicit file ACE as the per-item branch below: a
-            # pre-existing image does not inherit the parent-dir grant.
+            # Environment launches have no per-item drive_image_path. The
+            # persistent C: drive is spec.working_image_path instead.
+            #
+            # normalise_path canonicalises before the value becomes a DACL
+            # target: Path.resolve() follows symlinks/junctions and strips ".."
+            # segments, so a junction planted under the chosen directory cannot
+            # redirect the grant to a tree the user never named. Environment
+            # image paths are deliberately allowed anywhere on the host
+            # (SECURITY.md, "Environment image path traversal relies on OS trust
+            # model"), so this is canonicalisation, NOT a containment check.
+            # No location is rejected here. provision_dosbox_drive already
+            # normalises the same value at provision time; re-doing it at the
+            # point of use follows SECURITY.md's "validated inputs must be
+            # checked again at the point of use" rule.
+            env_image = normalise_path(str(spec.working_image_path))
+            # Scope: DOSBox-X opens exactly one file for an environment launch.
+            # write_environment_conf emits a single
+            # "IMGMOUNT C <file> -t hdd" plus "C:" and nothing else, and the
+            # image is guaranteed to already exist (provision_dosbox_drive
+            # formats it first), so unlike the per-item branch below there is no
+            # IMGMAKE step needing to create a sibling file. A traverse-only,
+            # non-inheriting ACE on the parent node is therefore sufficient to
+            # reach it.
+            #
+            # This replaces a recursive rw grant on the whole parent tree, which
+            # no DOSBox-X operation required. That grant is permanent and
+            # inheritable (see grant_directory's TreeSetNamedSecurityInfoW), so
+            # pointing an Environment at e.g. a Documents folder handed the
+            # AppContainer SID durable write access across everything under it.
             sandbox_config.broker_files.append(
                 BrokerFile(
-                    path=str(spec.working_image_path.parent),
-                    access="rw",
-                    mode="grant",
+                    path=str(env_image.parent),
+                    access="x",
+                    mode="secure",
                 ))
             sandbox_config.broker_files.append(
                 BrokerFile(
-                    path=str(spec.working_image_path),
+                    path=str(env_image),
                     access="rw",
                     mode="secure",
                 ))
         elif spec.drive_image_path is not None and spec.use_drive:
+            # Per-item drives genuinely need directory-level write access: when
+            # the image does not exist yet, _build_drive_mount_lines emits an
+            # IMGMAKE line and DOSBox-X creates the .img in place, which needs
+            # FILE_ADD_FILE on the parent. The recursive grant therefore stays.
+            # This path is also already containment-checked against library/ in
+            # _build_drive_mount_lines, so the parent is always inside the
+            # library tree. Normalised for the same point-of-use reason as above.
+            drive_image = normalise_path(str(spec.drive_image_path))
             sandbox_config.broker_files.append(
                 BrokerFile(
-                    path=str(spec.drive_image_path.parent),
+                    path=str(drive_image.parent),
                     access="rw",
                     mode="grant",
                 ))
@@ -672,7 +706,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             # write it (drive changes would silently fail).
             sandbox_config.broker_files.append(
                 BrokerFile(
-                    path=str(spec.drive_image_path),
+                    path=str(drive_image),
                     access="rw",
                     mode="secure",
                 ))

@@ -20,5 +20,6 @@ class SandboxConfig:
     broker_files: list[BrokerFile] = field(default_factory=list)
     cpu_max_rate: int = 50
     cpu_min_rate: int = 5
+    skip_cpu_limit: bool = False
     memory_limit_mb: int | None = None
     breakaway: bool = False

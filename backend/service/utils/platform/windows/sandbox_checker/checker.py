@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from pathlib import Path
 
 import backend.service.utils.platform.windows.sandbox as _sandbox_pkg
@@ -9,25 +10,33 @@ from backend.service.utils.platform.windows.sandbox_checker.results import Check
 
 _SRC = Path(__file__).parent / "src"
 
-# (name, exe_name, pass_message, affects)
-_CHECKS: list[tuple[str, str, str, list[str]]] = [
+# Default AppContainer moniker prefix. Each probe provisions a real, persistent
+# AppContainer profile named f"{moniker_prefix}.{check_name}", so an embedding
+# application that wants its probe profiles namespaced under its own identity
+# should pass moniker_prefix to run_checks() rather than accept this default.
+DEFAULT_MONIKER_PREFIX: str = "SandboxChecker"
+
+# (name, exe_name, pass_message)
+#
+# What each probe verifies is a property of the capability, not of any
+# particular application. Which of the caller's programs a failure impacts is
+# the caller's knowledge, so it is supplied via run_checks(affects=...) and
+# deliberately not encoded here.
+_CHECKS: list[tuple[str, str, str]] = [
     (
         "sdl2_d3d11",
         "test_sdl2_d3d11.exe",
         "SDL2 init, WASAPI audio, and D3D11 hardware device all accessible in AppContainer",
-        ["dosbox", "pcsx2", "duckstation"],
     ),
     (
         "sdl2_opengl",
         "test_sdl2_opengl.exe",
         "OpenGL 4.5 core context created via WGL inside AppContainer",
-        ["dosbox", "mame", "mupen64plus", "retroarch"],
     ),
     (
         "qt_qpa",
         "test_qt_qpa.exe",
         "Qt 5.15 QPA platform plugin loaded and window displayed inside AppContainer",
-        ["pcsx2", "rpcs3", "dolphin"],
     ),
 ]
 
@@ -80,6 +89,7 @@ def _run_one(
     exe_name: str,
     pass_message: str,
     affects: list[str],
+    moniker_prefix: str,
 ) -> CheckResult:
     exe = _SRC / exe_name
     if not exe.exists():
@@ -91,7 +101,7 @@ def _run_one(
         )
 
     config = SandboxConfig(
-        moniker=f"Peach1UP.checker.{name}",
+        moniker=f"{moniker_prefix}.{name}",
         exe_path=str(exe),
         cpu_max_rate=50,
         cpu_min_rate=5,
@@ -100,11 +110,43 @@ def _run_one(
     return asyncio.run(_async_run_one(name, config, pass_message, affects))
 
 
-def run_checks() -> list[CheckResult]:
+def run_checks(
+    moniker_prefix: str = DEFAULT_MONIKER_PREFIX,
+    affects: Mapping[str, list[str]] | None = None,
+) -> list[CheckResult]:
+    """Run every capability probe and return one CheckResult per probe.
+
+    Never raises: a probe that cannot launch, or that exits non-zero, comes back
+    as CheckStatus.FAIL, and a probe whose binary was never built comes back as
+    CheckStatus.SKIP.
+
+    Args:
+        moniker_prefix: AppContainer moniker prefix for the probe profiles, which
+            are provisioned as f"{moniker_prefix}.{check_name}". These are real,
+            persistent per-user profiles, so pass a prefix that namespaces them
+            under the calling application.
+        affects: Optional mapping of check name to the caller's own list of
+            impacted components, copied verbatim onto the matching CheckResult.
+            Names absent from the mapping get an empty list. The checker reports
+            which capability failed; deciding what that impacts is the caller's.
+
+    Returns:
+        A list of CheckResult, one per entry in _CHECKS, in declaration order.
+    """
     # sandbox_host.exe must be built alongside sandbox/ before calling run_checks().
     _sandbox_pkg.EXE_NAME = "sandbox_host.exe"
 
+    affects_map: Mapping[str, list[str]] = affects or {}
+
     results: list[CheckResult] = []
-    for name, exe_name, pass_message, affects in _CHECKS:
-        results.append(_run_one(name, exe_name, pass_message, affects))
+    for name, exe_name, pass_message in _CHECKS:
+        results.append(
+            _run_one(
+                name,
+                exe_name,
+                pass_message,
+                list(affects_map.get(name, [])),
+                moniker_prefix,
+            )
+        )
     return results

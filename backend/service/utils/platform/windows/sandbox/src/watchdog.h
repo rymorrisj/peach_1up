@@ -18,7 +18,7 @@ private:
     void monitor_loop();
 
     DWORD parent_pid_;
-    HANDLE done_event_;  // not owned — caller manages lifetime
+    HANDLE done_event_;  // not owned and caller manages lifetime
     std::thread thread_;
     std::atomic<bool> stop_flag_{false};
 };

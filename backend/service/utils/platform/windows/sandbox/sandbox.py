@@ -45,13 +45,13 @@ def _build_stdin_payload(config: SandboxConfig) -> dict:
         "job_config": {
             "cpu_max_rate": config.cpu_max_rate,
             "cpu_min_rate": config.cpu_min_rate,
+            "skip_cpu_limit": config.skip_cpu_limit,
             "memory_limit_mb": config.memory_limit_mb or 0,
             "skip_memory_limit": config.memory_limit_mb is None,
         },
         "parent_pid": os.getpid(),
         "breakaway": config.breakaway,
     }
-
 
 def _validate(config: SandboxConfig) -> None:
     errors: list[str] = []
@@ -245,7 +245,7 @@ def launch(config: SandboxConfig) -> SandboxHandle:
     _validate(config)
 
     # ensure_ascii=False so non-ASCII path characters survive as raw UTF-8
-    # across the C++ boundary — json_parse.h copies non-escape bytes verbatim,
+    # across the C++ boundary. json_parse.h copies non-escape bytes verbatim,
     # so \uXXXX escapes (the ensure_ascii=True default) would corrupt them.
     stdin_data = json.dumps(_build_stdin_payload(config), ensure_ascii=False).encode()
 
@@ -385,7 +385,10 @@ def reset_container(moniker: str) -> None:
         raise SandboxError(
             message="moniker must not be empty",
             stage=SandboxStage.CONTAINER_PROVISION,
-            suggestions=["Pass the emulator moniker string, e.g. 'Peach1UP.dosbox'"],
+            suggestions=[
+                "Pass the same non-empty moniker string that was used to launch "
+                "the sandbox, i.e. SandboxConfig.moniker",
+            ],
         )
 
     try:

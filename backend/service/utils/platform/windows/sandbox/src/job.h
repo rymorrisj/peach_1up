@@ -5,6 +5,7 @@ struct JobConfig {
     DWORD cpu_max_rate;
     DWORD cpu_min_rate;
     SIZE_T memory_limit_bytes;
+    bool skip_cpu_limit;
     bool skip_memory_limit;
 };
 

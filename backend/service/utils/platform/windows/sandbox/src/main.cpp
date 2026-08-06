@@ -23,6 +23,28 @@ static std::wstring to_wide(const std::string& s) {
     return w;
 }
 
+// Narrowing counterpart to to_wide(). Used for error messages that embed a
+// path, so a non-ASCII path survives the trip back to Python as valid UTF-8
+// (sandbox.py json.loads()es the raw bytes) instead of being mangled by a
+// wchar-to-char truncation.
+static std::string to_utf8(const std::wstring& w) {
+    if (w.empty()) return {};
+    int n = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), -1,
+                                nullptr, 0, nullptr, nullptr);
+    if (n <= 1) return {};
+    std::string s(static_cast<size_t>(n), '\0');   // room for the NUL
+    WideCharToMultiByte(CP_UTF8, 0, w.c_str(), -1,
+                        s.data(), n, nullptr, nullptr);
+    s.resize(static_cast<size_t>(n) - 1);          // drop the NUL
+    return s;
+}
+
+static std::string hex32(DWORD v) {
+    std::ostringstream oss;
+    oss << "0x" << std::hex << v;
+    return oss.str();
+}
+
 static std::string sid_to_string(PSID sid) {
     LPWSTR str = nullptr;
     if (!ConvertSidToStringSidW(sid, &str)) return "";
@@ -94,6 +116,10 @@ static LaunchConfig parse_config(const JVal& j) {
     auto& jc = j.at("job_config");
     cfg.job_config.cpu_max_rate        = jc.at("cpu_max_rate").get<DWORD>();
     cfg.job_config.cpu_min_rate        = jc.at("cpu_min_rate").get<DWORD>();
+    // Mandatory like skip_memory_limit: at() throws on absence rather than
+    // defaulting, so a payload that predates this field fails loudly instead of
+    // silently applying a CPU cap the descriptor asked to skip.
+    cfg.job_config.skip_cpu_limit      = jc.at("skip_cpu_limit").get<bool>();
     cfg.job_config.skip_memory_limit   = jc.at("skip_memory_limit").get<bool>();
     SIZE_T mb = jc.at("memory_limit_mb").get<SIZE_T>();
     cfg.job_config.memory_limit_bytes  = mb * 1024 * 1024;
@@ -134,6 +160,88 @@ static std::vector<wchar_t> build_env_block(const std::vector<std::wstring>& ext
     return block;
 }
 
+// ── proc/thread attribute list ────────────────────────────────────────────────
+
+// Owns a PROC_THREAD_ATTRIBUTE_LIST for the lifetime of one CreateProcessW
+// call. build() checks the return value of every step; on any failure the list
+// is left unusable and build() returns false, so no caller can reach
+// CreateProcessW with a partially-initialised attribute list, i.e. with the
+// AppContainer SID silently absent from the new process's token.
+//
+// This exists as a class specifically so the breakaway retry cannot carry a
+// separate, less-rigorously-checked copy of this sequence. That duplication was
+// the defect: the retry path called InitializeProcThreadAttributeList and
+// UpdateProcThreadAttribute with every return value ignored, so a failed
+// SECURITY_CAPABILITIES update let the emulator launch under the parent's
+// unrestricted token while the host still reported a successful sandboxed start.
+//
+// `sc` and `handles` are referenced by the attribute list itself and must stay
+// alive and unmodified until CreateProcessW returns.
+class ProcThreadAttrList {
+public:
+    ProcThreadAttrList() = default;
+    ~ProcThreadAttrList() { reset(); }
+    ProcThreadAttrList(const ProcThreadAttrList&) = delete;
+    ProcThreadAttrList& operator=(const ProcThreadAttrList&) = delete;
+
+    bool build(SECURITY_CAPABILITIES& sc,
+               std::vector<HANDLE>& handles,
+               std::string& err) {
+        reset();
+
+        DWORD  count = handles.empty() ? 1 : 2;
+        SIZE_T size  = 0;
+        // First call is expected to fail with ERROR_INSUFFICIENT_BUFFER; its
+        // only job is reporting the required buffer size.
+        InitializeProcThreadAttributeList(nullptr, count, 0, &size);
+        buf_.assign(size, 0);
+
+        auto* list = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(buf_.data());
+        if (!InitializeProcThreadAttributeList(list, count, 0, &size)) {
+            err = "InitializeProcThreadAttributeList failed ("
+                + hex32(GetLastError()) + ")";
+            return false;
+        }
+        list_        = list;
+        initialised_ = true;
+
+        if (!UpdateProcThreadAttribute(
+                list_, 0, PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
+                &sc, sizeof(sc), nullptr, nullptr)) {
+            err = "UpdateProcThreadAttribute (SECURITY_CAPABILITIES) failed ("
+                + hex32(GetLastError()) + ")";
+            return false;
+        }
+
+        if (!handles.empty()) {
+            if (!UpdateProcThreadAttribute(
+                    list_, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                    handles.data(), handles.size() * sizeof(HANDLE),
+                    nullptr, nullptr)) {
+                err = "UpdateProcThreadAttribute (HANDLE_LIST) failed ("
+                    + hex32(GetLastError()) + ")";
+                return false;
+            }
+        }
+        return true;
+    }
+
+    LPPROC_THREAD_ATTRIBUTE_LIST get() const { return list_; }
+
+private:
+    void reset() {
+        if (initialised_) {
+            DeleteProcThreadAttributeList(list_);
+            initialised_ = false;
+        }
+        list_ = nullptr;
+    }
+
+    std::vector<BYTE>            buf_;
+    LPPROC_THREAD_ATTRIBUTE_LIST list_        = nullptr;
+    bool                         initialised_ = false;
+};
+
 // ── --reset mode ─────────────────────────────────────────────────────────────
 
 static int run_reset(const std::string& moniker_utf8) {
@@ -165,15 +273,40 @@ static int run_launch(const LaunchConfig& cfg) {
     }
 
     // 2. Process broker_files.
+    //
+    //    Every entry is mandatory. A silently skipped grant produces an emulator
+    //    sealed inside an AppContainer with no access to its own media, saves, or
+    //    config, which surfaces much later as an opaque in-emulator failure or as
+    //    saves that vanish. These calls all return an HRESULT and every one of
+    //    them used to be discarded; a failure now aborts the launch and is
+    //    reported on the DACL_GRANT stage, which sandbox_event.py has always
+    //    defined but nothing in this file ever emitted.
     std::vector<HANDLE>       inherit_handles;
     std::vector<std::wstring> sandbox_env_vars;
+
+    auto close_inherit_handles = [&inherit_handles]() {
+        for (HANDLE h : inherit_handles) CloseHandle(h);
+        inherit_handles.clear();
+    };
+
+    auto fail_dacl = [&](const std::string& what,
+                         const std::wstring& path,
+                         const std::string& code) -> int {
+        close_inherit_handles();
+        emit_error("DACL_GRANT",
+                   what + " failed for '" + to_utf8(path) + "' (" + code + ")");
+        return 1;
+    };
 
     for (size_t i = 0; i < cfg.broker_files.size(); i++) {
         const BrokerFile& bf   = cfg.broker_files[i];
         DWORD             mask = access_to_mask(bf.access);
 
         if (bf.mode == L"secure") {
-            container.secure_existing_file(bf.path, mask);
+            HRESULT hr = container.secure_existing_file(bf.path, mask);
+            if (FAILED(hr))
+                return fail_dacl("secure_existing_file", bf.path,
+                                 hex32(static_cast<DWORD>(hr)));
 
         } else if (bf.mode == L"inherit") {
             SECURITY_ATTRIBUTES sa = {};
@@ -184,17 +317,30 @@ static int run_launch(const LaunchConfig& cfg) {
                 FILE_SHARE_READ | FILE_SHARE_WRITE, &sa,
                 OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr
             );
-            if (h != INVALID_HANDLE_VALUE) {
-                std::wostringstream oss;
-                oss << L"SANDBOX_HANDLE_" << i << L"="
-                    << static_cast<unsigned long long>(
-                           reinterpret_cast<uintptr_t>(h));
-                sandbox_env_vars.push_back(oss.str());
-                inherit_handles.push_back(h);
-            }
+            if (h == INVALID_HANDLE_VALUE)
+                return fail_dacl("CreateFileW (inherit)", bf.path,
+                                 hex32(GetLastError()));
+            std::wostringstream oss;
+            oss << L"SANDBOX_HANDLE_" << i << L"="
+                << static_cast<unsigned long long>(
+                       reinterpret_cast<uintptr_t>(h));
+            sandbox_env_vars.push_back(oss.str());
+            inherit_handles.push_back(h);
 
         } else if (bf.mode == L"grant") {
-            container.grant_directory(bf.path, mask);
+            HRESULT hr = container.grant_directory(bf.path, mask);
+            if (FAILED(hr))
+                return fail_dacl("grant_directory", bf.path,
+                                 hex32(static_cast<DWORD>(hr)));
+
+        } else {
+            // Unrecognised mode: none of the branches above would apply any
+            // grant, so the process would launch with a grant silently missing.
+            // Fail rather than proceed. sandbox_config.py constrains mode to a
+            // Literal, so reaching here means the two sides have drifted.
+            return fail_dacl("unrecognised broker_file mode '"
+                                 + to_utf8(bf.mode) + "'",
+                             bf.path, "CONFIG");
         }
     }
 
@@ -205,38 +351,10 @@ static int run_launch(const LaunchConfig& cfg) {
         return 1;
     }
 
-    // 4. Build SECURITY_CAPABILITIES and attribute list.
+    // 4. Build SECURITY_CAPABILITIES. `sc` is referenced by the attribute list
+    //    and must outlive every CreateProcessW call below, so it lives here.
     SECURITY_CAPABILITIES sc = {};
     sc.AppContainerSid = container.sid();
-
-    DWORD attr_count = inherit_handles.empty() ? 1 : 2;
-    SIZE_T attr_size = 0;
-    InitializeProcThreadAttributeList(nullptr, attr_count, 0, &attr_size);
-    std::vector<BYTE> attr_buf(attr_size);
-    LPPROC_THREAD_ATTRIBUTE_LIST attr_list =
-        reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attr_buf.data());
-    if (!InitializeProcThreadAttributeList(attr_list, attr_count, 0, &attr_size)) {
-        emit_error("PROCESS_CREATE", "InitializeProcThreadAttributeList failed");
-        return 1;
-    }
-    if (!UpdateProcThreadAttribute(attr_list, 0,
-            PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
-            &sc, sizeof(sc), nullptr, nullptr)) {
-        DeleteProcThreadAttributeList(attr_list);
-        emit_error("PROCESS_CREATE", "UpdateProcThreadAttribute (SECURITY_CAPABILITIES) failed");
-        return 1;
-    }
-    if (!inherit_handles.empty()) {
-        if (!UpdateProcThreadAttribute(attr_list, 0,
-                PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-                inherit_handles.data(),
-                inherit_handles.size() * sizeof(HANDLE),
-                nullptr, nullptr)) {
-            DeleteProcThreadAttributeList(attr_list);
-            emit_error("PROCESS_CREATE", "UpdateProcThreadAttribute (HANDLE_LIST) failed");
-            return 1;
-        }
-    }
 
     // 5. Build environment block if inherit handles carry SANDBOX_HANDLE vars.
     std::vector<wchar_t> env_block;
@@ -244,129 +362,127 @@ static int run_launch(const LaunchConfig& cfg) {
     if (use_custom_env) {
         env_block = build_env_block(sandbox_env_vars);
     }
+    LPVOID  env_ptr     = use_custom_env
+                          ? static_cast<LPVOID>(env_block.data())
+                          : nullptr;
+    LPCWSTR working_dir = cfg.working_dir.empty() ? nullptr
+                                                  : cfg.working_dir.c_str();
 
-    // 6. CreateProcessW — suspended, with EXTENDED_STARTUPINFO_PRESENT.
-    STARTUPINFOEXW si = {};
-    si.StartupInfo.cb          = sizeof(si);
-    si.StartupInfo.dwFlags     = STARTF_USESHOWWINDOW;
-    si.StartupInfo.wShowWindow = SW_SHOWNORMAL;
-    si.lpAttributeList = attr_list;
+    // 6. Create the sandboxed process, suspended, with
+    //    EXTENDED_STARTUPINFO_PRESENT.
+    //
+    //    ProcThreadAttrList rebuilds and fully re-checks the attribute list on
+    //    every call, so the breakaway retry below runs exactly this code rather
+    //    than a separate unchecked copy of it. Any failure returns false and the
+    //    caller aborts
+    auto create_sandboxed = [&](bool breakaway,
+                                PROCESS_INFORMATION& out_pi,
+                                std::string& err) -> bool {
+        ProcThreadAttrList attrs;
+        if (!attrs.build(sc, inherit_handles, err)) return false;
+
+        STARTUPINFOEXW si = {};
+        si.StartupInfo.cb          = sizeof(si);
+        si.StartupInfo.dwFlags     = STARTF_USESHOWWINDOW;
+        si.StartupInfo.wShowWindow = SW_SHOWNORMAL;
+        si.lpAttributeList         = attrs.get();
+
+        DWORD create_flags = CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT;
+        if (use_custom_env) create_flags |= CREATE_UNICODE_ENVIRONMENT;
+        if (breakaway)      create_flags |= CREATE_BREAKAWAY_FROM_JOB;
+
+        std::wstring cmdline = build_cmdline(cfg.exe_path, cfg.args);
+        out_pi = PROCESS_INFORMATION{};
+
+        if (!CreateProcessW(
+                cfg.exe_path.c_str(),
+                cmdline.data(),
+                nullptr, nullptr,
+                inherit_handles.empty() ? FALSE : TRUE,
+                create_flags,
+                env_ptr,
+                working_dir,
+                &si.StartupInfo,
+                &out_pi)) {
+            err = std::string("CreateProcessW")
+                + (breakaway ? " (breakaway)" : "")
+                + " failed (" + hex32(GetLastError()) + ")";
+            return false;
+        }
+        return true;
+    };
 
     PROCESS_INFORMATION pi = {};
+    std::string         create_err;
 
-    std::wstring cmdline = build_cmdline(cfg.exe_path, cfg.args);
-    LPCWSTR working_dir  = cfg.working_dir.empty() ? nullptr
-                                                   : cfg.working_dir.c_str();
-    BOOL inherit_h = inherit_handles.empty() ? FALSE : TRUE;
-
-    DWORD create_flags = CREATE_SUSPENDED
-                       | EXTENDED_STARTUPINFO_PRESENT;
-    if (use_custom_env)    create_flags |= CREATE_UNICODE_ENVIRONMENT;
-    if (cfg.breakaway)     create_flags |= CREATE_BREAKAWAY_FROM_JOB;
-
-    LPVOID env_ptr = use_custom_env
-                     ? static_cast<LPVOID>(env_block.data())
-                     : nullptr;
-
-    BOOL ok = CreateProcessW(
-        cfg.exe_path.c_str(),
-        cmdline.data(),
-        nullptr, nullptr,
-        inherit_h,
-        create_flags,
-        env_ptr,
-        working_dir,
-        &si.StartupInfo,
-        &pi
-    );
-
-    DeleteProcThreadAttributeList(attr_list);
-
-    if (!ok) {
-        DWORD err = GetLastError();
-        std::ostringstream oss;
-        oss << "CreateProcessW failed (0x" << std::hex << err << ")";
-        emit_error("PROCESS_CREATE", oss.str());
+    if (!create_sandboxed(cfg.breakaway, pi, create_err)) {
+        close_inherit_handles();
+        emit_error("PROCESS_CREATE", create_err);
         return 1;
     }
 
-    // 7. Breakaway retry — if already inside a Job that disallows breakaway.
-    BOOL in_job = FALSE;
-    IsProcessInJob(pi.hProcess, nullptr, &in_job);
-    if (in_job) {
+    auto kill_process = [&pi]() {
         TerminateProcess(pi.hProcess, 0);
         CloseHandle(pi.hThread);
         CloseHandle(pi.hProcess);
+        pi = PROCESS_INFORMATION{};
+    };
 
-        // Rebuild attribute list for retry (attr_list was deleted above).
-        attr_size = 0;
-        InitializeProcThreadAttributeList(nullptr, attr_count, 0, &attr_size);
-        attr_buf.assign(attr_size, 0);
-        attr_list = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attr_buf.data());
-        InitializeProcThreadAttributeList(attr_list, attr_count, 0, &attr_size);
-        UpdateProcThreadAttribute(attr_list, 0,
-            PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
-            &sc, sizeof(sc), nullptr, nullptr);
-        if (!inherit_handles.empty()) {
-            UpdateProcThreadAttribute(attr_list, 0,
-                PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-                inherit_handles.data(),
-                inherit_handles.size() * sizeof(HANDLE),
-                nullptr, nullptr);
-        }
-        si.lpAttributeList = attr_list;
-
-        create_flags |= CREATE_BREAKAWAY_FROM_JOB;
-        ok = CreateProcessW(
-            cfg.exe_path.c_str(),
-            cmdline.data(),
-            nullptr, nullptr,
-            inherit_h,
-            create_flags,
-            env_ptr,
-            working_dir,
-            &si.StartupInfo,
-            &pi
-        );
-        DeleteProcThreadAttributeList(attr_list);
-        if (!ok) {
-            DWORD err = GetLastError();
-            std::ostringstream oss;
-            oss << "CreateProcessW (breakaway) failed (0x" << std::hex << err << ")";
-            emit_error("PROCESS_CREATE", oss.str());
-            return 1;
-        }
-    }
-
-    // Close inheritable handles — child has inherited copies.
-    for (HANDLE h : inherit_handles) CloseHandle(h);
-    inherit_handles.clear();
-
-    // 8. Create Job, apply limits, assign process.
+    // 7. Create the Job and apply limits before assignment, so the process can
+    //    never run outside its caps once resumed.
     JobObject job;
     if (FAILED(job.create())) {
-        TerminateProcess(pi.hProcess, 0);
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
+        kill_process();
+        close_inherit_handles();
         emit_error("JOB_ASSIGN", "JobObject::create failed");
         return 1;
     }
 
     if (FAILED(job.apply_limits(cfg.job_config))) {
-        TerminateProcess(pi.hProcess, 0);
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
+        kill_process();
+        close_inherit_handles();
         emit_error("JOB_ASSIGN", "JobObject::apply_limits failed");
         return 1;
     }
 
-    if (FAILED(job.assign(pi.hProcess))) {
-        TerminateProcess(pi.hProcess, 0);
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
-        emit_error("JOB_ASSIGN", "JobObject::assign failed");
+    // 8. Assign the process to the Job, with the breakaway retry.
+    //
+    //    ERROR_ACCESS_DENIED from AssignProcessToJobObject is the actual signal
+    //    that the process sits in a job forbidding a second assignment, which is
+    //    the one condition the breakaway relaunch exists to clear. This mirrors
+    //    the error-5 retry trigger in job_objects.py::add_process.
+    //
+    //    The previous trigger was IsProcessInJob(hProcess, nullptr, ...), which
+    //    asks only "is this process in any job at all". That is true for
+    //    essentially every process on Windows 11 (see SECURITY.md, Job Object
+    //    assignment on Windows 11), so the retry fired unconditionally and every
+    //    containerized launch created, terminated, and re-created the emulator
+    //    process even when the first assignment would have succeeded.
+    //
+    //    cfg.breakaway is re-checked because if Python already requested
+    //    breakaway, a retry would use identical flags and cannot help; aborting
+    //    is correct there rather than launching the same process twice.
+    HRESULT hr_assign = job.assign(pi.hProcess);
+    if (hr_assign == HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED) && !cfg.breakaway) {
+        kill_process();
+        if (!create_sandboxed(true, pi, create_err)) {
+            close_inherit_handles();
+            emit_error("PROCESS_CREATE", create_err);
+            return 1;
+        }
+        hr_assign = job.assign(pi.hProcess);
+    }
+    if (FAILED(hr_assign)) {
+        kill_process();
+        close_inherit_handles();
+        emit_error("JOB_ASSIGN",
+                   "JobObject::assign failed ("
+                       + hex32(static_cast<DWORD>(hr_assign)) + ")");
         return 1;
     }
+
+    // Close our inheritable copies. The child holds inherited duplicates.
+    close_inherit_handles();
 
     // 9. Resume.
     ResumeThread(pi.hThread);
@@ -400,7 +516,7 @@ static int run_launch(const LaunchConfig& cfg) {
     CloseHandle(pi.hProcess);
 
     if (wait_result == WAIT_OBJECT_0 + 1) {
-        // Parent died — job object destructor kills child via JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE.
+        // Parent died. job object destructor kills child via JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE.
     }
 
     CloseHandle(done_event);

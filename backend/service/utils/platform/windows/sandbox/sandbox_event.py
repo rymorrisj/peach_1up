@@ -3,13 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-
 class SandboxEvent(Enum):
     STARTED = "started"
     EXITED = "exited"
     ERROR = "error"
     CLEANED_UP = "cleaned_up"
-
 
 class SandboxStage(Enum):
     CONFIG_VALIDATION = "config_validation"
@@ -19,7 +17,6 @@ class SandboxStage(Enum):
     JOB_ASSIGN = "job_assign"
     WATCHDOG = "watchdog"
     CLEANUP = "cleanup"
-
 
 @dataclass(frozen=True)
 class SandboxPayload:

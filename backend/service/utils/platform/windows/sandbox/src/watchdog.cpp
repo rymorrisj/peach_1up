@@ -23,7 +23,7 @@ void Watchdog::monitor_loop() {
     while (!stop_flag_.load()) {
         HANDLE parent = OpenProcess(SYNCHRONIZE, FALSE, parent_pid_);
         if (!parent) {
-            // Parent is gone — signal the done event to trigger cleanup.
+            // Parent is gone so signal the done event to trigger cleanup.
             SetEvent(done_event_);
             return;
         }

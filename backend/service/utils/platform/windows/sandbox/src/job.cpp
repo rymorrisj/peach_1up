@@ -39,35 +39,37 @@ HRESULT JobObject::create() {
 HRESULT JobObject::apply_limits(const JobConfig& cfg) {
     if (!handle_) return E_HANDLE;
 
-    JOBOBJECT_CPU_RATE_CONTROL_INFORMATION cpu = {};
+    if (!cfg.skip_cpu_limit) {
+        JOBOBJECT_CPU_RATE_CONTROL_INFORMATION cpu = {};
 #ifdef JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE
-    // MIN_MAX_RATE requires Windows 10+ SDK headers.
-    // Pack MinRate (low word) and MaxRate (high word) into the CpuRate field;
-    // MinGW UCRT64 headers expose only CpuRate in the union.
-    cpu.ControlFlags = JOB_OBJECT_CPU_RATE_CONTROL_ENABLE |
-                       JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE;
-    WORD min_w = static_cast<WORD>(cfg.cpu_min_rate * 100);
-    WORD max_w = static_cast<WORD>(cfg.cpu_max_rate * 100);
-    cpu.CpuRate = (static_cast<DWORD>(max_w) << 16) | static_cast<DWORD>(min_w);
+        // MIN_MAX_RATE requires Windows 10+ SDK headers.
+        // Pack MinRate (low word) and MaxRate (high word) into the CpuRate field;
+        // MinGW UCRT64 headers expose only CpuRate in the union.
+        cpu.ControlFlags = JOB_OBJECT_CPU_RATE_CONTROL_ENABLE |
+                           JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE;
+        WORD min_w = static_cast<WORD>(cfg.cpu_min_rate * 100);
+        WORD max_w = static_cast<WORD>(cfg.cpu_max_rate * 100);
+        cpu.CpuRate = (static_cast<DWORD>(max_w) << 16) | static_cast<DWORD>(min_w);
 #else
-    // JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE is not available in this MinGW
-    // installation (requires Windows 10+ SDK headers). Fall back to HARD_CAP.
-    // MinRate will not be enforced in this build; only MaxRate (cpu_max_rate) applies.
-#pragma message("sandbox: JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE unavailable — HARD_CAP fallback active; MinRate scheduling floor will not be enforced")
-    cpu.ControlFlags = JOB_OBJECT_CPU_RATE_CONTROL_ENABLE |
-                       JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP;
-    cpu.CpuRate = cfg.cpu_max_rate * 100;
+        // JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE is not available in this MinGW
+        // installation (requires Windows 10+ SDK headers). Fall back to HARD_CAP.
+        // MinRate will not be enforced in this build; only MaxRate (cpu_max_rate) applies.
+#pragma message("sandbox: JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE unavailable; HARD_CAP fallback active, MinRate scheduling floor will not be enforced")
+        cpu.ControlFlags = JOB_OBJECT_CPU_RATE_CONTROL_ENABLE |
+                           JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP;
+        cpu.CpuRate = cfg.cpu_max_rate * 100;
 #endif
 
-    if (!SetInformationJobObject(handle_,
-            JobObjectCpuRateControlInformation,
-            &cpu, sizeof(cpu))) {
-        return HRESULT_FROM_WIN32(GetLastError());
+        if (!SetInformationJobObject(handle_,
+                JobObjectCpuRateControlInformation,
+                &cpu, sizeof(cpu))) {
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
     }
 
     if (!cfg.skip_memory_limit && cfg.memory_limit_bytes > 0) {
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION eli = {};
-        // BREAKAWAY_OK: see create() comment — same caveat applies when
+        // BREAKAWAY_OK: see create() comment because the same caveat applies when
         // memory limits are re-applied via apply_limits().
         eli.BasicLimitInformation.LimitFlags =
             JOB_OBJECT_LIMIT_JOB_MEMORY |

@@ -326,6 +326,17 @@ conversation and wait for an explicit decision before proceeding.
   control may be skipped per emulator via `skip_cpu_limit = true` in the descriptor —
   every emulator except RPCS3 sets this today (RPCS3 is the only one that keeps the
   enforced CPU cap; see the AppContainer known-limitations entries for RPCS3 and xemu).
+  **`skip_cpu_limit` is honoured on both isolation layers.** Note that until the P9
+  follow-up hardening pass it was honoured only by the Python-side Job Object in
+  `launcher.py`. `sandbox_host.exe` had no representation of the flag at all: `JobConfig`
+  had no such field, `app_container.py` never read it when building the container payload,
+  and `job.cpp` applied CPU rate control unconditionally. Every `container_enabled`
+  emulator therefore still received the CPU cap through the container path despite setting
+  `skip_cpu_limit = true`, which reinstated the host-audio-muting bug the flag exists to
+  prevent and negated the P9-2 MinRate floor. The flag now travels in the
+  `sandbox_host.exe` stdin payload as an explicit `job_config.skip_cpu_limit` boolean and
+  is resolved through `get_skip_cpu_limit()`, so the per-emulator settings override written
+  by `PATCH /{slug}/sandbox` applies to both layers as well.
 - The Python launcher sequence is: launch process (`CREATE_NEW_PROCESS_GROUP`) → create
   Job Object (named with the launched process's PID for per-launch uniqueness) → apply
   limits → `AssignProcessToJobObject` → breakaway retry if error 5.
@@ -440,6 +451,12 @@ skip_cpu_limit = true in the emulator descriptor. DOSBox-X sets
 this flag in its descriptor; the launcher honours it via
 get_skip_cpu_limit() in emulator_catalog.py.
 
+If you are debugging host audio muting on a container-enabled
+emulator, note that sandbox_host.exe ignored skip_cpu_limit
+entirely before the P9 follow-up hardening pass, so the cap was
+applied by the container path regardless of the descriptor. See
+the skip_cpu_limit note under Windows-specific process rules.
+
 ### AppContainer not yet validated for all emulators
 
 Each emulator requires smoke test and full test matrix (OS × GPU × audio × controller ×
@@ -525,8 +542,40 @@ or perform existence checks on files at arbitrary paths on the host. Mitigating 
 - `can_manage_environment` is an explicit operator-granted permission, not a default for
   sub-accounts.
 - The application runs as a local user, not a privileged service account.
-- Operations on image paths are limited to copy, read, and existence check — no shell
-  execution of image path values.
+- No image path value is ever passed to a shell. There is no command construction from
+  these fields.
+
+**Not covered by the bullets above: the AppContainer layer also writes ACLs at these
+paths.** This bullet list previously claimed operations were "limited to copy, read, and
+existence check", which stopped being accurate when P9 layered AppContainer on top of Job
+Objects. A container-enabled launch passes image paths to `sandbox_host.exe` as broker
+files, and `container.cpp`'s `grant_directory` applies a **permanent, inheritable DACL
+grant** to the AppContainer SID via `TreeSetNamedSecurityInfoW`, which rewrites the ACL of
+every object in the tree beneath the path. Nothing reverts it on process exit (see
+`sandbox/README.md`, "DACL grants are permanent on the path"). So the reachable operation
+set on an arbitrary user-chosen path includes durable ACL modification, not just reads.
+
+Current state after the P9 follow-up hardening pass:
+
+- **DOSBox-X Environment launches (`working_image_path`) no longer take a directory-level
+  grant.** The grant was narrowed to a traverse-only, non-inheriting ACE on the parent node
+  plus an `rw` ACE on the image file itself. DOSBox-X only ever opens that one file for an
+  environment launch, so the previous recursive `rw` grant on the whole parent tree was not
+  required by any emulator operation.
+- **Paths are canonicalised at the point of use** via `normalise_path` before becoming a
+  DACL target, so a symlink or junction planted under the chosen directory cannot redirect
+  the grant to a tree the user never named. This is canonicalisation only. It deliberately
+  rejects no location, since arbitrary Environment image locations remain permitted by
+  design.
+- **Per-item drive images (`drive_image_path`) keep their recursive parent-directory
+  grant**, because DOSBox-X creates the `.img` in place via `IMGMAKE` on first launch and
+  needs `FILE_ADD_FILE` on the parent. That path is separately containment-checked against
+  `library/` in `_build_drive_mount_lines`, so its grant target is always inside the library
+  tree.
+- **Still open:** any other backend that passes an unvalidated Environment path as a
+  `mode = "grant"` broker file inherits the original recursive-grant behaviour.
+  `container.cpp`'s `grant_directory` also carries a standing `TODO` that per-user ACEs
+  accumulate on shared grant directories with no cleanup on user deletion.
 
 This gap is tracked and will be addressed in a future hardening pass, either by restoring
 a configurable allowlist with an opt-out flag or by surfacing an explicit warning at

@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 
 from backend.service.utils.platform.windows.sandbox.sandbox_event import SandboxStage
 
-
 @dataclass
 class SandboxError(Exception):
     message: str

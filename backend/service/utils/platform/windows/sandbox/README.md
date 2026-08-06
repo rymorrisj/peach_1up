@@ -56,7 +56,7 @@ sandbox.EXE_NAME = "myhost.exe"
 
 from sandbox import (
     launch, reset_container,
-    SandboxConfig, DaclGrant,
+    SandboxConfig, BrokerFile,
     SandboxEvent, SandboxPayload,
     SandboxError, SandboxStage,
 )
@@ -66,8 +66,8 @@ config = SandboxConfig(
     exe_path="C:/apps/worker.exe",
     args=["--headless"],
     working_dir="C:/data/jobs",
-    dacl_grants=[
-        DaclGrant(path="C:/data/jobs", access="rw"),
+    broker_files=[
+        BrokerFile(path="C:/data/jobs", access="rw", mode="grant"),
     ],
     cpu_max_rate=60,
     cpu_min_rate=5,
@@ -103,6 +103,31 @@ something that uniquely identifies the process role within your application.
 If left unset the default is `""`, which will raise a `SandboxError` at
 `CONFIG_VALIDATION` stage: moniker is required.
 
+## Broker files
+
+`broker_files` is how the sandboxed process is given access to anything outside the
+AppContainer's own storage. Each `BrokerFile` has three fields, all required:
+
+| Field    | Values                              | Meaning                                                                    |
+| -------- | ----------------------------------- | -------------------------------------------------------------------------- |
+| `path`   | absolute path                       | The file or directory to broker.                                            |
+| `access` | `"r"`, `"rw"`, `"x"`                | Read, read/write, or traverse-only (`FILE_TRAVERSE | FILE_READ_ATTRIBUTES`). |
+| `mode`   | `"grant"`, `"secure"`, `"inherit"`  | How access is handed over. See below.                                       |
+
+- **`grant`** applies an inheritable ACE for the container SID to a directory and
+  propagates it across the existing tree, so files already present are covered as
+  well as files created later.
+- **`secure`** applies a single non-inheriting ACE to one existing file. Use this
+  when only one specific file should be reachable, not its whole directory.
+- **`inherit`** opens the file in the host and passes the inheritable handle to the
+  child instead of touching any ACL. The handle value is exposed to the child in the
+  environment variable `SANDBOX_HANDLE_<i>`, where `<i>` is the entry's index in
+  `broker_files`. The target executable has to know to read it.
+
+Every entry is mandatory: if any grant fails, the launch aborts with a
+`SandboxError` at the `DACL_GRANT` stage rather than starting a process that cannot
+reach its own data.
+
 ## Configuration reference
 
 | Field             | Default  | Notes                                                                  |
@@ -111,9 +136,11 @@ If left unset the default is `""`, which will raise a `SandboxError` at
 | `exe_path`        | required | Absolute path to the target executable.                                |
 | `args`            | `[]`     | Command-line arguments.                                                |
 | `working_dir`     | `None`   | Working directory. `None` inherits from parent process.                |
-| `dacl_grants`     | `[]`     | `DaclGrant(path, access)` entries. `access`: `"r"`, `"rx"`, or `"rw"`. |
+| `broker_files`    | `[]`     | `BrokerFile(path, access, mode)` entries. See Broker files below.      |
+| `breakaway`       | `False`  | `True` adds `CREATE_BREAKAWAY_FROM_JOB` so the target escapes the host's own job before being assigned to its sandbox job. The host retries with this set automatically when job assignment fails with `ERROR_ACCESS_DENIED`. |
 | `cpu_max_rate`    | `50`     | Max CPU rate, percent (1–100). Applied via `MIN_MAX_RATE`.             |
 | `cpu_min_rate`    | `5`      | Floor CPU rate. Prevents audio starvation under sustained load.        |
+| `skip_cpu_limit`  | `False`  | `True` leaves CPU rate control off entirely. `cpu_max_rate`/`cpu_min_rate` stay populated and validated either way; the flag governs application, not validity.     |
 | `memory_limit_mb` | `None`   | `None` disables the cap. See Known Constraints.                        |
 
 ## Dependencies
@@ -125,8 +152,14 @@ If left unset the default is `""`, which will raise a `SandboxError` at
 
 - **Windows only.** The host process uses Win32 AppContainer and Job Object APIs.
   The Python wrapper calls `ctypes.windll` at runtime and will fail on non-Windows hosts.
-- **DACL grants are permanent on the path.** `grant_path` modifies the filesystem ACL
-  and does not revert on process exit. Grant only what the sandboxed process requires.
+- **DACL grants are permanent on the path.** The `grant` and `secure` broker modes
+  modify the filesystem ACL and do not revert on process exit. `grant` additionally
+  propagates its ACE across the existing tree under `path`. Broker only what the
+  sandboxed process requires, and prefer `secure` or `inherit` over `grant` when a
+  single file is enough.
+- **Container profiles are never deleted automatically.** A profile provisioned for a
+  moniker persists across launches and reboots by design. Call `reset_container` to
+  remove one. Per-moniker ACEs granted to a deleted profile's SID are not cleaned up.
 - **Qt platform plugin fails under memory caps.** Processes that use the Qt platform
   plugin allocate a large heap at startup and abort if the Job Object memory limit is
   hit before the window appears. Pass `memory_limit_mb=None` for these processes; the
