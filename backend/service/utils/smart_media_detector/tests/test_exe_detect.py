@@ -8,7 +8,7 @@ PE signature) produced it.
 
 from pathlib import Path
 
-from backend.tests import smart_media_fixtures as fx
+from backend.service.utils.smart_media_detector.tests import smart_media_fixtures as fx
 
 
 def _detect_exe(path: Path):

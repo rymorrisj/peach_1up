@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from backend.tests import smart_media_fixtures as fx
+from backend.service.utils.smart_media_detector.tests import smart_media_fixtures as fx
 
 
 def _extract_embedded_sha1(path: Path):

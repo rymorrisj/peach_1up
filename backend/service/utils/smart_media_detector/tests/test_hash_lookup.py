@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from backend.tests import smart_media_fixtures as fx
+from backend.service.utils.smart_media_detector.tests import smart_media_fixtures as fx
 
 
 def _hash_lookup_module():

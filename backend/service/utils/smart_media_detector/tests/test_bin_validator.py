@@ -9,7 +9,7 @@ non-None track type 0.25). All seven are covered below.
 
 from pathlib import Path
 
-from backend.tests import smart_media_fixtures as fx
+from backend.service.utils.smart_media_detector.tests import smart_media_fixtures as fx
 
 
 def _resolve(bin_path: Path, dir_cache=None):

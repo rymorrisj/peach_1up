@@ -22,7 +22,7 @@ def main():
 
     results["backend"] = run(
         "Backend tests (pytest)",
-        [str(VENV_PYTHON), "-m", "pytest", "backend/tests", "-v"],
+        [str(VENV_PYTHON), "-m", "pytest", "backend/tests", "backend/service/utils/smart_media_detector/tests", "-v"],
         ROOT,
     )
 
