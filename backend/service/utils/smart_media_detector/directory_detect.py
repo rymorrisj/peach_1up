@@ -3,6 +3,7 @@ from pathlib import Path
 
 from backend.core.logger import get_logger
 
+from .iso_detect import _POINTER_FILE_READ_CAP_BYTES
 from .result import MediaTarget, ScanResult
 
 log = get_logger(__name__)
@@ -174,7 +175,9 @@ def _detect_from_autorun(root: Path) -> ScanResult:
 
 def _parse_autorun_exe(autorun: Path) -> str | None:
     try:
-        for line in autorun.read_text(encoding="utf-8", errors="replace").splitlines():
+        with autorun.open("rb") as fh:
+            raw = fh.read(_POINTER_FILE_READ_CAP_BYTES)
+        for line in raw.decode("utf-8", errors="replace").splitlines():
             stripped = line.strip()
             if stripped.upper().startswith(("OPEN=", "RUN=")):
                 value = stripped.split("=", 1)[1].strip().strip('"')

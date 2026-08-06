@@ -369,6 +369,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
                 for (mp,) in db.query(GameItem.file_path).all()
             }
 
+            dir_cache: dict[Path, list[Path]] = {}
             for _idx, entry in enumerate(entries):
                 # Checked every iteration (an Event.is_set() check is
                 # effectively free) so cancellation is noticed between any two
@@ -407,7 +408,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
                             scan_path,
                             str(entry.executable_path) if entry.executable_path else None,
                         )
-                    _scan = _smart_detect(era_path)
+                    _scan = _smart_detect(era_path, dir_cache)
                     era_slug = _scan.era
                 except Exception as exc:
                     logger.warning("Scan: era detection failed for '%s': %s", scan_path, exc, exc_info=True)

@@ -4,7 +4,9 @@ from ..magic.magic_detect import detect_from_magic
 from ..result import ScanResult
 
 
-def resolve_bin_cue(bin_path: Path) -> ScanResult:
+def resolve_bin_cue(
+    bin_path: Path, dir_cache: dict[Path, list[Path]] | None = None,
+) -> ScanResult:
     """
     Resolve platform for a .bin file using its sibling .cue sheet.
 
@@ -13,8 +15,15 @@ def resolve_bin_cue(bin_path: Path) -> ScanResult:
       2. If found: parse first TRACK type, then re-run magic on .bin.
          Magic takes precedence (0.85); track type used as secondary signal.
       3. If no .cue: return low-confidence result with actionable warning.
+
+    dir_cache: optional, caller-owned {parent_dir: entries} map so a caller
+    scanning many .bin files in the same directory can pass one dict through
+    repeated calls and reuse a single iterdir() per directory instead of
+    rescanning it for every file. None (default) preserves the original
+    per-call iterdir() behavior. Scope this to a single scan/call sequence,
+    never a long-lived cache, to avoid serving a stale directory listing.
     """
-    cue_path = _find_cue(bin_path)
+    cue_path = _find_cue(bin_path, dir_cache)
 
     if cue_path is None:
         return ScanResult(
@@ -102,18 +111,32 @@ def resolve_bin_cue(bin_path: Path) -> ScanResult:
     )
 
 
-def _find_cue(bin_path: Path) -> Path | None:
-    """Case-insensitive search for a .cue file with the same stem in the same directory."""
+def _find_cue(bin_path: Path, dir_cache: dict[Path, list[Path]] | None = None) -> Path | None:
+    """Case-insensitive search for a .cue file with the same stem in the same directory.
+
+    When dir_cache is supplied, the parent directory's listing is read once
+    (iterdir()) and reused for every .bin file sharing that directory, instead
+    of rescanning the directory on every call.
+    """
+    parent = bin_path.parent
+    if dir_cache is not None:
+        entries = dir_cache.get(parent)
+        if entries is None:
+            try:
+                entries = list(parent.iterdir())
+            except OSError:
+                entries = []
+            dir_cache[parent] = entries
+    else:
+        try:
+            entries = list(parent.iterdir())
+        except OSError:
+            entries = []
+
     target_stem = bin_path.stem.lower()
-    try:
-        for candidate in bin_path.parent.iterdir():
-            if (
-                candidate.suffix.lower() == ".cue"
-                and candidate.stem.lower() == target_stem
-            ):
-                return candidate
-    except OSError:
-        pass
+    for candidate in entries:
+        if candidate.suffix.lower() == ".cue" and candidate.stem.lower() == target_stem:
+            return candidate
     return None
 
 

@@ -48,9 +48,13 @@ def _compute_requires_install(path: Path, era: str | None) -> bool:
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
-def detect(path: Path) -> ScanResult:
+def detect(path: Path, dir_cache: dict[Path, list[Path]] | None = None) -> ScanResult:
+    """dir_cache: optional, caller-owned {parent_dir: entries} map threaded down
+    to bin_validator._find_cue. Pass one dict across repeated calls in a single
+    scan pass (e.g. many .bin files in one directory) to avoid rescanning the
+    same directory per file. None (default) preserves prior per-call behavior."""
     try:
-        return _detect(path)
+        return _detect(path, dir_cache)
     except Exception as exc:
         log.warning("Unexpected error during media detection for '%s': %s", path, exc, exc_info=True)
         return ScanResult(
@@ -63,7 +67,7 @@ def detect(path: Path) -> ScanResult:
         )
 
 
-def _detect(path: Path) -> ScanResult:
+def _detect(path: Path, dir_cache: dict[Path, list[Path]] | None = None) -> ScanResult:
     if not path.exists():
         return ScanResult(
             title=None, platform=None, era=None, confidence=0.0,
@@ -94,7 +98,7 @@ def _detect(path: Path) -> ScanResult:
         # empty or missing index — continue to signal detection
 
     if path.is_file():
-        result = _detect_file(path)
+        result = _detect_file(path, dir_cache)
     elif path.is_dir():
         result = detect_directory(path)
     else:
@@ -109,7 +113,7 @@ def _detect(path: Path) -> ScanResult:
 
 # ── File dispatch ─────────────────────────────────────────────────────────────
 
-def _detect_file(path: Path) -> ScanResult:
+def _detect_file(path: Path, dir_cache: dict[Path, list[Path]] | None = None) -> ScanResult:
     suffix = path.suffix.lower()
 
     if suffix == ".nds":
@@ -175,10 +179,10 @@ def _detect_file(path: Path) -> ScanResult:
         pvd = detect_from_pvd(path)
         if pvd.era is not None:
             return pvd
-        return bin_validator.resolve_bin_cue(path)
+        return bin_validator.resolve_bin_cue(path, dir_cache)
 
     if suffix == ".cue":
-        return detect_cue(path)
+        return detect_cue(path, dir_cache)
 
     if suffix == ".chd":
         return detect_chd(path)
