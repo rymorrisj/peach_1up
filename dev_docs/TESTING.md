@@ -91,6 +91,13 @@ verification only) and the security-sensitive surface in `SECURITY.md`.
   binary and is not covered by any Python test. AppContainer smoke/test-matrix
   validation is manual per emulator (SECURITY.md § AppContainer not yet
   validated; SCOPE.md P9-6).
+  - The moniker to test against is `Peach1UP.<slug>.<scope>`. Confirmed real
+    examples: `Peach1UP.duckstation.shared`, `Peach1UP.mesen.shared`. `<slug>`
+    matches the emulator catalog's `slug` field (check the emulator's TOML
+    descriptor under `config/emulators/` if unsure). `<scope>` is `shared` for
+    the non-per-item container; a per-item-id scope variant also exists,
+    using the decimal `user_item_id` in place of `shared` (e.g.
+    `Peach1UP.duckstation.42`).
 - **Platform image-path traversal gap** — intentionally *not* validated
   (`base_image_path`/`working_image_path` may point anywhere; SECURITY.md Known
   Gaps). No test asserts this behaviour either way; it is a documented,

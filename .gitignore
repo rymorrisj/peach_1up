@@ -94,6 +94,10 @@ profiles/conf/
 !/emulators/*/license.md
 !/emulators/*/SOURCE_OFFER.txt
 
+# Standalone package extraction staging (formatscout, wincage), each its own
+# separate git repo, never part of this repo's history
+/_extracted_packages/
+
 # Temporary files
 *.tmp
 *.temp

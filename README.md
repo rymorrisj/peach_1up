@@ -107,6 +107,19 @@ and `.env`, which are preserved.
 
 ---
 
+## Process isolation
+
+Each emulator launches inside a Windows AppContainer/Job Object sandbox
+identified by a moniker of the form `Peach1UP.<slug>.<scope>`. Confirmed real
+examples: `Peach1UP.duckstation.shared`, `Peach1UP.mesen.shared`.
+
+- `<slug>` matches the emulator catalog's `slug` field. If unsure of an
+  emulator's exact slug, check its TOML descriptor under `config/emulators/`
+  (the `slug` field is on the first line) or the catalog listing.
+- `<scope>` is `shared` for the non-per-item container. A per-item-id scope
+  variant also exists, using the decimal `user_item_id` in place of `shared`
+  (e.g. `Peach1UP.duckstation.42`).
+
 ## Configuration
 
 Runtime settings (binary paths, operational flags, per-emulator overrides) are
