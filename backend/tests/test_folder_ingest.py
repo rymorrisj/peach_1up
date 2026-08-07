@@ -164,7 +164,7 @@ class _FakeScanResult:
 class TestCreateMultiDiscSet:
     @pytest.fixture(autouse=True)
     def _patch_detect(self, monkeypatch):
-        import smart_media_detector as smd
+        import formatscout as smd
         monkeypatch.setattr(smd, "detect", lambda path: _FakeScanResult())
 
     @pytest.fixture(autouse=True)
@@ -286,7 +286,7 @@ class TestCreateMultiDiscSet:
 class TestDedupDiscAnchor:
     @pytest.fixture(autouse=True)
     def _patch_detect(self, monkeypatch):
-        import smart_media_detector as smd
+        import formatscout as smd
         monkeypatch.setattr(smd, "detect", lambda path: _FakeScanResult())
 
     @pytest.fixture(autouse=True)

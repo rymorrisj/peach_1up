@@ -22,8 +22,8 @@ from backend.service.utils.file_types import is_drive_image, file_type_from_path
 from backend.service.utils.path_utils import normalise_path, resolve_under
 from backend.service.utils.slug_generator import generate_collection_slug, slugify, unique_slug
 
-if TYPE_CHECKING:  # type-only, keeps smart_media_detector a call-time import
-    from smart_media_detector.result import ScanResult
+if TYPE_CHECKING:  # type-only, keeps formatscout a call-time import
+    from formatscout.result import ScanResult
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
 
@@ -196,7 +196,7 @@ def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     # suffix-dispatched as a generic .bin file), and the folder is also the
     # launch target (mirrors rpcs3.launch()'s own is_dir() handling), so this
     # must run before the xex/generic-extension resolution below can apply.
-    from smart_media_detector.directory_detect import resolve_ps3_target, resolve_xex_target
+    from backend.service.utils.detection import resolve_ps3_target, resolve_xex_target
     ps3_target = resolve_ps3_target(folder)
     if ps3_target is not None:
         return ps3_target.launch_path
@@ -420,7 +420,7 @@ def _detect_directory_source(
     requires_install (always False when era is None). era, detection_reason
     and requires_install now always come from the same pass.
     """
-    from smart_media_detector import detect as _smart_detect
+    from formatscout import detect as _smart_detect
 
     executable = _pick_folder_executable(folder)
     detect_path = best_detect_path(folder, str(executable) if executable is not None else None)
@@ -453,7 +453,7 @@ def _detect_directory_source(
                 # so media_path is deliberately left pointing at the folder.
                 # Only warn when the folder isn't valid PS3 content either,
                 # i.e. resolution has no other explanation.
-                from smart_media_detector.directory_detect import resolve_ps3_target
+                from backend.service.utils.detection import resolve_ps3_target
                 if resolve_ps3_target(folder) is None:
                     log.warning(
                         "Could not find EBOOT.BIN in expected PS3 folder structure "
@@ -479,7 +479,7 @@ def _detect_file_source(media_file: Path, log) -> _Detection:
     launchable item. Mirrors the multi-disc path, which does the same for
     every disc.
     """
-    from smart_media_detector import detect as _smart_detect
+    from formatscout import detect as _smart_detect
 
     scan = _smart_detect(media_file)
     if scan.era is None and scan.warnings:
@@ -748,7 +748,7 @@ def _finalize_row_fields(
     """
     from backend.service.utils.era_defaults import defaults_for_era, lookup_environment_and_profile
     from backend.service.utils.rating_detect import detect_rating
-    from smart_media_detector import classify as _classify
+    from formatscout import classify as _classify
 
     if user_override_era is not None:
         era = user_override_era
@@ -1138,7 +1138,7 @@ def _prepare_multi_disc(
     """
     from backend.core.logger import get_logger
     from backend.service.utils.profile_builder import _find_cover
-    from smart_media_detector import detect as _smart_detect
+    from formatscout import detect as _smart_detect
 
     log = get_logger(__name__)
 
@@ -1487,7 +1487,7 @@ def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
         raise HTTPException(status_code=400, detail=f"Media file not found on disk: {leaf.file_path}")
 
     if leaf.sha1 is not None:
-        from smart_media_detector import classify as _classify
+        from formatscout import classify as _classify
 
         era = bundle.era if bundle.era != "unknown" else None
         result = _classify(path, bundle.title, era)
@@ -1495,7 +1495,7 @@ def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
         leaf.verification_similarity = result.similarity
         leaf.sha1 = result.computed_sha1
     else:
-        from smart_media_detector.hashing.hash_lookup import hash_file
+        from formatscout.hashing.hash_lookup import hash_file
 
         try:
             leaf.sha1 = hash_file(path).sha1

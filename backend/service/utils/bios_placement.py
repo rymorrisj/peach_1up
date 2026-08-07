@@ -20,7 +20,7 @@ from pathlib import Path
 from fastapi import UploadFile
 
 from backend.service.utils.path_utils import normalise_path, resolve_under, safe_basename
-from smart_media_detector.hashing.hash_lookup import hash_file
+from formatscout.hashing.hash_lookup import hash_file
 from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES, stream_upload_to_disk
 
 

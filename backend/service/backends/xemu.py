@@ -23,7 +23,7 @@ from backend.service.utils.emulator_catalog import (
     validate_bios_from_descriptor,
 )
 from backend.service.utils.file_types import supported_extensions_for_era
-from backend.service.utils.xbox_image import XboxDvdRipDetected, detect_xbox_image_type
+from backend.service.utils.detection.xbox_image import XboxDvdRipDetected, detect_xbox_image_type
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
 from sandbox import BrokerFile
 from sandbox.sandbox_process import SandboxProcess

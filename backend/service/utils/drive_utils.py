@@ -79,7 +79,7 @@ def create_drive_for_collection(
     """
     from backend.models.app import AppItemBundle
     from backend.models.drive import Drive
-    from smart_media_detector import detect as _smart_detect
+    from formatscout import detect as _smart_detect
 
     media_src = Path(launch_leaf.executable_path if launch_leaf.executable_path else launch_leaf.file_path)
 

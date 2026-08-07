@@ -2,7 +2,7 @@ import io
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from backend.service.utils.xbox_image import detect_xbox_image_type, is_xiso
+from backend.service.utils.detection.xbox_image import detect_xbox_image_type, is_xiso
 
 _XBOX_MAGIC = b"MICROSOFT*XBOX*MEDIA"
 _ISO9660_MAGIC = b"CD001"

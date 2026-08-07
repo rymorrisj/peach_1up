@@ -71,7 +71,7 @@ def convert_dvd_rip_to_xiso(source_path: Path) -> Path:
         RuntimeError: extract-xiso exited with a non-zero status, or exited
             0 without producing a valid, non-dvd_rip xiso.
     """
-    from backend.service.utils.xbox_image import detect_xbox_image_type
+    from backend.service.utils.detection.xbox_image import detect_xbox_image_type
 
     binary = get_extract_xiso_path()
     if binary is None:

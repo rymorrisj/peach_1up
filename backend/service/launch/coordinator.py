@@ -22,7 +22,7 @@ from backend.service.launch.monitor import register_short_lived_check
 from backend.service.utils.era_defaults import PROVISIONABLE_ERAS, evaluate_launch_readiness
 from backend.service.utils.file_types import resolve_media_file_from_directory
 from backend.service.utils.fat.directory import _to_83_str
-from backend.service.utils.xbox_image import XboxDvdRipDetected
+from backend.service.utils.detection.xbox_image import XboxDvdRipDetected
 
 if TYPE_CHECKING:
     from backend.models.drive import Drive

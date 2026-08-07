@@ -28,11 +28,11 @@ import re
 import shutil
 import threading
 import time
-from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from backend.core.logger import get_logger
+from backend.service.utils.detection import MediaTarget, resolve_ps3_target
 from backend.service.utils.emulator_catalog import (
     get_emulator,
     get_install_path,
@@ -83,111 +83,14 @@ def _check_firmware_installed(install_dir: Path) -> None:
         )
 
 
-# PS3 folder-shape resolution, transplanted inline from the formatscout
-# vendor package (services/vendor/formatscout/smart_media_detector, as it
-# existed at commit f3fde90 before its working-tree removal) as a private
-# implementation detail of this backend, no shared module.
-#
-# NOTE: backend.service.games.items also imports resolve_ps3_target from the
-# top-level smart_media_detector package for ingest-time detection. That call
-# site was NOT repointed here (doing so would mean this logic needs to be
-# reachable from outside this file, which this transplant was scoped to
-# avoid) and still depends on the formatscout package. Flagged for a
-# follow-up decision rather than silently worked around.
-
-
-@dataclass(slots=True, frozen=True)
-class _MediaTarget:
-    """A resolved, launchable PS3 media shape produced by _resolve_ps3_target
-    or constructed directly for a .pkg file, and consumed by launch() below.
-
-    kind:
-        "file", a single launchable file (a .pkg), no folder-shape resolution
-            needed.
-        "disc_folder", a folder identified by a disc-format structural marker
-            (e.g. PS3_DISC.SFB); RPCS3's own "Boot Game" walks the folder
-            itself, not a resolved boot file.
-        "installed_dir", a folder with no disc marker but a resolvable boot
-            file at a known relative layout (e.g. dev_hdd0/game/<ID>/USRDIR/EBOOT.BIN).
-
-    detect_path: what classify()/hash_file() should hash for verification.
-        For "disc_folder"/"installed_dir" this is the resolved boot file
-        (e.g. EBOOT.BIN), not the folder, a folder can never be hashed.
-    launch_path: what gets handed to the emulator. For "disc_folder"/
-        "installed_dir" this is the folder itself (RPCS3 does its own
-        internal walk); for "file" it is the same file as detect_path.
-    license_files: sibling license files discovered alongside a "file"-kind
-        target (today: .rap files next to a PS3 .pkg). Empty for every other
-        kind.
-    """
-    kind: Literal["file", "disc_folder", "installed_dir"]
-    detect_path: Path
-    launch_path: Path
-    era: str | None
-    requires_install: bool
-    license_files: tuple[Path, ...] = ()
-
-
-# PS3_DISC.SFB at a folder's root (alongside PS3_GAME/, optionally PS3_UPDATE/)
-# marks the folder as a disc-format dump. RPCS3's own "Boot Game" targets the
-# folder itself in this case and does its own internal walk, so the folder is
-# the launch unit, not a resolved EBOOT.BIN, a distinct shape from the
-# dev_hdd0/game/<TITLE_ID>/ and loose extracted folders _find_eboot resolves.
-_PS3_DISC_MARKER_FILENAME = "PS3_DISC.SFB"
-
-
-def _is_disc_format_folder(folder: Path) -> bool:
-    """Return True if *folder* is a disc-format dump (has PS3_DISC.SFB at its root)."""
-    return (folder / _PS3_DISC_MARKER_FILENAME).is_file()
-
-
-def _find_eboot(folder: Path) -> Path | None:
-    """Return the EBOOT.BIN path for *folder*, checking both known layouts.
-
-    dev_hdd0/game/<TITLE_ID>/ folders (installed pkgs) hold USRDIR directly;
-    extracted disc folders hold it one level down, under PS3_GAME/.
-    """
-    for candidate in (folder / "USRDIR" / "EBOOT.BIN", folder / "PS3_GAME" / "USRDIR" / "EBOOT.BIN"):
-        if candidate.is_file():
-            return candidate
-    return None
-
-
-def _resolve_ps3_target(folder: Path) -> _MediaTarget | None:
-    """Resolve *folder* to a PS3 MediaTarget if it matches a known PS3 folder shape.
-
-    The single resolver for both PS3 folder shapes, called from launch()
-    below (this backend used to previously import an equivalent resolver
-    from the formatscout vendor package, now transplanted inline here),
-    instead of independently reimplementing the is_disc_format_folder/
-    find_eboot check.
-
-    A real, bootable EBOOT.BIN must exist for either shape to resolve, a
-    folder with PS3_DISC.SFB but no findable EBOOT.BIN is not a valid target
-    and returns None here, the same as a folder with neither signal. This is
-    deliberate: the disc-format branch used to trust the SFB marker alone and
-    skip this check, letting an unbootable folder reach RPCS3 before failing
-    there instead of here.
-
-    detect_path is always the resolved EBOOT.BIN (what classify()/hash_file()
-    should hash); launch_path is always the folder itself (what RPCS3 is
-    handed, it does its own internal walk from the folder root for both
-    shapes). era is resolved structurally here, not by suffix-dispatching
-    the returned EBOOT.BIN through detect()'s generic .bin handling.
-
-    Returns:
-        None if *folder* is not a directory or has no resolvable PS3 shape.
-    """
-    if not folder.is_dir():
-        return None
-    eboot = _find_eboot(folder)
-    if eboot is None:
-        return None
-    kind = "disc_folder" if _is_disc_format_folder(folder) else "installed_dir"
-    return _MediaTarget(
-        kind=kind, detect_path=eboot, launch_path=folder,
-        era="ps3", requires_install=False, license_files=(),
-    )
+# PS3 folder-shape resolution (MediaTarget, resolve_ps3_target) now lives in
+# backend.service.utils.detection, shared with backend.service.games.items'
+# ingest-time detection instead of each carrying its own copy. Previously a
+# private, underscore-prefixed transplant here from the formatscout vendor
+# package (services/vendor/formatscout/smart_media_detector, as it existed
+# at commit f3fde90 before its working-tree removal); restored to a shared
+# module since this is Peach 1UP-specific launch-target logic, not format
+# detection, and belongs outside formatscout regardless.
 
 # RPCS3's fixed exdata location for PlayStation Network license (.rap) files.
 # Confirmed against RPCS3's own quickstart/wiki guidance: the folder name is
@@ -447,11 +350,11 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             raise FileNotFoundError(f"Media file not found: {media_path}")
 
         if media_path.is_dir():
-            # _resolve_ps3_target validates both folder shapes identically now
+            # resolve_ps3_target validates both folder shapes identically now
             # (N3): a PS3_DISC.SFB-marked folder with no findable EBOOT.BIN
             # used to skip this check entirely and reach launch_under_job_object
             # anyway, only to fail inside RPCS3 itself instead of here.
-            ps3_target = _resolve_ps3_target(media_path)
+            ps3_target = resolve_ps3_target(media_path)
             if ps3_target is None:
                 raise FileNotFoundError(
                     f"No bootable PS3 title found in '{media_path}' "
@@ -461,7 +364,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         elif media_path.suffix.lower() == ".pkg":
             title_id = _title_id_from_rap(media_path) or _title_id_from_pkg_header(media_path)
             license_files = _find_license_files(media_path)
-            pkg_target = _MediaTarget(
+            pkg_target = MediaTarget(
                 kind="file", detect_path=media_path, launch_path=media_path,
                 era="ps3", requires_install=False, license_files=license_files,
             )

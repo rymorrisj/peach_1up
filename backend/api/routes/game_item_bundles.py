@@ -339,7 +339,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
     """
     from backend.core.database import get_engine
     from backend.service.games.items import best_detect_path
-    from smart_media_detector import detect as _smart_detect
+    from formatscout import detect as _smart_detect
     from backend.service.utils.profile_builder import scan_media_folders
     from sqlalchemy.orm import Session as _Session
 

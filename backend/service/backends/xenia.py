@@ -15,11 +15,11 @@ writes to it.
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from backend.core.logger import get_logger
+from backend.service.utils.detection import resolve_xex_target
 from backend.service.utils.emulator_catalog import (
     get_emulator,
     get_install_path,
@@ -38,89 +38,14 @@ if TYPE_CHECKING:
 
 _RISKY_GPU_VALUES = {"any", "d3d12", ""}
 
-# XEX folder-shape resolution, transplanted inline from the formatscout
-# vendor package (services/vendor/formatscout/smart_media_detector, as it
-# existed at commit f3fde90 before its working-tree removal) as a private
-# implementation detail of this backend, no shared module.
-#
-# NOTE: backend.service.games.items also imports resolve_xex_target from the
-# top-level smart_media_detector package for ingest-time detection. That call
-# site was NOT repointed here (doing so would mean this logic needs to be
-# reachable from outside this file, which this transplant was scoped to
-# avoid) and still depends on the formatscout package. Flagged for a
-# follow-up decision rather than silently worked around.
-
-
-@dataclass(slots=True, frozen=True)
-class _MediaTarget:
-    """A resolved, launchable Xbox 360 XEX folder target, produced by
-    _resolve_xex_target below and consumed by launch().
-
-    kind is always "xex_folder" here (this backend only ever produces that
-    one shape). detect_path and launch_path are the same file: Xenia is
-    handed the resolved .xex directly, not the containing folder.
-    """
-    kind: Literal["xex_folder"]
-    detect_path: Path
-    launch_path: Path
-    era: str | None
-    requires_install: bool
-    license_files: tuple[Path, ...] = ()
-
-
-def _resolve_xex_target(folder: Path) -> _MediaTarget | None:
-    """Resolve *folder* to an Xbox 360 MediaTarget if it contains a bootable XEX.
-
-    Called from launch() below (this backend used to previously import an
-    equivalent resolver from the formatscout vendor package, now
-    transplanted inline here) instead of independently calling
-    _find_default_xex. Unlike PS3, detect_path and launch_path are the same
-    file here, Xenia is handed the resolved .xex directly, not the
-    containing folder.
-
-    Returns:
-        None if *folder* is not a directory or contains no .xex file.
-    """
-    if not folder.is_dir():
-        return None
-    xex = _find_default_xex(folder)
-    if xex is None:
-        return None
-    return _MediaTarget(
-        kind="xex_folder", detect_path=xex, launch_path=xex,
-        era="xbox360", requires_install=False, license_files=(),
-    )
-
-
-def _find_default_xex(folder: Path) -> Path | None:
-    """Return the launchable .xex path for an extracted Xbox 360 XEX folder.
-
-    Prefers an exact "default.xex" match (case-insensitive) at the folder's
-    top level, the conventional entry point Xenia itself looks for. If no
-    default.xex exists but other .xex files are present, falls back to the
-    alphabetically first one by filename, chosen deterministically rather
-    than by filesystem iteration order, and logs a warning since this is a
-    tie-break, not a confirmed match, and the wrong title could otherwise
-    launch silently.
-    """
-    try:
-        xex_files = [f for f in folder.iterdir() if f.is_file() and f.suffix.lower() == ".xex"]
-    except OSError:
-        return None
-    if not xex_files:
-        return None
-    for f in xex_files:
-        if f.name.lower() == "default.xex":
-            return f
-    xex_files.sort(key=lambda f: f.name.lower())
-    chosen = xex_files[0]
-    logger.warning(
-        "xex resolver: no default.xex found in '%s', %d other .xex file(s) present, "
-        "deterministically choosing '%s' (alphabetically first) as a tie-break. "
-        "Rename the intended file to default.xex to avoid relying on this.",
-        folder, len(xex_files), chosen.name,
-    )
-    return chosen
+# XEX folder-shape resolution (MediaTarget, resolve_xex_target) now lives in
+# backend.service.utils.detection, shared with backend.service.games.items'
+# ingest-time detection instead of each carrying its own copy. Previously a
+# private, underscore-prefixed transplant here from the formatscout vendor
+# package (services/vendor/formatscout/smart_media_detector, as it existed
+# at commit f3fde90 before its working-tree removal); restored to a shared
+# module since this is Peach 1UP-specific launch-target logic, not format
+# detection, and belongs outside formatscout regardless.
 
 
 def _warn_if_risky_gpu(install_dir: Path) -> None:
@@ -179,10 +104,10 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         raise FileNotFoundError(f"Media file not found: {spec.media_path}")
 
     if spec.media_path.is_dir():
-        # _resolve_xex_target is this backend's own private copy (see the
-        # module-level NOTE above); best_detect_path (items.py) still calls
-        # a separate copy imported from the formatscout vendor package.
-        xex_target = _resolve_xex_target(spec.media_path)
+        # resolve_xex_target now comes from backend.service.utils.detection,
+        # the same shared resolver items.py calls at ingest time (see the
+        # module-level note above).
+        xex_target = resolve_xex_target(spec.media_path)
         if xex_target is None:
             raise FileNotFoundError(
                 f"No bootable Xbox 360 title found in '{spec.media_path}' "
@@ -205,7 +130,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     container_enabled = resolve_container_enabled("xenia", spec.container_enabled)
     # target_path (not spec.media_path) is passed here deliberately: for the
     # directory case, target_path.parent == spec.media_path exactly (see
-    # _find_default_xex, top-level only), so the broker's parent-dir grant
+    # detection.xex.find_default_xex, top-level only), so the broker's parent-dir grant
     # still covers the whole extracted folder including sibling resource
     # files, and its exact-file entry gets a real file handle instead of
     # silently failing on a directory (CreateFileW without
