@@ -34,9 +34,10 @@ package = false
 
 # formatscout and wincage are vendored as local editable path dependencies,
 # not pulled from PyPI. See services/vendor/{formatscout,wincage}/VENDORED_FROM.txt
-# for source commit provenance. Distribution names differ from their importable
-# module names (smart_media_detector, sandbox/sandbox_checker), see each
-# package's own pyproject.toml [tool.setuptools] packages field.
+# for source commit. formatscout's importable name matches its
+# distribution name. wincage's does not yet, still importable as sandbox/
+# sandbox_checker internally, see wincage's own pyproject.toml [tool.setuptools]
+# packages field, a pending rename tracked separately.
 [tool.uv.sources]
 formatscout = { path = "services/vendor/formatscout", editable = true }
 wincage = { path = "services/vendor/wincage", editable = true }
@@ -61,7 +62,7 @@ select = ["E4", "E7", "E9", "F"]
 "__init__.py" = ["F401"]
 
 [tool.pytest.ini_options]
-testpaths = ["backend/tests", "backend/service/utils/smart_media_detector/tests"]
+testpaths = ["backend/tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -70,7 +71,6 @@ python_functions = ["test_*"]
 source = ["backend"]
 omit = [
     "backend/tests/*",
-    "backend/service/utils/smart_media_detector/tests/*",
     "backend/.venv/*",
 ]
 
