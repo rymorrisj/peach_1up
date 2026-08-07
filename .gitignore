@@ -94,9 +94,6 @@ profiles/conf/
 !/emulators/*/license.md
 !/emulators/*/SOURCE_OFFER.txt
 
-# Standalone package extraction staging (formatscout, wincage), each its own
-# separate git repo, never part of this repo's history
-/_extracted_packages/
 
 # Temporary files
 *.tmp
@@ -114,3 +111,8 @@ frontend/src/generated/constants.ts
 shared/openapi.json
 shared/types.ts
 docs/docs/api/
+
+# Temp vendor setup for formatscout/wincage.
+# TODO: remove this and commit the services once dev testing is complete
+services/vendor/formatscout
+services/vendor/wincage
