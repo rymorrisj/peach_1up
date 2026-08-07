@@ -28,13 +28,13 @@ def hash_session_token(token: str) -> str:
 def issue_session(db, user) -> tuple[str, Optional[datetime]]:
     """Mint a new session token for *user*, overwriting any prior session.
 
-    One active session per user by design — a new login naturally invalidates
+    One active session per user by design, a new login naturally invalidates
     any previous session since the hash is overwritten, not appended.
     """
     if not user.identity_token_secret:
         # Lazily backfilled for rows created before this column existed, or
         # created by a path that doesn't set it explicitly (e.g. the CLI
-        # owner-recovery script) — guarantees issue_session always works.
+        # owner-recovery script), guarantees issue_session always works.
         user.identity_token_secret = generate_identity_secret()
 
     token, _issued_at = mint_session_token(user.identity_token_secret)
@@ -52,7 +52,7 @@ def issue_session(db, user) -> tuple[str, Optional[datetime]]:
 def extend_session(db, user) -> Optional[datetime]:
     """Push out *user*'s existing session expiry without rotating the token.
 
-    Unlike issue_session, this never touches session_token_hash — the caller
+    Unlike issue_session, this never touches session_token_hash, the caller
     has already validated the presented token, so there is no new token to
     roll back and the two-row rollback-safety tradeoff doesn't apply here.
     """

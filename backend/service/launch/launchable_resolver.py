@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class LaunchableEntity:
     """Fully-resolved inputs for a single launch of a library collection.
 
-    All fields are plain values — no ORM objects except drive (pre-resolved to
+    All fields are plain values, no ORM objects except drive (pre-resolved to
     avoid divergent lookup patterns) and _db_collection (back-ref for the
     installed=True write-back after loose-file hydration).
     """
@@ -34,7 +34,7 @@ class LaunchableEntity:
     launch_review_flagged: bool = False
 
     # Which table collection_id points into. "game" (GameItemBundle,
-    # the default) or "app" (AppItemBundle) — lets downstream code (drive
+    # the default) or "app" (AppItemBundle), lets downstream code (drive
     # hydration, the coordinator's history write) pick the right sibling model
     # without a second resolution path duplicating everything above it.
     source_type: str = "game"
@@ -53,7 +53,7 @@ class LaunchableEntity:
     drive: "Drive | None" = None
 
     # All disc media_paths in disc_number order (a collection-of-one yields a
-    # single-element list — the multi-image builder no-ops when len <= 1).
+    # single-element list, the multi-image builder no-ops when len <= 1).
     disc_paths: list[str] = field(default_factory=list)
 
     # ORM back-reference for collection.installed write-back after loose-file copy.
@@ -119,7 +119,7 @@ def resolve_launchable_app(
 
     era and item_type (pc/console, derived from AppItemBundle.is_pc) are read
     directly off the collection row, mirroring resolve_launchable
-    (GameItemBundle) exactly — not looked up via the linked Environment.
+    (GameItemBundle) exactly, not looked up via the linked Environment.
     Environment existence for PC apps is validated at launch time by
     _launch_entity's existing PC gate (coordinator.py), not here, same as
     GameItemBundle. drive is resolved from AppItemBundle.drive, the Drive row

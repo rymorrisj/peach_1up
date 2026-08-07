@@ -1,13 +1,13 @@
 """Tests for the browser-upload ingestion path:
 
-- path_utils.safe_basename / resolve_under — the path-traversal fix.
-- upload_utils.begin_upload — collision-free destination allocation built on those.
-- POST /api/v1/game-items/uploads/{init,chunks,complete} — chunked software-media
+- path_utils.safe_basename / resolve_under, the path-traversal fix.
+- upload_utils.begin_upload, collision-free destination allocation built on those.
+- POST /api/v1/game-items/uploads/{init,chunks,complete}, chunked software-media
   upload, chains into upload_finalize._ingest_media_entry et al.
-- POST /api/v1/media-items/upload — generic Media-archive upload (doc 03): stages
-  bytes under MEDIA_PATH only, no era/media_type — creating the MediaItem row
+- POST /api/v1/media-items/upload, generic Media-archive upload (doc 03): stages
+  bytes under MEDIA_PATH only, no era/media_type, creating the MediaItem row
   is a separate call.
-- POST /api/v1/environment-items/{slug}/install-media — OS install-media upload
+- POST /api/v1/environment-items/{slug}/install-media, OS install-media upload
   (doc 04): the old media_type='os' logic, relocated and now slug-scoped with
   era read from the Environment record instead of trusted form input.
 """
@@ -31,7 +31,7 @@ def _reset_media_dup_index():
 
 
 # ---------------------------------------------------------------------------
-# safe_basename / resolve_under — unit level
+# safe_basename / resolve_under, unit level
 # ---------------------------------------------------------------------------
 
 class TestSafeBasename:
@@ -50,7 +50,7 @@ class TestSafeBasename:
 
     def test_preserves_case_and_extension(self):
         # Case is deliberately preserved (unlike the old slugify-based
-        # sanitize_filename this replaces) — see safe_basename's docstring
+        # sanitize_filename this replaces), see safe_basename's docstring
         # for why a content-derived filename (PS3 .rap license files) can't
         # be lowercased without breaking RPCS3's own filename matching.
         from backend.service.utils.path_utils import safe_basename
@@ -88,7 +88,7 @@ class TestResolveUnder:
 
 
 # ---------------------------------------------------------------------------
-# begin_upload — collision-free destination allocation
+# begin_upload, collision-free destination allocation
 # ---------------------------------------------------------------------------
 
 class TestBeginUpload:
@@ -108,7 +108,7 @@ class TestBeginUpload:
 
 
 # ---------------------------------------------------------------------------
-# Route-level tests — shared fixture plumbing
+# Route-level tests, shared fixture plumbing
 # ---------------------------------------------------------------------------
 
 class _FakeSettings:
@@ -127,9 +127,9 @@ class _FakeSettings:
 def mem_db_session():
     from sqlmodel import SQLModel, Session, create_engine
     from sqlalchemy.pool import StaticPool
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
-    # StaticPool shares one connection across threads — TestClient dispatches
+    # StaticPool shares one connection across threads, TestClient dispatches
     # requests on a different thread, and sqlite ":memory:" is per-connection.
     engine = create_engine(
         "sqlite:///:memory:",
@@ -185,7 +185,7 @@ class TestSoftwareUploadRoute:
             settings_mod,
             "get_settings",
             # LIBRARY_PATH backs chunked-upload staging (library/tmp_chunks/,
-            # a sibling of software/, not nested inside it) — set here too so
+            # a sibling of software/, not nested inside it), set here too so
             # staging lands inside this test's own tmp_path sandbox instead of
             # the real process cwd.
             lambda: _FakeSettings({"SOFTWARE_PATH": str(media_path), "LIBRARY_PATH": str(tmp_path)}),
@@ -364,7 +364,7 @@ class TestSoftwareUploadRoute:
         assert del_resp.status_code == 204, del_resp.text
 
         files_after_remove = self._media_files(media_path)
-        assert len(files_after_remove) == 1  # remove, not delete — file stays on disk
+        assert len(files_after_remove) == 1  # remove, not delete, file stays on disk
         original_file = files_after_remove[0]
 
         second = self._upload(c, "doom-readded.iso", content)
@@ -381,12 +381,12 @@ class TestSoftwareUploadRoute:
         Path.rglob filtered to calls against media_path itself, so the
         assertion is specific to the dedup index and not confused by other
         rglob callers. Also proves the index reflects the first upload
-        immediately — the second call finds the match with no lag."""
+        immediately, the second call finds the match with no lag."""
         c, media_path = client
         from backend.service.utils import media_dup_index
 
         # Dedup is checked against the games domain root (media_path/games),
-        # not media_path itself — see path_utils.library_domain_root.
+        # not media_path itself, see path_utils.library_domain_root.
         root = (media_path / "games").resolve()
         rglob_calls_on_root = []
         original_rglob = media_dup_index.Path.rglob
@@ -405,11 +405,11 @@ class TestSoftwareUploadRoute:
 
         second = self._upload(c, "warm-b.iso", content)
         assert second.json()["status"] == "error", second.text  # still-tracked duplicate, via the index
-        assert len(rglob_calls_on_root) == 1  # no rebuild — index stayed warm
+        assert len(rglob_calls_on_root) == 1  # no rebuild, index stayed warm
 
     def test_index_does_not_return_stale_match_after_file_removed_from_disk(self, client):
         """Confirms re-uploading genuinely-gone content is treated as new rather
-        than falsely matched against a now-stale index entry — exercises the
+        than falsely matched against a now-stale index entry, exercises the
         index's self-healing path for out-of-band filesystem deletions."""
         c, media_path = client
         content = b"identical bytes for stale-index test"
@@ -432,7 +432,7 @@ class TestSoftwareUploadRoute:
 
 
 # ---------------------------------------------------------------------------
-# POST /api/v1/media-items/upload — generic Media-archive upload (doc 03).
+# POST /api/v1/media-items/upload, generic Media-archive upload (doc 03).
 #
 # Repurposed from the old OS-image-only route: no era/media_type form fields
 # anymore, gated on can_manage_media, and stages bytes under MEDIA_PATH only —
@@ -512,7 +512,7 @@ class TestMediaArchiveUploadRoute:
 
 
 # ---------------------------------------------------------------------------
-# POST /api/v1/environment-items/{slug}/install-media — OS install-media upload
+# POST /api/v1/environment-items/{slug}/install-media, OS install-media upload
 # (doc 04). This is where the old media_type='os' logic actually moved to:
 # slug-scoped to a real Environment row, era read from that row (not trusted
 # form input), gated on can_manage_environment, PC-era validated.

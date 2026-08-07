@@ -28,7 +28,7 @@ vi.mock('@/api/client', () => ({
   },
 }));
 
-// genres must always be overridden — CollectionDetail.tsx reads
+// genres must always be overridden, CollectionDetail.tsx reads
 // collection.genres.length with no null guard (see read-path pass finding).
 function fullCollection(overrides?: Record<string, unknown>) {
   return createMockLibraryItem({
@@ -450,7 +450,7 @@ describe('CollectionDetail (mutation path)', () => {
         expect(screen.getByTestId('location-probe')).toHaveTextContent('/software');
       });
 
-      // Two distinct calls, in order — not collapsed into one.
+      // Two distinct calls, in order, not collapsed into one.
       const patchIdx = calls.findIndex(
         (c) =>
           c.url === '/api/v1/game-item-bundle/1' &&
@@ -531,7 +531,7 @@ describe('CollectionDetail (mutation path)', () => {
       });
       expect(screen.getByTestId('location-probe')).toHaveTextContent('/software/games/doom');
 
-      // Both steps ran as two distinct calls — the failure was in the second
+      // Both steps ran as two distinct calls, the failure was in the second
       // (delete), not a fallback that skipped straight there.
       expect(
         calls.some(
@@ -571,8 +571,8 @@ describe('CollectionDetail (mutation path)', () => {
       await waitForLoaded();
 
       // delete_media_override is null and library-defaults' delete_media_on_removal
-      // is false (setupApi's baseline), so resolvedDeleteMedia — the checkbox's
-      // defaultChecked — is false. Toggle it on before confirming.
+      // is false (setupApi's baseline), so resolvedDeleteMedia, the checkbox's
+      // defaultChecked, is false. Toggle it on before confirming.
       await user.click(screen.getByRole('button', { name: 'Delete this collection' }));
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
       const checkbox = screen.getByRole('checkbox', { name: /also delete media files from disk/i });

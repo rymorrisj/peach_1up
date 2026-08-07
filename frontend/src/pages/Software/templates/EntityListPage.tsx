@@ -404,7 +404,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
                 {entities.map((entity) => {
                   // renderCard takes over the whole card for domains whose visual
                   // departs from EntityCard's generic layout (Game's stacked-disc
-                  // CollectionCard) — wrapped in a keyed Fragment rather than a div
+                  // CollectionCard), wrapped in a keyed Fragment rather than a div
                   // so it stays a direct grid child, matching EntityCard below.
                   if (config.renderCard) {
                     return (

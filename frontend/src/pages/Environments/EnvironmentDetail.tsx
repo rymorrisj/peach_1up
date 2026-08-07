@@ -235,7 +235,7 @@ export default function EnvironmentDetail() {
       if (err instanceof ApiError) {
         showToast(err.detail, 'error');
       } else if (err instanceof TimeoutError) {
-        showToast('Launch is taking longer than expected — check if it opened.', 'info');
+        showToast('Launch is taking longer than expected, check if it opened.', 'info');
       } else {
         showToast('Launch failed.', 'error');
       }

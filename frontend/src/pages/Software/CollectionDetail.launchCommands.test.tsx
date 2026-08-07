@@ -17,10 +17,10 @@ import { createMockLibraryItem } from '@/test/helpers';
 //     resolves; unreachable once the Save button is on screen, since the
 //     same mount effect that clears the `!form` guard also seeds
 //     launchCommands in the same commit)
-//   - null = never configured / preserve — sent to the backend verbatim as
+//   - null = never configured / preserve, sent to the backend verbatim as
 //     null, which enrich/PATCH treats as "field omitted" (exclude_none) and
 //     leaves the stored value untouched
-//   - [] = explicitly cleared — sent verbatim, persists as an empty list
+//   - [] = explicitly cleared, sent verbatim, persists as an empty list
 //     (no auto-run)
 // The point of resolveLaunchCommands is that an incidental save (editing an
 // unrelated field, never touching the Advanced/commands UI) must resend
@@ -197,7 +197,7 @@ describe('CollectionDetail launch_commands sentinel', () => {
     renderPage();
     await waitForLoaded();
 
-    // Touch an unrelated field only — never open Advanced / the commands UI.
+    // Touch an unrelated field only, never open Advanced / the commands UI.
     await user.type(screen.getByLabelText('Publisher'), 'id Software');
     await saveAndWait(user);
 

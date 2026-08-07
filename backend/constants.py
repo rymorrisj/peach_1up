@@ -1,4 +1,4 @@
-"""Backend-only constants — hand-authored, not generated.
+"""Backend-only constants, hand-authored, not generated.
 
 Imports Era and BackendSlug from the generated module.
 """
@@ -16,6 +16,6 @@ def era_to_enum(value: EraValue) -> Era:
 
     Use at the edge of internal dispatch code that needs named-member
     access (e.g. backend_router.resolve_backend_name); never store or pass
-    the Enum itself across a DB/API boundary — use EraValue there instead.
+    the Enum itself across a DB/API boundary, use EraValue there instead.
     """
     return Era(value)

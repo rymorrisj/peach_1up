@@ -1,4 +1,4 @@
-Written Source-Code Offer — xemu
+Written Source-Code Offer, xemu
 =================================
 
 xemu is distributed under the GNU General Public License v2 or later

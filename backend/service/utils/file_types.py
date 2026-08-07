@@ -41,7 +41,7 @@ _ROM_EXTENSIONS = {".nes", ".sfc", ".smc", ".zip", ".z64", ".n64", ".v64"}
 def is_drive_image(file: Path, folder_name: str) -> bool:
     """Return True if *file* is the folder's own shared-drive image (e.g. 'rally.img'
     for a folder named 'rally'), not a launchable media file. Only excludes the
-    file literally named '{folder_name}.img' — a folder's actual .iso/.img game
+    file literally named '{folder_name}.img', a folder's actual .iso/.img game
     media (e.g. a DOS HDD/floppy dump) must not be excluded by extension alone.
     """
     return file.name.lower() == f"{folder_name}.img".lower()

@@ -44,7 +44,7 @@ def app_client(mem_session, monkeypatch):
 
     # Tests hash PINs with a bare argon2 PasswordHasher (no pepper), so the
     # verify side must not apply whatever PIN_PEPPER happens to be set in the
-    # developer's local .env — otherwise every "correct PIN" check 401s.
+    # developer's local .env, otherwise every "correct PIN" check 401s.
     import backend.service.utils.pin_hashing as pin_hashing_mod
     monkeypatch.setattr(pin_hashing_mod, "get_pin_pepper", lambda: "")
 
@@ -194,7 +194,7 @@ class TestSetupOwnerSession:
 
     def test_setup_owner_sets_identity_token_secret_explicitly(self, app_client, mem_session):
         """Regression: setup_owner must not depend on issue_session's lazy
-        backfill — it's the primary first-run creation path, not a defensive
+        backfill, it's the primary first-run creation path, not a defensive
         fallback case like the CLI owner-recovery script."""
         from backend.models.user import UserItem
 
@@ -209,7 +209,7 @@ class TestSetupOwnerSession:
 
 
 class TestUpdateUser:
-    """PATCH /api/v1/user-items/{user_item_id} — Manage User edit flow (Flow 10 in dev_docs/AUTH.md)."""
+    """PATCH /api/v1/user-items/{user_item_id}, Manage User edit flow (Flow 10 in dev_docs/AUTH.md)."""
 
     def _cookie(self, mem_session, user):
         from backend.core.identity import issue_session

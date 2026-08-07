@@ -58,7 +58,7 @@ interface SoftwareEntityDetailProps {
   installedStatus?: boolean;
   /** At a Glance stat: summed from real per-item file_size_bytes fields
    * client-side (no bundle-level total exists in the API). Omitted or 0
-   * renders no tile — see formatBytes call site for the > 0 gate. */
+   * renders no tile, see formatBytes call site for the > 0 gate. */
   mediaSizeBytes?: number | null;
   /** Rendered just below the header (e.g. the "delete media on removal"
    * danger-zone block) */
@@ -69,16 +69,16 @@ interface SoftwareEntityDetailProps {
   /** Extra read-only rows inserted after the launches row (e.g. genre,
    * developer, DOS install toggle) */
   metaAfter?: ReactNode;
-  /** Tags section props — renders TagsSection when provided */
+  /** Tags section props, renders TagsSection when provided */
   tags?: ComponentProps<typeof TagsSection>;
-  /** Edit form props — renders EditForm when provided. EditForm owns its own
+  /** Edit form props, renders EditForm when provided. EditForm owns its own
    * internal Profile card and Save button, this slot is not wrapped in an
    * extra card here. */
   editForm?: ComponentProps<typeof EditForm>;
   /** Pre-rendered edit form content, for domains whose edit form isn't
    * EditForm (Media, App), rendered in the same slot position as editForm */
   editFormContent?: ReactNode;
-  /** Advanced section props — renders AdvancedSection when provided */
+  /** Advanced section props, renders AdvancedSection when provided */
   advancedSection?: ComponentProps<typeof AdvancedSection>;
   /** Metadata actions (Fetch Metadata, Cover Art), rendered inside its own
    * Metadata card */
@@ -99,7 +99,7 @@ interface SoftwareEntityDetailProps {
   launchErrorAction?: ReactNode;
   /** When provided, renders the Restrictions section after launch */
   restrictions?: RestrictionsProps;
-  /** Launch session history — renders when non-empty */
+  /** Launch session history, renders when non-empty */
   launchHistory?: LaunchHistory[];
   /** Owner/admin only: enables bulk-select + delete on the session history. */
   launchHistoryCanDelete?: boolean;

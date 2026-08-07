@@ -58,12 +58,12 @@ const KNOWN_ENTRY: CatalogEntry = {
 
 // Per dev_docs/v2/09_test_coverage.md-adjacent follow-up: locks in the actual
 // catalog-miss branch (EmulatorDetail.tsx:164, `catalog.length > 0 && !entry`)
-// — a non-empty catalog that simply doesn't contain the requested slug. This
+//, a non-empty catalog that simply doesn't contain the requested slug. This
 // is distinct from the empty-catalog case already covered in
 // routing.sectionRedirects.test.tsx ("/emulators/:slug still resolves to
 // EmulatorDetail for a real (non-reserved) slug"), where catalog.length is 0
 // and the page instead falls back to rendering the raw slug as its heading.
-describe('EmulatorDetail — catalog-miss 404 UI', () => {
+describe('EmulatorDetail, catalog-miss 404 UI', () => {
   afterEach(() => {
     vi.resetAllMocks();
   });
@@ -82,7 +82,7 @@ describe('EmulatorDetail — catalog-miss 404 UI', () => {
       expect(screen.getByText('Emulator not found.')).toBeInTheDocument();
     });
     // Confirms this is the catalog-miss branch, not the empty-catalog
-    // fallback-heading case covered elsewhere — no raw-slug heading renders.
+    // fallback-heading case covered elsewhere, no raw-slug heading renders.
     expect(screen.queryByRole('heading', { name: 'not-a-real-emulator' })).not.toBeInTheDocument();
   });
 

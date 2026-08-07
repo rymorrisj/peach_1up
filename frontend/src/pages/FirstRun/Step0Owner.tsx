@@ -60,7 +60,7 @@ export default function Step0Owner({ onNext }: Step0OwnerProps) {
       </h2>
       <p className="mb-6 text-sm text-neutral-500 dark:text-neutral-400">
         Set up the owner account for this Peach 1UP installation. The PIN protects access and cannot
-        be recovered if lost — store it somewhere safe.
+        be recovered if lost, store it somewhere safe.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">

@@ -13,7 +13,7 @@ class Genre(SQLModel, table=True):
     Unique on (provider, external_id) for the fast cache-hit path used by a
     provider's own ID resolution loop. name also carries its own unique
     constraint so a genre already known under one provider's ID is reused —
-    by exact name match only, no fuzzy matching — instead of duplicated when
+    by exact name match only, no fuzzy matching, instead of duplicated when
     a second provider later resolves the same concept under a different ID.
     """
     __tablename__ = "genres"
@@ -42,7 +42,7 @@ class GameItemBundleGenre(SQLModel, table=True):
 
 class Developer(SQLModel, table=True):
     """Provider ID -> name cache, used internally by a provider's resolver
-    only. Never joined onto GameItemBundle — the resolved name is written
+    only. Never joined onto GameItemBundle, the resolved name is written
     into GameItemBundle.developer as a plain string, same as publisher."""
     __tablename__ = "developers"
     __table_args__ = (UniqueConstraint("provider", "external_id"),)
@@ -129,7 +129,7 @@ def get_genres_for_game_item_bundle(bundle_id: int, db: "Session") -> list[str]:
 
 
 def get_genres_for_game_item_bundles(bundle_ids: list[int], db: "Session") -> dict[int, list[str]]:
-    """Bulk variant of get_genres_for_game_item_bundle — one query for many bundles."""
+    """Bulk variant of get_genres_for_game_item_bundle, one query for many bundles."""
     if not bundle_ids:
         return {}
     from sqlalchemy import select as _select

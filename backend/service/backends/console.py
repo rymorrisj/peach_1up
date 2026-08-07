@@ -20,8 +20,8 @@ from backend.service.utils.file_types import supported_extensions_for_era
 from backend.core.logger import get_logger
 from backend.service.utils.ini_writer import set_ini_key
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
-from backend.service.utils.platform.windows.sandbox.sandbox_process import SandboxProcess
-from backend.service.utils.platform.windows.sandbox.job import WindowsJobObject
+from sandbox.sandbox_process import SandboxProcess
+from sandbox.job import WindowsJobObject
 
 logger = get_logger(__name__)
 
@@ -41,7 +41,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             emulates the PS2 DEV9/SMAP Ethernet adapter, so when networking is
             off its [DEV9/Eth] EthEnable key is forced false. Mesen (NES),
             Project64 (N64), and DuckStation (PS1) emulate consoles with no
-            network hardware — there is nothing to disable, so enable_networking
+            network hardware, there is nothing to disable, so enable_networking
             is intentionally ignored for those three.
 
     Returns:

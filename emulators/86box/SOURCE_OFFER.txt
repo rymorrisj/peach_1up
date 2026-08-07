@@ -1,4 +1,4 @@
-Written Source-Code Offer — 86Box
+Written Source-Code Offer, 86Box
 ==================================
 
 86Box is distributed under the GNU General Public License v2 or later

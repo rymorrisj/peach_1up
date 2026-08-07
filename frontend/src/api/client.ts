@@ -37,7 +37,7 @@ export interface ApiFetchOptions extends RequestInit {
   /**
    * Tracks this request's AbortController under `key` so a later call to
    * `api.abort(key)` (or the `abortRequest` free function) can cancel it
-   * without the caller holding a raw controller reference — e.g. a hook that
+   * without the caller holding a raw controller reference, e.g. a hook that
    * fires a request from one callback and needs to cancel it from another.
    * If a request with the same key is still in flight when a new one starts,
    * the previous one is aborted first (last request for a key wins).
@@ -75,7 +75,7 @@ class ApiClient {
 
     let res: Response;
     try {
-      // credentials: "include" is required — it causes the browser to send the
+      // credentials: "include" is required, it causes the browser to send the
       // HttpOnly peach_token cookie on every cross-origin request to the API.
       res = await fetch(`${baseURL}${path}`, {
         ...requestInit,
@@ -115,7 +115,7 @@ class ApiClient {
           typeof (raw as { message?: unknown }).message === 'string'
         ) {
           // Structured error bodies (e.g. { error_type, message, ... }) still
-          // render as plain text here — only rawDetail carries the extra fields.
+          // render as plain text here, only rawDetail carries the extra fields.
           detail = (raw as { message: string }).message;
         } else if (raw != null) {
           detail = JSON.stringify(raw);

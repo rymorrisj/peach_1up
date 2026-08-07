@@ -215,7 +215,7 @@ export default function Users() {
       await apiFetch(`/api/v1/user-items/${user.id}/unlock`, { method: 'POST' });
       await queryClient.invalidateQueries({ queryKey: ['users'] });
     } catch {
-      // error silently — list will not change
+      // error silently, list will not change
     } finally {
       setActionState(null);
     }

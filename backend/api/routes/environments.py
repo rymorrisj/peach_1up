@@ -40,7 +40,7 @@ def list_environment_items(
     for p in platforms:
         data = EnvironmentItemRead.model_validate(p)
         # Recomputed live, never persisted, so this always reflects current
-        # disk state — same freshness the Emulators page already gets from
+        # disk state, same freshness the Emulators page already gets from
         # get_install_path() on every request.
         data.is_present = plat_svc.compute_environment_presence(p)
         if p.working_image_path:
@@ -137,7 +137,7 @@ async def upload_install_media(
 ):
     """Stream-write an uploaded OS install/disk image for the named EnvironmentItem.
 
-    Environment infrastructure, not a SoftwareItem — never scanned, never
+    Environment infrastructure, not a SoftwareItem, never scanned, never
     deduped against the library (relocated from the former
     POST /api/v1/media/upload, which trusted a form-supplied era; this route
     derives era from the Environment record itself).

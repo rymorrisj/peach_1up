@@ -41,10 +41,10 @@ from backend.service.utils.file_types import supported_extensions_for_era
 from backend.service.utils.ini_writer import set_ini_key
 from backend.service.utils.path_utils import resolve_under
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
-from backend.service.utils.platform.windows.sandbox.sandbox_process import SandboxProcess
-from backend.service.utils.platform.windows.sandbox.job import WindowsJobObject
-from backend.service.utils.smart_media_detector import MediaTarget
-from backend.service.utils.smart_media_detector.directory_detect import resolve_ps3_target
+from sandbox.sandbox_process import SandboxProcess
+from sandbox.job import WindowsJobObject
+from smart_media_detector import MediaTarget
+from smart_media_detector.directory_detect import resolve_ps3_target
 
 logger = get_logger(__name__)
 
@@ -122,7 +122,7 @@ def _place_license_files(license_files: tuple[Path, ...], install_dir: Path) -> 
     upload-managed folder, not from a raw request field, but the destination
     join still goes through resolve_under as defense-in-depth, matching the
     pattern every other path built from an upload-influenced segment in this
-    codebase already follows — a Path.name can't itself contain a separator
+    codebase already follows, a Path.name can't itself contain a separator
     or traversal segment, but this keeps the guarantee structural rather than
     relying on that fact staying true.
     """

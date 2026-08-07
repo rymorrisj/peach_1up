@@ -5,20 +5,20 @@ title: Media Formats
 # Media Formats
 
 A disc image is a byte-for-byte copy of physical media. The file extension tells you the
-container format, not necessarily the platform — a `.bin` file might be a PS1 track, a
+container format, not necessarily the platform, a `.bin` file might be a PS1 track, a
 Dreamcast sector dump, or a raw floppy image.
 
 ## How disc images work
 
 ### Magic bytes / file signature
 
-The first few bytes of a file that identify its format. Software reads these to confirm what a file actually is, regardless of extension. A `.bin` file might be a PS1 track dump, a Dreamcast sector image, or a raw floppy — magic bytes tell the truth.
+The first few bytes of a file that identify its format. Software reads these to confirm what a file actually is, regardless of extension. A `.bin` file might be a PS1 track dump, a Dreamcast sector image, or a raw floppy, magic bytes tell the truth.
 
 [List of file signatures →](https://en.wikipedia.org/wiki/List_of_file_signatures)
 
 ### File header
 
-Structured metadata at the start of a file describing its contents, version, and layout. Emulators read headers to configure themselves before loading any game data — the iNES header in a `.nes` file tells Mesen the mapper number and mirroring mode before a single byte of game code runs.
+Structured metadata at the start of a file describing its contents, version, and layout. Emulators read headers to configure themselves before loading any game data, the iNES header in a `.nes` file tells Mesen the mapper number and mirroring mode before a single byte of game code runs.
 
 [FAT filesystem header reference →](https://wiki.osdev.org/FAT)
 
@@ -42,14 +42,14 @@ A byte offset is the distance from the start of a file to a specific piece of da
 | PCSX2 | PS2 | `.iso, .bin/.cue, .chd, .zip` | `.chd` | Full PS2 BIOS set required. ZIP-wrapped ISOs are supported. |
 | Flycast | Dreamcast | `.gdi, .cdi, .chd, .zip` | `.chd` | GDI is the most accurate raw format. CHD compresses GDI cleanly. ZIP supported for CDI and single-track images. |
 | Mesen | NES / SNES | `.nes, .sfc, .smc, .zip` | `.nes / .sfc` | No BIOS required for standard titles. ZIP archives load directly and are faster to scan in large collections. |
-| Project64 | N64 | `.z64, .n64, .v64, .zip` | `.z64` | `.z64` is big-endian native; `.v64` is byteswapped — both work. ZIP archives are supported. |
+| Project64 | N64 | `.z64, .n64, .v64, .zip` | `.z64` | `.z64` is big-endian native; `.v64` is byteswapped, both work. ZIP archives are supported. |
 | xemu | Xbox OG | `.iso (xiso format only)` | `xiso-format .iso` | Raw DVD rips (7–8 GB) are rejected. Must be converted with extract-xiso before use. |
 
 ## Converting and preparing disc images
 
 ### Xbox: converting a raw DVD rip to xiso
 
-Raw DVD rips of Xbox games contain a video partition — a stub of video content that shipped on every
+Raw DVD rips of Xbox games contain a video partition, a stub of video content that shipped on every
 Xbox disc to prevent the drive from booting on a standard DVD player. xemu expects a clean XDVDFS
 image with this partition stripped. Raw rips are typically 7–8 GB; after stripping they shrink to
 2–4 GB.
@@ -61,7 +61,7 @@ offset `0x8001`) with no Xbox magic present.
 You don't need to convert anything by hand. If you try to launch a raw rip, the launch fails with
 an error and a **Convert with extract-xiso** button appears right below it. Click the button and
 Peach 1UP converts the image in place, stripping the video partition and rebuilding the XDVDFS
-layout — no separate download or command line needed. A progress indicator shows while the
+layout, no separate download or command line needed. A progress indicator shows while the
 conversion runs (it can take a while for large images).
 
 When conversion finishes, the original rip is kept as `<filename>.old` in the same folder as a
@@ -88,11 +88,11 @@ Peach 1UP is in alpha, and support varies by platform. Here's what to expect.
 | Era | Emulator | BIOS/ROM needed? |
 | --- | --- | --- |
 | DOS | DOSBox-X | No |
-| Windows 95, 98, XP | 86Box | Yes — 86Box ROM pack |
-| PS1 | DuckStation | Yes — PS1 BIOS |
-| PS2 | PCSX2 | Yes — PS2 BIOS |
-| Xbox OG | xemu | Yes — Xbox BIOS |
-| Dreamcast | Flycast | Yes — Dreamcast BIOS |
+| Windows 95, 98, XP | 86Box | Yes, 86Box ROM pack |
+| PS1 | DuckStation | Yes, PS1 BIOS |
+| PS2 | PCSX2 | Yes, PS2 BIOS |
+| Xbox OG | xemu | Yes, Xbox BIOS |
+| Dreamcast | Flycast | Yes, Dreamcast BIOS |
 | NES | Mesen | No |
 | SNES | Mesen | No |
 | N64 | Project64 | No |
@@ -100,9 +100,9 @@ Peach 1UP is in alpha, and support varies by platform. Here's what to expect.
 ### Not supported yet
 
 **Game Boy, Game Boy Color, Game Boy Advance, Genesis/Mega Drive, and 32X are not supported at
-all** — Peach 1UP doesn't detect these formats or know how to launch them. There's no partial
+all**, Peach 1UP doesn't detect these formats or know how to launch them. There's no partial
 support or manual workaround; these platforms simply aren't wired up yet. Don't file bugs for
-missing detection or launch on these formats — it's expected for this alpha.
+missing detection or launch on these formats, it's expected for this alpha.
 
 If a platform isn't listed in either table above, assume it isn't supported yet.
 
@@ -111,5 +111,5 @@ If a platform isn't listed in either table above, assume it isn't supported yet.
 A `.bin`/`.cue` pair and a `.iso` are functionally equivalent for most PS1 games. The `.cue` sheet is a
 plain-text track index pointing to one or more `.bin` files that contain raw sector data. A `.iso`
 contains only the 2048-byte data sectors without error-correction bytes. Games that use CD audio
-tracks require `.bin`/`.cue` because `.iso` cannot store audio tracks. CHD supersedes both — it compresses
+tracks require `.bin`/`.cue` because `.iso` cannot store audio tracks. CHD supersedes both, it compresses
 the full sector data including audio and is the preferred format for long-term storage.

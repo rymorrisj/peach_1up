@@ -4,7 +4,7 @@ title: Emulator Reference
 
 # Emulator Reference
 
-Reference for every emulator Peach 1UP integrates with — portable-mode setup, required
+Reference for every emulator Peach 1UP integrates with, portable-mode setup, required
 BIOS/ROM files, and version coupling notes. Useful if you're adding support for a new
 emulator, debugging a launch issue, or sourcing the right firmware for an existing one.
 
@@ -15,7 +15,7 @@ emulator, debugging a launch issue, or sourcing the right firmware for an existi
 **Supported eras:** DOS
 
 **Portable mode mechanism:** Pass `-conf <path>` to specify config file, or
-set `working directory = program` in the config — DOSBox-X resolves data paths
+set `working directory = program` in the config, DOSBox-X resolves data paths
 relative to the config file's directory.
 
 **Default user data path (Windows):** `%APPDATA%\DOSBox-X\`
@@ -54,7 +54,7 @@ startup.
 
 | Filename/Path      | Purpose          | Location                 | Notes                                                                                   |
 | ------------------ | ---------------- | ------------------------ | --------------------------------------------------------------------------------------- |
-| `roms/<machine>/…` | Machine ROM pack | `roms/` next to binary   | Filenames and subdirectory structure are hardcoded — renaming any file breaks emulation |
+| `roms/<machine>/…` | Machine ROM pack | `roms/` next to binary   | Filenames and subdirectory structure are hardcoded, renaming any file breaks emulation |
 | `assets/`          | UI assets        | `assets/` next to binary |                                                                                         |
 
 **Optional files:** None beyond the ROM pack.
@@ -87,7 +87,7 @@ to a `userdata/` directory next to the binary.
 
 | Filename | Purpose  | Location       | Notes                                          |
 | -------- | -------- | -------------- | ----------------------------------------------- |
-| `*.bin`  | PS1 BIOS | `bios/` subdir | Filenames are flexible — auto-detected by hash |
+| `*.bin`  | PS1 BIOS | `bios/` subdir | Filenames are flexible, auto-detected by hash |
 
 **Optional files:** None.
 
@@ -123,7 +123,7 @@ All user data redirects to a `userdata/` directory next to the binary.
 
 | Filename                                   | Purpose  | Location       | Notes                                                                       |
 | ------------------------------------------ | -------- | -------------- | ---------------------------------------------------------------------------- |
-| PS2 BIOS set (`*.bin`, `*.rom*`, `*.erom`) | PS2 BIOS | `bios/` subdir | Multi-file BIOS sets must keep original filenames — renaming breaks the set |
+| PS2 BIOS set (`*.bin`, `*.rom*`, `*.erom`) | PS2 BIOS | `bios/` subdir | Multi-file BIOS sets must keep original filenames, renaming breaks the set |
 
 **Optional files:** None.
 
@@ -149,7 +149,7 @@ The `bios/` subdirectory path is configurable in PCSX2 settings.
 detects this file on startup and uses the directory as its data root.
 
 **Caveat:** The `-config_path` flag does **not** redirect the shader cache or
-log files — these always write to the default user profile location regardless
+log files, these always write to the default user profile location regardless
 of portable mode. See [xemu issue #2480](https://github.com/mborgerson/xemu/issues/2480).
 
 **Default user data path (Windows):** `%APPDATA%\xemu\`
@@ -158,7 +158,7 @@ of portable mode. See [xemu issue #2480](https://github.com/mborgerson/xemu/issu
 
 | Filename         | Purpose        | Location                  | Notes                                                               |
 | ---------------- | -------------- | ------------------------- | --------------------------------------------------------------------- |
-| `mcpx_1.0.bin`   | MCPX boot ROM  | configured in `xemu.toml` | Known-bad dump MD5: `196a5f59a13382c185636e691d6c323d` — do not use |
+| `mcpx_1.0.bin`   | MCPX boot ROM  | configured in `xemu.toml` | Known-bad dump MD5: `196a5f59a13382c185636e691d6c323d`, do not use |
 | `*.bin`          | Flash BIOS     | configured in `xemu.toml` |                                                                     |
 | `xbox_hdd.qcow2` | 8 GB HDD image | configured in `xemu.toml` | Must be a properly formatted 8 GB qcow2 image                       |
 
@@ -177,7 +177,7 @@ specific Xbox revisions. Mismatched pairs will fail to boot.
 
 ### Xbox disc image format (xiso)
 
-xemu requires disc images in xiso format — the Xbox game partition extracted
+xemu requires disc images in xiso format, the Xbox game partition extracted
 with the video partition stripped. The `.iso` extension is identical to a
 standard disc image; the difference is internal layout.
 

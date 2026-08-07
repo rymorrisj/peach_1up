@@ -1,4 +1,4 @@
-# Non-emulator third-party tools bundled with Peach 1UP. Attribution only —
+# Non-emulator third-party tools bundled with Peach 1UP. Attribution only,
 # these must never appear on the Emulators page. See
 # backend/service/utils/third_party_tools.py and AttributionTab.tsx.
 - name: extract-xiso
@@ -9,3 +9,11 @@
   license: "LGPL-2.1-or-later"
   copyright: "Copyright (C) 1999-2026 Igor Pavlov."
   source_url: https://www.7-zip.org/
+- name: formatscout
+  license: "unlicensed, internal"
+  copyright: ""
+  source_url: https://github.com/rymorrisj/formatscout
+- name: wincage
+  license: "unlicensed, internal"
+  copyright: ""
+  source_url: https://github.com/rymorrisj/wincage

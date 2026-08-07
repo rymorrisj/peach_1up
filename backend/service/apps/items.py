@@ -14,7 +14,7 @@ from backend.service.utils.file_types import file_type_from_path
 from backend.service.utils.path_utils import allowed_browse_roots, is_within_roots, normalise_path
 from backend.service.utils.slug_generator import unique_slug
 
-# Apps have no dedicated APPS_PATH setting (see dev_docs) — they share the
+# Apps have no dedicated APPS_PATH setting (see dev_docs), they share the
 # same allowlisted source roots as everything else the file browser can
 # point at (SOFTWARE_PATH plus the other configured library roots).
 _PATH_FIELDS = {"executable_path", "cover_art_path"}
@@ -56,10 +56,10 @@ def _enforce_environment_binding(collection: AppItemBundle) -> None:
 def create_app_item_bundle(body: AppItemBundleCreate, db: Session) -> AppItemBundle:
     """Create an App collection-of-one from a single file or folder path.
 
-    No smart-media era detection runs here (unlike Software ingest) — the
+    No smart-media era detection runs here (unlike Software ingest), the
     caller supplies era explicitly. environment_item_id is validated for
     existence only when provided (required for PC apps, forbidden for
-    console apps — see _enforce_environment_binding).
+    console apps, see _enforce_environment_binding).
     """
     if body.environment_item_id is not None and not db.get(EnvironmentItem, body.environment_item_id):
         raise HTTPException(status_code=404, detail="Environment not found.")
@@ -98,7 +98,7 @@ def create_app_item_bundle(body: AppItemBundleCreate, db: Session) -> AppItemBun
         original_name=resolved.name,
         # Never owned: create_app_item_bundle points at an existing path rather
         # than creating/renaming a directory for the item, so delete must
-        # never rmtree it — mirrors SoftwareItem's folder_owned=False default
+        # never rmtree it, mirrors SoftwareItem's folder_owned=False default
         # for the same "pre-existing, not ours" case.
         folder_owned=False,
     )
@@ -133,7 +133,7 @@ def update_app_item_bundle(collection_id: int, body: AppItemBundleUpdate, db: Se
         setattr(collection, key, value)
     if "era" in fields:
         # setattr bypasses AppItemBundle._validate_is_pc (no validate_assignment)
-        # — re-derive explicitly whenever era changes, mirrors
+        #, re-derive explicitly whenever era changes, mirrors
         # update_library_collection's identical re-derivation for GameItemBundle.
         collection.is_pc = derive_is_pc(collection.era)
     _enforce_environment_binding(collection)

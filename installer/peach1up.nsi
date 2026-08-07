@@ -1,4 +1,4 @@
-; Peach 1UP — NSIS installer script
+; Peach 1UP, NSIS installer script
 ; Prerequisites:
 ;   - dist\peach1up\ produced by PyInstaller
 ;   - frontend\dist\ produced by npm run build
@@ -20,7 +20,7 @@
 !define REG_UNINSTALL "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 !define REG_APP      "Software\Peach1UP"
 
-; UAC elevation on install only — uninstaller inherits elevation
+; UAC elevation on install only, uninstaller inherits elevation
 RequestExecutionLevel admin
 
 Name "${APP_NAME} ${APP_VERSION}"
@@ -120,7 +120,7 @@ Section "Uninstall"
     Delete "$SMPROGRAMS\${APP_NAME}\Reset Owner Account.lnk"
     RMDir  "$SMPROGRAMS\${APP_NAME}"
 
-    ; Files — preserve user config
+    ; Files, preserve user config
     RMDir /r "$INSTDIR\frontend"
     RMDir /r "$INSTDIR\logs"
     RMDir /r "$INSTDIR\tools"

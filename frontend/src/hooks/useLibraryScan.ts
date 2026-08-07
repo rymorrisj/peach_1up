@@ -22,7 +22,7 @@ export interface ScanPreviewItem {
 }
 
 // Client-composed view model: the backend's GET /library/scan/status no longer
-// carries a preview (scan is stateless — the only copy of a finished scan's
+// carries a preview (scan is stateless, the only copy of a finished scan's
 // results lives in its core.jobs result payload), so `preview` here is filled
 // in from the job result rather than passed through directly from that endpoint.
 export interface ScanStatus {
@@ -117,7 +117,7 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
     const generation = generationRef.current;
     // Hydrate an already-finished background scan's preview so reopening the
     // modal (e.g. from the Activity bell) shows results without re-scanning.
-    // The preview no longer lives behind /scan/status (stateless now) — it's
+    // The preview no longer lives behind /scan/status (stateless now), it's
     // read from the most recent finished scan job's result instead.
     apiFetch<BackgroundJob[]>('/api/v1/jobs')
       .then((allJobs) => {
@@ -242,7 +242,7 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
     setImporting(true);
     setError(null);
     let result: ImportResult | null = null;
-    // Backend no longer has a preview cache to read titles/era from — the
+    // Backend no longer has a preview cache to read titles/era from, the
     // client submits {path, title, era} per item, sourced from this hook's own
     // (already-fetched) preview list.
     const previewByPath = new Map((status?.preview ?? []).map((p) => [p.file_path, p]));
@@ -257,8 +257,8 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
         timeoutMs: IMPORT_TIMEOUT_MS,
       });
       // A newer scan/import cycle may have started while this request was in
-      // flight (e.g. the user Escape-closed the dialog — which bypasses the
-      // Cancel button's disabled={busy} guard — then reopened and ran another
+      // flight (e.g. the user Escape-closed the dialog, which bypasses the
+      // Cancel button's disabled={busy} guard, then reopened and ran another
       // import). If so, this call is superseded: applying its result now
       // would stomp whatever the newer, current operation already rendered.
       if (generationRef.current === generation) setImportResult(result);
@@ -268,7 +268,7 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
           err instanceof ApiError
             ? err.detail
             : err instanceof TimeoutError
-              ? 'Import is taking longer than expected — check your library, it may still be processing.'
+              ? 'Import is taking longer than expected, check your library, it may still be processing.'
               : 'Import failed.',
         );
       }

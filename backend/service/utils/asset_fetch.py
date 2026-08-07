@@ -80,7 +80,7 @@ def download_remote_image(
             except httpx.HTTPStatusError as e:
                 raise HTTPException(status_code=502, detail=f"Asset fetch failed: {e}")
 
-            # Re-validate the final URL after redirects — scheme and host may differ from the original
+            # Re-validate the final URL after redirects, scheme and host may differ from the original
             final_url = resp.url
             if final_url.scheme != "https" or _is_forbidden_redirect_host(final_url.host):
                 raise HTTPException(
@@ -95,7 +95,7 @@ def download_remote_image(
                     detail=f"Asset url returned non-image content-type: {content_type}",
                 )
 
-            # Stream body incrementally — abort before full download if limit is exceeded
+            # Stream body incrementally, abort before full download if limit is exceeded
             chunks: list[bytes] = []
             total = 0
             for chunk in resp.iter_bytes():

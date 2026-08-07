@@ -18,7 +18,7 @@ export default function TopBar({ title, children }: TopBarProps) {
     queryKey: ['launches'],
     queryFn: () => apiFetch<LaunchHistory[]>('/api/v1/launches'),
     enabled: !!state.activeUser,
-    // Only keep polling while a launch is actually running — once every
+    // Only keep polling while a launch is actually running, once every
     // launch has ended_at set, stop refetching instead of hitting the
     // endpoint on a fixed timer forever.
     refetchInterval: (query) => {

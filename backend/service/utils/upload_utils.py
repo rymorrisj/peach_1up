@@ -15,14 +15,14 @@ from fastapi import HTTPException, UploadFile
 from backend.service.utils.path_utils import resolve_under, safe_basename
 from backend.service.utils.slug_generator import unique_slug
 
-DEFAULT_MAX_BYTES = 25 * 1024 ** 3  # 25 GB — absolute per-file cap
-_CHUNK_SIZE = 1024 * 1024  # 1 MB — avoids loading the full file into memory
+DEFAULT_MAX_BYTES = 25 * 1024 ** 3  # 25 GB, absolute per-file cap
+_CHUNK_SIZE = 1024 * 1024  # 1 MB, avoids loading the full file into memory
 
 # Chunked-upload tuning, overridable via a setting of the same UPPER_SNAKE
 # name. See api/routes/uploads.py and service/uploads/core.py. There is no
 # inline/background size split anymore, every upload finalizes as a
 # background job, so this covers per-chunk transport sizing only.
-DEFAULT_CHUNK_MAX_BYTES = 64 * 1024 ** 2             # 64 MB — largest single chunk the server will accept
+DEFAULT_CHUNK_MAX_BYTES = 64 * 1024 ** 2             # 64 MB, largest single chunk the server will accept
 DEFAULT_UPLOAD_TMP_TTL_SECONDS = 24 * 3600           # orphaned tmp_chunks dirs older than this are swept
 TMP_CHUNKS_DIRNAME = "tmp_chunks"
 
@@ -41,7 +41,7 @@ def begin_upload(base_dir: Path, filename: str) -> tuple[Path, Path]:
         filename: Raw filename from the multipart upload.
 
     Returns:
-        (dest_dir, dest_path) — dest_dir has already been created on disk.
+        (dest_dir, dest_path), dest_dir has already been created on disk.
 
     Raises:
         HTTPException(400): If the resolved destination would escape base_dir.
@@ -57,7 +57,7 @@ def begin_upload(base_dir: Path, filename: str) -> tuple[Path, Path]:
         dest_path = resolve_under(dest_dir, safe_name)
     except ValueError as exc:
         from backend.core.logger import get_logger
-        get_logger(__name__).warning("Upload rejected — path escapes base directory: %s", exc)
+        get_logger(__name__).warning("Upload rejected, path escapes base directory: %s", exc)
         raise HTTPException(status_code=400, detail="Invalid filename.") from exc
 
     dest_dir.mkdir(parents=True, exist_ok=False)
@@ -98,7 +98,7 @@ def find_existing_duplicate(media_root: Path, uploaded_path: Path, uploaded_size
     Browser uploads always land in a fresh, uniquely-named directory (see
     begin_upload), so re-uploading content that's already in the library —
     e.g. re-adding a file after its prior library item was removed, which
-    intentionally leaves the media file on disk — would otherwise always be
+    intentionally leaves the media file on disk, would otherwise always be
     treated as new. The actual lookup is index-backed (media_dup_index) rather
     than a fresh directory scan per call; see that module for the build/cache/
     invalidation design.

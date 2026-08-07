@@ -26,7 +26,7 @@ from backend.service.utils.emulator_catalog import (
 )
 from backend.service.utils.ini_writer import patch_ini, write_ini
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
-from backend.service.utils.platform.windows.sandbox import BrokerFile
+from sandbox import BrokerFile
 from backend.service.utils.emulator_catalog import get_install_path
 
 if TYPE_CHECKING:
@@ -74,14 +74,14 @@ def _prepare_config(
         hardware_profile: Profile slug for machine/CPU/GPU selection.
         platform_name: Human-readable platform name for error messages.
         base_image_path: Optional path to a base ISO used for CD-ROM boot.
-            Mounted as cdrom_02 (secondary IDE slave, "0:1") — unrelated to
+            Mounted as cdrom_02 (secondary IDE slave, "0:1"), unrelated to
             and untouched by the media_path handling below.
         media_path: Optional path to the launching game/app's own disc media.
-            Mounted as cdrom_01 (secondary IDE master, "1:0" — distinct from
+            Mounted as cdrom_01 (secondary IDE master, "1:0", distinct from
             both hdd_01's "0:0" and cdrom_02's "0:1", which already occupy
             the primary IDE channel) only when it resolves to an .iso/.cue
             file. Any other file_type (directory, hdd, exe, rom, unknown, or
-            a console disc format like .bin/.chd/.gdi/.cdi — none of which
+            a console disc format like .bin/.chd/.gdi/.cdi, none of which
             are PC-relevant in an 86Box config) is not disc media and is
             skipped, not mounted.
 
@@ -161,7 +161,7 @@ def _prepare_config(
         if parser.has_section(cdrom_section) and parser.has_option(cdrom_section, "cdrom_02_image_path"):
             parser.remove_option(cdrom_section, "cdrom_02_image_path")
 
-    # Game/app media (distinct from base_image_path above, untouched) — mounted
+    # Game/app media (distinct from base_image_path above, untouched), mounted
     # as cdrom_01 only for .iso/.cue, the only PC-relevant disc formats an
     # 86Box config can use. Any other file_type (directory, hdd, exe, rom,
     # unknown, or a console-only container like .bin/.chd/.gdi/.cdi) is not
@@ -176,7 +176,7 @@ def _prepare_config(
         media_fwd = str(media_path.resolve()).replace("\\", "/")
         parser.set(cdrom_section, "cdrom_01_image_path", media_fwd)
         parser.set(cdrom_section, "cdrom_01_parameters", "1, atapi")
-        # Secondary IDE channel, master slot ("1:0") — deliberately NOT "0:1"
+        # Secondary IDE channel, master slot ("1:0"), deliberately NOT "0:1"
         # (that would collide with cdrom_02 above) or "0:0" (collides with
         # hdd_01). hdd_01 + cdrom_02 already occupy the entire primary IDE
         # channel (0:0 / 0:1); the secondary channel is free.
@@ -204,8 +204,8 @@ def _prepare_config(
 def resolve_rom_path(box86_binary: Path) -> Path:
     """Derive the effective ROM path from the 86Box binary location.
 
-    Checks the descriptor's canonical roms/ directory first — the same
-    location validate_bios_from_descriptor("86box") gates on — and only
+    Checks the descriptor's canonical roms/ directory first, the same
+    location validate_bios_from_descriptor("86box") gates on, and only
     falls back to scanning for a single versioned roms-* subdirectory
     (e.g. roms-5.3) when roms/ is absent or empty. This keeps the launch
     gate and this resolver agreeing on the same canonical location.
@@ -291,7 +291,7 @@ def launch(spec: "LaunchSpec") -> tuple:
         raise ValueError(
             f"Platform '{spec.platform_name}' working_image_path must be a disk image "
             f"(.img or .vhd), not '{spec.working_image_path.suffix}': {spec.working_image_path}. "
-            "working_image_path is set to a config file — re-register the platform."
+            "working_image_path is set to a config file, re-register the platform."
         )
 
     if spec.config_path is None:
@@ -301,7 +301,7 @@ def launch(spec: "LaunchSpec") -> tuple:
         )
 
     if spec.executable_path:
-        # Already resolved by provisioning earlier in this same launch — avoid
+        # Already resolved by provisioning earlier in this same launch, avoid
         # re-resolving from scratch. Non-provisioning launches leave this unset.
         box86_path = spec.executable_path
     else:
@@ -345,7 +345,7 @@ def launch(spec: "LaunchSpec") -> tuple:
             {"Network": {"net_type": "slirp"}},
         )
 
-    # dgVoodoo2 DLL injection — Win9x/XP era only, opt-in via profile flag.
+    # dgVoodoo2 DLL injection, Win9x/XP era only, opt-in via profile flag.
     # SECURITY: target directory is validated against the library root before any copy.
     copied_dgvoodoo2_dlls: list[Path] = []
     if spec.enable_dgvoodoo2 and spec.era in {"win95", "win98", "winxp"}:

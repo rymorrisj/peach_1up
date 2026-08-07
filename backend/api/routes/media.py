@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Items — list + create
+# Items, list + create
 # ---------------------------------------------------------------------------
 
 
@@ -58,7 +58,7 @@ def create_media_item(
     # Reserve the item's own slug against the title first. The implicit
     # bundle below shares the same title but is a technical pairing, not a
     # second title claim, so it must not consume a slot in the item's
-    # title/title-2/title-3 sequence — that sequence belongs to genuine
+    # title/title-2/title-3 sequence, that sequence belongs to genuine
     # cross-table title collisions between distinct items/bundles.
     item_slug = unique_media_slug(body.title, db)
 
@@ -86,7 +86,7 @@ def create_media_item(
 
 
 # ---------------------------------------------------------------------------
-# Items — read / update / delete
+# Items, read / update / delete
 # ---------------------------------------------------------------------------
 
 
@@ -130,7 +130,7 @@ def delete_media_item(
 
 
 # ---------------------------------------------------------------------------
-# Collections — create / read / update / delete
+# Collections, create / read / update / delete
 # ---------------------------------------------------------------------------
 
 
@@ -267,12 +267,12 @@ def delete_media_item_bundle(
 
 
 # ---------------------------------------------------------------------------
-# Link / unlink routes moved to backend/api/routes/entity_links.py — see
+# Link / unlink routes moved to backend/api/routes/entity_links.py, see
 # create_entity_link / delete_entity_link there. This domain's link surface
 # is no longer Game-specific (MediaLink is now a polymorphic entity-to-entity
 # join, see backend/models/media.py), so it no longer belongs to this file.
 # ---------------------------------------------------------------------------
-# Archive upload — reuses begin_upload/stream_upload_to_disk exactly as the
+# Archive upload, reuses begin_upload/stream_upload_to_disk exactly as the
 # relocated OS-install-media route does (backend/api/routes/environments.py).
 # This endpoint only stages bytes on disk under MEDIA_PATH and returns the
 # resulting path/slug/size; creating the MediaItem row is a separate

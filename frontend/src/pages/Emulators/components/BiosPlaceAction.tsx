@@ -6,7 +6,7 @@ import type { components } from '@shared/types';
 type BiosPlaceResult = components['schemas']['BiosPlaceResult'];
 type BiosItem = components['schemas']['BiosItem'];
 
-// Multipart-only endpoint (accepts source_path or file uploads) — uses raw
+// Multipart-only endpoint (accepts source_path or file uploads), uses raw
 // fetch + FormData here rather than apiFetch, matching the existing
 // uploadFile.ts / FileUpload.tsx pattern: apiFetch always sets
 // Content-Type: application/json, which is incompatible with a FormData body.
@@ -14,7 +14,7 @@ const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://
 
 // Slugs the backend's copy-into-place flow supports, and whether the file
 // picker should let the user choose a file, a folder, or either. xbox-bios
-// is deliberately absent — xemu uses its own asset-paths config flow.
+// is deliberately absent, xemu uses its own asset-paths config flow.
 const PICKER_MODE: Record<string, 'file' | 'folder' | 'both'> = {
   'ps1-bios': 'both',
   'ps2-bios': 'folder',

@@ -89,7 +89,7 @@ export function isPcEra(era: string): boolean {
 interface EnvironmentModalProps {
   open: boolean;
   mode: 'create' | 'edit';
-  /** The Environment's slug — only defined in edit mode, once the record (and
+  /** The Environment's slug, only defined in edit mode, once the record (and
    *  its slug) already exist. Install-media upload resolves the target
    *  Environment by slug server-side, so it has nothing to upload to yet
    *  during create; FileUpload renders nothing when this is undefined. */

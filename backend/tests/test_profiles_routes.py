@@ -1,6 +1,6 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/profiles.py.
 
-Per dev_docs/P1_AUDIT.md TST-12 — profiles.py (6 routes) had zero test
+Per dev_docs/P1_AUDIT.md TST-12, profiles.py (6 routes) had zero test
 coverage: can_manage_game gating, the is_bundled delete guard, and the
 slug-collision 409 were all unexercised. Covers:
 
@@ -23,7 +23,7 @@ import pytest
 def mem_db_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -128,7 +128,7 @@ class TestCanManageGameGate:
 
 
 # ---------------------------------------------------------------------------
-# GET routes — no permission flag, just an active user
+# GET routes, no permission flag, just an active user
 # ---------------------------------------------------------------------------
 
 

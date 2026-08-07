@@ -4,8 +4,8 @@ import { Button, Modal } from '@/ui';
 import { useAppContext } from '@/context/useAppContext';
 import type { BackgroundJob } from '@/context/_AppContext';
 
-// 'cancelling' is still in-flight work from the user's point of view — the
-// job hasn't reached a terminal state yet, it's just winding down — so it's
+// 'cancelling' is still in-flight work from the user's point of view, the
+// job hasn't reached a terminal state yet, it's just winding down, so it's
 // grouped with 'processing' everywhere "still running" is checked below.
 const isActiveStatus = (status: BackgroundJob['status']) =>
   status === 'processing' || status === 'cancelling';

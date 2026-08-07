@@ -9,7 +9,7 @@ configuration is the difference between a game running perfectly and not running
 
 ## What is a hardware profile?
 
-86Box emulates specific physical components — the motherboard chipset, CPU, graphics
+86Box emulates specific physical components, the motherboard chipset, CPU, graphics
 card, and sound card. Unlike a typical emulator that abstracts hardware, 86Box loads
 actual firmware and ROM data for each component. A hardware profile is a curated set
 of components that work well together for a particular category of software.
@@ -36,12 +36,12 @@ any 3D game.
 ## Advanced: choosing your own machine
 
 Each hardware profile uses a fixed motherboard. If you need a specific chipset for
-compatibility — for example, a title that requires an ISA slot or a specific VGA
-BIOS — you can override the machine using the Advanced section of the environment
+compatibility, for example, a title that requires an ISA slot or a specific VGA
+BIOS, you can override the machine using the Advanced section of the environment
 form.
 
 Machine identifiers are the folder names inside your 86Box ROM pack's `machines/`
-directory. Browse to that directory in the machine picker and select a folder — the
+directory. Browse to that directory in the machine picker and select a folder, the
 folder name is the identifier 86Box will use.
 
 The machine must exist in your installed ROM pack. If the ROM files for the selected
@@ -70,5 +70,5 @@ sndcard         = sb16_pnp
 ## When in doubt, start with Standard
 
 You can always delete the environment and recreate it with a different profile.
-The config file is regenerated each time — no data is lost unless you have saved
+The config file is regenerated each time, no data is lost unless you have saved
 games inside the Windows environment itself.

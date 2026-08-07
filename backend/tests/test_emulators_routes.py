@@ -1,6 +1,6 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/emulators.py.
 
-Per dev_docs/P1_AUDIT.md TST-9 — only the rom-packs sub-router had coverage;
+Per dev_docs/P1_AUDIT.md TST-9, only the rom-packs sub-router had coverage;
 install/sandbox/delete/xemu-asset-paths/status/confirm-token were untested,
 all is_admin-gated and touching the process-isolation surface. Covers:
 
@@ -13,7 +13,7 @@ all is_admin-gated and touching the process-isolation surface. Covers:
     - owner bypasses the gate without the is_admin flag
     - GET "" (catalog list), GET /attribution, and GET /{slug}/confirm-token
       carry no permission dependency at all in the current code (confirmed
-      by reading the route signatures — no Depends/require_permission on any
+      by reading the route signatures, no Depends/require_permission on any
       of the three) and are reachable with no active user set at all; this
       is documented here as existing behavior, not asserted as a gap to fix.
 
@@ -34,7 +34,7 @@ REAL_SLUG = "dosbox-x"  # config/emulators/dosbox-x.toml exists on disk
 def mem_db_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -87,7 +87,7 @@ def _set_active_user(app, user):
 
 
 # ---------------------------------------------------------------------------
-# is_admin gate — 403 for non-admin
+# is_admin gate, 403 for non-admin
 # ---------------------------------------------------------------------------
 
 
@@ -165,7 +165,7 @@ class TestIsAdminGate:
         assert resp.status_code == 403, resp.text
 
     def test_gate_runs_before_existence_check(self, http_client):
-        """A non-admin gets 403 on a nonexistent slug, not 404 — the
+        """A non-admin gets 403 on a nonexistent slug, not 404, the
         permission dependency resolves before the route body's get_emulator
         lookup ever runs."""
         c, db, app = http_client
@@ -200,7 +200,7 @@ class TestOwnerBypass:
 
 
 # ---------------------------------------------------------------------------
-# No permission dependency at all — reachable with no active user configured
+# No permission dependency at all, reachable with no active user configured
 # ---------------------------------------------------------------------------
 
 

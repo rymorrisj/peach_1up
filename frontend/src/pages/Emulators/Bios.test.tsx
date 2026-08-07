@@ -62,7 +62,7 @@ function biosPage(
   };
 }
 
-describe('Bios tab (/emulators/bios) — list-only, no detail route', () => {
+describe('Bios tab (/emulators/bios), list-only, no detail route', () => {
   afterEach(() => {
     vi.resetAllMocks();
   });
@@ -89,14 +89,14 @@ describe('Bios tab (/emulators/bios) — list-only, no detail route', () => {
     });
     renderPage();
     // BiosPlaceAction renders this action button only for slugs it supports
-    // (ps1-bios is one) — its presence proves Bios.tsx actually mounts the
+    // (ps1-bios is one), its presence proves Bios.tsx actually mounts the
     // real, already-live component rather than a stub.
     await waitFor(() => {
       expect(screen.getByText(/Locate file\/folder/)).toBeInTheDocument();
     });
   });
 
-  it('renders no per-item detail affordance — this is a list-only tab', async () => {
+  it('renders no per-item detail affordance, this is a list-only tab', async () => {
     vi.mocked(apiFetch).mockImplementation((url) => {
       if (typeof url === 'string' && url.includes('/api/v1/bios')) {
         return Promise.resolve(biosPage([PS1_BIOS]));

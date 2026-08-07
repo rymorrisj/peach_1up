@@ -1,4 +1,4 @@
-"""Tests for H7: process_registry exception handling — logging and propagation.
+"""Tests for H7: process_registry exception handling, logging and propagation.
 
 Covers:
 - Successful registration stores the entry

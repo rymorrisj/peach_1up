@@ -4,7 +4,7 @@ Wraps backend/service/thegamesdb_client.py's raw HTTP functions and adds
 genre/developer/publisher ID resolution on top, using the Genre/Developer/
 Publisher cache tables (backend/models/metadata_lookup.py). TheGamesDB's
 /Genres, /Developers, /Publishers endpoints each return their entire list in
-one call (no by-ID lookup exists) — so the cache is warmed once, in full,
+one call (no by-ID lookup exists), so the cache is warmed once, in full,
 the first time any of these is needed, and every id lookup thereafter is
 local. A genre/developer/publisher id introduced by TheGamesDB after that
 one-time warm-up would not be picked up automatically; this is a deliberate
@@ -187,7 +187,7 @@ class TheGamesDBProvider:
             developer_ids = _ids_from_game_field(game, "developers")
             if developer_ids:
                 _ensure_developers_cached(db)
-                # Single-valued in this app's schema — first id is treated as primary.
+                # Single-valued in this app's schema, first id is treated as primary.
                 row = db.query(Developer).filter(
                     Developer.provider == _PROVIDER, Developer.external_id == developer_ids[0]
                 ).first()
@@ -207,7 +207,7 @@ class TheGamesDBProvider:
 
         # Full image set, every type (boxart front/back, screenshot, fanart,
         # banner, clearlogo, icon) and every image TheGamesDB returned for
-        # this game, not just the one front-boxart cover — this is already
+        # this game, not just the one front-boxart cover, this is already
         # the full payload get_game_images() fetched, previously discarded
         # down to a single image here. cover_art_url/cover_art_thumb_url
         # below are left pointing at the front boxart specifically and

@@ -10,15 +10,15 @@ Peach 1UP is a locally hosted web application that spawns native OS processes, m
 disk images, and manages emulator lifecycles. This creates an unusual attack surface for
 a local app: a browser-facing HTTP service that crosses the process boundary into native
 binary execution, file system access, and OS-level resource management. Security is
-treated as a first-class concern throughout the codebase. Every layer — input validation,
-process spawning, network binding, authentication, and secrets handling — has explicit
+treated as a first-class concern throughout the codebase. Every layer, input validation,
+process spawning, network binding, authentication, and secrets handling, has explicit
 rules that are enforced at the implementation level, not left to convention.
 
 If you're contributing a change that touches authentication, file paths, subprocess
 spawning, emulator launches, disk image operations, settings, destructive operations,
 network binding, or secrets handling, read this page first. If your implementation
 would require bypassing or weakening any rule below, raise it in your PR description
-rather than working around it — these are treated as hard requirements, not guidelines.
+rather than working around it, these are treated as hard requirements, not guidelines.
 
 ---
 
@@ -26,26 +26,26 @@ rather than working around it — these are treated as hard requirements, not gu
 
 Realistic threats specific to this application:
 
-- **Cross-origin requests from other browser tabs** — any tab open in the browser can
+- **Cross-origin requests from other browser tabs**, any tab open in the browser can
   reach a localhost service. Without auth and CSRF protection, a malicious page could
   trigger launches, delete library entries, or read profile data.
-- **Path traversal via user-supplied file paths** — media paths, profile fields, and
+- **Path traversal via user-supplied file paths**, media paths, profile fields, and
   image paths are supplied by the user and could be crafted to escape permitted
   directories (e.g. `../../etc/passwd`, `..\..\Windows\System32`).
-- **Arbitrary process execution via manipulated launch parameters** — if any portion of a
+- **Arbitrary process execution via manipulated launch parameters**, if any portion of a
   subprocess call is constructed from unvalidated input, an attacker could inject
   arguments or substitute a different binary.
-- **Privilege escalation via the emulator process tree** — emulators that spawn child
+- **Privilege escalation via the emulator process tree**, emulators that spawn child
   processes or load plugins could be used to break out of process isolation. The
   emulator process tree must be fully contained by the isolation layer.
-- **Unauthorised access to a shared library on a local network** — if the service is
+- **Unauthorised access to a shared library on a local network**, if the service is
   bound to `0.0.0.0` (remote access mode), other devices on the network can reach it.
   Without authentication this exposes the full library, settings, and launch capability.
-- **Identity secret exposure** — each user has a per-user HMAC root key
+- **Identity secret exposure**, each user has a per-user HMAC root key
   (`identity_token_secret`) used to mint session tokens; the active session is tracked only as
   a `session_token_hash` (a SHA-256 digest, not reversible to the token). If
   `identity_token_secret` leaks, an attacker can mint arbitrary valid session tokens for that
-  one user indefinitely, until the secret is rotated — but the blast radius is a single
+  one user indefinitely, until the secret is rotated, but the blast radius is a single
   account, not a master secret that forges sessions for everyone. A leaked `session_token_hash`
   alone cannot be turned back into a usable token.
 
@@ -64,8 +64,8 @@ Permission flags on sub-accounts:
 | `can_manage_app`         | Add, edit, or remove Apps (the `AppItemBundle` domain) and gates the app-upload router |
 | `can_manage_controllerMapping` | Create, edit, or delete controller mappings (System → Controllers) |
 | `can_manage_settings`      | Modify application settings                               |
-| `can_manage_users`       | Lets a sub-account edit its own `name` and reset its own PIN only — no capability over any other account, no self-delete, no create/delete of any sub-account. Owner-only to grant, like every flag here. Checked in addition to (not instead of) the `is_admin` path on the same two endpoints |
-| `is_admin`               | Edit/reset-pin/unlock/force-logout an existing sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other flag in this table — each is checked independently. Creating or deleting a sub-account requires `is_owner`, not `is_admin` |
+| `can_manage_users`       | Lets a sub-account edit its own `name` and reset its own PIN only, no capability over any other account, no self-delete, no create/delete of any sub-account. Owner-only to grant, like every flag here. Checked in addition to (not instead of) the `is_admin` path on the same two endpoints |
+| `is_admin`               | Edit/reset-pin/unlock/force-logout an existing sub-account, plus various admin-only settings/emulator/BIOS endpoints. Does **not** implicitly grant any other flag in this table, each is checked independently. Creating or deleting a sub-account requires `is_owner`, not `is_admin` |
 
 `is_owner` bypasses every permission check and is not settable via the user API.
 
@@ -73,7 +73,7 @@ Permission flags on sub-accounts:
 account's PIN can never be reset through this endpoint (owner recovery is the
 local `setup_admin_user.py` path only). The owner bypasses every other check and
 can reset any user's PIN regardless of lock state or target role. An admin can
-reset PINs only for regular/capped sub-accounts — the owner and every admin,
+reset PINs only for regular/capped sub-accounts, the owner and every admin,
 including their own record, are rejected with 403. A `can_manage_users` holder
 can reset its own PIN via self-service, but this path is blocked with 403 while
 the account is locked.
@@ -81,10 +81,10 @@ the account is locked.
 **PIN security:**
 
 - PINs are 4–6 digits, stored as Argon2id hashes with a per-user random salt.
-- An optional app-level pepper (`PIN_PEPPER`) may be configured via `PATCH /api/v1/settings/pin-pepper`, stored in `.env` — outside SQLite.
+- An optional app-level pepper (`PIN_PEPPER`) may be configured via `PATCH /api/v1/settings/pin-pepper`, stored in `.env`, outside SQLite.
 - Plaintext PINs are never stored, logged, or returned by any API endpoint.
 - 4 consecutive failures locks the account. Owner resets via Settings.
-- Owner lockout: run `scripts/setup_admin_user.py` locally — overwrites the owner record.
+- Owner lockout: run `scripts/setup_admin_user.py` locally, overwrites the owner record.
   No remote reset, no email recovery, no bypass flag.
 
 **Content ratings and parental controls:**
@@ -93,7 +93,7 @@ the account is locked.
 - Unrated is a first-class state. `block_unrated_media` flag controls whether unrated items
   are visible to a sub-account.
 - Each sub-account has a `max_content_rating` threshold. Items above the threshold are
-  filtered at the query level — hidden entirely, not surfaced and denied at launch.
+  filtered at the query level, hidden entirely, not surfaced and denied at launch.
   The filter fails closed: an unknown ceiling is rejected on write, and an unresolvable
   or unrecognised rating is denied rather than passed through.
 - Enforcement is server-side. Deny wins over any permission flag with no override path.
@@ -107,14 +107,14 @@ the account is locked.
 
 **These are mandatory implementation rules, not guidelines.**
 
-- Every file path accepted from any source — request body, query parameter, profile
-  field, settings value — **must be resolved and normalised** before any filesystem
+- Every file path accepted from any source, request body, query parameter, profile
+  field, settings value, **must be resolved and normalised** before any filesystem
   operation is performed. Paths used for library scans, media scanning, and profile
   operations **must be validated against an allowlist** of permitted base directories:
   the configured `LIBRARY_PATH` (and its derived sub-paths `SOFTWARE_PATH`, `MEDIA_PATH`,
   `OS_PATH`, `ROMS_PATH`), `PROFILES_PATH`, and the application config
   directory. **Exception:** Environment image paths (`base_image_path`,
-  `working_image_path`) may reside anywhere on the host filesystem — see Known Gaps.
+  `working_image_path`) may reside anywhere on the host filesystem, see Known Gaps.
 - Path traversal attempts (resolved path escapes its permitted base) **must be rejected
   with a 400 error and logged** before any filesystem operation occurs. This applies to
   all path-validated operations; Environment image paths are the explicit carved-out
@@ -128,7 +128,7 @@ the account is locked.
   descriptors. No registry scanning. This rule has no exceptions.
 - CLI arguments passed to emulator processes come from validated `Profile` config fields
   only. There is no freeform command construction anywhere in the codebase.
-- All validated inputs must be checked again at the point of use — do not rely on prior
+- All validated inputs must be checked again at the point of use, do not rely on prior
   validation in a different layer. (For image paths, see Known Gaps.)
 
 ---
@@ -151,7 +151,7 @@ the account is locked.
   the launch target as `game_item_bundle_id`, `app_item_bundle_id`, or
   `environment_item_id`, start time, exit code).
 - On Windows, every spawned process is assigned to a Job Object. If Job Object creation
-  or assignment fails, the launch is aborted — there is no unsandboxed fallback.
+  or assignment fails, the launch is aborted, there is no unsandboxed fallback.
 - Linux is out of scope. Process isolation is Windows Job Objects only.
 
 ---
@@ -188,10 +188,10 @@ enable it explicitly per profile.
 
 #### 86Box
 
-Network connectivity is controlled via `net_type` in `[Network]` — written on every
+Network connectivity is controlled via `net_type` in `[Network]`, written on every
 launch. `none` disables connectivity without removing the emulated NIC (avoiding
 Windows PnP re-detection). `slirp` enables user-mode NAT when `enable_networking = true`.
-`pcap` (bridged, full IPX/NetBEUI support) is not currently exposed — see 86Box
+`pcap` (bridged, full IPX/NetBEUI support) is not currently exposed, see 86Box
 documentation if you need it. `net_card` is never written by Peach 1UP; changing it
 triggers Windows hardware detection.
 
@@ -231,7 +231,7 @@ affected, and the timestamp.
   Logging in mints `session_token = HMAC-SHA256(identity_token_secret, nonce + issued_at)`
   via `mint_session_token()` in `backend/core/identity.py` and persists only its hash —
   the plaintext token is never stored. The cookie value is `{user_id}.{session_token}`,
-  set as `peach_token` — HttpOnly, `SameSite=Lax`, localhost only — and must never appear
+  set as `peach_token`, HttpOnly, `SameSite=Lax`, localhost only, and must never appear
   in logs, API responses, or version control. Sessions default to no expiry unless
   `User.session_token_ttl` is set. One active session per user by design: a new login
   overwrites `session_token_hash` directly, naturally invalidating any prior session —
@@ -245,7 +245,7 @@ affected, and the timestamp.
   only. They are never committed to version control, never returned by the API, and never
   logged.
 - The recovery key is shown once at first run and then discarded. It is stored as an
-  Argon2id hash only — the plaintext form cannot be recovered from the stored hash.
+  Argon2id hash only, the plaintext form cannot be recovered from the stored hash.
 
 ---
 
@@ -269,7 +269,7 @@ operation runs.
   `CreateProcessW`. Account-level isolation via a separate user account is not used.
 - Every emulator launch is assigned to a fresh Job Object with kill-on-close,
   a per-era CPU rate floor and cap (`MIN_MAX_RATE`), and a per-era per-process memory
-  cap (Qt emulators exempt via `skip_memory_limit` — see Known Limitations). CPU rate
+  cap (Qt emulators exempt via `skip_memory_limit`, see Known Limitations). CPU rate
   control may be skipped per emulator via `skip_cpu_limit = true` in the descriptor —
   every emulator except RPCS3 sets this today.
 - The Python launcher sequence is: launch process (`CREATE_NEW_PROCESS_GROUP`) → create
@@ -280,7 +280,7 @@ operation runs.
 - AppContainer is an additional isolation layer applied on top of Job Objects when
   `container_enabled = true` in the emulator descriptor. DOSBox-X, DuckStation, Flycast,
   Mesen, PCSX2, Project64, and Xenia all have `container_enabled = true`. 86Box, RPCS3,
-  and xemu remain disabled — xemu and RPCS3 due to documented JIT/TCG incompatibility
+  and xemu remain disabled, xemu and RPCS3 due to documented JIT/TCG incompatibility
   (both are `container_permanently_excluded`), 86Box pending further testing.
 - For AppContainer-enabled emulators, process creation is delegated to `sandbox_host.exe`,
   which handles `SECURITY_CAPABILITIES`, `CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT`,
@@ -334,7 +334,7 @@ the host audio session while an emulator is running, muting system
 audio. This is a side effect of the interim Job Objects isolation
 model. A future AppContainer-based isolation pass removes this limitation. As a
 workaround, CPU rate control can be disabled per emulator via
-skip_cpu_limit = true in the emulator descriptor — every emulator except RPCS3 (the
+skip_cpu_limit = true in the emulator descriptor, every emulator except RPCS3 (the
 only one that keeps the enforced CPU cap) sets this today; the launcher honours it via
 get_skip_cpu_limit() in emulator_catalog.py.
 
@@ -352,11 +352,11 @@ no Linux code path to secure.
 
 ### Drive image path is user-controlled per profile
 
-Drive .img files are created at `{item.folder_path}/{item.slug}.img` — alongside the
+Drive .img files are created at `{item.folder_path}/{item.slug}.img`, alongside the
 software collection's media folder under `library/media/`. The slug is validated
 at creation time. At launch time, `write_launch_conf` confirms the resolved
 drive path is within the `library/` tree via `is_relative_to()`.
-IMGMAKE receives the absolute path derived from the slug — no user string
+IMGMAKE receives the absolute path derived from the slug, no user string
 reaches the IMGMAKE command directly.
 
 ---
@@ -377,7 +377,7 @@ or perform existence checks on files at arbitrary paths on the host. Mitigating 
 - `can_manage_environment` is an explicit operator-granted permission, not a default for
   sub-accounts.
 - The application runs as a local user, not a privileged service account.
-- Operations on image paths are limited to copy, read, and existence check — no shell
+- Operations on image paths are limited to copy, read, and existence check, no shell
   execution of image path values.
 
 This gap is tracked and will be addressed in a future hardening pass, either by restoring
@@ -394,10 +394,10 @@ non-standard installs (library on a secondary drive, NAS share, or external volu
 no supported path to change them today.
 
 The backend endpoint POST /api/v1/settings/library-path remains live and functional and
-writes directly to `settings`, but it requires a `can_manage_settings` session — in
+writes directly to `settings`, but it requires a `can_manage_settings` session, in
 practice, calling the API directly (e.g. via curl with an authenticated cookie).
 
-Highest-risk case: ROMS_PATH defaults to \{project_root\}/library/system/roms/86box. Users who supply 86Box ROMs from a zip extracted to a non-default location (the common case) will silently use the wrong ROM path after a clean install. The 86Box backend will raise a ROM path error at launch time rather than silently proceeding, so the failure is visible — but the fix path is now undocumented short of calling the API directly.
+Highest-risk case: ROMS_PATH defaults to \{project_root\}/library/system/roms/86box. Users who supply 86Box ROMs from a zip extracted to a non-default location (the common case) will silently use the wrong ROM path after a clean install. The 86Box backend will raise a ROM path error at launch time rather than silently proceeding, so the failure is visible, but the fix path is now undocumented short of calling the API directly.
 
 This is flagged as needing a decision (restore a UI panel, or document a supported API/CLI workflow) before it can point users anywhere concrete.
 

@@ -1,9 +1,9 @@
 """Tests for library scan helpers:
 
-- scan_media_folders (service/utils/profile_builder.py) — folder discovery,
+- scan_media_folders (service/utils/profile_builder.py), folder discovery,
   including .git exclusion (hidden directories are skipped via the
   ``not p.name.startswith(".")`` filter).
-- generate_collection_slug (service/utils/slug_generator.py) — slug collision
+- generate_collection_slug (service/utils/slug_generator.py), slug collision
   suffixing used during scan import (_prepare_item).
 """
 
@@ -47,7 +47,7 @@ class TestSlugCollision:
     @pytest.fixture
     def mem_session(self):
         from sqlmodel import SQLModel, Session, create_engine
-        import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+        import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
         engine = create_engine("sqlite:///:memory:")
         SQLModel.metadata.create_all(engine)

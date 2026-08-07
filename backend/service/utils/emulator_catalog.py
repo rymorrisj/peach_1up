@@ -12,7 +12,7 @@ from backend.service.utils.emulator_descriptor import EmulatorDescriptor
 from backend.service.utils.eras_config import get_eras as _get_eras
 
 if TYPE_CHECKING:
-    from backend.service.utils.platform.windows.sandbox.sandbox_config import SandboxConfig
+    from sandbox.sandbox_config import SandboxConfig
 
 _logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ _catalog_cache: dict | None = None
 
 # The generated InstallType Literal is the single source of truth for the
 # allowed install_type vocabulary. TOMLs are hand-authored and unschema'd, so
-# a typo'd install_type is validated at parse time — the producer choke-point —
+# a typo'd install_type is validated at parse time, the producer choke-point —
 # rather than surfacing later as an inconsistently-hit dispatch failure.
 _VALID_INSTALL_TYPES: frozenset[str] = frozenset(get_args(InstallType))
 
@@ -84,7 +84,7 @@ def _load_raw_catalog() -> dict:
 
 
 def _get_eras_config() -> Dict[str, Any]:
-    """Return the parsed eras.yaml config — delegates to eras_config.get_eras()."""
+    """Return the parsed eras.yaml config, delegates to eras_config.get_eras()."""
     return _get_eras()
 
 
@@ -144,7 +144,7 @@ def get_86box_profile(slug: str) -> dict:
         ]
     else:
         raise FileNotFoundError(
-            f"86Box profiles not found — expected {_PROFILES_PATH} or {_PROFILES_DIR}. "
+            f"86Box profiles not found, expected {_PROFILES_PATH} or {_PROFILES_DIR}. "
             "Ensure library/system/templates/86box/ exists and contains .toml profile files."
         )
     for profile in profiles:
@@ -159,7 +159,7 @@ def get_86box_profile(slug: str) -> dict:
 def get_86box_rom_path(box86_binary: Path) -> Path:
     """Return the effective 86Box ROM directory for the given binary location.
 
-    Sanctioned re-export of box86.resolve_rom_path — the one import site
+    Sanctioned re-export of box86.resolve_rom_path, the one import site
     between the service layer and the box86 backend. Deferred import avoids
     a module-level cycle (box86 imports this module for catalog lookups).
 
@@ -329,7 +329,7 @@ def is_container_permanently_excluded(slug: str) -> bool:
     display-only flag read by the frontend). This field is read only by
     ``resolve_container_enabled`` and must not be set for an emulator whose
     AppContainer status is merely "not yet enabled" rather than technically
-    impossible — see DECISIONS.md 2026-06-04 for the xemu/QEMU TCG rationale,
+    impossible, see DECISIONS.md 2026-06-04 for the xemu/QEMU TCG rationale,
     the only slug this currently applies to.
     """
     try:
@@ -345,14 +345,14 @@ def resolve_container_enabled(slug: str, override: bool | None) -> bool:
     / ``LaunchSpec.container_enabled``). ``None`` means no override was set, in
     which case the catalog/settings value from ``get_container_enabled(slug)``
     applies. A non-``None`` override normally wins, including over a TOML
-    ``container_enabled = false`` default — this mirrors existing backend
+    ``container_enabled = false`` default, this mirrors existing backend
     behavior and is not changed here.
 
     The one exception is a slug marked ``container_permanently_excluded``
     (see ``is_container_permanently_excluded``): the override is ignored
     unconditionally and this always returns False, regardless of what the
     profile or settings say. Job Object isolation is unaffected either way —
-    only the AppContainer layer is unavailable — so a mismatched override is
+    only the AppContainer layer is unavailable, so a mismatched override is
     logged, not raised.
     """
     if is_container_permanently_excluded(slug):
@@ -384,7 +384,7 @@ def build_media_broker_config(
     """
     if not container_enabled:
         return None
-    from backend.service.utils.platform.windows.sandbox import BrokerFile
+    from sandbox import BrokerFile
     sandbox_config = get_container_config(slug, exe_path, user_item_id=user_item_id)
     sandbox_config.broker_files.append(
         BrokerFile(path=str(media_path.parent), access="r", mode="grant"))
@@ -406,7 +406,7 @@ def _missing_required_files(
     """Return descriptions of required files absent from dir_path.
 
     Falls back to non-empty-directory semantics when neither required_files
-    nor required_glob is specified — most BIOS dependencies (DuckStation,
+    nor required_glob is specified, most BIOS dependencies (DuckStation,
     PCSX2) auto-detect flexibly-named files by hash and have no fixed
     filename to check.
     """
@@ -445,7 +445,7 @@ def ensure_portable_mode(slug: str, exe_path: "Path") -> None:
 
     Reads portable_sentinel from the descriptor for slug. If the value is
     non-empty, touches the sentinel file next to the binary when it does not
-    already exist. Idempotent — safe to call on every configure pass.
+    already exist. Idempotent, safe to call on every configure pass.
     """
     try:
         entry = get_emulator(slug)
@@ -486,7 +486,7 @@ def validate_bios_from_descriptor(slug: str) -> None:
         if not resolved.is_relative_to(base):
             raise ValueError(
                 f"bios_path '{bios_path_str}' for slug '{slug}' resolves outside "
-                "the project root — this indicates a corrupted descriptor."
+                "the project root, this indicates a corrupted descriptor."
             )
         display_name = dep.get("display_name", "BIOS")
         required = dep.get("required", True)

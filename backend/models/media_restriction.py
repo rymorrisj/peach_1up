@@ -12,7 +12,7 @@ from sqlmodel import Field, SQLModel
 # individually does not work either: sqlmodel_table_construct() setattr()s
 # every field in class-declaration order, so constructing with only a
 # later-declared field passed causes an earlier-declared field's validator to
-# fire first while the later field is still unset — it sees both as None and
+# fire first while the later field is still unset, it sees both as None and
 # incorrectly raises "none set" before the real value is ever assigned. Fixed
 # the same way as Drive: a model_post_init override runs the check once,
 # after the full object is built and all three fields hold their final

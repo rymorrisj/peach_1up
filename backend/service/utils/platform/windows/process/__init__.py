@@ -1,4 +1,4 @@
-from ..sandbox.job import WindowsJobObject
+from sandbox.job import WindowsJobObject
 from .launcher import launch_under_job_object
 
 __all__ = [

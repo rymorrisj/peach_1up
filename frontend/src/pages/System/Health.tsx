@@ -105,7 +105,7 @@ const CAT_COLORS: Record<string, string> = {
   logs: 'var(--fg-4)',
 };
 
-// A 403 means the user lacks the platforms permission — stop retrying and
+// A 403 means the user lacks the platforms permission, stop retrying and
 // polling immediately instead of burning the normal retry count. Any other
 // error (network, 500, etc.) keeps the default retry behavior.
 function retryUnlessForbidden(failureCount: number, error: unknown) {
@@ -589,7 +589,7 @@ export default function Health() {
                                 }}
                               >
                                 {cat.unsized_count} item{cat.unsized_count !== 1 ? 's' : ''} not yet
-                                sized — size shown as unknown
+                                sized, size shown as unknown
                               </div>
                             )}
                           </div>
@@ -815,7 +815,7 @@ export default function Health() {
                     color: 'rgb(var(--fg-3))',
                   }}
                 >
-                  Inventory unavailable — run a health check to refresh.
+                  Inventory unavailable, run a health check to refresh.
                 </div>
               ) : (
                 <div

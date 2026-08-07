@@ -1,7 +1,7 @@
 """Route-level (TestClient/HTTP) tests for the leaf routes in
 backend/api/routes/game_items.py.
 
-Per dev_docs/P1_AUDIT.md TST-13 — test_game_items.py only exercises the
+Per dev_docs/P1_AUDIT.md TST-13, test_game_items.py only exercises the
 _prepare_item service helper; a capped sub-account's ability to see or
 verify an over-rated leaf inside an allowed bundle was never tested at HTTP.
 Covers:
@@ -29,7 +29,7 @@ import pytest
 def mem_db_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -107,7 +107,7 @@ def _set_active_user(app, user):
 
 
 # ---------------------------------------------------------------------------
-# GET /game-item/{leaf_id} — leaf-level deny via the parent bundle's filter
+# GET /game-item/{leaf_id}, leaf-level deny via the parent bundle's filter
 # ---------------------------------------------------------------------------
 
 
@@ -168,7 +168,7 @@ class TestLeafVisibilityFilter:
 
 
 # ---------------------------------------------------------------------------
-# POST /game-item/{leaf_id}/verify — same parent-bundle visibility filter as GET
+# POST /game-item/{leaf_id}/verify, same parent-bundle visibility filter as GET
 # ---------------------------------------------------------------------------
 
 

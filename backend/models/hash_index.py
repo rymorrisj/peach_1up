@@ -6,7 +6,7 @@ from sqlmodel import Field, SQLModel
 
 class HashIndexEntry(SQLModel, table=True):
     """One confirmed hash-index record, mirrored from smart_media_detector's
-    hash_index.json (see scripts/ingest_hash_index.py). Storage only — no
+    hash_index.json (see scripts/ingest_hash_index.py). Storage only, no
     route or service layer reads this table yet. smart_media_detector itself
     stays storage-agnostic; it never imports this model or SQLModel."""
 

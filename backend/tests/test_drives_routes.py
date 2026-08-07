@@ -1,6 +1,6 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/drives.py.
 
-Per dev_docs/P1_AUDIT.md TST-7 — drives.py had zero test coverage despite
+Per dev_docs/P1_AUDIT.md TST-7, drives.py had zero test coverage despite
 gating a destructive on-disk image delete behind a confirmation-token flow
 and a permission check that differs by drive ownership (can_manage_game for
 game-owned drives, can_manage_app for app-owned drives). Covers:
@@ -33,7 +33,7 @@ import pytest
 def mem_db_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -133,7 +133,7 @@ def _set_active_user(app, user):
 
 
 # ---------------------------------------------------------------------------
-# GET /{drive_id} and /{drive_id}/confirm-token — 404 for nonexistent drive
+# GET /{drive_id} and /{drive_id}/confirm-token, 404 for nonexistent drive
 # ---------------------------------------------------------------------------
 
 
@@ -164,7 +164,7 @@ class TestNotFound:
 
 
 # ---------------------------------------------------------------------------
-# Permission gate — can_manage_game for game-owned drives
+# Permission gate, can_manage_game for game-owned drives
 # ---------------------------------------------------------------------------
 
 
@@ -191,7 +191,7 @@ class TestGameOwnedPermissionGate:
         assert "confirmation_token" in resp.json()
 
     def test_delete_403_for_non_editor_even_with_garbage_token(self, http_client):
-        """Permission gate must run before token consumption — a non-editor
+        """Permission gate must run before token consumption, a non-editor
         gets 403, not 400, even when no valid token could exist yet."""
         c, db, app = http_client
         bundle = _make_game_bundle(db)
@@ -214,7 +214,7 @@ class TestGameOwnedPermissionGate:
 
 
 # ---------------------------------------------------------------------------
-# Permission gate — can_manage_app for app-owned drives
+# Permission gate, can_manage_app for app-owned drives
 # ---------------------------------------------------------------------------
 
 
@@ -344,7 +344,7 @@ class TestDeleteEndToEnd:
 
     def test_delete_tolerates_missing_image_file(self, http_client, tmp_path):
         """image_path pointing at a file that no longer exists on disk must
-        not raise — the row/FK cleanup still completes."""
+        not raise, the row/FK cleanup still completes."""
         from backend.service.utils import confirmation_tokens
 
         c, db, app = http_client

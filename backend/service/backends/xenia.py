@@ -27,9 +27,9 @@ from backend.service.utils.emulator_catalog import (
 )
 from backend.service.utils.file_types import supported_extensions_for_era
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
-from backend.service.utils.platform.windows.sandbox.sandbox_process import SandboxProcess
-from backend.service.utils.platform.windows.sandbox.job import WindowsJobObject
-from backend.service.utils.smart_media_detector.directory_detect import resolve_xex_target
+from sandbox.sandbox_process import SandboxProcess
+from sandbox.job import WindowsJobObject
+from smart_media_detector.directory_detect import resolve_xex_target
 
 logger = get_logger(__name__)
 

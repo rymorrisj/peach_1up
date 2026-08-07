@@ -2,7 +2,7 @@ name: Release
 
 # Triggered by pushing a beta release tag (e.g. v0.1.0-beta). The pushed tag's
 # version must match config/constants.yaml's app_version exactly, or the
-# workflow fails before any build step runs — see "Verify tag matches
+# workflow fails before any build step runs, see "Verify tag matches
 # app_version" below.
 on:
   push:
@@ -16,7 +16,7 @@ jobs:
   build-and-release:
     runs-on: windows-latest
     timeout-minutes: 60
-    # contents: write is scoped to this job only — it is the one thing this
+    # contents: write is scoped to this job only, it is the one thing this
     # workflow needs beyond the read-only default above, to publish the
     # installer as a GitHub Release asset.
     permissions:
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # build.bat now calls `uv sync` to create its venv and install backend
-      # dependencies (see the pyproject.toml/uv.lock migration) — installed
+      # dependencies (see the pyproject.toml/uv.lock migration), installed
       # here, ahead of the "Run build.bat" step below, rather than assumed
       # present on the windows-latest image.
       - name: Install uv (for build.bat's dependency sync)
@@ -73,7 +73,7 @@ jobs:
             Write-Host "::error::Tag '$tag' implies version '$tagVersion' but config/constants.yaml app_version is '$appVersion'. Update constants.yaml (and regenerate) or retag before releasing."
             exit 1
           }
-          Write-Host "Tag '$tag' matches app_version '$appVersion' — proceeding with release build."
+          Write-Host "Tag '$tag' matches app_version '$appVersion', proceeding with release build."
 
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -104,7 +104,7 @@ jobs:
       # (developer runs build.sh manually first, per the comments in
       # build.bat and services/vendor/extract-xiso/build.sh). Neither binary
       # is committed to git, so CI must do this manual pre-step itself before
-      # build.bat's "if not exist ...exe" guards run — this mirrors the
+      # build.bat's "if not exist ...exe" guards run, this mirrors the
       # documented local workflow, it does not reimplement any build.bat step.
       - name: Build sandbox_host.exe (MSYS2 UCRT64 g++)
         shell: msys2 {0}
@@ -114,7 +114,7 @@ jobs:
       # relying on cmake's ambient auto-detection (which, left to itself on a
       # Visual-Studio-equipped runner, is not guaranteed to pick the MSYS2
       # UCRT64 GCC toolchain just set up above). build.sh itself is vendored,
-      # unmodified upstream source — not edited here.
+      # unmodified upstream source, not edited here.
       - name: Build extract-xiso.exe (MSYS2 UCRT64 gcc + cmake/ninja)
         shell: msys2 {0}
         env:
@@ -125,7 +125,7 @@ jobs:
         shell: pwsh
         run: |
           if ($env:INCLUDE_TEST_MEDIA) {
-            Write-Host "::error::INCLUDE_TEST_MEDIA is set — a release build must never bundle library/ test media."
+            Write-Host "::error::INCLUDE_TEST_MEDIA is set, a release build must never bundle library/ test media."
             exit 1
           }
           Write-Host "INCLUDE_TEST_MEDIA is unset, as required for a release build."
@@ -137,18 +137,18 @@ jobs:
         shell: cmd
         run: build.bat
 
-      # Stub — conditional on a secret that does not exist yet. Signing is
+      # Stub, conditional on a secret that does not exist yet. Signing is
       # blocked on obtaining an OSS code signing certificate (see
       # DECISIONS.md). Once that secret exists and real signing is
       # implemented here, this becomes a one-step change, not a workflow
       # redesign. If the secret is ever set before signing is implemented,
       # this fails loudly instead of silently shipping an unsigned installer
       # under a false assumption that it was signed.
-      - name: Sign installer (stub — no signing certificate yet)
+      - name: Sign installer (stub, no signing certificate yet)
         shell: pwsh
         run: |
           if ("${{ secrets.CODE_SIGNING_CERT }}" -eq "") {
-            Write-Host "::notice::Skipping code signing — CODE_SIGNING_CERT secret is not configured yet. Installer will ship unsigned."
+            Write-Host "::notice::Skipping code signing, CODE_SIGNING_CERT secret is not configured yet. Installer will ship unsigned."
           } else {
             Write-Host "::error::CODE_SIGNING_CERT is set but this step does not implement signing yet. Implement real signing here before configuring the secret."
             exit 1
@@ -162,7 +162,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if (-not (Test-Path "Peach1UP-Setup.exe")) {
-            Write-Host "::error::Peach1UP-Setup.exe not found at repo root after build.bat — the installer build must have failed silently."
+            Write-Host "::error::Peach1UP-Setup.exe not found at repo root after build.bat, the installer build must have failed silently."
             exit 1
           }
           gh release create "${{ github.ref_name }}" "Peach1UP-Setup.exe" `

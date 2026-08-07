@@ -34,7 +34,7 @@ export function AdvancedSection({
         <div className="space-y-5">
           {item.launch_review_flagged && (
             <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
-              ⚠ Launch commands may be incorrect — please review.
+              ⚠ Launch commands may be incorrect, please review.
             </div>
           )}
 

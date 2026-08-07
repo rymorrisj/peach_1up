@@ -2,13 +2,13 @@
 
 PIN_PEPPER, THEGAMESDB_API_KEY, AI_API_KEY, IGDB_CLIENT_ID, and IGDB_CLIENT_SECRET
 are deliberately kept out of settings (unlike every other former settings.yaml key, which
-now lives in the DB — see backend/service/utils/settings.py). A secret must
+now lives in the DB, see backend/service/utils/settings.py). A secret must
 not round-trip through the same SQLite file that the reset_db dev flag can
 delete, and .env is already gitignored and documented as the secrets home
 (.env.template).
 
 get_env_secret() loads .env itself (once per process) rather than relying on
-settings.init() to have run first — pin_hashing.get_pin_pepper() and
+settings.init() to have run first, pin_hashing.get_pin_pepper() and
 thegamesdb_client's key lookup must not silently see an empty pepper/key
 just because they ran before or independently of the settings subsystem
 (e.g. scripts/manage_test_users.py, which hashes PINs without ever calling

@@ -116,7 +116,7 @@ class TestDetectDiscFiles:
 def mem_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all ORM tables
+    import backend.models  # noqa: F401, registers all ORM tables
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -164,13 +164,13 @@ class _FakeScanResult:
 class TestCreateMultiDiscSet:
     @pytest.fixture(autouse=True)
     def _patch_detect(self, monkeypatch):
-        import backend.service.utils.smart_media_detector as smd
+        import smart_media_detector as smd
         monkeypatch.setattr(smd, "detect", lambda path: _FakeScanResult())
 
     @pytest.fixture(autouse=True)
     def _patch_era_defaults(self, monkeypatch):
         import backend.service.utils.era_defaults as ead
-        # Return (None, None) to skip platform/profile lookup — not under test here.
+        # Return (None, None) to skip platform/profile lookup, not under test here.
         monkeypatch.setattr(ead, "defaults_for_era", lambda era: (None, None))
 
     def _make_disc_files(self, tmp_path: Path, names: list[str]) -> list[Path]:
@@ -249,7 +249,7 @@ class TestCreateMultiDiscSet:
         assert stored.era == "dreamcast"
 
     def test_content_rating_detected_from_disc_one_filename(self, tmp_path, mem_session):
-        """detect_rating is called with disc_files[0] only — a bracketed rating
+        """detect_rating is called with disc_files[0] only, a bracketed rating
         tag on disc 1's filename must land on the GameItemBundle, matching
         rating_detect's strict (bracket-guarded) filename-stem fallback."""
         from backend.models.game import GameItemBundle
@@ -261,7 +261,7 @@ class TestCreateMultiDiscSet:
         assert stored.content_rating == "M"
 
     def test_cover_art_found_next_to_disc_one_lands_on_first_disc_only(self, tmp_path, mem_session):
-        """_find_cover is called on disc_files[0]'s parent — a cover image found
+        """_find_cover is called on disc_files[0]'s parent, a cover image found
         there must land on disc 1's item only, never on later discs."""
         from backend.models.game import GameItem
 
@@ -280,13 +280,13 @@ class TestCreateMultiDiscSet:
 
 
 # ---------------------------------------------------------------------------
-# dedup_disc_anchor — content-hash dedup for multi-disc disc-1 anchors
+# dedup_disc_anchor, content-hash dedup for multi-disc disc-1 anchors
 # ---------------------------------------------------------------------------
 
 class TestDedupDiscAnchor:
     @pytest.fixture(autouse=True)
     def _patch_detect(self, monkeypatch):
-        import backend.service.utils.smart_media_detector as smd
+        import smart_media_detector as smd
         monkeypatch.setattr(smd, "detect", lambda path: _FakeScanResult())
 
     @pytest.fixture(autouse=True)
@@ -333,7 +333,7 @@ class TestDedupDiscAnchor:
 
     def test_raises_item_already_exists_when_duplicate_is_still_tracked(self, tmp_path, mem_session):
         """A byte-identical file that is still a live GameItem.file_path must
-        not be silently repointed — that would create a second tracked row
+        not be silently repointed, that would create a second tracked row
         sharing one file_path with an existing collection. dedup_disc_anchor
         raises _ItemAlreadyExists instead, same as the file-kind upload path."""
         from backend.service.games.folder_ingest import dedup_disc_anchor

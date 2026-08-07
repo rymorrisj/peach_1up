@@ -15,14 +15,14 @@ export interface TabConfig {
 
 export interface TabbedLayoutProps {
   tabs: TabConfig[];
-  /** Page title/header, passed in by the consuming page/section — TabbedLayout
+  /** Page title/header, passed in by the consuming page/section, TabbedLayout
    *  displays it alongside the nav buttons, it does not own or derive it. */
   title: string;
 }
 
 /**
  * Domain-agnostic tab bar + `<Outlet/>` for a section's collection sub-routes
- * (Software, Emulators, System — see dev_docs/v2/08_emulator_profiles_navigation.md).
+ * (Software, Emulators, System, see dev_docs/v2/08_emulator_profiles_navigation.md).
  * The URL is the single source of truth for the active tab: NavLink's own
  * router-driven active-matching is all that's used, no local useState tracks
  * "which tab is active" separately from the route.
@@ -68,7 +68,7 @@ export default function TabbedLayout({ tabs, title }: TabbedLayoutProps) {
 
 /**
  * Builds the child `<Route>` elements for a section mounted with `TabbedLayout`,
- * from the same `tabs` config passed to the component — so the tab bar and the
+ * from the same `tabs` config passed to the component, so the tab bar and the
  * routing table are declared once, not duplicated. One route per visible tab,
  * plus an index redirect and a catch-all redirect (both to the first visible
  * tab's segment) so a deep link to a hidden or nonexistent tab lands on the

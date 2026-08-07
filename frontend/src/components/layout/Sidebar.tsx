@@ -152,7 +152,7 @@ export default function Sidebar() {
           })}
         </ul>
 
-        {/* Background activity (uploads, large scans) — hidden when idle */}
+        {/* Background activity (uploads, large scans), hidden when idle */}
         <div className="mt-1 px-1">
           <JobsBell />
         </div>

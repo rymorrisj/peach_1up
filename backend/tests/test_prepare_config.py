@@ -77,7 +77,7 @@ def _parse(cfg: Path) -> configparser.RawConfigParser:
 
 
 # ---------------------------------------------------------------------------
-# Case A — pre-installed image: MBR signature present
+# Case A, pre-installed image: MBR signature present
 # ---------------------------------------------------------------------------
 
 class TestPrepareConfigCaseA:
@@ -100,7 +100,7 @@ class TestPrepareConfigCaseA:
 
 
 # ---------------------------------------------------------------------------
-# Case B — blank disk with ISO: MBR absent, base_image_path set
+# Case B, blank disk with ISO: MBR absent, base_image_path set
 # ---------------------------------------------------------------------------
 
 class TestPrepareConfigCaseB:
@@ -122,7 +122,7 @@ class TestPrepareConfigCaseB:
 
 
 # ---------------------------------------------------------------------------
-# Case C — blank disk, no ISO: MBR absent, no base_image_path
+# Case C, blank disk, no ISO: MBR absent, no base_image_path
 # ---------------------------------------------------------------------------
 
 class TestPrepareConfigCaseC:
@@ -145,7 +145,7 @@ class TestPrepareConfigCaseC:
 
 
 # ---------------------------------------------------------------------------
-# Game/app media (cdrom_01) — independent of base_image_path/cdrom_02
+# Game/app media (cdrom_01), independent of base_image_path/cdrom_02
 # ---------------------------------------------------------------------------
 
 class TestPrepareConfigGameMedia:
@@ -200,7 +200,7 @@ class TestPrepareConfigGameMedia:
 
     def test_cdrom_01_cleared_when_switching_from_media_to_no_media(self, tmp_path, monkeypatch):
         """A later launch of a different (or no) game must not inherit a
-        prior launch's cdrom_01 entry — same reset guarantee cdrom_02
+        prior launch's cdrom_01 entry, same reset guarantee cdrom_02
         already has for base_image_path."""
         import backend.service.backends.box86 as box86_mod
         monkeypatch.setattr(box86_mod, "get_86box_profile", lambda _: _FAKE_PROFILE)

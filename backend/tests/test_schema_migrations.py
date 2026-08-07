@@ -8,7 +8,7 @@ throwaway SQLite file, without touching the real configured database.
 def test_migrations_idempotent_against_already_migrated_db(tmp_path, monkeypatch):
     from sqlalchemy import create_engine
     from sqlmodel import SQLModel
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     db_path = tmp_path / "test.db"
     engine = create_engine(f"sqlite:///{db_path}")
@@ -30,12 +30,12 @@ def test_migrations_idempotent_against_already_migrated_db(tmp_path, monkeypatch
 def test_migrations_add_missing_user_columns_to_legacy_db(tmp_path, monkeypatch):
     from sqlalchemy import create_engine, inspect as sa_inspect, text
     from sqlmodel import SQLModel
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     db_path = tmp_path / "legacy.db"
     engine = create_engine(f"sqlite:///{db_path}")
     # Build every table in its current shape, then roll just `user_items` back to
-    # a pre-migration shape — simulates upgrading a real, populated DB where
+    # a pre-migration shape, simulates upgrading a real, populated DB where
     # every other table is already current and only user_items lacks the new columns.
     SQLModel.metadata.create_all(engine)
     with engine.connect() as conn:

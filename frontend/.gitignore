@@ -1,4 +1,4 @@
-# Generated API client (orval output — run npm run generate:api with backend running)
+# Generated API client (orval output, run npm run generate:api with backend running)
 src/api/generated/
 
 # Local env overrides

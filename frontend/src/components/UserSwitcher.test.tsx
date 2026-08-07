@@ -71,7 +71,7 @@ describe('UserSwitcher', () => {
     });
   });
 
-  // Skipped: PIN modal submission flow — requires chaining multiple apiFetch calls
+  // Skipped: PIN modal submission flow, requires chaining multiple apiFetch calls
   // (POST /auth/switch then GET /auth/me) and async dialog state. Not worth
   // the fragility given the flow is covered by the UserSwitcher acceptance path.
 });

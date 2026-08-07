@@ -88,7 +88,7 @@ popd
 echo [OK] Docs dependencies installed
 
 REM ── Generate constants ───────────────────────────────────────
-REM Must run before export_and_build_types.py below — constants_generated.py
+REM Must run before export_and_build_types.py below, constants_generated.py
 REM feeds the SQLModel tables that backend.api.routes.ROUTERS pulls in.
 echo Generating constants...
 .venv\Scripts\python.exe scripts\gen_constants.py

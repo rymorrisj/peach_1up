@@ -71,7 +71,7 @@ export function ProfileForm({
         label="Slug"
         htmlFor="lp-slug"
         required
-        hint="Unique identifier — auto-filled from name"
+        hint="Unique identifier, auto-filled from name"
         error={formErrors.slug}
       >
         <Input

@@ -3,7 +3,7 @@ filesystem allowlist enforcement built on top of it (api/routes/filesystem.py).
 
 normalise_path itself only handles null-byte rejection, separator
 unification, and ``Path.resolve()`` (which silently collapses ``..``
-segments — it does not raise on traversal). The allowlist check that
+segments, it does not raise on traversal). The allowlist check that
 rejects paths outside configured roots lives in
 ``api/routes/filesystem._within_allowed`` and is exercised here via
 GET /api/v1/filesystem/browse, the closest equivalent to a "scan endpoint"
@@ -24,7 +24,7 @@ class TestNormalisePath:
         assert result == target.resolve()
 
     def test_unix_style_traversal_is_collapsed_not_raised(self, tmp_path):
-        """normalise_path does not raise on '..' — Path.resolve() collapses it."""
+        """normalise_path does not raise on '..', Path.resolve() collapses it."""
         from backend.service.utils.path_utils import normalise_path
 
         nested = tmp_path / "library" / "media"
@@ -46,7 +46,7 @@ class TestNormalisePath:
             normalise_path("")
 
     def test_windows_style_traversal_is_collapsed_not_raised(self, tmp_path):
-        """Backslash separators are unified to '/' then resolved — '..\\..' collapses."""
+        """Backslash separators are unified to '/' then resolved, '..\\..' collapses."""
         from backend.service.utils.path_utils import normalise_path
 
         nested = tmp_path / "library" / "media"
@@ -108,7 +108,7 @@ class TestFilesystemAllowlist:
 
 
 class TestFilesystemPermissionGate:
-    """dev_docs/P1_AUDIT.md TST-14 — TestFilesystemAllowlist above always
+    """dev_docs/P1_AUDIT.md TST-14, TestFilesystemAllowlist above always
     overrides get_active_user with an owner, so
     require_game_or_environment_editor's own permission check (as opposed to
     the owner bypass baked into it) was never exercised, and GET /drives /
@@ -163,7 +163,7 @@ class TestFilesystemPermissionGate:
 
     def test_drives_200_for_environment_editor(self, app_client):
         """can_manage_environment alone (no can_manage_game, not owner) is
-        enough — the two flags are OR'd in require_game_or_environment_editor."""
+        enough, the two flags are OR'd in require_game_or_environment_editor."""
         app, client = app_client
         self._set_user(app, can_manage_environment=True)
 

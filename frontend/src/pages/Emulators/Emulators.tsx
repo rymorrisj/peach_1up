@@ -31,7 +31,7 @@ function EmulatorCard({
         border: '1px solid rgb(var(--border))',
       }}
     >
-      {/* Main content — click navigates to detail */}
+      {/* Main content, click navigates to detail */}
       <div
         className="p-[18px] cursor-pointer transition-colors duration-[120ms]"
         onClick={onClick}

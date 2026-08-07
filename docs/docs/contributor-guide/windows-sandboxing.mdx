@@ -33,10 +33,10 @@ low-privilege user account is not used.
 
 **What the Job Object does not do:**
 
-- It does not restrict filesystem access — the emulator can reach any path the
+- It does not restrict filesystem access, the emulator can reach any path the
   current user can reach.
 - It does not apply AppContainer-level isolation or filesystem virtualisation.
-- It does not block all network access at the OS level — network isolation is handled
+- It does not block all network access at the OS level, network isolation is handled
   by disabling the emulated network adapter inside each emulator (see the network
   section of the [Security Architecture](./security.mdx) page).
 - It does not apply on Linux. Linux support is out of scope.
@@ -57,7 +57,7 @@ dos:
 | Field               | Type            | What it sets                                                                                                                                                                |
 | ------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `memory_limit_mb`   | integer         | Per-process memory cap in megabytes. Applied via `JOB_OBJECT_LIMIT_PROCESS_MEMORY`.                                                                                         |
-| `cpu_limit_percent` | integer (1–100) | CPU budget as a percentage of all logical processors across a scheduling interval. Applied as a hard cap — threads are throttled, not killed, when the budget is exhausted. |
+| `cpu_limit_percent` | integer (1–100) | CPU budget as a percentage of all logical processors across a scheduling interval. Applied as a hard cap, threads are throttled, not killed, when the budget is exhausted. |
 
 ### Current defaults
 
@@ -77,7 +77,7 @@ dos:
 ### How to adjust caps
 
 Open `config/eras.yaml` in any text editor and change `memory_limit_mb` or
-`cpu_limit_percent` for the era you want to adjust. Restart the backend — changes
+`cpu_limit_percent` for the era you want to adjust. Restart the backend, changes
 take effect on the next launch.
 
 **CPU cap notes:**
@@ -163,5 +163,5 @@ Job Object isolation (kill-on-close, CPU cap) is the only isolation layer availa
 xemu on Windows.
 
 `skip_memory_limit = true` also applies to xemu: its pre-allocated JIT heap triggers the
-same `STATUS_STACK_BUFFER_OVERRUN` fast-fail as the Qt-based emulators — see "Qt emulator
+same `STATUS_STACK_BUFFER_OVERRUN` fast-fail as the Qt-based emulators, see "Qt emulator
 process memory cap waived" in the [Security Architecture](./security.mdx) page.

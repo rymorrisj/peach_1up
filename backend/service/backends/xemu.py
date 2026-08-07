@@ -25,9 +25,9 @@ from backend.service.utils.emulator_catalog import (
 from backend.service.utils.file_types import supported_extensions_for_era
 from backend.service.utils.xbox_image import XboxDvdRipDetected, detect_xbox_image_type
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
-from backend.service.utils.platform.windows.sandbox import BrokerFile
-from backend.service.utils.platform.windows.sandbox.sandbox_process import SandboxProcess
-from backend.service.utils.platform.windows.sandbox.job import WindowsJobObject
+from sandbox import BrokerFile
+from sandbox.sandbox_process import SandboxProcess
+from sandbox.job import WindowsJobObject
 from backend.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -41,7 +41,7 @@ SUPPORTED_ERAS = {Era.XBOX.value}
 # used to read its own launch-time check from.
 SUPPORTED_MEDIA = frozenset(supported_extensions_for_era(Era.XBOX.value))
 
-# Portable-mode data root, next to the binary — matches Flycast's data/ convention.
+# Portable-mode data root, next to the binary, matches Flycast's data/ convention.
 DATA_DIR_NAME = "data"
 # Single config shipped today. Named subdirectories under data/ are reserved
 # for future per-game BIOS/HDD overrides (see resolve_launch_config).
@@ -89,13 +89,13 @@ def _clear_dvd_path_on_exit(proc, toml_path: Path) -> None:
 def resolve_launch_config() -> str:
     """Resolve which named BIOS/HDD config under data/ applies to this launch.
 
-    Single responsibility: selection only — it does not read or validate any
+    Single responsibility: selection only, it does not read or validate any
     files itself. Returns the config name (a subdirectory of data/), which
     callers combine with the data root to get an actual directory.
 
     Stub: xemu has no per-game override selection mechanism yet, so this
     always returns DEFAULT_CONFIG_NAME. No parameters are taken because no
-    selection input has been designed — add them when that mechanism exists.
+    selection input has been designed, add them when that mechanism exists.
 
     Returns:
         The config name to use, e.g. "default".
@@ -267,11 +267,11 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     Provisions the xemu.toml portable-mode sentinel beside the binary on
     every launch, sourcing BIOS/HDD assets from the resolved config under
-    emulators/xemu/data/. No Platform record is required — xemu behaves like
+    emulators/xemu/data/. No Platform record is required, xemu behaves like
     all other console backends (DuckStation, PCSX2, Mesen, Project64).
 
     Args:
-        spec: LaunchSpec with era set. media_path is optional — omit to boot
+        spec: LaunchSpec with era set. media_path is optional, omit to boot
             with no disc. enable_networking gates the Xbox network stack (Xbox
             Live / System Link): when False the xemu.toml [net] enable = false
             key disables it; when True the emulator default is used.

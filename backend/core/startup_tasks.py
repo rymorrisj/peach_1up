@@ -35,7 +35,7 @@ def _flag_corrupt_platform_working_paths(db) -> None:
     """Log-only, no persisted flag. status/last_health_check were removed from
     EnvironmentItem in favor of a live presence check (compute_environment_presence),
     which already reports these rows as not-present on every read since a .cfg
-    path is never a real image file — nothing further needs to be stored here."""
+    path is never a real image file, nothing further needs to be stored here."""
     try:
         from backend.models import EnvironmentItem
         corrupt = (
@@ -45,7 +45,7 @@ def _flag_corrupt_platform_working_paths(db) -> None:
         )
         for p in corrupt:
             logger.warning(
-                "Environment %s (%s) has a .cfg file as working_image_path — "
+                "Environment %s (%s) has a .cfg file as working_image_path, "
                 "this record was created by the broken provisioner and must be re-registered",
                 p.id,
                 p.name,
@@ -130,14 +130,14 @@ def _heal_interrupted_rom_pack_clones() -> None:
             # An interrupted `git clone` leaves either a stale .git/index.lock
             # (killed during checkout) or a .git dir with nothing checked out
             # yet (killed during fetch). A completed clone has .git plus
-            # checked-out ROM content and no lock file — leave that alone.
+            # checked-out ROM content and no lock file, leave that alone.
             git_dir = target / ".git"
             checked_out = any(c.name != ".git" for c in children)
             interrupted = (git_dir / "index.lock").exists() or (git_dir.is_dir() and not checked_out)
             if interrupted:
                 shutil.rmtree(target, ignore_errors=True)
                 logger.warning(
-                    "Startup: removed half-populated rom pack directory for '%s' (%s) — "
+                    "Startup: removed half-populated rom pack directory for '%s' (%s), "
                     "a previous clone was interrupted by a restart; ready to retry.",
                     entry.get("slug"), target,
                 )

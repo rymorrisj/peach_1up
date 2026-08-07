@@ -52,7 +52,7 @@ export function useDeleteCollection({
       // shortly after toggling the item-level checkbox here. This hook is
       // Game-only (hardcodes /api/v1/game-item-bundle/ below), so the list
       // key matches EntityListPage's invalidate() for gameDomainConfig
-      // (['game', 'list', ...]) — was ['library'], the pre-cutover Games.tsx
+      // (['game', 'list', ...]), was ['library'], the pre-cutover Games.tsx
       // list query key, dead since Games.tsx moved onto EntityListPage.
       queryClient.invalidateQueries({ queryKey: ['game', 'list'] });
     },

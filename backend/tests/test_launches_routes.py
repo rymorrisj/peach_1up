@@ -1,6 +1,6 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/launches.py.
 
-Per dev_docs/v2/09_test_coverage.md item 4 — test_launch_guards.py and
+Per dev_docs/v2/09_test_coverage.md item 4, test_launch_guards.py and
 test_launch_error_detection.py drive backend/service/launch/coordinator.py
 directly; no TestClient touches the routes themselves. This file confirms
 the security gates are actually wired at the endpoint, not the coordinator
@@ -35,7 +35,7 @@ import pytest
 def mem_db_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -165,7 +165,7 @@ def _stub_stop_launch(monkeypatch, *, stopped=True):
 
 
 # ---------------------------------------------------------------------------
-# can_launch_media gating — POST /game-item-bundle/{id}/launch
+# can_launch_media gating, POST /game-item-bundle/{id}/launch
 # ---------------------------------------------------------------------------
 
 
@@ -206,7 +206,7 @@ class TestGetFilteredCollectionEnforcement:
     def test_over_rated_collection_blocked_with_404_not_leaked(self, http_client, monkeypatch):
         """A capped sub-account attempting to launch a collection above its
         max_content_rating must get the same no-leak 404 get_filtered_collection
-        returns elsewhere (list/detail) — not a 403, and not a bypass because
+        returns elsewhere (list/detail), not a 403, and not a bypass because
         can_launch_media is otherwise true."""
         c, db, app = http_client
         collection = _make_collection(db, content_rating="M")
@@ -250,7 +250,7 @@ class TestGetFilteredCollectionEnforcement:
 
 
 # ---------------------------------------------------------------------------
-# GET /launches — fail-closed target_type filter (regression lock)
+# GET /launches, fail-closed target_type filter (regression lock)
 # ---------------------------------------------------------------------------
 
 
@@ -295,7 +295,7 @@ class TestTargetTypeFailClosed:
 
 
 # ---------------------------------------------------------------------------
-# can_launch_media gating — POST /environment-items/{id}/launch
+# can_launch_media gating, POST /environment-items/{id}/launch
 # ---------------------------------------------------------------------------
 
 
@@ -339,7 +339,7 @@ class TestCanLaunchMediaGateEnvironment:
 
 
 # ---------------------------------------------------------------------------
-# can_launch_media gating — POST /launches/{id}/stop
+# can_launch_media gating, POST /launches/{id}/stop
 # ---------------------------------------------------------------------------
 
 

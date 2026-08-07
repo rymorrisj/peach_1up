@@ -1,7 +1,7 @@
 """Tests for backend.service.utils.confirmation_tokens.
 
 The module's public API is `issue(resource, resource_id, action)` and
-`consume(token, resource, resource_id, action)` — there is no
+`consume(token, resource, resource_id, action)`, there is no
 create_confirmation_token / consume_confirmation_token wrapper.
 """
 

@@ -18,7 +18,7 @@ def _no_permission_user():
 
 
 def _media_only_user():
-    """can_manage_media but NOT can_manage_game — used to prove link creation
+    """can_manage_media but NOT can_manage_game, used to prove link creation
     needs authorization on BOTH entities, not just the one named in the URL."""
     from backend.models.user import UserItem
     return UserItem(id=3, name="Archivist", is_owner=False, can_manage_media=True, can_manage_game=False)
@@ -28,7 +28,7 @@ def _media_only_user():
 def mem_db_session():
     from sqlmodel import SQLModel, Session, create_engine
     from sqlalchemy.pool import StaticPool
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -162,7 +162,7 @@ class TestMediaItemBundleCrud:
 
 
 # ---------------------------------------------------------------------------
-# Cross-table slug uniqueness — MediaItem and MediaItemBundle share one slug
+# Cross-table slug uniqueness, MediaItem and MediaItemBundle share one slug
 # namespace (see _unique_media_slug in backend/api/routes/media.py).
 # ---------------------------------------------------------------------------
 
@@ -202,7 +202,7 @@ class TestCrossTableSlugUniqueness:
 
 
 # ---------------------------------------------------------------------------
-# Permission split — GET routes: any authenticated user. POST/PATCH/DELETE:
+# Permission split, GET routes: any authenticated user. POST/PATCH/DELETE:
 # require can_manage_media, 403 without it.
 # ---------------------------------------------------------------------------
 
@@ -259,7 +259,7 @@ class TestPermissionSplit:
 
 
 # ---------------------------------------------------------------------------
-# Link / unlink — generic entity-link routes (backend/api/routes/entity_links.py).
+# Link / unlink, generic entity-link routes (backend/api/routes/entity_links.py).
 # Canonical ordering sorts entity_a/entity_b ascending by (type, id): since
 # "game_item_bundle" < "media_item" and "game_item_bundle" < "media_item_bundle"
 # lexicographically, the game side always lands as entity_a regardless of

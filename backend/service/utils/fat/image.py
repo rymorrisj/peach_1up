@@ -38,7 +38,7 @@ def format_fat16(img_path: Path, size_mb: int) -> None:
     """Create a blank FAT16 image file at img_path with a capacity of size_mb MiB."""
     if img_path.exists():
         raise RuntimeError(
-            f"format_fat16: {img_path} already exists — refusing to overwrite"
+            f"format_fat16: {img_path} already exists, refusing to overwrite"
         )
     if not (FAT16_SIZE_MIN_MB <= size_mb <= FAT16_SIZE_MAX_MB):
         _reason = (
@@ -61,7 +61,7 @@ def format_fat16(img_path: Path, size_mb: int) -> None:
     # refuses to mount a -t hdd image whose backing file is smaller than its
     # declared geometry ("Cannot create drive from file"). The BPB total_sectors
     # is left unchanged, so the FAT volume and its FAT16 cluster count are
-    # unaffected — the result is a valid FAT volume on a slightly larger,
+    # unaffected, the result is a valid FAT volume on a slightly larger,
     # cylinder-aligned disk. Rounding total_sectors itself up would instead push
     # boundary sizes (e.g. 512 MB) past the FAT16 65,524-cluster limit.
     cylinder_sectors = _SECTORS_PER_TRACK * _HEAD_COUNT
@@ -105,7 +105,7 @@ def write_file_to_image(img_path: Path, dest_path: str, data: bytes) -> None:
         name83, ext83 = _to_83(filename)
     except Exception as exc:
         raise RuntimeError(
-            f"write_file_to_image: {img_path}: cannot convert '{filename}' to 8.3 — {exc}"
+            f"write_file_to_image: {img_path}: cannot convert '{filename}' to 8.3, {exc}"
         ) from exc
 
     geo = _read_geometry(img_path)

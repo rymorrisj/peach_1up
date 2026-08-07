@@ -40,7 +40,7 @@ def init_db() -> None:
 
 def create_tables() -> None:
     if _ENGINE is None:
-        raise RuntimeError("Database not initialised — call init_db() first.")
+        raise RuntimeError("Database not initialised, call init_db() first.")
     SQLModel.metadata.create_all(bind=_ENGINE)
 
 

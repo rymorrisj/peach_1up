@@ -138,7 +138,7 @@ def _find_free_dir_slot(f, geo: dict, dir_cluster) -> int:
                 if f.read(1)[0] in (0x00, 0xE5):
                     return off
             cluster = _read_fat_entry(f, geo, cluster)
-        raise RuntimeError("subdirectory is full — cluster chain exhausted")
+        raise RuntimeError("subdirectory is full, cluster chain exhausted")
 
 
 def _create_subdir(f, geo: dict, parent_cluster, name83: bytes, ext83: bytes) -> int:

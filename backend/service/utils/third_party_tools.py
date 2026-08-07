@@ -2,7 +2,7 @@
 
 Non-emulator third-party tools bundled with Peach 1UP (e.g. extract-xiso)
 that need attribution but must never be surfaced as launchable emulators on
-the Emulators page — kept out of config/emulators/*.toml for that reason.
+the Emulators page, kept out of config/emulators/*.toml for that reason.
 """
 
 from __future__ import annotations

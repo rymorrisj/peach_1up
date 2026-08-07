@@ -64,7 +64,7 @@ class TestCheckAndRecord:
             allowed, _ = rl.check_and_record("key4", limit=3, window_seconds=10.0)
             assert allowed is False
 
-        # Just past the original window — all three allowed timestamps expired.
+        # Just past the original window, all three allowed timestamps expired.
         fake_now = 10.01
         allowed, _ = rl.check_and_record("key4", limit=3, window_seconds=10.0)
         assert allowed is True
@@ -180,7 +180,7 @@ class TestSweep:
 
     def test_sweep_does_not_run_before_interval_elapses(self, monkeypatch):
         """Keys that have outlived their window survive in the dict until
-        the 60-second sweep throttle elapses — per-call pruning alone doesn't
+        the 60-second sweep throttle elapses, per-call pruning alone doesn't
         remove them when no call for *that* key arrives."""
         import backend.core.rate_limit as rl
 

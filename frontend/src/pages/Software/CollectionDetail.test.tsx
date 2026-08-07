@@ -23,7 +23,7 @@ vi.mock('@/api/client', () => ({
 }));
 
 // Minimal "fully populated" collection fixture. createMockLibraryItem's base
-// object omits genres — CollectionDetail.tsx reads collection.genres.length
+// object omits genres, CollectionDetail.tsx reads collection.genres.length
 // with no null guard, so genres must always be overridden to avoid a crash.
 function fullCollection(overrides?: Record<string, unknown>) {
   return createMockLibraryItem({

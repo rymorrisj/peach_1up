@@ -9,7 +9,7 @@ vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
 }));
 
-// Mirrors the FirstRunGuard component in src/main.tsx — kept in sync manually
+// Mirrors the FirstRunGuard component in src/main.tsx, kept in sync manually
 // since main.tsx bootstraps ReactDOM.createRoot and isn't itself importable.
 function FirstRunGuard() {
   const { data, isLoading } = useQuery({

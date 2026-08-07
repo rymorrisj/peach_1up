@@ -48,7 +48,7 @@ def _make_app():
 
 
 # ---------------------------------------------------------------------------
-# SecurityMiddleware — localhost gate
+# SecurityMiddleware, localhost gate
 # ---------------------------------------------------------------------------
 
 
@@ -125,7 +125,7 @@ class TestSecurityMiddlewareLocalhostGate:
 
 
 # ---------------------------------------------------------------------------
-# CSRFMiddleware — double-submit cookie protection
+# CSRFMiddleware, double-submit cookie protection
 # ---------------------------------------------------------------------------
 
 
@@ -141,7 +141,7 @@ class TestCSRFMiddleware:
         assert resp.status_code == 200
 
     def test_auth_endpoint_is_exempt(self):
-        # No session cookie, no CSRF token — auth path must pass through.
+        # No session cookie, no CSRF token, auth path must pass through.
         resp = self._client().post("/api/v1/auth/login")
         assert resp.status_code == 200
 

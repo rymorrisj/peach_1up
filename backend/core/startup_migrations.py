@@ -6,7 +6,7 @@ logger = get_logger(__name__)
 def _apply_schema_migrations() -> None:
     """Add columns and apply schema changes introduced after initial creation.
 
-    Safe to run on every startup — all operations are idempotent.
+    Safe to run on every startup, all operations are idempotent.
     """
     from backend.core.database import get_engine
     from sqlalchemy import inspect as sa_inspect, text
@@ -14,7 +14,7 @@ def _apply_schema_migrations() -> None:
     engine = get_engine()
     # Idempotent ADD COLUMN catch-ups for non-game tables. The game schema
     # (game_item_bundles / game_items leaf / launch_history / restrictions)
-    # is created directly by create_tables() in its consolidated shape — there is no
+    # is created directly by create_tables() in its consolidated shape, there is no
     # legacy game DB to migrate, so no game data-reshape steps live here.
     # Exception: game_items.original_name was added after that consolidated
     # shape was set, so it still needs the same additive catch-up as any other
@@ -81,7 +81,7 @@ def _apply_schema_migrations() -> None:
         # Backfill the index on game_items.file_path for DBs provisioned before
         # index=True was added to the model. Name matches SQLAlchemy's own naming
         # convention for this column (ix_<table>_<column>) so this is a no-op on a
-        # freshly created DB — create_all() already made the same-named index —
+        # freshly created DB, create_all() already made the same-named index —
         # and a real backfill on an existing DB that predates it.
         conn.execute(text(
             "CREATE INDEX IF NOT EXISTS ix_game_items_file_path "

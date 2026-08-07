@@ -43,7 +43,7 @@ def resolve_backend_name(era: Era) -> str:
         era: The gaming era to resolve.
 
     Returns:
-        A ``BackendSlug`` value string — one of the values in ``BackendSlug``.
+        A ``BackendSlug`` value string, one of the values in ``BackendSlug``.
 
     Raises:
         RuntimeError: If eras.yaml cannot be loaded or the era is not configured.
@@ -55,7 +55,7 @@ def resolve_backend_name(era: Era) -> str:
     except ValueError:
         pass
 
-    # win95/win98/winxp have no flat 'backend' key — they always route to 86Box.
+    # win95/win98/winxp have no flat 'backend' key, they always route to 86Box.
     if era.value in ('win95', 'win98', 'winxp'):
         return BackendSlug.BOX86.value
 

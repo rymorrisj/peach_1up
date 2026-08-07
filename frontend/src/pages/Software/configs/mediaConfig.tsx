@@ -86,7 +86,7 @@ function useMediaDetailExtras(
       ),
     onSuccess: () => {
       // The response is a list of affected game ids, but game detail is cached
-      // by slug (not id), so there's no exact per-game key to target — invalidate
+      // by slug (not id), so there's no exact per-game key to target, invalidate
       // every currently-cached game list/detail query instead of guessing slugs.
       queryClient.invalidateQueries({ queryKey: ['game', 'list'] });
       queryClient.invalidateQueries({ queryKey: ['game', 'detail'] });

@@ -14,8 +14,8 @@ Emulator: DuckStation · Place files in `library/system/bios/ps1/`
 
 ### Required files
 
-- **scph1001.bin** — NTSC-U BIOS v2.2. Most commonly used for North American titles.
-- **scph5500.bin / scph5501.bin / scph5502.bin** — v3.0 BIOS revisions (JP/US/EU). Required for some later releases.
+- **scph1001.bin**, NTSC-U BIOS v2.2. Most commonly used for North American titles.
+- **scph5500.bin / scph5501.bin / scph5502.bin**, v3.0 BIOS revisions (JP/US/EU). Required for some later releases.
 
 ### How to dump from your own hardware
 
@@ -33,12 +33,12 @@ Emulator: PCSX2 · Place files in `library/system/bios/ps2/`
 
 ### Required files
 
-- **SCPH-70012.BIN (or equivalent)** — NTSC-U PS2 BIOS. The exact filename depends on your console model.
+- **SCPH-70012.BIN (or equivalent)**, NTSC-U PS2 BIOS. The exact filename depends on your console model.
 
 ### How to dump from your own hardware
 
-1. Follow the official PCSX2 BIOS dumping guide — it covers extracting the BIOS from your own PS2 using a PS2 memory card exploit or a FreeMCBoot setup.
-2. The extracted BIOS folder will contain multiple .BIN and .NVM files — copy the entire set to `library/system/bios/ps2/`.
+1. Follow the official PCSX2 BIOS dumping guide, it covers extracting the BIOS from your own PS2 using a PS2 memory card exploit or a FreeMCBoot setup.
+2. The extracted BIOS folder will contain multiple .BIN and .NVM files, copy the entire set to `library/system/bios/ps2/`.
 3. PCSX2 will detect the BIOS automatically on the next launch.
 
 [Official PCSX2 BIOS documentation →](https://pcsx2.net/guides/basic-setup/)
@@ -49,8 +49,8 @@ Emulator: xemu · Place files in `library/system/bios/xbox/`
 
 ### Required files
 
-- **MCPX_1.0.bin** — MCPX boot ROM — required. Extracted from the MCPX chip on your Xbox motherboard.
-- **Complex_4627v1.03.bin (or equivalent)** — Xbox BIOS ROM — required. Several versions exist; see xemu documentation.
+- **MCPX_1.0.bin**, MCPX boot ROM, required. Extracted from the MCPX chip on your Xbox motherboard.
+- **Complex_4627v1.03.bin (or equivalent)**, Xbox BIOS ROM, required. Several versions exist; see xemu documentation.
 
 ### How to dump from your own hardware
 

@@ -16,7 +16,7 @@ import pytest
 def mem_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models
+    import backend.models  # noqa: F401, registers all table models
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -46,7 +46,7 @@ class TestEnrichEntity:
         assert exc_info.value.status_code == 404
 
     def test_library_collection_with_cover_art_url_raises_422(self, mem_session):
-        """Collections don't support direct cover art — must be applied to individual discs."""
+        """Collections don't support direct cover art, must be applied to individual discs."""
         from fastapi import HTTPException
         from backend.models.game import GameItemBundle
         from backend.service.games.enrich import enrich_entity

@@ -1,7 +1,7 @@
 """INI file read-edit-write utilities for emulator configuration.
 
-patch_ini  — high-level: read existing file → apply edits dict → atomic write.
-write_ini  — low-level: atomic write of a pre-built RawConfigParser to a path.
+patch_ini , high-level: read existing file → apply edits dict → atomic write.
+write_ini , low-level: atomic write of a pre-built RawConfigParser to a path.
 
 Both preserve optionxform=str (case-sensitive keys) and read with utf-8-sig
 encoding so a BOM written by other tools is silently consumed.
@@ -50,7 +50,7 @@ def patch_ini(
 def set_ini_key(ini_path: Path, section: str, key: str, value: str) -> None:
     """Update a single key in an INI file, preserving all other content exactly.
 
-    Hand-rolled, line-based, comment-preserving edit — distinct from
+    Hand-rolled, line-based, comment-preserving edit, distinct from
     :func:`patch_ini`, which rewrites the file via ``configparser`` and does
     not preserve comments.
     """

@@ -27,7 +27,7 @@ export function renderWithProviders(ui: React.ReactElement): RenderResult {
   );
 }
 
-// Builds a collection-of-one (single leaf) — the unified library read shape.
+// Builds a collection-of-one (single leaf), the unified library read shape.
 export function createMockLibraryItem(overrides?: Partial<LibraryCollection>): LibraryCollection {
   const base = {
     id: 1,

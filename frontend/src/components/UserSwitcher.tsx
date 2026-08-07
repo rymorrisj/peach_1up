@@ -109,7 +109,7 @@ function PinModal({ user, onSuccess, onClose }: PinModalProps) {
       {user.is_locked ? (
         <div className="flex items-center gap-2 rounded-md bg-surface-2 p-3 text-sm text-neutral-600 dark:text-neutral-300">
           <Lock size={14} />
-          Account locked — contact owner
+          Account locked, contact owner
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -172,7 +172,7 @@ export default function UserSwitcher() {
   const activeId = state.activeUser?.id ?? null;
 
   function handleCardClick(user: User) {
-    // Owner always requires PIN — even if already active (re-authentication)
+    // Owner always requires PIN, even if already active (re-authentication)
     if (user.is_owner) {
       setPinTarget(user);
       return;
@@ -182,7 +182,7 @@ export default function UserSwitcher() {
       setPinTarget(user);
       return;
     }
-    // PIN-free non-owner — switch directly
+    // PIN-free non-owner, switch directly
     apiFetch<SwitchResponse>('/api/v1/auth/switch', {
       method: 'POST',
       body: JSON.stringify({ user_item_id: user.id, pin: '' }),
@@ -209,7 +209,7 @@ export default function UserSwitcher() {
       <div className="flex gap-3 overflow-x-auto pb-1">
         {users.map((user) => {
           const isActive = user.id === activeId;
-          // Owner card is never disabled — clicking re-authenticates
+          // Owner card is never disabled, clicking re-authenticates
           const isDisabled = isActive && !user.is_owner;
           return (
             <button

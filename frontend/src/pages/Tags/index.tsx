@@ -195,7 +195,7 @@ export default function Tags() {
           <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border-strong bg-neutral-50 px-4 py-3.5 dark:bg-surface-2/40">
             <input
               type="text"
-              placeholder="New tag name — e.g. cozy-evening"
+              placeholder="New tag name, e.g. cozy-evening"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => {
@@ -312,7 +312,7 @@ export default function Tags() {
           </h2>
           <span className="font-mono text-sm text-neutral-500">read-only</span>
           <span className="ml-auto font-mono text-xs text-neutral-500">
-            Managed by Peach 1UP — derived from metadata. Cannot be deleted.
+            Managed by Peach 1UP, derived from metadata. Cannot be deleted.
           </span>
         </div>
 

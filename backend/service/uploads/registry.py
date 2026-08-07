@@ -22,7 +22,7 @@ FinalizeBackground = Callable[[str, str, str], None]  # (upload_id, domain_root_
 
 # No permission_flag field here: api/routes/uploads.py bakes each domain's
 # require_permission(...) into its router at router-build (import) time, before
-# lifespan has run register_domain() — the registry is empty at that point, so a
+# lifespan has run register_domain(), the registry is empty at that point, so a
 # permission flag can't be sourced from here. The enforced value lives solely at
 # the _build_domain_router("software_games", "can_manage_game") call sites.
 

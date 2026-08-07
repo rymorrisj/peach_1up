@@ -84,7 +84,7 @@ class EnvironmentItemRead(EnvironmentItemBase):
     working_image_size_bytes: Optional[int] = None
     base_image_size_bytes: Optional[int] = None
     # Live presence check, computed fresh on every read (list/get), never
-    # persisted — same philosophy as check_bios_presence: does the on-disk
+    # persisted, same philosophy as check_bios_presence: does the on-disk
     # state needed to actually launch through this Environment exist right
     # now. See compute_environment_presence.
     is_present: bool = False

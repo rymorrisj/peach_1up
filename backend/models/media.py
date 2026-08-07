@@ -300,7 +300,7 @@ def _link_target_model(entity_type: str) -> Optional[type]:
 
 
 def unique_media_slug(title: str, db: "Session") -> str:
-    """Slug uniqueness spans both media_items and media_item_bundles — the
+    """Slug uniqueness spans both media_items and media_item_bundles, the
     two share the /media/{slug}-style namespace, so a title collision
     between an item and a bundle is treated the same as a same-table
     collision. Shared by backend/api/routes/media.py's create routes and

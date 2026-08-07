@@ -24,7 +24,7 @@ _TTL_MAX = 525_600  # 365 days × 24 h × 60 min
 
 # Fields that grant privilege: only the owner may change these. An admin may
 # manage a sub-account's name/PIN-policy/rating cap, but must not be able to
-# hand out admin rights or capability flags — that is the owner's alone.
+# hand out admin rights or capability flags, that is the owner's alone.
 _OWNER_ONLY_FIELDS = {
     "is_admin",
     "can_launch_media",

@@ -241,7 +241,7 @@ interested in how we do that *or if you are passionate about perseving your medi
 It is idempotent (upsert by `sha1`, existing rows updated in place, nothing
 wiped) and standalone (not called from any startup/lifespan hook or from
 this package). This package has no knowledge of the script, the DB table, or
-SQLModel, and never will — it stays storage-agnostic per the
+SQLModel, and never will, it stays storage-agnostic per the
 "Standalone-package intent" section below. Nothing in this package's own
 code path (`detect()`, `hash_lookup.py`) reads from that table; both consume
 `hash_index.json` independently.

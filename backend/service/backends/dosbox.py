@@ -24,10 +24,10 @@ from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import resolve_container_enabled
 from backend.service.utils.path_utils import normalise_path
-from backend.service.utils.platform.windows.sandbox import BrokerFile
+from sandbox import BrokerFile
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
-from backend.service.utils.platform.windows.sandbox.sandbox_process import SandboxProcess
-from backend.service.utils.platform.windows.sandbox.job import WindowsJobObject
+from sandbox.sandbox_process import SandboxProcess
+from sandbox.job import WindowsJobObject
 
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
@@ -36,7 +36,7 @@ logger = get_logger(__name__)
 
 SUPPORTED_ERAS = DOS_WIN_ERAS
 # eras.yaml is the same source scan/upload/directory-resolution already use
-# (file_types.py) — closes a prior drift where this backend's own launch-time
+# (file_types.py), closes a prior drift where this backend's own launch-time
 # check used a separate constants.py dict that lacked ".com", so a DOS folder
 # containing only a .com executable could pass ingestion and then fail here.
 SUPPORTED_MEDIA = frozenset(supported_extensions_for_era("dos"))
@@ -69,7 +69,7 @@ def _dosbox_cmd_path(path: Path) -> str:
     """Return a path string safe for a DOSBox-X autoexec line.
 
     Returns the raw absolute Windows path, double-quoted if it contains
-    whitespace. Forward slashes are never used — the DOSBox-X autoexec
+    whitespace. Forward slashes are never used, the DOSBox-X autoexec
     tokeniser treats them as DOS switch characters, which truncates the
     imgmount file argument.
     """
@@ -258,7 +258,7 @@ def _build_drive_mount_lines(
         else:
             # Partitioned image (e.g. created by the IMGMAKE branch above on an
             # earlier launch). DOSBox-X reads geometry from the MBR partition
-            # table; sectoff=0 must NOT be used here — it would force reading a
+            # table; sectoff=0 must NOT be used here, it would force reading a
             # BPB at sector 0, where the partition table actually lives, and
             # mismount the drive.
             drive_setup_lines.append(f"IMGMOUNT C {drive_cmd_path} -t hdd")
@@ -440,7 +440,7 @@ def write_launch_conf(
     # Layer 1: profile commands (base defaults, run first).
     profile_cmds: list[str] = list(spec.profile_launch_commands)
     # Layer 2: item commands (item-specific paths, appended after).
-    # Scan candidates and executable_path are display-only — they must never
+    # Scan candidates and executable_path are display-only, they must never
     # reach this list. Only the user's explicit launch_commands field feeds here.
     exe_cmds: list[str] = []
     if game_executable:
@@ -455,7 +455,7 @@ def write_launch_conf(
     #   * run_from_c: the files were copied to the writable C: drive, so run the
     #     copied executable (c_run_command) from C:.
     #   * otherwise: the resolved media is itself a runnable executable mounted
-    #     on media_drive — run it by name.
+    #     on media_drive, run it by name.
     if spec.auto_run_media and not item_cmds:
         auto_run: str | None = None
         if spec.run_from_c:
@@ -499,7 +499,7 @@ def _validate_environment_drive(working_image_path: Path | None) -> Path:
     """Confirm an environment's persistent C: drive image is ready to mount.
 
     Existence-only check, matching box86.launch()'s treatment of the same
-    LaunchSpec field (backend/service/backends/box86.py) — Platform image
+    LaunchSpec field (backend/service/backends/box86.py), Platform image
     paths are intentionally allowed to reside anywhere on the host (see
     DECISIONS.md 2026-05-17), so no library-tree containment check applies
     here, unlike the per-item drive_image_path validated in
@@ -537,8 +537,8 @@ def _build_environment_drive_mount_line(working_image_path: Path) -> str:
     (format_fat16 writes a BPB at sector 0 with no partition table, so
     sectoff=0 is required or DOSBox-X misclassifies it as MBR and fails with
     "Cannot create drive from file"). Unlike that function, the image is
-    guaranteed to already exist here — provision_dosbox_drive() formats it
-    before an environment launch ever reaches this code — so there is no
+    guaranteed to already exist here, provision_dosbox_drive() formats it
+    before an environment launch ever reaches this code, so there is no
     IMGMAKE creation branch to mirror.
     """
     drive_cmd_path = _dosbox_cmd_path(working_image_path)
@@ -555,7 +555,7 @@ def write_environment_conf(spec: "LaunchSpec") -> Path:
     """Write the DOSBox-X launch conf for an environment launch (no media).
 
     Environment (Platform) launches for DOS have no attached game
-    media — spec.media_path is always None for these by design (see
+    media, spec.media_path is always None for these by design (see
     coordinator._build_spec_for_environment). Mounts the environment's
     persistent C: drive (spec.working_image_path, provisioned by
     provision_dosbox_drive) and lands at the C:\\ prompt with no auto-run,
@@ -610,7 +610,7 @@ def build_args(media_path: Path | None, era: str, enable_networking: bool = Fals
 
     Args:
         media_path: Path to the media file (validated here for early failure).
-            ``None`` for an environment launch (no attached media) — the
+            ``None`` for an environment launch (no attached media), the
             suffix check is skipped in that case.
         era: Era name (``'dos'``).
         enable_networking: When ``False`` (default), the NE2000 adapter is
@@ -658,7 +658,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             use_drive, container_enabled, drive_image_path, drive_size_mb set.
             For an environment launch (no attached game), media_path is
             None and working_image_path carries the environment's
-            persistent C: drive instead — see write_environment_conf().
+            persistent C: drive instead, see write_environment_conf().
 
     Returns:
         Tuple of ``(process, job_object)``. The caller is responsible for

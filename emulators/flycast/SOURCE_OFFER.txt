@@ -1,4 +1,4 @@
-Written Source-Code Offer — Flycast
+Written Source-Code Offer, Flycast
 =====================================
 
 Flycast is distributed under the GNU General Public License v2 or later

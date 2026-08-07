@@ -230,7 +230,7 @@ def _build_spec_for_entity(
     # Hydrated loose-file items run from the writable C: drive (their files were
     # copied there by drive_hydration), not the read-only D: source mount. This
     # mirrors the hydration copy condition so mount and hydration agree, but
-    # omits `installed` — the files live on C: on every launch, not just the
+    # omits `installed`, the files live on C: on every launch, not just the
     # first. c_run_command is the executable relative to the copied folder root.
     run_from_c = False
     c_run_command: str | None = None
@@ -324,7 +324,7 @@ def _build_spec_for_environment(
     """Resolve all ORM fields to plain values and construct a LaunchSpec.
 
     resolved_install_path / resolved_rom_path are set only when this launch
-    just ran provisioning (box86) — they let box86.launch reuse the binary
+    just ran provisioning (box86), they let box86.launch reuse the binary
     and ROM paths provisioning already resolved instead of re-resolving them.
     """
     from backend.constants import era_to_enum
@@ -708,13 +708,13 @@ async def _ensure_environment_provisioned(
 
     Extracted from launch_environment's former inline block so launch_collection
     / launch_app_collection (via _launch_entity) get the identical provisioning
-    attempt and the identical clean 422s on failure — not the generic 500 that
+    attempt and the identical clean 422s on failure, not the generic 500 that
     resulted previously from a PC game/app pointed at an unprovisioned Environment
     bypassing this logic entirely. Mutates platform in place (working_image_path,
     config_path, base_image_path) exactly as the inline block did.
 
-    Returns (resolved_install_path, resolved_rom_path) — set only when
-    provisioning just ran (box86) — for the caller to thread into LaunchSpec so
+    Returns (resolved_install_path, resolved_rom_path), set only when
+    provisioning just ran (box86), for the caller to thread into LaunchSpec so
     box86.launch reuses the binary/ROM paths already resolved here instead of
     re-resolving them from scratch (see _build_spec_for_environment /
     _build_spec_for_entity).

@@ -50,7 +50,7 @@ def _check_traversal(path_str: str) -> Path:
 
 
 # Still "sensitive" in the sense of being scrubbed from GET-all, even though
-# none of the four live in settings any more — they're .env-backed (see
+# none of the four live in settings any more, they're .env-backed (see
 # env_secrets.py). Kept as a real filter (not dead code) as defense in depth
 # in case a future source ever merges into `state`.
 _SENSITIVE_KEYS = {
@@ -59,12 +59,12 @@ _SENSITIVE_KEYS = {
 }
 
 # Of the sensitive keys, these four route through .env via the generic PATCH
-# endpoint below. PIN_PEPPER is excluded — it has its own dedicated route
+# endpoint below. PIN_PEPPER is excluded, it has its own dedicated route
 # because changing it requires re-hashing the owner PIN (see patch_pin_pepper).
 _ENV_SECRET_KEYS = {"THEGAMESDB_API_KEY", "AI_API_KEY", "IGDB_CLIENT_ID", "IGDB_CLIENT_SECRET"}
 
 # The only keys a can_manage_settings user may write through the generic PATCH
-# endpoint. Anything not listed here is refused — notably ALLOW_NETWORK_ACCESS
+# endpoint. Anything not listed here is refused, notably ALLOW_NETWORK_ACCESS
 # (relaxes the network security boundary), reset_db (destructive), and any
 # rating_ordinals key (would silently reshape every user's content-rating cap).
 # PIN_PEPPER is handled by its own dedicated route and is intentionally absent.
@@ -100,7 +100,7 @@ def get_library_defaults(_: UserItem = require_permission("can_manage_game")):
     """Narrow, can_manage_game-gated read of the two boolean defaults that
     library-editing surfaces (Library list, collection detail, Add Media) need
     to seed their own per-action checkboxes. GET /api/v1/settings (the full
-    payload) is can_manage_settings-gated — a sub-account can legitimately have
+    payload) is can_manage_settings-gated, a sub-account can legitimately have
     can_manage_game without can_manage_settings, and calling the full endpoint
     from those surfaces 403s for that account shape. This endpoint exists so
     those surfaces never need the broader permission just to read two flags.
@@ -118,7 +118,7 @@ def patch_settings(body: SettingsPatch, _: UserItem = require_permission("can_ma
         raise HTTPException(
             status_code=400,
             detail="PIN_PEPPER must be set via PATCH /api/v1/settings/pin-pepper, "
-            "not the generic settings endpoint — changing it requires re-hashing "
+            "not the generic settings endpoint, changing it requires re-hashing "
             "the owner PIN and invalidating sub-account PINs.",
         )
     disallowed = sorted(set(body.updates) - _USER_WRITABLE_KEYS)
@@ -191,7 +191,7 @@ def patch_pin_pepper(
     here rather than left to surface as silent wrong-PIN lockouts:
 
     - The owner's own PIN is re-hashed immediately under the new pepper,
-      proven via `owner_pin` (the current, still-valid PIN) — otherwise the
+      proven via `owner_pin` (the current, still-valid PIN), otherwise the
       owner who just changed this setting would lock themselves out with
       no recovery path (reset-pin/unlock both explicitly refuse to touch
       the owner account).
@@ -298,7 +298,7 @@ def get_first_run_status(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/owner-status")
 def get_owner_status(db: Session = Depends(get_db)):
-    """Unauthenticated — checked once at app load so the frontend can detect
+    """Unauthenticated, checked once at app load so the frontend can detect
     a missing/locked owner row and render the recovery fallback page."""
     owner = db.query(UserItem).filter(UserItem.is_owner.is_(True)).first()
     return {"owner_broken": owner is None or owner.is_locked}

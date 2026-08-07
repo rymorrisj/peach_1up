@@ -54,7 +54,7 @@ async def launch_app_collection(
     active_user: UserItem = require_permission("can_launch_media"),
 ):
     # get_filtered_app_item enforces the caller's manual-blocklist restriction and 404s
-    # otherwise. No rating/ceiling filter — Apps have no content_rating concept
+    # otherwise. No rating/ceiling filter, Apps have no content_rating concept
     # (backend/models/app.py).
     collection = get_filtered_app_item(collection_id, active_user, db)
     result = await svc.launch_app_collection(collection.id, body.profile_item_id, db)

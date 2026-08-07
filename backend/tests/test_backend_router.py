@@ -1,4 +1,4 @@
-"""Tests for backend routing — era → backend mapping and routing invariants."""
+"""Tests for backend routing, era → backend mapping and routing invariants."""
 
 import sys
 from unittest.mock import MagicMock
@@ -63,7 +63,7 @@ _DISPATCH_IDS = ["dos", "win95", "win98", "winxp",
 
 
 # ---------------------------------------------------------------------------
-# resolve_backend_name — complete era→backend string mapping
+# resolve_backend_name, complete era→backend string mapping
 # ---------------------------------------------------------------------------
 
 class TestResolveBackendName:
@@ -86,7 +86,7 @@ class TestResolveBackendName:
 
 
 # ---------------------------------------------------------------------------
-# Settings key invariants — get_settings_key must return correct key per slug
+# Settings key invariants, get_settings_key must return correct key per slug
 # ---------------------------------------------------------------------------
 
 class TestSettingsKeyMapping:
@@ -116,7 +116,7 @@ class TestSettingsKeyMapping:
 
 
 # ---------------------------------------------------------------------------
-# H9 fix — routing must not read or branch on accuracy_mode
+# H9 fix, routing must not read or branch on accuracy_mode
 # ---------------------------------------------------------------------------
 
 class TestNoAccuracyMode:
@@ -132,7 +132,7 @@ class TestNoAccuracyMode:
 
 
 # ---------------------------------------------------------------------------
-# dispatch — data-driven routing to the correct backend module
+# dispatch, data-driven routing to the correct backend module
 # ---------------------------------------------------------------------------
 
 def _fake_backend(label: str) -> MagicMock:
@@ -209,7 +209,7 @@ class TestDispatch:
 
 
 # ---------------------------------------------------------------------------
-# get_executable_path — correct catalog slug resolved per era
+# get_executable_path, correct catalog slug resolved per era
 # get_install_path is mocked so no installed emulators are required.
 # ---------------------------------------------------------------------------
 

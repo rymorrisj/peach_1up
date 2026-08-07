@@ -6,18 +6,18 @@ entry declares ``install_type = "github_release"``, this module:
   1. Resolves the GitHub owner/repo from the entry's ``source_url``.
   2. Fetches the repo's latest release from the GitHub REST API.
   3. Matches the entry's ``asset_pattern`` (a regex) against the release
-     asset names — failing loud on zero or multiple matches.
+     asset names, failing loud on zero or multiple matches.
   4. Downloads the matched asset to a temporary location, fully, before any
      extraction begins.
   5. Computes the SHA256 of the download and compares it against the asset's
      ``digest`` field when GitHub provides one (assets published before
-     June 2025 have a null digest — the check is skipped and noted).
+     June 2025 have a null digest, the check is skipped and noted).
   6. Extracts the archive into ``emulators/<slug>/`` with a zip-slip
      path-traversal guard.
   7. Ensures the portable sentinel file exists post-extraction.
   8. Records the install in the ``emulator_installs`` table.
 
-Every step fails loud — there is no silent fallback. Temporary files are
+Every step fails loud, there is no silent fallback. Temporary files are
 removed on any failure.
 
 Security-sensitive: this downloads and extracts an executable archive to disk
@@ -99,7 +99,7 @@ def _select_asset(release: dict, asset_pattern: str) -> dict:
     """Return the single release asset whose name matches ``asset_pattern``.
 
     Raises:
-        RuntimeError: If zero or more than one asset matches — the match must
+        RuntimeError: If zero or more than one asset matches, the match must
             be unambiguous.
     """
     pattern = re.compile(asset_pattern)
@@ -161,7 +161,7 @@ def _verify_digest(asset: dict, computed_sha256: str) -> bool:
         return False
     algo, sep, expected = digest.partition(":")
     if not sep:
-        # Bare hex with no algorithm prefix — treat as sha256.
+        # Bare hex with no algorithm prefix, treat as sha256.
         algo, expected = "sha256", digest
     if algo.lower() != "sha256":
         raise RuntimeError(
@@ -182,7 +182,7 @@ def _safe_extract_zip(zip_path: Path, dest_dir: Path) -> None:
     Each member's resolved destination is confirmed to stay within
     ``dest_dir`` before anything is written (same class of check used in the
     P-META cover-art download). Members whose path contains a ``.git``
-    component are rejected — the repo's standing rule allows only the root
+    component are rejected, the repo's standing rule allows only the root
     ``.git``.
 
     Raises:
@@ -359,7 +359,7 @@ def install_from_github_release(slug: str) -> dict:
         ``{slug, version, install_path, asset_filename, asset_url,
            sha256, digest_verified}``.
     ``digest_verified`` is False when the asset had no digest to check
-    against (pre-June-2025 asset) — the download still completed, but its
+    against (pre-June-2025 asset), the download still completed, but its
     integrity was not cryptographically confirmed.
 
     Raises:

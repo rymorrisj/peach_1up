@@ -8,7 +8,7 @@ from backend.constants_generated import EmulatorCatalogSlug
 
 @dataclass
 class LaunchSpec:
-    # Dispatch key — matches BackendSlug.value (e.g. "dosbox", "flycast")
+    # Dispatch key, matches BackendSlug.value (e.g. "dosbox", "flycast")
     slug: str
     era: str
 
@@ -44,7 +44,7 @@ class LaunchSpec:
     use_drive: bool = True
     container_enabled: bool | None = None
 
-    # Owning user of the launching profile — scopes the AppContainer moniker
+    # Owning user of the launching profile, scopes the AppContainer moniker
     # per-user. None means the profile has no associated user (e.g. bundled).
     user_item_id: int | None = None
 
@@ -56,7 +56,7 @@ class LaunchSpec:
     # Platform plain fields. working_image_path is the shared, persistent
     # working image for 86Box-style eras (box86/xemu) and, separately, the
     # environment-launch persistent C: drive for DOS (dosbox reads it
-    # only when media_path is None — see dosbox.write_environment_conf()).
+    # only when media_path is None, see dosbox.write_environment_conf()).
     # For a library-item DOS launch, dosbox instead mounts the
     # per-item drive_image_path as C:, and working_image_path is unset/inert.
     vm_dir: Path | None = None          # resolved from platform.config_path parent
@@ -82,7 +82,7 @@ class LaunchSpec:
     platform_id: int | None = None
     launch_review_flagged: bool = False
 
-    # Which table collection_id points into — "game" (game_item_bundles)
+    # Which table collection_id points into, "game" (game_item_bundles)
     # or "app" (app_item_bundles). Lets the coordinator write the LaunchHistory
     # FK into the right column without a second, parallel launch() path.
     source_type: str = "game"

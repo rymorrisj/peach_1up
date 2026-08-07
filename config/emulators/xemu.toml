@@ -63,7 +63,7 @@ guidance_url = "https://xemu.app/docs/required-files/"
 [[known_limitations]]
 title = "Memory limit must be disabled"
 severity = "warning"
-description = "xemu pre-allocates a 1 GB JIT buffer at startup. The Job Object memory cap must be disabled (skip_memory_limit = true) or set above 2048 MB — otherwise xemu exits immediately with a paging file error."
+description = "xemu pre-allocates a 1 GB JIT buffer at startup. The Job Object memory cap must be disabled (skip_memory_limit = true) or set above 2048 MB, otherwise xemu exits immediately with a paging file error."
 
 [[known_limitations]]
 title = "CPU rate cap is disabled"

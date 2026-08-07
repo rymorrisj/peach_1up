@@ -196,7 +196,7 @@ export function ManageUserModal({
                 onChange={(v) => setField('block_unrated_media', v)}
               />
               <span className="text-sm text-neutral-600 dark:text-neutral-300">
-                {form.block_unrated_media ? 'Yes — hide items with no rating' : 'No'}
+                {form.block_unrated_media ? 'Yes, hide items with no rating' : 'No'}
               </span>
             </div>
           </FormField>

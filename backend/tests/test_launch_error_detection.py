@@ -6,7 +6,7 @@ Covers:
 - launch_review_flagged already True → returned immediately in LaunchResponse
 - Environment launch → monitor not triggered
 - Item launch scope is backend-agnostic (is_environment), not a slug list
-- coordinator._poll_for_immediate_exit — synchronous inline crash check that
+- coordinator._poll_for_immediate_exit, synchronous inline crash check that
   makes the *current* launch response reflect failure, not just flag for later
 """
 
@@ -29,7 +29,7 @@ def _make_proc(poll_return):
 
 
 # ---------------------------------------------------------------------------
-# poll_short_lived — core detection logic (replaces _monitor_short_lived_launch)
+# poll_short_lived, core detection logic (replaces _monitor_short_lived_launch)
 # ---------------------------------------------------------------------------
 
 class TestMonitorShortLivedLaunch:
@@ -123,7 +123,7 @@ class TestMonitorShortLivedLaunch:
 
 
 # ---------------------------------------------------------------------------
-# _flag_short_lived_item — DB write helper
+# _flag_short_lived_item, DB write helper
 # ---------------------------------------------------------------------------
 
 class TestFlagShortLivedItem:
@@ -182,7 +182,7 @@ class TestFlagShortLivedItem:
 
 
 # ---------------------------------------------------------------------------
-# LaunchResponse — flag already True before launch
+# LaunchResponse, flag already True before launch
 # ---------------------------------------------------------------------------
 
 class TestLaunchResponseFlag:
@@ -200,7 +200,7 @@ class TestLaunchResponseFlag:
 
 
 # ---------------------------------------------------------------------------
-# Environment launch — monitor must not be triggered
+# Environment launch, monitor must not be triggered
 # ---------------------------------------------------------------------------
 
 class TestEnvironmentLaunchNoMonitor:
@@ -212,7 +212,7 @@ class TestEnvironmentLaunchNoMonitor:
 
 
 # ---------------------------------------------------------------------------
-# Backend-agnostic scope — monitor covers any item launch, not a slug list
+# Backend-agnostic scope, monitor covers any item launch, not a slug list
 # ---------------------------------------------------------------------------
 
 class TestItemLaunchScopeNotSlugList:
@@ -234,7 +234,7 @@ class TestItemLaunchScopeNotSlugList:
 
 
 # ---------------------------------------------------------------------------
-# _poll_for_immediate_exit — synchronous inline crash check
+# _poll_for_immediate_exit, synchronous inline crash check
 # ---------------------------------------------------------------------------
 
 class TestPollForImmediateExit:

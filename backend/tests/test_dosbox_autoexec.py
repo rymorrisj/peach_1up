@@ -13,7 +13,7 @@ from backend.service.launch.launch_spec import LaunchSpec
 
 
 # ---------------------------------------------------------------------------
-# _validate_game_executable — direct unit tests
+# _validate_game_executable, direct unit tests
 # ---------------------------------------------------------------------------
 
 class TestValidateGameExecutable:
@@ -64,7 +64,7 @@ class TestValidateGameExecutable:
 
 
 # ---------------------------------------------------------------------------
-# write_launch_conf — game_executable pipeline tests
+# write_launch_conf, game_executable pipeline tests
 # ---------------------------------------------------------------------------
 
 class TestWriteLaunchConfGameExecutable:

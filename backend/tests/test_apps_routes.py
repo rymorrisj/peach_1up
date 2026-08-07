@@ -1,9 +1,9 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/apps.py.
 
-Per dev_docs/P1_AUDIT.md TST-8 — apps.py (9 routes, mounted at
+Per dev_docs/P1_AUDIT.md TST-8, apps.py (9 routes, mounted at
 /api/v1/app-item*) had no route-level test at all. Note: unlike the Game
 domain, AppItemBundle has no content_rating/max_content_rating concept
-(backend/core/dependencies.py::get_filtered_app_items docstring — "Apps have
+(backend/core/dependencies.py::get_filtered_app_items docstring, "Apps have
 no content_rating/max_content_rating concept to filter on"), so the
 parental-control surface here is the manual MediaRestriction blocklist only,
 not a rating ceiling. Covers:
@@ -33,7 +33,7 @@ import pytest
 def mem_db_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -183,7 +183,7 @@ class TestCanManageAppGate:
 
 
 # ---------------------------------------------------------------------------
-# Manual blocklist (MediaRestriction) — the Apps parental-control surface
+# Manual blocklist (MediaRestriction), the Apps parental-control surface
 # ---------------------------------------------------------------------------
 
 

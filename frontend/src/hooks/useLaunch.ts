@@ -93,12 +93,12 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
     ? apiError
       ? apiError.detail
       : launchMutation.error instanceof TimeoutError
-        ? 'Launch is taking longer than expected — check if it opened.'
+        ? 'Launch is taking longer than expected, check if it opened.'
         : 'Launch failed.'
     : null;
   // Structured detail set by specific failure shapes (e.g. coordinator.py's
   // XboxDvdRipDetected branch) so callers can offer a targeted fix instead of
-  // just showing the message — undefined for every ordinary launch failure.
+  // just showing the message, undefined for every ordinary launch failure.
   const errorType =
     apiError && typeof apiError.rawDetail === 'object' && apiError.rawDetail !== null
       ? (apiError.rawDetail as { error_type?: string }).error_type

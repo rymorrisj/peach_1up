@@ -70,7 +70,7 @@ function MetadataProviderSection() {
       <Card.Header>Metadata Provider</Card.Header>
       <div className="space-y-3">
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          Which service "Fetch Metadata" searches. Only one provider is active at a time — switching
+          Which service "Fetch Metadata" searches. Only one provider is active at a time, switching
           providers below doesn't clear either one's saved credentials, it only changes which one is
           used.
         </p>
@@ -170,7 +170,7 @@ function TheGamesDbSection() {
           </a>
           . Each metadata fetch uses approximately 2–3 API requests.
         </p>
-        <FormField label="API key" hint="Write-only — leave blank to keep the existing key.">
+        <FormField label="API key" hint="Write-only, leave blank to keep the existing key.">
           <Input
             type="password"
             value={apiKey}
@@ -219,7 +219,7 @@ function IGDBSection() {
     setError(null);
     setSavedMsg(null);
     try {
-      // Each field is write-only and independent — only include a key here if
+      // Each field is write-only and independent, only include a key here if
       // the user actually typed into it, so leaving one blank rotates only
       // the other rather than clearing both.
       const updates: Record<string, string> = {};
@@ -266,7 +266,7 @@ function IGDBSection() {
             IGDB API docs
           </a>
         </p>
-        <FormField label="Client ID" hint="Write-only — leave blank to keep the existing value.">
+        <FormField label="Client ID" hint="Write-only, leave blank to keep the existing value.">
           <Input
             type="password"
             value={clientId}
@@ -277,7 +277,7 @@ function IGDBSection() {
         </FormField>
         <FormField
           label="Client secret"
-          hint="Write-only — leave blank to keep the existing value."
+          hint="Write-only, leave blank to keep the existing value."
         >
           <Input
             type="password"
@@ -369,7 +369,7 @@ function PinPepperSection() {
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
           Optional app-level secret mixed into every PIN hash. Currently{' '}
           <strong>{enabled ? 'enabled' : 'disabled'}</strong>. Changing this invalidates every
-          existing PIN — sub-accounts will need their PIN reset by an admin, and you'll re-set your
+          existing PIN, sub-accounts will need their PIN reset by an admin, and you'll re-set your
           own PIN here using your current one.
         </p>
         <div>
@@ -529,7 +529,7 @@ function DeleteOriginalOnUploadSection() {
         />
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
           Default for the "delete once uploaded" checkbox when adding media by browsing a path
-          already on this server. Only applies to that input method — items dragged or dropped
+          already on this server. Only applies to that input method, items dragged or dropped
           through the browser can never delete their source, since the browser never exposes its
           real file path. This cannot be undone.
         </p>

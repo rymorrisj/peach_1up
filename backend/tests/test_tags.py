@@ -1,8 +1,8 @@
 """Route-level tests for the generic tag-assignment endpoints
-(backend/api/routes/tags.py) — dispatch order in _resolve_assignment_entity,
+(backend/api/routes/tags.py), dispatch order in _resolve_assignment_entity,
 one create+delete pass per entity_type in _ASSIGNMENT_TARGETS, and confirmation
 that controller_mapping assignments reuse check_controller_edit_permission
-(backend/api/routes/controllers.py) rather than duplicating it — see
+(backend/api/routes/controllers.py) rather than duplicating it, see
 test_controllers.py for the source-of-truth permission matrix this file mirrors
 for the controller_mapping case.
 
@@ -25,7 +25,7 @@ def _user(id, **overrides):
 def mem_db_session():
     from sqlmodel import SQLModel, Session, create_engine
     from sqlalchemy.pool import StaticPool
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -271,7 +271,7 @@ class TestPerEntityTypeCreateDeleteAssignment:
 
 # ---------------------------------------------------------------------------
 # controller_mapping assignments reuse check_controller_edit_permission
-# verbatim — same matrix as test_controllers.py::TestEditPermissionMatrix,
+# verbatim, same matrix as test_controllers.py::TestEditPermissionMatrix,
 # run here against POST /tags/{id}/assignments instead of PATCH/DELETE
 # /controllers/{id}, to prove tags.py dispatches into the shared function
 # rather than a separate/duplicated check.

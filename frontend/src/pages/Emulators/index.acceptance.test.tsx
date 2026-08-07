@@ -105,7 +105,7 @@ describe('Emulators acceptance', () => {
       expect(screen.getByText('DuckStation')).toBeInTheDocument();
     });
 
-    // User clicks Auto-detect — this invalidates the query; no crash expected
+    // User clicks Auto-detect, this invalidates the query; no crash expected
     const autoDetectBtn = screen.getByRole('button', { name: /auto-detect/i });
     await user.click(autoDetectBtn);
 

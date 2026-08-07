@@ -133,7 +133,7 @@ def _is_bare_fat_superfloppy(img_path: Path) -> bool:
     A partitioned image (e.g. one produced by DOSBox-X ``IMGMAKE``) has an MBR at
     sector 0 with no such marker. The distinction decides the ``IMGMOUNT`` flags:
     a superfloppy must be mounted with ``-o sectoff=0`` (read the BPB at sector 0,
-    skip partition detection), whereas a partitioned image must NOT use it — that
+    skip partition detection), whereas a partitioned image must NOT use it, that
     would misread the partition table as a BPB.
     """
     with img_path.open("rb") as f:

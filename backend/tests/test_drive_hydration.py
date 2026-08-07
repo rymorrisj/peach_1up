@@ -4,7 +4,7 @@
   and the success path with mocked FAT I/O.
 - hydrate_drive_for_entity: skip conditions and the FAT copy trigger.
 
-Architecture note — P3.1 transactional gap (still present in the code):
+Architecture note, P3.1 transactional gap (still present in the code):
   hydrate_drive_for_entity() issues two separate db.commit() calls: one when
   drive.size_mb changes and a second when entity._db_collection.installed = True is
   written back.  A crash or exception between these two commits leaves the

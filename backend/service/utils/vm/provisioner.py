@@ -3,7 +3,7 @@
 Creates 86Box configs for Win95/Win98/WinXP platforms on first launch or
 platform creation. 86Box VM files are placed under emulators/86box/vms/{slug}/.
 All output paths are resolved and validated before use. Subprocess args are
-constructed from validated, computed values only — no user input reaches a
+constructed from validated, computed values only, no user input reaches a
 subprocess call directly.
 """
 
@@ -36,7 +36,7 @@ def _load_default_disk_size_mb(era: str) -> int:
         raise FileNotFoundError(f"eras.yaml not found at {eras_yaml}")
     if not isinstance(eras_config, dict) or era not in eras_config:
         raise FileNotFoundError(
-            f"Era '{era}' not found in eras.yaml — cannot determine disk size."
+            f"Era '{era}' not found in eras.yaml, cannot determine disk size."
         )
     size = eras_config[era].get("default_disk_size_mb")
     if size is None:
@@ -198,7 +198,7 @@ def provision_dosbox_drive(
 
     Returns the (base, working, config, install, rom) tuple shared with the
     86Box path; only ``working`` is populated. Raises loudly on any failure —
-    a missing preset path, an out-of-range size, or a formatting error — rather
+    a missing preset path, an out-of-range size, or a formatting error, rather
     than degrading into an opaque DOSBox-X console error at launch.
     """
     era = platform.era
@@ -211,7 +211,7 @@ def provision_dosbox_drive(
     if not platform.working_image_path:
         raise RuntimeError(
             f"DOS environment '{platform.slug or platform.id}' has no "
-            "working_image_path preset — cannot provision its C: drive."
+            "working_image_path preset, cannot provision its C: drive."
         )
 
     target = normalise_path(platform.working_image_path)
@@ -231,7 +231,7 @@ def provision_dosbox_drive(
         )
 
     # format_fat16 refuses to overwrite an existing file and validates the
-    # size against the FAT16 range, raising RuntimeError on either — surfaced
+    # size against the FAT16 range, raising RuntimeError on either, surfaced
     # to the caller as a normal Python exception, never a silent fallback.
     format_fat16(target, size_mb)
     logger.info("Provisioned DOS drive image %s (%d MB)", target, size_mb)
@@ -244,7 +244,7 @@ def provision_platform(
     """Provision a working image for a platform, selecting the backend by era.
 
     Returns (base_image_path, working_image_path, config_path, install_path,
-    rom_path) but never persists them — the caller owns the write, since it
+    rom_path) but never persists them, the caller owns the write, since it
     owns the db session. install_path and rom_path are the 86Box binary and
     ROM directory already resolved during provisioning, returned so a launch
     that immediately follows can reuse them instead of re-resolving from scratch.
@@ -259,7 +259,7 @@ def provision_platform(
         box86_path = str(_box86_install) if _box86_install and _box86_install.is_file() else ""
         if not box86_path:
             raise RuntimeError(
-                "86Box executable not found — cannot provision 86Box config. "
+                "86Box executable not found, cannot provision 86Box config. "
                 "Install it via the Emulators page."
             )
         rom_dir = get_86box_rom_path(Path(box86_path))

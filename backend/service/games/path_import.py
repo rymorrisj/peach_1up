@@ -1,4 +1,4 @@
-"""Server-side-path import — a second ingestion transport for Add Media.
+"""Server-side-path import, a second ingestion transport for Add Media.
 
 GET /api/v1/filesystem/browse already resolves real, absolute, server-known
 paths for "Locate file/folder..." (ROM pack install) and the manual
@@ -107,7 +107,7 @@ def stage_from_source(
 ) -> cu.ReassembledUpload:
     """Stage *source* (already validated to exist and fall within the allowed
     browse roots) into a fresh, uniquely-named directory under domain_root, and
-    return the same ReassembledUpload shape upload_finalize expects — so
+    return the same ReassembledUpload shape upload_finalize expects, so
     finalize_reassembled can ingest it exactly like a chunked upload's output,
     dedup and multi-disc detection included.
 
@@ -133,7 +133,7 @@ def stage_from_source(
     holds for both).
     Original filenames are preserved verbatim for a folder source (unlike the
     browser-upload path, these are real host filenames, not untrusted
-    client-supplied strings — sanitizing them would also break disc-pointer
+    client-supplied strings, sanitizing them would also break disc-pointer
     files like .cue that reference sibling files by exact name).
     """
     kind = "folder" if source.is_dir() else "file"
@@ -261,7 +261,7 @@ def import_background(
         logger.info("Background path import skipped, already in library: source=%s", source)
         db.rollback()
         jobs.fail(job_id, message)
-    except Exception as exc:  # noqa: BLE001 — background tasks must not propagate
+    except Exception as exc:  # noqa: BLE001, background tasks must not propagate
         logger.exception("Background path import failed: source=%s", source)
         db.rollback()
         jobs.fail(job_id, str(exc))

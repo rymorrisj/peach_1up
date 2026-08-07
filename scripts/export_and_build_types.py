@@ -1,6 +1,6 @@
 """Export the FastAPI OpenAPI spec to shared/openapi.json, then generate shared/types.ts.
 
-Builds a throwaway FastAPI instance with only the API routers — no lifespan,
+Builds a throwaway FastAPI instance with only the API routers, no lifespan,
 no database init, no startup logic.
 """
 
@@ -30,7 +30,7 @@ def _check_router_parity(export_app) -> None:
     def route_keys(app) -> set[tuple[str, str]]:
         # include_in_schema=False routes (e.g. main.py's static /media file
         # serving and the SPA catch-all) are deliberately outside the API
-        # spec and aren't router modules — exclude them from the comparison.
+        # spec and aren't router modules, exclude them from the comparison.
         keys = set()
         for route in app.routes:
             if isinstance(route, APIRoute) and route.include_in_schema:
@@ -57,7 +57,7 @@ def main() -> None:
 
         app = FastAPI(
             title="Peach 1UP",
-            description="Preservation automation — REST API",
+            description="Preservation automation, REST API",
             version=APP_VERSION,
             docs_url="/api/docs",
             redoc_url="/api/redoc",

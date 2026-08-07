@@ -61,7 +61,7 @@ export interface GameItemBundleData extends EntityBundleBase {
 }
 
 // Game's cover art lives on the leaf item (keyed by display/launch disk id),
-// not the bundle itself — this is the CoverArtResolver<GameItemBundleData>.
+// not the bundle itself, this is the CoverArtResolver<GameItemBundleData>.
 export function getGameCoverArt(bundle: GameItemBundleData): string | null {
   const effectiveDisplayId = bundle.display_disk_id ?? bundle.launch_disk_id;
   const displayDisc = bundle.items.find((d) => d.id === effectiveDisplayId) ?? bundle.items[0];
@@ -192,7 +192,7 @@ function StackGlyph() {
   );
 }
 
-// Shared layer base classes — absolute fill, rounded, overflow-hidden, dark bg, shadow + eased transition
+// Shared layer base classes, absolute fill, rounded, overflow-hidden, dark bg, shadow + eased transition
 const LAYER_BASE =
   'absolute inset-0 overflow-hidden rounded-xl bg-[#1a1f27] shadow-[var(--shadow-sm)] ' +
   'transition-[transform,box-shadow] duration-[220ms] ease-[cubic-bezier(0.16,1,0.3,1)]';
@@ -204,7 +204,7 @@ interface CollectionCardProps {
 }
 
 export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: CollectionCardProps) {
-  // Effective display disc — display_disk_id overrides, falls back to launch_disk_id
+  // Effective display disc, display_disk_id overrides, falls back to launch_disk_id
   const effectiveDisplayId = bundle.display_disk_id ?? bundle.launch_disk_id;
   const displayDisc = bundle.items.find((d) => d.id === effectiveDisplayId) ?? bundle.items[0];
   const launchDisc = bundle.items.find((d) => d.id === bundle.launch_disk_id) ?? bundle.items[0];
@@ -222,7 +222,7 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
   const isMultiDisc = discCount > 1;
   const chipHex = eraHex(bundle.era);
   // The detail route is slug-only (/software/games/:slug -> GET
-  // /api/v1/game-item-bundle/by-slug/{slug}) — there is no id-based lookup, so
+  // /api/v1/game-item-bundle/by-slug/{slug}), there is no id-based lookup, so
   // a numeric-id fallback here would always resolve to "Game not found."
   // slug is nullable at the DB layer even though the create path always
   // generates one; prevent navigation entirely for the theoretical null case
@@ -242,7 +242,7 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
         {/* Padding-right/top gives space for the peeking background layers */}
         <div style={{ padding: '12px 12px 0 0' }}>
           <div className="relative aspect-video">
-            {/* Layer C — back (farthest), z=1 */}
+            {/* Layer C, back (farthest), z=1 */}
             {layerC && (
               <div
                 className={`${LAYER_BASE} z-[1] translate-x-3 -translate-y-3 group-hover:translate-x-4 group-hover:-translate-y-4`}
@@ -261,7 +261,7 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
               </div>
             )}
 
-            {/* Layer B — mid, z=2 */}
+            {/* Layer B, mid, z=2 */}
             {layerB && (
               <div
                 className={`${LAYER_BASE} z-[2] translate-x-1.5 -translate-y-1.5 group-hover:translate-x-2 group-hover:-translate-y-2`}
@@ -280,7 +280,7 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
               </div>
             )}
 
-            {/* Layer A — front (display disc), z=3 */}
+            {/* Layer A, front (display disc), z=3 */}
             <div
               className={`${LAYER_BASE} z-[3] group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-md)]`}
             >
@@ -295,7 +295,7 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
                 <ArtPlaceholder bundle={bundle} />
               )}
 
-              {/* Stack count badge — bottom right, only for multi-disc bundles */}
+              {/* Stack count badge, bottom right, only for multi-disc bundles */}
               {isMultiDisc && (
                 <div className="absolute bottom-2 right-2 z-[4] inline-flex items-center gap-1.5 rounded-[4px] border border-white/[0.16] bg-surface-0/80 px-[7px] py-[4px] font-mono text-[0.6875rem] font-bold leading-none tracking-[0.04em] text-[#f3efe9] backdrop-blur-[6px]">
                   <StackGlyph />
@@ -303,7 +303,7 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
                 </div>
               )}
 
-              {/* Divergence badge — bottom left, only when display disc ≠ launch disc */}
+              {/* Divergence badge, bottom left, only when display disc ≠ launch disc */}
               {launchDiffersFromDisplay && launchDisc && (
                 <div
                   className="absolute bottom-2 left-2 z-[4] inline-flex items-center gap-1 rounded-[4px] border border-accent/40 bg-black/[0.78] px-[7px] py-[4px] font-mono text-[0.625rem] font-semibold leading-none tracking-[0.04em] text-accent backdrop-blur-[6px]"
@@ -313,7 +313,7 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
                 </div>
               )}
 
-              {/* Hover overlay — play button */}
+              {/* Hover overlay, play button */}
               <div
                 className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-[180ms] ease-out group-hover:opacity-100"
                 aria-hidden="true"
@@ -336,7 +336,7 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
               </div>
             </div>
 
-            {/* Disc strip — hover-revealed, z above all layers; click to promote display disc */}
+            {/* Disc strip, hover-revealed, z above all layers; click to promote display disc */}
             {isMultiDisc && (
               <div className="absolute bottom-0 left-0 right-0 z-[10] flex gap-1 overflow-x-auto bg-gradient-to-t from-black/80 to-transparent px-2 pb-2 pt-4 opacity-0 transition-opacity duration-[180ms] ease-out group-hover:opacity-100">
                 {bundle.items
@@ -402,7 +402,7 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
         </div>
       </Link>
 
-      {/* Remove — hover-revealed, outside stack area to avoid z-index conflicts */}
+      {/* Remove, hover-revealed, outside stack area to avoid z-index conflicts */}
       {onRemove && (
         <button
           type="button"

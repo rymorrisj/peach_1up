@@ -2,11 +2,11 @@
 
 Lets a tester who already has BIOS/ROM files on disk point at them instead of
 manually copying into the right folder. This module only adds the per-slug
-filename/extension/hash rules and the copy step — path safety and chunked
+filename/extension/hash rules and the copy step, path safety and chunked
 upload streaming are reused as-is from path_utils / upload_utils, the same
 primitives the media/library upload routes use.
 
-Never fetches, downloads, or scrapes anything — source is always a path or
+Never fetches, downloads, or scrapes anything, source is always a path or
 upload the caller already has.
 """
 
@@ -20,7 +20,7 @@ from pathlib import Path
 from fastapi import UploadFile
 
 from backend.service.utils.path_utils import normalise_path, resolve_under, safe_basename
-from backend.service.utils.smart_media_detector.hashing.hash_lookup import hash_file
+from smart_media_detector.hashing.hash_lookup import hash_file
 from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES, stream_upload_to_disk
 
 
@@ -96,7 +96,7 @@ async def _place_flat_pattern(
             safe_name = safe_basename(up.filename)
             if not pattern.search(safe_name):
                 result.warnings.append(
-                    f"Skipped '{up.filename}' — does not look like a {label} file."
+                    f"Skipped '{up.filename}', does not look like a {label} file."
                 )
                 continue
             matched_any = True
@@ -154,7 +154,7 @@ async def _place_named_pair(
     if not found:
         where = "folder" if source is not None else "upload"
         raise PlacementError(
-            f"Expected {' and '.join(_FLYCAST_NAMES)} — neither was found in the supplied {where}."
+            f"Expected {' and '.join(_FLYCAST_NAMES)}, neither was found in the supplied {where}."
         )
 
     for canon, item in found.items():
@@ -173,7 +173,7 @@ async def _place_named_pair(
     for canon in _FLYCAST_NAMES:
         if canon not in found and not (dest_dir / canon).exists():
             result.warnings.append(
-                f"'{canon}' is still missing — Flycast requires both files together."
+                f"'{canon}' is still missing, Flycast requires both files together."
             )
     return result
 
@@ -190,7 +190,7 @@ async def _place_mesen_fds(
             None,
         )
         if match is None:
-            raise PlacementError(f"Expected a file named '{_MESEN_FDS_NAME}' — not found in '{source}'.")
+            raise PlacementError(f"Expected a file named '{_MESEN_FDS_NAME}', not found in '{source}'.")
         await _copy_or_stream(
             source=match, upload=None, dest_path=dest_path,
             max_bytes=max_bytes, result=result, name=_MESEN_FDS_NAME,
@@ -211,7 +211,7 @@ async def _place_mesen_fds(
         if digest.lower() != _MESEN_FDS_SHA1.lower():
             result.warnings.append(
                 f"SHA1 {digest} does not match the known-good FDS BIOS hash ({_MESEN_FDS_SHA1}). "
-                "The file was placed, but double-check the dump — other revisions may not work correctly."
+                "The file was placed, but double-check the dump, other revisions may not work correctly."
             )
     return result
 
@@ -246,7 +246,7 @@ async def place_bios_asset(
             total = 0
         if total < 2:
             result.warnings.append(
-                f"Only {total} file(s) present in the PS2 BIOS directory — a full set "
+                f"Only {total} file(s) present in the PS2 BIOS directory, a full set "
                 "(main BIOS + rom1/rom2/erom) usually has multiple files. The set may be incomplete."
             )
         return result
@@ -254,7 +254,7 @@ async def place_bios_asset(
     if slug == "86box-roms":
         if source is None:
             raise PlacementError(
-                "86Box ROM pack placement requires a server-side folder path — "
+                "86Box ROM pack placement requires a server-side folder path, "
                 "file upload isn't supported for ROM pack trees."
             )
         return _place_tree_merge(source=source, dest_dir=dest_dir)
@@ -271,7 +271,7 @@ async def place_bios_asset(
 
     if slug == "xbox-bios":
         raise PlacementError(
-            "xemu uses its own configuration flow, not a copy-into-place flow — "
+            "xemu uses its own configuration flow, not a copy-into-place flow, "
             "set bootrom/flashrom/hdd_image paths via PATCH /api/v1/emulator-items/xemu/asset-paths."
         )
 

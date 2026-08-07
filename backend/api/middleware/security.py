@@ -32,7 +32,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        # Bind address enforcement — reject non-localhost clients unless network access is enabled
+        # Bind address enforcement, reject non-localhost clients unless network access is enabled
         try:
             from backend.core.settings import get_settings
             svc = get_settings()
@@ -62,7 +62,7 @@ _CSRF_EXEMPT_PREFIXES = ("/api/v1/auth/",)
 class CSRFMiddleware(BaseHTTPMiddleware):
     """Double-submit cookie CSRF protection for all state-mutating endpoints.
 
-    Auth endpoints (/api/v1/auth/*) are exempt — they manage the token lifecycle.
+    Auth endpoints (/api/v1/auth/*) are exempt, they manage the token lifecycle.
     If no session cookie is present the check is skipped so the auth dependency
     returns the canonical 401 rather than a confusing 403.
     """

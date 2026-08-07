@@ -2,7 +2,7 @@
 
 This module's import of backend.service.utils.settings is a deliberate
 downward dependency (façade over the lower-level settings module), not a
-layering accident — the import is deferred into the functions below because
+layering accident, the import is deferred into the functions below because
 service.utils.settings calls back into get_base_path(), and a top-level
 import here would create a circular import depending on which module loads
 first.
@@ -36,6 +36,6 @@ def init_settings() -> None:
 
 def get_settings():
     if not _initialised:
-        raise RuntimeError("Settings not initialised — call init_settings() first.")
+        raise RuntimeError("Settings not initialised, call init_settings() first.")
     from backend.service.utils import settings as _settings_module
     return _settings_module

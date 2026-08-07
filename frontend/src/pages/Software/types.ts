@@ -46,7 +46,7 @@ export interface EntityBundleBase {
 export type CoverArtResolver<TBundle> = (bundle: TBundle) => string | null;
 
 // Shared by Game and App bundles, whose cover art lives on whichever leaf
-// item display_disk_id (falling back to launch_disk_id) points at — Media
+// item display_disk_id (falling back to launch_disk_id) points at, Media
 // has no leaf indirection, its cover art is a direct bundle field instead.
 export function resolveLeafCoverArt<TLeaf extends { id: number; cover_art_url: string | null }>(
   items: TLeaf[],
@@ -125,7 +125,7 @@ export interface EntityFilterConfig {
 // Universal sort options for EntityListPage's list pages. title (alphabetical)
 // and date_added (recently added first) are the only two fields confirmed
 // present on every domain's bundle model (title, created_at on Game/App/Media
-// — see backend/service/utils/sort_utils.py, which enforces this exact same
+//, see backend/service/utils/sort_utils.py, which enforces this exact same
 // value set server-side). Declared once and reused by all three domain
 // configs rather than each declaring its own list, since there is no
 // domain-specific sort field today; adding one would need its own proposal.
@@ -190,22 +190,22 @@ export interface EntityDeleteConfig<TBundle> {
 
 // Per-domain wiring an EntityListPage/EntityDetailPage consumes so the
 // generic components carry no built-in knowledge of any one domain.
-// Only 'game' and 'app' can launch — Media supplies no launch config at all,
+// Only 'game' and 'app' can launch, Media supplies no launch config at all,
 // and EntityDetailPage never renders a Launch section without one.
 export interface EntityDomainConfig<TBundle extends EntityBundleBase> {
   domain: RestrictionDomain;
   routeBase: string; // e.g. '/software/games'
   listApiPath: string; // e.g. '/api/v1/game-items'
   // Fetches the bundle by whatever config.identifierParam selects (a numeric
-  // id as a string for 'id', a slug for 'slug') — always a string since it's
+  // id as a string for 'id', a slug for 'slug'), always a string since it's
   // only ever interpolated into a URL, never used arithmetically.
   bundleApiPath: (identifier: string) => string; // e.g. id => `/api/v1/game-item-bundle/${id}`
-  tagEntityType: string; // e.g. 'game_item_bundle' — must match backend _ASSIGNMENT_TARGETS
+  tagEntityType: string; // e.g. 'game_item_bundle', must match backend _ASSIGNMENT_TARGETS
   entityLabel: string; // singular, e.g. 'game'
   entityLabelPlural: string; // e.g. 'games'
   coverArt: CoverArtResolver<TBundle>;
   launchTargetType?: 'game_item_bundle' | 'app'; // omitted entirely for Media
-  // Per-entity launch gate on top of launchTargetType — e.g. App launch is
+  // Per-entity launch gate on top of launchTargetType, e.g. App launch is
   // PC-scoped only (bundle.is_pc), not every app in the domain is launchable.
   // Defaults to "launchable" whenever launchTargetType is set.
   isLaunchable?: (bundle: TBundle) => boolean;
@@ -218,14 +218,14 @@ export interface EntityDomainConfig<TBundle extends EntityBundleBase> {
   backLabel?: string;
   // Whether to show entity.description as a read-only paragraph in the meta
   // section. Defaults to true (App/Media's only surface for description
-  // today). Game suppresses this — its own edit-form slot already edits and
+  // today). Game suppresses this, its own edit-form slot already edits and
   // displays description, so this would otherwise duplicate it.
   showDescriptionMeta?: boolean;
   // Filters the user list passed into the Restrictions section. Defaults to
   // identity (App/Media's current, unfiltered behavior). Game excludes
   // owners, since owners are never restrictable.
   filterRestrictionUsers?: (users: UserItemRead[]) => UserItemRead[];
-  // Domain-specific stateful "extras" — additional hooks plus the derived
+  // Domain-specific stateful "extras", additional hooks plus the derived
   // JSX slots that don't fit the shared shape (disc reorder, edit form,
   // delete flow, xiso convert, metadata enrich, DOS-install, etc. for Game).
   // Called unconditionally on every render, exactly like a custom hook, so
@@ -288,7 +288,7 @@ export interface EntityDetailExtrasContext<TBundle extends EntityBundleBase> {
 
 // JSX-shaped slots use ReactNode directly. editForm/advancedSection/
 // launchHistory stay `unknown` here since this file has no business knowing
-// EditForm/AdvancedSection/LaunchHistorySection's real shapes — EntityDetailPage
+// EditForm/AdvancedSection/LaunchHistorySection's real shapes, EntityDetailPage
 // casts them once, at the single point it spreads into SoftwareEntityDetail,
 // which already owns those real types.
 export interface EntityDetailExtras {

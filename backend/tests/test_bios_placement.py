@@ -1,4 +1,4 @@
-"""Tests for bios_placement.py — the per-slug copy rules behind POST /api/v1/bios/{slug}/place.
+"""Tests for bios_placement.py, the per-slug copy rules behind POST /api/v1/bios/{slug}/place.
 
 Covers the five slugs that get the new copy-into-place flow (duckstation, pcsx2,
 86box ROM pack, flycast, mesen FDS BIOS) plus the explicit xemu carve-out and the
@@ -29,7 +29,7 @@ def _make_upload(filename: str, content: bytes = b"data"):
 
 
 # ---------------------------------------------------------------------------
-# Shared validation — no source, no uploads, nonexistent path, unknown slug
+# Shared validation, no source, no uploads, nonexistent path, unknown slug
 # ---------------------------------------------------------------------------
 
 class TestSharedValidation:
@@ -59,7 +59,7 @@ class TestSharedValidation:
 
 
 # ---------------------------------------------------------------------------
-# DuckStation (ps1-bios) — flat *.bin copy, filenames flexible
+# DuckStation (ps1-bios), flat *.bin copy, filenames flexible
 # ---------------------------------------------------------------------------
 
 class TestDuckStationPlacement:
@@ -126,7 +126,7 @@ class TestDuckStationPlacement:
 
 
 # ---------------------------------------------------------------------------
-# PCSX2 (ps2-bios) — multi-file set, warn (don't block) if it looks incomplete
+# PCSX2 (ps2-bios), multi-file set, warn (don't block) if it looks incomplete
 # ---------------------------------------------------------------------------
 
 class TestPcsx2Placement:
@@ -156,7 +156,7 @@ class TestPcsx2Placement:
 
 
 # ---------------------------------------------------------------------------
-# 86Box ROM pack (86box-roms) — full tree merge, preserve relative structure
+# 86Box ROM pack (86box-roms), full tree merge, preserve relative structure
 # ---------------------------------------------------------------------------
 
 class Test86BoxRomPackPlacement:
@@ -202,7 +202,7 @@ class Test86BoxRomPackPlacement:
 
 
 # ---------------------------------------------------------------------------
-# Flycast (dreamcast-bios) — both dc_boot.bin and dc_flash.bin required together
+# Flycast (dreamcast-bios), both dc_boot.bin and dc_flash.bin required together
 # ---------------------------------------------------------------------------
 
 class TestFlycastPlacement:
@@ -252,7 +252,7 @@ class TestFlycastPlacement:
 
 
 # ---------------------------------------------------------------------------
-# Mesen FDS BIOS (mesen-fds-bios) — optional, exact filename, known-good SHA1
+# Mesen FDS BIOS (mesen-fds-bios), optional, exact filename, known-good SHA1
 # ---------------------------------------------------------------------------
 
 class TestMesenFdsPlacement:
@@ -261,7 +261,7 @@ class TestMesenFdsPlacement:
         import backend.service.utils.bios_placement as mod
 
         # Brute-forcing a payload whose real sha1 equals the documented
-        # known-good hash isn't practical in a test — instead swap in a hash
+        # known-good hash isn't practical in a test, instead swap in a hash
         # that matches a fixed payload's real sha1, to exercise the match
         # branch (no-warning path) the same way a genuine dump would.
         payload = b"fds-bios-bytes"

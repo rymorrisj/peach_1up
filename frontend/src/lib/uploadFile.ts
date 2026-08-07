@@ -7,7 +7,7 @@ export interface FileUploadHandle<T> {
   abort: () => void;
 }
 
-// XHR is required here — fetch() does not expose upload progress events.
+// XHR is required here, fetch() does not expose upload progress events.
 export function uploadFile<T>(
   path: string,
   file: File,

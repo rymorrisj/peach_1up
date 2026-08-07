@@ -40,7 +40,7 @@ class UserItem(UserItemBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     pin_hash: Optional[str] = None
     # Server-only root-of-trust key for this user's sessions. Every session
-    # token is an HMAC over this secret — never read by any API schema.
+    # token is an HMAC over this secret, never read by any API schema.
     identity_token_secret: Optional[str] = None
     session_token_hash: Optional[str] = None
     session_token_expires_at: Optional[datetime] = None

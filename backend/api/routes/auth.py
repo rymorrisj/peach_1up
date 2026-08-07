@@ -20,11 +20,11 @@ _COOKIE_NAME = "peach_token"
 _CSRF_COOKIE_NAME = "peach_csrf"
 
 # Bounds total /auth/switch attempts per source IP, independent of the
-# per-user PIN lockout counter — without this, a remote actor can enumerate
+# per-user PIN lockout counter, without this, a remote actor can enumerate
 # users via GET /api/v1/user-items and brute-force/lock any account (including
 # owner) with unlimited unauthenticated requests. This is a household
 # device where several sub-accounts share one source IP (same LAN/localhost),
-# so the budget has to absorb normal multi-account traffic — the per-account
+# so the budget has to absorb normal multi-account traffic, the per-account
 # 4-attempt lockout is the actual brake on guessing any single account's PIN;
 # this cap exists to stop high-volume automated sweeps across many accounts,
 # not to police ordinary retries.
@@ -134,7 +134,7 @@ def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depen
     # Fast-path / friendly-error only. This SELECT COUNT is NOT the real guard:
     # two concurrent requests can both read count==0 here and both fall through
     # to the INSERT before either commits (TOCTOU). The idx_single_owner partial
-    # unique index is the actual guarantee — the losing racer's commit raises
+    # unique index is the actual guarantee, the losing racer's commit raises
     # IntegrityError, caught below and mapped to the same 409.
     has_owner = db.query(UserItem).filter(UserItem.is_owner.is_(True)).count() > 0
     if has_owner:
@@ -186,7 +186,7 @@ def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depen
 @router.post("/switch", response_model=UserResponse)
 def switch_user(body: SwitchRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     client_ip = request.client.host if request.client else "unknown"
-    # Keyed on the immediate TCP peer, not X-Forwarded-For — that header is
+    # Keyed on the immediate TCP peer, not X-Forwarded-For, that header is
     # attacker-controlled unless a trusted reverse proxy strips/sets it, and
     # trusting it here would let the same attacker we're rate-limiting just
     # spoof a fresh IP on every request to bypass the limit.
@@ -254,7 +254,7 @@ def refresh_session(request: Request, response: Response, db: Session = Depends(
     """Validate the existing session token and extend its expiry, without rotating it.
 
     Called on every app open so sessions extend automatically. The token itself
-    is left untouched (session_token_hash is not overwritten) — minting a new
+    is left untouched (session_token_hash is not overwritten), minting a new
     token here would invalidate a still-in-flight refresh from the same
     session (StrictMode double-mount, multiple tabs, retries), 401-ing the
     second legitimate caller. Token issuance stays exclusive to

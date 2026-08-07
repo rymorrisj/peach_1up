@@ -21,7 +21,7 @@ import pytest
 
 
 # ---------------------------------------------------------------------------
-# _is_forbidden_redirect_host — pure function
+# _is_forbidden_redirect_host, pure function
 # ---------------------------------------------------------------------------
 
 

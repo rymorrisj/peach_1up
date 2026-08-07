@@ -21,7 +21,7 @@ def check_controller_edit_permission(mapping: ControllerMappingItem, active_user
 
     require_permission(flag) (dependencies.py:176) only supports "owner-bypass
     OR single flag"; this rule is "creator OR (admin AND can_manage_controllerMapping)"
-    — an AND nested inside an OR, which the generic factory can't express.
+   , an AND nested inside an OR, which the generic factory can't express.
     Owner still bypasses everything, matching every other guard in the app.
 
     Extracted from require_controller_edit so the generic tag-assignment

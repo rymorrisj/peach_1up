@@ -89,7 +89,7 @@ def enrich_entity(
             entity.metadata_fetched_at = datetime.now(timezone.utc)
         if genre is not None:
             from backend.models.metadata_lookup import set_genres_for_game_item_bundle
-            # No provider hint here — metadata_source is a display string (e.g.
+            # No provider hint here, metadata_source is a display string (e.g.
             # "TheGamesDB"), not the internal provider key genres are cached
             # under. Genre rows already exist by this point (created moments
             # earlier when get_metadata_details() resolved them), so this
@@ -99,7 +99,7 @@ def enrich_entity(
             set_genres_for_game_item_bundle(db, entity_id, genre)
 
     elif entity_type == "game_item":
-        # Leaf: per-disc cover art only — no metadata fields (those go on the collection).
+        # Leaf: per-disc cover art only, no metadata fields (those go on the collection).
         entity = db.get(GameItem, entity_id)
         if not entity:
             raise HTTPException(status_code=404, detail="Software item not found.")

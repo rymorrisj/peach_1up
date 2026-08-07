@@ -1,4 +1,4 @@
-"""Tests for backend/core/dependencies.py — the parental-control enforcement
+"""Tests for backend/core/dependencies.py, the parental-control enforcement
 layer (max_content_rating + block_unrated_media + MediaRestriction).
 
 Per dev_docs/v2/09_test_coverage.md item 1, this was the highest-risk
@@ -13,7 +13,7 @@ import pytest
 
 
 # ---------------------------------------------------------------------------
-# Ordinal math — single scheme
+# Ordinal math, single scheme
 # ---------------------------------------------------------------------------
 
 
@@ -36,7 +36,7 @@ class TestRatingOrdinals:
         assert _BASE_RATING_ORDINALS["PEGI 16"] < _BASE_RATING_ORDINALS["PEGI 18"]
 
     def test_each_scheme_ordinal_ladder_restarts_at_zero(self):
-        """ESRB and PEGI are independent ladders — PEGI's first value is not
+        """ESRB and PEGI are independent ladders, PEGI's first value is not
         offset by ESRB's length. Confirms _derive_rating_ordinals groups by
         scheme rather than assigning one flat sequence across CONTENT_RATINGS."""
         from backend.core.dependencies import _BASE_RATING_ORDINALS
@@ -120,7 +120,7 @@ class TestRatingChangeRequiresConfirmation:
 
     def test_cross_scheme_change_requires_confirmation_even_if_nominally_lower_ordinal(self):
         """ESRB M (ordinal 4) -> PEGI 3 (ordinal 0) looks like a drop by ordinal
-        value alone, but the schemes aren't comparable — must still require
+        value alone, but the schemes aren't comparable, must still require
         confirmation rather than being treated as a safe raise because the
         raw ordinal happens to be smaller."""
         from backend.core.dependencies import rating_change_requires_confirmation
@@ -144,7 +144,7 @@ class TestRatingChangeRequiresConfirmation:
 
 
 # ---------------------------------------------------------------------------
-# normalize_content_rating — leading-token parsing
+# normalize_content_rating, leading-token parsing
 # ---------------------------------------------------------------------------
 
 
@@ -219,7 +219,7 @@ class TestValidateMaxContentRating:
         """Regression lock: an unrecognised max_content_rating must be rejected
         at write time. If it were allowed through, get_filtered_game_item_bundles'
         ordinal lookup would return None for it and skip the rating filter
-        entirely — silently uncapping the account."""
+        entirely, silently uncapping the account."""
         from backend.core.dependencies import validate_max_content_rating
 
         with pytest.raises(ValueError):
@@ -227,7 +227,7 @@ class TestValidateMaxContentRating:
 
 
 # ---------------------------------------------------------------------------
-# get_filtered_game_item_bundles / get_filtered_game_item_bundle — DB-backed unit tests
+# get_filtered_game_item_bundles / get_filtered_game_item_bundle, DB-backed unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -235,7 +235,7 @@ class TestValidateMaxContentRating:
 def mem_db_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -336,7 +336,7 @@ class TestGetFilteredCollectionsUnknownRatingDenies:
 
     def test_null_or_empty_rating_is_governed_by_block_unrated_media_not_the_ceiling(self, mem_db_session):
         """Null/empty content_rating bypasses the ceiling filter's OR clause by
-        design — it is gated separately by block_unrated_media."""
+        design, it is gated separately by block_unrated_media."""
         from backend.core.dependencies import get_filtered_game_item_bundles
 
         capped_allows_unrated = _make_user(
@@ -379,7 +379,7 @@ class TestGetFilteredCollectionsUnresolvableOwnCeilingFailsClosed:
         """Regression lock: if the CALLER's own max_content_rating can no longer
         be resolved to a known ordinal (e.g. a rating_ordinals settings change
         orphaned a value that was valid when it was set), the ceiling must fail
-        closed — no rated content passes — rather than silently skipping the
+        closed, no rated content passes, rather than silently skipping the
         rating filter and uncapping the account (the previous fail-open bug)."""
         import backend.core.dependencies as deps
 
@@ -434,7 +434,7 @@ class TestGetFilteredCollection:
 
     def test_nonexistent_collection_also_raises_404_same_as_filtered(self, mem_db_session):
         """404 must be indistinguishable between 'does not exist' and 'exists
-        but filtered out' — that's the whole point of not leaking existence."""
+        but filtered out', that's the whole point of not leaking existence."""
         from fastapi import HTTPException
         from backend.core.dependencies import get_filtered_game_item_bundle
 
@@ -457,7 +457,7 @@ class TestGetFilteredCollection:
 
 
 # ---------------------------------------------------------------------------
-# HTTP route-level tests — list and detail endpoints, no-leak-via-404
+# HTTP route-level tests, list and detail endpoints, no-leak-via-404
 # ---------------------------------------------------------------------------
 
 
@@ -486,7 +486,7 @@ class TestSoftwareListRouteFiltering:
     def test_over_rated_item_absent_from_list_payload_no_error_leak(self, http_client):
         """GET /api/v1/game-items for a capped sub-account: the over-rated item
         is simply missing from the page, not surfaced with a 403 or any
-        other differentiated error — filtering, not denial-with-explanation."""
+        other differentiated error, filtering, not denial-with-explanation."""
         c, db, app = http_client
         capped = _make_user(db, max_content_rating="T")
         allowed = _make_collection(db, slug="allowed", content_rating="E")

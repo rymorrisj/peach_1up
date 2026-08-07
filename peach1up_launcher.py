@@ -32,7 +32,7 @@ if __name__ == "__main__":
     from backend.main import app
     from backend.core.logger import setup_logging
 
-    # setup_logging writes to files directly — unaffected by the devnull redirect above.
+    # setup_logging writes to files directly, unaffected by the devnull redirect above.
     # configure_uvicorn_logging() is called from backend.core.lifespan instead of here —
     # uvicorn's own config.load() runs during Server.serve(), after this point but before
     # lifespan startup, and would otherwise overwrite handlers set here.

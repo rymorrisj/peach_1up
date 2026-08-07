@@ -23,8 +23,8 @@ VERSION_OUT = ROOT / "VERSION"
 FRONTEND_PKG = ROOT / "frontend" / "package.json"
 DOCS_PKG = ROOT / "docs" / "package.json"
 
-HEADER_PY = "# Auto-generated from config/constants.yaml — do not edit.\n"
-HEADER_TS = "// Auto-generated from config/constants.yaml — do not edit.\n"
+HEADER_PY = "# Auto-generated from config/constants.yaml, do not edit.\n"
+HEADER_TS = "// Auto-generated from config/constants.yaml, do not edit.\n"
 
 
 _SLUG_TO_ENUM: dict[str, str] = {
@@ -57,7 +57,7 @@ def _py_literal_type(type_name: str, slugs: list[str]) -> str:
 def discover_catalog_slugs() -> list[str]:
     """Scan config/emulators/*.toml for launchable catalog slugs.
 
-    The TOMLs are the source of truth for the emulator catalog domain — this
+    The TOMLs are the source of truth for the emulator catalog domain, this
     is distinct from constants.yaml's backend_slugs (the dispatch domain).
     Entries with install_type == "rom_pack" are dependency-only assets
     (e.g. 86box-roms), never a launchable emulator_slug value, and are
@@ -90,7 +90,7 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
 
     lines: list[str] = [HEADER_PY, "from enum import Enum\n", "from typing import Literal\n\n\n"]
 
-    # APP_VERSION — single source of truth, also mirrored to VERSION (repo root),
+    # APP_VERSION, single source of truth, also mirrored to VERSION (repo root),
     # frontend/package.json, docs/package.json, and installer/peach1up.nsi (via build.bat).
     lines.append(f'APP_VERSION = "{app_version}"\n\n\n')
 
@@ -100,7 +100,7 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
         lines.append(f'    {_enum_name(slug)} = "{slug}"\n')
     lines.append("\n\n")
 
-    # EraValue literal — boundary type (DB columns, API I/O); Era enum above is
+    # EraValue literal, boundary type (DB columns, API I/O); Era enum above is
     # for internal named-member dispatch only, see era_to_enum().
     lines.append(_py_literal_type("EraValue", list(eras)))
     lines.append("\n")
@@ -205,7 +205,7 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
 
     lines: list[str] = [HEADER_TS, "\n"]
 
-    # APP_VERSION — single source of truth, also mirrored to VERSION (repo root),
+    # APP_VERSION, single source of truth, also mirrored to VERSION (repo root),
     # frontend/package.json, docs/package.json, and installer/peach1up.nsi (via build.bat).
     lines.append(f'export const APP_VERSION = "{app_version}"\n\n')
 
@@ -223,7 +223,7 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     # BACKEND_LABELS
     lines.append("export const BACKEND_LABELS: Record<string, string> = {\n")
     for slug, label in backends.items():
-        # '86box' is not a valid bare identifier — quote it
+        # '86box' is not a valid bare identifier, quote it
         key = f'"{slug}"' if not slug.isidentifier() else slug
         lines.append(f"  {key}: \"{label}\",\n")
     lines.append("}\n\n")
@@ -243,7 +243,7 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     lines.append(_ts_union_type("BackendSlug", list(backends)))
     lines.append("\n")
 
-    # RATING_OPTIONS — includes a leading empty option for form use
+    # RATING_OPTIONS, includes a leading empty option for form use
     lines.append(
         "export const RATING_OPTIONS: { value: string; label: string; scheme?: string }[] = [\n"
     )
@@ -267,7 +267,7 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     lines.append(_ts_union_type("EmulatorCatalogSlug", catalog_slugs))
     lines.append("\n")
 
-    # EMULATOR_CATALOG_SLUGS — runtime companion for <select> options
+    # EMULATOR_CATALOG_SLUGS, runtime companion for <select> options
     catalog_slugs_ts = ", ".join(f'"{s}"' for s in catalog_slugs)
     lines.append(f"export const EMULATOR_CATALOG_SLUGS: string[] = [{catalog_slugs_ts}]\n\n")
 
@@ -316,7 +316,7 @@ def sync_package_json_version(path: Path, version: str) -> None:
 
     Uses a targeted regex substitution rather than json.load/dump so that
     dependency ordering, spacing, and every other field are left byte-for-byte
-    untouched — only the version string changes.
+    untouched, only the version string changes.
     """
     text = path.read_text(encoding="utf-8")
     new_text, count = re.subn(r'"version":\s*"[^"]*"', f'"version": "{version}"', text, count=1)

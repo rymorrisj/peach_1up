@@ -46,7 +46,7 @@ class TestComputeDriveSizeMb:
     def test_fallback_2kb_file_does_not_return_3(self, tmp_path):
         from backend.service.utils.drive_utils import compute_drive_size_mb
         f = tmp_path / "game.exe"
-        f.write_bytes(b"\x00" * 2048)  # 2 KB — old formula returned 3, breaking FAT16
+        f.write_bytes(b"\x00" * 2048)  # 2 KB, old formula returned 3, breaking FAT16
         result = compute_drive_size_mb(f, "unknown")
         assert result != 3
 
@@ -55,7 +55,7 @@ class TestDeleteDriveForCollection:
     @pytest.fixture
     def mem_session(self):
         from sqlmodel import SQLModel, Session, create_engine
-        import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+        import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
         engine = create_engine("sqlite:///:memory:")
         SQLModel.metadata.create_all(engine)
         with Session(engine) as session:

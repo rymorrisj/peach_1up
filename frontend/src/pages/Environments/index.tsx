@@ -160,7 +160,7 @@ export default function Environments() {
     try {
       await apiFetch(`/api/v1/environment-items/${platform.id}/health`, { method: 'POST' });
       await queryClient.invalidateQueries({ queryKey: ['platforms'] });
-      // An unhealthy *result* is not an error here — it's a 200 whose status
+      // An unhealthy *result* is not an error here, it's a 200 whose status
       // update is reflected via the invalidation above. Only a failed request
       // itself (network/permission/500) reaches this catch.
     } catch (err) {

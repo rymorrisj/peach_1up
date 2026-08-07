@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Create, remove, or list test sub-accounts for local development.
 
-Not part of the application runtime — a CLI convenience for seeding or
+Not part of the application runtime, a CLI convenience for seeding or
 cleaning up throwaway users while exercising the Identity/Session auth model
 by hand. Operates directly on the configured database, same as
 setup_admin_user.py.

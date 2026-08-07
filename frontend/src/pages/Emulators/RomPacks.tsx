@@ -116,9 +116,9 @@ function RomPackRow({ entry, isLast }: { entry: CatalogEntry; isLast: boolean })
 // Cross-emulator ROM pack list, paginated via GET /api/v1/emulator-items/rom-packs
 // (Page[RomPackItemRead], dev_docs/v2/08, Task 4). Each paginated slug is
 // cross-referenced against the emulator catalog (/api/v1/emulator-items, small and
-// unpaginated by design — same source doc 08 P7 uses for the per-emulator
+// unpaginated by design, same source doc 08 P7 uses for the per-emulator
 // RomPackTab) to get the live is_installed/guidance fields the reused
-// CloneRomPackButton/GuidanceNote components need — the backend derives both
+// CloneRomPackButton/GuidanceNote components need, the backend derives both
 // endpoints from the same catalog, so every paginated slug always resolves.
 export default function RomPacks() {
   const {
@@ -138,7 +138,7 @@ export default function RomPacks() {
     staleTime: 10_000,
   });
 
-  // Both sources must be loaded before rendering — romPacks below depends on
+  // Both sources must be loaded before rendering, romPacks below depends on
   // cross-referencing the two, so a partial load must not show an empty state.
   const isLoading = isRomPacksLoading || isCatalogLoading;
 

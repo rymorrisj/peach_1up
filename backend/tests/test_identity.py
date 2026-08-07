@@ -10,7 +10,7 @@ import pytest
 @pytest.fixture
 def mem_session():
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine("sqlite:///:memory:")
     SQLModel.metadata.create_all(engine)

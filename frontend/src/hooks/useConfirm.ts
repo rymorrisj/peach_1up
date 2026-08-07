@@ -6,7 +6,7 @@ export interface ConfirmOptions {
   destructive?: boolean;
   /** Renders an extra checkbox inside the dialog, seeded to defaultChecked.
    * Read its final state via the returned getCheckboxValue() after confirm()
-   * resolves true — the confirm() promise itself stays a plain boolean so
+   * resolves true, the confirm() promise itself stays a plain boolean so
    * existing callers are unaffected. */
   checkbox?: { label: string; defaultChecked: boolean };
 }

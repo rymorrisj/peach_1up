@@ -21,10 +21,10 @@ from backend.service.utils.emulator_catalog import (
 )
 from backend.service.utils.emulator_paths import resolve_derived_path
 from backend.service.utils.eras_config import get_cpu_min_rate, get_era
-from .sandbox import sandbox
-from .sandbox.sandbox_config import BrokerFile, SandboxConfig
-from .sandbox.sandbox_error import SandboxError
-from .sandbox.sandbox_event import SandboxStage
+from sandbox import sandbox
+from sandbox.sandbox_config import BrokerFile, SandboxConfig
+from sandbox.sandbox_error import SandboxError
+from sandbox.sandbox_event import SandboxStage
 
 logger = get_logger(__name__)
 
@@ -94,7 +94,7 @@ def _resolve_path_key(path_key: str, slug: str) -> str:
         appdata = os.environ.get("APPDATA", "")
         if not appdata:
             raise SandboxError(
-                message="APPDATA environment variable is not set — cannot resolve xemu AppData path",
+                message="APPDATA environment variable is not set, cannot resolve xemu AppData path",
                 stage=SandboxStage.CONFIG_VALIDATION,
                 suggestions=["Ensure the application is running in a standard Windows user session"],
             )
@@ -245,7 +245,7 @@ def validate_descriptor_grant_surface() -> None:
 
     if failures:
         raise RuntimeError(
-            "Startup validation failed — the following path_keys in "
+            "Startup validation failed, the following path_keys in "
             "container_broker_files cannot be resolved by _resolve_path_key:\n"
             + "\n".join(failures)
             + "\nFix: add the key to settings._DEFAULTS/_PATH_DEFAULTS or to the "
@@ -256,7 +256,7 @@ def validate_descriptor_grant_surface() -> None:
 def reset_container(emulator_slug: str, user_item_id: int | None = None) -> None:
     """Delete the persisted AppContainer profile for the given emulator and user scope.
 
-    Safe to call even if the container has never been provisioned — the
+    Safe to call even if the container has never been provisioned, the
     sandbox_host.exe --reset command treats a missing moniker as a no-op.
 
     Args:

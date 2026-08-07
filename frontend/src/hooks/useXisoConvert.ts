@@ -18,7 +18,7 @@ const POLL_INTERVAL_MS = 3000;
 const MAX_POLL_ATTEMPTS = 200;
 
 /** Drives POST/{id}/convert-xiso then polls its status endpoint until the
- * background conversion finishes — mirrors useLaunch's poll-for-completion
+ * background conversion finishes, mirrors useLaunch's poll-for-completion
  * shape since a multi-GB rip conversion is not instant either. */
 export function useXisoConvert(collectionId: number) {
   const [status, setStatus] = useState<ConvertStatus>('idle');
@@ -45,7 +45,7 @@ export function useXisoConvert(collectionId: number) {
         if (attemptsRef.current > MAX_POLL_ATTEMPTS) {
           setStatus('error');
           setError(
-            'Conversion is taking longer than expected — check the destination folder for completion.',
+            'Conversion is taking longer than expected, check the destination folder for completion.',
           );
           if (pollRef.current) clearInterval(pollRef.current);
           return;

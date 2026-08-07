@@ -1,7 +1,7 @@
 """Background-job status endpoints for the nav-bell notification centre.
 
 Read-only view over core.jobs (upload finalization + large scans). Any
-authenticated user may poll — jobs carry no sensitive payload, only progress and
+authenticated user may poll, jobs carry no sensitive payload, only progress and
 a title/summary.
 """
 from fastapi import APIRouter, Depends, HTTPException

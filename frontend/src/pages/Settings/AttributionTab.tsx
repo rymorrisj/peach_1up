@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/api/client';
 
-// Distinct from the Emulators page's CatalogEntryResponse — this list merges
+// Distinct from the Emulators page's CatalogEntryResponse, this list merges
 // emulator catalog entries with non-emulator third-party tools (extract-xiso)
 // via a dedicated backend endpoint, so it must never drive the Emulators page.
 interface AttributionEntry {

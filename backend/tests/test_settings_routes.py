@@ -1,6 +1,6 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/settings.py.
 
-Per dev_docs/P1_AUDIT.md TST-10 — only GET /owner-status had coverage
+Per dev_docs/P1_AUDIT.md TST-10, only GET /owner-status had coverage
 (test_owner_guard.py); the step-up secret endpoints and the generic settings
 PATCH were untested, including the route that rotates PIN_PEPPER (the secret
 protecting every user's PIN hash). Covers:
@@ -19,7 +19,7 @@ get_env_secret/set_env_secret are monkeypatched rather than exercising the
 real .env file, since its contents are machine-specific and this suite must
 not depend on (or mutate) whatever the local .env happens to hold. Routes
 that touch backend.core.settings.get_settings() (the generic settings state
-facade, distinct from env_secrets) are out of scope here — that facade
+facade, distinct from env_secrets) are out of scope here, that facade
 requires init_settings() to have run, which is a real DB/.env-backed process
 boot step this route-level suite does not perform; the PATCH /settings
 checks below all raise before reaching that call.
@@ -32,7 +32,7 @@ import pytest
 def mem_db_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -78,7 +78,7 @@ def _set_active_user(app, user):
 
 
 # ---------------------------------------------------------------------------
-# is_owner gate — step-up secret status endpoints
+# is_owner gate, step-up secret status endpoints
 # ---------------------------------------------------------------------------
 
 
@@ -149,7 +149,7 @@ class TestSecretStatusGate:
 
 
 # ---------------------------------------------------------------------------
-# can_manage_settings gate + structural checks — PATCH /settings
+# can_manage_settings gate + structural checks, PATCH /settings
 # ---------------------------------------------------------------------------
 
 

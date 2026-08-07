@@ -77,7 +77,7 @@ def get_genres() -> dict:
     """Fetch the full genre id->name list.
 
     Calls GET /v1/Genres and returns the parsed JSON response body. TheGamesDB
-    has no by-ID lookup for this — the endpoint always returns its entire
+    has no by-ID lookup for this, the endpoint always returns its entire
     list, which is what makes caching it locally worthwhile.
 
     Raises:
@@ -141,7 +141,7 @@ def get_game_details(game_id: int) -> dict:
     Calls GET /v1/Games/ByGameID with overview, rating, genres, publishers,
     developers, platform, players, youtube (trailer link), alternates
     (alternate titles), and the PC-specific system-requirement fields (os,
-    processor, ram, hdd, video, sound) — relevant here given this app's
+    processor, ram, hdd, video, sound), relevant here given this app's
     DOS/Win9x/XP focus, unlike a console-only library tool.
 
     Args:

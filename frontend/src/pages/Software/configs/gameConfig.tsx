@@ -54,7 +54,7 @@ function confirmRefetchIfAlreadyFetched(metadataFetchedAt: string | null | undef
 // Composes every game-only concern (disc reorder, DOS-install, xiso convert,
 // edit form, launch_commands, flag launch, delete flow, metadata enrich) into
 // the slot shape EntityDetailPage renders. Called unconditionally on every
-// render of EntityDetailPage when mounted with gameDomainConfig — every hook
+// render of EntityDetailPage when mounted with gameDomainConfig, every hook
 // below must tolerate `bundle`/`bundleId` being undefined (pre-load),
 // exactly like CollectionDetail.tsx's pre-composition body did.
 function useGameDetailExtras(
@@ -92,7 +92,7 @@ function useGameDetailExtras(
   const [fetchMetadataOpen, setFetchMetadataOpen] = useState(false);
   const [fetchDiscId, setFetchDiscId] = useState<number | null>(null);
   // Two independent instances of <FetchMetadataModal> mount below (one for
-  // the whole bundle, one per-disc) — each needs its own busy flag so a
+  // the whole bundle, one per-disc), each needs its own busy flag so a
   // per-disc fetch doesn't show as loading on the bundle-level button
   // (and vice versa). Not currently reachable since fetchMetadataOpen and
   // fetchDiscId are mutually exclusive, but the flags must stay independent.
@@ -208,7 +208,7 @@ function useGameDetailExtras(
       });
 
       // Persist a staged reorder (if any) before deciding which disc gets the
-      // executable_path edit below — otherwise an edit made after reordering
+      // executable_path edit below, otherwise an edit made after reordering
       // would land on the disc that *was* the launch disc before this save,
       // not the one the user just dragged to the top.
       const currentOrderIds = (bundle?.items ?? [])
@@ -275,7 +275,7 @@ function useGameDetailExtras(
   const xisoConvert = useXisoConvert(bundleId ?? 0);
 
   if (!bundle || !formIsReady(form)) {
-    // Mirrors the pre-composition `!bundle || !form` guard — while the
+    // Mirrors the pre-composition `!bundle || !form` guard, while the
     // bundle is loaded but the form hasn't seeded yet (one render tick),
     // render no game-only slots at all rather than a partial form. Every
     // hook above still ran unconditionally, satisfying Rules of Hooks.
@@ -283,7 +283,7 @@ function useGameDetailExtras(
   }
 
   const sortedItems = bundle.items.slice().sort((a, b) => a.disc_number - b.disc_number);
-  // Single-disc games are bundles-of-one — suppress the disc list entirely.
+  // Single-disc games are bundles-of-one, suppress the disc list entirely.
   const isMultiDisc = sortedItems.length > 1;
   // lastResultStatus (set the instant a verify POST resolves) takes priority
   // over the bundle's own data so the badge updates immediately, without
@@ -298,7 +298,7 @@ function useGameDetailExtras(
     lastResultStatus != null ? lastResultSimilarity : bundle.verification_similarity;
   // At a Glance "media size" stat: no bundle-level total exists in the API,
   // so this sums each disc's real file_size_bytes client-side. Null items
-  // (size not yet known) contribute 0 rather than breaking the sum — the
+  // (size not yet known) contribute 0 rather than breaking the sum, the
   // SoftwareEntityDetail.tsx render side only shows the tile when this is > 0,
   // so an all-null bundle still renders no tile rather than a fake "0 B".
   const mediaSizeBytes = sortedItems.reduce((sum, item) => sum + (item.file_size_bytes ?? 0), 0);
@@ -330,7 +330,7 @@ function useGameDetailExtras(
     launchCount: bundle.launch_count,
     lastLaunchedAt: bundle.last_launched_at,
     launchHistory,
-    // At a Glance stats — see EntityDetailExtras (types.ts) for the omit-vs-
+    // At a Glance stats, see EntityDetailExtras (types.ts) for the omit-vs-
     // fabricate contract. localInstalled mirrors bundle.installed and
     // already exists for the DOS-only editable toggle below (metaAfter), this
     // just also surfaces it as a read-only tile for every era.
@@ -474,7 +474,7 @@ function useGameDetailExtras(
             loading={bundleMetadataBusy}
             title={
               !metadataProviderEnabled
-                ? `${activeProviderLabel} credentials not configured — set them in Settings > Advanced`
+                ? `${activeProviderLabel} credentials not configured, set them in Settings > Advanced`
                 : undefined
             }
           >
@@ -511,7 +511,7 @@ function useGameDetailExtras(
     beforeLaunch: (
       <>
         {/* Disc list is shown only for multi-disc bundles. Drag (or use
-            the up/down buttons) to reorder — staged locally, persisted only
+            the up/down buttons) to reorder, staged locally, persisted only
             when "Save Changes" above is pressed. */}
         {isMultiDisc && (
           <section className="space-y-2">
@@ -554,7 +554,7 @@ function useGameDetailExtras(
             />
             {discOrder != null && (
               <p className="text-xs text-amber-600 dark:text-amber-400">
-                Disc order changed — press "Save Changes" above to persist it.
+                Disc order changed, press "Save Changes" above to persist it.
               </p>
             )}
           </section>
@@ -593,7 +593,7 @@ function useGameDetailExtras(
           {xisoConvert.status === 'complete' ? (
             <p className="text-xs text-green-600 dark:text-green-400">
               Conversion complete. Click Launch to try again. The original rip was kept as{' '}
-              {'<filename>.old'} in the same folder — delete it manually to free up disk space.
+              {'<filename>.old'} in the same folder, delete it manually to free up disk space.
             </p>
           ) : (
             <Button
@@ -629,11 +629,11 @@ function useGameDetailExtras(
           onSuccess={async () => {
             queryClient.invalidateQueries({ queryKey: detailQueryKey });
             // Matches EntityListPage's own invalidate() key for the game list
-            // (config.domain, 'list') — was the pre-cutover Games.tsx-only
+            // (config.domain, 'list'), was the pre-cutover Games.tsx-only
             // ['library'] key, which stopped matching anything once Games.tsx
             // moved onto EntityListPage's ['game', 'list', ...] list query.
             queryClient.invalidateQueries({ queryKey: ['game', 'list'] });
-            // Fetch fresh data directly and resync the edit form — the form is only
+            // Fetch fresh data directly and resync the edit form, the form is only
             // built from `bundle` once (see the formIsReady guard above), so it
             // would otherwise show stale publisher/description/category/rating/
             // cover art fields until a full page reload even after the invalidated
@@ -722,7 +722,7 @@ export const gameScanModalConfig: LibraryModalConfig = {
 };
 
 // Game's cover art lives on the leaf item (display/launch disk id
-// indirection) — see getGameCoverArt in CollectionCard.tsx, reused as-is.
+// indirection), see getGameCoverArt in CollectionCard.tsx, reused as-is.
 export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
   domain: 'game',
   routeBase: GAME_ROUTE_BASE,
@@ -750,7 +750,7 @@ export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
   // now driven through EntityListPage instead of the former bespoke page.
   uploadConfig: gameUploadModalConfig,
   scanConfig: gameScanModalConfig,
-  // Multi-disc display-disk selection — data side. Mirrors Games.tsx's former
+  // Multi-disc display-disk selection, data side. Mirrors Games.tsx's former
   // handleSetDisplayDisk exactly (same endpoint/body). EntityListPage gates
   // all use of this behind `config.multiDisc` being present, and invalidates
   // the list query itself after the write completes.
@@ -772,13 +772,13 @@ export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
   },
   // Delete-media-override + two-step confirm-token delete flow, ported from
   // Games.tsx's handleRemove (same endpoints, same PATCH-then-confirm-token
-  // sequence — see EntityListPage.tsx's handleRemove, deleteConfig branch).
+  // sequence, see EntityListPage.tsx's handleRemove, deleteConfig branch).
   deleteConfig: {
     bundleByIdApiPath: (id) => `/api/v1/game-item-bundle/${id}`,
     resolveDeleteMediaOverride: (bundle) => bundle.delete_media_override,
   },
   // Game's grid card is CollectionCard (stacked-disc layers, era placeholder,
-  // stack-count/divergence badges, hover play button) — not EntityCard's
+  // stack-count/divergence badges, hover play button), not EntityCard's
   // generic layout. Ported as-is from Games.tsx/CollectionCard.tsx so the
   // grid's visuals and disc-strip interaction are pixel-for-pixel identical
   // to the pre-cutover page, not just data-plumbing-equivalent.

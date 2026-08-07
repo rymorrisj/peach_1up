@@ -1,4 +1,4 @@
-Written Source-Code Offer — Mesen
+Written Source-Code Offer, Mesen
 ==================================
 
 Mesen is distributed under the GNU General Public License v3 or later

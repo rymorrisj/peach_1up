@@ -13,7 +13,7 @@ class EntityTag(SQLModel, table=True):
     """Polymorphic tag assignment: one row per (tag, entity_type, entity_id) triple.
 
     entity_type is a plain string ("game_item_bundle", "game_item", …).
-    entity_id is an int with NO database-level foreign key — SQLite cannot
+    entity_id is an int with NO database-level foreign key, SQLite cannot
     FK one column to multiple target tables. Integrity is enforced at the
     application layer; callers must always supply the correct entity_type.
     """

@@ -29,9 +29,9 @@ from backend.core.startup_tasks import (
 )
 from backend.service.launch.history import write_session_ends as _write_session_ends
 from backend.service.uploads import software_apps, software_games, software_media
-import backend.models.user  # noqa: F401 — registers UserItem with SQLModel.metadata
-import backend.models.media_restriction  # noqa: F401 — registers MediaRestriction with SQLModel.metadata
-import backend.models.tag  # noqa: F401 — registers Tag and EntityTag with SQLModel.metadata
+import backend.models.user  # noqa: F401, registers UserItem with SQLModel.metadata
+import backend.models.media_restriction  # noqa: F401, registers MediaRestriction with SQLModel.metadata
+import backend.models.tag  # noqa: F401, registers Tag and EntityTag with SQLModel.metadata
 
 logger = get_logger(__name__)
 
@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
     init_settings()
     from backend.core.logger import setup_logging, configure_uvicorn_logging
     setup_logging()
-    # Must run here, not before Server.serve() — uvicorn's own config.load()
+    # Must run here, not before Server.serve(), uvicorn's own config.load()
     # (dictConfig on the "uvicorn"/"uvicorn.error"/"uvicorn.access" loggers)
     # runs before lifespan startup and would otherwise overwrite this.
     configure_uvicorn_logging()
@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
             db_path.unlink()
             logger.info("reset_db: deleted %s", db_path)
         # Deleting the DB file also empties settings (settings now live in
-        # the same file as library data) — reset_db_completed() replays the
+        # the same file as library data), reset_db_completed() replays the
         # in-memory state (loaded before the delete) back into the fresh file
         # so settings survive the wipe, matching the old YAML-file behaviour.
         _settings.reset_db_completed()
@@ -85,7 +85,7 @@ async def lifespan(app: FastAPI):
         _sync_first_run_from_db(db)
         _platforms_seeded = _seed_system_environments(db)
         _profiles_seeded = _seed_default_profiles(db)
-        # Must follow profile seeding — links to the bundled dos profile.
+        # Must follow profile seeding, links to the bundled dos profile.
         _dosbox_envs_seeded = _seed_dosbox_environments(db)
         _tags_seeded = _seed_system_tags(db)
         _cleanup_stale_sessions(db)
@@ -95,7 +95,7 @@ async def lifespan(app: FastAPI):
     app.state.seed_warnings = not (_platforms_seeded and _profiles_seeded and _dosbox_envs_seeded and _tags_seeded)
     if not _platforms_seeded or not _profiles_seeded or not _dosbox_envs_seeded or not _tags_seeded:
         raise RuntimeError(
-            "Startup aborted: required seed data could not be created — see logs above."
+            "Startup aborted: required seed data could not be created, see logs above."
         )
 
     _heal_interrupted_rom_pack_clones()
@@ -105,7 +105,7 @@ async def lifespan(app: FastAPI):
 
     from backend.service.utils.platform.windows.app_container import validate_descriptor_grant_surface as _validate_grants
     _validate_grants()
-    logger.info("Startup: descriptor grant surface validated — all path_keys resolvable")
+    logger.info("Startup: descriptor grant surface validated, all path_keys resolvable")
 
     try:
         from backend.service.utils.emulator_catalog import _get_eras_config as _warm_eras

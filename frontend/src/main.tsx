@@ -92,7 +92,7 @@ function FirstRunGuard() {
 
   const firstRunComplete = data?.first_run_complete ?? false;
 
-  // Only relevant once first-run setup is done — true first-run (no owner
+  // Only relevant once first-run setup is done, true first-run (no owner
   // yet) is FirstRun's job, not this fallback's.
   const ownerStatus = useQuery({
     queryKey: ['owner-status'],

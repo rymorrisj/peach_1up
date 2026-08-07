@@ -1,5 +1,5 @@
 // Client-side mirror of the canonical slugify() in
-// backend/service/utils/slug_generator.py — used only for live "auto-filled
+// backend/service/utils/slug_generator.py, used only for live "auto-filled
 // from name" slug previews in create/edit forms. The backend re-derives and
 // persists the authoritative slug on submit; this never writes anything
 // itself. Keep this in lockstep with the Python implementation so the

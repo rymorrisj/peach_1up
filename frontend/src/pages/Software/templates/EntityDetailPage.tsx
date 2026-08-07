@@ -20,9 +20,9 @@ interface EntityDetailPageProps<TBundle extends EntityBundleBase> {
 
 // Generic detail page: fetch by id (or slug, see config.identifierParam),
 // tags, restrictions, and an optional launch button (omitted entirely when
-// config.launchTargetType is unset, e.g. Media). Game-only concerns — disc
+// config.launchTargetType is unset, e.g. Media). Game-only concerns, disc
 // reordering, xiso conversion, metadata fetch/enrich, era/profile editing,
-// DOS-install — are wired in via config.useRenderExtras (see
+// DOS-install, are wired in via config.useRenderExtras (see
 // configs/gameConfig.tsx) rather than hardcoded here, so this shell carries
 // no game-specific knowledge. useRenderExtras is omitted entirely for App/Media,
 // so their rendered output is unaffected by its existence.
@@ -97,7 +97,7 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({
     targetId: entityId ?? 0,
     // useLaunch must be called unconditionally (rules of hooks), but Media
     // omits launchTargetType entirely and hasLaunch below then keeps its
-    // Launch button from ever rendering — this fallback is never actually
+    // Launch button from ever rendering, this fallback is never actually
     // exercised, its value just has to satisfy the type.
     targetType: config.launchTargetType ?? 'game_item_bundle',
     onSettled: () => queryClient.invalidateQueries({ queryKey: detailQueryKey }),
@@ -105,7 +105,7 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({
 
   // Called unconditionally every render (config is a fixed module-level
   // object per mounted page, so whether useRenderExtras exists never varies
-  // across renders of a given instance) — internally composes whatever
+  // across renders of a given instance), internally composes whatever
   // domain-specific hooks it needs, exactly like a custom hook. Named with the
   // use* prefix (unlike a plain object-property call) so the react-hooks lint
   // rule can actually see and verify the hooks called inside it.

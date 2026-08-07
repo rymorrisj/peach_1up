@@ -24,7 +24,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .then((user) => {
         dispatch({ type: 'SET_ACTIVE_USER', payload: user });
         // Rotate the session token on every app open so sessions extend automatically.
-        // Failure is non-fatal — the existing session remains valid.
+        // Failure is non-fatal, the existing session remains valid.
         apiFetch<{ user: User }>('/api/v1/auth/refresh', { method: 'POST' })
           .then(({ user: refreshed }) => {
             dispatch({ type: 'SET_ACTIVE_USER', payload: refreshed });
@@ -64,7 +64,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Poll background jobs (upload finalize, large scans) while any is processing
-  // or cancelling — 'cancelling' still needs polling to observe the eventual
+  // or cancelling, 'cancelling' still needs polling to observe the eventual
   // 'cancelled' transition once the job loop actually stops. Keyed on the
   // active-job count so the interval stays stable across progress ticks and
   // tears down once everything has finished.
@@ -83,7 +83,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Emit 'upload-complete' whenever an upload job transitions processing → done
   // so the library grid can invalidate without polling or a manual refresh.
-  // Also surfaces delete_original_error from the job result — the background
+  // Also surfaces delete_original_error from the job result, the background
   // path-import counterpart to AddMediaModal's inline-response handling.
   // Uses a toast rather than component-local state because a background job
   // can finish after the modal that started it has already closed.

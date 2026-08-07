@@ -1,7 +1,7 @@
 """extract-xiso invocation for Peach 1UP.
 
 extract-xiso is a vendored third-party tool (services/vendor/extract-xiso/),
-not an emulator — it has no entry in config/emulators/*.toml and is never
+not an emulator, it has no entry in config/emulators/*.toml and is never
 surfaced as a launchable item. It exists solely to convert a raw Xbox DVD rip
 into the xiso format xemu requires.
 """
@@ -26,7 +26,7 @@ _CONVERT_TIMEOUT_SECONDS = 1800
 
 # A genuinely rewritten xiso is a multi-hundred-MB-to-multi-GB file. This is
 # only a floor against a truncated/empty write, not a comparison against the
-# original size — a real rewrite is usually *smaller* than the raw rip (it
+# original size, a real rewrite is usually *smaller* than the raw rip (it
 # strips the video partition and padding), so shrinkage alone is expected.
 _MIN_PLAUSIBLE_XISO_BYTES = 1_048_576
 
@@ -40,7 +40,7 @@ def get_extract_xiso_path() -> Path | None:
 def convert_dvd_rip_to_xiso(source_path: Path) -> Path:
     """Rewrite a raw Xbox DVD rip at *source_path* into a proper xiso, in place.
 
-    Calls extract-xiso's own -r (rewrite) mode directly on source_path — no
+    Calls extract-xiso's own -r (rewrite) mode directly on source_path, no
     -D flag, so extract-xiso's automatic '<name>.old' backup of the
     pre-rewrite file is left on disk as the safety net; this wrapper never
     deletes it. If a '.old' backup already exists from a prior attempt,
@@ -48,8 +48,8 @@ def convert_dvd_rip_to_xiso(source_path: Path) -> Path:
     RuntimeError (its own stderr message names the conflicting path).
 
     extract-xiso can report success (exit 0) without having actually
-    rewritten anything — its own err_iso_no_files case resets the exit code
-    to 0 internally — so exit 0 is not trusted on its own. After the
+    rewritten anything, its own err_iso_no_files case resets the exit code
+    to 0 internally, so exit 0 is not trusted on its own. After the
     subprocess returns 0, the result is re-inspected: the file must still
     exist, be a plausible size, and no longer detect as dvd_rip. Any of
     those failing is treated as a conversion failure even though
@@ -57,11 +57,11 @@ def convert_dvd_rip_to_xiso(source_path: Path) -> Path:
 
     Args:
         source_path: Absolute path to the raw DVD rip. Must already resolve
-            within a configured library root — this is enforced here as a
+            within a configured library root, this is enforced here as a
             second check, independent of any validation the caller performed.
 
     Returns:
-        Path to the rewritten file — the same path as source_path, since the
+        Path to the rewritten file, the same path as source_path, since the
         rewrite happens in place.
 
     Raises:
@@ -86,7 +86,7 @@ def convert_dvd_rip_to_xiso(source_path: Path) -> Path:
     if not is_within_roots(resolved_source, allowed_browse_roots()):
         raise ValueError(f"Source path '{resolved_source}' is outside the configured library.")
 
-    # Argument list, never a shell string — resolved_source is a resolved
+    # Argument list, never a shell string, resolved_source is a resolved
     # Path built from the DB-sourced file_path (see the convert-xiso route),
     # not raw request input.
     #
@@ -104,7 +104,7 @@ def convert_dvd_rip_to_xiso(source_path: Path) -> Path:
         timeout=_CONVERT_TIMEOUT_SECONDS,
     )
 
-    # Logged unconditionally, not just on failure — extract-xiso's own
+    # Logged unconditionally, not just on failure, extract-xiso's own
     # diagnostics (e.g. "contains no files") are the only signal that a
     # exit-0 response was actually a silent no-op.
     if result.stdout.strip():
@@ -131,7 +131,7 @@ def convert_dvd_rip_to_xiso(source_path: Path) -> Path:
     if detect_xbox_image_type(resolved_source) == "dvd_rip":
         raise RuntimeError(
             f"extract-xiso reported success but {resolved_source} still detects as a "
-            "raw Xbox DVD rip — the rewrite did not actually convert it."
+            "raw Xbox DVD rip, the rewrite did not actually convert it."
         )
 
     return resolved_source

@@ -2,7 +2,7 @@
 
 bios_requirements.toml is loaded once at import time via a module-level cached
 path, so route tests can't redirect it to a tmp_path by patching get_base_path
-alone — instead load_bios_requirements is patched directly to return a single
+alone, instead load_bios_requirements is patched directly to return a single
 fixed entry, and get_base_path is patched (in both bios.py and
 emulator_catalog.py, since check_bios_presence calls it independently) so the
 configured bios_path resolves under tmp_path.

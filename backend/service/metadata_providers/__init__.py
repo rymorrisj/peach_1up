@@ -1,7 +1,7 @@
 """Provider-agnostic metadata search/fetch abstraction.
 
 software_metadata.py talks to this package only, never to a concrete provider
-client — get_active_provider() reads the metadata_provider settings key
+client, get_active_provider() reads the metadata_provider settings key
 and returns the matching implementation. Adding a provider means adding a
 module here plus one branch in get_active_provider(); no route or enrich.py
 changes are needed.
@@ -55,7 +55,7 @@ class GameDetails:
 
 class MetadataProvider(Protocol):
     """Every provider owns however many underlying API calls and local
-    caching it needs — callers only ever see fully-resolved names."""
+    caching it needs, callers only ever see fully-resolved names."""
 
     def search_games(self, name: str) -> list[SearchResult]: ...
 

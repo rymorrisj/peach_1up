@@ -335,7 +335,7 @@ export function OverviewTab({
                     fontFamily: 'var(--font-display)',
                   }}
                 >
-                  Downloading the latest release from GitHub — this may take a minute.
+                  Downloading the latest release from GitHub, this may take a minute.
                 </div>
               )}
               {installError && (

@@ -82,7 +82,7 @@ def scan_media_folders(base: Path) -> list[FolderScanEntry]:
     chosen from the folder's direct contents using the priority order defined in
     ``_EXECUTABLE_PRIORITY`` (see ``_EXECUTABLE_PRIORITY_ORDER``, with any other
     supported extension appended afterward). The file matching
-    ``{folder_name}.img`` is always excluded — it is a drive image, not launchable
+    ``{folder_name}.img`` is always excluded, it is a drive image, not launchable
     media. Subdirectories that raise ``OSError`` or ``PermissionError`` are
     skipped silently.
 

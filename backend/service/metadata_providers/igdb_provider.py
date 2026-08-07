@@ -3,7 +3,7 @@
 Auth: IGDB requires a Twitch Developer app. Client ID/secret live in .env
 (env_secrets.py, same pattern as THEGAMESDB_API_KEY). The resulting app
 access token is a short-lived, silently re-mintable derivative of the client
-secret — not a root secret — so it's cached in settings
+secret, not a root secret, so it's cached in settings
 (igdb_access_token / igdb_access_token_expires_at) instead, and losing it on
 reset_db is harmless (the next call just mints a new one).
 
@@ -88,7 +88,7 @@ def _get_valid_token(*, force_refresh: bool = False) -> str:
 def _escape_apicalypse_string(value: str) -> str:
     """Escape a value for safe interpolation into an Apicalypse string literal.
 
-    search_games() puts user-supplied text directly into a query body — the
+    search_games() puts user-supplied text directly into a query body, the
     same injection concern as building raw SQL from user input. Apicalypse
     string literals are double-quoted; escaping backslashes and quotes closes
     the same "value breaks out of its quotes" class of bug SQL parameterization
@@ -112,7 +112,7 @@ def _post(path: str, body: str) -> list[dict]:
 def _cover_url(cover: dict | None, size: str) -> str | None:
     """Build a full https:// IGDB CDN URL from a cover object.
 
-    IGDB's own image_id field is not itself a URL — the CDN path convention
+    IGDB's own image_id field is not itself a URL, the CDN path convention
     (images.igdb.com/igdb/image/upload/{size}/{image_id}.jpg) is documented
     but the API never returns a scheme, so this must always produce a full
     https:// URL. enrich.py's _download_cover_art() rejects anything that
@@ -132,22 +132,22 @@ def _unix_to_date_string(epoch: int | None) -> str | None:
 
 
 # Maps IGDB's age_ratings.organization.name + age_ratings.rating_category.rating
-# onto this app's exact content_ratings vocabulary (config/constants.yaml) — the
+# onto this app's exact content_ratings vocabulary (config/constants.yaml), the
 # same vocabulary normalize_content_rating() (backend/core/dependencies.py)
 # enforces. Only ESRB and PEGI are covered because those are the only two
 # schemes that vocabulary defines; IGDB's other organizations (CERO, USK,
 # GRAC, ACB) have no equivalent entry to map onto and are deliberately absent
-# — an age rating from one of those always resolves to None, not a guess.
+#, an age rating from one of those always resolves to None, not a guess.
 #
 # IGDB migrated this endpoint from a flat numeric category/rating enum to a
 # relational organization/rating_category schema (confirmed via IGDB's public
-# schema docs and community-maintained type definitions — api-docs.igdb.com
+# schema docs and community-maintained type definitions, api-docs.igdb.com
 # itself blocked automated fetches during this investigation, so this couldn't
 # be cross-checked against a live query or IGDB's own rendered docs page).
 # Both the short ESRB codes and both word-form and numeral-form PEGI labels
 # are included below since the exact current string IGDB returns for
 # rating_category.rating could not be confirmed with full certainty from
-# secondary sources alone — deliberately over-covering matches, on the
+# secondary sources alone, deliberately over-covering matches, on the
 # principle that a spurious lookup miss (-> None, unrated) is always safe
 # here, while a wrong or over-broad match would not be.
 _IGDB_RATING_MAP: dict[str, dict[str, str]] = {
@@ -165,7 +165,7 @@ _IGDB_RATING_MAP: dict[str, dict[str, str]] = {
         "AO": "AO",
         "ADULTS ONLY": "AO",
         # RP (Rating Pending) has no equivalent in this app's vocabulary and is
-        # intentionally omitted — falls through to None (unrated), not guessed.
+        # intentionally omitted, falls through to None (unrated), not guessed.
     },
     "PEGI": {
         "3": "PEGI 3", "THREE": "PEGI 3",
@@ -184,7 +184,7 @@ def _resolve_igdb_content_rating(age_ratings: list[dict] | None) -> str | None:
     already established via TheGamesDB (whose own `rating` field is itself
     ESRB-shaped, e.g. "M - Mature 17+"). A title with only a PEGI rating still
     resolves via PEGI; a title with neither recognised, or with only
-    unsupported schemes (CERO/USK/GRAC/ACB), resolves to None — same safe-null
+    unsupported schemes (CERO/USK/GRAC/ACB), resolves to None, same safe-null
     behavior as an unrecognised TheGamesDB rating string today.
     """
     by_org: dict[str, str] = {}
@@ -233,7 +233,7 @@ class IGDBProvider:
         result.release_date = _unix_to_date_string(game.get("first_release_date"))
         result.overview = game.get("summary") or None
         # Note: IGDB's `rating` field (a 0-100 aggregate user-rating score) is
-        # never used here — it is not an ESRB/PEGI-style content rating and
+        # never used here, it is not an ESRB/PEGI-style content rating and
         # would corrupt enrich.py's normalize_content_rating(), which drives
         # this app's parental content-rating filter. The real content rating
         # comes from the separate age_ratings field, resolved below.
@@ -270,7 +270,7 @@ class IGDBProvider:
 
         # IGDB's own screenshots/artworks fields are deliberately not fetched
         # here (out of scope for this pass, TheGamesDB was the one audited
-        # for image completeness this session) — assets only carries IGDB's
+        # for image completeness this session), assets only carries IGDB's
         # existing single cover image today, wrapped in the same shape
         # TheGamesDB's multi-image assets list uses, so the Accept All flow
         # never needs to special-case which provider produced a given asset.

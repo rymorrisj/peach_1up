@@ -4,9 +4,9 @@ Produces lowercase hyphenated slugs with ascending integer suffixes on
 collision: doom → doom-2 → doom-3.
 
 Public API:
-    slugify       — normalise a name to a base slug string.
-    unique_slug   — produce a collision-free slug using a caller-supplied check.
-    generate_collection_slug — convenience wrapper for GameItemBundle slugs.
+    slugify      , normalise a name to a base slug string.
+    unique_slug  , produce a collision-free slug using a caller-supplied check.
+    generate_collection_slug, convenience wrapper for GameItemBundle slugs.
 """
 
 from __future__ import annotations

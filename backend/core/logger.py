@@ -204,7 +204,7 @@ def configure_uvicorn_logging() -> None:
             # uvicorn/uvicorn.error carry the startup banner at INFO level
             # ("Uvicorn running on...", "Application startup complete.") so a
             # tester running the packaged exe sees confirmation the server is
-            # up. uvicorn.access stays at ERROR — per-request logging is off
+            # up. uvicorn.access stays at ERROR, per-request logging is off
             # in production by design.
             uvi.setLevel(logging.INFO if name != "uvicorn.access" else logging.ERROR)
             uvi.addHandler(_get_prod_console_handler())

@@ -14,7 +14,7 @@ cd peach_1up
 ```
 
 Then run the setup script from the project root. Peach 1UP is Windows-only (see
-[Technology Stack](./tech-stack.mdx)) — there is no Linux dev setup path:
+[Technology Stack](./tech-stack.mdx)), there is no Linux dev setup path:
 
 ```bash
 start.bat
@@ -30,7 +30,7 @@ The script creates a Python virtual environment, installs backend and frontend d
 
 ## Static verification
 
-The project enforces **static-only verification** — never run the test suite (`pytest`, `vitest`) or install/remove packages as part of development. Verify correctness by reading the code and tracing call sites.
+The project enforces **static-only verification**, never run the test suite (`pytest`, `vitest`) or install/remove packages as part of development. Verify correctness by reading the code and tracing call sites.
 
 **TypeScript type check:**
 
@@ -61,7 +61,7 @@ For the commit message format, allowed types and scopes, and PR rules, see the r
 | File / directory | Purpose |
 | ---------------- | ------- |
 | `backend/main.py` | FastAPI app entry point; mounts all routers |
-| `scripts/export_and_build_types.py` | Generates `shared/openapi.json` and `shared/types.ts` — run this when routers change |
+| `scripts/export_and_build_types.py` | Generates `shared/openapi.json` and `shared/types.ts`, run this when routers change |
 | `settings` DB table | Runtime settings and path keys; stored in the SQLite DB (`config/settings.yaml` was removed) |
 | `config/emulators/` | Per-emulator configuration `.toml` files |
 | `frontend/src/api/generated/` | Generated API client; never edit by hand |

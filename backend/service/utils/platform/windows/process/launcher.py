@@ -9,11 +9,11 @@ lifecycle:
   * ``launch_suspended`` starts the emulator suspended, natively or inside an
     AppContainer.
   * ``run_under_job`` creates the Job Object, applies limits (or not, for
-    container launches — see its docstring), assigns the process (retrying
+    container launches, see its docstring), assigns the process (retrying
     with CREATE_BREAKAWAY_FROM_JOB if needed), and resumes it.
 
 If Job Object assignment fails the process is terminated and the launch is
-aborted — there is no unsandboxed fallback.
+aborted, there is no unsandboxed fallback.
 """
 
 import subprocess
@@ -23,10 +23,10 @@ from pathlib import Path
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.eras_config import get_eras, get_cpu_min_rate
-from ..sandbox.sandbox_config import SandboxConfig
-from ..sandbox.sandbox_process import SandboxProcess
-from ..sandbox.job import WindowsJobObject
-from ..sandbox.process import launch_suspended, run_under_job
+from sandbox.sandbox_config import SandboxConfig
+from sandbox.sandbox_process import SandboxProcess
+from sandbox.job import WindowsJobObject
+from sandbox.process import launch_suspended, run_under_job
 from backend.service.utils.emulator_catalog import get_skip_memory_limit, get_skip_cpu_limit
 
 logger = get_logger(__name__)
@@ -78,7 +78,7 @@ def launch_under_job_object(
     """Launch an emulator under the current user account in a Windows Job Object.
 
     The Job Object name is ``job_name_prefix`` plus the launched process's PID,
-    so the name can only be finalized once the process exists — the process is
+    so the name can only be finalized once the process exists, the process is
     therefore launched first and the Job Object is created and configured
     second, immediately before assignment. The PID makes the name unique per
     launch (OS-guaranteed for live processes); the alternative of naming the
@@ -88,7 +88,7 @@ def launch_under_job_object(
     """
     if container_enabled and sandbox_config is None:
         raise RuntimeError(
-            "container_enabled is True but sandbox_config is None — "
+            "container_enabled is True but sandbox_config is None, "
             "pass a SandboxConfig to launch_under_job_object."
         )
 
@@ -101,7 +101,7 @@ def launch_under_job_object(
 
     if container_enabled:
         # sandbox_host.exe applies these via its own Job Object
-        # (main.cpp/job.cpp) before the emulator ever runs — the resolved
+        # (main.cpp/job.cpp) before the emulator ever runs, the resolved
         # era numbers must reach it through sandbox_config, otherwise it
         # silently falls back to SandboxConfig's inert defaults (50% CPU, no
         # memory cap). run_under_job is called below with

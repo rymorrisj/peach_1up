@@ -43,7 +43,7 @@ interface FetchMetadataModalProps {
   entityTitle: string;
   storageKey: string;
   onSuccess: () => void;
-  /** Current content_rating on the collection, if any — used to warn when the
+  /** Current content_rating on the collection, if any, used to warn when the
    *  fetched rating would lower or clear it. Only meaningful for entityType
    *  'game_item_bundle'; game_item has no content_rating field. */
   currentContentRating?: string | null;
@@ -52,7 +52,7 @@ interface FetchMetadataModalProps {
   onBusyChange?: (busy: boolean) => void;
   /** Display label for the currently active metadata provider ('TheGamesDB'
    *  or 'IGDB'), sourced from the DB-backed metadata_provider setting by the
-   *  caller. Recorded as metadata_source on apply — only meaningful for
+   *  caller. Recorded as metadata_source on apply, only meaningful for
    *  entityType 'game_item_bundle'; game_item enrichment has no
    *  metadata_source field and rejects it. */
   activeProviderLabel: string;
@@ -89,7 +89,7 @@ export function FetchMetadataModal({
   const [acceptingAll, setAcceptingAll] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
 
-  // Pre-fill the search field with the item's title on open — editable, not
+  // Pre-fill the search field with the item's title on open, editable, not
   // re-applied on every render (only when the modal transitions to open).
   useEffect(() => {
     if (open) setQuery(entityTitle);
@@ -181,7 +181,7 @@ export function FetchMetadataModal({
     };
 
     if (entityType === 'game_item_bundle') {
-      // Metadata lives on the collection — cover_art_url is not supported here.
+      // Metadata lives on the collection, cover_art_url is not supported here.
       // metadata_source only belongs here: enrich.py rejects any metadata_fields
       // (including metadata_source) for entityType 'game_item'.
       payload.metadata_source = activeProviderLabel;
@@ -261,7 +261,7 @@ export function FetchMetadataModal({
   }
 
   function handleSkipAcceptAll() {
-    // Zero additional calls — Keep already applied core metadata + cover art
+    // Zero additional calls, Keep already applied core metadata + cover art
     // above, this step only ever offers to go further than that.
     onClose();
   }
@@ -270,7 +270,7 @@ export function FetchMetadataModal({
     setPhase('search');
     setDetails(null);
     setApplyError(null);
-    // results stay in state (and sessionStorage) — no re-search needed
+    // results stay in state (and sessionStorage), no re-search needed
   }
 
   const showCoverArt = entityType === 'game_item';
@@ -286,7 +286,7 @@ export function FetchMetadataModal({
     if (!open) onBusyChange?.(false);
   }, [open, onBusyChange]);
   // Coarse string comparison against the raw provider rating (not the normalized
-  // form the backend will store) — this can flag changes the backend later decides
+  // form the backend will store), this can flag changes the backend later decides
   // don't need confirmation (e.g. a same-rating restated differently, or a raise),
   // but it can never miss a real lower/clear. The backend's normalized comparison
   // in enrich.py is the actual safety gate; this is just visibility for the user.
@@ -499,7 +499,7 @@ export function FetchMetadataModal({
 
               {showMetadata && (details.assets.length > 0 || details.video_urls.length > 0) && (
                 <p className="text-xs text-neutral-400">
-                  Keep applies title/cover art now — you'll be offered a separate Accept All step
+                  Keep applies title/cover art now, you'll be offered a separate Accept All step
                   afterward to create a linked Media item from the images above.
                 </p>
               )}
@@ -578,7 +578,7 @@ export function FetchMetadataModal({
                 ))}
               </ul>
               <p className="mt-1 text-xs text-neutral-400">
-                Already saved on the game (applied by Keep) — Accept All only affects the images
+                Already saved on the game (applied by Keep), Accept All only affects the images
                 above.
               </p>
             </div>

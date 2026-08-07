@@ -26,7 +26,7 @@ def _run(coro):
 def mem_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -39,7 +39,7 @@ def mem_session():
 
 
 class _FakeSettings:
-    """Same fake-settings convention as test_game_items.py — get_settings()
+    """Same fake-settings convention as test_game_items.py, get_settings()
     is a process-wide singleton gated by init_settings(), so unit tests patch
     it directly rather than depending on some other test file having already
     triggered the real init via a TestClient lifespan startup."""
@@ -90,7 +90,7 @@ def _make_proc(poll_return=None):
 
 def _make_job():
     job = MagicMock()
-    job.job_handle = 0xABCD  # truthy sentinel — coordinator requires this to not be None
+    job.job_handle = 0xABCD  # truthy sentinel, coordinator requires this to not be None
     job.memory_limit_mb = 512
     job.cpu_limit_percent = 50
     return job

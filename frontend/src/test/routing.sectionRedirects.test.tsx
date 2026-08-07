@@ -1,6 +1,6 @@
 /**
  * Integration tests for the route shape introduced by
- * dev_docs/v2/08_emulator_profiles_navigation.md — redirects, the
+ * dev_docs/v2/08_emulator_profiles_navigation.md, redirects, the
  * `/emulators/:slug` exception, and the promoted-Profiles no-`:slug`-route
  * fix, exercised against the real page/route-array exports main.tsx wires up.
  *
@@ -10,7 +10,7 @@
  * Instead this file reconstructs the same nesting from the same building blocks
  * main.tsx consumes (`Software`+`softwareTabRoutes`, `Emulators`+`emulatorsTabRoutes`,
  * `System`+`systemTabRoutes`, `CollectionDetail`, `EmulatorDetail`, and the explicit
- * `/platform-health` redirect) — verified against main.tsx's actual route
+ * `/platform-health` redirect), verified against main.tsx's actual route
  * declarations (read directly, not assumed from the doc's prose) before writing
  * this file.
  */
@@ -102,7 +102,7 @@ function mockApiGenerically() {
     }
 
     // System/Health.tsx renders these unconditionally once loaded (storageFootprint.categories.map(...),
-    // summary.library.total, etc.) — the bare-array catch-all below is truthy but shapeless, so without
+    // summary.library.total, etc.), the bare-array catch-all below is truthy but shapeless, so without
     // these explicit branches both queries resolving to [] crashes the /system and /platform-health tests.
     if (url === '/api/v1/health/storage') {
       return Promise.resolve({
@@ -194,7 +194,7 @@ describe('Section redirects (dev_docs/v2/08_emulator_profiles_navigation.md)', (
     });
   });
 
-  it('/software redirects to /software/games — confirmed as the actual default tab from Software/index.tsx, not assumed', async () => {
+  it('/software redirects to /software/games, confirmed as the actual default tab from Software/index.tsx, not assumed', async () => {
     mockApiGenerically();
     renderAt('/software');
     await expectFinalPath('/software/games');
@@ -208,7 +208,7 @@ describe('Section redirects (dev_docs/v2/08_emulator_profiles_navigation.md)', (
   });
 });
 
-describe('/emulators/:slug exception (Locked decision 13) — static tab segments resolve first', () => {
+describe('/emulators/:slug exception (Locked decision 13), static tab segments resolve first', () => {
   it.each([
     ['/emulators/emulators', /no emulators found/i],
     ['/emulators/bios', /no bios requirements/i],
@@ -229,19 +229,19 @@ describe('/emulators/:slug exception (Locked decision 13) — static tab segment
     },
   );
 
-  // KNOWN ISSUE — hangs the test runner, root cause not found (investigated extensively: ruled out
+  // KNOWN ISSUE, hangs the test runner, root cause not found (investigated extensively: ruled out
   // query-shape/mock mismatches, disabled-query states, EmulatorDetail.tsx timers/handles, AppContext
   // auth-refresh/jobs-poll timing). Symptom: Vitest UI confirms the test body itself passes with no
-  // errors, but the process never advances past RUNNING — classic leaked-async-handle signature, source
+  // errors, but the process never advances past RUNNING, classic leaked-async-handle signature, source
   // unconfirmed. Skipped to unblock alpha; needs deeper debugging (why-is-node-running dump was
-  // attempted but inconclusive — hang point isn't even consistent between runs). See 2026-07-11 investigation.
+  // attempted but inconclusive, hang point isn't even consistent between runs). See 2026-07-11 investigation.
   // TODO: re-enable once root cause is found and fixed.
   it.skip('/emulators/:slug still resolves to EmulatorDetail for a real (non-reserved) slug', async () => {
     mockApiGenerically();
     renderAt('/emulators/dosbox-x');
     await expectFinalPath('/emulators/dosbox-x');
     // EmulatorDetail's heading falls back to the raw slug when the catalog
-    // entry isn't found in `entry?.name ?? slug` — a reliable, page-specific
+    // entry isn't found in `entry?.name ?? slug`, a reliable, page-specific
     // marker that this is EmulatorDetail and not NotFound or a tab route.
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'dosbox-x' })).toBeInTheDocument();
@@ -256,13 +256,13 @@ describe('/emulators/:slug exception (Locked decision 13) — static tab segment
   });
 });
 
-describe('Profiles has no per-profile route (Locked decision 11 — reconciles an earlier inconsistent revision)', () => {
-  it('/emulators/profiles/some-slug is not a registered route — falls through to the section default tab', async () => {
+describe('Profiles has no per-profile route (Locked decision 11, reconciles an earlier inconsistent revision)', () => {
+  it('/emulators/profiles/some-slug is not a registered route, falls through to the section default tab', async () => {
     mockApiGenerically();
     renderAt('/emulators/profiles/some-slug');
     // No `/emulators/profiles/:slug` route exists, so this hits the nested
     // catch-all under `/emulators` (built by buildTabRoutes) and redirects to
-    // the section's default tab — it does NOT 404 and does NOT render Profiles
+    // the section's default tab, it does NOT 404 and does NOT render Profiles
     // with a specific profile selected (there is no such concept).
     await expectFinalPath('/emulators/emulators');
   });

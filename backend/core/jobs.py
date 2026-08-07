@@ -1,9 +1,9 @@
-"""In-memory background-job registry — the entry point for work that outlives
+"""In-memory background-job registry, the entry point for work that outlives
 the request that started it (large upload finalization, large library scans) and
 needs to surface progress in the nav-bell notification centre.
 
 In-memory only (lost on restart), matching install_registry / process_registry /
-rate_limit — the goal is live progress for the current session, not a durable
+rate_limit, the goal is live progress for the current session, not a durable
 history. Thread-safe: background tasks mutate jobs from a worker thread while the
 `GET /api/v1/jobs` poll reads them from the event loop.
 """
@@ -55,7 +55,7 @@ def request_cancel(job_id: str) -> dict[str, Any] | None:
     """Flag *job_id* for cooperative cancellation and mark it 'cancelling'.
 
     Returns the updated job dict, or None if the job doesn't exist or is no
-    longer in flight (cancellation only applies to a 'processing' job — it is
+    longer in flight (cancellation only applies to a 'processing' job, it is
     not retroactive against one that already finished).
     """
     with _lock:
@@ -63,7 +63,7 @@ def request_cancel(job_id: str) -> dict[str, Any] | None:
         if job is None or job["status"] != "processing":
             return None
         job["status"] = "cancelling"
-        job["message"] = f"{job['message']} — cancelling…" if job["message"] else "Cancelling…"
+        job["message"] = f"{job['message']}, cancelling…" if job["message"] else "Cancelling…"
         job["updated_at"] = time.time()
         result = dict(job)
     event = _cancel_events.get(job_id)
@@ -80,7 +80,7 @@ def cancel_requested(job_id: str) -> bool:
 
 def cancel(job_id: str, message: str | None = None) -> None:
     """Mark *job_id* as cancelled (terminal state). Called by the job's own
-    loop once it has actually stopped work — mirrors complete()/fail()."""
+    loop once it has actually stopped work, mirrors complete()/fail()."""
     _finish(job_id, "cancelled", message=message)
 
 

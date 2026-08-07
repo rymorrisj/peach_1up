@@ -15,7 +15,7 @@ interface LaunchSectionProps {
   launchErrorAction?: ReactNode;
 }
 
-// Callers only render this when they have an onLaunch handler — see the
+// Callers only render this when they have an onLaunch handler, see the
 // {onLaunch && <LaunchSection .../>} guard in SoftwareEntityDetail.
 export function LaunchSection({
   onLaunch,

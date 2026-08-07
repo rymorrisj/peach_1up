@@ -66,7 +66,7 @@ interface InitResponse {
 // to mirror the backend's shape detection here client-side would mean
 // keeping two independent implementations of the same MediaTarget-kind
 // classification in sync (exactly the kind of drift the MediaTarget refactor
-// exists to close on the backend side) — nesting is comparatively cheap to
+// exists to close on the backend side), nesting is comparatively cheap to
 // always preserve and let the server's own resolvers (smart_media_detector's
 // resolve_ps3_target/resolve_xex_target) sort out the shape, the same way a
 // plain flat DOS/console folder upload already reassembles correctly whether
@@ -187,7 +187,7 @@ export function chunkedUpload(
     if (!completeRes.ok) throw await asError(completeRes);
     const body = (await completeRes.json().catch(() => ({}))) as ChunkedUploadResult['body'];
     // A 202 with no job_id means the response body failed to parse (or the
-    // server sent an unexpected shape) — silently returning body={} here would
+    // server sent an unexpected shape), silently returning body={} here would
     // strand the background job with no id to poll/track, and look identical
     // to a successful inline finalize to the caller. Treat it as a hard error
     // instead of a quiet success.

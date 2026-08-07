@@ -34,7 +34,7 @@ from backend.constants_generated import APP_VERSION  # noqa: E402
 
 app = FastAPI(
     title="Peach 1UP",
-    description="Preservation automation — REST API",
+    description="Preservation automation, REST API",
     version=APP_VERSION,
     lifespan=lifespan,
     docs_url="/api/docs",

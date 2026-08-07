@@ -62,7 +62,7 @@ async def place_bios(
     """Copy a BIOS/ROM asset the user already has into its required location.
 
     Accepts either a server-side source_path (file or folder) or one or more
-    file uploads — never both. Never fetches or downloads anything; the
+    file uploads, never both. Never fetches or downloads anything; the
     caller must already have the bytes somewhere on disk.
     """
     entry = next((e for e in load_bios_requirements() if e["slug"] == slug), None)
@@ -78,7 +78,7 @@ async def place_bios(
     if not dest_dir.is_relative_to(base):
         raise HTTPException(
             status_code=500,
-            detail=f"bios_path for '{slug}' resolves outside the project root — corrupted config.",
+            detail=f"bios_path for '{slug}' resolves outside the project root, corrupted config.",
         )
 
     uploads = [f for f in files if f.filename]

@@ -21,7 +21,7 @@ def _derive_rating_ordinals() -> dict[str, int]:
     """Derive rating ordinals from CONTENT_RATINGS (config/constants.yaml).
 
     Ordinal = index within its scheme group (ESRB, PEGI, ...), in declared
-    list order — each scheme's own severity ladder starts back at 0. This
+    list order, each scheme's own severity ladder starts back at 0. This
     replaces a hand-maintained duplicate of the rating list that had to be
     kept in sync by hand; CONTENT_RATINGS is now the single source.
     """
@@ -38,7 +38,7 @@ def _derive_rating_ordinals() -> dict[str, int]:
 _BASE_RATING_ORDINALS: dict[str, int] = _derive_rating_ordinals()
 
 # Scheme grouping (ESRB, PEGI, ...) is not part of the ordinal override key —
-# rating_ordinals only remaps severity within a scheme — so this always comes
+# rating_ordinals only remaps severity within a scheme, so this always comes
 # from the base CONTENT_RATINGS list, never the settings override.
 _BASE_RATING_SCHEMES: dict[str, str] = {entry["value"]: entry["scheme"] for entry in CONTENT_RATINGS}
 
@@ -47,7 +47,7 @@ def _load_rating_ordinals() -> dict[str, int]:
     """Return the rating ordinal map from settings (key: rating_ordinals) or defaults.
 
     Falls back to _BASE_RATING_ORDINALS when settings are unavailable
-    (RuntimeError before init) or malformed (TypeError/ValueError) — the
+    (RuntimeError before init) or malformed (TypeError/ValueError), the
     default vocabulary is the safe, restrictive baseline, never a widening.
     """
     try:
@@ -115,7 +115,7 @@ def validate_max_content_rating(value: str | None) -> str | None:
     ``None`` means "no ceiling" and always passes. An unknown value must be
     rejected on write: get_filtered_game_item_bundles looks the ceiling up in the
     ordinal map, gets ``None`` for an unrecognised value, and then skips the
-    rating filter entirely — silently uncapping the user. Rejecting here keeps
+    rating filter entirely, silently uncapping the user. Rejecting here keeps
     that bypass closed.
     """
     if value is None:
@@ -221,7 +221,7 @@ def _restricted_bundle_ids(restriction_column, active_user: UserItem, db: Sessio
     media_item_bundle_id while the same user also has a Game restriction row,
     which leaves media_item_bundle_id NULL on that row). SQL's ``NOT IN``
     against a list containing NULL evaluates to UNKNOWN for every row, not
-    TRUE — so without this filter, one cross-domain restriction row would
+    TRUE, so without this filter, one cross-domain restriction row would
     silently blank out this user's entire query for every other domain.
     """
     return db.query(restriction_column).filter(
@@ -237,7 +237,7 @@ def get_filtered_game_item_bundles(active_user: UserItem, db: Session):
     - ``block_unrated_media=True`` excludes collections with null/empty content_rating.
     - ``max_content_rating`` limits results to ratings at or below the ordinal threshold.
       For a user with a ceiling, collections whose rating is unrecognised are DENIED,
-      not passed through — an unknown rating must never leak past a parental cap. If the
+      not passed through, an unknown rating must never leak past a parental cap. If the
       user's own ceiling cannot be resolved to a known ordinal (e.g. a ``rating_ordinals``
       settings change orphaned a previously-valid value), this fails closed: no rated
       content passes, rather than silently dropping the ceiling entirely.
@@ -263,7 +263,7 @@ def get_filtered_game_item_bundles(active_user: UserItem, db: Session):
         ordinal_map = _load_rating_ordinals()
         max_ord = ordinal_map.get(active_user.max_content_rating)
         # An unresolvable ceiling must fail closed (deny all rated content),
-        # not silently disable the rating filter — see docstring above.
+        # not silently disable the rating filter, see docstring above.
         allowed = {r for r, o in ordinal_map.items() if o <= max_ord} if max_ord is not None else set()
         q = q.filter(
             or_(
@@ -297,7 +297,7 @@ def get_filtered_game_item_bundle(id_or_slug: int | str, active_user: UserItem, 
 
 # ---------------------------------------------------------------------------
 # App: mirrors Game exactly, manual blocklist only, no content_rating concept
-# (AppItemBundle has no such column — see backend/models/app.py). The
+# (AppItemBundle has no such column, see backend/models/app.py). The
 # "/app-items" list route already returns AppItemBundle rows (same shape as
 # Game's "/game-items"), so get_filtered_app_items/_app_item follow that same
 # naming, despite the function bodies operating on AppItemBundle, not AppItem.
@@ -307,7 +307,7 @@ def get_filtered_game_item_bundle(id_or_slug: int | str, active_user: UserItem, 
 def get_filtered_app_items(active_user: UserItem, db: Session):
     """Return an AppItemBundle query filtered to what *active_user* may see.
 
-    Owner sees all collections. Manual blocklist only (MediaRestriction) — Apps have
+    Owner sees all collections. Manual blocklist only (MediaRestriction), Apps have
     no content_rating/max_content_rating concept to filter on.
     """
     q = db.query(AppItemBundle)
@@ -339,7 +339,7 @@ def get_filtered_app_item(id_or_slug: int | str, active_user: UserItem, db: Sess
 # unlike Game/App, individual MediaItem rows can stand alone with no parent
 # bundle (media_item_bundle_id is nullable). Media also exposes its own
 # top-level "/media-items" list + "/media-item/{id}" detail routes for that
-# leaf entity — Game/App leaves have no such bulk route, so there was no
+# leaf entity, Game/App leaves have no such bulk route, so there was no
 # equivalent naming slot for them. get_filtered_media_item_bundles/_bundle
 # below is the direct Game/App mirror (bundle-level, used by
 # "/media-item-bundles" + "/media-item-bundle/{id}"); get_filtered_media_items/
@@ -351,7 +351,7 @@ def get_filtered_app_item(id_or_slug: int | str, active_user: UserItem, db: Sess
 def get_filtered_media_item_bundles(active_user: UserItem, db: Session):
     """Return a MediaItemBundle query filtered to what *active_user* may see.
 
-    Owner sees all collections. Manual blocklist only — Media has no
+    Owner sees all collections. Manual blocklist only, Media has no
     content_rating/max_content_rating concept to filter on.
     """
     q = db.query(MediaItemBundle)

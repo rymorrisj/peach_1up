@@ -34,7 +34,7 @@ def _no_permission_user():
 def mem_db_session():
     from sqlmodel import SQLModel, Session, create_engine
     from sqlalchemy.pool import StaticPool
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -99,12 +99,12 @@ def _set_catalog(monkeypatch, entries):
 
     rom_packs.py imported get_emulator/load_catalog by name, so patching
     only emulator_catalog's module attributes (as other route tests do)
-    would not reach rom_packs.py's own already-bound references — those
+    would not reach rom_packs.py's own already-bound references, those
     are patched directly on the rom_packs module. Separately,
     record_rom_pack_item (backend/service/utils/emulator_installer.py,
     invoked by the verify endpoint) does its own `from ...emulator_catalog
     import get_emulator`, which internally calls load_catalog() resolved
-    through emulator_catalog's own globals — so emulator_catalog.load_catalog
+    through emulator_catalog's own globals, so emulator_catalog.load_catalog
     is patched too, keeping that path off the real on-disk TOML catalog.
     """
     from backend.api.routes import rom_packs

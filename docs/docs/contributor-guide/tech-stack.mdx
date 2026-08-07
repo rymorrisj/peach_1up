@@ -19,7 +19,7 @@ PyInstaller compiles the Python backend to a standalone executable. React builds
 **Windows-only.**
 
 The application runs natively on Windows 10/11. Emulators run natively on the host OS.
-Linux support was removed from scope — process isolation is Windows Job Objects only.
+Linux support was removed from scope, process isolation is Windows Job Objects only.
 
 ## Database
 
@@ -51,29 +51,29 @@ throughout. Radix UI primitives (dialog, slot) with hand-rolled component librar
 
 ## Emulators (PC)
 
-- **DOSBox-X** — DOS. No ROM required.
-- **86Box** — Windows 95, 98, XP. User supplies ROM pack.
+- **DOSBox-X**, DOS. No ROM required.
+- **86Box**, Windows 95, 98, XP. User supplies ROM pack.
 
 ### Limitations
 
-DOSBox-X: DOS game sound requires HDD image install flow — games that write their sound config to the install directory (e.g. Doom DEFAULT.CFG) will have no in-game sound when launched directly from a read-only ISO. Sound works correctly once the game is installed to a writable HDD image via the install flow. Direct ISO launch is intentionally read-only and cannot persist game config. No code change required — this is expected behaviour.
+DOSBox-X: DOS game sound requires HDD image install flow, games that write their sound config to the install directory (e.g. Doom DEFAULT.CFG) will have no in-game sound when launched directly from a read-only ISO. Sound works correctly once the game is installed to a writable HDD image via the install flow. Direct ISO launch is intentionally read-only and cannot persist game config. No code change required, this is expected behaviour.
 
 ## Emulators (Console)
 
-- DuckStation — PS1
-- PCSX2 — PS2
-- xemu — Xbox OG
-- Mesen — NES, SNES
-- Project64 — N64
-- Flycast — Dreamcast
-- RPCS3 — PS3
-- Xenia — Xbox 360
+- DuckStation, PS1
+- PCSX2, PS2
+- xemu, Xbox OG
+- Mesen, NES, SNES
+- Project64, N64
+- Flycast, Dreamcast
+- RPCS3, PS3
+- Xenia, Xbox 360
 
 ## Process Isolation
 
 **Windows Job Objects.**
 
-Network blocking enforced at the emulator level on every launch — each emulator is
+Network blocking enforced at the emulator level on every launch, each emulator is
 started with its network adapter disabled when `enable_networking` is false on the
 active profile. Job Objects provide kill-on-close, CPU cap, and memory cap on Windows.
 Linux support, and the earlier cgroups/network-namespaces isolation plan for it, was
@@ -89,30 +89,30 @@ community contributors.
 
 ## Smart Scanner
 
-`smart_media_detector` is the self-contained media detection package that identifies platform and era from a disk image or directory path. It lives at `backend/service/utils/smart_media_detector/` and has zero `backend.*` imports — it is designed to be vendored into its own standalone repository after the Beta ships.
+`smart_media_detector` is the self-contained media detection package that identifies platform and era from a disk image or directory path. It lives at `backend/service/utils/smart_media_detector/` and has zero `backend.*` imports, it is designed to be vendored into its own standalone repository after the Beta ships.
 
 ### Detection pipeline
 
 Detection runs in tier order and short-circuits on the first confident match:
 
-1. **Hash lookup** — full-file SHA-1 (with MD5/CRC32 fallback) compared against a bundled `hash_index.json` built from No-Intro/Redump DAT files. Returns the highest-confidence result possible; exits immediately on a hit.
-2. **Magic bytes** — file header compared against `magic/magic_signatures.toml`. Covers GDI, CDI, BIN, ISO, and CHD container signatures.
-3. **Structural validation** — deeper parse of the container format:
+1. **Hash lookup**, full-file SHA-1 (with MD5/CRC32 fallback) compared against a bundled `hash_index.json` built from No-Intro/Redump DAT files. Returns the highest-confidence result possible; exits immediately on a hit.
+2. **Magic bytes**, file header compared against `magic/magic_signatures.toml`. Covers GDI, CDI, BIN, ISO, and CHD container signatures.
+3. **Structural validation**, deeper parse of the container format:
    - ISO: reads the ISO 9660 PVD (sector 16) for volume label, publisher, and system-ID fields; falls back to scanning the root directory for `.xbe` (Xbox OG) markers.
-   - CHD: walks the CHD v5 metadata chain — `CHGD` tag → Dreamcast; `CHTR`/`CHT2` tag → PS2.
+   - CHD: walks the CHD v5 metadata chain, `CHGD` tag → Dreamcast; `CHTR`/`CHT2` tag → PS2.
    - BIN/CUE: resolves the `.cue` sheet to its `.bin` sibling, then runs magic-byte and PVD checks on the binary.
-4. **Directory heuristics** — inspects root-level filenames and subdirectory structure for OS installer markers (`I386`, `WIN98`, `XPSP`, `SYSTEM.CNF`, `AUTORUN.INF`, DOS tool names, `.WAD` files, etc.).
-5. **Extension / size fallback** — lowest-confidence tier; uses file extension and file size as weak signals when no structural match is found.
+4. **Directory heuristics**, inspects root-level filenames and subdirectory structure for OS installer markers (`I386`, `WIN98`, `XPSP`, `SYSTEM.CNF`, `AUTORUN.INF`, DOS tool names, `.WAD` files, etc.).
+5. **Extension / size fallback**, lowest-confidence tier; uses file extension and file size as weak signals when no structural match is found.
 
 ### Known limitations
 
 - **Xbox OG ISOs without `DEFAULT.XBE` at the ISO root** will not resolve platform via structural scan (the `.xbe` directory scan comes up empty). The magic-byte check still applies as a fallback. Standard Xbox rips typically include `DEFAULT.XBE` at the root, so this case is expected to be rare in practice.
 - **`.bin`/`.cue` pairs without a matching `.cue` sibling** return low confidence and `requires_manual_boot = True`. The scanner cannot resolve CD layout without a cue sheet.
-- **`requires_install` heuristic** (DOS/Windows installer-only directory detection) is approximate — it checks whether every executable at the directory root is on the blocklist. Tuning may be needed based on Beta feedback.
+- **`requires_install` heuristic** (DOS/Windows installer-only directory detection) is approximate, it checks whether every executable at the directory root is on the blocklist. Tuning may be needed based on Beta feedback.
 
 ## Developer Tooling
 
-- Ruff — Python linting
-- pytest — Python testing
-- ESLint and Prettier — Frontend linting and formatting
-- Vitest — Frontend testing
+- Ruff, Python linting
+- pytest, Python testing
+- ESLint and Prettier, Frontend linting and formatting
+- Vitest, Frontend testing

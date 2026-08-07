@@ -23,7 +23,7 @@ from backend.service.utils.path_utils import normalise_path, resolve_under
 from backend.service.utils.slug_generator import generate_collection_slug, slugify, unique_slug
 
 if TYPE_CHECKING:  # type-only, keeps smart_media_detector a call-time import
-    from backend.service.utils.smart_media_detector.result import ScanResult
+    from smart_media_detector.result import ScanResult
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
 
@@ -65,8 +65,8 @@ class _SlugCollision(Exception):
 # game_item_bundles.slug is the only unique column on this table (see
 # ix_game_item_bundles_slug in backend/models/software.py); SQLite reports
 # a violation of it as "UNIQUE constraint failed: game_item_bundles.slug"
-# on the wrapped driver exception. Matching on that — instead of catching
-# every IntegrityError as a slug race — keeps unrelated failures (a NOT NULL
+# on the wrapped driver exception. Matching on that, instead of catching
+# every IntegrityError as a slug race, keeps unrelated failures (a NOT NULL
 # violation, a bad FK, etc.) from being mislabeled as a retryable collision.
 _SLUG_UNIQUE_VIOLATION_MARKER = "game_item_bundles.slug"
 
@@ -79,7 +79,7 @@ def _folder_is_db_tracked(folder: Path, db: Session) -> bool:
     """True if *folder* is a live GameItem's owned directory, or contains one.
 
     Same domain _prepare_item's dir-ingest branch already checks for a live
-    duplicate (folder_path exact match, or file_path under it) — reused here
+    duplicate (folder_path exact match, or file_path under it), reused here
     so a target occupied on disk is only treated as a real collision when
     something in the DB actually still points at it.
     """
@@ -96,13 +96,13 @@ def _reconcile_folder_to_slug(
 
     Every ingest path that owns a dedicated on-disk directory must call this
     once its DB slug is final, so the on-disk folder name and the URL-facing
-    slug can never diverge — regardless of which uniqueness domain (filesystem
+    slug can never diverge, regardless of which uniqueness domain (filesystem
     existence vs. DB row) produced the directory's original name. No-ops if
     *folder* is already named *slug*.
 
     If the target path is already occupied on disk but nothing in the DB
     tracks it (an orphaned leftover directory, e.g. from a previous failed or
-    partial import), that's not a real collision — a fresh slug is generated
+    partial import), that's not a real collision, a fresh slug is generated
     via unique_slug and the rename proceeds against that instead, the same
     disambiguation _prepare_item's file-ingest branch already applies to a
     dest-path collision that turns out not to be a tracked duplicate. Only a
@@ -112,7 +112,7 @@ def _reconcile_folder_to_slug(
 
     Raises:
         HTTPException(400): slug produces an invalid/escaping target path
-            (defense-in-depth — slugify() already guarantees [a-z0-9-] only).
+            (defense-in-depth, slugify() already guarantees [a-z0-9-] only).
         HTTPException(409): the target path is DB-tracked by a different item,
             a real collision, not a self-rename or an orphaned directory.
         HTTPException(500): the OS-level rename itself failed after retrying
@@ -196,7 +196,7 @@ def best_detect_path(folder: Path, executable_path: str | None) -> Path:
     # suffix-dispatched as a generic .bin file), and the folder is also the
     # launch target (mirrors rpcs3.launch()'s own is_dir() handling), so this
     # must run before the xex/generic-extension resolution below can apply.
-    from backend.service.utils.smart_media_detector.directory_detect import resolve_ps3_target, resolve_xex_target
+    from smart_media_detector.directory_detect import resolve_ps3_target, resolve_xex_target
     ps3_target = resolve_ps3_target(folder)
     if ps3_target is not None:
         return ps3_target.launch_path
@@ -420,7 +420,7 @@ def _detect_directory_source(
     requires_install (always False when era is None). era, detection_reason
     and requires_install now always come from the same pass.
     """
-    from backend.service.utils.smart_media_detector import detect as _smart_detect
+    from smart_media_detector import detect as _smart_detect
 
     executable = _pick_folder_executable(folder)
     detect_path = best_detect_path(folder, str(executable) if executable is not None else None)
@@ -453,7 +453,7 @@ def _detect_directory_source(
                 # so media_path is deliberately left pointing at the folder.
                 # Only warn when the folder isn't valid PS3 content either,
                 # i.e. resolution has no other explanation.
-                from backend.service.utils.smart_media_detector.directory_detect import resolve_ps3_target
+                from smart_media_detector.directory_detect import resolve_ps3_target
                 if resolve_ps3_target(folder) is None:
                     log.warning(
                         "Could not find EBOOT.BIN in expected PS3 folder structure "
@@ -479,7 +479,7 @@ def _detect_file_source(media_file: Path, log) -> _Detection:
     launchable item. Mirrors the multi-disc path, which does the same for
     every disc.
     """
-    from backend.service.utils.smart_media_detector import detect as _smart_detect
+    from smart_media_detector import detect as _smart_detect
 
     scan = _smart_detect(media_file)
     if scan.era is None and scan.warnings:
@@ -630,7 +630,7 @@ def _stage_file_source(
         # exist_ok=True would silently write into a stale, tampered, or
         # leftover directory. Only the exact target file is a known-safe
         # thing to find already present (crash-after-move retry, handled
-        # by the dest.exists() size check below) — anything else present
+        # by the dest.exists() size check below), anything else present
         # is unexpected and must fail loud rather than be picked around.
         if dest_folder.exists() and any(f != dest for f in dest_folder.iterdir()):
             raise HTTPException(
@@ -643,7 +643,7 @@ def _stage_file_source(
 
         if dest.exists():
             if dest.stat().st_size == media_src.stat().st_size:
-                # Identical file already in place — reuse without re-copy
+                # Identical file already in place, reuse without re-copy
                 row["file_path"] = str(dest)
             else:
                 raise HTTPException(
@@ -748,7 +748,7 @@ def _finalize_row_fields(
     """
     from backend.service.utils.era_defaults import defaults_for_era, lookup_environment_and_profile
     from backend.service.utils.rating_detect import detect_rating
-    from backend.service.utils.smart_media_detector import classify as _classify
+    from smart_media_detector import classify as _classify
 
     if user_override_era is not None:
         era = user_override_era
@@ -776,7 +776,7 @@ def _finalize_row_fields(
             )
             if _def_profile_item_id is not None:
                 collection_fields["profile_item_id"] = _def_profile_item_id
-            # Environment is strictly PC (doc 02 A5) — a console era must never
+            # Environment is strictly PC (doc 02 A5), a console era must never
             # get environment_item_id populated, even if a system Environment
             # happens to exist for its emulator_slug (e.g. a seeded
             # DuckStation/PS1 row).
@@ -961,7 +961,7 @@ def _enforce_environment_binding(collection: GameItemBundle) -> None:
     """Environment is strictly PC (doc 02 A5): console items may never carry an environment_item_id.
 
     PC items may have a null environment_item_id at this point (backfilled later /
-    pre-launch-gated — doc 02 part B); only the console+non-null combination is
+    pre-launch-gated, doc 02 part B); only the console+non-null combination is
     rejected here.
     """
     if collection.item_type == "console" and collection.environment_item_id is not None:
@@ -1059,7 +1059,7 @@ def _disc_data_size(disc_file: Path) -> int | None:
     (parsed from the pointer text itself) instead of the pointer file's own
     size, which is a few hundred bytes regardless of the actual disc size.
     Falls back to the pointer file's own size if no referenced file resolves
-    (e.g. non-standard pointer contents) — fail-soft, matching the rest of
+    (e.g. non-standard pointer contents), fail-soft, matching the rest of
     this codebase's detection behavior. .chd is a single self-contained file
     and is sized directly, no parsing needed.
     """
@@ -1076,7 +1076,7 @@ def _disc_data_size(disc_file: Path) -> int | None:
     referenced: list[str] = []
     if disc_file.suffix.lower() == ".cue":
         referenced = _CUE_FILE_RE.findall(text)
-    else:  # .gdi — track lines after the leading track-count line
+    else:  # .gdi, track lines after the leading track-count line
         for line in text.splitlines()[1:]:
             m = _GDI_QUOTED_NAME_RE.search(line)
             if m:
@@ -1138,7 +1138,7 @@ def _prepare_multi_disc(
     """
     from backend.core.logger import get_logger
     from backend.service.utils.profile_builder import _find_cover
-    from backend.service.utils.smart_media_detector import detect as _smart_detect
+    from smart_media_detector import detect as _smart_detect
 
     log = get_logger(__name__)
 
@@ -1256,17 +1256,17 @@ def _delete_leaf_media_folders(collection: GameItemBundle) -> None:
     resolves true (per-collection override, else the global
     delete_media_on_removal setting).
 
-    Only rmtree's folder_path when leaf.folder_owned is True — meaning the
+    Only rmtree's folder_path when leaf.folder_owned is True, meaning the
     ingest pipeline created or renamed that directory exclusively for this
     item (or, for a multi-disc set, this collection). folder_owned False or
     None (rows written before this column existed) means folder_path is a
-    pre-existing directory the ingest pipeline does not own — most notably the
+    pre-existing directory the ingest pipeline does not own, most notably the
     parent directory of a loose file ingested with no SOFTWARE_PATH configured,
     which may be shared with unrelated files or other library items entirely
     outside this app's control. For those leaves only the tracked file_path
     file itself is unlinked; the directory is left alone. This is deliberately
     asymmetric with the owned case (which may leave cover art / companion
-    files behind for legacy folder_owned=None rows) — over-deleting a shared
+    files behind for legacy folder_owned=None rows), over-deleting a shared
     directory is worse than under-deleting an unowned one.
 
     Every resolved path is required to fall under the game library root
@@ -1405,7 +1405,7 @@ def update_library_collection(
         setattr(collection, key, value)
     if "era" in fields:
         # setattr bypasses GameItemBundle._derive_item_type_from_era (no
-        # validate_assignment) — re-derive explicitly whenever era changes.
+        # validate_assignment), re-derive explicitly whenever era changes.
         collection.item_type = derive_item_type(collection.era)
     _enforce_environment_binding(collection)
     db.commit()
@@ -1487,7 +1487,7 @@ def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
         raise HTTPException(status_code=400, detail=f"Media file not found on disk: {leaf.file_path}")
 
     if leaf.sha1 is not None:
-        from backend.service.utils.smart_media_detector import classify as _classify
+        from smart_media_detector import classify as _classify
 
         era = bundle.era if bundle.era != "unknown" else None
         result = _classify(path, bundle.title, era)
@@ -1495,7 +1495,7 @@ def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
         leaf.verification_similarity = result.similarity
         leaf.sha1 = result.computed_sha1
     else:
-        from backend.service.utils.smart_media_detector.hashing.hash_lookup import hash_file
+        from smart_media_detector.hashing.hash_lookup import hash_file
 
         try:
             leaf.sha1 = hash_file(path)["sha1"]
@@ -1550,7 +1550,7 @@ def reorder_library_items(
     """Persist a staged disc reorder in one transaction.
 
     ``body.disc_order`` must be exactly the collection's current leaf ids,
-    top-to-bottom — validated the same way ``update_library_collection``
+    top-to-bottom, validated the same way ``update_library_collection``
     validates ``launch_disk_id``/``display_disk_id`` against the collection's
     own leaves, so a client can't name a leaf belonging to a different
     collection. Looping individual per-leaf PATCH calls instead of this single

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Load smart_media_detector's hash_index.json into the hash_index_entries DB table.
 
-Standalone — run manually after regenerating hash_index.json via
+Standalone, run manually after regenerating hash_index.json via
 smart_media_detector's build_index.py. Not wired into any startup/lifespan
 hook. Upserts by sha1: existing rows are updated in place, new rows are
 added, nothing already in the table is wiped.

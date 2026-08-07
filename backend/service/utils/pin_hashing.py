@@ -2,11 +2,11 @@
 
 Single implementation collapsing what were three separate copies of this
 logic (routes/auth.py's PasswordHasher() usage, routes/users.py::_hash_pin,
-scripts/setup_admin_user.py::_hash_pin) — all used the same Argon2id
+scripts/setup_admin_user.py::_hash_pin), all used the same Argon2id
 parameters, just expressed three different ways.
 
 Pepper application point: the configured pepper (PIN_PEPPER in .env,
-opt-in — empty/unset means disabled) is appended directly
+opt-in, empty/unset means disabled) is appended directly
 to the PIN before hashing: secret = pin + pepper. This is deliberate —
 because the pepper changes the hashed secret itself rather than being
 tracked as separate metadata, toggling it on, off, or to a new value

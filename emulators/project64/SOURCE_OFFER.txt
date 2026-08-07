@@ -1,4 +1,4 @@
-Written Source-Code Offer — Project64
+Written Source-Code Offer, Project64
 ======================================
 
 Project64 is distributed under the GNU General Public License v2 or later

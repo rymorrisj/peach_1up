@@ -1,6 +1,6 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/game_metadata.py.
 
-Per dev_docs/P1_AUDIT.md TST-11 — game_metadata.py had zero route-level
+Per dev_docs/P1_AUDIT.md TST-11, game_metadata.py had zero route-level
 coverage; test_enrich.py exercises enrich_entity() directly, never
 POST /enrich, so the route's is_owner gate and its
 rating_change_requires_confirmation wiring (backend/core/dependencies.py)
@@ -28,7 +28,7 @@ import pytest
 def mem_db_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",

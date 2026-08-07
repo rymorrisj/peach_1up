@@ -14,7 +14,7 @@ import pytest
 def mem_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -129,7 +129,7 @@ class TestGetActiveUser:
     def test_invalid_session_does_not_fall_back_to_owner(self, app_client, make_user):
         """Regression: an unresolvable cookie must never silently resolve to an
         owner account, even when owners exist in the database. No owner
-        fallback existed in the prior token model either — this locks it in.
+        fallback existed in the prior token model either, this locks it in.
         """
         make_user(name="Owner1", is_owner=True)
         make_user(name="Owner2", is_owner=True)

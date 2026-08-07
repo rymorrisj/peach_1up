@@ -26,7 +26,7 @@ def _no_permission_user():
 def mem_db_session():
     from sqlmodel import SQLModel, Session, create_engine
     from sqlalchemy.pool import StaticPool
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -231,7 +231,7 @@ class TestCreateEnvironment:
 
         # Both image paths are provided so create_platform's auto-provisioning
         # branch (triggered only when working_image_path is absent) never
-        # fires — keeps this test hermetic instead of touching vm/86box code.
+        # fires, keeps this test hermetic instead of touching vm/86box code.
         resp = c.post(
             "/api/v1/environment-items",
             json={
@@ -333,7 +333,7 @@ class TestDeleteEnvironment:
 
 
 # ---------------------------------------------------------------------------
-# compute_environment_presence — a live boolean check, nothing persisted.
+# compute_environment_presence, a live boolean check, nothing persisted.
 # ---------------------------------------------------------------------------
 
 

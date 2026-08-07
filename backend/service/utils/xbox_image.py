@@ -19,7 +19,7 @@ def detect_xbox_image_type(path: str | Path) -> str:
     """
     Returns one of: "xiso", "dvd_rip", "iso9660", "unknown"
 
-    Reads only the minimum bytes needed. Never raises on IO — returns "unknown"
+    Reads only the minimum bytes needed. Never raises on IO, returns "unknown"
     on any error.
     """
     try:

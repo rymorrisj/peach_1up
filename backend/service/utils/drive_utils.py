@@ -59,7 +59,7 @@ def create_drive_for_collection(
     Sizing uses the launch leaf's executable_path when set (the actual launch
     file), otherwise its file_path. file_type/requires_install are cached on
     the collection when not already set. The image lives at
-    ``{launch_leaf.folder_path}/{collection.slug}.img`` — the launch leaf is the
+    ``{launch_leaf.folder_path}/{collection.slug}.img``, the launch leaf is the
     GameItem/AppItem pointed to by collection.launch_disk_id.
 
     Works for either owning collection type: AppItem/AppItemBundle carry the
@@ -79,7 +79,7 @@ def create_drive_for_collection(
     """
     from backend.models.app import AppItemBundle
     from backend.models.drive import Drive
-    from backend.service.utils.smart_media_detector import detect as _smart_detect
+    from smart_media_detector import detect as _smart_detect
 
     media_src = Path(launch_leaf.executable_path if launch_leaf.executable_path else launch_leaf.file_path)
 
@@ -123,7 +123,7 @@ def delete_drive_for_collection(collection: "GameItemBundle | AppItemBundle", db
     The unlink runs here explicitly, ahead of any FK cascade from deleting the
     owning collection, so image cleanup never depends on cascade ordering. A
     missing image file is logged and ignored (idempotent); only a real unlink
-    error (e.g. permissions) is logged as a warning — deletion of the DB record
+    error (e.g. permissions) is logged as a warning, deletion of the DB record
     still proceeds.
 
     Args:

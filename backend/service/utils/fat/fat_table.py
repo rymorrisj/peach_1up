@@ -30,7 +30,7 @@ def _find_free_cluster(f, geo: dict) -> int:
     for cluster in range(_CLUSTER_FIRST, max_cluster):
         if _read_fat_entry(f, geo, cluster) == _FAT_FREE:
             return cluster
-    raise RuntimeError("FAT image is full — no free clusters available")
+    raise RuntimeError("FAT image is full, no free clusters available")
 
 
 def _alloc_clusters(f, geo: dict, count: int) -> list:

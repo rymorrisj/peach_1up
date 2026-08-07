@@ -90,7 +90,7 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
         # and copy in full.
         src_dir = Path(entity.folder_path)
         if not drive.image_path:
-            raise RuntimeError(f"Drive id={drive.id!r} has no image_path — re-add the library item.")
+            raise RuntimeError(f"Drive id={drive.id!r} has no image_path, re-add the library item.")
         img_path = Path(drive.image_path)
         if img_path.exists():
             img_path.unlink()

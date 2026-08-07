@@ -66,7 +66,7 @@ describe('ConfirmModal', () => {
     );
 
     const cancelBtn = screen.getByRole('button', { name: /cancel/i });
-    // React calls .focus() for autoFocus on commit — verify the element actually receives focus
+    // React calls .focus() for autoFocus on commit, verify the element actually receives focus
     expect(cancelBtn).toHaveFocus();
   });
 });

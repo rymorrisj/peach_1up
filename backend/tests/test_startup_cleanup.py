@@ -6,7 +6,7 @@ marks all LaunchHistory rows with ended_at=NULL as ended (ended_at=now,
 exit_code=-1) on backend startup, so interrupted sessions never appear
 as still running after a crash or hard restart.
 
-All tests use a lightweight fake database — no SQLite or DB init required.
+All tests use a lightweight fake database, no SQLite or DB init required.
 """
 
 from datetime import datetime
@@ -119,7 +119,7 @@ class TestCleanupStaleSessions:
         assert db.flushed is True
 
     def test_db_error_does_not_propagate(self):
-        """DB failures are caught and logged — startup must not abort."""
+        """DB failures are caught and logged, startup must not abort."""
         from backend.core.startup_tasks import _cleanup_stale_sessions
         _cleanup_stale_sessions(_BrokenDB())  # must not raise
 

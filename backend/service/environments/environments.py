@@ -38,7 +38,7 @@ def _probe_image_integrity(path: Path) -> bool:
     """Cheap interrupted-write/corruption check for a working image.
 
     Not a format validator (working images may be raw .img, .vhd, or a
-    pre-installed copy with varying internal layouts) — just confirms the
+    pre-installed copy with varying internal layouts), just confirms the
     file is non-empty and its header and tail (where a VHD footer would
     live, per vm/vhd.py) are actually readable. A zero-byte or truncated
     file from an interrupted copy fails this; a legitimately fresh,
@@ -75,7 +75,7 @@ def _environment_files_present(era: str, working: str | None, base: str | None) 
 
 def compute_environment_presence(platform: EnvironmentItem) -> bool:
     """Uncached, boolean presence check for *platform*, safe to call on every
-    read (list/detail/summary endpoints) — nothing is persisted or cached, so
+    read (list/detail/summary endpoints), nothing is persisted or cached, so
     this can never go stale the way the old persisted status column did.
     Same philosophy as check_bios_presence/validate_bios_from_descriptor:
     a live check of on-disk (or installed-binary) state, not a stored flag."""
@@ -160,11 +160,11 @@ def delete_environment_item(platform_id: int, token: str, db: Session) -> None:
         raise HTTPException(status_code=404, detail="Environment not found.")
 
     # working_image_path is the app-managed working copy created at
-    # registration/provisioning time (P2-4) — safe to remove. base_image_path
+    # registration/provisioning time (P2-4), safe to remove. base_image_path
     # is the user's original source image and is never modified or deleted by
     # the app (P2-4 "base is never modified"; 2026-07-05 DECISIONS.md notes
     # base/media images are "never mutated by the app, so they're never at
-    # risk") — it is deliberately left untouched here.
+    # risk"), it is deliberately left untouched here.
     #
     # Path ownership is not just this row's problem: working_image_path has no
     # uniqueness constraint, so another Environment row could reference the same
@@ -181,7 +181,7 @@ def delete_environment_item(platform_id: int, token: str, db: Session) -> None:
         )
         if still_referenced:
             logger.info(
-                "Environment %d deleted; working_image_path '%s' left on disk — "
+                "Environment %d deleted; working_image_path '%s' left on disk, "
                 "still referenced by another platform.",
                 platform_id, working_path,
             )
@@ -210,7 +210,7 @@ def update_environment_item(platform_id: int, body: EnvironmentItemUpdate, db: S
     # (clear it). exclude_none dropped every explicit-null field before
     # setattr ever ran, silently no-op'ing every clear-to-null PATCH for every
     # nullable field on this model (installed_at, working_image_path,
-    # base_image_path, config_path, notes, ...) — confirmed live in
+    # base_image_path, config_path, notes, ...), confirmed live in
     # EnvironmentDetail.tsx's edit form, which sends `... || null` for exactly
     # this purpose.
     updates = body.model_dump(exclude_unset=True)
@@ -233,7 +233,7 @@ def update_environment_item(platform_id: int, body: EnvironmentItemUpdate, db: S
 
 def check_environment_item_health(platform: EnvironmentItem, db: Session) -> dict:
     """Live recompute, nothing persisted (status/last_health_check no longer
-    exist on the model) — this is now a read, not a write, but the route stays
+    exist on the model), this is now a read, not a write, but the route stays
     for the frontend's per-Environment "Check now" action."""
     present = compute_environment_presence(platform)
 
@@ -272,7 +272,7 @@ def get_health_summary(db: Session) -> dict:
 
     user_platforms = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()  # noqa: E712
     # Computed live (nothing persisted) so this always matches what
-    # list_environment_items shows on the same page load — see
+    # list_environment_items shows on the same page load, see
     # compute_environment_presence.
     platform_present = sum(1 for p in user_platforms if compute_environment_presence(p))
 

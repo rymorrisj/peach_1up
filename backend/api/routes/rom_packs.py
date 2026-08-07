@@ -30,7 +30,7 @@ def _emulator_slug_for(pack_slug: str) -> str:
 def _to_read(entry: dict, row: Optional[RomPackItem]) -> RomPackItemRead:
     if row is not None:
         return RomPackItemRead.model_validate(row, from_attributes=True)
-    # No rom_pack_items row yet — the pack is known to the catalog but has
+    # No rom_pack_items row yet, the pack is known to the catalog but has
     # never been cloned or verified. Synthesize an unpersisted response.
     return RomPackItemRead(
         slug=entry["slug"],
@@ -71,7 +71,7 @@ def get_rom_pack(slug: str, db: Session = Depends(get_db), _: UserItem = Depends
 def verify_rom_pack(slug: str, db: Session = Depends(get_db), _: UserItem = require_permission("is_admin")):
     """Re-check on-disk presence and sync the owned rom_pack_items row.
 
-    Does not perform the clone itself — that remains
+    Does not perform the clone itself, that remains
     POST /api/v1/emulator-items/{slug}/install (clone_rom_pack, unchanged). This
     covers the case where a ROM pack was placed manually rather than cloned.
     """

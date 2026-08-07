@@ -75,7 +75,7 @@ const NON_ROM_PACK_ENTRY: CatalogEntry = {
 };
 
 // GET /api/v1/emulator-items/rom-packs returns Page[RomPackItemRead]
-// (dev_docs/v2/08, Task 4) — items are cross-referenced against the
+// (dev_docs/v2/08, Task 4), items are cross-referenced against the
 // (still bare-list) /api/v1/emulator-items catalog by slug for the
 // is_installed/guidance fields CloneRomPackButton/GuidanceNote need.
 function romPackItemFor(entry: CatalogEntry): RomPackItem {
@@ -129,7 +129,7 @@ function mockRomPacksApi(
   });
 }
 
-describe('ROM Packs tab (/emulators/rom-packs) — list-only, no detail route', () => {
+describe('ROM Packs tab (/emulators/rom-packs), list-only, no detail route', () => {
   afterEach(() => {
     vi.resetAllMocks();
   });
@@ -147,14 +147,14 @@ describe('ROM Packs tab (/emulators/rom-packs) — list-only, no detail route', 
     mockRomPacksApi([ROM_PACK_ENTRY]);
     renderPage();
     // CloneRomPackButton renders "Clone ROM Pack" when the pack is not
-    // installed — its presence proves RomPacks.tsx mounts the real,
+    // installed, its presence proves RomPacks.tsx mounts the real,
     // already-live component rather than a stub.
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /clone rom pack/i })).toBeInTheDocument();
     });
   });
 
-  it('renders no per-item navigable link — this is a list-only tab', async () => {
+  it('renders no per-item navigable link, this is a list-only tab', async () => {
     mockRomPacksApi([ROM_PACK_ENTRY]);
     renderPage();
     await waitFor(() => expect(screen.getByText('86Box ROM Pack')).toBeInTheDocument());

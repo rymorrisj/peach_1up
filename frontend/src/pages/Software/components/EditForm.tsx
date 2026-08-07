@@ -142,7 +142,7 @@ export function EditForm({
             <FormField
               label="Category (custom)"
               htmlFor="detail-category"
-              hint="Your own free-text label — separate from the fetched Genre field above, which comes from metadata enrichment."
+              hint="Your own free-text label, separate from the fetched Genre field above, which comes from metadata enrichment."
             >
               <Input
                 id="detail-category"
@@ -186,7 +186,7 @@ export function EditForm({
                     </span>
                   ) : (
                     <span className="italic text-neutral-400 dark:text-neutral-500">
-                      No launch file detected — browse to set one.
+                      No launch file detected, browse to set one.
                     </span>
                   )}
                 </span>
@@ -217,8 +217,8 @@ export function EditForm({
               )}
               <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
                 {isRomEra
-                  ? 'ROM-based media — auto-resolved from your media folder. Override below if it picked the wrong file.'
-                  : 'The file Peach 1UP will launch. Auto-detected from your media folder — override if incorrect.'}
+                  ? 'ROM-based media, auto-resolved from your media folder. Override below if it picked the wrong file.'
+                  : 'The file Peach 1UP will launch. Auto-detected from your media folder, override if incorrect.'}
               </p>
             </FormField>
           )}
@@ -289,7 +289,7 @@ export function EditForm({
             />
             {profileEraMismatch && (
               <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                Selected profile targets a different era — launch may fail.
+                Selected profile targets a different era, launch may fail.
               </p>
             )}
           </FormField>

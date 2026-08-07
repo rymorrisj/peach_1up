@@ -29,7 +29,7 @@ jobs:
 
       - name: Check uv.lock is up to date
         run: |
-          uv lock --check || (echo "::error::uv.lock is stale — run 'uv lock' locally and commit the result." && exit 1)
+          uv lock --check || (echo "::error::uv.lock is stale, run 'uv lock' locally and commit the result." && exit 1)
 
       - name: Install backend dependencies
         run: uv sync --locked
@@ -58,7 +58,7 @@ jobs:
             frontend/src/generated/constants.ts \
             shared/openapi.json \
             shared/types.ts \
-          || (echo "::error::Generated files are stale — run scripts/gen_constants.py and scripts/export_and_build_types.py locally and commit the result." && exit 1)
+          || (echo "::error::Generated files are stale, run scripts/gen_constants.py and scripts/export_and_build_types.py locally and commit the result." && exit 1)
 
       - name: Upload generated files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -174,7 +174,7 @@ jobs:
           size_mb=$(du -sm dist/peach1up | cut -f1)
           echo "Packaged size: ${size_mb} MB"
           if [ "$size_mb" -gt 1500 ]; then
-            echo "::error::dist/peach1up is ${size_mb} MB, over the 1500 MB smoke-test threshold — library/emulators assets may be leaking into the package"
+            echo "::error::dist/peach1up is ${size_mb} MB, over the 1500 MB smoke-test threshold, library/emulators assets may be leaking into the package"
             exit 1
           fi
 

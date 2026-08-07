@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec for Peach 1UP — one-dir build.
+# PyInstaller spec for Peach 1UP, one-dir build.
 # Prerequisites: build frontend (npm run build) and docs (npm run build) before running pyinstaller.
 
 from PyInstaller.utils.hooks import collect_submodules

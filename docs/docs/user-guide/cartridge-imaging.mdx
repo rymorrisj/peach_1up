@@ -13,9 +13,9 @@ Output formats: `.nes`, `.chd`
 
 ### Compatible hardware
 
-- **RetroBlaster** — Windows software. Reads NES and Famicom cartridges directly via USB.
-- **INLretro System** — Open-source dumper. Cross-platform software. Supports NES, Famicom, and a wide range of other cartridge types.
-- **Retrode 2 with NES adapter** — Appears as a USB mass storage device — no drivers required. Requires the optional NES/Famicom adapter.
+- **RetroBlaster**, Windows software. Reads NES and Famicom cartridges directly via USB.
+- **INLretro System**, Open-source dumper. Cross-platform software. Supports NES, Famicom, and a wide range of other cartridge types.
+- **Retrode 2 with NES adapter**, Appears as a USB mass storage device, no drivers required. Requires the optional NES/Famicom adapter.
 
 ### How to dump
 
@@ -38,10 +38,10 @@ Output formats: `.z64`, `.n64`, `.v64`
 
 ### Compatible hardware
 
-- **Retrode 2 with N64 adapter** — Appears as a USB mass storage device — no drivers required. Requires the official N64 adapter. Reads ROM directly to a `.z64` file.
-- **INLretro System with N64 adapter** — Open-source. Cross-platform software. Produces `.z64` output.
-- **64drive** — An N64 flash cartridge that can also dump ROMs from original cartridges when used with the PC USB interface.
-- **EverDrive-64 X7** — Primarily a flash cartridge, but supports ROM dumping via the USB port with compatible software.
+- **Retrode 2 with N64 adapter**, Appears as a USB mass storage device, no drivers required. Requires the official N64 adapter. Reads ROM directly to a `.z64` file.
+- **INLretro System with N64 adapter**, Open-source. Cross-platform software. Produces `.z64` output.
+- **64drive**, An N64 flash cartridge that can also dump ROMs from original cartridges when used with the PC USB interface.
+- **EverDrive-64 X7**, Primarily a flash cartridge, but supports ROM dumping via the USB port with compatible software.
 
 ### How to dump
 
@@ -53,13 +53,13 @@ Output formats: `.z64`, `.n64`, `.v64`
 
 ### Notes
 
-- N64 ROMs exist in three byte-order formats: `.z64` (big-endian, native N64 order), `.n64` (little-endian), and `.v64` (byteswapped). Project64 handles all three — you do not need to convert between them.
+- N64 ROMs exist in three byte-order formats: `.z64` (big-endian, native N64 order), `.n64` (little-endian), and `.v64` (byteswapped). Project64 handles all three, you do not need to convert between them.
 - `.z64` is the standard format and the most widely supported. Prefer it when your dumper gives you a choice.
 - N64 cartridges do not use CHD format. Only `.z64`, `.n64`, and `.v64` are accepted by Project64.
 - Some cartridges include expansion pak requirements or region locks. These are encoded in the ROM header and handled by the emulator.
 - Dump only cartridges you own. Making or distributing copies of software you do not own is a copyright violation.
 
-## 86Box ROM Pack — Manual Install Fallback
+## 86Box ROM Pack, Manual Install Fallback
 
 86Box requires a ROM pack (firmware images for emulated hardware) to start. Peach 1UP can
 clone it automatically via git from the Emulators page. If git is not available or the clone
@@ -68,7 +68,7 @@ fails, follow these steps to install manually.
 ### Manual install steps
 
 1. Download the ROM pack as a ZIP archive from the [86Box/roms GitHub Releases page](https://github.com/86Box/roms/releases). Download the latest release ZIP.
-2. Extract the contents of the ZIP. The archive contains a top-level folder called `roms` or similar — you want the *contents* of that folder, not the folder itself.
+2. Extract the contents of the ZIP. The archive contains a top-level folder called `roms` or similar, you want the *contents* of that folder, not the folder itself.
 3. Copy all extracted files and subfolders into `library/system/roms/86box/` inside your Peach 1UP folder. After copying, the path `library/system/roms/86box/` should contain directories such as `machines`, `sound`, and others.
 4. Return to the Emulators page. The 86Box ROM Pack status will update from Missing to Present automatically.
 

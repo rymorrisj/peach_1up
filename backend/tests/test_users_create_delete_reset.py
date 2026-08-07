@@ -1,4 +1,4 @@
-"""Tests for backend/api/routes/users.py — create_user, delete_user, reset_pin.
+"""Tests for backend/api/routes/users.py, create_user, delete_user, reset_pin.
 
 Per dev_docs/v2/09_test_coverage.md item 2. update_user's permission matrix is
 already covered by test_pin_auth.py::TestUpdateUser; this file only covers
@@ -21,7 +21,7 @@ import pytest
 def mem_db_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -67,7 +67,7 @@ def _set_active_user(app, user):
 
 
 # ---------------------------------------------------------------------------
-# create_user — capability flag round-trip
+# create_user, capability flag round-trip
 # ---------------------------------------------------------------------------
 
 # The 7 capability flags UserItemCreate exposes (excludes is_admin, which is a
@@ -120,7 +120,7 @@ class TestCreateUserCapabilityFlags:
 
 
 # ---------------------------------------------------------------------------
-# delete_user — profile reassignment + MediaRestriction cleanup
+# delete_user, profile reassignment + MediaRestriction cleanup
 # ---------------------------------------------------------------------------
 
 
@@ -179,14 +179,14 @@ class TestDeleteUserCleanup:
 
 
 # ---------------------------------------------------------------------------
-# reset_pin — locked-account guard
+# reset_pin, locked-account guard
 # ---------------------------------------------------------------------------
 
 
 class TestResetPinLockedGuard:
     def test_self_reset_via_can_manage_users_rejected_while_locked(self, http_client):
         """A locked sub-account cannot reset its own PIN through the
-        can_manage_users self-service path — an admin must do it
+        can_manage_users self-service path, an admin must do it
         (users.py:236-237)."""
         c, db, app = http_client
         locked = _make_user(db, name="Locked", can_manage_users=True, is_locked=True)

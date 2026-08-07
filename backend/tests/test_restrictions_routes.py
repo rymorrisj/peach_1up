@@ -1,7 +1,7 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/restrictions.py.
 
 GET/PUT /api/v1/restrictions/{domain}/{entity_id} (is_admin gate). Covers the
-"game" domain only — these were migrated as-is from
+"game" domain only, these were migrated as-is from
 test_game_item_bundles_routes.py's TestRestrictionsEndpoint when the
 restriction routes were consolidated out of game_item_bundles.py/apps.py/
 media.py into this dedicated module. Media/App domain coverage does not exist
@@ -20,7 +20,7 @@ import pytest
 def mem_db_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -78,7 +78,7 @@ def _set_active_user(app, user):
 
 
 # ---------------------------------------------------------------------------
-# GET/PUT /api/v1/restrictions/game/{entity_id} — is_admin gate
+# GET/PUT /api/v1/restrictions/game/{entity_id}, is_admin gate
 # ---------------------------------------------------------------------------
 
 
@@ -121,7 +121,7 @@ class TestRestrictionsEndpoint:
 
     def test_admin_put_delete_then_reinsert_persists(self, http_client):
         """set_restrictions deletes all existing rows for the collection then
-        reinserts the new list — confirm a second PUT with a different set
+        reinserts the new list, confirm a second PUT with a different set
         actually replaces (not merges with) the first."""
         from backend.models.media_restriction import MediaRestriction
 

@@ -2,28 +2,28 @@
 
 Backs upload_utils.find_existing_duplicate. Replaces a fresh rglob+hash scan
 of the whole tree on every upload (the same per-request-filesystem-walk
-anti-pattern already fixed for GET /health/storage — see dev_docs/AUDIT.md's
+anti-pattern already fixed for GET /health/storage, see dev_docs/AUDIT.md's
 storage-scanning investigation) with a build-once, reuse-after index.
 
 Module-level dict + threading.Lock, mirroring backend/core/install_registry.py
 and backend/core/process_registry.py: in-memory only, lost on restart. That's
-the right tradeoff here, not a persisted table — the index never hashes a
+the right tradeoff here, not a persisted table, the index never hashes a
 whole library eagerly (build() only stat()s files; hashing is always lazy, on
 first real comparison need), so even a cold rebuild after a restart costs one
 directory walk plus stat() per candidate file, not a bulk file-content read.
 Library size assumptions: there's no documented hard number, but
 backend/api/routes/library.py's scan-import chunks DB inserts at 500 rows to
 stay within SQLite variable limits, implying the realistic scale is hundreds
-to low thousands of items — a stat-only walk at that size is sub-second.
+to low thousands of items, a stat-only walk at that size is sub-second.
 
 Correctness under drift: every cached hash is re-validated against a live
 stat() (size + mtime) before being trusted. Nothing outside this module needs
-to proactively notify it of moves/renames/deletes — a file rewritten in place
+to proactively notify it of moves/renames/deletes, a file rewritten in place
 (e.g. backend/service/launch/drive_hydration.py unlinking and reformatting a
 drive image at the same path on every pre-install launch) or removed entirely
 is simply re-stat()'d and, if changed or gone, dropped or rehashed before any
 comparison happens. This is why the result can never be a false-positive
-"duplicate found" pointing at stale content — worst case is a missed match
+"duplicate found" pointing at stale content, worst case is a missed match
 (falls through to a normal, correct re-upload), never a wrong one.
 """
 
@@ -60,7 +60,7 @@ def _hash_file(path: Path) -> str:
 def _ensure_built(media_root: Path, candidate_exts: frozenset[str]) -> None:
     """Populate the index from disk if it hasn't been built for this root yet.
 
-    Caller must hold _lock. Stat-only — never reads file contents, so this is
+    Caller must hold _lock. Stat-only, never reads file contents, so this is
     cheap regardless of file size, only directory-entry count.
     """
     global _built_for
@@ -97,13 +97,13 @@ def find_duplicate(
 
     Builds the index on first use (or after media_root changes), then filters
     cached entries by size and re-validates each same-size candidate against a
-    live stat() before trusting (or reusing) its cached hash — so a file
+    live stat() before trusting (or reusing) its cached hash, so a file
     that's been moved, rewritten, or deleted since it was indexed is always
     caught instead of producing a stale match.
 
     If no duplicate is found, uploaded_path is registered in the index with
     whatever hash was already computed along the way (possibly none, if no
-    same-size candidate ever existed to compare against) — so it's visible to
+    same-size candidate ever existed to compare against), so it's visible to
     the very next lookup with no lag, at no extra hashing cost beyond what
     this call already did.
     """
@@ -130,7 +130,7 @@ def find_duplicate(
 
         if st.st_size != entry.size or st.st_mtime != entry.mtime:
             # Changed on disk since last indexed (e.g. drive hydration
-            # recreating a .img at the same path) — refresh before trusting
+            # recreating a .img at the same path), refresh before trusting
             # it, and only keep comparing if it still matches our target size.
             with _lock:
                 if path in _index:

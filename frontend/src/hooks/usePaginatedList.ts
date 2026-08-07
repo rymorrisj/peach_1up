@@ -20,7 +20,7 @@ export interface UsePaginatedListOptions {
   /** Requested page size (sent as `limit`). Defaults to 50. */
   pageSize?: number;
   /**
-   * Extra query params to forward alongside limit/offset — e.g. filters like
+   * Extra query params to forward alongside limit/offset, e.g. filters like
    * `{ era: 'dos' }`. The hook has no knowledge of what these mean; it only
    * merges them into the request and into the query key so a filter change
    * triggers a refetch (and resets back to the first page, see below).
@@ -30,7 +30,7 @@ export interface UsePaginatedListOptions {
    *  "offset"; override if a route ever needs two independent paginated
    *  lists side by side. */
   offsetParam?: string;
-  /** Passed through to the underlying useQuery — set false to defer fetching. */
+  /** Passed through to the underlying useQuery, set false to defer fetching. */
   enabled?: boolean;
 }
 
@@ -63,13 +63,13 @@ function serializeParams(params: Record<string, string> | undefined): string {
 /**
  * Generic fetch + navigation-controls hook for any paginated list view
  * consuming the backend's Page[T] envelope. Scoped intentionally to fetch +
- * next/prev/page-jump only — no caching strategy, hydration, or
+ * next/prev/page-jump only, no caching strategy, hydration, or
  * stale-while-revalidate beyond whatever @tanstack/react-query does by
  * default; those are deferred to a later pass (dev_docs/v2/08_...md).
  *
  * Page position lives in the URL (`?offset=` by default) rather than in
  * component state, per the doc's "collection/pagination → query params" rule
- * — this makes a given page of a list bookmarkable/deep-linkable like any
+ *, this makes a given page of a list bookmarkable/deep-linkable like any
  * other query-param-driven filter in the app.
  */
 export function usePaginatedList<T>({
@@ -95,7 +95,7 @@ export function usePaginatedList<T>({
   };
 
   // A filter change (params changing identity/value) invalidates whatever
-  // page the URL currently points at — e.g. going from "all games" to "DOS
+  // page the URL currently points at, e.g. going from "all games" to "DOS
   // only" while sitting on offset=200 could land on a page past the end of
   // the filtered result set. Reset to the first page whenever the caller's
   // params actually change value, mirroring what Software/index.tsx already

@@ -4,7 +4,7 @@ title: Multi-Disk Media
 
 # Multi-Disk Media
 
-Some games shipped across more than one disc or floppy — a long RPG split across
+Some games shipped across more than one disc or floppy, a long RPG split across
 several CDs, a DOS game on a stack of floppies, a PS2 title spanning two DVDs.
 Peach 1UP treats these as a single library entry instead of several unrelated
 ones.
@@ -31,19 +31,19 @@ collection. There is no automatic selection.
 
 ## Switching Discs Mid-Session
 
-What happens when a game needs a disc swap mid-session — and whether that
-swap can be automated at all — depends entirely on the emulator. See the per-emulator "Multi-disc
+What happens when a game needs a disc swap mid-session, and whether that
+swap can be automated at all, depends entirely on the emulator. See the per-emulator "Multi-disc
 capability" field in `dev_docs/EMULATORS.md` for the full breakdown. In
 short:
 
 - **DuckStation and PCSX2** natively support `.m3u` playlists listing every
   disc in a set, but mid-session switching still requires either an
   in-emulator hotkey (DuckStation) or the emulator's own "Change Disc" menu
-  (PCSX2) — neither can be triggered from outside the emulator.
+  (PCSX2), neither can be triggered from outside the emulator.
 - **DOSBox-X** can mount multiple floppy images and swap between them, but
   whether Peach 1UP drives that swap or the user presses DOSBox-X's own
   swap-floppy hotkey is undecided.
-- **86Box** has only one secondary optical drive slot per machine — disc
+- **86Box** has only one secondary optical drive slot per machine, disc
   swaps are done manually through 86Box's own Media menu.
 - **Mesen** and **Project64** handle their respective multi-disk formats
   (FDS, 64DD) internally; there's nothing for Peach 1UP to group.

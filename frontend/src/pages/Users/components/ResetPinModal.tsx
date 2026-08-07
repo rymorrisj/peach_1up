@@ -21,7 +21,7 @@ export function ResetPinModal({ target, onChangePin, onSubmit, onClose }: ResetP
   return (
     <Modal
       open
-      title={`Reset PIN — ${target.user.name}`}
+      title={`Reset PIN, ${target.user.name}`}
       onClose={onClose}
       busy={target.submitting}
       footer={

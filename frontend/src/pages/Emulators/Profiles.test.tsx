@@ -115,7 +115,7 @@ function renderPage() {
   );
 }
 
-describe('Profiles (Emulators sibling tab) — CRUD via modal', () => {
+describe('Profiles (Emulators sibling tab), CRUD via modal', () => {
   afterEach(() => {
     vi.resetAllMocks();
   });
@@ -142,7 +142,7 @@ describe('Profiles (Emulators sibling tab) — CRUD via modal', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Add Launch Profile' })).toBeInTheDocument();
     });
-    // Locked decision 11: editing is modal-only — there is no per-profile route.
+    // Locked decision 11: editing is modal-only, there is no per-profile route.
     expect(screen.getByTestId('location-probe')).toHaveTextContent('/emulators/profiles');
   });
 
@@ -160,7 +160,7 @@ describe('Profiles (Emulators sibling tab) — CRUD via modal', () => {
     });
     expect(screen.getByDisplayValue('DOS 486DX2 / SB16')).toBeInTheDocument();
     expect(screen.getByDisplayValue('dos-486dx2-sb16')).toBeInTheDocument();
-    // Still on the flat list route — clicking Edit opened a modal, not a navigation.
+    // Still on the flat list route, clicking Edit opened a modal, not a navigation.
     expect(screen.getByTestId('location-probe')).toHaveTextContent('/emulators/profiles');
   });
 
@@ -176,7 +176,7 @@ describe('Profiles (Emulators sibling tab) — CRUD via modal', () => {
     // dev_docs/v2/08_emulator_profiles_navigation.md, P2: the old read-only
     // Profiles view row-clicked into an unregistered `/profiles/${slug}`
     // route. This doc's locked decision 11 explicitly removes any per-profile
-    // route — guard against either form (the old `/profiles/` or a
+    // route, guard against either form (the old `/profiles/` or a
     // hypothetical `/emulators/profiles/`) creeping back into the promoted
     // component via a `navigate(...)` call.
     const profilesSource = fs.readFileSync(
@@ -185,7 +185,7 @@ describe('Profiles (Emulators sibling tab) — CRUD via modal', () => {
     );
     expect(profilesSource).not.toMatch(/navigate\(/);
     // Scoped to an actual navigate() call target, not any string containing
-    // `/profiles/${` — this guards the retired UI route pattern specifically
+    // `/profiles/${`, this guards the retired UI route pattern specifically
     // (the REST calls in handleSubmit/handleDelete now hit
     // `/api/v1/profile-items/${...}` and no longer risk matching this bare
     // substring at all).

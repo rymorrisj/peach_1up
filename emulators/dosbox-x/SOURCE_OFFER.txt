@@ -1,4 +1,4 @@
-Written Source-Code Offer — DOSBox-X
+Written Source-Code Offer, DOSBox-X
 =====================================
 
 DOSBox-X is distributed under the GNU General Public License v2 or later

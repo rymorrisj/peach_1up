@@ -91,7 +91,7 @@ describe('useLaunch', () => {
       wrapper: createWrapper(),
     });
 
-    // Flush mutation onSuccess — two act rounds drain TanStack's scheduler
+    // Flush mutation onSuccess, two act rounds drain TanStack's scheduler
     await act(async () => {
       result.current.launch(null);
     });
@@ -118,7 +118,7 @@ describe('useLaunch', () => {
       { wrapper: createWrapper() },
     );
 
-    // Flush mutation onSuccess — two act rounds drain TanStack's scheduler
+    // Flush mutation onSuccess, two act rounds drain TanStack's scheduler
     await act(async () => {
       result.current.launch(null);
     });

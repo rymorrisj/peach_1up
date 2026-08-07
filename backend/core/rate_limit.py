@@ -17,12 +17,12 @@ def check_and_record(key: str, limit: int, window_seconds: float) -> tuple[bool,
     """Sliding-window rate limit keyed by an arbitrary string (e.g. "route:ip").
 
     Returns (allowed, retry_after_seconds). Only records the attempt when it
-    is allowed — a client hammering the endpoint past the limit doesn't keep
+    is allowed, a client hammering the endpoint past the limit doesn't keep
     pushing the window forward, so the limit resets `window_seconds` after the
     oldest *counted* attempt rather than extending indefinitely under load.
 
     In-memory only (lost on restart), matching the existing install_registry
-    / process_registry pattern — acceptable here since the goal is bounding
+    / process_registry pattern, acceptable here since the goal is bounding
     brute-force rate, not a durable audit trail.
     """
     now = time.monotonic()

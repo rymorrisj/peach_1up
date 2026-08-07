@@ -1,9 +1,9 @@
 """Route-level tests for ControllerMapping CRUD (backend/api/routes/controllers.py).
 
 list/get/create/duplicate are open to any authenticated user by design (confirmed
-with Ryan — not a gap). update/delete are gated by check_controller_edit_permission,
+with Ryan, not a gap). update/delete are gated by check_controller_edit_permission,
 a compound rule that is NOT a simple flag check: owner bypasses everything, OR the
-row's creator, OR (is_admin AND can_manage_controllerMapping) together — the AND is
+row's creator, OR (is_admin AND can_manage_controllerMapping) together, the AND is
 genuine, so both flags must be proven independently insufficient and jointly
 sufficient. backend/api/routes/tags.py imports and reuses this exact function for
 controller_mapping tag assignments (see test_tags.py's
@@ -24,7 +24,7 @@ def _user(id, **overrides):
 def mem_db_session():
     from sqlmodel import SQLModel, Session, create_engine
     from sqlalchemy.pool import StaticPool
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -74,7 +74,7 @@ def _make_mapping(db, **overrides):
 
 
 # ---------------------------------------------------------------------------
-# list / get — any authenticated user
+# list / get, any authenticated user
 # ---------------------------------------------------------------------------
 
 
@@ -103,7 +103,7 @@ class TestListAndGet:
 
 
 # ---------------------------------------------------------------------------
-# create — any authenticated user; created_by set to the creator
+# create, any authenticated user; created_by set to the creator
 # ---------------------------------------------------------------------------
 
 
@@ -130,7 +130,7 @@ class TestCreate:
 
 
 # ---------------------------------------------------------------------------
-# duplicate — any authenticated user; created_by is the duplicator, not the
+# duplicate, any authenticated user; created_by is the duplicator, not the
 # source's owner; name/device_signature/mapping_json copied; " (copy)" suffix
 # ---------------------------------------------------------------------------
 
@@ -166,7 +166,7 @@ class TestDuplicate:
 
 
 # ---------------------------------------------------------------------------
-# update/delete permission matrix — check_controller_edit_permission
+# update/delete permission matrix, check_controller_edit_permission
 # (a) owner bypasses everything
 # (b) creator bypasses admin/flag entirely
 # (c) is_admin alone, no can_manage_controllerMapping -> fails

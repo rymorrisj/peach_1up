@@ -105,7 +105,7 @@ class AppItemUpdate(SQLModel):
 # derived-and-validated from era on every write (same @validates +
 # model_post_init pattern as GameItemBundle.item_type, see
 # derive_is_pc/_validate_is_pc/model_post_init below), and
-# environment_item_id is nullable — required for PC apps, forbidden for
+# environment_item_id is nullable, required for PC apps, forbidden for
 # console apps, enforced in the service layer
 # (backend/service/apps/items.py::_enforce_environment_binding), same shape
 # as GameItemBundle's _enforce_environment_binding rule. Consoles can host
@@ -218,7 +218,7 @@ class AppItemBundle(SQLModel, table=True):
 
     def model_post_init(self, __context: object) -> None:
         # Same double-write caveat as GameItemBundle.model_post_init (see
-        # backend/models/game.py) — is_pc can only be reliably derived here,
+        # backend/models/game.py), is_pc can only be reliably derived here,
         # not by returning a different value from _validate_is_pc above.
         self.is_pc = derive_is_pc(self.era)
 

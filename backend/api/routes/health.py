@@ -84,7 +84,7 @@ def health_check():
     )
 
 
-# Aggregate Environment/library health — moved here from the environments
+# Aggregate Environment/library health, moved here from the environments
 # router (formerly GET/POST /api/v1/environments/health, /health-all,
 # /storage-stats) so System/Health has one data source instead of being
 # split across two routers. Reuses get_health_summary/batch_health_check/
@@ -140,7 +140,7 @@ def _compute_storage_footprint(db: Session) -> dict:
     log_size = _dir_size(base / "logs")
     drive_size = get_drive_images_bytes(db)
 
-    # era lives on the collection; file sizes on the leaf — join to break down by era.
+    # era lives on the collection; file sizes on the leaf, join to break down by era.
     sized_rows = db.execute(
         text(
             "SELECT c.era, i.file_size_bytes FROM game_items i "

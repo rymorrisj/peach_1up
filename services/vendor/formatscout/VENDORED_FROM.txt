@@ -1,0 +1,8 @@
+Source repo: https://github.com/rymorrisj/formatscout (private)
+Last known commit: 91dc400
+Date pulled: 2026-08-07
+
+Note: .git was stripped from this copy before this commit hash could be
+independently re-verified against the local working tree. 91dc400 is the
+last known HEAD at push time, reported from the push session, not confirmed
+by inspecting this copy's own history.

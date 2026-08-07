@@ -190,7 +190,7 @@ export const appUploadModalConfig: LibraryModalConfig = {
   entityLabelPlural: 'apps',
 };
 
-// App's cover art lives on the leaf item (same indirection as Game — see
+// App's cover art lives on the leaf item (same indirection as Game, see
 // resolveLeafCoverArt). Launch is domain-enabled ('app' targetType) but
 // per-entity gated to PC apps only via isLaunchable (bundle.is_pc).
 export const appDomainConfig: EntityDomainConfig<AppItemBundleData> = {

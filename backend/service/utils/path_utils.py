@@ -77,7 +77,7 @@ def resolve_under(base: Path, *parts: str) -> Path:
     """Join *parts* onto *base* and verify the resolved path stays within it.
 
     Defense-in-depth check for any path built from user-influenced segments,
-    even ones already sanitized — mirrors the allowlist checks used elsewhere
+    even ones already sanitized, mirrors the allowlist checks used elsewhere
     for media and drive paths.
 
     Raises:
@@ -106,7 +106,7 @@ def normalise_path(path: str) -> Path:
         1. Empty / whitespace-only rejection.
         2. Null-byte rejection (common injection vector).
         3. Git Bash / MSYS2 virtual path translation.
-        4. Absolute resolution via ``Path.resolve()`` — eliminates ``..``
+        4. Absolute resolution via ``Path.resolve()``, eliminates ``..``
            segments and relative references.
 
     Raises:
@@ -164,7 +164,7 @@ def is_within_roots(resolved: Path, roots: list[Path]) -> bool:
 
 
 # Matches the on-disk folder names exactly so a domain key can be joined onto
-# SOFTWARE_PATH with no further translation. "media" is deliberately excluded — that
+# SOFTWARE_PATH with no further translation. "media" is deliberately excluded, that
 # domain roots at MEDIA_PATH directly (see software_media.py) and never goes through
 # this SOFTWARE_PATH-scoped resolver.
 _LIBRARY_DOMAINS: frozenset[str] = frozenset({"games", "apps"})

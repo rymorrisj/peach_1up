@@ -21,6 +21,8 @@ dependencies = [
     "pystray>=0.19.0",
     "python-multipart>=0.0.18",
     "pycdlib>=1.14.0",
+    "formatscout",
+    "wincage",
 ]
 
 # Not distributed via PyPI or installed as an importable package (the app is
@@ -29,6 +31,15 @@ dependencies = [
 # manifest for a venv, not a buildable project, so no [build-system] is needed.
 [tool.uv]
 package = false
+
+# formatscout and wincage are vendored as local editable path dependencies,
+# not pulled from PyPI. See services/vendor/{formatscout,wincage}/VENDORED_FROM.txt
+# for source commit provenance. Distribution names differ from their importable
+# module names (smart_media_detector, sandbox/sandbox_checker), see each
+# package's own pyproject.toml [tool.setuptools] packages field.
+[tool.uv.sources]
+formatscout = { path = "services/vendor/formatscout", editable = true }
+wincage = { path = "services/vendor/wincage", editable = true }
 
 [dependency-groups]
 dev = ["pytest==9.1.1", "pytest-cov==7.1.0", "ruff==0.16.1"]

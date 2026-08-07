@@ -119,7 +119,7 @@ describe('Emulators page', () => {
     });
     renderPage();
     await waitFor(() => {
-      // "1 of 2 ready" — only DOSBox-X is installed
+      // "1 of 2 ready", only DOSBox-X is installed
       expect(screen.getByText(/1 of 2 ready/i)).toBeInTheDocument();
     });
   });

@@ -27,7 +27,7 @@ _DISC_POINTER_EXTS: tuple[str, ...] = (".gdi", ".cue", ".chd")
 def detect_disc_files(files: list[Path]) -> list[Path]:
     """Return a sorted list of disc-pointer files (.gdi/.cue/.chd) when 2+ of one
     kind exist (multi-disc signal), else []. Raises 422 when more than one
-    disc-pointer format is present (ambiguous — implies different consoles)."""
+    disc-pointer format is present (ambiguous, implies different consoles)."""
     groups = {ext: sorted(f for f in files if f.suffix.lower() == ext) for ext in _DISC_POINTER_EXTS}
     present = [ext for ext, group in groups.items() if group]
 
@@ -52,11 +52,11 @@ def select_disc_pointer_files(files: list[Path]) -> list[Path]:
     "set" uploads, where a disc can be more than one file (e.g. .cue + .bin).
 
     Returns the .gdi/.cue/.chd pointer files in their original (client-declared)
-    order when any are present — every other file rides along in the shared
+    order when any are present, every other file rides along in the shared
     destination folder unregistered as a companion. Falls back to returning
     *files* unchanged when none of those are present (each file is already its
     own disc, e.g. .iso). Raises 422 for a mixed disc-pointer-format upload,
-    same as detect_disc_files — unlike that function, this one does not sort,
+    same as detect_disc_files, unlike that function, this one does not sort,
     since the caller must preserve the client's declared disc order.
     """
     groups = {ext: [f for f in files if f.suffix.lower() == ext] for ext in _DISC_POINTER_EXTS}
@@ -100,17 +100,17 @@ def pick_folder_launch_file(files: list[Path]) -> Path:
 def dedup_disc_anchor(media_root: Path, anchor: Path, db: Session) -> Path:
     """Consult the content-hash index for *anchor* (the disc-1 pointer/media file
     of a multi-disc upload) and repoint at an existing byte-identical file when
-    one exists on disk, avoiding a redundant copy — the same treatment a
+    one exists on disk, avoiding a redundant copy, the same treatment a
     ``kind == "file"`` upload already gets via ``find_existing_duplicate``.
 
     The multi-disc ingest stages carry no existing-file_path guard the way
     ``_prepare_item`` does for single items, so a duplicate that is still a
     live ``GameItem.file_path`` is rejected here with ``_ItemAlreadyExists``
     (same exception the file-kind path raises, caught by the upload route as a
-    409) rather than being silently repointed — that would create a second
+    409) rather than being silently repointed, that would create a second
     tracked row sharing one file_path with an existing collection. Only a
     duplicate that is an *orphan* (physically on disk, not referenced by any
-    live item — e.g. left behind after its item was deleted, per
+    live item, e.g. left behind after its item was deleted, per
     ``find_existing_duplicate``'s own docstring) is reused.
     """
     from backend.models.game import GameItemBundle, GameItem
@@ -136,7 +136,7 @@ def ingest_folder(
     Returns ``(result_type, collection, disc_count)`` where result_type is always
     ``"game_item_bundle"`` and disc_count is the number of discs (1 for a
     collection-of-one). Raises the same 4xx HTTPExceptions as the ingester
-    on a duplicate/collision — callers translate those (inline route) or mark the
+    on a duplicate/collision, callers translate those (inline route) or mark the
     job failed (background finalizer).
 
     This function owns the multi-disc transaction: it drives the ingest stages

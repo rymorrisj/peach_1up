@@ -189,7 +189,7 @@ def list_emulators():
 
 @router.get("/attribution", response_model=list[AttributionEntry])
 def list_attribution():
-    """Attribution list for Settings > Attribution — emulator catalog entries
+    """Attribution list for Settings > Attribution, emulator catalog entries
     merged with non-emulator third-party tools (e.g. extract-xiso). Distinct
     from GET /api/v1/emulator-items: that endpoint drives the Emulators page and
     must never include non-launchable tools.
@@ -251,7 +251,7 @@ def reset_sandbox_state(
     for entry in catalog:
         if entry.get("container_enabled", False):
             slug = entry["slug"]
-            # Monikers are now scoped per profile.user_item_id — sweep every user
+            # Monikers are now scoped per profile.user_item_id, sweep every user
             # scope on record for this emulator, plus the "shared" scope used
             # by profiles with no user_item_id, to match the old per-slug sweep.
             user_item_ids: set[int | None] = {

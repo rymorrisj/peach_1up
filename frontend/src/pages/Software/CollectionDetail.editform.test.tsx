@@ -11,7 +11,7 @@ import { createMockLibraryItem } from '@/test/helpers';
 
 // Field-level coverage for the edit form (EditForm.tsx) rendered inside
 // CollectionDetail.tsx. Only "title" was exercised end-to-end before this
-// file — see CollectionDetail.mutations.test.tsx's "Save" describe block.
+// file, see CollectionDetail.mutations.test.tsx's "Save" describe block.
 // Locks down current inline behavior ahead of a later extraction, same
 // mocking approach as CollectionDetail.mutations.test.tsx (mock apiFetch at
 // the network boundary only).
@@ -315,9 +315,9 @@ describe('CollectionDetail edit form (field-level)', () => {
     renderPage();
     await waitForLoaded();
 
-    await selectRadixOption(user, 'Content Rating', 'M — Mature');
+    await selectRadixOption(user, 'Content Rating', 'M, Mature');
     expect(screen.getByRole('combobox', { name: 'Content Rating' })).toHaveTextContent(
-      'M — Mature',
+      'M, Mature',
     );
 
     await saveAndWait(user);
@@ -474,7 +474,7 @@ describe('CollectionDetail edit form (field-level)', () => {
       'DOSBox Default (default)',
     );
     expect(
-      screen.queryByText('Selected profile targets a different era — launch may fail.'),
+      screen.queryByText('Selected profile targets a different era, launch may fail.'),
     ).not.toBeInTheDocument();
 
     await saveAndWait(user);
@@ -536,7 +536,7 @@ describe('CollectionDetail edit form (field-level)', () => {
         screen.getByRole('option', { name: 'Win95 Default (Windows 95)' }),
       ).toBeInTheDocument();
       expect(
-        screen.queryByText('Selected profile targets a different era — launch may fail.'),
+        screen.queryByText('Selected profile targets a different era, launch may fail.'),
       ).not.toBeInTheDocument();
     });
 
@@ -562,7 +562,7 @@ describe('CollectionDetail edit form (field-level)', () => {
       expect(screen.getByRole('combobox', { name: 'Era' })).toHaveTextContent('Windows 95');
 
       expect(
-        screen.getByText('Selected profile targets a different era — launch may fail.'),
+        screen.getByText('Selected profile targets a different era, launch may fail.'),
       ).toBeInTheDocument();
 
       await saveAndWait(user);
@@ -606,17 +606,17 @@ describe('CollectionDetail edit form (field-level)', () => {
     renderPage();
     await waitForLoaded();
 
-    expect(screen.getByText('No launch file detected — browse to set one.')).toBeInTheDocument();
+    expect(screen.getByText('No launch file detected, browse to set one.')).toBeInTheDocument();
 
     // Two "Browse…" buttons exist (Cover Art Path uses the same PathInput
-    // control) — the second one belongs to the Launch File field, rendered
+    // control), the second one belongs to the Launch File field, rendered
     // just after Cover Art Path in EditForm.tsx.
     const browseButtons = screen.getAllByRole('button', { name: 'Browse…' });
     await user.click(browseButtons[1]);
     await user.click(await screen.findByRole('button', { name: /DOOM\.EXE/ }));
 
     expect(
-      screen.queryByText('No launch file detected — browse to set one.'),
+      screen.queryByText('No launch file detected, browse to set one.'),
     ).not.toBeInTheDocument();
     // getByTitle (rather than getByText) targets the Launch File display span
     // specifically via its title attribute (set to the full path), so this

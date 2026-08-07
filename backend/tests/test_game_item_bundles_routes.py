@@ -1,6 +1,6 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/game_item_bundles.py.
 
-Per dev_docs/v2/09_test_coverage.md item 3 — the largest untested route file
+Per dev_docs/v2/09_test_coverage.md item 3, the largest untested route file
 (699 lines) and a parental-control-adjacent surface. Prior to this file, only
 /confirm-delete and DELETE were exercised (test_upload.py). This file covers
 the route's other untested surfaces:
@@ -32,7 +32,7 @@ import pytest
 def mem_db_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -118,7 +118,7 @@ class _FakeSettings:
 
 
 # ---------------------------------------------------------------------------
-# POST /software/import-from-path — can_manage_game gate
+# POST /software/import-from-path, can_manage_game gate
 # ---------------------------------------------------------------------------
 
 
@@ -156,7 +156,7 @@ class TestImportFromPath:
         )
         # _enforce_rate_limit calls rate_limit.check_and_record directly (not
         # rate_limit.enforce), and its module-level counters persist across
-        # test methods within the same process — bypass it at the source.
+        # test methods within the same process, bypass it at the source.
         monkeypatch.setattr(game_item_bundles, "_enforce_rate_limit", lambda *a, **kw: None)
 
         app = FastAPI()
@@ -207,7 +207,7 @@ class TestImportFromPath:
 
 
 # ---------------------------------------------------------------------------
-# POST /software/scan/import — can_manage_game gate
+# POST /software/scan/import, can_manage_game gate
 # ---------------------------------------------------------------------------
 
 
@@ -269,7 +269,7 @@ class TestScanImport:
 
 
 # ---------------------------------------------------------------------------
-# PATCH .../items/reorder — can_manage_game gate
+# PATCH .../items/reorder, can_manage_game gate
 # ---------------------------------------------------------------------------
 
 
@@ -315,7 +315,7 @@ class TestItemsReorder:
 
 
 # ---------------------------------------------------------------------------
-# POST .../flag-launch — can_launch_media gate
+# POST .../flag-launch, can_launch_media gate
 # ---------------------------------------------------------------------------
 
 

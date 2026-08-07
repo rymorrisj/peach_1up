@@ -92,7 +92,7 @@ describe('AppContext initial auth check', () => {
 
 // Note: the spec for this file also asked for a case covering a redirect to
 // "/setup" when first_run_complete is false. That logic is not part of
-// AppContext — it lives in the unexported `FirstRunGuard` component in
+// AppContext, it lives in the unexported `FirstRunGuard` component in
 // src/main.tsx, which queries GET /api/v1/settings/first-run-status and
 // redirects to "/first-run" (not "/setup") via <Navigate>. Since
 // FirstRunGuard isn't exported and AppContext/AppProvider has no

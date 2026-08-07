@@ -14,7 +14,7 @@ class ControllerMappingItemBase(SQLModel):
     name: str
     # SDL GUID format: the 32-hex-character device identifier SDL2 /
     # SDL_GameControllerDB use to key a controller by vendor/product/version/
-    # platform — the same identifier format found in gamecontrollerdb.txt,
+    # platform, the same identifier format found in gamecontrollerdb.txt,
     # e.g. "030000005e0400008e02000010010000". Plain string, not validated
     # against a live DB here; documented so a future SDL_GameControllerDB-
     # backed lookup can validate against it.
@@ -29,7 +29,7 @@ class ControllerMappingItemBase(SQLModel):
     #   stick clicks:   l3, r3
     #   analog sticks:  left_x, left_y, right_x, right_y
     #   other:          start, select
-    # No parsing/validation against this shape is enforced here — see doc
+    # No parsing/validation against this shape is enforced here, see doc
     # 05_system.md; this column just carries the API request body verbatim.
     mapping_json: Optional[dict] = Field(default=None, sa_column=Column(JSON))
 

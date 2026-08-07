@@ -8,7 +8,7 @@ this module.
 This module talks to settings through backend.core.database's shared
 SQLAlchemy engine. main.py calls init_settings() at import time, before
 backend.core.database's lifespan-scoped create_tables() has run across the
-full model metadata — get_engine() lazily creates the engine on first use
+full model metadata, get_engine() lazily creates the engine on first use
 (rather than requiring init_db() to run first) and ensure_settings_table()
 creates just the settings table, scoped narrowly enough to be safe to
 call before the rest of backend.models.* has registered with SQLModel's
@@ -16,7 +16,7 @@ metadata. The later, full create_tables() call in the lifespan handler
 no-ops on a table that already exists.
 
 The legacy settings.yaml / %APPDATA%\\Peach1UP\\paths.yaml files (and their
-one-time migration into settings/.env) have been fully retired — this
+one-time migration into settings/.env) have been fully retired, this
 module is now DB-only, with secrets in .env (see env_secrets.py).
 """
 
@@ -230,7 +230,7 @@ def set_flag(key: str, value) -> None:
 def add_suppression(suppression_id: str) -> None:
     """Add a confirmation suppression ID and persist to settings.
 
-    Idempotent — adding an ID that already exists is a no-op.
+    Idempotent, adding an ID that already exists is a no-op.
 
     Args:
         suppression_id: Identifier for the confirmation to suppress
@@ -291,7 +291,7 @@ def reset_db_completed() -> None:
 
     Called by the lifespan handler immediately after deleting peach1up.db
     for a reset_db cycle. Settings live in the same SQLite file as library
-    data, so deleting it also empties settings — without this, a
+    data, so deleting it also empties settings, without this, a
     reset_db wipe would silently drop every configured setting. Re-persisting
     the state that was already loaded before the delete restores it.
 

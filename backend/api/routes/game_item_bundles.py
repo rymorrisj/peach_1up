@@ -143,8 +143,8 @@ def import_from_path(
     db: Session = Depends(get_db),
     _: UserItem = require_permission("can_manage_game"),
 ):
-    """Import a file or folder already on the server's filesystem — the same
-    kind of real, absolute path GET /api/v1/filesystem/browse resolves — into
+    """Import a file or folder already on the server's filesystem, the same
+    kind of real, absolute path GET /api/v1/filesystem/browse resolves, into
     the library. This is a second transport alongside chunked browser upload,
     for when the source is already local to the server: no chunked transfer,
     and (opt-in, per delete_original) the source can be deleted afterward,
@@ -160,7 +160,7 @@ def import_from_path(
         raise HTTPException(status_code=400, detail=str(exc))
 
     # Re-validated here even though the frontend only ever offers paths the
-    # file browser itself returned — the backend must not trust that a path
+    # file browser itself returned, the backend must not trust that a path
     # in a request body actually came from that browser call.
     if not is_within_roots(resolved, allowed_browse_roots()):
         raise HTTPException(status_code=400, detail="Path is outside the permitted directories.")
@@ -170,7 +170,7 @@ def import_from_path(
         raise HTTPException(status_code=400, detail="Path does not exist.")
 
     # _prepare_item carries this same guard, but it only ever sees the
-    # already-copied path under SOFTWARE_PATH — by then the (potentially huge)
+    # already-copied path under SOFTWARE_PATH, by then the (potentially huge)
     # copy has already happened and would silently duplicate an OS image into
     # the library. Check the original source here, before staging starts.
     from backend.models.environment import EnvironmentItem
@@ -210,7 +210,7 @@ def import_from_path(
 
 
 # ---------------------------------------------------------------------------
-# Scan / import (ingest — every import creates a collection-of-one + leaf)
+# Scan / import (ingest, every import creates a collection-of-one + leaf)
 # ---------------------------------------------------------------------------
 
 
@@ -238,7 +238,7 @@ def scan_status(_: UserItem = require_permission("can_manage_game")):
 def cancel_scan(job_id: str, _: UserItem = require_permission("can_manage_game")):
     """Cooperative cancellation for an in-flight scan job. Flags the job so
     _run_scan's loop exits at its next check, then returns the updated job
-    status immediately — the job itself only reaches the terminal 'cancelled'
+    status immediately, the job itself only reaches the terminal 'cancelled'
     status once the background task actually notices and stops (poll
     /api/v1/jobs/{job_id} to observe that transition)."""
     job = jobs.get(job_id)
@@ -280,7 +280,7 @@ def _resolve_scan_directory(domain: str) -> Path:
 def _check_known_items_findable(db: Session) -> None:
     """Fail loud if a DB-known item's file has vanished from disk (moved or
     renamed outside Peach 1UP) instead of letting scan silently work around it.
-    Scan is stateless now — it re-walks disk every call and relies on
+    Scan is stateless now, it re-walks disk every call and relies on
     original_name/file_path to reconcile against existing rows, so a
     known item that can no longer be found on disk is surfaced immediately
     rather than dropped without explanation.
@@ -339,7 +339,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
     """
     from backend.core.database import get_engine
     from backend.service.games.items import best_detect_path
-    from backend.service.utils.smart_media_detector import detect as _smart_detect
+    from smart_media_detector import detect as _smart_detect
     from backend.service.utils.profile_builder import scan_media_folders
     from sqlalchemy.orm import Session as _Session
 
@@ -373,7 +373,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
             for _idx, entry in enumerate(entries):
                 # Checked every iteration (an Event.is_set() check is
                 # effectively free) so cancellation is noticed between any two
-                # folders, not just every 10th — the progress update itself
+                # folders, not just every 10th, the progress update itself
                 # stays throttled below since that one does real work (a job
                 # dict mutation under a lock).
                 if job_id is not None and jobs.cancel_requested(job_id):
@@ -439,7 +439,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
                 jobs.complete(
                     job_id,
                     result={"preview": preview},
-                    message=f"Scan complete — {len(preview)} item(s) ready to import.",
+                    message=f"Scan complete, {len(preview)} item(s) ready to import.",
                 )
 
 
@@ -452,7 +452,7 @@ def import_scan_results(
     """
     Phase 2: import the user-selected paths from the Phase 1 preview. Each import
     creates a collection-of-one + leaf. DOS collections are not given a
-    drive here — the drive is created lazily on first launch
+    drive here, the drive is created lazily on first launch
     (drive_hydration.hydrate_drive_for_entity).
     """
     from backend.service.games.items import (
@@ -601,7 +601,7 @@ def start_xiso_conversion(
 ):
     """Convert the collection's current launch disc from a raw Xbox DVD rip to xiso.
 
-    User-triggered only — never runs automatically. extract-xiso rewrites the
+    User-triggered only, never runs automatically. extract-xiso rewrites the
     file in place under its original filename; its own automatic '<name>.old'
     backup of the pre-rewrite file is left on disk as the safety net (never
     deleted here). No launch-target update is needed since the filename

@@ -27,7 +27,7 @@ import pytest
 def mem_db_session():
     from sqlalchemy.pool import StaticPool
     from sqlmodel import SQLModel, Session, create_engine
-    import backend.models  # noqa: F401 — registers all table models with SQLModel.metadata
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -119,7 +119,7 @@ class TestGetBySlug:
 
 
 # ---------------------------------------------------------------------------
-# Scan status / cancel — now gated the same as their scan-family siblings
+# Scan status / cancel, now gated the same as their scan-family siblings
 # ---------------------------------------------------------------------------
 
 
@@ -175,7 +175,7 @@ class TestTriggerScan:
     def test_400_when_no_software_path_configured(self, http_client):
         """settings.init() never runs in this route-level suite, so
         _resolve_scan_directory's get_settings().get("SOFTWARE_PATH") raises
-        RuntimeError, caught and treated as unconfigured — the route's own
+        RuntimeError, caught and treated as unconfigured, the route's own
         documented 400, not a test artifact."""
         c, db, app = http_client
         _set_active_user(app, _make_user(db, can_manage_game=True))
@@ -187,7 +187,7 @@ class TestTriggerScan:
 
 
 # ---------------------------------------------------------------------------
-# Create / update — found uncovered during this pass, not itself in TST-5
+# Create / update, found uncovered during this pass, not itself in TST-5
 # ---------------------------------------------------------------------------
 
 
@@ -273,7 +273,7 @@ class TestConvertXiso:
 
     def test_over_rated_bundle_404s_before_era_check(self, http_client):
         """convert-xiso resolves the collection through
-        get_filtered_game_item_bundle, not a raw db.get — a capped user gets
+        get_filtered_game_item_bundle, not a raw db.get, a capped user gets
         the same no-leak 404 as browsing, not a 400 era mismatch."""
         c, db, app = http_client
         bundle = _make_game_bundle(db, era="dos", content_rating="M")

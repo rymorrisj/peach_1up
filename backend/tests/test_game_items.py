@@ -27,7 +27,7 @@ class _FakeSettings:
 def mem_session():
     from sqlmodel import SQLModel, Session, create_engine
     from sqlalchemy.pool import StaticPool
-    import backend.models  # noqa: F401 — registers all table models
+    import backend.models  # noqa: F401, registers all table models
 
     engine = create_engine(
         "sqlite:///:memory:",
@@ -72,7 +72,7 @@ class TestPrepareFolderRename:
         media_root = tmp_path / "media"
         media_root.mkdir()
         # SOFTWARE_PATH is media_root; games_root_str-derived paths resolve to
-        # library_domain_root("games") = media_root/games — see path_utils.py.
+        # library_domain_root("games") = media_root/games, see path_utils.py.
         games_root = media_root / "games"
         games_root.mkdir()
         src_folder = games_root / "My Game (1993)"
@@ -91,7 +91,7 @@ class TestPrepareFolderRename:
         assert leaf_fields["file_path"] == str(canonical / "doom.exe")
 
     def test_already_canonically_named_folder_no_rename(self, tmp_path, mem_session, monkeypatch):
-        """File in games_root/doom/doom.exe — folder name already matches stem,
+        """File in games_root/doom/doom.exe, folder name already matches stem,
         no rename and no move should occur."""
         media_root = tmp_path / "media"
         media_root.mkdir()
@@ -133,7 +133,7 @@ class TestPrepareFolderRename:
 
     def test_loose_file_at_games_root_still_creates_canonical_folder(self, tmp_path, mem_session, monkeypatch):
         """A file placed directly inside games_root (loose, no parent subfolder)
-        is not eligible for rename — a new folder is created and the file moved."""
+        is not eligible for rename, a new folder is created and the file moved."""
         media_root = tmp_path / "media"
         media_root.mkdir()
         games_root = media_root / "games"
@@ -152,7 +152,7 @@ class TestPrepareFolderRename:
 
     def test_file_in_deeply_nested_subfolder_not_renamed(self, tmp_path, mem_session, monkeypatch):
         """A file two levels deep (games_root/a/b/file.exe) does not trigger the
-        rename path — only direct subfolders of games_root qualify."""
+        rename path, only direct subfolders of games_root qualify."""
         media_root = tmp_path / "media"
         media_root.mkdir()
         games_root = media_root / "games"
@@ -164,7 +164,7 @@ class TestPrepareFolderRename:
 
         _patch_settings(monkeypatch, media_root)
         # _prepare_item will raise because outer/ is inside games_root but
-        # inner/ is two levels deep — falls through to create+move; the
+        # inner/ is two levels deep, falls through to create+move; the
         # canonical dest_folder is games_root/doom which doesn't conflict.
         _call_prepare(str(src_file), "Doom", mem_session)
 

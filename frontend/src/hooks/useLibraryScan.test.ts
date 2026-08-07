@@ -40,7 +40,7 @@ function setApiRoutes(overrides: Record<string, ApiHandler> = {}) {
     '/api/v1/auth/me': () => ({ id: 1, username: 'tester' }),
     '/api/v1/auth/refresh': () => ({ user: { id: 1, username: 'tester' } }),
     // Hook mount hydration reads the job list for a finished scan's preview
-    // (scan/status itself is now stateless) — idle by default so it is a no-op.
+    // (scan/status itself is now stateless), idle by default so it is a no-op.
     '/api/v1/jobs': () => [],
     '/api/v1/game-items/scan/status': () => ({ running: false, error: null }),
     ...overrides,
@@ -52,7 +52,7 @@ const DONE_JOB = {
   kind: 'scan',
   status: 'done',
   progress: 1,
-  message: 'Scan complete — 1 item(s) ready to import.',
+  message: 'Scan complete, 1 item(s) ready to import.',
   result: {
     preview: [
       {
@@ -117,7 +117,7 @@ describe('useLibraryScan', () => {
       wrapper: createWrapper(),
     });
 
-    // Flush mutation onSuccess — two act rounds drain TanStack's scheduler.
+    // Flush mutation onSuccess, two act rounds drain TanStack's scheduler.
     // This also registers job-1 in state.backgroundJobs, which is what starts
     // AppContext's poll effect (it only runs while an active job exists).
     await act(async () => {
@@ -135,7 +135,7 @@ describe('useLibraryScan', () => {
 
     expect(result.current.scanning).toBe(false);
     expect(result.current.status?.preview).toHaveLength(1);
-    // onImported is NOT called at scan end — only called after Phase 2 import
+    // onImported is NOT called at scan end, only called after Phase 2 import
     expect(onImported).not.toHaveBeenCalled();
   });
 
@@ -209,7 +209,7 @@ describe('useLibraryScan', () => {
       { wrapper: createWrapper(), initialProps: { open: true } },
     );
 
-    // Start the first (slow) import — mirrors clicking Import.
+    // Start the first (slow) import, mirrors clicking Import.
     let firstImportDone!: Promise<void>;
     act(() => {
       firstImportDone = result.current.handleImport(['/lib/game1.nes']);
@@ -238,7 +238,7 @@ describe('useLibraryScan', () => {
     expect(result.current.importResult).toEqual({ imported: 1, skipped: 0, errors: [] });
     expect(result.current.error).toBeNull();
 
-    // The original (first) request finally settles — as a failure — well
+    // The original (first) request finally settles, as a failure, well
     // after the second one already succeeded.
     await act(async () => {
       resolveFirst(Promise.reject(new ApiError(500, 'boom')));

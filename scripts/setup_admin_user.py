@@ -114,7 +114,7 @@ def run_setup(db_path: str | Path) -> bool:
 
 
 def main() -> int:
-    print("=== Peach 1UP — Owner Account Setup ===")
+    print("=== Peach 1UP, Owner Account Setup ===")
     try:
         success = run_setup(db_path=_get_db_path())
     except Exception as exc:

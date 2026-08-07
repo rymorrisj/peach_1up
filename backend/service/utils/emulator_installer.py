@@ -50,7 +50,7 @@ def record_rom_pack_item(pack_slug: str, emulator_slug: str, install_path: Path 
     """Insert or update the ``rom_pack_items`` row for *pack_slug*.
 
     Called after a clone (clone_rom_pack) and from the rom-packs verify
-    route — both cases record the owned result without altering the
+    route, both cases record the owned result without altering the
     underlying install_type == "rom_pack" catalog/clone mechanism.
     """
     from datetime import datetime, timezone
