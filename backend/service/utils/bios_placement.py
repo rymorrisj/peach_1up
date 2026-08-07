@@ -207,7 +207,7 @@ async def _place_mesen_fds(
         )
 
     if _MESEN_FDS_NAME in result.copied:
-        digest = hash_file(dest_path)["sha1"]
+        digest = hash_file(dest_path).sha1
         if digest.lower() != _MESEN_FDS_SHA1.lower():
             result.warnings.append(
                 f"SHA1 {digest} does not match the known-good FDS BIOS hash ({_MESEN_FDS_SHA1}). "

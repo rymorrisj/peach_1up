@@ -1498,7 +1498,7 @@ def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
         from smart_media_detector.hashing.hash_lookup import hash_file
 
         try:
-            leaf.sha1 = hash_file(path)["sha1"]
+            leaf.sha1 = hash_file(path).sha1
             leaf.verification_status = "not_in_index"
             leaf.verification_similarity = None
         except OSError:

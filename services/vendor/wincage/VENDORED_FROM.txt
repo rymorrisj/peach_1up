@@ -1,8 +1,0 @@
-Source repo: https://github.com/rymorrisj/wincage (private)
-Last known commit: ea3c16a
-Date pulled: 2026-08-07
-
-Note: .git was stripped from this copy before this commit hash could be
-independently re-verified against the local working tree. ea3c16a is the
-last known HEAD at push time, reported from the push session, not confirmed
-by inspecting this copy's own history.
