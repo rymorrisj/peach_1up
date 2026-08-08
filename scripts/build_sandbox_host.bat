@@ -23,7 +23,7 @@ rem   - Visual Studio Build Tools or Visual Studio 2019+ installed
 rem   - "Desktop development with C++" workload installed
 rem
 rem Output:
-rem   backend\service\utils\platform\windows\sandbox\sandbox_host.exe
+rem   services\vendor\wincage\wincage\sandbox_host.exe
 rem ============================================================
 
 setlocal EnableExtensions EnableDelayedExpansion
@@ -34,7 +34,7 @@ rem --------------------------------------------------------------------
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..") do set "PROJECT_ROOT=%%~fI"
 
-set "SANDBOX_DIR=%PROJECT_ROOT%\backend\service\utils\platform\windows\sandbox"
+set "SANDBOX_DIR=%PROJECT_ROOT%\services\vendor\wincage\wincage"
 set "SRC_DIR=%SANDBOX_DIR%\src"
 set "OUT_EXE=%SANDBOX_DIR%\sandbox_host.exe"
 set "OBJ_DIR=%SANDBOX_DIR%\build_tmp"

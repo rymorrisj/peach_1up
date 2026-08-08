@@ -108,7 +108,7 @@ jobs:
       # documented local workflow, it does not reimplement any build.bat step.
       - name: Build sandbox_host.exe (MSYS2 UCRT64 g++)
         shell: msys2 {0}
-        run: bash backend/service/utils/platform/windows/sandbox/build.sh
+        run: bash services/vendor/wincage/wincage/build.sh
 
       # CMAKE_GENERATOR=Ninja pins the generator explicitly rather than
       # relying on cmake's ambient auto-detection (which, left to itself on a

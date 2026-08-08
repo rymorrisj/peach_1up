@@ -12,7 +12,7 @@ from backend.service.utils.emulator_descriptor import EmulatorDescriptor
 from backend.service.utils.eras_config import get_eras as _get_eras
 
 if TYPE_CHECKING:
-    from sandbox.sandbox_config import SandboxConfig
+    from wincage import SandboxConfig
 
 _logger = logging.getLogger(__name__)
 
@@ -384,7 +384,7 @@ def build_media_broker_config(
     """
     if not container_enabled:
         return None
-    from sandbox import BrokerFile
+    from wincage import BrokerFile
     sandbox_config = get_container_config(slug, exe_path, user_item_id=user_item_id)
     sandbox_config.broker_files.append(
         BrokerFile(path=str(media_path.parent), access="r", mode="grant"))

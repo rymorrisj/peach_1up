@@ -81,7 +81,7 @@ class TestLoadEraLimits:
 
 class TestWindowsJobObjectPreCreate:
     def test_init_stores_attributes(self):
-        from sandbox.job import WindowsJobObject
+        from wincage import WindowsJobObject
         job = WindowsJobObject("test_job", 512, 75)
         assert job.name == "test_job"
         assert job.memory_limit_mb == 512
@@ -90,25 +90,25 @@ class TestWindowsJobObjectPreCreate:
         assert job.pid is None
 
     def test_handle_is_open_before_create_returns_false(self):
-        from sandbox.job import WindowsJobObject
+        from wincage import WindowsJobObject
         job = WindowsJobObject("test_job", 256, 50)
         assert job.handle_is_open() is False
 
     def test_set_memory_limit_before_create_raises(self):
-        from sandbox.job import WindowsJobObject
+        from wincage import WindowsJobObject
         job = WindowsJobObject("test_job", 256, 50)
         with pytest.raises(RuntimeError, match="Job object not created"):
             job.set_memory_limit(256)
 
     def test_set_cpu_limit_before_create_raises(self):
-        from sandbox.job import WindowsJobObject
+        from wincage import WindowsJobObject
         job = WindowsJobObject("test_job", 256, 50)
         with pytest.raises(RuntimeError, match="Job object not created"):
             job.set_cpu_limit(50)
 
     def test_add_process_before_create_raises(self):
-        from sandbox.job import WindowsJobObject
-        from sandbox.sandbox_process import SandboxProcess
+        from wincage import WindowsJobObject
+        from wincage import SandboxProcess
         job = WindowsJobObject("test_job", 256, 50)
         proc = SandboxProcess(pid=1234, process_handle=None, thread_handle=None, args=["x.exe"])
         with pytest.raises(RuntimeError, match="Job object not created"):
@@ -122,7 +122,7 @@ class TestWindowsJobObjectPreCreate:
 class TestWindowsJobObjectLifecycle:
     @requires_windows
     def test_create_succeeds_and_handle_is_set(self):
-        from sandbox.job import WindowsJobObject
+        from wincage import WindowsJobObject
         job = WindowsJobObject("PeachTest_Create", 256, 50)
         job.create()
         try:
@@ -132,7 +132,7 @@ class TestWindowsJobObjectLifecycle:
 
     @requires_windows
     def test_handle_is_open_returns_true_after_create(self):
-        from sandbox.job import WindowsJobObject
+        from wincage import WindowsJobObject
         job = WindowsJobObject("PeachTest_IsActive", 256, 50)
         job.create()
         try:
@@ -142,7 +142,7 @@ class TestWindowsJobObjectLifecycle:
 
     @requires_windows
     def test_memory_limit_reapplied_without_error(self):
-        from sandbox.job import WindowsJobObject
+        from wincage import WindowsJobObject
         job = WindowsJobObject("PeachTest_MemLimit", 512, 50)
         job.create()
         try:
@@ -152,7 +152,7 @@ class TestWindowsJobObjectLifecycle:
 
     @requires_windows
     def test_cpu_limit_reapplied_without_error(self):
-        from sandbox.job import WindowsJobObject
+        from wincage import WindowsJobObject
         job = WindowsJobObject("PeachTest_CpuLimit", 256, 75)
         job.create()
         try:
@@ -162,7 +162,7 @@ class TestWindowsJobObjectLifecycle:
 
     @requires_windows
     def test_teardown_sets_handle_to_none(self):
-        from sandbox.job import WindowsJobObject
+        from wincage import WindowsJobObject
         job = WindowsJobObject("PeachTest_Terminate", 256, 50)
         job.create()
         job.teardown()
@@ -170,7 +170,7 @@ class TestWindowsJobObjectLifecycle:
 
     @requires_windows
     def test_handle_is_open_returns_false_after_terminate(self):
-        from sandbox.job import WindowsJobObject
+        from wincage import WindowsJobObject
         job = WindowsJobObject("PeachTest_PostTerminate", 256, 50)
         job.create()
         job.teardown()
@@ -178,7 +178,7 @@ class TestWindowsJobObjectLifecycle:
 
     @requires_windows
     def test_teardown_is_idempotent(self):
-        from sandbox.job import WindowsJobObject
+        from wincage import WindowsJobObject
         job = WindowsJobObject("PeachTest_Idempotent", 256, 50)
         job.create()
         job.teardown()
@@ -187,7 +187,7 @@ class TestWindowsJobObjectLifecycle:
     @requires_windows
     def test_create_applies_era_limits_from_eras_yaml(self):
         """End-to-end: limits from eras.yaml are applied to a real Job Object."""
-        from sandbox.job import WindowsJobObject
+        from wincage import WindowsJobObject
         from backend.service.utils.platform.windows.process.launcher import _load_era_limits
         memory_mb, cpu_pct = _load_era_limits("dos")
         job = WindowsJobObject("PeachTest_EraLimits", memory_mb, cpu_pct)
@@ -206,7 +206,7 @@ class TestWindowsJobObjectLifecycle:
 
 class TestSandboxProcess:
     def test_init_stores_attributes(self):
-        from sandbox.sandbox_process import SandboxProcess
+        from wincage import SandboxProcess
         proc = SandboxProcess(
             pid=9999,
             process_handle=None,
@@ -220,31 +220,31 @@ class TestSandboxProcess:
         assert proc._thread_handle is None
 
     def test_poll_with_closed_handle_returns_stored_returncode(self):
-        from sandbox.sandbox_process import SandboxProcess
+        from wincage import SandboxProcess
         proc = SandboxProcess(pid=1, process_handle=None, thread_handle=None, args=["x.exe"])
         proc.returncode = 0
         assert proc.poll() == 0
 
     def test_poll_with_closed_handle_returns_none_when_returncode_unset(self):
-        from sandbox.sandbox_process import SandboxProcess
+        from wincage import SandboxProcess
         proc = SandboxProcess(pid=1, process_handle=None, thread_handle=None, args=["x.exe"])
         assert proc.poll() is None
 
     def test_poll_is_idempotent_after_handle_closed(self):
-        from sandbox.sandbox_process import SandboxProcess
+        from wincage import SandboxProcess
         proc = SandboxProcess(pid=1, process_handle=None, thread_handle=None, args=["x.exe"])
         proc.returncode = 1
         assert proc.poll() == 1
         assert proc.poll() == 1
 
     def test_resume_raises_when_thread_handle_is_none(self):
-        from sandbox.sandbox_process import SandboxProcess
+        from wincage import SandboxProcess
         proc = SandboxProcess(pid=1234, process_handle=None, thread_handle=None, args=["x.exe"])
         with pytest.raises(RuntimeError, match="Thread handle is not open"):
             proc.resume()
 
     def test_returncode_is_none_on_fresh_instance(self):
-        from sandbox.sandbox_process import SandboxProcess
+        from wincage import SandboxProcess
         proc = SandboxProcess(pid=42, process_handle=None, thread_handle=None, args=[])
         assert proc.returncode is None
 

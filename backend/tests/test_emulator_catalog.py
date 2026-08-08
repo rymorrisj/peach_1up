@@ -219,7 +219,7 @@ class TestBuildMediaBrokerConfig:
 
     def test_builds_grant_and_inherit_broker_files_when_enabled(self, tmp_path, monkeypatch):
         from backend.service.utils import emulator_catalog
-        from sandbox.sandbox_config import SandboxConfig
+        from wincage import SandboxConfig
 
         media_path = tmp_path / "media" / "game.chd"
         base_config = SandboxConfig(moniker="flycast", exe_path="flycast.exe")

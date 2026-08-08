@@ -158,46 +158,6 @@ if exist "%MSYS2_UCRT64%\g++.exe" (
     echo          then run: pacman -S mingw-w64-ucrt-x86_64-gcc
 )
 
-@REM REM ── Build sandbox_host.exe via MSYS2 (or validate pre-built) ──
-@REM echo Building sandbox_host.exe...
-@REM where bash >nul 2>&1
-@REM if not errorlevel 1 (
-@REM     bash "backend/service/utils/platform/windows/sandbox/build.sh"
-@REM     if errorlevel 1 (
-@REM         echo ERROR: sandbox_host.exe build failed.
-@REM         goto :error
-@REM     )
-@REM     echo [OK] sandbox_host.exe built
-@REM ) else (
-@REM     if not exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
-@REM         echo ERROR: bash/MSYS2 not found and sandbox_host.exe is missing.
-@REM         echo Install MSYS2 UCRT64 with gcc and run:
-@REM         echo   bash backend/service/utils/platform/windows/sandbox/build.sh
-@REM         goto :error
-@REM     )
-@REM     echo [OK] sandbox_host.exe found ^(pre-built; MSYS2 not available to rebuild^)
-@REM )
-
-@REM REM ── Build extract-xiso via MSYS2 (or validate pre-built) ─────
-@REM echo Building extract-xiso...
-@REM where bash >nul 2>&1
-@REM if not errorlevel 1 (
-@REM     bash "services/vendor/extract-xiso/build.sh"
-@REM     if errorlevel 1 (
-@REM         echo ERROR: extract-xiso build failed.
-@REM         goto :error
-@REM     )
-@REM     echo [OK] extract-xiso built
-@REM ) else (
-@REM     if not exist "services\vendor\extract-xiso\build\extract-xiso.exe" (
-@REM         echo ERROR: bash/MSYS2 not found and extract-xiso.exe is missing.
-@REM         echo Install MSYS2 UCRT64 with gcc/cmake and run:
-@REM         echo   bash services/vendor/extract-xiso/build.sh
-@REM         goto :error
-@REM     )
-@REM     echo [OK] extract-xiso found ^(pre-built; MSYS2 not available to rebuild^)
-@REM )
-
 if not exist "installer\tools\Peach1UP.exe" (
     echo ERROR: installer\tools\Peach1UP.exe not found.
     echo Download WinSW-x64.exe from https://github.com/winsw/winsw/releases, rename it to Peach1UP.exe, and place it at installer\tools\Peach1UP.exe
@@ -265,13 +225,13 @@ if errorlevel 1 (
 echo [OK] docs build copied
 
 echo === Copying sandbox executables ===
-if not exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
-    echo ERROR: backend\service\utils\platform\windows\sandbox\sandbox_host.exe not found.
+if not exist "services\vendor\wincage\wincage\sandbox_host.exe" (
+    echo ERROR: services\vendor\wincage\wincage\sandbox_host.exe not found.
     echo Run build.sh from an MSYS2 UCRT64 shell first to compile the sandbox executables.
     goto :error
 )
-if not exist "dist\peach1up\backend\service\utils\platform\windows\sandbox\" mkdir "dist\peach1up\backend\service\utils\platform\windows\sandbox\"
-copy /Y "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" "dist\peach1up\backend\service\utils\platform\windows\sandbox\"
+if not exist "dist\peach1up\services\vendor\wincage\wincage\" mkdir "dist\peach1up\services\vendor\wincage\wincage\"
+copy /Y "services\vendor\wincage\wincage\sandbox_host.exe" "dist\peach1up\services\vendor\wincage\wincage\"
 if errorlevel 1 (
     echo ERROR: Failed to copy sandbox_host.exe to dist.
     goto :error

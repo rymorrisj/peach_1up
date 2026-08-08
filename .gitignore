@@ -6,6 +6,14 @@ backend/service/utils/platform/windows/sandbox_checker/src/test_sdl2_d3d11.exe
 backend/service/utils/platform/windows/sandbox_checker/src/test_sdl2_opengl.exe
 backend/service/utils/platform/windows/sandbox_checker/src/test_qt_qpa.exe
 
+# Compiled sandbox binary (built by pipeline from src/), vendored wincage location
+services/vendor/wincage/wincage/sandbox_host.exe
+
+# Compiled sandbox_checker capability-probe binaries (built by build_tests.sh), vendored wincage location
+services/vendor/wincage/wincage/checker/src/test_sdl2_d3d11.exe
+services/vendor/wincage/wincage/checker/src/test_sdl2_opengl.exe
+services/vendor/wincage/wincage/checker/src/test_qt_qpa.exe
+
 # Environment and secrets
 .env
 *.env

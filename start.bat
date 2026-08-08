@@ -133,18 +133,18 @@ if errorlevel 1 (
 echo [OK] Hash index is uploaded to DB. 
 
 REM ── Sandbox build check ──────────────────────────────────────
-if exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
+if exist "services\vendor\wincage\wincage\sandbox_host.exe" (
     echo [OK] sandbox_host.exe found
 ) else (
     echo sandbox_host.exe not found. Attempting to build via MSYS2 UCRT64...
     if exist "C:\msys64\msys2_shell.cmd" (
-        "C:\msys64\msys2_shell.cmd" -ucrt64 -defterm -no-start -here -c "bash backend/service/utils/platform/windows/sandbox/build.sh"
+        "C:\msys64\msys2_shell.cmd" -ucrt64 -defterm -no-start -here -c "bash services/vendor/wincage/wincage/build.sh"
         if errorlevel 1 (
             echo ERROR: sandbox_host.exe build failed.
             echo Run build.sh manually from an MSYS2 UCRT64 shell.
             exit /b 1
         )
-        if not exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
+        if not exist "services\vendor\wincage\wincage\sandbox_host.exe" (
             echo ERROR: build.sh ran but sandbox_host.exe was not produced.
             echo Check build.sh output for errors.
             exit /b 1
@@ -154,7 +154,7 @@ if exist "backend\service\utils\platform\windows\sandbox\sandbox_host.exe" (
         echo ERROR: sandbox_host.exe not found and MSYS2 is not installed.
         echo To build it manually:
         echo   1. Install MSYS2 from https://www.msys2.org/
-        echo   2. Open an MSYS2 UCRT64 shell and run: bash backend/service/utils/platform/windows/sandbox/build.sh
+        echo   2. Open an MSYS2 UCRT64 shell and run: bash services/vendor/wincage/wincage/build.sh
         echo   3. Re-run start.bat
         exit /b 1
     )
