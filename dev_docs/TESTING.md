@@ -11,7 +11,7 @@ verification only) and the security-sensitive surface in `SECURITY.md`.
 
 | Layer | Runner | Config | Files | Cases |
 | --- | --- | --- | --- | --- |
-| Backend | pytest | `pyproject.toml` (`[tool.pytest.ini_options]`, `testpaths=["backend/tests"]`) | 53 `test_*.py` | ~713 `test_` functions |
+| Backend | pytest | `pyproject.toml` (`[tool.pytest.ini_options]`, `testpaths=["backend/tests"]`) | 55 `test_*.py` | ~761 `test_` functions |
 | Frontend | Vitest (jsdom) | `frontend/vitest.config.ts` | 48 `*.test.{ts,tsx}` | co-located with source + `*.acceptance.test.tsx` (3) |
 
 **Coverage thresholds are declared and now run in CI:**
@@ -38,7 +38,13 @@ verification only) and the security-sensitive surface in `SECURITY.md`.
   (`test_manual_launch_under_job_object_real_process`).
 - **Path handling:** `test_normalise_path`, `test_disk_utils`, `test_drive_utils`.
 - **Upload/ingest:** `test_upload`, `test_folder_ingest`.
-- **Detection:** `test_iso_detect`, `test_xbox_image`.
+- **Detection:** `test_xbox_image`, `test_ps3`, `test_xex`, `test_media_target`
+  (`backend/service/utils/detection/` — Peach 1UP-specific PS3/Xbox 360
+  launch-target resolution and Xbox optical-image identification, restored
+  here after the formatscout extraction; not format detection itself).
+  Format/platform detection (ISO, CHD, bin/cue, magic-byte, hashing) is
+  covered by the vendored `formatscout` package's own `tests/`, not by
+  `backend/tests/`.
 - **Launch flow:** `test_launch_guards`, `test_launch_error_detection`,
   `test_process_registry`, `test_prepare_config`.
 - **Domain/data:** `test_game_items`, `test_game_scan`, `test_enrich`,
