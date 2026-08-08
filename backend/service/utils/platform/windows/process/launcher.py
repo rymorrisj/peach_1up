@@ -3,7 +3,7 @@ Emulator launch orchestration for Peach 1UP.
 
 Provides the public entry point ``launch_under_job_object``, which resolves
 per-launch resource limits from eras.yaml and the emulator catalog, then
-delegates to sandbox/process.py for the actual launch and Job Object
+delegates to wincage/process.py for the actual launch and Job Object
 lifecycle:
 
   * ``launch_suspended`` starts the emulator suspended, natively or inside an
@@ -23,10 +23,13 @@ from pathlib import Path
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.eras_config import get_eras, get_cpu_min_rate
-from sandbox.sandbox_config import SandboxConfig
-from sandbox.sandbox_process import SandboxProcess
-from sandbox.job import WindowsJobObject
-from sandbox.process import launch_suspended, run_under_job
+from wincage import (
+    SandboxConfig,
+    SandboxProcess,
+    WindowsJobObject,
+    launch_suspended,
+    run_under_job,
+)
 from backend.service.utils.emulator_catalog import get_skip_memory_limit, get_skip_cpu_limit
 
 logger = get_logger(__name__)

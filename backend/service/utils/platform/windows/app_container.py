@@ -3,7 +3,7 @@ AppContainer provisioning module for Peach 1UP.
 
 Reads container_broker_files from the emulator descriptor in
 config/emulators/<slug>.toml and builds the SandboxConfig that is passed to
-sandbox.launch().  This is Python-side provisioning only: sandbox_host.exe
+wincage.launch().  This is Python-side provisioning only: sandbox_host.exe
 handles AppContainer creation and resource brokering at the Win32 level.
 """
 
@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import wincage
 from backend.core.logger import get_logger
 from backend.service.utils.emulator_catalog import (
     get_emulator,
@@ -21,10 +22,7 @@ from backend.service.utils.emulator_catalog import (
 )
 from backend.service.utils.emulator_paths import resolve_derived_path
 from backend.service.utils.eras_config import get_cpu_min_rate, get_era
-from sandbox import sandbox
-from sandbox.sandbox_config import BrokerFile, SandboxConfig
-from sandbox.sandbox_error import SandboxError
-from sandbox.sandbox_event import SandboxStage
+from wincage import BrokerFile, SandboxConfig, SandboxError, SandboxStage
 
 logger = get_logger(__name__)
 
@@ -129,7 +127,7 @@ def get_container_config(
 
     Reads container_broker_files from the emulator descriptor, resolves each
     path_key, then combines the resolved paths with era-derived CPU and memory
-    limits into a SandboxConfig ready to pass to sandbox.launch().
+    limits into a SandboxConfig ready to pass to wincage.launch().
 
     Args:
         emulator_slug: Slug matching a config/emulators/<slug>.toml descriptor.
@@ -267,4 +265,4 @@ def reset_container(emulator_slug: str, user_item_id: int | None = None) -> None
     Raises:
         SandboxError: stage=CONTAINER_PROVISION if the reset command fails.
     """
-    sandbox.reset_container(f"Peach1UP.{emulator_slug}.{_moniker_user_scope(user_item_id)}")
+    wincage.reset_container(f"Peach1UP.{emulator_slug}.{_moniker_user_scope(user_item_id)}")

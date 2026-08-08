@@ -26,7 +26,7 @@ from backend.service.utils.emulator_catalog import (
 )
 from backend.service.utils.ini_writer import patch_ini, write_ini
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
-from sandbox import BrokerFile
+from wincage import BrokerFile
 from backend.service.utils.emulator_catalog import get_install_path
 
 if TYPE_CHECKING:

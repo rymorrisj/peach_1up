@@ -17,8 +17,7 @@ from backend.service.utils.emulator_catalog import (
 from backend.service.utils.file_types import supported_extensions_for_era
 from backend.service.utils.ini_writer import set_ini_key
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
-from sandbox.sandbox_process import SandboxProcess
-from sandbox.job import WindowsJobObject
+from wincage import SandboxProcess, WindowsJobObject
 
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Load smart_media_detector's hash_index.json into the hash_index_entries DB table.
+"""Load formatscout's hash_index.json into the hash_index_entries DB table.
 
 Standalone, run manually after regenerating hash_index.json via
-smart_media_detector's build_index.py. Not wired into any startup/lifespan
-hook. Upserts by sha1: existing rows are updated in place, new rows are
-added, nothing already in the table is wiped.
+formatscout's build_index.py (python -m formatscout.hashing.build_index).
+Not wired into any startup/lifespan hook. Upserts by sha1: existing rows are
+updated in place, new rows are added, nothing already in the table is wiped.
 
 Usage:
     python -m scripts.ingest_hash_index [--index <path>]
@@ -20,7 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 _DEFAULT_INDEX = (
     PROJECT_ROOT
-    / "backend/service/utils/smart_media_detector/hashing/hash_index.json"
+    / "services/vendor/formatscout/formatscout/hashing/hash_index.json"
 )
 
 
@@ -54,7 +54,8 @@ def load_index(index_path: Path) -> dict:
     if not index_path.exists():
         raise FileNotFoundError(
             f"Hash index not found at {index_path}. "
-            "Run smart_media_detector's build_index.py to generate it first."
+            "Run formatscout's build_index.py to generate it first "
+            "(python -m formatscout.hashing.build_index)."
         )
     with index_path.open("r", encoding="utf-8") as fh:
         return json.load(fh)
@@ -105,7 +106,7 @@ def upsert_entries(session, entries: dict) -> tuple[int, int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Load smart_media_detector's hash_index.json into the hash_index_entries DB table."
+        description="Load formatscout's hash_index.json into the hash_index_entries DB table."
     )
     parser.add_argument(
         "--index",

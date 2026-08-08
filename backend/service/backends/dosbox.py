@@ -24,10 +24,8 @@ from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import resolve_container_enabled
 from backend.service.utils.path_utils import normalise_path
-from sandbox import BrokerFile
 from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
-from sandbox.sandbox_process import SandboxProcess
-from sandbox.job import WindowsJobObject
+from wincage import BrokerFile, SandboxProcess, WindowsJobObject
 
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
