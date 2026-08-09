@@ -50,7 +50,29 @@ GNU General Public License v2 or later (see root LICENSE).
    Source:    https://github.com/xemu-project/xemu
    License file: emulators/xemu/LICENSE.txt
 
+8. RPCS3
+   License:   GNU General Public License v2 or later (GPL-2.0-or-later)
+   Copyright: Copyright 2011-2024 the RPCS3 team and contributors
+   Source:    https://github.com/RPCS3/rpcs3
+   License file: emulators/rpcs3/LICENSE.txt
+   Note:      Windows binaries are published from the companion repository
+              https://github.com/RPCS3/rpcs3-binaries-win, which is what the
+              installer resolves. The corresponding source is the RPCS3/rpcs3
+              repository listed above. No SOURCE_OFFER.txt is present for this
+              emulator yet.
+
+9. Xenia
+   License:   BSD 3-Clause License (BSD-3-Clause)
+   Copyright: Copyright 2015-2024 Ben Vanik and contributors
+   Source:    https://github.com/xenia-project/xenia
+   License file: emulators/xenia/LICENSE
+   Note:      Windows binaries are published from the companion repository
+              https://github.com/xenia-project/release-builds-windows. As a
+              permissive BSD-3-Clause work, Xenia carries no written
+              source-offer obligation and has no SOURCE_OFFER.txt.
+
 -------------------------------------------------------------------------------
 
 Source code for each emulator is available at the upstream URLs listed above.
-See each emulator's SOURCE_OFFER.txt for the written source-code offer.
+For the GPL-licensed emulators, see each emulator's SOURCE_OFFER.txt for the
+written source-code offer, except RPCS3, which does not yet have one.

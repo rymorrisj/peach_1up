@@ -18,10 +18,17 @@ Never run the test suite (`pytest`, `vitest`, or any harness) or install/remove 
 cd frontend && npx tsc --noEmit
 ```
 
-**Python linting:**
+**Frontend lint and format check:**
 
 ```bash
-.venv\Scripts\python.exe -m ruff check backend\
+cd frontend && npm run lint && npm run format:check
+```
+
+**Python linting** (Ruff is installed by `uv sync --group dev`; config lives under
+`[tool.ruff]` in [`pyproject.toml`](pyproject.toml)):
+
+```bash
+uv run ruff check backend
 ```
 
 ## Commit format
@@ -35,7 +42,17 @@ cd frontend && npx tsc --noEmit
 
 **Types:** `feat` · `fix` · `chore` · `docs` · `refactor` · `test` · `safety`
 
-**Scopes:** `dosbox` · `86box` · `profiles` · `detection` · `config` · `settings` · `launcher` · `frontend` · `docs` · `api` · `auth` · `sandbox` · `launches` · `library` · `platforms` · `backend`
+**Scopes:** use the area of the project being changed. The scopes in active use are:
+
+| Group | Scopes |
+|---|---|
+| Domains | `software` · `games` · `media` · `apps` · `environments` · `profiles` · `tags` · `users` · `links` |
+| Launch and isolation | `launch` · `launches` · `sandbox` · `emulators` · `dosbox` · `86box` · `xemu` · `rpcs3` |
+| Ingest and detection | `uploads` · `detection` · `hashing` · `metadata` |
+| Platform and infra | `api` · `auth` · `backend` · `frontend` · `ui` · `config` · `settings` · `jobs` · `system` · `build` · `ci` · `vendor` · `docs` · `tests` |
+
+`library` and `platforms` are pre-v2 scope names, superseded by `software`/`games` and
+`environments` respectively. Do not use them for new commits.
 
 **Rules:**
 
@@ -57,6 +74,7 @@ safety(api): reject emulator path overrides from request input
 
 - **Python**, PEP 8 enforced via Ruff; no hardcoded paths or secrets; runtime settings live in the `settings` DB table, secrets in `.env`
 - **TypeScript**, ESLint + Prettier; avoid `any`; use the generated API client in `shared/types.ts`
+- Generated files (`shared/types.ts`, `shared/openapi.json`, `backend/constants_generated.py`, `frontend/src/generated/constants.ts`) are produced by `scripts/gen_constants.py` and `scripts/export_and_build_types.py`. Regenerate rather than hand-editing them
 - Never accept user input into emulator binary paths at launch time, no exceptions
 - All media passed to emulators must be mounted read-only
 
@@ -65,7 +83,8 @@ safety(api): reject emulator path overrides from request input
 - Never force-push or rewrite history on `main` without explicit owner confirmation
 - Never install, update, or remove packages as part of a contribution, if a dependency is missing, stop and report it
 - Never commit `.env`, OS images, ROM files, BIOS files, or user-supplied binaries
-- Never edit `dev_docs/SCOPE.md`, `dev_docs/CLAUDE.md`, or `dev_docs/DECISIONS.md`, these are maintainer-managed files
+- Never edit [`dev_docs/SCOPE.md`](dev_docs/SCOPE.md), [`dev_docs/CLAUDE.md`](dev_docs/CLAUDE.md), or [`dev_docs/DECISIONS.md`](dev_docs/DECISIONS.md), these are maintainer-managed files
+- Never commit generated output as a hand-edited change, regenerate it instead
 
 ## Security
 

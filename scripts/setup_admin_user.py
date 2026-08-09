@@ -62,7 +62,7 @@ def run_setup(db_path: str | Path) -> bool:
     from sqlalchemy import create_engine, event
     from sqlalchemy.orm import sessionmaker
 
-    from backend.models.user import User
+    from backend.models.user import UserItem
 
     engine = create_engine(
         f"sqlite:///{db_path}",
@@ -76,7 +76,7 @@ def run_setup(db_path: str | Path) -> bool:
     session_factory = sessionmaker(bind=engine)
 
     with session_factory() as db:
-        existing = db.query(User).filter(User.is_owner.is_(True)).first()
+        existing = db.query(UserItem).filter(UserItem.is_owner.is_(True)).first()
         if existing:
             existing.name = name
             existing.pin_hash = pin_hash
@@ -92,7 +92,7 @@ def run_setup(db_path: str | Path) -> bool:
             existing.is_locked = False
             existing.failed_pin_attempts = 0
         else:
-            db.add(User(
+            db.add(UserItem(
                 id=1,
                 name=name,
                 is_owner=True,

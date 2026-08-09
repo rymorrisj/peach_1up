@@ -7,9 +7,11 @@ binary = "Project64.exe"
 download_url = "https://www.pj64-emu.com"
 portable_sentinel = ""
 cli_args_prefix = []
-container_enabled = true
-skip_memory_limit = true
-skip_cpu_limit = true
+container_enabled = false
+container_hardcap_disabled = true
+container_hardcap_note = "Project64 can work with AppContainer in specific circumstances but is disabled for the current version for more testing."
+skip_memory_limit = false
+skip_cpu_limit = false
 description = "Nintendo 64 emulation"
 required = false
 # NOT github_release: project64/project64 publishes git tags but has no
@@ -47,3 +49,8 @@ mode = "grant"
 path_key = "pj64_config_dir"
 access = "rw"
 mode = "grant"
+
+[[known_limitations]]
+title = "AppContainer isolation disabled"
+severity = "info"
+description = "Project64 can work with AppContainer in specific circumstances but is disabled for the current version for more testing. Job Object memory and CPU limits remain enabled."

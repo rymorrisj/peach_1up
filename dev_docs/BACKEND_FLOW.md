@@ -1,12 +1,41 @@
-Peach 1UP — Backend Flow Atlas (discovery pass, current code)
+# Peach 1UP: Backend Flow Atlas
 
-Conventions: each step is caller (file:line) -> callee (file:line) [what happens]. Branch points list each continuation separately. "⇒ converges to Fx" marks shared subgraphs.
-One-line Terminal effects per flow. Notes prefixed ⚠ are observations only (not findings).
+Conventions: each step is `caller (file:line) -> callee (file:line) [what happens]`.
+Branch points list each continuation separately. "⇒ converges to Fx" marks shared
+subgraphs. One-line Terminal effects per flow. Notes prefixed ⚠ are observations only,
+not findings.
 
-═══════════════════════════════════════════════════════════════════════════════
-V2 RENAME BANNER (applies to this ENTIRE document, supersedes both the body and
-the 2026-07-04 addendum below)
-═══════════════════════════════════════════════════════════════════════════════
+Related: [TECH.md](TECH.md), [TYPES.md](TYPES.md), [AUTH.md](AUTH.md),
+[SECURITY.md](SECURITY.md).
+
+## READ THIS FIRST: how current this document is
+
+This atlas was written as a discovery pass against a much earlier tree and has since had
+two rename banners and a dated addendum layered on top of it. **The flow shapes are still
+broadly accurate; the `file:line` references are not.** Line numbers throughout are
+indicative only. Treat symbol names as the reliable anchor and re-check any line number
+before relying on it.
+
+The following are known to have moved or changed since the body below was written, and
+supersede every mention of them anywhere in this file:
+
+| Body says | Current reality |
+| --- | --- |
+| `dev_docs/v2/*.md` planning docs | The `dev_docs/v2/` directory no longer exists |
+| `smart_media_detector/` | Extracted to the vendored `formatscout` package ([`services/vendor/formatscout/`](../services/vendor/formatscout/)), imported as `formatscout` |
+| `sandbox/sandbox.py`, `process/job_objects.py`, `sandbox_process.py`, `sandbox_checker` | Extracted to the vendored `wincage` package ([`services/vendor/wincage/`](../services/vendor/wincage/)): `wincage/sandbox.py`, `wincage/job.py`, `wincage/process.py` |
+| `service/library/items.py` | `backend/service/games/items.py` |
+| `service/platforms/environments.py` | `backend/service/environments/environments.py` |
+| `service/launch/backend_router.py` | `backend/service/utils/backend_router.py` |
+| Middleware order `CORS → Security → CSRF → FirstRunGuard` | `RequestLogging → CORS → Security → CSRF → FirstRunGuard` |
+| "14 routers" | 26 routers in `backend/api/routes/__init__.py`, including three per-domain upload routers |
+| "5 backends" / `backends/{dosbox,box86,xemu,flycast,console}.py` | 7 backend modules: `dosbox`, `box86`, `xemu`, `rpcs3`, `flycast`, `xenia`, and a shared `console` serving duckstation/pcsx2/mesen/project64 |
+| `can_manage_controllers` | `can_manage_controllerMapping` |
+| `can_manage_profiles` described as an orphaned flag | No such field exists on `UserItemBase`; Profile CRUD is gated by `can_manage_game` |
+| `get_backend_name` is dead (AUDIT L1) | Removed from the codebase; the note is resolved |
+| Uploads at `/api/v1/library/upload` or `/api/v1/software/uploads/*` | `/api/v1/uploads/software-games`, `/software-media`, `/software-apps` (see [TECH.md](TECH.md) § Upload system) |
+
+## V2 rename banner (applies to the whole body below)
 
 This atlas was written before the v2 domain refactor. The flows are still
 structurally accurate, but the vocabulary and file:line references below predate
@@ -25,22 +54,20 @@ v2 and are indicative, not exact. Apply this map throughout:
   `POST /api/v1/softwarecollection/{collection_id}/launch` (F1).
 - `launch_history.library_item_id`/`library_collection_id` → `software_collection_id`;
   derived `target_type` value `library_collection` → `software_collection`.
-- Permission flags: `can_edit_library` → `can_manage_software` (which also now gates
+- Permission flags: `can_edit_library` → `can_manage_software` (which also gates
   Profile CRUD and `POST /software/scan`); `can_edit_platforms` → `can_edit_environments`.
-  `can_manage_profiles` is now an orphaned flag that gates nothing (Profile CRUD moved
-  to `can_manage_software`).
+  (Both are renamed again by the V3 banner below. `can_manage_profiles` no longer exists
+  on the model at all.)
 - New in v2 and not in this atlas: the Media/archive domain (`/api/v1/media`), System
-  domain (Health + Controllers, `can_manage_controllers`), and generalized Tags.
+  domain (Health and Controllers, `can_manage_controllerMapping`), and generalized Tags.
 
 The remainder of the document is left in its original pre-v2 wording for historical
 continuity; read it through the map above.
 
-═══════════════════════════════════════════════════════════════════════════════
-V3 RENAME BANNER (applies on top of the V2 banner above — apply both maps in order)
-═══════════════════════════════════════════════════════════════════════════════
+## V3 rename banner (applies on top of the V2 banner, apply both maps in order)
 
-A second rename pass (v3, `dev_docs/v2/10_naming_scheme_v3.md`) landed after the v2 map
-above. Apply this on top of it throughout:
+A second rename pass (v3) landed after the v2 map above. Apply this on top of it
+throughout:
 
 - `SoftwareCollection` → `GameItemBundle`; `SoftwareItem` → `GameItem`. Table
   `software_collections` → `game_item_bundles`; `software_items` → `game_items`.
@@ -61,18 +88,20 @@ above. Apply this on top of it throughout:
 - Also renamed since the v2 banner was written, beyond its own scope: `User` →
   `UserItem` (table `user_items`), `Profile` → `ProfileItem` (table `profile_items`),
   `ControllerMapping` → `ControllerMappingItem` (table `controller_mapping_items`),
-  `MediaCollection` → `MediaItemBundle`, `AppCollection` → `AppItemBundle`. Note:
-  `dev_docs/v2/10_naming_scheme_v3.md` itself still marks the User/Profile/
-  ControllerMapping renames as "DEFERRED — separate future session"; the live code
-  (`backend/models/user.py`, `profile.py`, `controller_mapping.py`) shows all three
-  already implemented, so that planning doc is stale on this point.
+  `MediaCollection` → `MediaItemBundle`, `AppCollection` → `AppItemBundle`. The v3
+  planning doc marked the User/Profile/ControllerMapping renames as deferred, but the
+  live code (`backend/models/user.py`, `profile.py`, `controller_mapping.py`) shows all
+  three implemented. That planning doc has since been deleted along with `dev_docs/v2/`.
 
-App wiring: main.py:39-42 middleware stack (LIFO → runtime order CORS → Security → CSRF → FirstRunGuard → router); main.py:44-57 14 routers included; main.py:65,94,96 three
-catch-alls (/media/\*, docs host, SPA). All db params resolve through get_db (core/database.py:47), a per-request session generator.
+App wiring: `main.py` adds middleware LIFO, giving the runtime order RequestLogging →
+CORS → Security → CSRF → FirstRunGuard → router; `ROUTERS` in
+`backend/api/routes/__init__.py` supplies 26 routers; `main.py` also registers three
+catch-alls (`/media/*`, the docs host, and the SPA fallback). All `db` params resolve
+through `get_db` (`core/database.py`), a per-request session generator.
 
 ---
 
-F0 — Startup / Lifespan (process boot + teardown)
+### F0. Startup / lifespan (process boot and teardown)
 
 Entry: ASGI startup → lifespan (core/lifespan.py:32).
 
@@ -101,7 +130,7 @@ Mechanizability: mostly deterministic (explicit imports/calls); the seed-abort b
 
 ---
 
-F1 — Library Item Launch
+### F1. Library item launch
 
 Route: POST /api/v1/library/{item_id}/launch (launches.py:27).
 
@@ -120,13 +149,13 @@ Route: POST /api/v1/library/{item_id}/launch (launches.py:27).
 
 Terminal effects: LaunchHistory row (started/job_isolated/sandboxed/limits); process registered in process_registry; emulator process running under Job Object (+ optional
 AppContainer); possible new Drive row / FAT16 image / item.installed.
-Mechanizability: the dispatch into a backend is dynamic — resolve_backend_name returns a slug string used by dispatch (F3) via a dict lookup; a call-graph tool sees dispatch()
+Mechanizability: the dispatch into a backend is dynamic. resolve_backend_name returns a slug string used by dispatch (F3) via a dict lookup; a call-graph tool sees dispatch()
 but not which backend module runs without modeling the slug. Profile/drive/media-resolution branches are runtime-state. The straight import edges
 (coordinator→drive_hydration→drive_utils→fat) are deterministic.
 
 ---
 
-F2 — Environment (Platform) Launch — with on-launch provisioning
+### F2. Environment (Platform) launch, with on-launch provisioning
 
 Route: POST /api/v1/environments/{platform_id}/launch (launches.py:42).
 
@@ -151,7 +180,7 @@ dispatch as in F1.
 
 ---
 
-F3 — Shared launch/isolation subgraph (CONVERGENCE POINT for F1, F2, and every backend)
+### F3. Shared launch/isolation subgraph (convergence point for F1, F2, and every backend)
 
 Entry: coordinator.launch(spec, db) (coordinator.py:240). All emulator launches converge here.
 
@@ -160,8 +189,8 @@ Entry: coordinator.launch(spec, db) (coordinator.py:240). All emulator launches 
   - Branch (timeout): :281 -> set error/exit_code=-1, commit, 500
   - Branch (exception): :288 -> set error, commit, 500
 - backend_router.dispatch (backend_router.py:64) -> \_BACKEND_MODULES[spec.slug] lookup (:79) -> importlib.import_module -> module.launch(spec) (dynamic dispatch by slug string)
-  - Routes to one of: backends/dosbox.py:395, backends/box86.py:220, backends/xemu.py:162, backends/flycast.py:31, backends/console.py:34 (mesen/project64/duckstation/pcsx2 all
-    share console)
+  - Routes to one of backends/{dosbox,box86,xemu,rpcs3,flycast,xenia,console}.py
+    (mesen/project64/duckstation/pcsx2 all share console)
   - Each backend (sub-convergence): validate exe/media/era → emulator_catalog.validate_bios_from_descriptor(slug) (⇒ shared with F8) → write per-launch config (dosbox temp conf
     / 86box \_prepare_config / xemu provision_xemu_defaults toml / flycast emu.cfg / duckstation+pcsx2 ini RecursivePaths) → resolve container_enabled (profile override else
     get_container_enabled) → if enabled build SandboxConfig via app_container.get_container_config (+ append BrokerFiles) → call launch_under_job_object
@@ -169,7 +198,7 @@ Entry: coordinator.launch(spec, db) (coordinator.py:240). All emulator launches 
   - :210 -> \_load_era_limits(era) (launcher.py:44) → eras_config.get_eras [memory_limit_mb, cpu_limit_percent; raises if missing]
   - Branch (container): :213 -> \_launch_process_in_container (launcher.py:128) -> sandbox.launch(config) ⇒ F3a
   - Branch (no container): :217 -> \_launch_process (launcher.py:75) -> kernel32.CreateProcessW
-  - :219-221 -> WindowsJobObject(name+pid) (job_objects.py:82).create -> CreateJobObjectW (⚠ ERROR_ALREADY_EXISTS treated as fatal)
+  - :219-221 -> WindowsJobObject(name+pid) (wincage/job.py).create -> CreateJobObjectW (⚠ ERROR_ALREADY_EXISTS treated as fatal)
   - :223 if not get_skip_cpu_limit(slug) -> set_cpu_limit (MIN_MAX_RATE on build≥14393 else HARD_CAP)
   - :226 Branch: get_skip_memory_limit(slug) -> set_kill_on_close; else -> set_memory_limit
   - :259 -> job_object.add_process -> AssignProcessToJobObject
@@ -182,9 +211,9 @@ Entry: coordinator.launch(spec, db) (coordinator.py:240). All emulator launches 
 - Branch (dosbox only): coordinator.launch:304 -> monitor.register_short_lived_check ⇒ F6
 - returns LaunchResult(history_id, warnings, launch_review_flagged)
 
-F3a — AppContainer sandbox host (sub-flow)
+### F3a. AppContainer sandbox host (sub-flow)
 
-- sandbox.launch (sandbox/sandbox.py:206): \_validate(config) → subprocess.Popen(sandbox_host.exe) → write JSON stdin payload → 15s timer → read first stdout line (JSON:
+- sandbox.launch (wincage/sandbox.py): \_validate(config) → subprocess.Popen(sandbox_host.exe) → write JSON stdin payload → 15s timer → read first stdout line (JSON:
   sid/pid/event_name/stage) → Branch: stage=="error" → raise SandboxError; else build SandboxHandle + spawn daemon \_watch_event thread (waits Win32 event → fires EXITED/CLEANED_UP
   callbacks)
 - launcher.\_launch_process_in_container:152 then OpenProcess(PROCESS_ALL_ACCESS, sid pid) to get a Win32 handle wrapped in SandboxProcess (so the Job Object can still manage it)
@@ -197,21 +226,21 @@ get_skip*\*/get_container_enabled read settings overrides at runtime; the breaka
 
 ---
 
-F4 — Library Ingest (manual add / upload / scan / scan-import)
+### F4. Library ingest (manual add / upload / scan / scan-import)
 
-Four entry points share service/library/items.\_prepare_item (items.py:43).
+Four entry points share backend/service/games/items.\_prepare_item (items.py:43).
 
-F4a — Manual add POST /api/v1/library (library.py:59)
+#### F4a. Manual add, POST /api/v1/library (library.py:59)
 
 - -> require_permission("can_edit_library") -> lib_svc.\_ingest_media_entry (items.py:265) -> \_prepare_item → LibraryItem(\*\*row) + flush; Branch: era∈{dos,win31} ->
   create_drive_for_item; commit. \_ItemAlreadyExists -> 409.
 
-F4b — Upload game media POST /api/v1/library/upload (library.py:76)
+#### F4b. Upload game media, POST /api/v1/library/upload (library.py:76)
 
 - -> require_permission("can_edit_library") -> upload_utils.begin_upload (slug dir under MEDIA_PATH) -> stream_upload_to_disk (1MB chunks, 413 on cap) -> \_ingest_media_entry. On
   any failure -> shutil.rmtree(dest_dir).
 
-F4c — Scan (async preview) POST /api/v1/library/scan (library.py:144)
+#### F4c. Scan (async preview), POST /api/v1/library/scan (library.py:144)
 
 - Branch: \_scan_state["running"] -> 409
 - \_resolve_scan_directory (MEDIA_PATH; 400 if unset/invalid) -> set state running -> background_tasks.add_task(\_run_scan)
@@ -219,12 +248,12 @@ F4c — Scan (async preview) POST /api/v1/library/scan (library.py:144)
   F4e) -> append preview dict; finally store preview in \_scan_state. No DB writes.
 - GET /api/v1/library/scan/status (library.py:121) returns \_scan_state snapshot.
 
-F4d — Import selected POST /api/v1/library/scan/import (library.py:236)
+#### F4d. Import selected, POST /api/v1/library/scan/import (library.py:236)
 
 - -> require_permission("can_edit_library") -> per selected path \_prepare_item(used_slugs=...) collecting rows (skip \_ItemAlreadyExists, collect HTTPException reasons) ->
   db.bulk_insert_mappings in chunks of 500 -> commit -> for PC-era slugs query back items -> create_drive_for_item each.
 
-F4e — \_prepare_item core (items.py:43, shared by F4a/b/d)
+#### F4e. \_prepare_item core (items.py:43, shared by F4a/b/d)
 
 - get_settings MEDIA_PATH; resolve src; Branch: matches a Platform base/working image -> 409
 - Branch dir: verify under media root → dedup by folder_path → \_find_cover → pick executable by \_EXECUTABLE_PRIORITY → smart_media_detector.detect → if era known
@@ -234,7 +263,7 @@ F4e — \_prepare_item core (items.py:43, shared by F4a/b/d)
 - slug (unique_slug in-memory when batching, else generate_item_slug) → media_type_from_path → requires_install from scan → Branch: era known -> era_defaults.defaults_for_era +
   lookup_platform_and_profile → set profile_id/platform_id; override_profile_id wins → rating_detect.detect_rating → stat size → return row dict (no DB write)
 
-F4e' — smart_media_detector.detect (detector.py:47): try Tier-1 hash lookup → file dispatch by suffix (\_detect_file) or detect_directory → compute requires_install. Returns
+F4e'. formatscout.detect (formatscout/detector.py): try Tier-1 hash lookup → file dispatch by suffix (\_detect_file) or detect_directory → compute requires_install. Returns
 ScanResult(era, reason, ...). (⚠ broad except returns null-era ScanResult.)
 
 Terminal effects: new LibraryItem rows (single or bulk); files moved/copied into MEDIA_PATH; optional Drive rows for dos/win31; \_scan_state populated (scan); no DB writes during
@@ -245,7 +274,7 @@ deterministic edge but execution is deferred.
 
 ---
 
-F5 — Auth / Session Lifecycle
+### F5. Auth / session lifecycle
 
 Routes in auth.py; CSRF-exempt prefix /api/v1/auth/ (security.py:65).
 
@@ -260,12 +289,12 @@ Routes in auth.py; CSRF-exempt prefix /api/v1/auth/ (security.py:65).
   hmac.compare_digest). require_self_or_admin, require_permission(flag) (owner bypass) layer on top.
 
 Terminal effects: User row session_token_hash/expiry mutated; httponly peach_token + JS-readable peach_csrf cookies set/cleared; lockout counters updated.
-Mechanizability: highly deterministic — explicit dependency wiring and direct identity.\* calls. The owner/non-owner/pin branches are readable conditionals. The
+Mechanizability: highly deterministic, with explicit dependency wiring and direct identity.\* calls. The owner/non-owner/pin branches are readable conditionals. The
 CSRF/Security/FirstRun middleware (security.py) wrap every request but are configured statically in main.py (a tool can find them; their per-request short-circuits are runtime).
 
 ---
 
-F6 — Process Monitoring, Session Finalization & Stop
+### F6. Process monitoring, session finalization, and stop
 
 - Monitor loop \_process_monitor_loop (process_monitor.py:10, started F0): every 5s -> process_registry.cleanup_exited (process_registry.py:67, polls each handle, closes job
   handles of reaped procs) -> if exited history.write_session_ends (history.py:6, sets ended_at/exit_code) -> monitor.poll_short_lived (monitor.py:36).
@@ -273,14 +302,14 @@ F6 — Process Monitoring, Session Finalization & Stop
   LibraryItem.launch_review_flagged=True.
 - Stop POST /api/v1/launches/{history_id}/stop (launches.py:98) -> coordinator.stop_launch (coordinator.py:397): 404 if no record; Branch non-admin & profile belongs to other
   user -> 403; find pid by history_id or library_item_id -> process_registry.terminate (terminates proc + job_handle.teardown) -> set ended_at/exit_code=-15.
-- Read GET /launches, /library/{id}/launches, /launches/{id} — thin DB queries (launches.py:66,80,87).
+- Read GET /launches, /library/{id}/launches, /launches/{id}: thin DB queries (launches.py:66,80,87).
 
 Terminal effects: registry entries reaped; LaunchHistory rows finalized; short-lived dosbox items flagged; processes/jobs torn down on stop.
 Mechanizability: deterministic call edges; the "find pid by history or item" and short-lived timeout are runtime-state loops.
 
 ---
 
-F7 — Emulator Install / Catalog / Sandbox config
+### F7. Emulator install / catalog / sandbox config
 
 Routes in emulators.py.
 
@@ -298,12 +327,12 @@ Routes in emulators.py.
 - xemu asset paths GET/PATCH /xemu/asset-paths (:218,239) [admin]: read/normalise/write emulators/xemu/xemu.toml [sys.files].
 
 Terminal effects: install_registry state; emulator binaries detected/removed; ROM pack cloned; settings flags; AppContainer profiles reset; xemu.toml rewritten.
-Mechanizability: install is a clean install_type string switch (readable). reset_sandbox_state dispatches into the sandbox subsystem with per-user moniker construction — the
+Mechanizability: install is a clean install_type string switch (readable). reset_sandbox_state dispatches into the sandbox subsystem with per-user moniker construction. The
 moniker string (Peach1UP.{slug}.{user|shared}) is computed at runtime (judgment to connect reset↔launch moniker parity).
 
 ---
 
-F8 — BIOS Validation & Placement
+### F8. BIOS validation and placement
 
 - list GET /api/v1/bios (bios.py:27): load_bios_requirements + per entry check_bios_presence (emulator_catalog.py:389).
 - place POST /api/v1/bios/{slug}/place (bios.py:50) [admin]: find requirement (404) → resolve dest_dir under base (500 if escapes) → Branch source_path xor uploads (400 if
@@ -313,12 +342,12 @@ F8 — BIOS Validation & Placement
   → resolve under root (ValueError if escapes) → \_missing_required_files (required_files/required_glob/excludes, else non-empty-dir) → FileNotFoundError if required & missing.
 
 Terminal effects: BIOS/ROM files copied into descriptor-declared dirs; placement result (copied/skipped/warnings); launch-time gate raises before any process spawn.
-Mechanizability: place_bios_asset is a string-keyed dispatch (slug→helper) — readable arms but per-slug semantics need judgment. validate_bios_from_descriptor is data-driven
+Mechanizability: place_bios_asset is a string-keyed dispatch (slug→helper) with readable arms, but per-slug semantics need judgment. validate_bios_from_descriptor is data-driven
 from TOML descriptors (a static tool would need to read the TOMLs, not just Python).
 
 ---
 
-F9 — Platform / Environment CRUD, Snapshots, Health
+### F9. Platform / Environment CRUD, snapshots, health
 
 Routes in platforms.py → service/platforms/environments.py.
 
@@ -336,12 +365,12 @@ Mechanizability: straightforward service-method edges; provisioning + is_system 
 
 ---
 
-F10 — Settings & First-Run
+### F10. Settings and first-run
 
 Routes in settings.py.
 
 - GET "" (:60) returns settings minus \_-prefixed and sensitive keys. PATCH "" (:70) [can_edit_settings]: path keys → svc.set_path; others → mutate state + \_persist (app_settings DB row).
-- POST /validate (:83) — thin stub, returns empty results (no further trace).
+- POST /validate (:83): thin stub, returns empty results (no further trace).
 - GET /first-run-status (:88): DB first_run row + owner count + compute_setup_status + path snapshot + app.state.path_warnings. GET /owner-status (:111) unauthenticated
   owner-health check.
 - POST /emulator-path (:119) / POST /library-path (:146): normalise + existence/type check → svc.set_path.
@@ -352,7 +381,7 @@ Mechanizability: deterministic. The \_ALL_PATH_KEYS membership branch in PATCH i
 
 ---
 
-F11 — Users CRUD (users.py)
+### F11. Users CRUD (users.py)
 
 - GET "" (:71) intentionally unauthenticated (switch-user screen; UserRead excludes secrets). GET /{id} auth'd.
 - POST "" (:93) [is_admin]: validate/hash pin (argon2 low-level), create User. PATCH /{id} (:126) [is_admin]: 403 if owner; apply non-none fields. DELETE /{id} (:146)
@@ -362,36 +391,36 @@ F11 — Users CRUD (users.py)
 Terminal effects: User rows + pin hashes; profile reassignment; session clears.
 Mechanizability: fully deterministic dependency + DB edges.
 
-F12 — Profiles CRUD (profiles.py)
+### F12. Profiles CRUD (profiles.py)
 
 - GET "" (:79) -> \_with_stats_bulk (counts items+launches). POST "" (:87) [can_manage_software] 409 on slug dup. GET /{slug}, /{slug}/items. PATCH /{slug} re-slugs on name
   change. DELETE /{slug} 403 if bundled.
   Terminal effects: Profile rows. Mechanizability: deterministic; stats are aggregate queries.
 
-F13 — Tags CRUD (tags.py)
+### F13. Tags CRUD (tags.py)
 
 - GET "" (:25) -> \_tag_read (item counts). POST "" 422 blank/409 dup. DELETE /{id}. POST|DELETE /{tag_id}/items/{item_id} manage LibraryItemTag link (404s if tag/item missing).
   All mutations [can_edit_library].
   Terminal effects: Tag + LibraryItemTag rows. Mechanizability: deterministic.
 
-F14 — Drives CRUD (drives.py)
+### F14. Drives CRUD (drives.py)
 
 - GET ""/{id} auth'd. GET /{id}/confirm-token issues token. DELETE /{id} [can_edit_library]: consume token (400) → unlink image file → delete row.
   Terminal effects: Drive rows + image files. Mechanizability: deterministic.
 
-F15 — Filesystem Browse (filesystem.py)
+### F15. Filesystem browse (filesystem.py)
 
 - GET /drives (:55) Windows-only (404 else). GET /browse (:71): home listing when path None; else normalise_path → \_within_allowed(\_allowed_roots()) (400 if outside) → iterate
   dir (skip symlinks/hidden, ext filter). Auth'd via get_active_user.
   Terminal effects: read-only listing. Mechanizability: deterministic; allowed-root computation reads settings at runtime.
 
-F16 — OS Media Upload (media.py)
+### F16. OS media upload (media.py)
 
 - POST /api/v1/media/upload (:15) [can_edit_library]: Branch media_type≠"os" → 400 (game media moved to F4b); era must be PC era (422) → begin_upload(OS_PATH/era) →
   stream_upload_to_disk → returns path/slug/size. No DB write, no ingest (OS images are Platform fields).
   Terminal effects: file under OS_PATH/{era}. Mechanizability: deterministic; shares upload_utils with F4b.
 
-F17 — Static / Media / Docs serving (main.py)
+### F17. Static / media / docs serving (main.py)
 
 - GET /media/{file_path} (:66): localhost-or-ALLOW_NETWORK gate (403) → normalise_path under library root (404 if escapes/missing) → FileResponse.
 - app.host(\_DOCS_HOST) (:94): Docusaurus StaticFiles sub-app (registration-order matters vs SPA catch-all).
@@ -400,45 +429,28 @@ F17 — Static / Media / Docs serving (main.py)
 
 ---
 
-Macro subsystem map (top-level diagram input)
+## Macro subsystem map
 
-┌───────────────────────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Subsystem │ Flows / modules │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ API/Middleware │ all routes; security.py (CORS→Security→CSRF→FirstRunGuard); dependencies.py (auth + library filtering) │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Launch Coordination │ F1, F2, F3 — launch/coordinator.py, launch_spec.py, backend_router.py │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Backends │ F3 — backends/{dosbox,box86,xemu,flycast,console}.py │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Sandbox/Isolation │ F3, F3a — process/launcher.py, process/job_objects.py, app_container.py, sandbox/sandbox.py, sandbox_process.py │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ BIOS/Dependency Validation │ F8 — emulator_catalog.validate_bios_from_descriptor, check_bios_presence, bios_placement.py │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Provisioning │ F2, F9 — vm/provisioner.py, vm/vhd.py, ini_writer.py │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Emulator Catalog/Install │ F7 — emulator_catalog.py, emulator_installer.py, install_registry.py │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Library Ingest │ F4 — library/items.py, smart_media_detector/_, era_media.py, era_defaults.py, drive_utils.py, upload_utils.py, rating_detect.py │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Drive/FAT │ F1, F4 — drive_hydration.py, drive_utils.py, fat/_ │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Auth/Session │ F5 — identity.py, auth.py, dependencies.py │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Process Lifecycle │ F0, F6 — process_registry.py, process_monitor.py, launch/monitor.py, launch/history.py │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Platforms/Snapshots/Health │ F9 — platforms/environments.py │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Settings/First-run │ F0, F10 — core/settings.py, service/utils/settings.py, eras_config.py │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ CRUD (users/profiles/tags/drives) │ F11–F14 │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Filesystem/Static │ F15, F16, F17 │
-├───────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Confirmation Tokens │ cross-cutting — confirmation_tokens.py (library, platform, drive, snapshot, emulator) │
-└───────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+| Subsystem | Flows / modules |
+| --- | --- |
+| API/Middleware | all routes; `request_logging.py` + `security.py` (RequestLogging → CORS → Security → CSRF → FirstRunGuard); `dependencies.py` (auth + collection filtering) |
+| Launch coordination | F1, F2, F3: `launch/coordinator.py`, `launch_spec.py`, `utils/backend_router.py` |
+| Backends | F3: `backends/{dosbox,box86,xemu,rpcs3,flycast,xenia,console}.py` |
+| Sandbox/Isolation | F3, F3a: in-tree `platform/windows/process/launcher.py` and `app_container.py`; vendored `wincage/{job,process,sandbox}.py` and `wincage/checker/` |
+| BIOS/Dependency validation | F8: `emulator_catalog.validate_bios_from_descriptor`, `check_bios_presence`, `bios_placement.py` |
+| Provisioning | F2, F9: `vm/provisioner.py`, `vm/vhd.py`, `ini_writer.py` |
+| Emulator catalog/install | F7: `emulator_catalog.py`, `emulator_installer.py`, `install_registry.py` |
+| Library ingest | F4: `games/items.py`, vendored `formatscout`, `era_media.py`, `era_defaults.py`, `drive_utils.py`, `upload_utils.py`, `rating_detect.py` |
+| Drive/FAT | F1, F4: `drive_hydration.py`, `drive_utils.py`, `fat/*` |
+| Auth/Session | F5: `identity.py`, `auth.py`, `dependencies.py`, `rate_limit.py` |
+| Process lifecycle | F0, F6: `process_registry.py`, `process_monitor.py`, `launch/monitor.py`, `launch/history.py` |
+| Environments/Snapshots/Health | F9: `environments/environments.py` |
+| Settings/First-run | F0, F10: `core/settings.py`, `service/utils/settings.py`, `eras_config.py` |
+| CRUD (users/profiles/tags/drives) | F11 to F14 |
+| Filesystem/Static | F15, F16, F17 |
+| Confirmation tokens | cross-cutting: `confirmation_tokens.py` (collection, environment, drive, snapshot, emulator, sandbox-state) |
 
-Cross-subsystem edges (who calls whom)
+## Cross-subsystem edges (who calls whom)
 
 - API/Middleware → every subsystem (route entry)
 - Launch Coordination → Backends (via backend_router.dispatch, dynamic) → Sandbox/Isolation (every backend → launch_under_job_object, fan-in)
@@ -453,44 +465,42 @@ Cross-subsystem edges (who calls whom)
 
 ---
 
-Mechanizability summary (for future call-graph tooling)
+## Mechanizability summary (for future call-graph tooling)
 
 Deterministically extractable (direct imports + static calls; a tool reading the import graph would reconstruct these):
 
 - The middleware stack and dependency injection wiring (F5, all routes).
-- launch_under_job_object as the fan-in of all 5 backends (each backend imports it directly).
+- launch_under_job_object as the fan-in of all 7 backend modules (each imports it directly).
 - coordinator→drive_hydration→drive_utils→fat; coordinator→provisioner→vhd/ini_writer.
 - CRUD routes → service methods (F9–F14); upload routes → upload_utils.
 - confirmation_tokens.issue/consume pairs; install_registry state transitions.
-- The era→emulator table (era_defaults.defaults_for_era) and \_BACKEND_MODULES dict — both are static data tables a tool could read literally.
+- The era→emulator table (era_defaults.defaults_for_era) and the \_BACKEND_MODULES dict, both static data tables a tool could read literally.
 
 Require judgment / dynamic (a naïve call-graph tool would miss or mis-resolve these):
 
-- backend_router.dispatch — \_BACKEND_MODULES[spec.slug] + importlib.import_module + module.launch. The actual backend is selected by a runtime slug string derived from era; the
-  tool sees dispatch, not the 5 possible targets, without modeling the dict + resolve_backend_name.
-- bios_placement.place_bios_asset and emulators install — string-keyed (slug/install_type) branch dispatch into helpers.
-- Config-driven validation (validate_bios_from_descriptor, app_container.\_resolve_path_key, era limits) — behavior lives in TOML/YAML descriptors, not Python; a static analyzer
+- backend_router.dispatch: \_BACKEND_MODULES[spec.slug] + importlib.import_module + module.launch. The actual backend is selected by a runtime slug string derived from era; the
+  tool sees dispatch, not the 7 possible targets, without modeling the dict + resolve_backend_name.
+- bios_placement.place_bios_asset and emulators install: string-keyed (slug/install_type) branch dispatch into helpers.
+- Config-driven validation (validate_bios_from_descriptor, app_container.\_resolve_path_key, era limits): behavior lives in TOML/YAML descriptors, not Python; a static analyzer
   must parse config/emulators/\*.toml and config/eras.yaml to know what runs.
 - Runtime-state branches: provision-needed vs already-provisioned (F2), container-enabled resolution (profile override vs catalog vs settings flag), drive hydration paths,
   \_prepare_item dir/file/dedup logic, breakaway-retry and job-missing abort in launch_under_job_object.
 - Deferred execution: BackgroundTasks.add_task (scan import, rom_pack clone) and asyncio.to_thread/daemon threads (sandbox watcher, dosbox/xemu config cleanup, dgvoodoo2
-  cleanup) — edges exist statically but execution is decoupled from the call site.
-- Moniker parity: AppContainer reset (F7) and launch (F3) must agree on Peach1UP.{slug}.{user_id|shared} — a string constructed in two places
+  cleanup): edges exist statically but execution is decoupled from the call site.
+- Moniker parity: AppContainer reset (F7) and launch (F3) must agree on Peach1UP.{slug}.{user_id|shared}, a string constructed in two places
   (app_container.\_moniker_user_scope), only correlatable by understanding semantics.
 
 No files were edited; no tests or installs were run. The call chains above reflect the current code (profile_id gate gone, per-user moniker, ROM path via
 emulator_catalog/resolve_rom_path, single xemu BIOS validator, F2-4 path reuse via resolved_install_path/resolved_rom_path).
 
-═══════════════════════════════════════════════════════════════════════════════
-CURRENT-STATE ADDENDUM (2026-07-04 audit pass)
-═══════════════════════════════════════════════════════════════════════════════
+## Current-state addendum (2026-07-04 audit pass)
 
 The flow atlas above was written before the P-META / library-consolidation / detection /
 multi-disc / platform-health changes. Where it and this addendum disagree, this addendum is
 current. It (a) records the entity/route renames, (b) restates the three flows changed this
 session in their current shape, and (c) expands services/utils coverage that was thin above.
 
---- Entity & route renames (global) ---
+### Entity and route renames (global)
 
 - LibraryItem/LibrarySet → LibraryCollection (parent "game") + LibraryItem (leaf "disc").
   A single-disc game is a collection-of-one. Models: backend/models/library.py.
@@ -499,11 +509,11 @@ session in their current shape, and (c) expands services/utils coverage that was
 - launch_history.library_item_id → library_collection_id (FK CASCADE). LaunchHistoryRead
   derives target_type in a model_validator (library_collection vs environment); it is NOT a
   stored column, so the old "target_type rebuild migration" hazard is gone.
-- Routes: the old library.py is split — library_collections.py (list/scan/import/CRUD on the
+- Routes: the old library.py is split into library_collections.py (list/scan/import/CRUD on the
   parent) and libraryitems.py (leaf get/patch). Chunked upload lives in uploads.py. There is
-  NO /library/multi route and NO synchronous upload-folder route — both removed.
+  NO /library/multi route and NO synchronous upload-folder route; both removed.
 
---- F1 (revised) — Library Collection Launch ---
+### F1 (revised): library collection launch
 
 Route: POST /api/v1/library/{collection_id}/launch (launches.py) → coordinator.launch_collection
 (coordinator.py:468).
@@ -521,15 +531,15 @@ Route: POST /api/v1/library/{collection_id}/launch (launches.py) → coordinator
   ~0.75s _poll_for_immediate_exit (collections only, not environments) to catch near-instant
   crashes synchronously; slower crashes still caught by the async 3s register_short_lived_check.
 
---- F4/multi-disc (revised) — Ingest & the consolidated upload pipeline ---
+### F4 / multi-disc (revised): ingest and the consolidated upload pipeline
 
-Every add path funnels through service/library/items.py:
+Every add path funnels through backend/service/games/items.py:
 - _prepare_item (items.py:66): dir/file/dedup + era detection + defaults; sets content_rating via
   detect_rating, cover via _find_cover, requires_install from the scan. Returns a plain row dict.
 - _ingest_media_entry → _persist_collection_of_one (items.py:346): one LibraryCollection + one
   LibraryItem leaf (collection-of-one). Used by manual add and scan-import.
 - _create_multi_disc_collection (items.py:402): one leaf per disc file, era from disc_files[0].
-  ⚠ AUDIT H1: this builder does NOT call detect_rating / _find_cover — multi-disc sets get
+  ⚠ AUDIT H1: this builder does NOT call detect_rating / _find_cover, so multi-disc sets get
   content_rating=None (parental-controls gap) and no cover. Divergent from the single-disc path.
 
 Chunked upload (uploads.py → chunked_uploads.py → upload_finalize.py → folder_ingest.py):
@@ -537,20 +547,20 @@ Chunked upload (uploads.py → chunked_uploads.py → upload_finalize.py → fol
   over threshold returns 202 + job_id and finalizes in a BackgroundTask (core.jobs / nav bell).
 - upload_finalize._finalize is the single funnel. kind dispatch:
   - "file": reassemble → find_existing_duplicate (media_dup_index, hash/content dedup) →
-    _ingest_media_entry. (Content dedup is file-kind ONLY — AUDIT M3.)
+    _ingest_media_entry. (Content dedup is file-kind ONLY, AUDIT M3.)
   - "set": select_disc_pointer_files (order-preserving, companion-aware: .gdi/.cue/.chd pointers
     kept in client order, companions ride along in the shared dest dir) → _create_multi_disc_collection.
   - "folder": folder_ingest.ingest_folder → detect_disc_files (sorted; 2+ of ONE pointer format,
     422 if formats mixed) → multi-disc if found, else pick_folder_launch_file + _ingest_media_entry.
   set/folder symmetry: both now share _DISC_POINTER_EXTS (.gdi/.cue/.chd) and the shared
   _create_multi_disc_collection builder, and both reassemble every file into ONE slug dir (so a
-  .cue and its .bin are siblings — the "folder-write collision" fix, 409 on same-named files).
+  .cue and its .bin are siblings), the "folder-write collision" fix, 409 on same-named files.
   Residual asymmetry (AUDIT L7): disc_count is reported as len(disc_files) for "set" but
   len(all reassembled paths) for "folder".
 - Cleanup ownership: chunked_uploads owns the tmp staging dir (success/abort/orphan sweep);
   upload_finalize removes the reassembled dest dir if ingest fails.
 
---- F9/health (revised) — Live platform status recompute ---
+### F9 / health (revised): live platform status recompute
 
 Single computation: environments.compute_live_status(platform) (environments.py:102) → is_system →
 emulator install check (ok/missing); else _compute_status(era, working, base) →
@@ -560,13 +570,13 @@ read, platforms.py:29), create_platform, check_platform_health, batch_health_che
 get_health_summary. The persisted Platform.status column is written by the health endpoints but is
 authoritative for display ONLY via those recompute paths.
 - ⚠ AUDIT M1: GET /platforms/{id} (get_platform) returns the ORM object directly, so it still
-  serializes the persisted (possibly stale) status column — the one read path not recomputing.
+  serializes the persisted (possibly stale) status column, the one read path not recomputing.
 - ⚠ AUDIT M2: get_health_summary buckets unconfigured→degraded and keeps an always-zero "unknown"
   bucket (compute_live_status never yields "unknown" for non-system platforms).
 
---- Detection tiers (expanded) — service/utils/smart_media_detector ---
+### Detection tiers (expanded), now the vendored formatscout package
 
-detect(path) (detector.py:47) wraps _detect and fail-softs to a null-era ScanResult on any
+formatscout.detect(path) (formatscout/detector.py) wraps _detect and fail-softs to a null-era ScanResult on any
 exception (documented contract, not a swallow):
 1. Tier-1 hash lookup (hash_lookup.lookup, sha1→md5→crc32, confidences 1.0/0.85/0.75). For .chd,
    raw file bytes never match Redump; it reads the CHD v5 header's embedded rawsha1
@@ -576,18 +586,18 @@ exception (documented contract, not a swallow):
    extension; .iso → magic → PVD (volume label / DOS publisher / PlayStation prefix + DVD-size
    split / .xbe scan) → xiso magic → size fallback; .bin/.cue → magic → PVD → bin_validator;
    .chd → chd_validator.detect (CHGD→Dreamcast; CHTR/CHT2→ size-based PS1/PS2 tiebreaker via
-   header logicalbytes — see AUDIT L3 stale docstring / L4 threshold comment); .img → size heuristic.
+   header logicalbytes, see AUDIT L3 stale docstring / L4 threshold comment); .img → size heuristic.
 3. _compute_requires_install(path, era) (dos/win31 only: installer ISO/CUE, small floppy .img, or
    a directory whose only executables are blocklisted DOS tools).
 PS1-vs-PS2 is resolved consistently by SYSTEM.CNF BOOT/BOOT2 across magic_detect
 (_resolve_ps_generation on raw 2352-byte sectors; resolve_ps_generation_from_file for extracted
 files) and directory_detect (SYSTEM.CNF at root).
 
---- services/utils quick-reference (expansion) ---
+### services/utils quick reference
 
-- backend_router.py: _BACKEND_MODULES slug→module dict; dispatch imports and calls module.launch.
-  resolve_backend_name (win95/98/xp → 86box; else eras.yaml backend). ⚠ get_backend_name is dead
-  (AUDIT L1).
+- backend_router.py (backend/service/utils/): _BACKEND_MODULES slug→module dict; dispatch
+  imports and calls module.launch. resolve_backend_name (win95/98/xp → 86box; else
+  eras.yaml backend). The dead get_backend_name noted as AUDIT L1 has since been removed.
 - media_dup_index.py: in-memory (size, sha256-lazy) index under the media root; backs content
   dedup; re-validates each cached hash against a live stat() before trusting (never a false
   positive, worst case a missed match).
@@ -598,5 +608,7 @@ files) and directory_detect (SYSTEM.CNF at root).
   drive/library/emulator/sandbox-state).
 - vm/provisioner.py + vhd.py + ini_writer.py: 86Box VM provisioning (pre-installed MBR copy vs
   raw VHD build; ISO/cue → CD-ROM), atomic ini patching.
-- platform/windows/*: launcher.launch_under_job_object is the fan-in of all 5 backends; job_objects,
-  app_container, sandbox (sandbox_host.exe) provide isolation; sandbox_checker validates the tier.
+- platform/windows/*: launcher.launch_under_job_object is the fan-in of all 7 backend
+  modules. Job Object, AppContainer, and sandbox_host.exe support now lives in the
+  vendored wincage package (wincage/job.py, wincage/process.py, wincage/sandbox.py,
+  wincage/checker/); app_container.py remains in-tree as the Peach-side provisioner.

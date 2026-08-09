@@ -25,7 +25,7 @@ _catalog_cache: dict | None = None
 
 # The generated InstallType Literal is the single source of truth for the
 # allowed install_type vocabulary. TOMLs are hand-authored and unschema'd, so
-# a typo'd install_type is validated at parse time, the producer choke-point —
+# a typo'd install_type is validated at parse time, the producer choke-point,
 # rather than surfacing later as an inconsistently-hit dispatch failure.
 _VALID_INSTALL_TYPES: frozenset[str] = frozenset(get_args(InstallType))
 
@@ -269,24 +269,49 @@ def get_emulator_era(slug: str) -> str:
     return str(era)
 
 
-def get_skip_memory_limit(slug: str) -> bool:
-    override = _settings.get(f"sandbox_{slug}_skip_memory_limit", None)
-    if override is not None:
-        return bool(override)
+def _resolve_skip_flag(slug: str, field: str) -> bool:
+    """Resolve a per-emulator Job Object skip flag, with the descriptor as the floor.
+
+    *field* is ``skip_memory_limit`` or ``skip_cpu_limit``. Both are declared
+    without a default on ``EmulatorDescriptor``, so a catalog hit always carries
+    a real boolean; the ``.get(field, False)`` fallback only covers a slug that
+    is not in the catalog at all.
+
+    A descriptor value of ``False`` means the cap is deliberately enforced for
+    this emulator, so a ``sandbox_{slug}_{field}`` settings row must not be able
+    to waive it. This mirrors ``get_container_enabled``, where a TOML
+    ``container_enabled = false`` likewise floors the settings override instead
+    of being overridable by it. In both cases settings may only move the flag in
+    the more-restrictive direction, never the less-restrictive one, so the
+    descriptor stays the upper bound on what a settings row can switch off.
+    """
     try:
-        return bool(get_emulator(slug).get("skip_memory_limit", False))
+        toml_val = bool(get_emulator(slug).get(field, False))
     except ValueError:
         return False
+
+    override = _settings.get(f"sandbox_{slug}_{field}", None)
+    if override is None:
+        return toml_val
+
+    if bool(override) and not toml_val:
+        _logger.warning(
+            "Settings requested %s=True for '%s', but the descriptor enforces this "
+            "limit (%s = false in config/emulators/%s.toml). Ignoring the override; "
+            "the Job Object cap stays applied.",
+            field, slug, field, slug,
+        )
+        return False
+
+    return bool(override)
+
+
+def get_skip_memory_limit(slug: str) -> bool:
+    return _resolve_skip_flag(slug, "skip_memory_limit")
 
 
 def get_skip_cpu_limit(slug: str) -> bool:
-    override = _settings.get(f"sandbox_{slug}_skip_cpu_limit", None)
-    if override is not None:
-        return bool(override)
-    try:
-        return bool(get_emulator(slug).get("skip_cpu_limit", False))
-    except ValueError:
-        return False
+    return _resolve_skip_flag(slug, "skip_cpu_limit")
 
 
 def get_container_enabled(slug: str) -> bool:
@@ -351,7 +376,7 @@ def resolve_container_enabled(slug: str, override: bool | None) -> bool:
     The one exception is a slug marked ``container_permanently_excluded``
     (see ``is_container_permanently_excluded``): the override is ignored
     unconditionally and this always returns False, regardless of what the
-    profile or settings say. Job Object isolation is unaffected either way —
+    profile or settings say. Job Object isolation is unaffected either way,
     only the AppContainer layer is unavailable, so a mismatched override is
     logged, not raised.
     """
