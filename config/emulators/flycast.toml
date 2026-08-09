@@ -6,9 +6,9 @@ version = "v2.6"
 binary = "flycast.exe"
 download_url = "https://github.com/flyinghead/flycast"
 portable_sentinel = "emu.cfg"
-container_enabled = false
-container_hardcap_disabled = true
-container_hardcap_note = "Flycast can work with AppContainer in specific circumstances but is disabled for the current version for more testing."
+container_enabled = true
+container_hardcap_disabled = false
+container_hardcap_note = ""
 skip_memory_limit = false
 skip_cpu_limit = false
 description = "Dreamcast emulation"
@@ -29,10 +29,13 @@ access = "rw"
 mode = "grant"
 
 
-[[container_broker_files]]
-path_key = "saves_dir"
-access = "rw"
-mode = "grant"
+# No saves_dir entry: Flycast has no "saves" directory. Save states, VMU
+# images, and dc_nvmem.bin all live flat in data/, which the install_dir
+# rw+grant entry above already covers (wincage's grant mode propagates its
+# inheritable ACE across the whole existing tree via TreeSetNamedSecurityInfoW).
+# The old saves_dir entry pointed at a directory the archive never creates, so
+# it aborted the launch at the DACL_GRANT stage until someone made the folder
+# by hand, after which it silently granted an empty directory nothing writes to.
 
 [[container_broker_files]]
 path_key = "bios_dir"

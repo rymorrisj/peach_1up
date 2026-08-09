@@ -45,8 +45,15 @@ def resolve_derived_path(path_key: str, slug: str) -> str | None:
         "install_dir":  base / "emulators" / slug,
         # Per-emulator save-state directory (e.g. Flycast, Mesen, Project64).
         "saves_dir":    base / "emulators" / slug / "saves",
-        # Per-emulator quick save-state directory (DuckStation, PCSX2).
+        # Per-emulator quick save-state directory (DuckStation, which really
+        # does ship a "savestates" folder). PCSX2 does NOT: it names the same
+        # thing "sstates", so it uses sstates_dir below. Do not merge the two.
         "savestates_dir": base / "emulators" / slug / "savestates",
+        # PCSX2 save-state directory. PCSX2 writes to "sstates", not
+        # "savestates" (confirmed against a live install actively receiving
+        # .p2s writes). Kept as its own key rather than changing
+        # savestates_dir, which DuckStation shares and which is correct there.
+        "sstates_dir":  base / "emulators" / slug / "sstates",
         # Per-emulator memory-card directory (PCSX2, DuckStation).
         "memcards_dir": base / "emulators" / slug / "memcards",
         # Per-emulator screenshot/snapshot directory (PCSX2).
@@ -57,8 +64,9 @@ def resolve_derived_path(path_key: str, slug: str) -> str | None:
         "nvram":        base / "emulators" / slug / "vms",
         # Per-emulator shader/disk cache directory.
         "cache_dir":    base / "emulators" / slug / "cache",
-        # Per-emulator plugin directory (Project64).
-        "plugin_dir":   base / "emulators" / slug / "plugins",
+        # Per-emulator plugin directory (Project64, capital-P singular as PJ64
+        # ships it: the archive creates "Plugin", not "plugins").
+        "plugin_dir":   base / "emulators" / slug / "Plugin",
         # Project64 portable EEPROM/save directory (capital-S as PJ64 writes it).
         "pj64_save_dir": base / "emulators" / slug / "Save",
         # Project64 portable config directory (capital-C as PJ64 writes it).

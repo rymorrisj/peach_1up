@@ -53,7 +53,7 @@ access = "rw"
 mode = "grant"
 
 [[container_broker_files]]
-path_key = "savestates_dir"
+path_key = "sstates_dir"
 access = "rw"
 mode = "grant"
 
