@@ -9,11 +9,12 @@ from backend.core.dependencies import (
     require_owner_or_admin, require_permission,
 )
 from backend.core.logger import get_logger
-from backend.models import EnvironmentItem, LaunchHistory
+from backend.models import EnvironmentItem, LaunchHistory, ProfileItem
 from backend.models.launch_history import LaunchHistoryRead
 from backend.models.user import UserItem
 from backend.service.launch import coordinator as svc
 from backend.service.launch.history import scope_launch_query, user_can_view_launch
+from backend.service.utils.emulator_catalog import resolve_container_enabled
 
 logger = get_logger(__name__)
 
@@ -151,7 +152,7 @@ def delete_launches(
     return {"deleted": deleted}
 
 
-@router.get("/launches/{history_id}")
+@router.get("/launches/{history_id}", response_model=LaunchHistoryRead)
 def get_launch(
     history_id: int,
     db: Session = Depends(get_db),
@@ -162,7 +163,22 @@ def get_launch(
     # non-admin can't probe which launch ids exist for other users.
     if not record or not user_can_view_launch(record, active_user, db):
         raise HTTPException(status_code=404, detail="Launch record not found.")
-    return record
+
+    # container_moniker is computed here, not stored, see the field comment on
+    # LaunchHistoryRead. Only populated when this specific launch actually
+    # resolves to container_enabled=True, Job-Object-only launches keep it None.
+    profile = db.get(ProfileItem, record.profile_item_id) if record.profile_item_id is not None else None
+    profile_override = profile.container_enabled if profile is not None else None
+    container_moniker: Optional[str] = None
+    if resolve_container_enabled(record.emulator_slug, profile_override):
+        from backend.service.utils.platform.windows.app_container import build_container_moniker
+
+        user_item_id = profile.user_item_id if profile is not None else None
+        container_moniker = build_container_moniker(record.emulator_slug, user_item_id)
+
+    result = LaunchHistoryRead.model_validate(record)
+    result.container_moniker = container_moniker
+    return result
 
 @router.post("/launches/{history_id}/stop", status_code=200)
 def stop_launch(

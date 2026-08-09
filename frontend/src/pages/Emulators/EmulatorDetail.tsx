@@ -101,6 +101,16 @@ export default function EmulatorDetail() {
   const runningLaunch = launches.find((l) => l.emulator_slug === slug && l.ended_at === null);
   const isRunning = !!runningLaunch;
 
+  // container_moniker is only computed by the detail endpoint (GET
+  // /api/v1/launches/{id}), not the list endpoint the ['launches'] query
+  // above uses, so it takes its own fetch, scoped to the running launch's id.
+  const { data: runningLaunchDetail } = useQuery<LaunchHistory>({
+    queryKey: ['launches', runningLaunch?.id],
+    queryFn: () => apiFetch<LaunchHistory>(`/api/v1/launches/${runningLaunch!.id}`),
+    enabled: !!runningLaunch,
+  });
+  const containerMoniker = runningLaunchDetail?.container_moniker ?? null;
+
   const romPackEntry = romPackSlug ? catalog.find((e) => e.slug === romPackSlug) : undefined;
   const emulatorBios = allBios.filter((b) => b.platform === emulatorBiosPlatform);
   const eras = slug ? (EMULATOR_ERA_MAP[slug] ?? []) : [];
@@ -286,6 +296,21 @@ export default function EmulatorDetail() {
           )}
           {isRunning ? 'Running' : 'Not running'}
         </span>
+        {/* Only ever populated for AppContainer-enabled launches, the API
+            leaves container_moniker null for Job-Object-only launches, so
+            gating on the field itself (not container_enabled client-side)
+            keeps this hidden for those automatically. */}
+        {containerMoniker && (
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.6875rem',
+              color: 'rgb(var(--fg-3))',
+            }}
+          >
+            {containerMoniker}
+          </span>
+        )}
         {isRunning && (
           <button
             type="button"

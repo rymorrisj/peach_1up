@@ -117,6 +117,18 @@ def _moniker_user_scope(user_item_id: int | None) -> str:
     return str(user_item_id) if user_item_id is not None else "shared"
 
 
+def build_container_moniker(emulator_slug: str, user_item_id: int | None) -> str:
+    """Build the AppContainer moniker string for an emulator/user-scope pair.
+
+    Pure string construction, no I/O and no provisioning. This is the single
+    source of truth for the moniker format, shared by get_container_config
+    (which embeds the result in the SandboxConfig passed to wincage.launch())
+    and reset_container, and callable from a read path (e.g. an API response)
+    that needs to display the moniker without provisioning a container.
+    """
+    return f"Peach1UP.{emulator_slug}.{_moniker_user_scope(user_item_id)}"
+
+
 def get_container_config(
     emulator_slug: str,
     exe_path: str,
@@ -200,7 +212,7 @@ def get_container_config(
         memory_limit_mb = int(memory_limit_mb_cfg)
 
     return SandboxConfig(
-        moniker=f"Peach1UP.{emulator_slug}.{_moniker_user_scope(user_item_id)}",
+        moniker=build_container_moniker(emulator_slug, user_item_id),
         exe_path=exe_path,
         broker_files=broker_files,
         cpu_max_rate=cpu_max_rate,
@@ -265,4 +277,4 @@ def reset_container(emulator_slug: str, user_item_id: int | None = None) -> None
     Raises:
         SandboxError: stage=CONTAINER_PROVISION if the reset command fails.
     """
-    wincage.reset_container(f"Peach1UP.{emulator_slug}.{_moniker_user_scope(user_item_id)}")
+    wincage.reset_container(build_container_moniker(emulator_slug, user_item_id))

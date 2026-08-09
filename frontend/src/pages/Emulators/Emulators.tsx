@@ -2,10 +2,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, ApiError } from '@/api/client';
 import TopBar from '@/components/layout/TopBar';
+import { useAppContext } from '@/context/useAppContext';
 import { EMULATOR_ERA_MAP, ERA_COLOR } from '@/types/era';
 import { useToast } from '@/ui/ToastProvider';
 import type { components } from '@shared/types';
 type CatalogEntry = components['schemas']['CatalogEntryResponse'];
+type LaunchHistory = components['schemas']['LaunchHistoryRead'];
 
 function initials(name: string) {
   return name.slice(0, 2).toUpperCase();
@@ -13,10 +15,12 @@ function initials(name: string) {
 
 function EmulatorCard({
   entry,
+  isRunning,
   onClick,
   onDelete,
 }: {
   entry: CatalogEntry;
+  isRunning: boolean;
   onClick: () => void;
   onDelete: () => void;
 }) {
@@ -82,6 +86,30 @@ function EmulatorCard({
                 {entry.version}
               </span>
               <span style={{ flex: 1 }} />
+              {isRunning && (
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full"
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.6875rem',
+                    fontWeight: 500,
+                    padding: '2px 8px',
+                    background: 'rgb(var(--success) / 0.12)',
+                    color: 'rgb(var(--success))',
+                    border: '1px solid rgb(var(--success) / 0.3)',
+                  }}
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{
+                      background: 'rgb(var(--success))',
+                      animation: 'dot-pulse 1.4s ease-in-out infinite',
+                    }}
+                    aria-hidden="true"
+                  />
+                  Running
+                </span>
+              )}
               <span
                 className="inline-flex items-center gap-1.5"
                 style={{
@@ -201,12 +229,31 @@ export default function Emulators() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { state } = useAppContext();
 
   const { data: catalog = [], isLoading } = useQuery<CatalogEntry[]>({
     queryKey: ['emulators-catalog'],
     queryFn: () => apiFetch<CatalogEntry[]>('/api/v1/emulator-items'),
     staleTime: 10_000,
   });
+
+  // Same queryKey/queryFn as TopBar's and EmulatorDetail's launches query, so
+  // all three share one cache entry and one poll instead of issuing duplicate
+  // requests.
+  const { data: launches = [] } = useQuery<LaunchHistory[]>({
+    queryKey: ['launches'],
+    queryFn: () => apiFetch<LaunchHistory[]>('/api/v1/launches'),
+    enabled: !!state.activeUser,
+    refetchInterval: (query) => {
+      const data = query.state.data ?? [];
+      return data.some((l) => l.ended_at === null) ? 5000 : false;
+    },
+    refetchOnWindowFocus: false,
+  });
+
+  const runningSlugs = new Set<string>(
+    launches.filter((l) => l.ended_at === null).map((l) => l.emulator_slug),
+  );
 
   const emulatorEntries = catalog.filter((e) => e.install_type !== 'rom_pack');
   const installedCount = emulatorEntries.filter((e) => e.is_installed).length;
@@ -309,6 +356,7 @@ export default function Emulators() {
               <EmulatorCard
                 key={entry.slug}
                 entry={entry}
+                isRunning={runningSlugs.has(entry.slug)}
                 onClick={() => navigate(`/emulators/${entry.slug}`)}
                 onDelete={() => handleDelete(entry)}
               />

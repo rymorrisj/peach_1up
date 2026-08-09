@@ -57,6 +57,11 @@ class LaunchHistoryRead(LaunchHistoryBase):
     error_message: Optional[str] = None
     # Derived discriminator (not stored): a bundle launch vs an environment launch.
     target_type: Optional[str] = None
+    # Populated only by GET /launches/{history_id}, computed on read (not a stored
+    # column). Requires joining ProfileItem and resolving container_enabled, which
+    # this model alone cannot do, so it stays None on every other endpoint that
+    # returns LaunchHistoryRead (list endpoints included).
+    container_moniker: Optional[str] = None
 
     @model_validator(mode="after")
     def _derive_target_type(self) -> "LaunchHistoryRead":
