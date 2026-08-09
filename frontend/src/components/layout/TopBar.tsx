@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 // import { Moon, Sun } from 'lucide-react'  // re-enable with theme toggle
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/useAppContext';
 import { apiFetch } from '@/api/client';
 import type { components } from '@shared/types';
@@ -13,6 +14,7 @@ interface TopBarProps {
 
 export default function TopBar({ title, children }: TopBarProps) {
   const { state, dispatch: _dispatch } = useAppContext();
+  const navigate = useNavigate();
 
   const { data: launches = [] } = useQuery<LaunchHistory[]>({
     queryKey: ['launches'],
@@ -28,7 +30,17 @@ export default function TopBar({ title, children }: TopBarProps) {
     refetchOnWindowFocus: false,
   });
 
-  const activeSessions = launches.filter((l) => l.ended_at === null).length;
+  const runningLaunches = launches.filter((l) => l.ended_at === null);
+  const activeSessions = runningLaunches.length;
+  const runningEmulatorSlugs = new Set(runningLaunches.map((l) => l.emulator_slug));
+
+  function handleActiveSessionsClick() {
+    if (runningEmulatorSlugs.size === 1) {
+      navigate(`/emulators/${runningLaunches[0].emulator_slug}`);
+    } else {
+      navigate('/emulators');
+    }
+  }
 
   return (
     <header
@@ -56,12 +68,15 @@ export default function TopBar({ title, children }: TopBarProps) {
       {children}
       <div className="flex flex-1 items-center justify-end gap-3">
         {activeSessions > 0 && (
-          <span
+          <button
+            type="button"
+            onClick={handleActiveSessionsClick}
             className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
             style={{
               background: 'rgb(var(--success) / 0.12)',
               color: 'rgb(var(--success))',
               border: '1px solid rgb(var(--success) / 0.3)',
+              cursor: 'pointer',
             }}
           >
             <span
@@ -73,7 +88,7 @@ export default function TopBar({ title, children }: TopBarProps) {
               aria-hidden="true"
             />
             {activeSessions} running
-          </span>
+          </button>
         )}
         {/* TODO: theme toggle is disabled until light mode is fixed
         // restore: import { Moon, Sun }; rename _dispatch→dispatch, _isDark→isDark

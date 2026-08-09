@@ -3,6 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/api/client';
 import TopBar from '@/components/layout/TopBar';
+import ConfirmModal from '@/components/common/ConfirmModal';
+import { useConfirm } from '@/hooks/useConfirm';
+import { useAppContext } from '@/context/useAppContext';
 import { EMULATOR_ERA_MAP, ERA_COLOR } from '@/types/era';
 import { useToast } from '@/ui/ToastProvider';
 import type { EmulatorStatusData } from '@/pages/FirstRun/types';
@@ -15,6 +18,7 @@ import { LimitationsTab } from './components/LimitationsTab';
 type CatalogEntry = components['schemas']['CatalogEntryResponse'];
 type LaunchProfile = components['schemas']['ProfileItemRead'];
 type BiosItem = components['schemas']['BiosItem'];
+type LaunchHistory = components['schemas']['LaunchHistoryRead'];
 
 const EMULATOR_BIOS_PLATFORM: Record<string, string> = {
   duckstation: 'ps1',
@@ -30,12 +34,15 @@ export default function EmulatorDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { state } = useAppContext();
+  const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm();
   const [tab, setTab] = useState<Tab>('overview');
   const [sandboxSaving, setSandboxSaving] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [installError, setInstallError] = useState<string | null>(null);
   const [isCloning, setIsCloning] = useState(false);
   const [cloneError, setCloneError] = useState<string | null>(null);
+  const [isForceClosing, setIsForceClosing] = useState(false);
 
   const { data: catalog = [] } = useQuery<CatalogEntry[]>({
     queryKey: ['emulators-catalog'],
@@ -75,6 +82,24 @@ export default function EmulatorDetail() {
     refetchInterval: isCloning ? 4000 : false,
     enabled: isCloning && !!romPackSlug,
   });
+
+  // Same queryKey/queryFn as TopBar's own launches query, so both share one
+  // cache entry and one poll instead of issuing duplicate requests.
+  const { data: launches = [] } = useQuery<LaunchHistory[]>({
+    queryKey: ['launches'],
+    queryFn: () => apiFetch<LaunchHistory[]>('/api/v1/launches'),
+    enabled: !!state.activeUser,
+    refetchInterval: (query) => {
+      const data = query.state.data ?? [];
+      return data.some((l) => l.ended_at === null) ? 5000 : false;
+    },
+    refetchOnWindowFocus: false,
+  });
+
+  // The launch guard blocks a second concurrent launch for the same
+  // emulator/profile, so at most one running launch can match this slug.
+  const runningLaunch = launches.find((l) => l.emulator_slug === slug && l.ended_at === null);
+  const isRunning = !!runningLaunch;
 
   const romPackEntry = romPackSlug ? catalog.find((e) => e.slug === romPackSlug) : undefined;
   const emulatorBios = allBios.filter((b) => b.platform === emulatorBiosPlatform);
@@ -146,6 +171,31 @@ export default function EmulatorDetail() {
     }
   }
 
+  async function handleForceClose() {
+    if (!runningLaunch || isForceClosing) return;
+    const confirmed = await confirm({
+      title: `Force close ${entry?.name ?? slug}?`,
+      consequence: 'This immediately terminates the running process. Unsaved progress in the emulator will be lost.',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setIsForceClosing(true);
+    try {
+      const result = await apiFetch<{ stopped: boolean }>(
+        `/api/v1/launches/${runningLaunch.id}/stop`,
+        { method: 'POST' },
+      );
+      await queryClient.invalidateQueries({ queryKey: ['launches'] });
+      if (!result.stopped) {
+        showToast('Process had already stopped.', 'info');
+      }
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.detail : 'Force close failed.', 'error');
+    } finally {
+      setIsForceClosing(false);
+    }
+  }
+
   async function handleRunInstaller() {
     if (!slug) return;
     setIsInstalling(true);
@@ -208,6 +258,50 @@ export default function EmulatorDetail() {
           ← Emulators
         </button>
         <span style={{ flex: 1 }} />
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
+          style={
+            isRunning
+              ? {
+                  background: 'rgb(var(--success) / 0.12)',
+                  color: 'rgb(var(--success))',
+                  border: '1px solid rgb(var(--success) / 0.3)',
+                }
+              : {
+                  background: 'rgb(var(--surface-2))',
+                  color: 'rgb(var(--fg-3))',
+                  border: '1px solid rgb(var(--border))',
+                }
+          }
+        >
+          {isRunning && (
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{
+                background: 'rgb(var(--success))',
+                animation: 'dot-pulse 1.4s ease-in-out infinite',
+              }}
+              aria-hidden="true"
+            />
+          )}
+          {isRunning ? 'Running' : 'Not running'}
+        </span>
+        {isRunning && (
+          <button
+            type="button"
+            onClick={handleForceClose}
+            disabled={isForceClosing}
+            style={{
+              ...BTN,
+              background: 'transparent',
+              border: '1px solid rgb(var(--error))',
+              color: 'rgb(var(--error))',
+              opacity: isForceClosing ? 0.5 : 1,
+            }}
+          >
+            {isForceClosing ? 'Closing…' : 'Force Close'}
+          </button>
+        )}
         <button
           type="button"
           onClick={handleDelete}
@@ -371,6 +465,15 @@ export default function EmulatorDetail() {
 
         {tab === 'limits' && entry && <LimitationsTab entry={entry} />}
       </div>
+
+      <ConfirmModal
+        open={isOpen}
+        title={options?.title ?? ''}
+        consequence={options?.consequence ?? ''}
+        destructive={options?.destructive}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     </div>
   );
 }
