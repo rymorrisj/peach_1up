@@ -122,16 +122,6 @@ if errorlevel 1 (
 popd
 echo [OK] API reference docs generated
 
-REM ── Uploading peach_1up\backend\service\utils\smart_media_detector\hashing\hash_index.json ──
-echo Uploading index of file hashes to DB
-
-".venv\Scripts\python.exe" ".\scripts\ingest_hash_index.py"
-if errorlevel 1 (
-    echo ERROR: Failed to ulpoad the hash index to the DB.
-    exit /b 1
-)
-echo [OK] Hash index is uploaded to DB. 
-
 REM ── Sandbox build check ──────────────────────────────────────
 if exist "services\vendor\wincage\wincage\sandbox_host.exe" (
     echo [OK] sandbox_host.exe found

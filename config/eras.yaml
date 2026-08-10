@@ -75,7 +75,7 @@ nes:
 
 snes:
   backend: mesen
-  memory_limit_mb: 256
+  memory_limit_mb: 768
   cpu_limit_percent: 50
   # .fig/.swc are legitimate SNES ROM header variants Mesen already opens
   # (config/emulators/mesen.toml's supported_formats already listed them);

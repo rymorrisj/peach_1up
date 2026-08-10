@@ -15,7 +15,6 @@ entry declares ``install_type = "github_release"``, this module:
   6. Extracts the archive into ``emulators/<slug>/`` with a zip-slip
      path-traversal guard.
   7. Ensures the portable sentinel file exists post-extraction.
-  8. Records the install in the ``emulator_installs`` table.
 
 Every step fails loud, there is no silent fallback. Temporary files are
 removed on any failure.
@@ -33,7 +32,6 @@ import shutil
 import subprocess
 import tempfile
 import zipfile
-from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -314,44 +312,6 @@ def _safe_extract_7z(archive_path: Path, dest_dir: Path) -> None:
         )
 
 
-def _record_install(
-    slug: str,
-    version: str,
-    install_path: str,
-    asset_filename: str,
-    asset_url: str,
-    sha256_digest: str,
-    digest_verified: bool,
-) -> None:
-    """Insert or update the ``emulator_installs`` row for ``slug``."""
-    from sqlalchemy.orm import sessionmaker
-
-    from backend.core.database import get_engine
-    from backend.models import EmulatorInstall
-
-    now = datetime.now(timezone.utc)
-    session_factory = sessionmaker(bind=get_engine())
-    with session_factory() as db:
-        row = (
-            db.query(EmulatorInstall)
-            .filter(EmulatorInstall.slug == slug)
-            .one_or_none()
-        )
-        if row is None:
-            row = EmulatorInstall(slug=slug, installed_version=version)
-            db.add(row)
-        row.installed_version = version
-        row.installed_at = now
-        row.install_path = install_path
-        row.asset_filename = asset_filename
-        row.asset_url = asset_url
-        row.sha256_digest = sha256_digest
-        row.digest_verified = digest_verified
-        row.latest_known_version = version
-        row.last_checked_at = now
-        db.commit()
-
-
 def install_from_github_release(slug: str) -> dict:
     """Download and install ``slug`` from its latest GitHub release asset.
 
@@ -434,17 +394,6 @@ def install_from_github_release(slug: str) -> dict:
 
     # (6) Ensure the portable sentinel exists post-extraction.
     ensure_portable_mode(slug, binary_path)
-
-    # (8) Record the install.
-    _record_install(
-        slug=slug,
-        version=version,
-        install_path=str(binary_path),
-        asset_filename=asset_name,
-        asset_url=download_url,
-        sha256_digest=computed_sha256,
-        digest_verified=digest_verified,
-    )
 
     return {
         "slug": slug,
