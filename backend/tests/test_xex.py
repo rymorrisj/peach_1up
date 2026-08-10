@@ -39,7 +39,12 @@ class TestFindDefaultXex:
     def test_fallback_logs_warning(self, tmp_path, caplog):
         from backend.service.utils.detection.xex import find_default_xex
         (tmp_path / "zeta.xex").write_bytes(b"")
-        with caplog.at_level(logging.WARNING):
+        # get_logger() caps this module's logger at ERROR outside
+        # PEACH_ENV=development (backend/core/logger.py), so caplog must
+        # target the xex logger by name to force it to WARNING for this
+        # block, at_level(WARNING) alone only lowers the root logger and
+        # never reaches a logger with its own explicit level set.
+        with caplog.at_level(logging.WARNING, logger="backend.service.utils.detection.xex"):
             find_default_xex(tmp_path)
         assert any("no default.xex found" in rec.message for rec in caplog.records)
 

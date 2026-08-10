@@ -209,6 +209,21 @@ class TestCollectionOfOneValidationFailureLeavesNoPartialState:
         exe.write_bytes(b"fake exe")
 
         _patch_settings(monkeypatch, media_root)
+        # The class-wide _patch_detect fixture always reports "dreamcast",
+        # which cannot resolve a .exe inside this DOS folder, so the first
+        # ingest's file_path lands on the folder itself instead of doom.exe,
+        # and the second call's written_paths then holds a directory, not a
+        # file, tripping pick_folder_launch_file's 422 before the duplicate
+        # guard is ever reached. Override to a DOS-era result so the first
+        # ingest resolves file_path to doom.exe the way a real DOS folder does.
+        import formatscout as smd
+
+        class _DosScanResult:
+            era = "dos"
+            reason = "exe header"
+            requires_install = False
+
+        monkeypatch.setattr(smd, "detect", lambda path: _DosScanResult())
 
         result_type, collection, disc_count = folder_ingest.ingest_folder(
             src_dir, [exe], "Doom", mem_session, media_root,

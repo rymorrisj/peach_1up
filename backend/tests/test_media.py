@@ -41,12 +41,27 @@ def mem_db_session():
 
 
 @pytest.fixture
-def client(mem_db_session):
+def client(mem_db_session, tmp_path, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
     from backend.api.routes import entity_links, media
     from backend.core.database import get_db
     from backend.core.dependencies import get_active_user
+
+    # item_to_read/media_item_bundle_to_read compute cover_art_url/file_url
+    # via _compute_media_url (backend/models/media.py), which reads
+    # LIBRARY_PATH straight off backend.service.utils.settings, not through
+    # the core.settings.get_settings() facade, so the usual get_settings
+    # monkeypatch used elsewhere in this suite does not cover it. Patched
+    # here the same way test_asset_fetch.py's tmp_lib fixture does.
+    import backend.service.utils.settings as settings_mod
+
+    def _fake_get(key, default=None):
+        if key == "LIBRARY_PATH":
+            return str(tmp_path)
+        return default
+
+    monkeypatch.setattr(settings_mod, "get", _fake_get)
 
     app = FastAPI()
     app.include_router(media.router)

@@ -79,10 +79,15 @@ def _restrict(db, user, collection):
 def _tag(db, collection, name):
     from backend.models.tag import Tag, EntityTag
 
-    tag = Tag(name=name)
-    db.add(tag)
-    db.commit()
-    db.refresh(tag)
+    # Reuse an existing tag by name instead of always creating one, same
+    # name lookup tags.py's create_tag does, tag names are unique so two
+    # collections tagged with the same name must share one Tag row.
+    tag = db.query(Tag).filter(Tag.name == name).first()
+    if tag is None:
+        tag = Tag(name=name)
+        db.add(tag)
+        db.commit()
+        db.refresh(tag)
     db.add(EntityTag(tag_id=tag.id, entity_type="game_item_bundle", entity_id=collection.id))
     db.commit()
 

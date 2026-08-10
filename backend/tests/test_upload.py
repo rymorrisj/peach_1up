@@ -194,6 +194,17 @@ class TestSoftwareUploadRoute:
         # methods; bypass it so the 10-inits-per-60s bucket never trips.
         monkeypatch.setattr(rl, "enforce", lambda *a, **kw: None)
 
+        # finalize_background runs as a BackgroundTask with its own DB
+        # session, opened via backend.core.database.get_engine() directly
+        # (background tasks can't take FastAPI Depends), not through the
+        # get_db override above. Without this, that session binds to the
+        # real app engine instead of this test's isolated in-memory one, so
+        # the row it commits is invisible to mem_db_session and any
+        # follow-up route call (e.g. confirm-delete) 404s. Point it at the
+        # same StaticPool-backed engine mem_db_session is bound to.
+        import backend.core.database as database_mod
+        monkeypatch.setattr(database_mod, "get_engine", mem_db_session.get_bind)
+
         # This app is bare with no lifespan attached, so the real startup
         # path (backend.core.lifespan.lifespan) never runs, and the
         # software-games route depends on registry state that lifespan
