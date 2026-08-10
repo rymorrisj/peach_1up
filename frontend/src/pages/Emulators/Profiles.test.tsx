@@ -7,6 +7,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppProvider } from '@/context/AppContext';
+import { ToastProvider } from '@/ui/ToastProvider';
 import Profiles from '@/pages/Emulators/Profiles';
 import { apiFetch } from '@/api/client';
 import type { components } from '@shared/types';
@@ -106,10 +107,12 @@ function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/emulators/profiles']}>
       <QueryClientProvider client={queryClient}>
-        <AppProvider>
-          <Profiles />
-          <LocationProbe />
-        </AppProvider>
+        <ToastProvider>
+          <AppProvider>
+            <Profiles />
+            <LocationProbe />
+          </AppProvider>
+        </ToastProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );

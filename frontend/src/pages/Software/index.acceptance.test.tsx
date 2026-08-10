@@ -13,6 +13,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppProvider } from '@/context/AppContext';
+import { ToastProvider } from '@/ui/ToastProvider';
 import Games from '@/pages/Software/Games';
 import { apiFetch } from '@/api/client';
 import { createMockLibraryItem } from '@/test/helpers';
@@ -36,9 +37,11 @@ function renderPage() {
   return render(
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
-        <AppProvider>
-          <Games />
-        </AppProvider>
+        <ToastProvider>
+          <AppProvider>
+            <Games />
+          </AppProvider>
+        </ToastProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );

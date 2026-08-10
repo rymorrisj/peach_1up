@@ -101,6 +101,7 @@ profiles/conf/
 .cache/
 temp/
 dev_docs/
+.coverage
 
 # Generated constants
 frontend/src/generated/constants.ts

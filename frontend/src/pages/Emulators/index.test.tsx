@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppProvider } from '@/context/AppContext';
+import { ToastProvider } from '@/ui/ToastProvider';
 import Emulators from '@/pages/Emulators/Emulators';
 import { apiFetch } from '@/api/client';
 import type { components } from '@shared/types';
@@ -28,9 +29,11 @@ function renderPage() {
   return render(
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
-        <AppProvider>
-          <Emulators />
-        </AppProvider>
+        <ToastProvider>
+          <AppProvider>
+            <Emulators />
+          </AppProvider>
+        </ToastProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );

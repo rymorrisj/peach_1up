@@ -26,7 +26,7 @@ describe('useLaunch', () => {
   it('launch() sends POST to the game-item-bundle endpoint with the given profileId', async () => {
     mockApiFetch.mockResolvedValueOnce({ launch_history_id: 1, warnings: [] });
 
-    const { result } = renderHook(() => useLaunch({ targetId: 7, targetType: 'collection' }), {
+    const { result } = renderHook(() => useLaunch({ targetId: 7, targetType: 'game_item_bundle' }), {
       wrapper: createWrapper(),
     });
 
@@ -69,7 +69,7 @@ describe('useLaunch', () => {
       warnings: ['low memory', 'no BIOS'],
     });
 
-    const { result } = renderHook(() => useLaunch({ targetId: 1, targetType: 'collection' }), {
+    const { result } = renderHook(() => useLaunch({ targetId: 1, targetType: 'game_item_bundle' }), {
       wrapper: createWrapper(),
     });
 
@@ -87,7 +87,7 @@ describe('useLaunch', () => {
       .mockResolvedValueOnce({ launch_history_id: 42, warnings: [] })
       .mockResolvedValueOnce({ ended_at: '2024-01-01T00:00:00Z' });
 
-    const { result } = renderHook(() => useLaunch({ targetId: 1, targetType: 'collection' }), {
+    const { result } = renderHook(() => useLaunch({ targetId: 1, targetType: 'game_item_bundle' }), {
       wrapper: createWrapper(),
     });
 
@@ -114,7 +114,7 @@ describe('useLaunch', () => {
       .mockResolvedValueOnce({ ended_at: '2024-01-01T00:00:00Z' });
 
     const { result } = renderHook(
-      () => useLaunch({ targetId: 1, targetType: 'collection', onSettled }),
+      () => useLaunch({ targetId: 1, targetType: 'game_item_bundle', onSettled }),
       { wrapper: createWrapper() },
     );
 

@@ -3,6 +3,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppProvider } from '@/context/AppContext';
+import { ToastProvider } from '@/ui/ToastProvider';
 import EmulatorDetail from '@/pages/Emulators/EmulatorDetail';
 import { apiFetch } from '@/api/client';
 import type { components } from '@shared/types';
@@ -28,11 +29,13 @@ function renderAt(slug: string) {
   return render(
     <MemoryRouter initialEntries={[`/emulators/${slug}`]}>
       <QueryClientProvider client={queryClient}>
-        <AppProvider>
-          <Routes>
-            <Route path="/emulators/:slug" element={<EmulatorDetail />} />
-          </Routes>
-        </AppProvider>
+        <ToastProvider>
+          <AppProvider>
+            <Routes>
+              <Route path="/emulators/:slug" element={<EmulatorDetail />} />
+            </Routes>
+          </AppProvider>
+        </ToastProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );

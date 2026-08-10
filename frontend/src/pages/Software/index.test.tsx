@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppProvider } from '@/context/AppContext';
+import { ToastProvider } from '@/ui/ToastProvider';
 import Games from '@/pages/Software/Games';
 import { apiFetch } from '@/api/client';
 import { createMockLibraryItem } from '@/test/helpers';
@@ -26,9 +27,11 @@ function renderPage() {
   return render(
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
-        <AppProvider>
-          <Games />
-        </AppProvider>
+        <ToastProvider>
+          <AppProvider>
+            <Games />
+          </AppProvider>
+        </ToastProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -82,7 +85,12 @@ describe('Software page', () => {
   });
 
   it('renders the "+ Add game" button', async () => {
-    vi.mocked(apiFetch).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 });
+    vi.mocked(apiFetch).mockImplementation((url) => {
+      if (typeof url === 'string' && url.includes('/api/v1/game-items')) {
+        return Promise.resolve({ items: [], total: 0, limit: 50, offset: 0 });
+      }
+      return Promise.resolve([]);
+    });
     renderPage();
     // Post-EntityListPage-cutover copy: the TopBar add button label is now
     // generic "+ Add {entityLabel}" (see templates/EntityListPage.tsx),

@@ -442,7 +442,7 @@ describe('CollectionDetail (mutation path)', () => {
       renderPage();
       await waitForLoaded();
 
-      await user.click(screen.getByRole('button', { name: 'Delete this collection' }));
+      await user.click(screen.getByRole('button', { name: 'Delete this game' }));
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
       await user.click(screen.getByRole('button', { name: 'Confirm' }));
 
@@ -488,7 +488,7 @@ describe('CollectionDetail (mutation path)', () => {
       renderPage();
       await waitForLoaded();
 
-      await user.click(screen.getByRole('button', { name: 'Delete this collection' }));
+      await user.click(screen.getByRole('button', { name: 'Delete this game' }));
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
       await user.click(screen.getByRole('button', { name: 'Confirm' }));
 
@@ -522,7 +522,7 @@ describe('CollectionDetail (mutation path)', () => {
       renderPage();
       await waitForLoaded();
 
-      await user.click(screen.getByRole('button', { name: 'Delete this collection' }));
+      await user.click(screen.getByRole('button', { name: 'Delete this game' }));
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
       await user.click(screen.getByRole('button', { name: 'Confirm' }));
 
@@ -573,7 +573,7 @@ describe('CollectionDetail (mutation path)', () => {
       // delete_media_override is null and library-defaults' delete_media_on_removal
       // is false (setupApi's baseline), so resolvedDeleteMedia, the checkbox's
       // defaultChecked, is false. Toggle it on before confirming.
-      await user.click(screen.getByRole('button', { name: 'Delete this collection' }));
+      await user.click(screen.getByRole('button', { name: 'Delete this game' }));
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
       const checkbox = screen.getByRole('checkbox', { name: /also delete media files from disk/i });
       expect(checkbox).not.toBeChecked();

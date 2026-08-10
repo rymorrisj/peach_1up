@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppProvider } from '@/context/AppContext';
+import { ToastProvider } from '@/ui/ToastProvider';
 import { apiFetch } from '@/api/client';
 import { EntityListPage } from './EntityListPage';
 import { appDomainConfig } from '../configs/appConfig';
@@ -95,9 +96,11 @@ function renderPage() {
   return render(
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
-        <AppProvider>
-          <EntityListPage config={appDomainConfig} />
-        </AppProvider>
+        <ToastProvider>
+          <AppProvider>
+            <EntityListPage config={appDomainConfig} />
+          </AppProvider>
+        </ToastProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );
