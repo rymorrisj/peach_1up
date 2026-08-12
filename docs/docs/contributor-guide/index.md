@@ -4,11 +4,17 @@ slug: /contributor-guide
 
 # Contributor Guide
 
-Reference material for testing, building, and contributing to Peach 1UP.
+| Page | Covers |
+|---|---|
+| [Dev Setup](./dev-setup.mdx) | Clone, run, static verification, branch and PR workflow, key files |
+| [Technology Stack](./tech-stack.mdx) | The stack and why each part was chosen, media detection, uploads, CI |
+| [Security Architecture](./security.mdx) | Threat model, mandatory implementation rules, known limitations and gaps |
+| [Auth Reference](./auth.mdx) | Token and cookie lifecycle, permission flags, middleware chain |
+| [Windows Sandboxing](./windows-sandboxing.mdx) | Job Object and AppContainer isolation, resource caps, troubleshooting |
+| [Emulator Reference](./emulators.mdx) | Per-emulator portable mode, required files, version coupling, limitations, licensing |
+| [Alpha Tester Guide](./alpha-testing.mdx) | Installing the alpha, walking through every feature, known limitations, reporting bugs |
 
-- [Dev Setup](./dev-setup.mdx), clone, run, static verification, branch and PR workflow.
-- [Alpha Tester Guide](./alpha-testing.mdx), installing the alpha build, walking through every feature, known limitations, and how to report bugs.
-- [Emulator Reference](./emulators.mdx), portable-mode setup, required BIOS/ROM files, and version coupling for every supported emulator.
-- [Security Architecture](./security.mdx), threat model, input validation, process spawning, and network rules that PRs touching these areas must follow.
-- [Technology Stack](./tech-stack.mdx), why each part of the stack was chosen, and how the smart media detector works.
-- [Windows Sandboxing](./windows-sandboxing.mdx), what the Windows Job Object isolation layer does, how to tune resource caps, and emulator-specific sandboxing notes.
+Read [Security Architecture](./security.mdx) before writing code that touches auth, path
+handling, subprocess spawning, launch flows, disk image operations, settings, destructive
+operations, network binding, or secrets. If an approach requires working around a rule in
+it, stop and raise it instead of finding a workaround.

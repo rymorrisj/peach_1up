@@ -4,17 +4,54 @@ title: Self-Hosting
 
 # Self-Hosting
 
-Notes for running Peach 1UP on your own infrastructure, domains, reverse proxies, and
-the environment variables that control them.
+Peach 1UP is built for a single household on a local network. It binds `127.0.0.1` and is
+not reachable from other machines until you explicitly change that.
 
-## Environment Variables
+## Exposing it beyond localhost
 
-### DOCS_BASE_URL
+:::danger Enable TLS before you enable network access
+`ALLOW_NETWORK_ACCESS` does two things at once: it lets the service bind `0.0.0.0`, **and**
+it flips the `Secure` flag on the session and CSRF cookies. A browser will not send a
+`Secure` cookie over plain HTTP, so without TLS termination already running in front of the
+service, login appears to succeed, the cookie is silently dropped, and every following
+request looks unauthenticated. You get an infinite re-login loop with no error message.
+:::
 
-Controls the full URL where this docs site is reachable, used both for the backend's
-Host-based routing of the bundled docs sub-app and for the "Guides" link in the app
-sidebar. Defaults to `http://localhost:3000` for local development. If you're
-self-hosting behind your own domain or reverse proxy, set it to that URL instead, e.g.
-`https://docs.mydomain.com`. Set in the root `.env` file (see `.env.template`); the
-frontend reads the same value via `VITE_DOCS_BASE_URL` in
-`frontend/.env.development` / `frontend/.env.production`.
+The recommended pattern is a reverse proxy with TLS and an external auth provider such as
+[Authentik](https://goauthentik.io/) or [Authelia](https://www.authelia.com/) in front of
+the service. Peach 1UP does not manage TLS termination or external routing, and it is not
+designed to be exposed to the public internet.
+
+`ALLOW_NETWORK_ACCESS` is deliberately not writable through the settings API. Changing it
+requires writing the `settings` row directly.
+
+## Where things live
+
+| | |
+|---|---|
+| Database | `database/data/peach1up.db`, holding the library, settings, users, and launch history |
+| Secrets | Root `.env`, never committed. See `.env.template` |
+| Media | Under the configured `LIBRARY_PATH`, defaulting to `library/` in the project root |
+| Emulators | `emulators/<slug>/`, downloaded on demand |
+
+Backing up the database file plus the `emulators/` tree covers both real single points of
+failure. Media and base images are never mutated by the app, so they are not at risk from
+normal use.
+
+## Docs site
+
+The Docusaurus build is served by the backend as a static mount at `/docs`, on the same host
+and port as the app. It is a path-based mount rather than a hostname-based one, so it needs
+no separate domain.
+
+The docs remain behind the same localhost network gate as everything else, but they are
+exempt from the first-run guard so they are readable before setup completes.
+
+### `DOCS_BASE_URL`
+
+Sets the base URL the docs site is built against. Defaults to `http://localhost:3000` for
+local development, which matches running `npm run start` inside `docs/` directly. Set it to
+your own URL when building for a self-hosted deployment.
+
+The frontend reads the same value as `VITE_DOCS_BASE_URL` (in `frontend/.env.development`
+and `frontend/.env.production`) to build the in-app links to these guides.

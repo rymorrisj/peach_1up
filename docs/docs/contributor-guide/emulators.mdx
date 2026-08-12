@@ -4,393 +4,339 @@ title: Emulator Reference
 
 # Emulator Reference
 
-Reference for every emulator Peach 1UP integrates with, portable-mode setup, required
-BIOS/ROM files, and version coupling notes. Useful if you're adding support for a new
-emulator, debugging a launch issue, or sourcing the right firmware for an existing one.
+Canonical reference for every supported emulator. This is the source material behind the
+per-emulator descriptors in `config/emulators/`; when the two
+disagree, the TOML wins and this file is the bug.
 
----
+Related: [Technology Stack](./tech-stack.mdx) (stack) · [Security Architecture](./security.mdx) (isolation policy) ·
+[Windows Sandboxing](./windows-sandboxing.mdx) (resource caps).
+
+## Summary
+
+| Emulator | Eras | Portable via | Data root | Required user files |
+|---|---|---|---|---|
+| DOSBox-X | DOS | `-conf <path>` | Config file directory | None |
+| 86Box | Win95, Win98, WinXP | `roms/` + `assets/` next to binary | `emulators/86box/` | 86Box ROM pack |
+| DuckStation | PS1 | `portable.txt` | `userdata/` next to binary | PS1 BIOS |
+| PCSX2 | PS2 | `portable.txt` | `userdata/` next to binary | PS2 BIOS set |
+| RPCS3 | PS3 | Automatic on Windows | Install directory | PS3 firmware (`PS3UPDAT.PUP`) |
+| xemu | Xbox OG | `xemu.toml` | Binary directory, partial | Xbox BIOS, `xbox_hdd.qcow2` |
+| Xenia | Xbox 360 | `portable.txt` | `emulators/xenia/` | None |
+| Mesen | NES, SNES | First-run dialog choice | Binary directory or `%APPDATA%` | None (FDS BIOS optional) |
+| Project64 | N64 | Default when install dir is writable | `<install dir>\Config\` | None |
+| Flycast | Dreamcast | `emu.cfg` | `emulators/flycast/` | Dreamcast BIOS pair |
+
+Without its sentinel, each emulator falls back to `%APPDATA%\<Name>\`, except Xenia
+(`Documents\Xenia\`) and Project64 (already portable).
 
 ## DOSBox-X
 
-**Supported eras:** DOS
+**Eras:** DOS. **Download:** https://dosbox-x.com
 
-**Portable mode mechanism:** Pass `-conf <path>` to specify config file, or
-set `working directory = program` in the config, DOSBox-X resolves data paths
-relative to the config file's directory.
+Pass `-conf <path>` and DOSBox-X resolves data paths relative to the config file's
+directory. Peach 1UP writes a fresh conf per launch into a private temp directory; see
+[Windows Sandboxing](./windows-sandboxing.mdx) § DOSBox-X specifics.
 
-**Default user data path (Windows):** `%APPDATA%\DOSBox-X\`
+No BIOS required. `FONT.ROM` (PC-98 BIOS for NEC systems) is optional, sits next to the
+binary, and is version-independent.
 
-**Required files:** None. No BIOS required for DOS.
+**Multi-disc:** can mount multiple floppy images at once with a built-in swap command.
+Whether Peach 1UP drives the swap or leaves it to DOSBox-X's hotkey is undecided. The swap
+key differs from classic DOSBox (not Ctrl+F4).
 
-**Optional files:**
-
-| Filename   | Purpose                  | Location       |
-| ---------- | ------------------------ | -------------- |
-| `FONT.ROM` | PC-98 BIOS (NEC systems) | next to binary |
-
-**ROM/BIOS version coupling:** None. PC-98 BIOS is optional and version-independent.
-
-**Official download:** https://dosbox-x.com
-
-**BIOS/ROM source:** N/A
-
-**Bundleable:** No. Installed on demand from `github.com/joncampbell123/dosbox-x`.
-
-**Portable mode confirmed:** Yes
-
----
+**Known limitation:** games that write sound config to their install directory (Doom's
+`DEFAULT.CFG`) have no in-game sound from a read-only ISO. Install to a writable HDD image
+to persist it.
 
 ## 86Box
 
-**Supported eras:** Windows 95, Windows 98, Windows XP
+**Eras:** Windows 95, 98, XP. **Download:** https://86box.net ·
+**ROM pack:** https://github.com/86Box/roms
 
-**Portable mode mechanism:** Place `roms/` and `assets/` directories next to
-the binary. 86Box detects portable mode by checking for these directories at
-startup.
+Portable mode is detected by the presence of `roms/` and `assets/` next to the binary.
 
-**Default user data path (Windows):** `%APPDATA%\86Box\`
+| Path | Purpose | Notes |
+|---|---|---|
+| `roms/<machine>/…` | Machine ROM pack | Filenames and subdirectory structure are hardcoded. Renaming anything breaks emulation. |
+| `assets/` | UI assets | |
 
-**Required files:**
+**Version coupling is strict.** The ROM pack version must match the binary version
+exactly. Mixing them causes silent emulation failures or startup errors. Update both
+together.
 
-| Filename/Path      | Purpose          | Location                 | Notes                                                                                   |
-| ------------------ | ---------------- | ------------------------ | --------------------------------------------------------------------------------------- |
-| `roms/<machine>/…` | Machine ROM pack | `roms/` next to binary   | Filenames and subdirectory structure are hardcoded, renaming any file breaks emulation |
-| `assets/`          | UI assets        | `assets/` next to binary |                                                                                         |
+**Per-machine ROM completeness is not validated.** 86Box hard-fails only on total absence
+of the ROM set: if no dumps are found at all it errors and closes. It does not verify every
+individual machine or video-card ROM. A machine profile routing to a Voodoo2 can be missing
+just that card's ROM, and whether 86Box surfaces a clean, scriptable error is unconfirmed.
+86Box exposes `-M` / `--dumpmissing`, which lists every machine and video card with missing
+ROMs, and prints the full ROM search path on every startup. Neither is wired into Peach 1UP.
 
-**Optional files:** None beyond the ROM pack.
+86Box also ships no guest drivers, so a provisioned environment has the ROM pack and BIOS
+but nothing installed to use them.
 
-**ROM/BIOS version coupling:** The ROM pack version must match the emulator
-version exactly. Mixing ROM pack and binary versions causes silent emulation
-failures or startup errors. Always update both together.
-ROM pack: https://github.com/86Box/roms
+**Multi-disc:** one secondary optical drive slot per machine. Swapping is manual through
+86Box's own Media menu; there is no playlist equivalent and none is planned.
 
-**Official download:** https://86box.net
-
-**BIOS/ROM source:** https://github.com/86Box/roms
-
-**Bundleable:** No. Installed on demand from `github.com/86Box/86Box` (ROM pack is
-separately user-supplied, never bundled or fetched by Peach 1UP).
-
-**Portable mode confirmed:** Yes
+**AppContainer:** disabled by default. It works in some environments and not others, is
+environment-dependent, and is not being investigated further. Not hard-capped, so it can be
+enabled per install.
 
 ## DuckStation
 
-**Supported eras:** PS1
+**Eras:** PS1. **Download:** https://www.duckstation.org
 
-**Portable mode mechanism:** Place an empty `portable.txt` file next to the
-binary. DuckStation detects this file on startup and redirects all user data
-to a `userdata/` directory next to the binary.
+Drop an empty `portable.txt` next to the binary and all user data redirects to `userdata/`.
 
-**Default user data path (Windows):** `%APPDATA%\DuckStation\`
+PS1 BIOS files go in `emulators/duckstation/bios/`. Filenames are flexible: DuckStation
+auto-detects region by hash, and multiple region files (SCPH-1001, SCPH-7502, and so on)
+can coexist with the right one selected per disc.
 
-**Required files:**
+**Multi-disc:** natively supports `.m3u` playlists, so Peach 1UP can point at a generated
+playlist instead of a single disc. Mid-session disc switching is a DuckStation hotkey only;
+there is no external trigger.
 
-| Filename | Purpose  | Location       | Notes                                          |
-| -------- | -------- | -------------- | ----------------------------------------------- |
-| `*.bin`  | PS1 BIOS | `bios/` subdir | Filenames are flexible, auto-detected by hash |
-
-**Optional files:** None.
-
-**ROM/BIOS version coupling:** DuckStation auto-detects BIOS region via hash.
-Multiple BIOS files (SCPH-1001, SCPH-7502, etc.) can coexist in `bios/` and
-the correct one is selected automatically per disc.
-
-**Official download:** https://www.duckstation.org
-
-**BIOS/ROM source:** Dump from your own PS1 hardware.
-
-**Bundleable:** Yes
-
-**Portable mode confirmed:** Yes
-
----
+**Not bundled.** DuckStation is CC BY-NC-ND 4.0 (non-commercial, no derivatives), so it is
+never redistributed. It is fetched unmodified from the project's own release, published
+under the fixed tag `latest`.
 
 ## PCSX2
 
-**Supported eras:** PS2
+**Eras:** PS2. **Download:** https://pcsx2.net
 
-**Portable mode mechanism:** Any of the following triggers portable mode:
+Any of `portable.txt`, `portable.ini`, or `-portable` triggers portable mode, redirecting
+user data to `userdata/`.
 
-- Place an empty `portable.txt` next to the binary
-- Place an empty `portable.ini` next to the binary
-- Pass `-portable` on the command line
+The PS2 BIOS is a multi-file set (`*.bin`, `*.rom*`, `*.erom`) and goes in
+`emulators/pcsx2/bios/`. All files must be present with original filenames. Partial sets or
+renames fail to load.
 
-All user data redirects to a `userdata/` directory next to the binary.
+**Multi-disc:** `.m3u` playlists, same as DuckStation. Mid-session switching is PCSX2's own
+in-game Change Disc menu only.
 
-**Default user data path (Windows):** `%APPDATA%\PCSX2\`
+The Windows Qt build ships as a `.7z` and is extracted with the vendored 7-Zip.
 
-**Required files:**
+## RPCS3
 
-| Filename                                   | Purpose  | Location       | Notes                                                                       |
-| ------------------------------------------ | -------- | -------------- | ---------------------------------------------------------------------------- |
-| PS2 BIOS set (`*.bin`, `*.rom*`, `*.erom`) | PS2 BIOS | `bios/` subdir | Multi-file BIOS sets must keep original filenames, renaming breaks the set |
+**Eras:** PS3. **Download:** https://rpcs3.net/download
 
-**Optional files:** None.
+Portable on Windows automatically: RPCS3 treats its executable directory as the data root,
+so no sentinel is created or needed and `rpcs3.toml` has no `portable_sentinel`. The
+install directory holds `dev_flash/`, `dev_hdd0/`, `dev_bdvd/`, `config/`, `cache/`, and
+`games/`.
 
-**ROM/BIOS version coupling:** The full multi-file BIOS set must be kept
-intact. Partial sets or renamed files will fail to load.
-The `bios/` subdirectory path is configurable in PCSX2 settings.
+Firmware (`PS3UPDAT.PUP`) is installed by RPCS3 itself, not copied into place: use
+`File > Install Firmware` or pass `--installfw`. Peach 1UP does not provide, link to, or
+assist with acquiring firmware. Any reasonably current version works.
 
-**Official download:** https://pcsx2.net
+Installed from `github.com/RPCS3/rpcs3-binaries-win`, a companion binaries repo to the
+`RPCS3/rpcs3` source repo, which publishes no downloadable releases of its own. The asset
+is a `.7z`, extracted with the vendored 7-Zip.
 
-**BIOS/ROM source:** Dump from your own PS2 hardware.
+**Multi-disc:** not applicable, PS3 titles are single-disc.
 
-**Bundleable:** Yes
+| Limitation | Severity | Detail |
+|---|---|---|
+| AppContainer not supported | critical | Heavily JIT-based recompiler (Cell PPU/SPU and RSX) relying on runtime code generation and low-level syscalls that AppContainer's restricted token blocks. Job Object isolation only. Note that `container_permanently_excluded = false` in the TOML contradicts this entry; see the open items in [the changelog](https://github.com/rymorrisj/peach_1up/blob/main/CHANGELOG.md). |
+| `.pkg` installs need two launches | info | RPCS3 refuses `--installpkg` combined with `--no-gui` and never exits on its own after an unattended install, so one call cannot both install and boot inside the coordinator's 30s dispatch window. The first launch starts the install and returns once it stabilizes on disk (RPCS3 is terminated automatically, no dialog to dismiss). Launching again boots normally from `dev_hdd0/game/<TITLE_ID>/`. |
+| First-launch stutter | info | Shaders and PPU/SPU code are compiled on first boot of a title. Later launches are smoother once caches are warm. |
+| Controllers need manual binding | info | No auto-detection. Open Pads Settings inside RPCS3 and bind a gamepad, or input falls back to keyboard. |
 
-**Portable mode confirmed:** Yes
-
----
+Both Job Object caps are enforced (`skip_cpu_limit = false`, `skip_memory_limit = false`).
 
 ## xemu
 
-**Supported eras:** Xbox OG
+**Eras:** Xbox OG. **Download:** https://xemu.app
 
-**Portable mode mechanism:** Place `xemu.toml` next to the binary. xemu
-detects this file on startup and uses the directory as its data root.
+Place `xemu.toml` next to the binary and xemu uses that directory as its data root.
 
-**Caveat:** The `-config_path` flag does **not** redirect the shader cache or
-log files, these always write to the default user profile location regardless
-of portable mode. See [xemu issue #2480](https://github.com/mborgerson/xemu/issues/2480).
+| File | Purpose | Notes |
+|---|---|---|
+| `mcpx_1.0.bin` | MCPX boot ROM | Known-bad dump MD5 `196a5f59a13382c185636e691d6c323d`, do not use |
+| `*.bin` | Flash BIOS | Tied to a specific Xbox revision; mismatched pairs will not boot |
+| `xbox_hdd.qcow2` | 8 GB HDD image | Must be a properly formatted 8 GB qcow2 |
 
-**Default user data path (Windows):** `%APPDATA%\xemu\`
+All three go in `emulators/xemu/data/default/`.
 
-**Required files:**
+**Portability is partial.** `-config_path` does not redirect the shader cache or log files,
+which always write to `%APPDATA%\xemu\` regardless. See
+[xemu issue #2480](https://github.com/mborgerson/xemu/issues/2480). AppContainer does not
+redirect `%APPDATA%` either, so the container SID is granted write access to that directory
+at first launch.
 
-| Filename         | Purpose        | Location                  | Notes                                                               |
-| ---------------- | -------------- | ------------------------- | --------------------------------------------------------------------- |
-| `mcpx_1.0.bin`   | MCPX boot ROM  | configured in `xemu.toml` | Known-bad dump MD5: `196a5f59a13382c185636e691d6c323d`, do not use |
-| `*.bin`          | Flash BIOS     | configured in `xemu.toml` |                                                                     |
-| `xbox_hdd.qcow2` | 8 GB HDD image | configured in `xemu.toml` | Must be a properly formatted 8 GB qcow2 image                       |
+**Memory cap must stay above 2048 MB.** xemu pre-allocates a 1 GB JIT buffer at startup and
+exits immediately with a paging file error if the `xbox` era cap is smaller. This is why the
+cap is enforced rather than skipped: sizing it correctly is the fix.
 
-**Optional files:** None.
+**AppContainer is enabled** as of 2026-08-11. The previous exclusion blamed QEMU's TCG
+backend calling `DeviceIoControl` for qcow2 geometry; that diagnosis was wrong. The real
+cause was memory and CPU limits sized below the JIT heap, producing an early exit that
+looked like an incompatibility.
 
-**ROM/BIOS version coupling:** The MCPX boot ROM and Flash BIOS are tied to
-specific Xbox revisions. Mismatched pairs will fail to boot.
+### Xbox disc images must be xiso
 
-**Official download:** https://xemu.app
+xemu needs the Xbox game partition extracted with the video partition stripped. The `.iso`
+extension is identical to a standard disc image; the difference is internal layout.
 
-**BIOS/ROM source:** Dump from your own Xbox OG hardware.
+| Signature | Meaning |
+|---|---|
+| `MICROSOFT*XBOX*MEDIA` at offset `0x10000` | xiso |
+| `CD001` at `0x8001`, file over 4 GB | Raw DVD rip |
 
-**Bundleable:** No. Installed on demand from `github.com/xemu-project/xemu`.
+Raw rips (7 to 8 GB) are rejected at launch with a clear error. Convert with
+[extract-xiso](https://github.com/xboxdev/extract-xiso):
 
-**Portable mode confirmed:** Yes (with shader cache caveat above)
+```bash
+extract-xiso -r <image.iso>
+```
 
-### Xbox disc image format (xiso)
+Detection lives in
+`detection/xbox_image.py`, with the
+format-level checks in the vendored `formatscout` package.
 
-xemu requires disc images in xiso format, the Xbox game partition extracted
-with the video partition stripped. The `.iso` extension is identical to a
-standard disc image; the difference is internal layout.
+### Upstream relaunch crash (unresolved)
 
-**Detection:** xiso images have the magic string `MICROSOFT*XBOX*MEDIA` at
-offset `0x10000`. A raw DVD rip has ISO 9660 structure (`CD001` at `0x8001`)
-with no Xbox magic present.
+xemu crashes on relaunch with configured BIOS, EEPROM, and disk files: `0xc0000409`
+(`STATUS_STACK_BUFFER_OVERRUN`) in `msvcrt.dll`. Confirmed upstream, not Peach 1UP
+specific: reproducible with a completely fresh xemu 0.8.136 download run standalone,
+using only Peach 1UP's existing BIOS/EEPROM/qcow2 files. First-boot (unconfigured) launches
+work; any launch that actually boots a configured machine crashes. Reported on both AMD
+(RX 9070 XT) and NVIDIA (RTX 3080 Ti) hardware, ruling out a driver cause. See
+[xemu-project/xemu#1486](https://github.com/xemu-project/xemu/issues/1486).
 
-**Raw DVD rips (7–8 GB)** will be rejected at launch with a clear error.
-Use [extract-xiso](https://github.com/xboxdev/extract-xiso) to convert:
-`extract-xiso -r <image.iso>`
+Workaround, no code fix possible: disable Control Flow Guard for `xemu.exe` via Windows
+Security → App & browser control → Exploit protection settings → Program settings → Add
+program to customize → By name → `xemu.exe` → override system settings, CFG off.
 
-Detection logic lives in `backend/service/utils/xbox_image.py`.
+## Xenia
 
----
+**Eras:** Xbox 360. **Download:** https://xenia.jp
+
+An empty `portable.txt` next to the binary resolves `storage_root` to
+`emulators/xenia/` instead of `Documents\Xenia\`. Peach 1UP creates the sentinel
+automatically after install via `ensure_portable_mode`, driven by `portable_sentinel` in
+the descriptor. The data root then holds `content/` (saves and DLC) and `cache/` (shader
+cache).
+
+No BIOS or firmware required.
+
+Installed from `github.com/xenia-project/release-builds-windows`, a companion CI repo to
+the `xenia-project/xenia` source repo. Asset is `xenia_master.zip`.
+
+**Known limitation (warning):** the default `gpu = "any"` resolves to D3D12 and has been
+confirmed to trigger an AMD GPU driver timeout during gameplay. Switching to
+`gpu = "vulkan"` avoids it, but Xenia's own in-app warning calls its Vulkan FBO render path
+"heavily incomplete, early development". There is no clean default. Change the `gpu` key in
+Xenia's portable `xenia.config.toml` (or in-app under Settings) and restart.
+
+**Multi-disc:** not applicable for `.iso` and `.xex`.
 
 ## Mesen
 
-**Supported eras:** NES, Famicom Disk System (FDS)
+**Eras:** NES, SNES, Famicom Disk System. **Download:** https://www.mesen.ca
 
-**Portable mode mechanism:** On first run, Mesen presents a setup dialog
-asking where to store data. Select the application directory to enable
-portable mode. This dialog was added in version 0.9.2.
+`eras.yaml` routes both `nes` and `snes` to Mesen, and `mesen.toml` covers `.nes`, `.chd`,
+`.sfc`, `.smc`, `.fig`, `.swc`, and `.zip`.
 
-**Default user data path (Windows):** `%APPDATA%\Mesen\` (if not set to portable)
+**Portable mode depends on an interactive first-run choice.** Mesen asks where to store
+data on first run (dialog added in 0.9.2); selecting the application directory enables
+portable mode. Peach 1UP cannot set this, so portability cannot be assumed.
 
-**Required files:** None. No BIOS required for standard NES/Famicom titles.
+`FdsBios.bin` (SHA1 `e4e41472c454f928e53eb10e0509bf7d1146ecc1`) is optional and goes in
+`emulators/mesen/data/`. It is only needed for Famicom Disk System titles. Mesen 2 also
+adds optional SNES coprocessor ROMs (DSP-1, ST-010) for wider compatibility.
 
-**Optional files:**
-
-| Filename      | Purpose                  | Location         | SHA1                                       |
-| ------------- | ------------------------ | ----------------- | ------------------------------------------- |
-| `FdsBios.bin` | Famicom Disk System BIOS | `FirmwareFiles\` | `e4e41472c454f928e53eb10e0509bf7d1146ecc1` |
-
-Mesen 2 adds optional SNES coprocessor ROMs (DSP-1, ST-010, etc.) for enhanced
-compatibility with SNES titles.
-
-**ROM/BIOS version coupling:** None beyond the optional FDS BIOS.
-
-**Official download:** https://www.mesen.ca
-
-**BIOS/ROM source:** Dump from your own Famicom Disk System hardware.
-
-**Bundleable:** No. Installed on demand from `github.com/SourMesen/Mesen2`.
-
-**Portable mode confirmed:** Yes
-
----
+**Multi-disc:** not applicable. FDS multi-disk titles are single self-contained files and
+side switching happens inside Mesen.
 
 ## Project64
 
-**Supported eras:** N64
+**Eras:** N64. **Download:** https://www.pj64-emu.com
 
-**Portable mode mechanism:** Project64 is portable by default when its install
-directory is writable. All configuration is stored in `Config\` under the
-application path (`AppPath\Config\`).
+Portable by default whenever its install directory is writable; all config lives in
+`AppPath\Config\`. No BIOS required.
 
-**Default user data path (Windows):** `<install dir>\Config\`
+**Not auto-installable.** The project publishes git tags but no GitHub release assets, so
+there is nothing for the installer to match. The user downloads the Windows build from
+pj64-emu.com and extracts it into `emulators/project64/`. This is permanent, not a deferred
+decision.
 
-**Required files:** None. No BIOS required.
+**AppContainer permanently excluded** (`container_permanently_excluded = true`). Project64
+crashes on launch under AppContainer (`Main.cpp:99`, `exit_code=1`), reproduced with memory
+and CPU limits raised. Root cause unknown. Job Object caps remain the only active isolation
+layer, and both are enforced.
 
-**Optional files:** None.
-
-**ROM/BIOS version coupling:** None.
-
-**Official download:** https://www.pj64-emu.com
-
-**BIOS/ROM source:** N/A
-
-**Bundleable:** Yes
-
-**Portable mode confirmed:** Yes
-
----
+**Multi-disc:** not applicable for cartridges. 64DD disk titles, rare here, swap manually
+inside Project64's own menu.
 
 ## Flycast
 
-**Supported eras:** Dreamcast
+**Eras:** Dreamcast. **Download:** https://github.com/flyinghead/flycast
 
-**Portable mode mechanism:** Place `emu.cfg` next to the binary. Flycast
-checks for this file on startup and uses the directory as its data root.
+Place `emu.cfg` next to the binary and Flycast uses that directory as its data root.
 
-**Default user data path (Windows):** `%APPDATA%\flycast\`
+| File | Purpose |
+|---|---|
+| `dc_boot.bin` | Dreamcast BIOS ROM, required for boot |
+| `dc_flash.bin` | Flash ROM, required for region and date settings |
 
-**Required files:**
+Both go in `emulators/flycast/data/` and **must be from the same hardware revision**.
+Mismatched pairs cause region or boot failures.
 
-| Filename       | Purpose             | Location               | Notes                             |
-| -------------- | ------------------- | ----------------------- | ---------------------------------- |
-| `dc_boot.bin`  | Dreamcast BIOS ROM  | `data/` next to binary | Required for boot                 |
-| `dc_flash.bin` | Dreamcast flash ROM | `data/` next to binary | Required for region/date settings |
+Flycast has no `saves/` directory: save states, VMU images, and `dc_nvmem.bin` all live
+flat in `data/`, which the `install_dir` broker grant already covers. The descriptor
+deliberately has no `saves_dir` entry, because it pointed at a directory the archive never
+creates and aborted the launch at the DACL grant stage until someone made it by hand.
 
-**Optional files:** None.
+**AppContainer is enabled.** The descriptor's own `known_limitations` entry still says
+otherwise; that text is stale and the flag is authoritative.
 
-**ROM/BIOS version coupling:** `dc_boot.bin` and `dc_flash.bin` must be from
-the same hardware revision. Mismatched pairs may cause region or boot failures.
-
-**Official download:** https://github.com/flyinghead/flycast
-
-**BIOS/ROM source:** Dump from your own Dreamcast hardware.
-
-**Bundleable:** No. Installed on demand from `github.com/flyinghead/flycast`.
-
-**Portable mode confirmed:** Yes
-
-_Note:_ Flycast does not support DX9 out of the box. This means Flycast will not run on older OSs like Windows 7 or earlier.
-You can fix this by rebuilding Flycast from the `emulators/flycast` directory with the DX9 SDK installed on your machine. See the Flycast GitHub repo for
-build details.
-
-Dependencies are included in `peach_1up\emulators\flycast\dependencies`. The release build is built with:
+Flycast does not support DX9 out of the box, so it will not run on Windows 7 or earlier.
+Rebuilding from `emulators/flycast/` with the DX9 SDK installed fixes that. The release
+build uses:
 
 ```bash
 cmake -S . -B build -A x64 -DUSE_DX9=OFF -DUSE_VULKAN=ON -DUSE_DX11=ON -DUSE_OPENGL=ON
 ```
 
----
-
-## RPCS3
-
-**Supported eras:** PS3
-
-**Portable mode mechanism:** Automatic on Windows. RPCS3 treats its own
-executable directory as the data root, so no sentinel file is created or needed.
-
-**Default user data path (Windows):** the install directory itself
-(`emulators/rpcs3/`), holding `dev_flash/`, `dev_hdd0/`, `dev_bdvd/`,
-`config/`, `cache/`, and `games/`.
-
-**Required files:**
-
-| Filename/Path  | Purpose         | Location                            | Notes                                                                                               |
-| -------------- | --------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `PS3UPDAT.PUP` | PS3 firmware    | installed into `dev_flash/` by RPCS3 | Not copied into place. Install from `File > Install Firmware` inside RPCS3, or pass `--installfw`. |
-
-Peach 1UP does not provide, link to, or assist with acquiring firmware files.
-
-**Optional files:** None.
-
-**ROM/BIOS version coupling:** None. Any reasonably current firmware works.
-
-**Official download:** https://rpcs3.net/download
-
-**BIOS/ROM source:** Sony's own PS3 firmware update package, obtained by the user.
-
-**Bundleable:** No. Installed on demand from `github.com/RPCS3/rpcs3-binaries-win`.
-The asset is a `.7z` and is extracted with the vendored 7-Zip.
-
-**Portable mode confirmed:** Yes
-
-**Known limitations:**
-
-- **AppContainer isolation not supported.** RPCS3 is a heavily JIT-based recompiler
-  (Cell PPU/SPU and RSX) that relies on runtime code generation incompatible with
-  AppContainer's restricted token, the same class of limitation as xemu. Job Object
-  isolation (kill-on-close, CPU cap) is the only available isolation layer.
-- **Digital content (`.pkg`) installs need two launch attempts.** The first launch of
-  an uninstalled `.pkg` starts the install and returns once it stabilizes on disk;
-  launching the same title again afterward boots it normally.
-- **First-launch shader and JIT compilation stutter** is expected on a title's first
-  boot; subsequent launches are smoother once the caches are warm.
-- **Controller input requires manual configuration** inside RPCS3's own Pads Settings.
-
----
-
-## Xenia
-
-**Supported eras:** Xbox 360
-
-**Portable mode mechanism:** Place an empty `portable.txt` next to the binary.
-Xenia then resolves its `storage_root` to the executable's directory
-(`emulators/xenia/`) instead of `Documents\Xenia`. Peach 1UP creates this
-sentinel automatically after install.
-
-**Default user data path (Windows):** `Documents\Xenia\` without the sentinel;
-`emulators/xenia/` with it, holding `content/` (saves and DLC) and `cache/`
-(shader cache).
-
-**Required files:** None. No BIOS or firmware required.
-
-**Optional files:** None.
-
-**ROM/BIOS version coupling:** None.
-
-**Official download:** https://xenia.jp
-
-**BIOS/ROM source:** N/A
-
-**Bundleable:** No. Installed on demand from
-`github.com/xenia-project/release-builds-windows`. The asset is `xenia_master.zip`.
-
-**Portable mode confirmed:** Yes
-
----
+Dependencies are in `emulators/flycast/dependencies`.
 
 ## Legal
 
-**Peach 1UP does not redistribute emulator binaries.** Every emulator is fetched
-from its own upstream release at the user's request and installed into
-`emulators/<slug>/` on first use, or (Project64 only) downloaded manually by the
-user.
+The root `LICENSE` is GPL-2.0-or-later.
 
-| Emulator    | License         | Install Type     |
-| ----------- | --------------- | ---------------- |
-| 86Box       | GPL-2.0         | github_release   |
-| DOSBox-X    | GPL-2.0         | github_release   |
-| DuckStation | CC BY-NC-ND 4.0 | github_release   |
-| Flycast     | GPL-2.0         | github_release   |
-| Mesen       | GPL-3.0         | github_release   |
-| PCSX2       | GPL-3.0         | github_release   |
-| Project64   | GPL-2.0         | zip (manual)     |
-| RPCS3       | GPL-2.0         | github_release   |
-| Xenia       | BSD-3-Clause    | github_release   |
-| xemu        | GPL-2.0         | github_release   |
+**Peach 1UP does not redistribute emulator binaries.** Every emulator is fetched from its
+own upstream release at the user's request and installed into `emulators/<slug>/`, or
+(Project64 only) downloaded manually. What ships in the repository and in a release build
+is the license and attribution set: each emulator's license file plus, for the GPL
+emulators, a `SOURCE_OFFER.txt` pointing at the corresponding source.
 
-Project64 is the one exception to one-click install: the project publishes git
-tags but no GitHub release assets, so there is nothing for the installer to
-match. The user downloads it from pj64-emu.com and extracts it into
-`emulators/project64/` themselves.
+This also settles DuckStation. It is CC BY-NC-ND 4.0 (non-GPL, non-commercial only), and
+fetching it unmodified from the project's own GitHub release avoids redistributing it at
+all. Every other emulator is GPL-2.0, GPL-3.0, or BSD-3-Clause.
+
+`Install Type` is the `install_type` field in `config/emulators/<slug>.toml` and is the
+source of truth for how a binary arrives.
+
+| Emulator | License | License file | `SOURCE_OFFER.txt` | Install type | In `NOTICE` |
+|---|---|---|---|---|---|
+| 86Box | GPL-2.0 | `COPYING` | Yes | `github_release` | Yes |
+| DOSBox-X | GPL-2.0 | `COPYING` | Yes | `github_release` | Yes |
+| DuckStation | CC BY-NC-ND 4.0 | `LICENSE.txt` | Not required | `github_release` | **No** |
+| Flycast | GPL-2.0 | `LICENSE` | Yes | `github_release` | Yes |
+| Mesen | GPL-3.0 | `LICENSE` | Yes | `github_release` | Yes |
+| PCSX2 | GPL-3.0 | `COPYING.GPLv3` | Yes | `github_release` | Yes |
+| Project64 | GPL-2.0 | `license.md` | Yes | `zip` (manual) | Yes |
+| RPCS3 | GPL-2.0 | `LICENSE.txt` | **No** | `github_release` | Yes |
+| Xenia | BSD-3-Clause | `LICENSE` | Not required | `github_release` | Yes |
+| xemu | GPL-2.0 | `LICENSE.txt` | Yes | `github_release` | Yes |
+
+Two gaps remain in `NOTICE`:
+
+- **DuckStation has no `NOTICE` entry.** It is installed by the app and should be listed
+  alongside the rest.
+- **RPCS3 has no `SOURCE_OFFER.txt`.** Its binary comes from `RPCS3/rpcs3-binaries-win`
+  (which is what `source_url` points at, because the installer derives the release repo
+  from that field), and the corresponding source is the public `RPCS3/rpcs3` repository.
+  A `SOURCE_OFFER.txt` naming that repository would match the other GPL emulators.
+
+Xenia needs no source offer: BSD-3-Clause carries no such obligation.

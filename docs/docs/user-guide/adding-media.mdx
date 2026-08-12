@@ -1,0 +1,112 @@
+---
+title: Adding Media
+---
+
+# Adding Media
+
+Everything you add lands under **Software**, split into three domains.
+
+| Domain | Holds | Launchable |
+|---|---|---|
+| **Games** | Disc images, ROMs, and game folders | Yes |
+| **Media** | Archival content: audio, PDFs, images, video | No |
+| **Apps** | Non-game software bundles | Yes |
+
+Games are stored as a **bundle** plus one or more **items**. A single-disc game is a bundle
+of one. A four-disc game is one bundle with four items, an explicit disc order, and a
+designated boot disc.
+
+## Four ways in
+
+| Method | Use when |
+|---|---|
+| **Upload** | The file is on the machine you are browsing from. Chunked, resumable, works for large images |
+| **Import from path** | The file is already on the server's disk and you want Peach 1UP to take it over |
+| **Scan** | You have a directory of media and want to review what is found before importing |
+| **Add manually** | You want to point at a path and fill in the details yourself |
+
+All four converge on the same ingest pipeline, so detection, hashing, and defaults behave
+identically no matter which one you use.
+
+## What happens on ingest
+
+1. **Validate.** The path is normalised and checked. A path that is already an Environment's
+   base or working image is rejected.
+2. **Detect.** The file or folder is inspected with no writes to disk. Detection runs in
+   tiers and stops at the first confident answer:
+
+   | Tier | What it checks |
+   |---|---|
+   | 1 | Full-file SHA-1 against a bundled index built from Redump and No-Intro data |
+   | 2 | Magic bytes in the file header |
+   | 3 | Container structure: ISO 9660 volume descriptor, CHD metadata tags, cue-to-bin resolution |
+   | 4 | Directory heuristics: `SYSTEM.CNF`, `I386`, `AUTORUN.INF`, DOS tool names, and similar |
+   | 5 | Extension and file size, lowest confidence |
+
+3. **Stage.** The file is moved or copied into the library, deduplicated, and given a slug
+   directory. Cover art sitting next to the media is picked up automatically.
+4. **Finalize.** Era, emulator, launch profile, and content rating are assigned, and each
+   disc is verified.
+
+If any step fails, the staging writes are undone. You do not get a half-ingested item.
+
+## Verification
+
+Every disc gets its own SHA-1 at ingest, because Redump gives each disc of a set its own
+entry. The result is one of five states:
+
+| Status | Meaning |
+|---|---|
+| `verified` | The bytes match a known community dump exactly |
+| `caution` | Matched, but at lower confidence |
+| `mismatch` | The title fuzzy-matched an indexed title, but no hash did |
+| `not_in_index` | Hashed successfully, no entry found |
+| `unchecked` | Could not be hashed |
+
+**`mismatch` is not an alarm.** The public hash catalogs are inherently incomplete, and
+today the bundled index only covers PS1 and Xbox. Every other platform will normally come
+back `not_in_index`. Nothing is ever blocked or rejected on a verification result.
+
+For a multi-disc bundle, the bundle-level status is a worst-severity rollup across its
+discs, not any single disc's own state.
+
+You can re-check at any time from the bundle or item detail page. Re-verification catches
+post-ingest corruption or a swapped file.
+
+## Multi-disc sets
+
+Peach 1UP groups discs at upload time. It does not auto-detect sets during a scan.
+
+- **Set upload:** select every disc file. Pointer files (`.gdi`, `.cue`, `.chd`) are kept in
+  the order you selected them, and companion files (a `.bin` next to its `.cue`) ride along
+  into the same directory.
+- **Folder upload:** if the folder contains two or more pointer files of a **single**
+  format, it becomes a multi-disc bundle. Mixed pointer formats in one folder are rejected
+  with a clear error rather than guessed at.
+
+Every file of one upload lands in the same slug directory, so a `.cue` and its `.bin` stay
+siblings.
+
+Only the boot disc has a launch route. The other discs exist to be swapped in from inside
+the emulator. See the [Multi-Disc Guide](./multi-disk-guide.mdx).
+
+## Scanning
+
+A scan re-walks the directory every time. There is no cached preview, so what you see is
+what is on disk right now.
+
+Import re-validates every path you selected, at request time, against the database. If a
+path the database knows about has gone missing on disk, the import **fails loudly** with
+the item name rather than silently dropping it.
+
+The era you saw in the scan preview is not trusted at import. Detection runs fresh against
+the file on disk; the previewed value only ever decides which file inside a multi-format
+folder is authoritative.
+
+## Deleting
+
+Deleting a bundle is a two-step confirmation: the app requests a short-lived token, then
+sends it with the delete. Tokens expire after 60 seconds.
+
+By default the files on disk are **preserved**. Turn on `delete_media_on_removal` in
+Settings if you want the media folder removed along with the database rows.

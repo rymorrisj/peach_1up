@@ -1,48 +1,61 @@
-# Contributing to Peach 1UP
+# Contributing
+
+Peach 1UP is a solo project today. There is no review rotation and no release cadence, so
+treat this as "how to send a change that can actually be merged" rather than a process.
 
 ## Quick start
 
-1. **Clone and run**, follow [Getting Started](docs/docs/getting-started/index.md) to get the dev server running (`start.bat`; Windows-only, see [Technology Stack](docs/docs/contributor-guide/tech-stack.mdx)). The script creates the virtual environment, installs dependencies, generates the typed API client, and starts every service.
-2. **Branch**, create a feature branch off `main`: `git checkout -b feat/your-topic`.
-3. **Verify statically**, type-check and lint before committing (see [Static verification](#static-verification)).
-4. **Commit**, follow the [commit format](#commit-format) below.
-5. **Open a PR** against `main`.
+```bash
+# 1. Vendored deps are not committed. Clone them first.
+git clone https://github.com/rymorrisj/formatscout services/vendor/formatscout
+git clone https://github.com/rymorrisj/wincage    services/vendor/wincage
+# wincage needs sandbox_host.exe compiled via MSYS2, see its README
 
-## Static verification
+# 2. Install and run
+uv sync --group dev
+start.bat
 
-Never run the test suite (`pytest`, `vitest`, or any harness) or install/remove packages as part of a contribution. Verify correctness by reading the code, tracing call sites, and checking logic by inspection.
+# 3. Branch
+git checkout -b feat/your-topic
+```
 
-**TypeScript type check:**
+Windows only. There is no Linux dev path and there will not be one.
+
+## Verify statically
+
+**Never run the test suite (`pytest`, `vitest`, or any harness) and never install, update,
+or remove packages as part of a contribution.** Verify correctness by reading the code and
+tracing call sites. If a dependency looks missing, stop and say so rather than routing
+around it.
 
 ```bash
+# TypeScript
 cd frontend && npx tsc --noEmit
-```
 
-**Frontend lint and format check:**
-
-```bash
+# Frontend lint and format
 cd frontend && npm run lint && npm run format:check
-```
 
-**Python linting** (Ruff is installed by `uv sync --group dev`; config lives under
-`[tool.ruff]` in [`pyproject.toml`](pyproject.toml)):
-
-```bash
+# Python lint
 uv run ruff check backend
 ```
+
+CI runs the suites on every push and pull request to `main`: Ruff plus `pytest --cov` on
+Windows, ESLint, Prettier, a production build, `vitest run --coverage`, and a packaging
+smoke test that builds with PyInstaller and asserts the frozen exe serves
+`/api/openapi.json`.
 
 ## Commit format
 
 ```
 <type>(<scope>): <summary under 72 chars>
 
-[optional body, what changed and why, not how]
-[optional footer, breaking changes, refs]
+[optional body: what changed and why, not how]
+[optional footer: breaking changes, refs]
 ```
 
 **Types:** `feat` · `fix` · `chore` · `docs` · `refactor` · `test` · `safety`
 
-**Scopes:** use the area of the project being changed. The scopes in active use are:
+**Scopes** name the area being changed. The ones in active use:
 
 | Group | Scopes |
 |---|---|
@@ -51,41 +64,61 @@ uv run ruff check backend
 | Ingest and detection | `uploads` · `detection` · `hashing` · `metadata` |
 | Platform and infra | `api` · `auth` · `backend` · `frontend` · `ui` · `config` · `settings` · `jobs` · `system` · `build` · `ci` · `vendor` · `docs` · `tests` |
 
-`library` and `platforms` are pre-v2 scope names, superseded by `software`/`games` and
-`environments` respectively. Do not use them for new commits.
+`library` and `platforms` are pre-v2 names, superseded by `software`/`games` and
+`environments`. Do not use them for new commits.
 
-**Rules:**
+**Rules**
 
 - Present tense: `add`, not `added`
-- No vague summaries: `fix bug`, `update`, `misc` are not acceptable
-- One logical change per commit, do not bundle unrelated changes
-- If a commit touches a roadmap task, append the task ID: `feat(api): add upload endpoint [P4-3]`
+- No vague summaries. `fix bug`, `update`, and `misc` are not acceptable
+- One logical change per commit. Do not bundle unrelated work
 
-**Examples:**
+**Examples**
 
 ```
-feat(library): add folder upload with per-file size cap
+feat(uploads): add folder upload with per-file size cap
 fix(sandbox): abort launch if Job Object creation fails
-docs(contributing): add static verification guidance
 safety(api): reject emulator path overrides from request input
+docs(security): correct AppContainer status table
 ```
 
 ## Code style
 
-- **Python**, PEP 8 enforced via Ruff; no hardcoded paths or secrets; runtime settings live in the `settings` DB table, secrets in `.env`
-- **TypeScript**, ESLint + Prettier; avoid `any`; use the generated API client in `shared/types.ts`
-- Generated files (`shared/types.ts`, `shared/openapi.json`, `backend/constants_generated.py`, `frontend/src/generated/constants.ts`) are produced by `scripts/gen_constants.py` and `scripts/export_and_build_types.py`. Regenerate rather than hand-editing them
-- Never accept user input into emulator binary paths at launch time, no exceptions
-- All media passed to emulators must be mounted read-only
+| Area | Rules |
+|---|---|
+| Python | PEP 8 via Ruff. No hardcoded paths or secrets: runtime settings go in the `settings` DB table, secrets in `.env` |
+| TypeScript | ESLint and Prettier. Avoid `any`. Use the generated client in `shared/types.ts` |
+| Generated files | `shared/types.ts`, `shared/openapi.json`, `backend/constants_generated.py`, and `frontend/src/generated/constants.ts` come from `scripts/gen_constants.py` and `scripts/export_and_build_types.py`. Regenerate; never hand-edit |
+| Comments | Explain why, not what. Skip the ones that restate the line below them |
 
-## What not to do
+## Hard rules
 
-- Never force-push or rewrite history on `main` without explicit owner confirmation
-- Never install, update, or remove packages as part of a contribution, if a dependency is missing, stop and report it
-- Never commit `.env`, OS images, ROM files, BIOS files, or user-supplied binaries
-- Never edit [`dev_docs/SCOPE.md`](dev_docs/SCOPE.md), [`dev_docs/CLAUDE.md`](dev_docs/CLAUDE.md), or [`dev_docs/DECISIONS.md`](dev_docs/DECISIONS.md), these are maintainer-managed files
-- Never commit generated output as a hand-edited change, regenerate it instead
+These are not style preferences. A change that breaks one of them is not mergeable.
+
+- **Never accept user input into an emulator binary path.** No exceptions. See
+  [SECURITY.md](dev_docs/SECURITY.md) § Input validation.
+- **All media passed to an emulator is mounted read-only.**
+- **Never add an unsandboxed launch fallback.** If Job Object creation or assignment fails,
+  the launch aborts.
+- **Fail loud.** Surface the error. Do not swallow an exception to keep a flow moving.
+- **Never commit** `.env`, OS images, ROM files, BIOS files, or any user-supplied binary.
+- **Never force-push or rewrite history on `main`** without explicit owner confirmation.
+- `dev_docs/SCOPE.md` and `dev_docs/CLAUDE.md` are maintainer-managed. Do not edit them.
+
+Before writing code that touches auth, path handling, subprocess spawning, launch flows,
+disk image operations, settings, destructive operations, network binding, or secrets:
+read [SECURITY.md](dev_docs/SECURITY.md) first. If an approach requires working around a
+rule in it, stop and raise it instead.
+
+## Pull requests
+
+- Target `main`.
+- Say what changed and why. Link the relevant `dev_docs/` section if the change contradicts
+  something written there, and update that document in the same PR.
+- If your change makes a documented claim false, fixing the document is part of the change.
 
 ## Security
 
-Report security vulnerabilities privately rather than opening a public issue. See [Security Architecture](docs/docs/contributor-guide/security.mdx) for the threat model and contact information.
+Report vulnerabilities **privately** via
+[GitHub Security Advisories](https://github.com/rymorrisj/peach_1up/security/advisories),
+not a public issue. See [SECURITY.md](dev_docs/SECURITY.md) for the threat model.

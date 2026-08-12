@@ -1,0 +1,131 @@
+---
+title: Auth Reference
+---
+
+# Auth Reference
+
+The token and cookie lifecycle, the permission model, and the middleware chain. For the
+user-facing view of accounts and parental controls, see
+[Accounts and Parental Controls](../user-guide/accounts.mdx).
+
+## Token and cookie model
+
+| Property | Value |
+|---|---|
+| Session cookie | `peach_token`, `HttpOnly`, `SameSite=Lax` |
+| CSRF cookie | `peach_csrf`, **not** `HttpOnly` (JS must read it), `SameSite=Lax` |
+| `Secure` flag | Follows `ALLOW_NETWORK_ACCESS` on both cookies |
+| `max_age` | The account's session TTL in seconds when set, otherwise a fixed 30 days |
+| Cookie value | `{user_item_id}.{session_token}` |
+| Token derivation | `HMAC-SHA256(identity_token_secret, nonce + "." + issued_at)`, hex digest |
+| Persisted | Only a plain SHA-256 hash of the token. The token itself is never stored |
+| Storage | Columns on the user row. There is no separate token table |
+| Default expiry | None server-side unless a per-account TTL is set |
+| Concurrent sessions | One per account. A new login overwrites the stored hash, invalidating the previous session |
+| Revocation | Null the hash and expiry. No row to delete, no cleanup job |
+
+Session validation returns nothing if the user is missing, the hash is null (logged out), or
+the expiry has passed, and otherwise compares with a constant-time digest comparison.
+
+:::danger Network access requires TLS
+Enabling `ALLOW_NETWORK_ACCESS` flips `Secure` to true on both cookies. Without TLS
+termination already running in front of the service, browsers silently drop them over plain
+HTTP: login appears to succeed, and every following request looks unauthenticated. The
+result is an infinite re-login loop with no error message.
+:::
+
+### Refresh does not rotate
+
+`extend_session` recomputes the expiry only. It never touches the stored hash and never
+mints a token, so refresh is idempotent across concurrent calls (React StrictMode
+double-mount, multiple tabs, network retries).
+
+The prior design minted a new token on every refresh. Two near-simultaneous refreshes raced:
+the first call's commit invalidated the token the second was still presenting, producing a
+spurious 401 and auto-sign-out, most visibly right after first-run setup. Token issuance is
+now exclusive to setup-owner and switch.
+
+## Permission flags
+
+The authoritative list is `UserItemBase` in `backend/models/user.py`.
+
+| Flag | Owner | Sub-account | Gates |
+|---|:-:|:-:|---|
+| `is_owner` | yes | always no | Bypasses every permission check. Also the direct gate on create and delete sub-account |
+| `is_admin` | yes | no | Edit, reset-pin, unlock, and force-logout an existing sub-account, plus admin-only settings, emulator, and BIOS endpoints. Grants no other flag implicitly |
+| `can_launch_media` | yes | yes | Launch any permitted bundle |
+| `can_manage_game` | yes | no | Game bundle and item CRUD, scan, import, **and** launch profile CRUD |
+| `can_manage_environment` | yes | no | Register or modify Environments |
+| `can_manage_media` | yes | no | The archival Media domain |
+| `can_manage_app` | yes | no | The Apps domain and its upload router |
+| `can_manage_controllerMapping` | yes | no | Controller mappings |
+| `can_manage_settings` | yes | no | Read and modify application settings |
+| `can_manage_users` | no | no | Edit its own name and reset its own PIN only |
+
+Owner setup sets every flag except `can_manage_users`, which stays off because the owner
+bypasses permission checks regardless.
+
+`require_permission(flag)`: the owner passes unconditionally, everyone else must have the
+literal boolean set. 403 on failure. `is_admin` is checked the same way as any other flag.
+
+## Middleware chain
+
+Added LIFO, so the runtime order is:
+
+```
+Browser request
+  → RequestLogging    method, path, status, duration. Never headers or bodies
+  → CORS              preflight; origins are localhost plus an optional CORS_ORIGIN
+  → Security          reject non-localhost clients when network access is off;
+                      inject X-Request-ID
+  → CSRF              double-submit check on state-mutating requests
+  → FirstRunGuard     redirect to /first-run until setup completes
+  → Router / handler
+```
+
+- CSRF exempts the `/api/v1/auth/` prefix, and skips the check entirely when no session
+  cookie is present, so unauthenticated callers get a 401 from the auth dependency rather
+  than a misleading 403.
+- The first-run guard reads an in-memory bool set at startup and again on completion. No
+  database query per request.
+- OPTIONS bypasses the security and first-run middleware.
+
+## PIN reset authority
+
+| Caller | May reset |
+|---|---|
+| Owner | Anyone's, regardless of lock state or role |
+| Admin | Regular sub-accounts only. Not the owner, not another admin, not itself |
+| `can_manage_users` holder | Its own only, and not while locked |
+| Anyone | Never the owner's |
+
+The owner's PIN can only be reset by running `scripts/setup_admin_user.py` locally. That
+script overwrites the owner record, re-grants every permission, clears the lock, and revokes
+any session issued before the reset.
+
+A PIN reset does not end existing sessions. Force-logout does.
+
+## The user list endpoint is intentionally unauthenticated
+
+`GET /api/v1/user-items` has no auth dependency. It returns only the read schema, which
+excludes the PIN hash, the session hash, and the identity secret, so it exposes nothing that
+proves identity or grants access.
+
+Why: it is the data source for the switch-account screen a signed-out user lands on. The
+switch endpoint already requires no prior session, since you present an account ID plus a
+PIN rather than a cookie. Gating the *list* created a lockout: a session-expired user was
+redirected to the account picker, whose own fetch 401'd, leaving no way to see which account
+to switch to.
+
+Every other endpoint on that router is gated, and all five mutating-by-id endpoints carry an
+owner-target guard regardless of which path let the caller in.
+
+## Secrets never exposed
+
+- The PIN hash, identity secret, and session hash are server-only columns, excluded from
+  every response schema.
+- The session token is set as a cookie only, never in a response body, never logged.
+- Third-party API keys live in `.env` only.
+
+Request logging emits method, path, status, and duration, so no request or response headers
+reach the log at all.

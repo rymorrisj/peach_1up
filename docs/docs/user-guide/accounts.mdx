@@ -1,0 +1,122 @@
+---
+title: Accounts and Parental Controls
+---
+
+# Accounts and Parental Controls
+
+One household, one owner, and as many sub-accounts as you want. Every account has its own
+PIN, its own permissions, and its own view of the library.
+
+Accounts live under **Users**.
+
+## Roles
+
+| Role | Can |
+|---|---|
+| **Owner** | Everything. Bypasses every permission check. Exactly one per install, enforced by a database constraint |
+| **Admin** | Edit, reset the PIN of, unlock, and force-logout an existing sub-account, plus admin-only settings, emulator, and BIOS endpoints. **Cannot create or delete accounts** |
+| **Sub-account** | Whatever its permission flags allow |
+
+`is_admin` grants nothing else implicitly. Every other flag is checked independently.
+
+## Permission flags
+
+Only the owner can grant these.
+
+| Flag | Controls | Default for a new sub-account |
+|---|---|---|
+| `can_launch_media` | Launching anything | On |
+| `can_manage_game` | Adding, editing, deleting, scanning, and importing games, and managing launch profiles | Off |
+| `can_manage_media` | The archival Media domain | Off |
+| `can_manage_app` | The Apps domain, including its uploads | Off |
+| `can_manage_environment` | Registering and modifying Environments | Off |
+| `can_manage_controllerMapping` | Controller mappings | Off |
+| `can_manage_settings` | Reading and changing application settings | Off |
+| `can_manage_users` | Editing **its own** name and resetting **its own** PIN. Nothing else | Off |
+
+`can_manage_users` is deliberately narrow. It grants no capability over any other account,
+no self-delete, and none of the owner-only operations.
+
+## PINs
+
+- 4 to 6 digits, hashed with Argon2id and a per-user random salt. Plaintext PINs are never
+  stored, logged, or returned by any endpoint.
+- **Four consecutive wrong attempts locks the account.** The count-and-lock is one atomic
+  database update, so two simultaneous attempts cannot both slip past the threshold.
+- The switch endpoint is additionally rate limited to 30 attempts per minute per source IP.
+  That budget is deliberately loose, because several accounts on a household network share
+  one IP. The per-account four-attempt lockout is the real brake on guessing a single PIN;
+  the IP cap exists to stop high-volume sweeps across many accounts.
+- The **owner always needs its PIN**, even to switch back into an already-active session.
+
+### Optional pepper
+
+You can set an app-level `PIN_PEPPER` in Settings. It is stored in `.env`, outside the
+database, and mixed directly into the hash.
+
+:::warning Setting or changing the pepper is disruptive by design
+Every previously-issued hash becomes unverifiable. All non-owner accounts are forced back
+into "PIN required" with their hash cleared, and the owner is re-hashed in the same request
+using the PIN you supply. There is no migration path and no way to rotate it without this.
+Treat it as a communicated event, not a casual toggle.
+:::
+
+## Resetting a PIN
+
+| Caller | Can reset |
+|---|---|
+| Owner | Anyone's, regardless of lock state or role |
+| Admin | Regular sub-accounts only. Not the owner, not another admin, not itself |
+| `can_manage_users` holder | Its own only, and **not** while its account is locked |
+| Anyone | **Never the owner's** |
+
+A PIN reset does not end existing sessions. Use **Force logout** to revoke one.
+
+### Owner lockout recovery
+
+The only recovery path is local:
+
+```bash
+python scripts/setup_admin_user.py
+```
+
+It prompts for a name and new PIN, overwrites the owner record, re-grants every permission,
+clears the lock, and revokes any session issued before the reset. There is no remote reset,
+no email recovery, and no bypass flag. Packaged builds ship `reset_owner.bat` as a wrapper.
+
+## Content ratings
+
+Each sub-account has a rating ceiling and a switch for unrated content.
+
+| Setting | Effect |
+|---|---|
+| `max_content_rating` | Items rated above this are **hidden entirely**, not shown and then refused at launch |
+| `block_unrated_media` | Whether items with no rating are visible |
+
+Ratings are read at scan time from NFO sidecars, disc metadata, or the filename, and the
+owner can override any of them. The scale is free text; ESRB (E, E10+, T, M, AO) and PEGI
+(3, 7, 12, 16, 18) are the recommended vocabularies.
+
+**The filter fails closed.** An item whose rating cannot be recognised is denied to a capped
+account rather than passed through. If an account's own ceiling stops resolving to a known
+value, no rated content passes at all rather than the cap being silently dropped.
+Enforcement is server side, deny wins over every permission flag, and there is no override
+path.
+
+### Per-item restrictions
+
+Separately from ratings, an admin can block specific games, media, or apps for specific
+accounts. An admin who is themselves blocked from an item cannot read or edit its
+restriction list either.
+
+## Sessions
+
+- One active session per account, by design. Signing in on a second device ends the first.
+- Sessions do not expire server-side by default. You can set a per-account time-to-live.
+- The session cookie is `HttpOnly` and `SameSite=Lax`, and the browser-side lifetime is
+  capped at 30 days even when the server-side session never expires.
+- Every state-changing request carries a CSRF token, so another browser tab cannot act on
+  your behalf.
+
+Deleting a sub-account removes its per-item restrictions and reassigns its launch profiles
+to the owner. The profiles are not deleted.

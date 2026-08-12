@@ -1,0 +1,108 @@
+---
+title: Launching
+---
+
+# Launching
+
+What happens between pressing Launch and the emulator appearing.
+
+## The short version
+
+```
+Launch pressed
+  → permission and rating checks
+  → resolve which disc boots and which profile applies
+  → hydrate the writable drive (DOS only)
+  → resolve the emulator binary and write its per-launch config
+  → spawn suspended, apply isolation, resume
+  → watch for an immediate crash, then hand control to the emulator
+```
+
+## Step by step
+
+**1. Gates.** You need `can_launch_media`. If the bundle is above your account's content
+rating ceiling, or explicitly restricted for your account, it is not visible to you in the
+first place.
+
+**2. Concurrency reservation.** A launch reserves its profile and its (emulator, user) pair
+before any work starts. A second launch of the same profile or the same emulator by the same
+user is rejected with a clear error rather than racing the first one. The check and the
+reservation are atomic, so two simultaneous requests cannot both slip through.
+
+**3. Resolve the target.** For a multi-disc bundle this is the designated boot disc. A
+bundle with no boot disc configured cannot launch.
+
+**4. Resolve the profile.** In order: the profile passed with the request, then the bundle's
+assigned profile. If neither exists, the launch stops with an actionable message rather than
+guessing.
+
+**5. Drive hydration (DOS only).** DOS titles need a writable C: drive to persist saves and
+sound configuration. On first launch Peach 1UP creates the drive image, formats it FAT16,
+and copies loose files onto it with MD5 verification. Console eras skip this entirely.
+
+**6. Resolve media.** The executable path if one is set, otherwise the file path. A directory
+is resolved to the real media file inside it. The resolved path must sit inside the library
+tree; anything else aborts the launch.
+
+**7. Build the launch spec.** The era selects the emulator, the emulator's binary path is
+resolved from its descriptor, and every database value is flattened to a plain value. An
+emulator that is not installed stops here with "emulator not installed".
+
+**8. Write the config.** Each backend writes its own per-launch configuration: DOSBox-X gets
+a freshly generated conf in a private temp directory, 86Box gets a patched `.cfg`, xemu gets
+a TOML, DuckStation and PCSX2 get their `.ini` paths. Nothing is shared between concurrent
+launches.
+
+**9. BIOS check.** The emulator's declared dependencies are validated before any process
+spawns. A missing required BIOS file aborts the launch with the filename and the directory
+it belongs in.
+
+**10. Spawn under isolation.** The process starts **suspended**, so it cannot execute before
+limits are in force. A Job Object is created, named with the new process's own PID, limits
+are applied, the process is assigned, and only then is it resumed. See
+[Windows Sandboxing](../contributor-guide/windows-sandboxing.mdx).
+
+**11. Immediate-crash check.** For about three quarters of a second after spawn, Peach 1UP
+watches for the process exiting. A non-zero exit inside that window is reported in the launch
+response itself, so a missing DLL or a bad argument surfaces immediately instead of looking
+like a successful launch. A clean exit code 0 is treated as success, not a crash. Slower
+crashes are caught by a three-second asynchronous check and flagged on the item for next
+time.
+
+## If isolation fails, the launch fails
+
+There is no unsandboxed fallback anywhere in this flow. If the Job Object cannot be created
+or the process cannot be assigned to it, the process is killed while still suspended and the
+error is surfaced to you.
+
+The one automatic retry is for Windows 11's behaviour of pre-assigning new processes to an
+OS-managed job. When that blocks assignment, the launcher kills the suspended process and
+relaunches it with the breakaway flag set. If that also fails, the launch aborts.
+
+## Timeouts
+
+The dispatch step has a 30-second budget. An emulator that has not started in that time is
+recorded as a failed launch. This matters for RPCS3 `.pkg` installs, which cannot both
+install and boot inside one call. See the [Emulator Reference](../contributor-guide/emulators.mdx).
+
+## Stopping and history
+
+Every launch writes a `LaunchHistory` row with the emulator, profile, target, start time,
+and eventual exit code. A background monitor polls every five seconds, reaps exited
+processes, and finalizes their rows.
+
+Stopping a launch terminates the process and tears down its Job Object. You can stop your
+own launches; an admin can stop anyone's.
+
+When the backend shuts down, every tracked process is terminated and its history row is
+closed out. Kill-on-close means nothing is left orphaned even if the backend exits
+abnormally.
+
+## Networking
+
+Emulators launch with networking **off** by default. Blocking is emulator-native: DOSBox-X
+starts with its NE2000 adapter disabled, 86Box writes `net_type = none`, and the console
+emulators have no meaningful network capability to block.
+
+Turn it on per profile with the `enable_networking` toggle when a title actually needs it.
+No host firewall rule is involved, so nothing needs elevation.

@@ -1,229 +1,223 @@
-# Peach 1UP: Technology Stack
+# Technology Stack
 
-Peach 1UP is a preservation automation tool. The stack was chosen to maximise
-community accessibility, developer familiarity, and long-term maintainability as an
-open source project.
+What Peach 1UP is built on and why.
 
-Related: [TYPES.md](TYPES.md) for the constants and type pipelines,
-[EMULATORS.md](EMULATORS.md) for per-emulator detail,
-[BACKEND_FLOW.md](BACKEND_FLOW.md) for the request and launch flows.
+Related: [TYPES.md](TYPES.md) (constants and type pipelines) · [EMULATORS.md](EMULATORS.md)
+(per-emulator detail) · [BACKEND_FLOW.md](BACKEND_FLOW.md) (request and launch flows).
 
----
+## At a glance
 
-## Infrastructure
-
-PyInstaller compiles the Python backend to a standalone executable
-([`peach1up.spec`](../peach1up.spec)). React builds to static files served by FastAPI.
-pystray provides a system tray icon. The Windows installer is built with
-[NSIS](https://nsis.sourceforge.io/) ([`installer/peach1up.nsi`](../installer/peach1up.nsi))
-and registers a service via [WinSW](https://github.com/winsw/winsw). CI runs on GitHub
-Actions ([`.github/workflows/test.yml`](../.github/workflows/test.yml) for tests,
-`codeql.yml` for static analysis, `release.yml` for packaging).
+| Layer | Choice |
+|---|---|
+| Platform | Windows 10/11 only |
+| Backend | Python 3.14+, FastAPI, Pydantic, SQLModel |
+| Database | SQLite, `create_all()` on startup, no Alembic |
+| Frontend | TypeScript, React, Vite, TanStack Query, Tailwind v3, Radix primitives |
+| Type bridge | FastAPI OpenAPI spec to `openapi-typescript` to `shared/types.ts` |
+| Isolation | Windows Job Objects, AppContainer layered on top where supported |
+| Packaging | PyInstaller, NSIS, WinSW, pystray |
+| Docs | Docusaurus, served at `/docs` |
+| Tooling | uv, Ruff, pytest, ESLint, Prettier, Vitest |
 
 ## Platform
 
-**Windows-only.**
-
-The application runs natively on Windows 10/11, and emulators run natively on the host
-OS. Linux support was removed from scope ([DECISIONS.md](DECISIONS.md) 2026-07-17):
-process isolation is Windows Job Objects only, and the Linux-specific code paths in
+Windows-only. The app runs natively on Windows 10/11 and emulators run natively on the
+host OS. Linux support was removed from scope on 2026-07-17; the Linux code paths in
 `filesystem.py`, `dosbox.py`, `emulator_installer.py`, `extract_xiso.py`, and
-`path_utils.py` have been removed from the backend.
-
-## Database
-
-**SQLite via SQLModel, `create_all()` on startup.**
-
-The read-heavy usage pattern makes SQLite sufficient, and the SQLAlchemy abstraction
-makes Postgres a future config change rather than a rewrite.
-
-*NOTE:* the DB is opened and closed per call. There is no long-lived hot connection.
+`path_utils.py` are gone.
 
 ## Backend
 
-**Python 3.14 or later** (pinned via `requires-python` in
-[`pyproject.toml`](../pyproject.toml), matches CI), **FastAPI, Pydantic,
-python-dotenv, PyYAML.**
+Python 3.14 or later, pinned via `requires-python` in [`pyproject.toml`](../pyproject.toml)
+and matched by CI. FastAPI provides async performance, automatic OpenAPI generation, and
+Pydantic validation.
 
-Python was chosen for the existing codebase and the emulator scripting ecosystem.
-FastAPI provides async performance, automatic OpenAPI generation, and Pydantic
-validation. Argon2 (`argon2-cffi`) handles PIN hashing, `pycdlib` handles ISO parsing,
-and `httpx` handles outbound metadata calls.
+| Library | Use |
+|---|---|
+| `argon2-cffi` | PIN hashing |
+| `pycdlib` | ISO parsing |
+| `httpx` | Outbound metadata calls |
+| `PyYAML` | `eras.yaml`, `constants.yaml` |
+| `python-dotenv` | `.env` secrets |
 
-Two components have been extracted into standalone packages and are consumed as
-dependencies, vendored under [`services/vendor/`](../services/vendor/):
+Two components are extracted into standalone packages and consumed as local editable path
+dependencies under [`services/vendor/`](../services/vendor/):
 
-- [`formatscout`](../services/vendor/formatscout/): disk-image and directory format
-  detection.
-- [`wincage`](../services/vendor/wincage/): Windows AppContainer and Job Object
-  sandboxing.
+| Package | Covers |
+|---|---|
+| [`formatscout`](../services/vendor/formatscout/) | Disk-image and directory format detection, hashing, verification |
+| [`wincage`](../services/vendor/wincage/) | Windows AppContainer and Job Object sandboxing, plus `sandbox_host.exe` |
+
+Neither is committed. Both are gitignored and must be cloned into their matching paths
+before `uv sync`. `wincage` additionally needs its native binary compiled via MSYS2 first.
+
+## Database
+
+SQLite via SQLModel, `create_all()` on startup. Read-heavy single-library usage makes
+SQLite sufficient, and the SQLAlchemy abstraction keeps Postgres a config change rather
+than a rewrite. The connection is opened and closed per call; there is no long-lived hot
+connection.
 
 ## API bridge
 
-**FastAPI auto-generates an OpenAPI spec; `openapi-typescript` generates the typed
-client for the React frontend.**
-
-There is no manual type duplication between backend and frontend: schema changes in
-Python propagate to the TypeScript client. The generator is wired as the
-`generate:api` script in [`frontend/package.json`](../frontend/package.json) and driven
-by [`scripts/export_and_build_types.py`](../scripts/export_and_build_types.py). See
-[TYPES.md](TYPES.md) § Pipeline B for the full chain and its refresh-trigger caveat.
+FastAPI emits the OpenAPI spec; `openapi-typescript` generates the typed client. There is
+no manual type duplication between backend and frontend. Driven by
+[`scripts/export_and_build_types.py`](../scripts/export_and_build_types.py) and wired as
+the `generate:api` script in `frontend/package.json`. See [TYPES.md](TYPES.md) for the
+full chain.
 
 ## Frontend
 
-**TypeScript, React, Vite, React Router, TanStack Query, `useReducer`, Tailwind CSS,
-Radix UI primitives (dialog, slot).**
+React for ecosystem size and developer availability, TypeScript throughout. Radix UI
+primitives (dialog, tabs, toast, collapsible, slot) back a hand-rolled component library
+on an RGB-triplet CSS variable color system with `data-skin` scaffolding.
 
-React was chosen for ecosystem size and developer availability. TypeScript is required
-throughout. Radix UI primitives back a hand-rolled component library.
+Tailwind is pinned to v3. Do not upgrade until shadcn/ui supports v4.
 
-## Emulators (PC)
+## Emulators
 
-| Emulator | Eras | ROM requirement |
-| -------- | ---- | --------------- |
-| DOSBox-X | DOS | None |
-| 86Box | Windows 95, 98, XP | User supplies the 86Box ROM pack |
+| Emulator | Era | ROM or BIOS required |
+|---|---|---|
+| DOSBox-X | DOS | No |
+| 86Box | Windows 95, 98, XP | Yes, 86Box ROM pack |
+| DuckStation | PS1 | Yes, PS1 BIOS |
+| PCSX2 | PS2 | Yes, PS2 BIOS |
+| RPCS3 | PS3 | Yes, PS3 firmware |
+| xemu | Xbox OG | Yes, Xbox BIOS |
+| Xenia | Xbox 360 | No |
+| Mesen | NES, SNES | No |
+| Project64 | N64 | No |
+| Flycast | Dreamcast | Yes, DC BIOS |
+
+Every emulator installs on demand rather than shipping in the repository. Nine use
+`install_type = "github_release"`. Project64 is `install_type = "zip"`: the project
+publishes git tags but no release assets, so the user downloads it from pj64-emu.com and
+extracts it into `emulators/project64/`. See the Legal table in
+[EMULATORS.md](EMULATORS.md).
 
 ### DOSBox-X sound limitation
 
-DOS game sound requires the HDD image install flow. Games that write their sound config
-to the install directory (e.g. Doom's `DEFAULT.CFG`) have no in-game sound when launched
-directly from a read-only ISO. Sound works correctly once the game is installed to a
-writable HDD image via the install flow. Direct ISO launch is intentionally read-only and
-cannot persist game config, so no code change is required; this is expected behaviour.
-
-## Emulators (console)
-
-| Emulator | Era |
-| -------- | --- |
-| DuckStation | PS1 |
-| PCSX2 | PS2 |
-| RPCS3 | PS3 |
-| xemu | Xbox OG |
-| Xenia | Xbox 360 |
-| Mesen | NES, SNES |
-| Project64 | N64 |
-| Flycast | Dreamcast |
-
-Every emulator, including DOSBox-X and 86Box, is installed on demand rather than shipped
-in the repository. All use `install_type = "github_release"` except Project64, which is
-`install_type = "zip"` because the project publishes git tags but no release assets and
-must be downloaded manually. See the Legal table in [EMULATORS.md](EMULATORS.md).
+DOS games that write sound config to their install directory (Doom's `DEFAULT.CFG`, for
+example) have no in-game sound when launched from a read-only ISO. Installing the game to
+a writable HDD image through the install flow fixes it. Direct ISO launch is intentionally
+read-only and cannot persist game config; no code change is required.
 
 ## Process isolation
 
-**Windows Job Objects, with AppContainer layered on top where supported.**
+Windows Job Objects, with AppContainer layered on top where the emulator supports it.
 
-Job Objects provide kill-on-close plus optional CPU and memory caps; every emulator
-descriptor currently waives both caps, so kill-on-close is what is actually enforced.
-Network blocking is enforced at the emulator level on every launch: each emulator starts
-with its network adapter disabled when `enable_networking` is false on the active
-profile. Linux support, and the earlier cgroups/network-namespaces isolation plan for it,
-was removed from scope ([DECISIONS.md](DECISIONS.md) 2026-07-17).
+Job Objects provide kill-on-close plus a per-era CPU rate cap and per-process memory cap.
+**All three are enforced today.** Every descriptor in [`config/emulators/`](../config/emulators/)
+sets `skip_cpu_limit = false` and `skip_memory_limit = false`, so there are no active
+waivers.
 
-Full detail: [windows-sandbox.md](windows-sandbox.md) and
-[SECURITY.md](SECURITY.md) § Windows-specific process rules.
+Network blocking is emulator-native, applied on every launch: each emulator starts with
+its network adapter disabled when `enable_networking` is false on the active profile.
 
-## Documentation
-
-**Docusaurus.**
-
-React-based, versioned, MDX, full-text search. Chosen for consistency with the frontend
-stack and suitability for a growing open source project expecting community
-contributors. The site source lives in [`docs/`](../docs/); the contributor-facing
-reference documents live in [`dev_docs/`](.).
+Full detail: [windows-sandbox.md](windows-sandbox.md) and [SECURITY.md](SECURITY.md)
+§ Windows-specific process rules.
 
 ## Media detection
 
-Detection lives in the vendored
-[`formatscout`](../services/vendor/formatscout/) package, extracted from this project
-and now consumed as a dependency. The Peach-specific launch-target resolvers that stayed
-behind (PS3, Xbox 360 XEX, Xbox optical images, MediaTarget) live in
+Detection lives in the vendored [`formatscout`](../services/vendor/formatscout/) package.
+The Peach-specific launch-target resolvers that stayed behind (PS3, Xbox 360 XEX, Xbox
+optical images, `MediaTarget`) live in
 [`backend/service/utils/detection/`](../backend/service/utils/detection/). Backend code
-imports the package directly as `formatscout`, mostly through lazy imports at call sites.
+imports the package as `formatscout`, mostly through lazy imports at call sites.
 
-### Detection pipeline
+### Pipeline
 
-Detection runs in tier order and short-circuits on the first confident match:
+Tiers run in order and short-circuit on the first confident match.
 
-1. **Hash lookup.** Full-file SHA-1 (with MD5/CRC32 fallback) compared against a bundled
-   `hash_index.json` built from No-Intro/Redump DAT files, which key entries by full-file
-   hash. Returns the highest-confidence result possible and exits immediately on a hit.
-   Coverage is currently limited to PS1 and Xbox; see
-   [SECURITY.md](SECURITY.md) § Smart Detection.
-2. **Magic bytes.** File header compared against `magic/magic_signatures.toml`. Covers
-   GDI, CDI, BIN, ISO, and CHD container signatures.
-3. **Structural validation.** A deeper parse of the container format:
-   - ISO: reads the ISO 9660 PVD (sector 16) for volume label, publisher, and system-ID
-     fields; falls back to scanning the root directory for `.xbe` (Xbox OG) markers.
-   - CHD: walks the CHD v5 metadata chain (`CHGD` tag → Dreamcast; `CHTR`/`CHT2` tag →
-     PS2).
-   - BIN/CUE: resolves the `.cue` sheet to its `.bin` sibling, then runs magic-byte and
-     PVD checks on the binary.
-4. **Directory heuristics.** Inspects root-level filenames and subdirectory structure for
-   OS installer markers (`I386`, `WIN98`, `XPSP`, `SYSTEM.CNF`, `AUTORUN.INF`, DOS tool
-   names, `.WAD` files, and similar).
-5. **Extension / size fallback.** Lowest-confidence tier; uses file extension and file
-   size as weak signals when no structural match is found.
+| Tier | Method | Notes |
+|---|---|---|
+| 1 | Full-file SHA-1, falling back to MD5 then CRC32 | Compared against a bundled `hash_index.json` built from No-Intro/Redump DATs. Confidences 1.0 / 0.85 / 0.75. For `.chd`, raw bytes never match Redump, so the CHD v5 header's embedded `rawsha1` is read instead. |
+| 2 | Magic bytes | `magic/magic_signatures.toml`. Covers GDI, CDI, BIN, ISO, CHD. |
+| 3 | Structural validation | ISO: ISO 9660 PVD at sector 16 for volume label, publisher, system ID; falls back to scanning the root for `.xbe`. CHD: `CHGD` means Dreamcast, `CHTR`/`CHT2` means PS1 or PS2 split by logical size. BIN/CUE: resolve the cue sheet to its bin sibling, then re-run magic and PVD. |
+| 4 | Directory heuristics | Root filenames and subdirectory structure: `I386`, `WIN98`, `XPSP`, `SYSTEM.CNF`, `AUTORUN.INF`, DOS tool names, `.WAD` files. |
+| 5 | Extension and size | Lowest confidence, weak signals only. |
+
+PS1 versus PS2 is resolved consistently by `SYSTEM.CNF` `BOOT`/`BOOT2` in both the
+raw-sector and extracted-file paths.
 
 ### Known limitations
 
-- **Xbox OG ISOs without `DEFAULT.XBE` at the ISO root** will not resolve platform via
-  the structural scan, because the `.xbe` directory scan comes up empty. The magic-byte
-  check still applies as a fallback. Standard Xbox rips typically include `DEFAULT.XBE`
-  at the root, so this case is expected to be rare.
-- **`.bin`/`.cue` pairs without a matching `.cue` sibling** return low confidence and
-  `requires_manual_boot = True`. The scanner cannot resolve CD layout without a cue
-  sheet.
-- **The `requires_install` heuristic** (DOS/Windows installer-only directory detection)
-  is approximate: it checks whether every executable at the directory root is on the
-  blocklist. Tuning may be needed based on Beta feedback.
+- **Hash-index coverage is PS1 and Xbox only.** Every other era falls through to the
+  lower-confidence tiers regardless of whether the file is corrupted.
+- **Xbox OG ISOs without `DEFAULT.XBE` at the root** do not resolve platform structurally;
+  the magic-byte check is the fallback. Standard rips include it, so this is rare.
+- **`.bin`/`.cue` pairs with no matching `.cue` sibling** return low confidence and
+  `requires_manual_boot = True`. CD layout cannot be resolved without a cue sheet.
+- **`requires_install` is approximate.** It checks whether every executable at a directory
+  root is on the blocklist, and is gated to DOS and Win3.1 only.
 
 ## Upload system
 
-Chunked uploads are served by three per-domain routers built from a shared factory in
-[`backend/api/routes/uploads.py`](../backend/api/routes/uploads.py). Each mounts at
-`/api/v1/uploads/{domain}` and is gated by its own permission flag:
+Three per-domain routers built from one factory in
+[`backend/api/routes/uploads.py`](../backend/api/routes/uploads.py).
 
-| Router prefix | Domain | Permission | Allowed kinds |
-| ------------- | ------ | ---------- | ------------- |
+| Prefix | Domain | Permission | Allowed kinds |
+|---|---|---|---|
 | `/api/v1/uploads/software-games` | `software_games` | `can_manage_game` | file, folder, set |
 | `/api/v1/uploads/software-media` | `software_media` | `can_manage_media` | file |
 | `/api/v1/uploads/software-apps` | `software_apps` | `can_manage_app` | file, folder |
 
-`POST /init` opens a session and declares the manifest; the per-chunk
-`PUT /{upload_id}/chunks/{file_index}/{chunk_index}` calls stream the bytes;
-`POST /{upload_id}/complete` finalizes. Domains are registered explicitly at startup by
-`_register_upload_domains()` in [`backend/core/lifespan.py`](../backend/core/lifespan.py)
-rather than by import-time decorator side effects, so a missing or duplicate registration
-fails loudly.
+```
+POST /init                                    open session, declare manifest, create job
+PUT  /{upload_id}/chunks/{file_idx}/{chunk}   stream bytes
+POST /{upload_id}/complete                    always 202, finalizes as a BackgroundTask
+DELETE /{upload_id}                           abort
+```
 
-**Size limits.** `DEFAULT_MAX_BYTES` is 25 GB per file and `DEFAULT_CHUNK_MAX_BYTES` is
-64 MB per chunk, both in
-[`backend/service/utils/upload_utils.py`](../backend/service/utils/upload_utils.py) and
-both overridable through settings. No total-folder-size limit exists for folder uploads:
-each file is individually capped, but the aggregate is unbounded. Acceptable for local
-household use; revisit if a cap is ever needed.
+The job entry is created at `/init`, before any bytes transfer, so the nav bell tracks an
+upload from the start. It is attached to the session rather than returned for the client
+to echo back, so `/complete` resolves it itself instead of trusting a client-supplied ID.
+There is no inline-finalize path.
 
-**Folder upload browser support.** Uses the `webkitdirectory` input attribute. Originally
-Chrome-specific but now widely supported across Chrome, Edge, Firefox, and Safari.
-Browsers that do not support it fall back to a standard file picker silently.
+Domains are registered explicitly by `_register_upload_domains()` in
+[`backend/core/lifespan.py`](../backend/core/lifespan.py) rather than by import-time
+decorator side effects, so a missing or duplicate registration fails loudly.
 
-**Path safety.** All uploaded filenames pass through `safe_basename` and `resolve_under`
-before any write beneath the destination root. Folder uploads clean up the entire
-destination directory on any single-file failure, so no partial folder ingest is
-possible.
+**Limits.** `DEFAULT_MAX_BYTES` is 25 GB per file, `DEFAULT_CHUNK_MAX_BYTES` is 64 MB per
+chunk, both in `upload_utils.py` and both overridable through settings. Session creation
+is rate limited to 10 per 60s across all domains; per-chunk PUTs are not (a legitimate
+large upload is hundreds of requests). There is no total-folder-size cap: each file is
+capped individually, the aggregate is unbounded. Acceptable for local household use.
+
+**Path safety.** Every uploaded filename passes through `safe_basename` and `resolve_under`
+before any write beneath the destination root. Folder uploads clean up the whole
+destination directory on any single-file failure, so no partial folder ingest is possible.
+
+**Browser support.** Folder upload uses the `webkitdirectory` input attribute, now widely
+supported. Browsers without it fall back to a standard file picker silently.
+
+## CI
+
+| Workflow | Jobs |
+|---|---|
+| [`test.yml`](../.github/workflows/test.yml) | `generate-types` (ubuntu, `uv lock --check`, regenerate constants and types), `backend` (windows, Ruff then `pytest --cov`), `frontend` (ubuntu, ESLint, Prettier, production build, `vitest run --coverage`), `packaging-smoke` (windows, PyInstaller build, size assertion, frozen-exe smoke launch) |
+| `codeql.yml` | Static analysis |
+| `release.yml` | Tag-triggered Windows release build. The tag must match the version in `constants.yaml` or the build fails. Signing is stubbed pending an OSS certificate. |
+
+Runs on every push and pull request to `main`.
+
+> **The generated-file staleness check in `generate-types` cannot fail.** It runs
+> `git diff --exit-code` against `constants_generated.py`, `generated/constants.ts`,
+> `openapi.json`, and `types.ts`, but all four are gitignored and untracked, so `git diff`
+> has nothing to compare and always exits 0. Fixing it means either committing the
+> generated files or replacing the check with a content diff against a pre-generation
+> copy.
 
 ## Developer tooling
 
 | Tool | Purpose |
-| ---- | ------- |
-| [uv](https://docs.astral.sh/uv/) | Python dependency management, lockfile (`uv.lock`), virtual environments |
-| [Ruff](https://docs.astral.sh/ruff/) | Python linting |
-| [pytest](https://docs.pytest.org/) | Python testing |
-| ESLint and Prettier | Frontend linting and formatting |
-| [Vitest](https://vitest.dev/) | Frontend testing |
+|---|---|
+| [uv](https://docs.astral.sh/uv/) | Python dependencies, `uv.lock`, virtual environments |
+| [Ruff](https://docs.astral.sh/ruff/) | Python lint, gated in CI |
+| [pytest](https://docs.pytest.org/) | Python tests, `fail_under = 65` |
+| ESLint, Prettier | Frontend lint and format, both gated in CI |
+| [Vitest](https://vitest.dev/) | Frontend tests, coverage collected but no thresholds |
 
-See [TESTING.md](TESTING.md) for the current state of the suites and
-[CONTRIBUTING.md](../CONTRIBUTING.md) for the static-verification rules that apply
-instead of running them locally.
+See [TESTING.md](TESTING.md) for suite state and
+[CONTRIBUTING.md](../CONTRIBUTING.md) for the static-verification rules that apply instead
+of running them locally.

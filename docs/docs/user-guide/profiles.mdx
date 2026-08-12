@@ -1,0 +1,71 @@
+---
+title: Launch Profiles
+---
+
+# Launch Profiles
+
+A profile is a reusable launch configuration scoped to one emulator and one era. It is not
+a per-game config: you share a DOS Default across your whole DOS library and create a
+variant only when a specific title needs one.
+
+Profiles live under **Emulators → Profiles**.
+
+## Fields
+
+| Field | What it does |
+|---|---|
+| `name`, `slug` | Both unique. Renaming re-slugs the profile |
+| `emulator_slug` | Which emulator this profile targets. Settings are emulator-specific, which is why profiles are scoped this way |
+| `era` | Which era it applies to |
+| `extra_args` | Extra CLI arguments appended at launch |
+| `launch_commands` | Ordered commands injected into the launch, for example a DOS autoexec sequence |
+| `config_path` | An explicit config file to use instead of the generated one |
+| `enable_networking` | Off by default. When off, the emulator starts with its network adapter disabled or absent |
+| `enable_dgvoodoo2` | dgVoodoo2 injection for 3D-era Win9x titles |
+| `use_drive` | DOS only. When on, the item's persistent writable C: drive is mounted. When off, the launch runs without one |
+| `container_enabled` | Per-profile AppContainer override. Leave unset to follow the emulator's own descriptor |
+| `is_bundled` | Set on the profiles seeded at first run. Bundled profiles cannot be deleted |
+| `notes` | Free text |
+
+## How a profile gets attached
+
+A bundle is assigned a profile automatically at ingest, from the detected era. `era` selects
+an emulator, and the matching seeded default profile for that emulator and era is attached.
+
+You can change it on the bundle's detail page, or pass a different profile with a single
+launch to try it without changing the default.
+
+**A bundle with no profile cannot launch.** The launch stops with an actionable message
+rather than picking one for you.
+
+## Creating one
+
+Give it a name, pick the emulator and era, set the fields you care about, and save. The
+easiest starting point is duplicating a bundled profile and editing the copy.
+
+Duplicate names or slugs are rejected with a conflict error rather than silently
+deduplicated.
+
+## Permissions
+
+Profile create, edit, and delete are gated by `can_manage_game`, the same flag that governs
+game bundles. Bundled profiles are protected from deletion regardless of permission.
+
+## What a profile does not control
+
+- **Emulator binary paths.** These are never taken from a profile, a request, or any other
+  user input. They resolve from the emulator's own descriptor only, and that rule has no
+  exceptions.
+- **Resource caps.** CPU and memory limits come from the era, in `config/eras.yaml`, and
+  from hardcoded ceilings. There is no per-profile override and no UI field for them. See
+  [Windows Sandboxing](../contributor-guide/windows-sandboxing.mdx).
+- **AppContainer on a permanently-excluded emulator.** Setting `container_enabled` on a
+  profile targeting Project64 is ignored and logged. Some emulators are hard-locked out for
+  documented reasons.
+
+## Tags
+
+Tags associate profiles with contexts instead of hard relationships: hardware configs
+(voodoo, mt32, soundblaster, adlib, ega, vga, svga) and content types (accuracy-mode,
+networking, mods, extensions). A set of system tags is created at first run to give search
+and filtering a consistent vocabulary; you can add your own freely on top.

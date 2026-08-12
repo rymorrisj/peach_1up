@@ -4,68 +4,93 @@ title: Dev Setup
 
 # Dev Setup
 
-This page covers the contributor workflow: cloning, verifying changes, branching, and opening a pull request. For installing prerequisites (Python, Node.js, emulators) see [Getting Started](../getting-started/index.md).
+Cloning, verifying, and opening a pull request. For prerequisites see
+[Getting Started](../getting-started/index.md).
 
 ## Clone and run
+
+Windows only. There is no Linux dev path.
 
 ```bash
 git clone <repo-url>
 cd peach_1up
-```
 
-Then run the setup script from the project root. Peach 1UP is Windows-only (see
-[Technology Stack](./tech-stack.mdx)), there is no Linux dev setup path:
+# Vendored deps are not committed. Clone them first.
+git clone https://github.com/rymorrisj/formatscout services/vendor/formatscout
+git clone https://github.com/rymorrisj/wincage    services/vendor/wincage
+# wincage needs sandbox_host.exe compiled via MSYS2, see its README
 
-```bash
+uv sync --group dev
 start.bat
 ```
 
-The script creates a Python virtual environment, installs backend and frontend dependencies, generates the OpenAPI spec and typed API client, and starts every service. When it finishes:
-
 | Service | URL |
-| ------- | --- |
-| Frontend | http://localhost:5173 |
-| Backend API | http://localhost:8000 |
-| Docs site | http://localhost:3000 |
+|---|---|
+| App | http://localhost:8000 |
+| Frontend dev server | http://localhost:5173 |
+| API reference | http://localhost:8000/api/docs |
+| Docs | http://localhost:8000/docs |
 
-## Static verification
+## Verify statically
 
-The project enforces **static-only verification**, never run the test suite (`pytest`, `vitest`) or install/remove packages as part of development. Verify correctness by reading the code and tracing call sites.
-
-**TypeScript type check:**
+**Never run the test suite (`pytest`, `vitest`, or any harness) and never install, update, or
+remove packages as part of a change.** Verify by reading the code and tracing call sites. If
+a dependency looks missing, stop and report it rather than routing around it.
 
 ```bash
+# TypeScript
 cd frontend && npx tsc --noEmit
+
+# Frontend lint and format
+cd frontend && npm run lint && npm run format:check
+
+# Python lint
+uv run ruff check backend
 ```
 
-**Python linting:**
+CI runs the suites on every push and pull request to `main`: Ruff plus `pytest --cov` on
+Windows, ESLint, Prettier, a production build, `vitest run --coverage`, and a packaging
+smoke test.
 
-```bash
-.venv\Scripts\python.exe -m ruff check backend\
-```
-
-## Branching and PR workflow
-
-Create a feature branch off `main`:
+## Branch and PR
 
 ```bash
 git checkout -b feat/your-topic
 ```
 
-Keep branches short-lived and focused on a single concern. Open a pull request against `main` when ready. Before pushing, run the static checks above and confirm there are no type errors.
+Keep branches short-lived and focused on one concern. Open a pull request against `main`.
 
-For the commit message format, allowed types and scopes, and PR rules, see the root [CONTRIBUTING.md](http://localhost:3000/docs/contributor-guide).
+For the commit message format, allowed types and scopes, code style, and the hard rules,
+see `CONTRIBUTING.md` in the repository root.
 
-## Key files to know
+If your change makes a documented claim false, fixing the document is part of the change.
 
-| File / directory | Purpose |
-| ---------------- | ------- |
-| `backend/main.py` | FastAPI app entry point; mounts all routers |
-| `scripts/export_and_build_types.py` | Generates `shared/openapi.json` and `shared/types.ts`, run this when routers change |
-| `settings` DB table | Runtime settings and path keys; stored in the SQLite DB (`config/settings.yaml` was removed) |
-| `config/emulators/` | Per-emulator configuration `.toml` files |
-| `frontend/src/api/generated/` | Generated API client; never edit by hand |
+## Key files
 
-:::caution
-`export_and_build_types.py` must include every router that `main.py` mounts. A router added to `main.py` but missing from the script produces a stale OpenAPI spec and broken TypeScript types. Always check both files when adding or removing routers.
+| Path | Purpose |
+|---|---|
+| `backend/main.py` | FastAPI entry point. Mounts routers, sets middleware order, registers the `/media`, `/docs`, and SPA catch-all routes |
+| `backend/api/routes/__init__.py` | The `ROUTERS` list |
+| `backend/service/launch/coordinator.py` | Every launch converges here |
+| `backend/service/games/items.py` | Every ingest path converges here |
+| `config/emulators/*.toml` | Per-emulator descriptors. The source of truth for install type, portable sentinel, broker files, and sandbox flags |
+| `config/eras.yaml` | Per-era resource caps and supported media formats |
+| `config/constants.yaml` | Source for the generated constants in both languages |
+| `scripts/gen_constants.py` | Generates `backend/constants_generated.py` and `frontend/src/generated/constants.ts` |
+| `scripts/export_and_build_types.py` | Generates `shared/openapi.json` and `shared/types.ts` |
+| `settings` DB table | Runtime settings and path keys. There is no settings file |
+
+:::caution Router parity
+`export_and_build_types.py` must include every router that `main.py` mounts. A router added
+to one but not the other produces a stale spec and broken types. This is checked
+mechanically: `_check_router_parity()` diffs the mounted routes against the export list and
+raises at export time. It is the one loud failure in the generation chain, so trust it, but
+still sanity-check both files when adding or removing a router.
+:::
+
+:::caution Generated-file staleness is not caught
+The CI job that regenerates constants and types runs a `git diff` check meant to fail on a
+stale committed copy, but all four generated paths are gitignored and untracked, so the diff
+has nothing to compare and always passes. Regenerate manually after changing
+`constants.yaml`, a descriptor TOML, or any Pydantic model.
 :::

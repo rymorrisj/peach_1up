@@ -1,62 +1,60 @@
 # Windows Sandbox
 
-Peach 1UP wraps each emulator launch in a Windows [Job Object](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
-with per-era CPU and memory limits available. This page explains what the Job Object
-does and how to adjust the resource caps.
+Every emulator launch is wrapped in a Windows
+[Job Object](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects), with
+[AppContainer](https://learn.microsoft.com/en-us/windows/win32/secauthz/appcontainer-isolation)
+layered on top where the emulator supports it.
 
-Related: [SECURITY.md](SECURITY.md) for policy rules, [DECISIONS.md](DECISIONS.md) for
-the decision log.
-
----
+Related: [SECURITY.md](SECURITY.md) (policy rules) · [CHANGELOG.md](../CHANGELOG.md)
+(decision history).
 
 ## What the Job Object does
 
-Every emulator launched on Windows is placed inside a Job Object before it runs. The
-Job Object supports:
+| Control | Effect | Waivable |
+|---|---|---|
+| Kill-on-close | All emulator processes in the job are terminated when the backend exits. No orphans. | No, always applied |
+| CPU cap | Threads are throttled past the per-era CPU budget per scheduling interval. Applied as `MaxRate` under `JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE`. | `skip_cpu_limit` |
+| Memory cap | Per-process cap so a runaway emulator cannot exhaust host RAM. Applied via `JOB_OBJECT_LIMIT_PROCESS_MEMORY`. | `skip_memory_limit` |
 
-| Limit         | Effect                                                                                                                                    |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Kill-on-close | When the Peach 1UP backend exits, all emulator processes in the job are terminated automatically. No orphaned processes. Always applied.   |
-| CPU cap       | Threads are throttled when the emulator exceeds its per-era CPU budget per scheduling interval. Waived per emulator via `skip_cpu_limit`.  |
-| Memory cap    | Per-process memory is capped so a runaway emulator cannot exhaust host RAM. Waived per emulator via `skip_memory_limit`.                   |
+**No emulator waives either cap today.** Every descriptor in
+[`config/emulators/`](../config/emulators/) sets both flags to `false`, so all three
+controls are in force on every launch.
 
-> **Every emulator descriptor in [`config/emulators/`](../config/emulators/) currently
-> sets both `skip_memory_limit = true` and `skip_cpu_limit = true`.** Kill-on-close is
-> therefore the only Job Object control actually in force today. The per-era numbers
-> below are the values that would apply if a descriptor re-enabled either cap; they are
-> not being enforced as shipped. See the `skip_cpu_limit` and Qt-memory-cap entries in
-> [SECURITY.md](SECURITY.md) for why each was waived.
-
-If the Job Object cannot be created or the emulator cannot be assigned to it, **the
+If the Job Object cannot be created, or the emulator cannot be assigned to it, **the
 launch is aborted**. There is no fallback to an uncontained launch.
 
-Emulators run under the current user account. A dedicated low-privilege user account is
-not used. [AppContainer](https://learn.microsoft.com/en-us/windows/win32/secauthz/appcontainer-isolation)
-isolation is an additional layer applied on top of Job Objects when
-`container_enabled = true` in the emulator descriptor. Seven emulators have it enabled
-(DOSBox-X, DuckStation, Flycast, Mesen, PCSX2, Project64, Xenia). 86Box, RPCS3, and xemu
-remain Job-Object-only; RPCS3 and xemu are additionally marked
-`container_permanently_excluded`, so a profile-level override cannot turn AppContainer on
-for them. See [SECURITY.md](SECURITY.md) § Windows-specific process rules for the reasons.
+Emulators run under the current user account. A dedicated low-privilege account is not
+used; that approach was tried and removed in May 2026.
 
 **What the Job Object does not do:**
 
-- It does not restrict filesystem access. The emulator can reach any path the current
-  user can reach.
-- It does not apply AppContainer-level isolation or filesystem virtualisation.
-- It does not block all network access at the OS level. Network isolation is handled by
-  disabling the emulated network adapter inside each emulator (see the network section
-  in [SECURITY.md](SECURITY.md)).
-- It does not apply on Linux. Linux support is out of scope ([DECISIONS.md](DECISIONS.md)
-  2026-07-17).
+- Restrict filesystem access. The emulator can reach any path the current user can reach.
+  That is AppContainer's job, not the Job Object's.
+- Block network access at the OS level. Network isolation is emulator-native (see
+  [SECURITY.md](SECURITY.md) § Network Rules).
 
----
+## AppContainer status
 
-## Resource caps and eras.yaml
+| Emulator | `container_enabled` | Notes |
+|---|---|---|
+| DOSBox-X | true | |
+| DuckStation | true | |
+| Flycast | true | Its own `known_limitations` entry still claims AppContainer is disabled. That text is stale; the flag is authoritative. |
+| Mesen | true | |
+| PCSX2 | true | |
+| Xenia | true | |
+| xemu | true | Re-enabled 2026-08-11. The earlier QEMU TCG / `DeviceIoControl` diagnosis was wrong; the real cause was undersized limits colliding with xemu's pre-allocated JIT heap. |
+| 86Box | false | Works in some environments and not others. Disabled by default, not hard-capped, so it can be enabled per install. Not being investigated further. |
+| RPCS3 | false | JIT recompiler (Cell PPU/SPU and RSX) incompatible with AppContainer's restricted token. `container_permanently_excluded = false` in the TOML, which contradicts the `known_limitations` entry; see the open item in [CHANGELOG.md](../CHANGELOG.md). |
+| Project64 | false | `container_permanently_excluded = true`. Crashes on launch under AppContainer (`Main.cpp:99`, `exit_code=1`) even with limits raised. Root cause unknown. No override can turn it on. |
 
-CPU and memory limits for each emulator era are defined in
-[`config/eras.yaml`](../config/eras.yaml). Each era entry has two fields that control the
-Job Object:
+Container monikers are `Peach1UP.<slug>.<scope>`, where `<scope>` is `shared` or the
+decimal `user_item_id` for a per-item container. Confirmed examples:
+`Peach1UP.duckstation.shared`, `Peach1UP.mesen.shared`.
+
+## Resource caps
+
+Per-era caps live in [`config/eras.yaml`](../config/eras.yaml):
 
 ```yaml
 dos:
@@ -64,139 +62,134 @@ dos:
   cpu_limit_percent: 50
 ```
 
-| Field               | Type            | What it sets                                                                                                                                          |
-| ------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `memory_limit_mb`   | integer         | Per-process memory cap in megabytes. Applied via `JOB_OBJECT_LIMIT_PROCESS_MEMORY`.                                                                     |
-| `cpu_limit_percent` | integer (1–100) | CPU budget as a percentage of all logical processors across a scheduling interval. Applied as `MaxRate` under `JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE`. |
+| Field | Type | Sets |
+|---|---|---|
+| `memory_limit_mb` | integer | Per-process memory cap in MB |
+| `cpu_limit_percent` | integer 1 to 100 | CPU budget as a percentage of all logical processors per scheduling interval, applied as `MaxRate` |
+| `cpu_min_rate_percent` | integer, top-level, default `5` | The `MinRate` scheduling floor shared by every era |
 
-A third top-level key, `cpu_min_rate_percent` (default `5`), sets the `MinRate`
-scheduling floor shared by every era.
+### Current values
 
-### Current defaults
+| Era | Memory | CPU |
+|---|---|---|
+| `dos` | 512 MB | 50% |
+| `win95` | 2048 MB | 75% |
+| `win98` | 2048 MB | 75% |
+| `winxp` | 3072 MB | 80% |
+| `ps1` | 1024 MB | 60% |
+| `ps2` | 4096 MB | 80% |
+| `ps3` | 12288 MB | 90% |
+| `xbox` | 3072 MB | 75% |
+| `xbox360` | 6144 MB | 75% |
+| `nes` | 512 MB | 30% |
+| `snes` | 768 MB | 50% |
+| `n64` | 2048 MB | 60% |
+| `dreamcast` | 1024 MB | 60% |
 
-| Era        | eras.yaml key | Memory cap | CPU cap |
-| ---------- | ------------- | ---------- | ------- |
-| DOS        | `dos`         | 512 MB     | 50%     |
-| Windows 95 | `win95`       | 2048 MB    | 75%     |
-| Windows 98 | `win98`       | 2048 MB    | 75%     |
-| Windows XP | `winxp`       | 3072 MB    | 80%     |
-| PS1        | `ps1`         | 1024 MB    | 60%     |
-| PS2        | `ps2`         | 4096 MB    | 80%     |
-| PS3        | `ps3`         | 12288 MB   | 90%     |
-| Xbox OG    | `xbox`        | 3072 MB    | 75%     |
-| Xbox 360   | `xbox360`     | 6144 MB    | 75%     |
-| Dreamcast  | `dreamcast`   | 1024 MB    | 60%     |
-| NES        | `nes`         | 512 MB     | 30%     |
-| SNES       | `snes`        | 256 MB     | 50%     |
-| N64        | `n64`         | 1024 MB    | 60%     |
+### Hardcoded ceilings
 
-### How to adjust caps
+`eras.yaml` values are clamped once, at load time, in
+[`eras_config.py`](../backend/service/utils/eras_config.py), so every downstream reader
+sees the clamped value with no per-call-site check.
 
-Open [`config/eras.yaml`](../config/eras.yaml) in any text editor and change
-`memory_limit_mb` or `cpu_limit_percent` for the era you want to adjust. Restart the
-backend; changes take effect on the next launch. Because every descriptor currently
-waives both caps, an era edit has no effect until `skip_cpu_limit` or
-`skip_memory_limit` is also cleared for the emulator in question.
+| Ceiling | Value |
+|---|---|
+| `cpu_limit_percent` | 90 |
+| `memory_limit_mb` | 75% of real total physical RAM, queried per process via `GlobalMemoryStatusEx` |
 
-**CPU cap notes:**
+An over-ceiling value logs a warning and uses the ceiling for that run. It never raises: a
+resource-tuning mistake should degrade loudly, not take startup down. There is no
+`eras.yaml` key, settings entry, or UI control for either ceiling; moving them requires a
+code change.
 
-- `cpu_limit_percent: 100` gives the job unrestricted CPU access across all logical
-  processors. This removes throttling but does not disable kill-on-close or memory
-  limits.
-- The cap is spread across all logical processors. On an 8-thread machine,
-  `cpu_limit_percent: 50` allows the equivalent of 4 threads' worth of CPU time per
-  scheduling interval.
-- `MIN_MAX_RATE` rate control requires Windows 10 1607 (build 14393) or later. Below
-  that build, and on a `SetInformationJobObject` failure, the Job Object wrapper falls
-  back to `JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP`.
-- On the `MIN_MAX_RATE` path a value at or below `cpu_min_rate_percent` is clamped up to
-  that floor and a warning is logged. On the `HARD_CAP` fallback the floor is 1/10000 of
-  a percent instead.
+### Adjusting caps
 
-**Memory cap notes:**
+Edit `memory_limit_mb` or `cpu_limit_percent` for the era in
+[`config/eras.yaml`](../config/eras.yaml) and restart the backend. Changes take effect on
+the next launch. There is no UI or settings field for these values; hand-editing the YAML
+is the only mechanism.
 
-- The cap is per-process, not per-job. Child processes spawned by the emulator each have
-  the same cap applied individually.
-- Setting the cap too low for a resource-intensive era (e.g. PS2 or Xbox) will cause the
-  emulator to crash or fail to load large games. Raise the cap if you see out-of-memory
-  errors.
+**CPU notes**
 
----
+- The cap spreads across all logical processors. On an 8-thread machine,
+  `cpu_limit_percent: 50` allows the equivalent of 4 threads of CPU time per interval.
+- `MIN_MAX_RATE` needs Windows 10 1607 (build 14393) or later. Below that, and on any
+  `SetInformationJobObject` failure, the wrapper falls back to
+  `JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP`.
+- On `MIN_MAX_RATE`, a value at or below `cpu_min_rate_percent` is clamped up to that
+  floor with a warning. On the `HARD_CAP` fallback the floor is 1/10000 of a percent.
+- `HARD_CAP` starves threads to zero CPU at interval end, which mutes the host WASAPI
+  audio session. That is why `MIN_MAX_RATE` with a non-zero `MinRate` is the primary path.
+
+**Memory notes**
+
+- The cap is per-process, not per-job. Child processes each get the same cap individually.
+- Setting it too low for a heavy era causes the emulator to crash or fail to load large
+  games. xemu specifically needs the `xbox` cap above 2048 MB or it exits immediately with
+  a paging file error.
+
+## Launch sequence
+
+```
+launch suspended (CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED)
+  → create Job Object, named with the launched process PID for per-launch uniqueness
+  → apply limits
+  → AssignProcessToJobObject
+  → on error 5: kill the still-suspended process, relaunch with
+    CREATE_BREAKAWAY_FROM_JOB, reassign
+  → ResumeThread
+```
+
+Launching suspended means the emulator cannot execute before limits are in force. A
+process that fails at any step is terminated while still suspended rather than resumed.
+
+For AppContainer-enabled emulators, process creation is delegated to `sandbox_host.exe`,
+which handles `SECURITY_CAPABILITIES`,
+`CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT`, and `ResumeThread`. Its own Job Object
+applies the numeric limits before the process resumes, so the Python-side job is created
+with `apply_limits=False` and exists only as a teardown handle and for launch-history
+reporting. The resolved era numbers reach it through `SandboxConfig`; without that it
+silently falls back to inert defaults (50% CPU, no memory cap).
+
+Job Object and process lifecycle live in the vendored
+[`wincage`](../services/vendor/wincage/) package (`wincage/process.py`, `wincage/job.py`,
+`wincage/sandbox.py`). Peach 1UP's era-limit resolution wrapper is
+[`launcher.py`](../backend/service/utils/platform/windows/process/launcher.py).
 
 ## Troubleshooting
 
 **Emulator crashes immediately with no error**
 
-The memory cap for the era may be too low. Raise `memory_limit_mb` in
-[`config/eras.yaml`](../config/eras.yaml) for the affected era and restart the backend.
+The era memory cap is probably too low. Raise `memory_limit_mb` in `eras.yaml` and restart
+the backend.
 
-**Job Object assignment fails on Windows 11 (nested job retry)**
+**Job Object assignment fails with error 5 on Windows 11**
 
-Windows 11 pre-assigns new child processes to an OS-managed Job Object. Attempting to
-assign such a process to a second Job Object fails with error code 5 (access denied)
-unless the process was launched with `CREATE_BREAKAWAY_FROM_JOB`.
-
-The launcher handles this automatically:
-
-1. The emulator is launched suspended (`CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED`)
-   without `CREATE_BREAKAWAY_FROM_JOB`, so it cannot execute before limits are in force.
-2. If `AssignProcessToJobObject` fails with error 5, the launcher kills the still
-   suspended process and relaunches with `CREATE_BREAKAWAY_FROM_JOB` set, then assigns it
-   to the Peach Job Object normally.
-
-If the breakaway relaunch also fails (e.g. the process is inside a non-breakaway job set
-by a third-party tool or a debugger), **the launch is aborted** and the error is surfaced
-to the user. There is no unsandboxed fallback.
-
-Launch and Job Object lifecycle live in the vendored
-[`wincage`](../services/vendor/wincage/) package (`wincage/process.py`, `wincage/job.py`);
-Peach 1UP's era-limit resolution wrapper is
-[`backend/service/utils/platform/windows/process/launcher.py`](../backend/service/utils/platform/windows/process/launcher.py).
-
----
+Windows 11 pre-assigns new child processes to an OS-managed Job Object, and a second
+assignment fails with access denied unless the process was launched with
+`CREATE_BREAKAWAY_FROM_JOB`. The launcher handles this automatically via the breakaway
+retry above. If the retry also fails (the process is inside a non-breakaway job set by a
+third-party tool or debugger) **the launch is aborted** and the error surfaces to the user.
 
 ## DOSBox-X specifics
 
-`write_launch_conf()` in
-[`backend/service/backends/dosbox.py`](../backend/service/backends/dosbox.py) builds a
-complete `dosbox-x.conf` for each launch: it takes the bundled
+`write_launch_conf()` in [`dosbox.py`](../backend/service/backends/dosbox.py) builds a
+complete `dosbox-x.conf` per launch: it takes
 `library/system/templates/dosbox-x/base.conf`, strips any `[autoexec]` section, and
-appends a generated `[autoexec]` block (drive mounts, then profile- and item-level launch
-commands). The result is written to a private per-launch temp directory created with
-`tempfile.mkdtemp(prefix="peach1up_dosbox_")`. Environment launches use the parallel
+appends a generated one (drive mounts, then profile-level and item-level launch commands).
+The result is written to a private per-launch directory created with
+`tempfile.mkdtemp(prefix="peach1up_dosbox_")`. Environment launches use
 `write_environment_launch_conf()` with prefix `peach1up_dosbox_env_`.
+`_cleanup_temp_dir_on_exit()` removes the directory after the process exits.
 
-The command line passes `-noconfig` (so DOSBox-X ignores any user config), an optional
-`-set ne2000=false` when networking is disabled for the profile, and `-conf <path>`
-pointing at the generated conf. After the process exits, `_cleanup_temp_dir_on_exit()`
-removes the temp directory.
+The command line passes `-noconfig` (so DOSBox-X ignores any user config), `-conf <path>`
+pointing at the generated file, and an optional `-set ne2000=false` when networking is
+disabled for the profile.
 
-Within the generated `[autoexec]` block, paths are passed to `MOUNT`/`IMGMOUNT` as raw
+Inside the generated `[autoexec]` block, paths reach `MOUNT` and `IMGMOUNT` as raw
 absolute Windows paths, double-quoted only when they contain whitespace. Forward slashes
-and 8.3 short path conversion are not used; the DOSBox-X autoexec tokeniser treats a
-forward slash as a DOS switch character and would truncate the argument.
+and 8.3 short-path conversion are not used: the DOSBox-X autoexec tokeniser reads a
+forward slash as a DOS switch character and truncates the argument.
 
-**History:** Prior to PX-2-8, DOSBox-X wrote its launch conf to a single shared location,
-which a concurrent second launch could overwrite mid-read by the first. This was fixed by
-writing each launch's conf to its own `tempfile.mkdtemp()` directory as described above.
-
----
-
-## xemu
-
-`container_enabled = false` is hard-capped for xemu in
-[`config/emulators/xemu.toml`](../config/emulators/xemu.toml) via
-`container_permanently_excluded = true`, and cannot be overridden per profile.
-
-**Reason:** xemu is built on QEMU's TCG backend, which calls `DeviceIoControl` to query
-disk geometry for `qcow2` images. AppContainer blocks this call, causing a fatal block
-driver assertion at launch. This is a QEMU platform limitation, not a Peach 1UP
-configuration gap.
-
-Job Object isolation is the only isolation layer available for xemu on Windows, and since
-xemu also sets `skip_cpu_limit = true` and `skip_memory_limit = true`, kill-on-close is
-the only control that remains active on it.
-
-`skip_memory_limit = true` is set because xemu's pre-allocated JIT heap triggers the same
-`STATUS_STACK_BUFFER_OVERRUN` fast-fail as the Qt-based emulators. See "Qt emulator
-process memory cap waived" in [SECURITY.md](SECURITY.md).
+Before PX-2, all launches wrote their conf to one shared location, which a concurrent
+second launch could overwrite mid-read. The per-launch temp directory is the fix.

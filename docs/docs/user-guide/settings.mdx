@@ -1,0 +1,103 @@
+---
+title: Settings
+---
+
+# Settings
+
+There is no configuration file. Runtime settings live in a `settings` table inside
+`database/data/peach1up.db`, and secrets live in a root `.env` file that is never committed.
+
+Most settings are editable from the **Settings** page, which requires `can_manage_settings`.
+
+## What you can change from the app
+
+| Setting | Effect |
+|---|---|
+| Library paths | Where games, media, OS images, ROMs, and profiles live on disk |
+| `delete_media_on_removal` | When on, deleting a bundle also removes its media folder from disk. Off by default, so files are preserved |
+| `delete_original_on_upload` | Whether the source file is removed after a successful import |
+| `metadata_provider` | `thegamesdb` or `igdb` |
+| `launch_history_retention` | How long launch history is kept. `never` means unbounded |
+| Suppressed confirmations | Which destructive-operation confirmations you have chosen to stop seeing |
+| Per-emulator sandbox overrides | `container_enabled`, `skip_memory_limit`, and `skip_cpu_limit` per emulator |
+
+## Secrets
+
+Secrets are kept out of the database deliberately, because the database file is deletable by
+a development reset flag. They live in `.env` and are never returned by the API in plaintext.
+
+| Secret | Used for |
+|---|---|
+| `PIN_PEPPER` | Optional app-level pepper mixed into PIN hashing. Owner-only, and set through its own dedicated endpoint because changing it re-hashes the owner PIN |
+| `THEGAMESDB_API_KEY` | TheGamesDB metadata lookups |
+| `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET` | IGDB metadata lookups. Requires a Twitch developer app |
+| `AI_API_KEY` | Reserved. Nothing consumes it today |
+
+Each has a status endpoint that reports configured or not without ever returning the value.
+
+## Per-emulator sandbox overrides
+
+**Emulators → an emulator → Sandbox** exposes three toggles per emulator. They write
+settings keys that override the emulator's own descriptor at launch.
+
+| Toggle | Effect |
+|---|---|
+| `container_enabled` | Whether AppContainer is layered on top of the Job Object |
+| `skip_cpu_limit` | Waives the per-era CPU rate cap |
+| `skip_memory_limit` | Waives the per-era memory cap |
+
+Two guards apply:
+
+- **Some emulators are permanently excluded from AppContainer.** Enabling the container for
+  one of those is rejected outright, whether you try it through this toggle or through a
+  launch profile. Project64 is the current case: it crashes on launch under AppContainer for
+  reasons that are not understood.
+- **Both skip flags are `false` on every emulator today.** There are no active waivers, and
+  both caps are enforced on every launch. If you find yourself needing one, the underlying
+  problem is usually an era limit sized too small, not a check that should be skipped.
+
+## Resource caps are not in Settings
+
+CPU and memory limits are per era, and they live in `config/eras.yaml`. There is no UI field
+and no settings key. Edit the file and restart the backend.
+
+Values are clamped at load: CPU at 90 percent, memory at 75 percent of the machine's real
+physical RAM. An over-ceiling value logs a warning and uses the ceiling for that run rather
+than failing startup. See
+[Windows Sandboxing](../contributor-guide/windows-sandboxing.mdx).
+
+## Network access
+
+The backend binds `127.0.0.1` by default and is not reachable from other machines.
+
+:::danger Enabling network access requires TLS in front of it
+`ALLOW_NETWORK_ACCESS` also flips the `Secure` flag on the session and CSRF cookies. A
+browser will not send a `Secure` cookie over plain HTTP, so without TLS termination already
+running, login appears to succeed, the cookie is silently dropped, and every following
+request looks unauthenticated. The result is an infinite re-login loop with no error
+message. Put a reverse proxy with TLS in place first. See
+[Self-Hosting](../getting-started/self-hosting.mdx).
+:::
+
+`ALLOW_NETWORK_ACCESS` is deliberately not writable through the settings API. Changing it
+requires writing the `settings` row directly.
+
+## Destructive operations
+
+Deleting a game bundle, app bundle, environment, drive, or emulator, and resetting
+AppContainer sandbox state, all use a two-step confirmation: the app requests a short-lived
+token, then sends it with the request. Tokens expire after 60 seconds.
+
+You can suppress individual confirmations from Settings once you are comfortable with them.
+
+## Known gap: reconfiguring library paths
+
+The Library Paths panel was removed from the UI, and the old config-file fallback no longer
+exists. The backend endpoint still works and still writes the settings table, but reaching
+it means calling the API directly with an authenticated session.
+
+The case that bites: the 86Box ROM path defaults to `library/system/roms/86box`. If you
+extracted your ROM pack somewhere else, the wrong path is used after a clean install. 86Box
+raises a clear ROM path error at launch rather than proceeding silently, so the failure is
+visible, but the fix is currently undocumented for a normal user. A replacement mechanism
+needs to be decided.
