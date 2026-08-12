@@ -7,7 +7,8 @@ binary = "Project64.exe"
 download_url = "https://www.pj64-emu.com"
 portable_sentinel = ""
 cli_args_prefix = []
-container_enabled = true
+container_enabled = false
+container_permanently_excluded = true
 container_hardcap_disabled = false
 container_hardcap_note = ""
 skip_memory_limit = false
@@ -51,6 +52,6 @@ access = "rw"
 mode = "grant"
 
 [[known_limitations]]
-title = "AppContainer isolation disabled"
-severity = "info"
-description = "Project64 can work with AppContainer in specific circumstances but is disabled for the current version for more testing. Job Object memory and CPU limits remain enabled."
+title = "AppContainer isolation not supported"
+severity = "critical"
+description = "Project64 crashes on launch under AppContainer (Main.cpp:99, exit_code=1), confirmed even with memory and CPU limits raised. Root cause unknown. Permanently excluded from AppContainer; Job Object memory and CPU limits remain the only active isolation layer."

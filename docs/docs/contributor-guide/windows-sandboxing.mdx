@@ -26,8 +26,8 @@ launch is aborted**. There is no fallback to an uncontained launch.
 
 Emulators run under the current user account. AppContainer isolation is an
 additional layer applied on top of Job Objects when `container_enabled = true` in
-the emulator descriptor. Seven emulators have it enabled (DOSBox-X, DuckStation,
-Flycast, Mesen, PCSX2, Project64, Xenia); 86Box, RPCS3, and xemu remain Job-Object-only
+the emulator descriptor. Eight emulators have it enabled (DOSBox-X, DuckStation,
+Flycast, Mesen, PCSX2, Project64, Xenia, xemu); 86Box and RPCS3 remain Job-Object-only
 (see the [Security Architecture](./security.mdx) page for the reasons). A dedicated
 low-privilege user account is not used.
 
@@ -151,17 +151,13 @@ writing each launch's conf to its own `tempfile.mkdtemp()` directory as describe
 
 ## xemu
 
-`container_enabled = false` is hard-capped for xemu in `config/emulators/xemu.toml` and
-cannot be overridden per profile.
+`container_enabled = true` in `config/emulators/xemu.toml`: AppContainer isolation is
+enabled for xemu. It was previously suspected that xemu's QEMU TCG backend was
+incompatible with AppContainer's `DeviceIoControl` restrictions, but the actual cause
+of earlier launch failures was memory/CPU era limits too small for xemu's pre-allocated
+JIT heap. With adequate limits, xemu runs correctly under AppContainer.
 
-**Reason:** xemu is built on QEMU's TCG backend, which calls `DeviceIoControl` to query
-disk geometry for `qcow2` images. AppContainer blocks this call, causing a fatal block
-driver assertion at launch. This is a QEMU platform limitation, not a Peach 1UP
-configuration gap.
-
-Job Object isolation (kill-on-close, CPU cap) is the only isolation layer available for
-xemu on Windows.
-
-`skip_memory_limit = true` also applies to xemu: its pre-allocated JIT heap triggers the
-same `STATUS_STACK_BUFFER_OVERRUN` fast-fail as the Qt-based emulators, see "Qt emulator
-process memory cap waived" in the [Security Architecture](./security.mdx) page.
+Both `skip_memory_limit = false` and `skip_cpu_limit = false` apply to xemu, matching
+most other emulators: the Job Object memory and CPU caps are enforced using the xbox
+era's limits (`config/eras.yaml`), which must stay above 2048 MB for the memory cap or
+xemu exits immediately with a paging file error.

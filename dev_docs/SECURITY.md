@@ -351,11 +351,11 @@ conversation and wait for an explicit decision before proceeding.
   CPU rate floor and cap (`MIN_MAX_RATE`), and a per-era per-process memory cap. Both
   resource caps are individually waivable per emulator via `skip_cpu_limit` and
   `skip_memory_limit` in the descriptor. **Every descriptor in
-  [`config/emulators/`](../config/emulators/) currently sets both to `true`**, so
-  kill-on-close is the only Job Object control in force as shipped. See the two
-  known-limitation entries below for why each waiver exists, and
-  [windows-sandbox.md](windows-sandbox.md) for the per-era numbers that would apply if a
-  waiver were lifted.
+  [`config/emulators/`](../config/emulators/) currently sets both to `false`**, so both
+  the CPU rate cap and the memory cap are enforced for every emulator as shipped, and
+  kill-on-close is not the only Job Object control in force. See the Known Limitations
+  section below for the history of these two flags and the current per-emulator status,
+  and [windows-sandbox.md](windows-sandbox.md) for the per-era numbers the caps apply.
 - **`skip_cpu_limit` is honoured on both isolation layers.** Until the P9 follow-up
   hardening pass it was honoured only by the Python-side Job Object in `launcher.py`.
   `sandbox_host.exe` had no representation of the flag at all: `JobConfig` had no such
@@ -378,9 +378,16 @@ conversation and wait for an explicit decision before proceeding.
   still suspended rather than resumed.
 - AppContainer is an additional isolation layer applied on top of Job Objects when
   `container_enabled = true` in the emulator descriptor. DOSBox-X, DuckStation, Flycast,
-  Mesen, PCSX2, Project64, and Xenia all have `container_enabled = true`. 86Box, RPCS3,
-  and xemu remain disabled; xemu and RPCS3 due to documented JIT/TCG incompatibility (both
-  are `container_permanently_excluded`), 86Box pending further testing.
+  Mesen, PCSX2, Xenia, and xemu all have `container_enabled = true`. 86Box, Project64, and
+  RPCS3 remain disabled: RPCS3 due to documented JIT/TCG incompatibility
+  (`container_permanently_excluded`); Project64 is confirmed incompatible for a separate,
+  unrelated reason, it crashes on launch under AppContainer (`Main.cpp:99`, exit_code=1)
+  even with memory and CPU limits raised, root cause unknown, and is also
+  `container_permanently_excluded`; 86Box works under AppContainer in some environments but
+  not all, is disabled by default, and is not being investigated further. xemu was
+  previously excluded on a suspected QEMU TCG/DeviceIoControl incompatibility; that
+  diagnosis was wrong, the real cause was memory/CPU limits too small for its JIT heap, and
+  it is now enabled with adequate limits.
 - The container-enable resolution and media-broker config that were previously duplicated
   across the emulator backends are now single implementations in
   [`emulator_catalog.py`](../backend/service/utils/emulator_catalog.py):
@@ -389,13 +396,12 @@ conversation and wait for an explicit decision before proceeding.
   `build_media_broker_config()` builds the `SandboxConfig` broker-file list from it.
   Backends whose broker needs are more than "expose the read-only media file"
   (`box86.py`, `dosbox.py`, `xemu.py`) still build their own `SandboxConfig`. A slug marked
-  `container_permanently_excluded` in its TOML (`xemu`, see [DECISIONS.md](DECISIONS.md)
-  2026-06-04, and `rpcs3`) rejects a profile-level `container_enabled` override at this
-  layer: `resolve_container_enabled()` ignores the override and logs a warning rather than
-  honouring it. `PATCH /{slug}/sandbox` already blocked enabling a permanently disabled
-  container via settings (a `container_enabled is True` request against a catalog
-  `container_enabled: false` entry is rejected with 400), so both routes into container
-  gating are now covered.
+  `container_permanently_excluded` in its TOML (`project64`, `rpcs3`) rejects a
+  profile-level `container_enabled` override at this layer: `resolve_container_enabled()`
+  ignores the override and logs a warning rather than honouring it. `PATCH /{slug}/sandbox`
+  already blocked enabling a permanently disabled container via settings (a
+  `container_enabled is True` request against a catalog `container_enabled: false` entry is
+  rejected with 400), so both routes into container gating are now covered.
 - For AppContainer-enabled emulators, process creation is delegated to
   `sandbox_host.exe`, which handles `SECURITY_CAPABILITIES`,
   `CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT`, and `ResumeThread`. The Python
@@ -496,69 +502,63 @@ a third-party tool or a debugger), **the launch is aborted** and the error is su
 the user. There is no unsandboxed fallback. Network isolation is unaffected because it is
 emulator-native, with the network adapter disabled at the emulator config level.
 
-### Process memory cap waived on every emulator
+### Job Object resource cap waivers (skip_memory_limit, skip_cpu_limit)
 
-`JOB_OBJECT_LIMIT_PROCESS_MEMORY` is not applied to any emulator today. The original
-rationale covered Qt-based emulators (86Box, DuckStation, PCSX2), whose security
-initialisation triggers `STATUS_STACK_BUFFER_OVERRUN` (0xC0000409) when this limit is
-applied after process creation, and managed-runtime emulators (Mesen on .NET/Avalonia,
-xemu's JIT heap), which pre-allocate heap at startup and exhibit the same failure. Every
-other descriptor has since set `skip_memory_limit = true` as well, so the waiver is now
-universal rather than Qt-specific. Kill-on-close still applies. The `skip_memory_limit`
-flag in [`config/emulators/`](../config/emulators/) controls this per emulator. See
-[DECISIONS.md](DECISIONS.md) 2026-06-01 for the revised rationale.
+Two Job Object caps apply per launch: a per-process memory cap
+(`JOB_OBJECT_LIMIT_PROCESS_MEMORY`) and a CPU rate cap
+(`JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE`, falling back to
+`JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP` below Windows 10 1607 build 14393 or if
+`SetInformationJobObject` fails). Both are sized per era in `eras.yaml` and can be waived
+per emulator via `skip_memory_limit` and `skip_cpu_limit` in that emulator's TOML
+descriptor, resolved through `get_skip_memory_limit()` and `get_skip_cpu_limit()` in
+`emulator_catalog.py`.
 
-**Per-emulator status of the `skip_memory_limit` waiver.** Reasons below are only those
-actually recorded in [DECISIONS.md](DECISIONS.md) or in the descriptor itself. Nothing
-here is inferred from the emulator's toolkit.
+Two mechanisms motivated waiving the memory cap in the past:
 
-| Emulator | Recorded reason |
-| --- | --- |
-| 86Box | ✅ Qt security initialisation (platform plugin startup) fast-fails with `STATUS_STACK_BUFFER_OVERRUN` when `JOB_OBJECT_LIMIT_PROCESS_MEMORY` is applied post-creation via `AssignProcessToJobObject`. Confirmed on 86Box 5.3 / Qt 5.15.18 on Windows 11. DECISIONS.md 2026-05-19 |
-| DuckStation | ✅ Same Qt case, named explicitly in DECISIONS.md 2026-05-19 |
-| PCSX2 | ✅ Same Qt case, named explicitly in DECISIONS.md 2026-05-19 |
-| Mesen | ✅ Managed runtime (.NET/Avalonia) pre-allocates heap at startup, same fast-fail. DECISIONS.md 2026-06-01 |
-| xemu | ✅ Pre-allocated JIT heap, same fast-fail. DECISIONS.md 2026-06-01, plus a `known_limitations` entry in `xemu.toml` |
-| Flycast | ⚠ **Reason not recorded**, and it contradicts a standing decision: DECISIONS.md 2026-05-19 lists Flycast as SDL2-based, explicitly *not* known to exhibit the fault, and prescribes `skip_memory_limit = false`. The 2026-06-01 revision superseded that list only for xemu and Mesen |
-| Project64 | ⚠ **Reason not recorded**, same contradiction as Flycast: named in the 2026-05-19 SDL2 `= false` list and never superseded |
-| DOSBox-X | ⚠ **Reason not recorded**, same contradiction: also in the 2026-05-19 SDL2 `= false` list |
-| Xenia | ⚠ **Reason not recorded.** Post-dates every decision entry on this flag; no descriptor comment or `known_limitations` entry mentions it |
-| RPCS3 | ⚠ **Reason not recorded.** Its `known_limitations` block covers AppContainer exclusion, controllers, shader stutter, and `.pkg` installs, none of which concern the memory cap |
-| 86box-roms | ✅ Not a launchable process (`install_type = "rom_pack"`); both flags are set purely for schema uniformity, per the comment in `emulator_descriptor.py` |
+- Qt's security initialisation (platform plugin startup) fast-fails with
+  `STATUS_STACK_BUFFER_OVERRUN` (0xC0000409) when `JOB_OBJECT_LIMIT_PROCESS_MEMORY` is
+  applied post-creation via `AssignProcessToJobObject`. Confirmed on 86Box 5.3 / Qt
+  5.15.18 on Windows 11 (DECISIONS.md 2026-05-19).
+- Managed-runtime and JIT emulators (Mesen on .NET/Avalonia, xemu's pre-allocated JIT
+  heap) pre-allocate heap at startup and can hit the same fast-fail if the era's memory
+  cap is sized too small for that pre-allocation (DECISIONS.md 2026-06-01).
 
-The three ⚠ contradictions (Flycast, Project64, DOSBox-X) are the ones worth resolving:
-each was explicitly decided to keep its cap and now waives it, with no recorded decision
-reversing that. Either the 2026-05-19 entry needs superseding for them, or the descriptors
-need reverting to `false`.
+The CPU cap was waived in the past as a workaround for CPU rate control deprioritising
+the host audio session while an emulator runs, muting system audio. The recorded fix for
+that (DECISIONS.md 2026-05-21) is the switch from `HARD_CAP` to `MIN_MAX_RATE` with a
+non-zero `MinRate` reserving a floor for the audio thread, not a blanket waiver of the
+cap.
 
-### Job Object CPU rate control mutes host audio
+**Current status: every descriptor in [`config/emulators/`](../config/emulators/) sets
+both flags to `false`.** Neither cap is waived for any emulator today, both are enforced
+as shipped. This is a change from the 2026-05-19 through 2026-06-01 period, when several
+descriptors set one or both flags to `true` for the reasons above. No DECISIONS.md entry
+records when or why each descriptor was reverted to `false`, so the notes below state
+only what each TOML and its own `known_limitations` block actually say, not what is
+inferred from the emulator's toolkit.
 
-CPU rate control causes Windows to deprioritise the host audio session while an emulator
-is running, muting system audio. This was first observed under
-`JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP`; the wrapper now prefers
-`JOB_OBJECT_CPU_RATE_CONTROL_MIN_MAX_RATE` on Windows 10 1607 (build 14393) and later,
-falling back to `HARD_CAP` below that build or if `SetInformationJobObject` fails. As a
-workaround, CPU rate control can be disabled per emulator via `skip_cpu_limit = true` in
-the descriptor, honoured through `get_skip_cpu_limit()` in `emulator_catalog.py`.
-
-**Every descriptor currently sets `skip_cpu_limit = true`**, including RPCS3, so no
-emulator is running under an enforced CPU cap today.
-
-**Per-emulator status of the `skip_cpu_limit` waiver: no reason is recorded for any
-emulator.** Checked against every descriptor's comments and `known_limitations` blocks and
-against every DECISIONS.md entry touching CPU rate control; 86Box, DuckStation, PCSX2,
-Flycast, Project64, Xenia, RPCS3, Mesen, xemu, and DOSBox-X all set the flag with no
-per-emulator justification on record. The closest thing to a rationale is the general
-host-audio-muting mechanism above, but DECISIONS.md 2026-05-21 records the **fix** for
-that as the switch from `HARD_CAP` to `MIN_MAX_RATE` with a non-zero `MinRate` reserving a
-floor for the audio thread, not as a blanket waiver. If that fix works as recorded, the
-universal `skip_cpu_limit = true` should be unnecessary and is worth re-testing rather
-than being carried forward by default. Flagged, not changed.
+| Emulator | `container_enabled` | `skip_cpu_limit` | `skip_memory_limit` | Notes |
+| --- | --- | --- | --- | --- |
+| 86Box | false | false | false | Disabled by default pending further AppContainer testing across environments (`container_hardcap_note` in `86box.toml` says it works in some environments, not all). Historically in the Qt `STATUS_STACK_BUFFER_OVERRUN` group above (DECISIONS.md 2026-05-19); the memory cap is enforced today. |
+| DOSBox-X | true | false | false | No skip_* history recorded in DECISIONS.md or the descriptor. |
+| DuckStation | true | false | false | Historically in the same Qt `STATUS_STACK_BUFFER_OVERRUN` group as 86Box (DECISIONS.md 2026-05-19); enforced today. |
+| Flycast | true | false | false | No skip_* history recorded. Separately, `flycast.toml`'s own `known_limitations` entry still describes AppContainer as disabled for the current version for more testing, which does not match `container_enabled = true` in the same file; this predates the skip_* flags and is unrelated to them. |
+| Mesen | true | false | false | `skip_memory_limit = true` previously papered over an undersized era memory cap colliding with the managed .NET/Avalonia runtime's startup heap pre-allocation (DECISIONS.md 2026-06-01 names Mesen in this group). It is `false` today with no crash reported, consistent with the underlying cap sizing having been fixed rather than the check being waived. |
+| PCSX2 | true | false | false | Historically in the same Qt `STATUS_STACK_BUFFER_OVERRUN` group as 86Box and DuckStation (DECISIONS.md 2026-05-19); enforced today. |
+| Project64 | false (`container_permanently_excluded = true`) | false | false | Crashes on launch under AppContainer (`Main.cpp:99`, exit_code=1) even with memory and CPU limits raised; root cause unresolved and unrelated to either skip flag. Permanently excluded from AppContainer regardless of any override; Job Object caps are the only active isolation layer and both are enforced. |
+| RPCS3 | false | false | false | Disabled today per its own `known_limitations` entry (JIT/TCG incompatibility, described as the same class of limitation as xemu), but `container_permanently_excluded = false` in `rpcs3.toml`, unlike Project64. Job Object caps are enforced. |
+| xemu | true | false | false | Previously excluded from AppContainer on a suspected QEMU TCG/DeviceIoControl incompatibility; the actual cause recorded in `xemu.toml`'s own `known_limitations` entry ("AppContainer previously disabled due to undersized limits") was memory and CPU limits sized too small for its pre-allocated JIT heap. Re-enabled once the era's limits were sized adequately; no skip flag was needed to fix it. |
+| Xenia | true | false | false | No skip_* history recorded. |
+| 86box-roms | n/a | false | false | Not a launchable process (`install_type = "rom_pack"`); both flags are set only for schema uniformity, per the comment in `86box-roms.toml` and `emulator_descriptor.py`. |
 
 If you are debugging host audio muting on a container-enabled emulator, note that
 `sandbox_host.exe` ignored `skip_cpu_limit` entirely before the P9 follow-up hardening
-pass, so the cap was applied by the container path regardless of the descriptor. See the
-`skip_cpu_limit` note under Windows-specific process rules.
+pass, so the CPU cap was applied by the container path regardless of the descriptor. See
+the `skip_cpu_limit` note under Windows-specific process rules above for how that was
+fixed. Since neither flag is waived for any emulator today, treat that as the baseline:
+if a future regression needs one waived again, record the reason in DECISIONS.md in the
+same change that flips the TOML value, so this table does not go stale the way it did
+between 2026-06-01 and today.
 
 ### AppContainer not yet validated for all emulators
 

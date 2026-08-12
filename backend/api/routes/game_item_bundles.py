@@ -339,6 +339,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
     """
     from backend.core.database import get_engine
     from backend.service.games.items import best_detect_path
+    from backend.service.utils.detection import resolve_ps3_target
     from formatscout import detect as _smart_detect
     from backend.service.utils.profile_builder import scan_media_folders
     from sqlalchemy.orm import Session as _Session
@@ -402,14 +403,24 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
 
                 try:
                     if is_loose:
-                        era_path = scan_path
+                        era_slug = _smart_detect(scan_path, dir_cache).era
                     else:
-                        era_path = best_detect_path(
-                            scan_path,
-                            str(entry.executable_path) if entry.executable_path else None,
-                        )
-                    _scan = _smart_detect(era_path, dir_cache)
-                    era_slug = _scan.era
+                        # best_detect_path() resolves a PS3 folder structurally
+                        # and hands back the folder itself; formatscout has no
+                        # PS3 structural check of its own anymore (see
+                        # ps3.py's module docstring), so _smart_detect() on
+                        # that folder always reports era=None. Trust the
+                        # structural resolver directly, same as the ingest
+                        # detect stage in items.py._detect_directory_source.
+                        ps3_target = resolve_ps3_target(scan_path)
+                        if ps3_target is not None:
+                            era_slug = ps3_target.era
+                        else:
+                            era_path = best_detect_path(
+                                scan_path,
+                                str(entry.executable_path) if entry.executable_path else None,
+                            )
+                            era_slug = _smart_detect(era_path, dir_cache).era
                 except Exception as exc:
                     logger.warning("Scan: era detection failed for '%s': %s", scan_path, exc, exc_info=True)
                     era_slug = None

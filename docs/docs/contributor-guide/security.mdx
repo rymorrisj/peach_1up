@@ -279,9 +279,9 @@ operation runs.
   is aborted**. There is no unsandboxed fallback.
 - AppContainer is an additional isolation layer applied on top of Job Objects when
   `container_enabled = true` in the emulator descriptor. DOSBox-X, DuckStation, Flycast,
-  Mesen, PCSX2, Project64, and Xenia all have `container_enabled = true`. 86Box, RPCS3,
-  and xemu remain disabled, xemu and RPCS3 due to documented JIT/TCG incompatibility
-  (both are `container_permanently_excluded`), 86Box pending further testing.
+  Mesen, PCSX2, Project64, Xenia, and xemu all have `container_enabled = true`. 86Box
+  and RPCS3 remain disabled, RPCS3 due to documented JIT/TCG incompatibility
+  (`container_permanently_excluded`), 86Box pending further testing.
 - For AppContainer-enabled emulators, process creation is delegated to `sandbox_host.exe`,
   which handles `SECURITY_CAPABILITIES`, `CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT`,
   and `ResumeThread`. The Python launcher wraps the resulting PID in a Job Object via the
@@ -319,13 +319,17 @@ All frontend requests are made via the `ApiClient` singleton with `credentials: 
 #### Qt emulator process memory cap waived
 
 JOB_OBJECT_LIMIT_PROCESS_MEMORY is not applied to Qt-based emulators
-(86Box, DuckStation, PCSX2) or managed-runtime emulators (Mesen
-.NET/Avalonia, xemu JIT heap). Qt's security initialisation triggers
-STATUS_STACK_BUFFER_OVERRUN (0xC0000409) when this limit is applied
-after process creation. Mesen and xemu pre-allocate heap at startup via
-their managed runtimes and exhibit the same failure. Kill-on-close and
-CPU rate control still apply. The skip_memory_limit flag in
-config/emulators/ controls this per emulator.
+(86Box, DuckStation, PCSX2) or the managed-runtime Mesen (.NET/Avalonia).
+Qt's security initialisation triggers STATUS_STACK_BUFFER_OVERRUN
+(0xC0000409) when this limit is applied after process creation. Mesen
+pre-allocates heap at startup via its managed runtime and exhibits the
+same failure. Kill-on-close and CPU rate control still apply. The
+skip_memory_limit flag in config/emulators/ controls this per emulator.
+
+xemu also pre-allocates a JIT heap at startup but is not exempt: its
+memory cap is enforced (skip_memory_limit = false) as long as the xbox
+era's memory_limit_mb stays above 2048 MB, which avoids the failure mode
+above.
 
 #### Job Object CPU rate control mutes host audio
 

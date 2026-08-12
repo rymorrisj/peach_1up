@@ -238,6 +238,7 @@ def reset_pin(
     user.pin_required = True
     user.failed_pin_attempts = 0
     user.is_locked = False
+    clear_session(db, user)
     db.commit()
     db.refresh(user)
     return user

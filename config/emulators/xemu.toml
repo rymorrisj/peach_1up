@@ -6,11 +6,10 @@ version = "0.8.134"
 binary = "xemu.exe"
 download_url = "https://xemu.app"
 portable_sentinel = "xemu.toml"
-container_enabled = false
-container_hardcap_disabled = true
-container_permanently_excluded = true
-skip_memory_limit = true
-skip_cpu_limit = true
+container_enabled = true
+container_hardcap_disabled = false
+skip_memory_limit = false
+skip_cpu_limit= false
 description = "Original Xbox emulation"
 required = false
 install_type = "github_release"
@@ -61,14 +60,14 @@ guidance_text = "Place xbox_hdd.qcow2 in emulators/xemu/data/default/. A pre-bui
 guidance_url = "https://xemu.app/docs/required-files/"
 
 [[known_limitations]]
-title = "Memory limit must be disabled"
+title = "Memory limit must stay above 2048 MB"
 severity = "warning"
-description = "xemu pre-allocates a 1 GB JIT buffer at startup. The Job Object memory cap must be disabled (skip_memory_limit = true) or set above 2048 MB, otherwise xemu exits immediately with a paging file error."
+description = "xemu pre-allocates a 1 GB JIT buffer at startup. The Job Object memory cap is enforced (skip_memory_limit = false) using the xbox era limit, which must stay above 2048 MB or xemu exits immediately with a paging file error."
 
 [[known_limitations]]
-title = "CPU rate cap is disabled"
-severity = "warning"
-description = "The Job Object CPU rate cap is waived for xemu (skip_cpu_limit = true), matching every other emulator except RPCS3. Because xemu is also container_permanently_excluded, this leaves kill-on-close as the only resource control still active on it: a runaway or hung xemu process can saturate host CPU until it is closed. The waiver is deliberate rather than an oversight, but the specific behaviour that motivated it is not recorded here; treat re-enabling the cap as a change that needs a fresh smoke test rather than a config edit."
+title = "CPU rate cap is enforced"
+severity = "info"
+description = "The Job Object CPU rate cap applies to xemu like every other emulator (skip_cpu_limit = false)."
 
 [[known_limitations]]
 title = "Shader cache writes to AppData"
@@ -76,9 +75,9 @@ severity = "info"
 description = "xemu writes its shader cache to %APPDATA%\\xemu\\ regardless of portable mode. This is a known xemu limitation and cannot be overridden via config."
 
 [[known_limitations]]
-title = "AppContainer isolation not supported"
-severity = "critical"
-description = "xemu is built on QEMU's TCG emulation backend, which requires DeviceIoControl access to query disk geometry for qcow2 images. AppContainer blocks this call, causing a fatal block driver assertion at launch. Job Object isolation (kill-on-close, CPU cap) is the only available isolation layer on Windows. This is a QEMU platform limitation, not a configuration issue. See https://www.qemu.org/docs/master/system/security.html for details."
+title = "AppContainer previously disabled due to undersized limits"
+severity = "info"
+description = "xemu was previously excluded from AppContainer on a suspected QEMU TCG/DeviceIoControl incompatibility; that diagnosis was wrong. The actual cause was memory and CPU limits too small for xemu's pre-allocated JIT heap, which caused an early exit that looked like an AppContainer incompatibility. With adequate limits xemu runs correctly under AppContainer and it is now enabled."
 
 [[known_limitations]]
 title = "Disc images must be in XISO format"

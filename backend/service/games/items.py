@@ -421,12 +421,28 @@ def _detect_directory_source(
     and requires_install now always come from the same pass.
     """
     from formatscout import detect as _smart_detect
+    from formatscout.result import ScanResult
+    from backend.service.utils.detection import resolve_ps3_target
 
     executable = _pick_folder_executable(folder)
     detect_path = best_detect_path(folder, str(executable) if executable is not None else None)
-    scan = _smart_detect(detect_path)
-    if scan.era is None and scan.warnings:
-        log.warning("Media detection warnings for '%s': %s", detect_path, scan.warnings)
+    ps3_target = resolve_ps3_target(folder)
+    if ps3_target is not None:
+        # best_detect_path() resolves PS3 folders structurally (ps3.py) and
+        # returns the folder itself as detect_path. formatscout no longer has
+        # its own PS3 structural check (that logic moved out to ps3.py, see
+        # its module docstring), so running _smart_detect() on the folder here
+        # would silently come back with era=None. The resolver's era is
+        # authoritative, use it directly instead of re-deriving it generically.
+        scan = ScanResult(
+            title=None, platform="ps3", era=ps3_target.era, confidence=1.0,
+            reason="PS3 folder structure (USRDIR/EBOOT.BIN)",
+            requires_install=ps3_target.requires_install,
+        )
+    else:
+        scan = _smart_detect(detect_path)
+        if scan.era is None and scan.warnings:
+            log.warning("Media detection warnings for '%s': %s", detect_path, scan.warnings)
 
     media_path = folder
     resolve_era = user_override_era or era_hint or scan.era
@@ -453,8 +469,7 @@ def _detect_directory_source(
                 # so media_path is deliberately left pointing at the folder.
                 # Only warn when the folder isn't valid PS3 content either,
                 # i.e. resolution has no other explanation.
-                from backend.service.utils.detection import resolve_ps3_target
-                if resolve_ps3_target(folder) is None:
+                if ps3_target is None:
                     log.warning(
                         "Could not find EBOOT.BIN in expected PS3 folder structure "
                         "at '%s' (expected USRDIR/EBOOT.BIN, optionally under PS3_GAME/).",
@@ -1483,13 +1498,31 @@ def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
       classified at ingest.
     """
     path = normalise_path(leaf.file_path)
-    if not path.is_file():
+    era = bundle.era if bundle.era != "unknown" else None
+    if path.is_dir():
+        # PS3 titles, plus caesar-iii/halflife/rally/sacrifice, legitimately
+        # store a directory as file_path (see _stage_directory_source); resolve
+        # to the actual media file inside instead of rejecting on is_file().
+        # Same resolve-then-ps3-fallback sequence coordinator.py's launch path
+        # and items.py's ingest detect stage already use for this.
+        try:
+            path = resolve_media_file_from_directory(path, era)
+        except ValueError as exc:
+            ps3_target = None
+            if era == "ps3":
+                from backend.service.utils.detection import resolve_ps3_target
+                ps3_target = resolve_ps3_target(path)
+            if ps3_target is None:
+                raise HTTPException(
+                    status_code=400, detail=f"Media file not found on disk: {leaf.file_path}"
+                ) from exc
+            path = ps3_target.detect_path
+    elif not path.is_file():
         raise HTTPException(status_code=400, detail=f"Media file not found on disk: {leaf.file_path}")
 
     if leaf.sha1 is not None:
         from formatscout import classify as _classify
 
-        era = bundle.era if bundle.era != "unknown" else None
         result = _classify(path, bundle.title, era)
         leaf.verification_status = result.status
         leaf.verification_similarity = result.similarity

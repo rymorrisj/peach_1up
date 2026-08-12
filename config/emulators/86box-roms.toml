@@ -7,8 +7,8 @@ install_scope = "portable"
 binary = "emulators/86box/roms"
 # Inert for a rom_pack (it never launches as a Job Object process); set for
 # schema uniformity since EmulatorDescriptor requires both fields.
-skip_memory_limit = true
-skip_cpu_limit = true
+skip_memory_limit = false
+skip_cpu_limit= false
 required = true
 license = "Various"
 source_url = "https://github.com/86Box/roms"

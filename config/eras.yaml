@@ -87,7 +87,7 @@ snes:
 
 n64:
   backend: project64
-  memory_limit_mb: 1024
+  memory_limit_mb: 2048
   cpu_limit_percent: 60
   supported_media: [".z64", ".n64", ".v64"]
 

@@ -54,6 +54,7 @@ def run_setup(db_path: str | Path) -> bool:
         print("\nAborted.")
         return False
 
+    from backend.core.identity import clear_session
     from backend.core.settings import init_settings
     from backend.service.utils.pin_hashing import hash_pin
     init_settings()  # this script runs standalone, outside the FastAPI lifespan
@@ -91,6 +92,7 @@ def run_setup(db_path: str | Path) -> bool:
             existing.is_admin = True
             existing.is_locked = False
             existing.failed_pin_attempts = 0
+            clear_session(db, existing)
         else:
             db.add(UserItem(
                 id=1,
