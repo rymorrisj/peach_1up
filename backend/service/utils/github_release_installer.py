@@ -1,33 +1,32 @@
-"""Install a portable emulator from its latest GitHub release asset.
+"""Install a portable emulator from the peach1up_emulator_bundles repo.
 
 Sibling to ``emulator_installer.py``. Given an emulator slug whose catalog
 entry declares ``install_type = "github_release"``, this module:
 
-  1. Resolves the GitHub owner/repo from the entry's ``source_url``.
-  2. Fetches the repo's latest release from the GitHub REST API.
-  3. Matches the entry's ``asset_pattern`` (a regex) against the release
-     asset names, failing loud on zero or multiple matches.
-  4. Downloads the matched asset to a temporary location, fully, before any
+  1. Fetches ``manifest.json`` from the bundles repo's ``main`` branch, the
+     single source of truth for each emulator's current bundle.
+  2. Looks up the manifest entry for ``slug`` and constructs the release
+     asset's download URL directly from its ``tag`` and ``asset`` fields.
+  3. Downloads the asset to a temporary location, fully, before any
      extraction begins.
-  5. Computes the SHA256 of the download and compares it against the asset's
-     ``digest`` field when GitHub provides one (assets published before
-     June 2025 have a null digest, the check is skipped and noted).
-  6. Extracts the archive into ``emulators/<slug>/`` with a zip-slip
+  4. Computes the SHA256 of the download and compares it against the
+     manifest entry's ``sha256`` field.
+  5. Extracts the archive into ``emulators/<slug>/`` with a zip-slip
      path-traversal guard.
-  7. Ensures the portable sentinel file exists post-extraction.
+  6. Ensures the portable sentinel file exists post-extraction.
 
 Every step fails loud, there is no silent fallback. Temporary files are
-removed on any failure.
+removed on any failure. There is no GitHub API call anywhere in this flow,
+the manifest and the predictable release-asset URL shape replace it.
 
 Security-sensitive: this downloads and extracts an executable archive to disk
-based on runtime API data. The zip-slip guard and the ``.git`` component
+based on the fetched manifest. The zip-slip guard and the ``.git`` component
 rejection are load-bearing; do not relax them.
 """
 
 from __future__ import annotations
 
 import hashlib
-import re
 import shutil
 import subprocess
 import tempfile
@@ -41,8 +40,16 @@ from backend.service.utils.emulator_catalog import ensure_portable_mode, get_emu
 
 _BASE_DIR = get_base_path() / "emulators"
 _SEVENZ_EXE = get_base_path() / "services" / "vendor" / "7z" / "7za.exe"
-_API_ROOT = "https://api.github.com"
-_API_TIMEOUT = 30.0
+_BUNDLES_OWNER = "rymorrisj"
+_BUNDLES_REPO = "peach1up_emulator_bundles"
+_MANIFEST_URL = (
+    f"https://raw.githubusercontent.com/{_BUNDLES_OWNER}/{_BUNDLES_REPO}"
+    "/main/manifest.json"
+)
+_RELEASE_DOWNLOAD_ROOT = (
+    f"https://github.com/{_BUNDLES_OWNER}/{_BUNDLES_REPO}/releases/download"
+)
+_MANIFEST_TIMEOUT = 30.0
 _DOWNLOAD_TIMEOUT = 300.0
 _DOWNLOAD_CHUNK = 1024 * 1024  # 1 MiB
 # RPCS3's win64_msvc build decompresses to ~143 MiB (149996575 bytes,
@@ -51,71 +58,60 @@ _DOWNLOAD_CHUNK = 1024 * 1024  # 1 MiB
 # archive (config/emulators/pcsx2.toml). 500 MiB leaves headroom for growth
 # while still bounding decompression-bomb archives.
 _MAX_7Z_EXTRACT_SIZE = 500 * 1024 * 1024
-_GITHUB_HEADERS = {
-    "Accept": "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
+_HTTP_HEADERS = {
     "User-Agent": "peach1up-emulator-installer",
 }
 
-_SOURCE_URL_RE = re.compile(
-    r"^https?://github\.com/(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$"
-)
+# Required manifest.json shape, keyed by emulator slug:
+#   {
+#     "<slug>": {
+#       "version": "0.0.41",
+#       "tag": "v0.0.41",
+#       "asset": "<slug>.zip",
+#       "sha256": "<hex digest>",
+#       "released_at": "2026-08-01T00:00:00Z"
+#     },
+#     ...
+#   }
+# ``released_at`` is part of the schema but is not consumed by this module.
+_MANIFEST_REQUIRED_FIELDS = ("version", "tag", "asset", "sha256")
 
 
-def _parse_owner_repo(source_url: str) -> tuple[str, str]:
-    """Derive (owner, repo) from a GitHub ``source_url``.
-
-    Raises:
-        ValueError: If the URL is not a recognizable github.com repo URL.
-    """
-    m = _SOURCE_URL_RE.match((source_url or "").strip())
-    if not m:
-        raise ValueError(
-            f"Cannot derive GitHub owner/repo from source_url {source_url!r}."
-        )
-    return m.group("owner"), m.group("repo")
-
-
-def _fetch_latest_release(owner: str, repo: str) -> dict:
-    """Fetch the latest published release for owner/repo from the GitHub API.
+def _fetch_manifest() -> dict:
+    """Fetch and parse manifest.json from the bundles repo's main branch.
 
     Raises:
-        RuntimeError: On any non-2xx response.
+        RuntimeError: On any non-2xx response or invalid JSON.
     """
-    url = f"{_API_ROOT}/repos/{owner}/{repo}/releases/latest"
-    with httpx.Client(timeout=_API_TIMEOUT, follow_redirects=True) as client:
-        resp = client.get(url, headers=_GITHUB_HEADERS)
+    with httpx.Client(timeout=_MANIFEST_TIMEOUT, follow_redirects=True) as client:
+        resp = client.get(_MANIFEST_URL, headers=_HTTP_HEADERS)
     if resp.status_code != 200:
         raise RuntimeError(
-            f"GitHub API returned {resp.status_code} for {owner}/{repo} latest "
-            f"release: {resp.text[:300]}"
+            f"Manifest fetch returned {resp.status_code} for {_MANIFEST_URL}: "
+            f"{resp.text[:300]}"
         )
-    return resp.json()
+    try:
+        return resp.json()
+    except ValueError as exc:
+        raise RuntimeError(f"Manifest at {_MANIFEST_URL} is not valid JSON: {exc}")
 
 
-def _select_asset(release: dict, asset_pattern: str) -> dict:
-    """Return the single release asset whose name matches ``asset_pattern``.
+def _manifest_entry(manifest: dict, slug: str) -> dict:
+    """Return the manifest entry for ``slug``.
 
     Raises:
-        RuntimeError: If zero or more than one asset matches, the match must
-            be unambiguous.
+        RuntimeError: If ``slug`` has no manifest entry, or the entry is
+            missing a required field.
     """
-    pattern = re.compile(asset_pattern)
-    assets = release.get("assets") or []
-    matches = [a for a in assets if pattern.fullmatch(a.get("name", ""))]
-    if not matches:
-        available = ", ".join(a.get("name", "") for a in assets) or "<none>"
+    entry = manifest.get(slug)
+    if not entry:
+        raise RuntimeError(f"No manifest entry for '{slug}' at {_MANIFEST_URL}.")
+    missing = [f for f in _MANIFEST_REQUIRED_FIELDS if not entry.get(f)]
+    if missing:
         raise RuntimeError(
-            f"No release asset matched pattern {asset_pattern!r}. "
-            f"Available assets: {available}"
+            f"Manifest entry for '{slug}' is missing required field(s): {missing}."
         )
-    if len(matches) > 1:
-        names = ", ".join(a.get("name", "") for a in matches)
-        raise RuntimeError(
-            f"Multiple release assets matched pattern {asset_pattern!r}: {names}. "
-            "Refusing to install an ambiguous asset."
-        )
-    return matches[0]
+    return entry
 
 
 def _download_asset(download_url: str, dest: Path) -> None:
@@ -125,7 +121,7 @@ def _download_asset(download_url: str, dest: Path) -> None:
         RuntimeError: On any non-2xx response.
     """
     with httpx.Client(timeout=_DOWNLOAD_TIMEOUT, follow_redirects=True) as client:
-        with client.stream("GET", download_url, headers=_GITHUB_HEADERS) as resp:
+        with client.stream("GET", download_url, headers=_HTTP_HEADERS) as resp:
             if resp.status_code != 200:
                 raise RuntimeError(
                     f"Asset download failed with HTTP {resp.status_code} for "
@@ -144,34 +140,17 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def _verify_digest(asset: dict, computed_sha256: str) -> bool:
-    """Compare ``computed_sha256`` against the asset's ``digest`` field.
-
-    Returns True if the digest was present and verified, False if the digest
-    was absent (pre-June-2025 asset) and the check was skipped.
+def _verify_digest(expected_sha256: str, computed_sha256: str, asset_name: str) -> None:
+    """Compare ``computed_sha256`` against the manifest's ``sha256`` field.
 
     Raises:
-        RuntimeError: If the digest is present but uses an unexpected algorithm
-            or does not match.
+        RuntimeError: If the digests do not match.
     """
-    digest = asset.get("digest")
-    if not digest:
-        return False
-    algo, sep, expected = digest.partition(":")
-    if not sep:
-        # Bare hex with no algorithm prefix, treat as sha256.
-        algo, expected = "sha256", digest
-    if algo.lower() != "sha256":
+    if expected_sha256.lower() != computed_sha256.lower():
         raise RuntimeError(
-            f"Asset {asset.get('name')!r} declares an unexpected digest "
-            f"algorithm {algo!r}; refusing to install."
+            f"SHA256 mismatch for asset {asset_name!r}: "
+            f"expected {expected_sha256}, computed {computed_sha256}."
         )
-    if expected.lower() != computed_sha256.lower():
-        raise RuntimeError(
-            f"SHA256 mismatch for asset {asset.get('name')!r}: "
-            f"expected {expected}, computed {computed_sha256}."
-        )
-    return True
 
 
 def _safe_extract_zip(zip_path: Path, dest_dir: Path) -> None:
@@ -313,44 +292,34 @@ def _safe_extract_7z(archive_path: Path, dest_dir: Path) -> None:
 
 
 def install_from_github_release(slug: str) -> dict:
-    """Download and install ``slug`` from its latest GitHub release asset.
+    """Download and install ``slug`` from the peach1up_emulator_bundles repo.
 
     Returns a result dict describing what was installed:
         ``{slug, version, install_path, asset_filename, asset_url,
            sha256, digest_verified}``.
-    ``digest_verified`` is False when the asset had no digest to check
-    against (pre-June-2025 asset), the download still completed, but its
-    integrity was not cryptographically confirmed.
+    ``digest_verified`` is always True on a successful return, a mismatch
+    raises instead of returning.
 
     Raises:
         ValueError: If the entry is misconfigured (wrong install_type, missing
-            asset_pattern or source_url).
-        RuntimeError: On any API, matching, download, digest, or extraction
+            binary).
+        RuntimeError: On any manifest, download, digest, or extraction
             failure.
     """
     entry = get_emulator(slug)
     if entry.get("install_type") != "github_release":
         raise ValueError(f"'{slug}' is not a github_release-type emulator.")
 
-    asset_pattern = entry.get("asset_pattern")
-    if not asset_pattern:
-        raise ValueError(f"No asset_pattern configured for '{slug}'.")
-
     binary = entry.get("binary")
     if not binary:
         raise ValueError(f"No binary configured for '{slug}'.")
 
-    owner, repo = _parse_owner_repo(entry.get("source_url", ""))
-
-    release = _fetch_latest_release(owner, repo)
-    version = release.get("tag_name") or release.get("name") or "unknown"
-    asset = _select_asset(release, asset_pattern)
-    asset_name = asset.get("name", "")
-    download_url = asset.get("browser_download_url")
-    if not download_url:
-        raise RuntimeError(
-            f"Matched asset {asset_name!r} has no browser_download_url."
-        )
+    manifest = _fetch_manifest()
+    manifest_entry = _manifest_entry(manifest, slug)
+    version = manifest_entry["version"]
+    asset_name = manifest_entry["asset"]
+    expected_sha256 = manifest_entry["sha256"]
+    download_url = f"{_RELEASE_DOWNLOAD_ROOT}/{manifest_entry['tag']}/{asset_name}"
 
     target_dir = (_BASE_DIR / slug).resolve()
     try:
@@ -361,14 +330,14 @@ def install_from_github_release(slug: str) -> dict:
     tmp_dir = Path(tempfile.mkdtemp(prefix=f"p1up-{slug}-"))
     try:
         tmp_asset = tmp_dir / asset_name
-        # (3) Download completes fully before any extraction begins.
+        # (2) Download completes fully before any extraction begins.
         _download_asset(download_url, tmp_asset)
 
-        # (4) Integrity check against the asset digest when available.
+        # (3) Integrity check against the manifest's expected digest.
         computed_sha256 = _sha256_file(tmp_asset)
-        digest_verified = _verify_digest(asset, computed_sha256)
+        _verify_digest(expected_sha256, computed_sha256, asset_name)
 
-        # (5) Extract into emulators/<slug>/ with the zip-slip guard.
+        # (4) Extract into emulators/<slug>/ with the zip-slip guard.
         target_dir.mkdir(parents=True, exist_ok=True)
         suffix = Path(asset_name).suffix.lower()
         if suffix == ".zip":
@@ -381,7 +350,7 @@ def install_from_github_release(slug: str) -> dict:
                 f"{asset_name!r}."
             )
     finally:
-        # (7) Clean up temp files on success or failure.
+        # Clean up temp files on success or failure.
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
     binary_path = target_dir / binary
@@ -392,7 +361,7 @@ def install_from_github_release(slug: str) -> dict:
             f"{asset_name!r}. Contents of {target_dir}: {landed}"
         )
 
-    # (6) Ensure the portable sentinel exists post-extraction.
+    # (5) Ensure the portable sentinel exists post-extraction.
     ensure_portable_mode(slug, binary_path)
 
     return {
@@ -402,5 +371,5 @@ def install_from_github_release(slug: str) -> dict:
         "asset_filename": asset_name,
         "asset_url": download_url,
         "sha256": computed_sha256,
-        "digest_verified": digest_verified,
+        "digest_verified": True,
     }
