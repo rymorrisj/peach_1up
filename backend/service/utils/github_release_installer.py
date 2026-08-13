@@ -41,7 +41,7 @@ from backend.service.utils.emulator_catalog import ensure_portable_mode, get_emu
 _BASE_DIR = get_base_path() / "emulators"
 _SEVENZ_EXE = get_base_path() / "services" / "vendor" / "7z" / "7za.exe"
 _BUNDLES_OWNER = "rymorrisj"
-_BUNDLES_REPO = "peach1up_emulator_bundles"
+_BUNDLES_REPO = "peach_1up_emulator_bundles_win"
 _MANIFEST_URL = (
     f"https://raw.githubusercontent.com/{_BUNDLES_OWNER}/{_BUNDLES_REPO}"
     "/main/manifest.json"
