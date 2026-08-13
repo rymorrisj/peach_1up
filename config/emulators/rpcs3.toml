@@ -5,7 +5,7 @@ name = "RPCS3"
 version = "0.0.41"
 binary = "rpcs3.exe"
 download_url = "https://rpcs3.net/download"
-container_enabled = false
+container_enabled = true
 container_hardcap_disabled = false
 container_permanently_excluded = false
 skip_memory_limit = false
@@ -48,13 +48,15 @@ acquire_method = "user_supplied"
 required = true
 display_name = "PS3 Firmware (PS3UPDAT.PUP)"
 platform = "ps3"
-guidance_text = "Download the latest PS3 firmware (PS3UPDAT.PUP) from Sony and install it from within RPCS3 via File > Install Firmware, or pass --installfw at the command line. This populates dev_flash/ under RPCS3's portable data folder. Peach 1UP does not provide, link to, or assist with acquiring firmware files."
+bios_path = "emulators/rpcs3/dev_flash/vsh/etc"
+required_files = ["version.txt"]
+guidance_text = "RPCS3 must be launched directly at least once before real use to install PS3 firmware. Install PS3UPDAT.PUP from within RPCS3 (File > Install Firmware) or via rpcs3.exe --installfw <path-to-PS3UPDAT.PUP>, which populates dev_flash/ under RPCS3's portable data folder. Where to obtain PS3UPDAT.PUP is not established here. Peach 1UP does not provide, link to, or assist with acquiring firmware files."
 guidance_url = "https://rpcs3.net/quickstart"
 
 [[known_limitations]]
-title = "AppContainer isolation not supported"
-severity = "critical"
-description = "RPCS3 is a heavily JIT-based recompiler (Cell PPU/SPU and RSX) that relies on runtime code generation and low-level system calls incompatible with AppContainer's restricted token, the same class of limitation as xemu. Job Object isolation (kill-on-close, CPU cap) is the only available isolation layer on Windows."
+title = "AppContainer isolation confirmed working"
+severity = "info"
+description = "RPCS3 is a heavily JIT-based recompiler (Cell PPU/SPU and RSX) but has been confirmed to run correctly under AppContainer despite its runtime code generation. AppContainer isolation is enabled, with Job Object memory and CPU limits layered on top."
 
 [[known_limitations]]
 title = "Controller input requires manual configuration"

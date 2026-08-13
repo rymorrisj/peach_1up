@@ -58,10 +58,20 @@ GNU General Public License v2 or later (see root LICENSE).
    Note:      Windows binaries are published from the companion repository
               https://github.com/RPCS3/rpcs3-binaries-win, which is what the
               installer resolves. The corresponding source is the RPCS3/rpcs3
-              repository listed above. No SOURCE_OFFER.txt is present for this
-              emulator yet.
+              repository listed above. See emulators/rpcs3/SOURCE_OFFER.txt.
 
-9. Xenia
+9. DuckStation
+   License:   Creative Commons Attribution-NonCommercial-NoDerivatives 4.0
+              International (CC BY-NC-ND 4.0)
+   Copyright: Copyright 2019-2024 Connor McLaughlin and contributors
+   Source:    https://github.com/stenzek/duckstation
+   License file: emulators/duckstation/LICENSE.txt
+   Note:      Not a GPL work, no SOURCE_OFFER.txt applies. DuckStation is
+              fetched unmodified from the project's own GitHub release at
+              install time rather than redistributed by Peach 1UP, consistent
+              with the license's NoDerivatives/NonCommercial terms.
+
+10. Xenia
    License:   BSD 3-Clause License (BSD-3-Clause)
    Copyright: Copyright 2015-2024 Ben Vanik and contributors
    Source:    https://github.com/xenia-project/xenia
@@ -75,4 +85,5 @@ GNU General Public License v2 or later (see root LICENSE).
 
 Source code for each emulator is available at the upstream URLs listed above.
 For the GPL-licensed emulators, see each emulator's SOURCE_OFFER.txt for the
-written source-code offer, except RPCS3, which does not yet have one.
+written source-code offer. DuckStation (CC BY-NC-ND 4.0) and Xenia
+(BSD-3-Clause) are not GPL-licensed and carry no SOURCE_OFFER.txt.

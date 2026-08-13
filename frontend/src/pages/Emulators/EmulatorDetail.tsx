@@ -27,6 +27,7 @@ const EMULATOR_BIOS_PLATFORM: Record<string, string> = {
   flycast: 'dreamcast',
   '86box': '86box',
   mesen: 'mesen',
+  rpcs3: 'ps3',
 };
 
 export default function EmulatorDetail() {

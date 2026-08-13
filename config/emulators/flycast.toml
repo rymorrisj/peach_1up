@@ -58,6 +58,6 @@ severity = "warning"
 description = "dc_boot.bin and dc_flash.bin must be from the same hardware revision. Mismatched pairs may cause region or boot failures."
 
 [[known_limitations]]
-title = "AppContainer isolation disabled"
+title = "AppContainer isolation enabled"
 severity = "info"
-description = "Flycast can work with AppContainer in specific circumstances but is disabled for the current version for more testing. Job Object memory and CPU limits remain enabled."
+description = "Flycast runs under AppContainer isolation. Job Object memory and CPU limits remain enabled on top of it."

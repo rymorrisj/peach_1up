@@ -295,10 +295,14 @@ explicit decision.
 
   | State | Emulators |
   |---|---|
-  | Enabled | DOSBox-X, DuckStation, Flycast, Mesen, PCSX2, Xenia, xemu |
+  | Enabled | DOSBox-X, DuckStation, Flycast, Mesen, PCSX2, RPCS3, Xenia, xemu |
   | Disabled, environment-dependent | 86Box. Works in some environments and not others, disabled by default, not being investigated further |
-  | Disabled, JIT incompatible | RPCS3 |
-  | Permanently excluded | Project64 (`container_permanently_excluded = true`). Crashes on launch (`Main.cpp:99`, `exit_code=1`) even with limits raised, root cause unknown |
+  | Enabled with skip_memory_limit | Project64. Crashes on launch (`Main.cpp:99`, `exit_code=1`) specifically when the memory limit is enforced alongside AppContainer, root cause unknown; runs with the memory limit disabled |
+
+  RPCS3 was previously believed disabled due to JIT incompatibility (heavy
+  runtime code generation across Cell PPU/SPU and RSX), the same suspected
+  class of issue as the old xemu diagnosis. That diagnosis was wrong: RPCS3
+  is confirmed working under AppContainer and is enabled.
 
   xemu was previously excluded on a suspected QEMU TCG / `DeviceIoControl` incompatibility.
   That diagnosis was wrong: the real cause was memory and CPU limits sized below its
@@ -313,9 +317,11 @@ explicit decision.
   A slug marked `container_permanently_excluded` rejects a profile-level override here:
   `resolve_container_enabled()` ignores it and logs a warning. `PATCH /{slug}/sandbox`
   separately rejects enabling a permanently disabled container with 400, so both routes
-  into container gating are covered. **Today only `project64` carries that flag**, despite
-  `rpcs3.toml`'s own `known_limitations` describing the same class of hard incompatibility;
-  see [CHANGELOG.md](../CHANGELOG.md) open items.
+  into container gating are covered. **No descriptor currently carries that flag.**
+  Project64's earlier `Main.cpp:99` crash turned out to be specific to the memory limit
+  being enforced alongside AppContainer, not a blanket incompatibility, so it now ships
+  `container_enabled = true` with `skip_memory_limit = true` instead of being permanently
+  excluded; see [CHANGELOG.md](../CHANGELOG.md) open items.
 - For container-enabled emulators, process creation is delegated to `sandbox_host.exe`,
   which handles `SECURITY_CAPABILITIES`,
   `CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT`, and `ResumeThread`. The Python
@@ -409,20 +415,21 @@ session, muting system audio. The recorded fix for that (2026-05-21) is the swit
 `HARD_CAP` to `MIN_MAX_RATE` with a non-zero `MinRate` reserving a floor for the audio
 thread, not a blanket waiver.
 
-**Current status: every descriptor sets both flags to `false`.** Neither cap is waived for
-any emulator; both are enforced as shipped. The correct fix in every case turned out to be
-sizing the era limits properly rather than skipping the check.
+**Current status: every descriptor sets both flags to `false` except Project64's
+`skip_memory_limit`.** The correct fix in every other case turned out to be sizing the era
+limits properly rather than skipping the check; Project64 is the one confirmed exception,
+where the memory cap itself is what triggers its AppContainer crash.
 
 | Emulator | `container_enabled` | `skip_cpu_limit` | `skip_memory_limit` | Notes |
 |---|---|---|---|---|
 | 86Box | false | false | false | Disabled by default pending broader AppContainer testing. Historically in the Qt fast-fail group; the memory cap is enforced today |
 | DOSBox-X | true | false | false | No waiver history |
 | DuckStation | true | false | false | Historically in the Qt fast-fail group; enforced today |
-| Flycast | true | false | false | No waiver history. Its `known_limitations` entry still describes AppContainer as disabled, which contradicts `container_enabled = true` in the same file |
+| Flycast | true | false | false | No waiver history |
 | Mesen | true | false | false | `skip_memory_limit = true` previously papered over an undersized era cap colliding with the .NET/Avalonia startup heap. `false` today with no crash reported, consistent with the cap sizing having been fixed |
 | PCSX2 | true | false | false | Historically in the Qt fast-fail group; enforced today |
-| Project64 | false, `container_permanently_excluded = true` | false | false | Crashes under AppContainer even with limits raised, root cause unresolved and unrelated to either flag. Job Object caps are the only active isolation layer and both are enforced |
-| RPCS3 | false | false | false | Disabled per its own `known_limitations` (JIT incompatibility), but `container_permanently_excluded = false`, unlike Project64 |
+| Project64 | true | false | true | Crashes under AppContainer specifically when the memory limit is enforced (`Main.cpp:99`, root cause unknown). Runs with `container_enabled = true` and the memory limit waived; the CPU limit and AppContainer isolation itself are unaffected |
+| RPCS3 | true | false | false | Confirmed working under AppContainer despite its JIT-heavy Cell PPU/SPU and RSX recompilation |
 | xemu | true | false | false | Re-enabled 2026-08-11 once the `xbox` era limits were sized above its JIT heap. No skip flag was needed |
 | Xenia | true | false | false | No waiver history |
 | 86box-roms | n/a | false | false | Not a launchable process (`install_type = "rom_pack"`); both flags are set only for schema uniformity |

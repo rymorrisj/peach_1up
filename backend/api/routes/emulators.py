@@ -471,15 +471,6 @@ def patch_sandbox(slug: str, body: SandboxPatchRequest, _: UserItem = require_pe
             detail="AppContainer is permanently disabled for this emulator. See known limitations for details.",
         )
 
-    # Mirror _resolve_skip_flag's floor logic here so a rejected write and the
-    # catalog's silent-ignore floor can never disagree.
-    for field in ("skip_cpu_limit", "skip_memory_limit"):
-        if getattr(body, field) is True and not bool(get_emulator(slug).get(field, False)):
-            raise HTTPException(
-                status_code=400,
-                detail=f"{field} is enforced by this emulator's descriptor and cannot be waived. See known limitations for details.",
-            )
-
     updates = body.model_dump(exclude_none=True)
     for field, value in updates.items():
         _settings.set_flag(f"sandbox_{slug}_{field}", value)

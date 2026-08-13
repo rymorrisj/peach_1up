@@ -1,0 +1,17 @@
+Written Source-Code Offer, RPCS3
+==================================
+
+RPCS3 is distributed under the GNU General Public License v2 or later
+(GPL-2.0-or-later). In accordance with GPL section 3, the complete
+corresponding source code is available at:
+
+  Source repository: https://github.com/RPCS3/rpcs3
+  Release downloads: https://github.com/RPCS3/rpcs3-binaries-win/releases
+
+The Windows binary is published from the companion rpcs3-binaries-win
+repository; the corresponding source is the RPCS3/rpcs3 repository above.
+These URLs are derived from config/emulators/rpcs3.toml (source_url) and
+NOTICE, and are the single source of truth for this offer.
+
+This offer is valid for three years from the date of distribution of the
+corresponding binary, as required by GPL section 3(b).

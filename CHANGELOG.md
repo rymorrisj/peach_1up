@@ -34,8 +34,6 @@ the source documents.
 | Item | State |
 |---|---|
 | `wincage` and `formatscout` vendor mirrors | Not committed. Both are gitignored under `services/vendor/` and must be cloned manually before `uv sync`. Two upstream mirror pulls still outstanding. |
-| `flycast.toml` doc/config inconsistency | `container_enabled = true`, but the file's own `known_limitations` entry still says AppContainer is disabled for the current version pending testing. One of the two is wrong. |
-| `rpcs3.toml` doc/config inconsistency | `known_limitations` calls AppContainer support impossible (critical, same class as the old xemu diagnosis), but `container_permanently_excluded = false`. Only `project64` is actually hard-locked. |
 | `sha1 = NULL` on directory-shaped leaves | Ingest runs `classify()` against the leaf's `file_path`. When that path is a directory (PS3 folder layouts, DOS loose-file folders) no hash is computed and `sha1` persists as `NULL`. Manual re-verify then takes the no-baseline branch, resolves the directory to its inner media file, and stores *that* file's hash, so the two paths disagree about what the leaf's hash represents. |
 | Frontend test-runner hang | `TabbedLayout.test.tsx` and `test/routing.sectionRedirects.test.tsx` pass their assertions but never let the Vitest process exit. Leaked-async-handle signature, source not pinned down, hang point inconsistent between runs. Both skipped, both carry a `TODO`. |
 | PSS-3, PSS-6, PSS-7 | On hold. The trained executable-detection model needed the eXoDOS dataset; its torrents and The Eye are both down. The LLM-assisted config path is not needed for alpha. |
@@ -43,13 +41,39 @@ the source documents.
 | BIOS/ROM centralization | Deferred, discovery-first. The `RomPackItem` relationship to a new ROM model is unresolved and blocks any schema work. |
 | Archive-aware ingestion | Deferred. Zip/7z-aware reading in the detector and DAT ingestion, plus DAT normalization before `build_index.py`. Build in-house, not RomVault. |
 | CHD Tier-1 hash matching | Blocked on `libchdr` hunk decompression. Interim size-based PS1/PS2 split is in place. |
-| `NOTICE` / `SOURCE_OFFER.txt` | RPCS3 has a `NOTICE` entry but still no `SOURCE_OFFER.txt`. Xenia needs none (BSD-3-Clause). |
 | Library path reconfiguration | `LIBRARY_PATH`, `PROFILES_PATH`, and `ROMS_PATH` have no UI and no config file. `POST /api/v1/settings/library-path` works but is only reachable by calling the API directly. |
 | `AI_API_KEY` | Writable through the settings PATCH endpoint and scrubbed from reads, but nothing anywhere consumes it. Wire up a consumer or drop the allowlist entry. (`IGDB_CLIENT_ID`/`IGDB_CLIENT_SECRET` were in the same state and are now live, consumed by `igdb_provider.py`.) |
 | 86Box per-machine ROM completeness | `--dumpmissing` is not wired in as a preflight check. A machine profile missing one card ROM may not surface a clean error. |
 | 86Box drivers | The ROM pack and BIOS ship, but there are no guest drivers to actually use them. |
 | xemu relaunch crash | `0xc0000409` in `msvcrt.dll` on any launch with system files configured. Confirmed upstream (xemu-project/xemu#1486), cross-vendor GPU. Workaround is disabling Control Flow Guard for `xemu.exe`. No code fix possible. |
 | Aspect/resolution detection | Some platforms launch at default or native settings and break graphics. |
+
+### 2026-08-12, Project64/RPCS3/Xenia corrections
+
+Corrects two of the 2026-08-11 findings below and finalizes Project64's resource-cap
+waiver.
+
+| Emulator | Change |
+|---|---|
+| Project64 | Root cause narrowed: the `Main.cpp:99` crash is specific to the memory limit being enforced alongside AppContainer, not a blanket incompatibility. `container_permanently_excluded` reverted to `false`, `container_enabled = true`, `skip_memory_limit = true`. The CPU limit and AppContainer isolation itself remain in force. |
+| RPCS3 | The 2026-08-11 "disabled, JIT incompatible" finding was wrong, the same class of misdiagnosis as the earlier xemu entry. RPCS3 is confirmed working under AppContainer. `container_enabled = true`. |
+| Xenia | The `gpu = "vulkan"` workaround for the AMD D3D12 driver timeout is reverted; the installed `xenia.config.toml` is back to the upstream default `gpu = "any"`. A user who hits the timeout can still set `gpu = "vulkan"` manually per the `known_limitations` entry, which notes Xenia's own in-app warning that its Vulkan path is early/incomplete. |
+
+Also resolves two stale doc/config inconsistencies carried in the open items list:
+`flycast.toml`'s `known_limitations` text said AppContainer was disabled for testing
+while `container_enabled = true` was already set in the same file; `rpcs3.toml`'s
+`known_limitations` called AppContainer support impossible while it is now confirmed
+working. Both descriptor texts now match their flags.
+
+Attribution audit: `NOTICE` was missing a DuckStation entry entirely and still noted
+RPCS3 as lacking a `SOURCE_OFFER.txt`. Added `emulators/rpcs3/SOURCE_OFFER.txt`
+(GPL-2.0-or-later, matches the other GPL emulators' format) and a DuckStation `NOTICE`
+entry. DuckStation's own descriptor (`config/emulators/duckstation.toml`) lists its
+license as CC BY-NC-ND 4.0, not GPL as assumed going into this audit; confirmed against
+`emulators/duckstation/LICENSE.txt`. That license forbids redistribution of derivatives,
+which is consistent with DuckStation being fetched unmodified from its own GitHub
+release at install time rather than bundled, so it gets a `NOTICE` entry but no
+`SOURCE_OFFER.txt`.
 
 ### 2026-08-11, AppContainer test findings
 

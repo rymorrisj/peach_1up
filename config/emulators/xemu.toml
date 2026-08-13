@@ -44,7 +44,7 @@ required = true
 display_name = "Xbox BIOS"
 platform = "xbox"
 bios_path = "emulators/xemu/data/default"
-required_files = ["mcpx_1.0.bin", "xbox_hdd.qcow2"]
+required_files = ["mcpx_1.0.bin"]
 required_glob = "*.bin"
 required_glob_excludes = ["mcpx_1.0.bin", "eeprom.bin"]
 guidance_text = "Place your Xbox BIOS .bin files (mcpx_1.0.bin and the appropriate ROM) in emulators/xemu/data/default/. xemu will not start without them."
@@ -56,7 +56,9 @@ acquire_method = "user_supplied"
 required = true
 display_name = "Xbox HDD image"
 platform = "xbox"
-guidance_text = "Place xbox_hdd.qcow2 in emulators/xemu/data/default/. A pre-built blank image is available from the xemu project."
+bios_path = "emulators/xemu/data/default"
+required_files = ["xbox_hdd.qcow2"]
+guidance_text = "Place xbox_hdd.qcow2 in emulators/xemu/data/default/. A pre-built blank image is available from the xemu project. xemu will not start without it."
 guidance_url = "https://xemu.app/docs/required-files/"
 
 [[known_limitations]]
