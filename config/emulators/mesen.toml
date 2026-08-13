@@ -20,8 +20,6 @@ license = "GPL-3.0"
 copyright = "Copyright 2014–2024 M. Bibeau and contributors"
 source_url = "https://github.com/SourMesen/Mesen2"
 supported_formats = [".nes", ".chd", ".sfc", ".smc", ".fig", ".swc", ".zip"]
-guidance_text = "Download the Mesen Windows release and extract it to emulators/mesen/ so that Mesen.exe is inside."
-guidance_url = "https://www.mesen.ca"
 
 [[container_broker_files]]
 path_key = "install_dir"
@@ -41,5 +39,5 @@ required = false
 display_name = "Mesen FDS BIOS"
 platform = "mesen"
 bios_path = "emulators/mesen/data"
-guidance_text = "Place disksys.rom in emulators/mesen/data/ to enable Famicom Disk System titles. Not required for standard NES/Famicom cartridge games."
+guidance_text = "Optional: place disksys.rom in emulators/mesen/data/ to enable Famicom Disk System titles."
 guidance_url = "https://www.mesen.ca/docs/gettingstarted.html"

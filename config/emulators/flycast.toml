@@ -20,8 +20,6 @@ license = "GPL-2.0"
 copyright = "Copyright 2018–2024 The Flycast Team"
 source_url = "https://github.com/flyinghead/flycast"
 supported_formats = [".cdi", ".gdi", ".chd", ".cue"]
-guidance_text = "Download the Flycast Windows release and extract it to emulators/flycast/ so that flycast.exe is inside."
-guidance_url = "https://github.com/flyinghead/flycast"
 
 [[container_broker_files]]
 path_key = "install_dir"

@@ -50,7 +50,7 @@ display_name = "PS3 Firmware (PS3UPDAT.PUP)"
 platform = "ps3"
 bios_path = "emulators/rpcs3/dev_flash/vsh/etc"
 required_files = ["version.txt"]
-guidance_text = "RPCS3 must be launched directly at least once before real use to install PS3 firmware. Install PS3UPDAT.PUP from within RPCS3 (File > Install Firmware) or via rpcs3.exe --installfw <path-to-PS3UPDAT.PUP>, which populates dev_flash/ under RPCS3's portable data folder. Where to obtain PS3UPDAT.PUP is not established here. Peach 1UP does not provide, link to, or assist with acquiring firmware files."
+guidance_text = "Launch RPCS3 directly at least once before real use to install PS3 firmware: File > Install Firmware, or rpcs3.exe --installfw <path-to-PS3UPDAT.PUP>. This populates dev_flash/ under RPCS3's portable data folder. Peach 1UP does not provide PS3UPDAT.PUP."
 guidance_url = "https://rpcs3.net/quickstart"
 
 [[known_limitations]]

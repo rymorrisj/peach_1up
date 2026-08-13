@@ -128,7 +128,7 @@ if exist "services\vendor\wincage\wincage\sandbox_host.exe" (
 ) else (
     echo sandbox_host.exe not found. Attempting to build via MSYS2 UCRT64...
     if exist "C:\msys64\msys2_shell.cmd" (
-        "C:\msys64\msys2_shell.cmd" -ucrt64 -defterm -no-start -here -c "bash services/vendor/wincage/wincage/build.sh"
+        call "C:\msys64\msys2_shell.cmd" -ucrt64 -defterm -no-start -here -c "bash services/vendor/wincage/wincage/build.sh"
         if errorlevel 1 (
             echo ERROR: sandbox_host.exe build failed.
             echo Run build.sh manually from an MSYS2 UCRT64 shell.

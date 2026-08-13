@@ -202,7 +202,11 @@ export default function UserSwitcher() {
     setPinTarget(null);
   }
 
-  if (!users || users.length <= 1) return null;
+  if (!users) return null;
+  // Suppress only when signed in solo, nothing to switch to. Signed out
+  // (no activeUser) must always render, even with one account, or a forced
+  // sign out on a single-user install is an unrecoverable lockout.
+  if (state.activeUser && users.length <= 1) return null;
 
   return (
     <section aria-label="Switch account" className="mb-6">

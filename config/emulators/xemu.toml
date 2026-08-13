@@ -19,8 +19,6 @@ license = "GPL-2.0"
 copyright = "Copyright 2020–2024 Matt Borgerson and contributors"
 source_url = "https://github.com/xemu-project/xemu"
 supported_formats = [".iso", ".xiso"]
-guidance_text = "Download the xemu Windows release and extract it to emulators/xemu/ so that xemu.exe is inside."
-guidance_url = "https://xemu.app"
 
 [[container_broker_files]]
 path_key = "install_dir"
@@ -47,7 +45,7 @@ bios_path = "emulators/xemu/data/default"
 required_files = ["mcpx_1.0.bin"]
 required_glob = "*.bin"
 required_glob_excludes = ["mcpx_1.0.bin", "eeprom.bin"]
-guidance_text = "Place your Xbox BIOS .bin files (mcpx_1.0.bin and the appropriate ROM) in emulators/xemu/data/default/. xemu will not start without them."
+guidance_text = "Required before first launch: place mcpx_1.0.bin and the matching Xbox BIOS ROM in emulators/xemu/data/default/."
 guidance_url = "https://xemu.app/docs/required-files/"
 
 [[dependencies]]
@@ -58,7 +56,7 @@ display_name = "Xbox HDD image"
 platform = "xbox"
 bios_path = "emulators/xemu/data/default"
 required_files = ["xbox_hdd.qcow2"]
-guidance_text = "Place xbox_hdd.qcow2 in emulators/xemu/data/default/. A pre-built blank image is available from the xemu project. xemu will not start without it."
+guidance_text = "Required before first launch: place xbox_hdd.qcow2 in emulators/xemu/data/default/. A pre-built blank image is available from the xemu project."
 guidance_url = "https://xemu.app/docs/required-files/"
 
 [[known_limitations]]
