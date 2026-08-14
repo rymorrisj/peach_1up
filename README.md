@@ -18,8 +18,8 @@ and N64.
 
 - **One-click launch.** Detection resolves the platform and era from the media itself, then
   assigns an emulator and a launch profile. You press Launch.
-- **Ten emulators, one interface.** Installed on demand from their own upstream releases,
-  configured per launch, never redistributed here.
+- **Ten emulators, one interface.** Installed on demand from Peach 1UP's own bundle repo,
+  configured per launch.
 - **Real process isolation.** Every launch runs inside a Windows Job Object with kill-on-close
   and per-era CPU and memory caps, with AppContainer layered on top where the emulator
   supports it. If isolation cannot be applied, the launch aborts. There is no unsandboxed
@@ -227,7 +227,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Attributions
 
-Peach 1UP installs, but does not redistribute, the following third-party software:
+Peach 1UP redistributes the following third-party software via its own bundle repo. Per-emulator
+`NOTICE` and `SOURCE_OFFER.txt` files cover GPL source-offer compliance.
 
 | Project | License |
 |---|---|
