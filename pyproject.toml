@@ -20,7 +20,7 @@ dependencies = [
     "pillow>=10.0.0",
     "pystray>=0.19.0",
     "python-multipart>=0.0.18",
-    "pycdlib>=1.14.0",
+    "pycdlib>=1.20.0",
     "formatscout>=0.1.0",
     "wincage>=0.1.0",
 ]
