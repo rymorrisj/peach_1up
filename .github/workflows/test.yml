@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   generate-types:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -28,6 +28,7 @@ jobs:
           enable-cache: true
 
       - name: Check uv.lock is up to date
+        shell: bash
         run: |
           uv lock --check || (echo "::error::uv.lock is stale, run 'uv lock' locally and commit the result." && exit 1)
 
@@ -52,6 +53,7 @@ jobs:
         run: uv run --no-sync python scripts/export_and_build_types.py
 
       - name: Check generated files are up to date
+        shell: bash
         run: |
           git diff --exit-code -- \
             backend/constants_generated.py \
