@@ -46,19 +46,6 @@ and N64.
 | Emulators | Installed from the app, on demand. You only need the ones for eras you care about |
 | BIOS and ROMs | You supply them, from your own hardware. Peach 1UP never provides, links to, or assists with acquiring them |
 
-### Vendored packages, clone these first
-
-`formatscout` and `wincage` are consumed as local path dependencies but are **not committed**
-to this repository. Clone each into its matching path before running `uv sync`:
-
-```bash
-git clone https://github.com/rymorrisj/formatscout services/vendor/formatscout
-git clone https://github.com/rymorrisj/wincage    services/vendor/wincage
-```
-
-Then follow each package's own README for build steps. `wincage` specifically needs its
-native binary (`sandbox_host.exe`) compiled via MSYS2 before the backend will run.
-
 ## Quick start
 
 ```bash

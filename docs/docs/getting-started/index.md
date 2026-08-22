@@ -27,18 +27,6 @@ and AppContainer, and there are no plans to support other platforms.
 | Emulators | Peach 1UP launches them | Installed from inside the app, on demand |
 | BIOS and ROMs | Required by some emulators | You supply them, from your own hardware. Peach 1UP never provides or links to them |
 
-### Vendored packages
-
-Two dependencies are not committed to the repository and must be cloned before you install:
-
-```bash
-git clone https://github.com/rymorrisj/formatscout services/vendor/formatscout
-git clone https://github.com/rymorrisj/wincage    services/vendor/wincage
-```
-
-`wincage` needs its native binary (`sandbox_host.exe`) compiled via
-[MSYS2 UCRT64](https://www.msys2.org/) before the backend will start. See its own README.
-
 ## Run it
 
 ```bash
@@ -100,9 +88,9 @@ created through the install flow. See the [Era Guide](../user-guide/era-guide.md
 build.bat
 ```
 
-Builds the frontend, generates the API types and OpenAPI spec, compiles the Windows sandbox
-host, and runs PyInstaller. Output is a self-contained directory at `dist/peach1up/`
-containing `peach1up.exe`.
+Builds the frontend, generates the API types and OpenAPI spec, copies the prebuilt Windows
+sandbox host binary out of the installed `wincage` package, and runs PyInstaller. Output is
+a self-contained directory at `dist/peach1up/` containing `peach1up.exe`.
 
 The NSIS installer additionally needs [NSIS](https://nsis.sourceforge.io/) and
 [WinSW](https://github.com/winsw/winsw/releases). See the project `README.md`.

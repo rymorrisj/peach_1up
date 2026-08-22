@@ -344,7 +344,11 @@ wheels = [
 [[package]]
 name = "formatscout"
 version = "0.1.0"
-source = { editable = "services/vendor/formatscout" }
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e2/60/612f1240e6bd0de59cc93aeb773103911e4e18702a71c1c03cdad25f5131/formatscout-0.1.0.tar.gz", hash = "sha256:052fef32bac063d97c0451a79bf2a3173647f7c33ce1d58e6838137c788f68be", size = 45409, upload-time = "2026-08-18T02:30:10.997Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6e/47/c018a920496814187a8d59717ccb3d4269e3631aa27688f46820e7cb491a/formatscout-0.1.0-py3-none-any.whl", hash = "sha256:568f3968a324dddb6c88873bd7795225b72b8cc6bcd27a936720686b42c60081", size = 47928, upload-time = "2026-08-18T02:30:09.861Z" },
+]
 
 [[package]]
 name = "greenlet"
@@ -548,7 +552,7 @@ requires-dist = [
     { name = "argon2-cffi", specifier = ">=23.1.0" },
     { name = "bcrypt", specifier = ">=4.0.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "formatscout", editable = "services/vendor/formatscout" },
+    { name = "formatscout", specifier = ">=0.1.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "itsdangerous", specifier = ">=2.0.0" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
@@ -564,7 +568,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0.0" },
     { name = "sqlmodel", specifier = ">=0.0.21" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
-    { name = "wincage", editable = "services/vendor/wincage" },
+    { name = "wincage", specifier = ">=0.1.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -1231,4 +1235,7 @@ wheels = [
 [[package]]
 name = "wincage"
 version = "0.1.0"
-source = { editable = "services/vendor/wincage" }
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9f/48/7eaeba23436f6954c0bc31932b9347015a3b4808e4a1ee14a10aabbec7ef/wincage-0.1.0-cp314-cp314-win_amd64.whl", hash = "sha256:4e4b7d9a2cd77c19bbcbd70986a3fe03bd61546e52ecebe4b4a8ff7c9c0210be", size = 3974942, upload-time = "2026-08-18T02:30:51.423Z" },
+]

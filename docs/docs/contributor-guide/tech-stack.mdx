@@ -39,15 +39,17 @@ performance, automatic OpenAPI generation, and Pydantic validation.
 | `PyYAML` | `eras.yaml`, `constants.yaml` |
 | `python-dotenv` | `.env` secrets |
 
-Two components are extracted into standalone packages, consumed as local path dependencies:
+Two components are extracted into standalone packages and consumed as regular PyPI
+dependencies:
 
 | Package | Covers |
 |---|---|
-| [formatscout](https://github.com/rymorrisj/formatscout) | Disk-image and directory format detection, hashing, verification |
-| [wincage](https://github.com/rymorrisj/wincage) | Windows AppContainer and Job Object sandboxing, plus `sandbox_host.exe` |
+| [`formatscout`](https://pypi.org/project/formatscout/) | Disk-image and directory format detection, hashing, verification |
+| [`wincage`](https://pypi.org/project/wincage/) | Windows AppContainer and Job Object sandboxing, plus `sandbox_host.exe` |
 
-Neither is committed to this repository. Both must be cloned into `services/vendor/` before
-`uv sync`, and `wincage` needs its native binary compiled first.
+Both install via `uv sync` like any other dependency. `wincage`'s wheel is Windows-only
+(`win_amd64`) and ships a prebuilt `sandbox_host.exe` inside the installed package
+directory, no MSYS2 or other native build step required.
 
 ## Database
 

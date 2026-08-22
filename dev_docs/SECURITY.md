@@ -332,7 +332,7 @@ explicit decision.
 - Emulators that have not passed the AppContainer test matrix ship with Job Object only and
   a visible warning on the Emulators page. The no-fallback abort policy still applies.
 
-Implementation lives in the vendored [`wincage`](../services/vendor/wincage/) package:
+Implementation lives in the [`wincage`](https://pypi.org/project/wincage/) package:
 `wincage/process.py` and `wincage/job.py` for the Python side, `wincage/src/container.cpp`,
 `job.cpp`, and `main.cpp` for `sandbox_host.exe`.
 
@@ -344,9 +344,8 @@ confirms the bytes are identical to a known community-verified dump, which is a 
 integrity signal (a corrupted or incomplete rip will not match) and not only a title-lookup
 convenience.
 
-The pipeline lives in the vendored
-[`formatscout`](../services/vendor/formatscout/) package, with the Peach-specific resolvers
-in [`detection/`](../backend/service/utils/detection/).
+The pipeline lives in the [`formatscout`](https://pypi.org/project/formatscout/) package,
+with the Peach-specific resolvers in [`detection/`](../backend/service/utils/detection/).
 
 **What it covers today:**
 
@@ -465,13 +464,12 @@ bundle's media folder. The slug is validated at creation time. At launch,
 `is_relative_to()` after `normalise_path()` canonicalisation. `IMGMAKE` receives an absolute
 path derived from the slug, so no user string reaches the command directly.
 
-### `hash_index.json` is committed but not reproducible
+### `hash_index.json` is fetched at runtime, not reproducible
 
-The bundled index
-(`services/vendor/formatscout/formatscout/hashing/hash_index.json`) ships in the package,
-but the No-Intro/Redump DAT files it was built from do not: they are external, licensed
+formatscout's Tier-1 hash lookup fetches `hash_index.json` at runtime from a GitHub release,
+verified against a hardcoded sha256, and cached locally rather than being committed to the
+repo. The underlying No-Intro/Redump DAT files it was built from are external, licensed
 datasets. There is no way to regenerate or verify the index from files in the repo alone.
-Flag only, no fix planned.
 
 ### Environment health check is a shallow probe
 
@@ -547,9 +545,9 @@ Current state after the P9 follow-up hardening pass:
   grant directories with no cleanup on user deletion.
 
 `BrokerFile.mode` accepts `"grant"`, `"secure"`, and `"inherit"`. Only `grant` and `secure`
-modify an ACL, and `grant` is the recursive one. See
-[`services/vendor/wincage/README.md`](../services/vendor/wincage/README.md) for the
-authoritative per-mode semantics.
+modify an ACL, and `grant` is the recursive one. See the
+[`wincage`](https://github.com/rymorrisj/wincage) README for the authoritative per-mode
+semantics.
 
 To be addressed in a future hardening pass, either by restoring a configurable allowlist
 with an opt-out flag or by surfacing an explicit warning at environment registration time.

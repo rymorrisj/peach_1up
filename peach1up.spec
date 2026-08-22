@@ -2,7 +2,23 @@
 # PyInstaller spec for Peach 1UP, one-dir build.
 # Prerequisites: build frontend (npm run build) and docs (npm run build) before running pyinstaller.
 
+from pathlib import Path
+
 from PyInstaller.utils.hooks import collect_submodules
+
+# sandbox_host.exe ships prebuilt inside the pip-installed wincage wheel's
+# package directory. PyInstaller's own import analysis does not pick up
+# non-Python package data automatically, so it needs an explicit datas entry.
+# Destination "wincage" mirrors the installed package layout, matching where
+# build.bat's own copy step (dist\peach1up\wincage\) expects to find it.
+import wincage  # noqa: E402
+
+_SANDBOX_HOST_EXE = Path(wincage.__file__).parent / "sandbox_host.exe"
+if not _SANDBOX_HOST_EXE.is_file():
+    raise FileNotFoundError(
+        f"sandbox_host.exe not found at {_SANDBOX_HOST_EXE}. "
+        "The installed wincage wheel did not include a prebuilt binary."
+    )
 
 hiddenimports = (
     collect_submodules("fastapi")
@@ -41,6 +57,7 @@ a = Analysis(
         ("frontend/dist/", "frontend/dist/"),
         ("docs/build/", "docs/build/"),
         ("scripts/", "scripts/"),
+        (str(_SANDBOX_HOST_EXE), "wincage"),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],

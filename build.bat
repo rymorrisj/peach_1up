@@ -147,17 +147,6 @@ if errorlevel 1 (
 popd
 echo [OK] Docs built
 
-REM ── Add MSYS2 UCRT64 to PATH for g++ ─────────────────────────────────────────
-set "MSYS2_UCRT64=%SystemDrive%\msys64\ucrt64\bin"
-if exist "%MSYS2_UCRT64%\g++.exe" (
-    set "PATH=%MSYS2_UCRT64%;%PATH%"
-    echo [OK] MSYS2 UCRT64 g++ found at %MSYS2_UCRT64%
-) else (
-    echo WARNING: MSYS2 UCRT64 g++ not found at %MSYS2_UCRT64%
-    echo          If sandbox_host.exe build fails, install MSYS2 from https://www.msys2.org
-    echo          then run: pacman -S mingw-w64-ucrt-x86_64-gcc
-)
-
 if not exist "installer\tools\Peach1UP.exe" (
     echo ERROR: installer\tools\Peach1UP.exe not found.
     echo Download WinSW-x64.exe from https://github.com/winsw/winsw/releases, rename it to Peach1UP.exe, and place it at installer\tools\Peach1UP.exe
@@ -172,9 +161,8 @@ REM ── Emulator license and attribution files ──────────
 REM Emulator binaries are NOT bundled. Every emulator installs on demand from
 REM its upstream GitHub release (see config/emulators/*.toml install_type), so
 REM the working-tree emulators\ directory holds local installs and user data
-REM (BIOS, saves, memory cards) that must never enter a release build. Only the
-REM git-tracked license and attribution files ship, which is the exact set the
-REM .gitignore negations under /emulators/** keep under version control.
+REM (BIOS, saves, memory cards) that are ignored. Only the git-tracked license and 
+REM attribution files ship
 echo === Copying emulator license and attribution files beside exe ===
 where git >nul 2>&1
 if errorlevel 1 (
@@ -194,24 +182,6 @@ for /f "usebackq delims=" %%f in (`git ls-files emulators`) do (
 endlocal
 echo [OK] emulator attribution files copied
 
-REM ── Optional alpha test media ────────────────────────────────
-REM library\ holds user media (disc images, OS install media, BIOS/ROM assets)
-REM and is many tens of GB on a populated checkout. It is excluded from release
-REM builds. Set INCLUDE_TEST_MEDIA=1 before running this script to bundle it
-REM for internal alpha builds only.
-if defined INCLUDE_TEST_MEDIA (
-    echo === Copying library beside exe ^(INCLUDE_TEST_MEDIA is set^) ===
-    echo WARNING: this bundles the full library\ tree, including any commercial
-    echo          media it contains. Do not distribute this build.
-    xcopy /E /I /Y library dist\peach1up\library
-    if errorlevel 1 (
-        echo ERROR: Failed to copy library to dist.
-        goto :error
-    )
-) else (
-    echo === Skipping library ^(set INCLUDE_TEST_MEDIA=1 to bundle test media^) ===
-)
-
 echo === Copying config beside exe ===
 xcopy /E /I /Y config dist\peach1up\config
 if not exist "dist\peach1up\database\data\" mkdir "dist\peach1up\database\data\"
@@ -225,43 +195,25 @@ if errorlevel 1 (
 echo [OK] docs build copied
 
 echo === Copying sandbox executables ===
-if not exist "services\vendor\wincage\wincage\sandbox_host.exe" (
-    echo ERROR: services\vendor\wincage\wincage\sandbox_host.exe not found.
-    echo Run build.sh from an MSYS2 UCRT64 shell first to compile the sandbox executables.
+REM sandbox_host.exe ships inside the pip-installed wincage wheel's package
+REM directory (site-packages\wincage\sandbox_host.exe), not a vendor path.
+for /f "usebackq delims=" %%W in (`.venv\Scripts\python.exe -c "import os, wincage; print(os.path.dirname(wincage.__file__))"`) do set "WINCAGE_DIR=%%W"
+if not defined WINCAGE_DIR (
+    echo ERROR: Could not resolve the installed wincage package directory.
+    echo Run "uv sync" first so wincage is installed in .venv.
     goto :error
 )
-if not exist "dist\peach1up\services\vendor\wincage\wincage\" mkdir "dist\peach1up\services\vendor\wincage\wincage\"
-copy /Y "services\vendor\wincage\wincage\sandbox_host.exe" "dist\peach1up\services\vendor\wincage\wincage\"
+if not exist "%WINCAGE_DIR%\sandbox_host.exe" (
+    echo ERROR: %WINCAGE_DIR%\sandbox_host.exe not found.
+    echo The installed wincage wheel did not include a prebuilt sandbox_host.exe.
+    goto :error
+)
+if not exist "dist\peach1up\wincage\" mkdir "dist\peach1up\wincage\"
+copy /Y "%WINCAGE_DIR%\sandbox_host.exe" "dist\peach1up\wincage\"
 if errorlevel 1 (
     echo ERROR: Failed to copy sandbox_host.exe to dist.
     goto :error
 )
-
-@REM echo === Building sandbox_checker capability probes ===
-@REM where bash >nul 2>&1
-@REM if not errorlevel 1 (
-@REM     bash "backend/service/utils/platform/windows/sandbox_checker/src/build_tests.sh"
-@REM     if errorlevel 1 (
-@REM         echo ERROR: sandbox_checker build_tests.sh failed.
-@REM         goto :error
-@REM     )
-@REM     echo [OK] sandbox_checker probes built
-@REM ) else (
-@REM     echo WARNING: bash/MSYS2 not found - cannot rebuild sandbox_checker probes.
-@REM )
-
-@REM if not exist "backend\service\utils\platform\windows\sandbox_checker\src\test_sdl2_d3d11.exe" (
-@REM     echo ERROR: No executables found in backend\service\utils\platform\windows\sandbox_checker\src\
-@REM     echo Run build_tests.sh from an MSYS2 UCRT64 shell first to compile the sandbox executables.
-@REM     goto :error
-@REM )
-@REM if not exist "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\" mkdir "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\"
-@REM copy /Y "backend\service\utils\platform\windows\sandbox_checker\src\*.exe" "dist\peach1up\backend\service\utils\platform\windows\sandbox_checker\src\"
-@REM if errorlevel 1 (
-@REM     echo ERROR: Failed to copy sandbox_checker executables to dist.
-@REM     goto :error
-@REM )
-@REM echo [OK] sandbox exes copied
 
 echo === Copying extract-xiso ===
 if not exist "services\vendor\extract-xiso\build\extract-xiso.exe" (

@@ -187,7 +187,7 @@ extract-xiso -r <image.iso>
 
 Detection lives in
 [`detection/xbox_image.py`](../backend/service/utils/detection/xbox_image.py), with the
-format-level checks in the vendored `formatscout` package.
+format-level checks in the [`formatscout`](https://pypi.org/project/formatscout/) package.
 
 ### Upstream relaunch crash (unresolved)
 

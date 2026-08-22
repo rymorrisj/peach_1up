@@ -1,11 +1,3 @@
-# Compiled sandbox binary (built by pipeline from src/), vendored wincage location
-services/vendor/wincage/wincage/sandbox_host.exe
-
-# Compiled sandbox_checker capability-probe binaries (built by build_tests.sh), vendored wincage location
-services/vendor/wincage/wincage/checker/src/test_sdl2_d3d11.exe
-services/vendor/wincage/wincage/checker/src/test_sdl2_opengl.exe
-services/vendor/wincage/wincage/checker/src/test_qt_qpa.exe
-
 # Environment and secrets
 .env
 *.env
@@ -112,8 +104,3 @@ frontend/src/generated/constants.ts
 shared/openapi.json
 shared/types.ts
 docs/docs/api/
-
-# Temp vendor setup for formatscout/wincage.
-# TODO: remove this and commit the services once dev testing is complete
-services/vendor/formatscout
-services/vendor/wincage

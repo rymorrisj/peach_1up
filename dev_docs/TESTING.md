@@ -38,7 +38,7 @@ best covered.
 | Domain and data | `test_game_items`, `test_game_scan`, `test_enrich`, `test_era_defaults`, `test_emulator_catalog`, `test_emulator_descriptor`, `test_health_storage`, `test_media`, `test_bios_placement`, `test_rom_pack`, `test_rpcs3_write_installed_state`, `test_schema_migrations`, `test_startup_cleanup`, `test_fat_writer`, `test_dosbox_autoexec`, `test_dosbox_chs_geometry`, `test_drive_hydration`, `test_asset_fetch`, `test_tags` |
 
 Format and platform detection itself (ISO, CHD, bin/cue, magic bytes, hashing) is covered
-by the vendored [`formatscout`](../services/vendor/formatscout/) package's own `tests/`,
+by the [`formatscout`](https://github.com/rymorrisj/formatscout) package's own `tests/`,
 not by `backend/tests/`. The in-tree detection tests cover only the Peach-specific
 launch-target resolution that stayed behind after the extraction.
 
@@ -91,6 +91,23 @@ comment blocks above each skip for the full notes. Tracked debt, revisit post-al
 - **Commit hygiene substitutes for local CI:** one logical change per commit,
   `<type>(<scope>)` messages, `test` and `safety` types reserved for test and fail-safe
   changes.
+
+## Running tests locally (maintainers)
+
+`scripts/run_tests.py` is a plain Python script that runs both backend and frontend test
+suites. Correct invocation:
+
+```bash
+uv run --no-sync python scripts\run_tests.py
+```
+
+Alternative (using .venv directly):
+
+```bash
+.venv\Scripts\python.exe .\scripts\run_tests.py
+```
+
+Do not invoke the script via pytest directly.
 
 ## Where this leaves us
 

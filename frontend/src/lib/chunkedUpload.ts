@@ -67,7 +67,7 @@ interface InitResponse {
 // keeping two independent implementations of the same MediaTarget-kind
 // classification in sync (exactly the kind of drift the MediaTarget refactor
 // exists to close on the backend side), nesting is comparatively cheap to
-// always preserve and let the server's own resolvers (smart_media_detector's
+// always preserve and let the server's own resolvers (backend/service/utils/detection/'s
 // resolve_ps3_target/resolve_xex_target) sort out the shape, the same way a
 // plain flat DOS/console folder upload already reassembles correctly whether
 // or not it happens to carry relative_path.

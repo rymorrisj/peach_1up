@@ -25,7 +25,7 @@ _YEAR_MAX = 2050
 # ---------------------------------------------------------------------------
 
 # Five-state hash verification status for a single leaf, set from
-# smart_media_detector.classify()'s ClassifyResult.status (same five string
+# formatscout.classify()'s ClassifyResult.status (same five string
 # values, see classify.py / result.py for the full definitions):
 #   "verified"     sha1 exactly matches a hash_index.json entry. The only
 #                  state that reads as a positive confirmation.
@@ -81,7 +81,7 @@ class GameItem(SQLModel, table=True):
     # applies, but it is a real, currently-supported fetch path, so it gets
     # its own tracking column rather than being folded into the bundle's.
     metadata_fetched_at: Optional[datetime] = None
-    # Set automatically at ingest time from smart_media_detector.classify()
+    # Set automatically at ingest time from formatscout.classify()
     # (see _prepare_item / _prepare_multi_disc in
     # backend/service/games/items.py, one classify() call per disc), and
     # refreshed on demand by the /api/v1/game-item/{leaf_id}/verify and
@@ -103,7 +103,7 @@ class GameItem(SQLModel, table=True):
     # verification_status. Used as classify()'s own re-check baseline and to
     # avoid ever needing to parse a hash back out of detection_reason. Never
     # returned by the API, GameItemRead deliberately omits it. A caller
-    # needing the raw hash should use the smart_media_detector package
+    # needing the raw hash should use the formatscout package
     # directly rather than reading it off a GameItem.
     sha1: Optional[str] = Field(default=None, sa_column=Column(String))
     created_at: Optional[datetime] = Field(
@@ -134,7 +134,7 @@ class GameItemRead(SQLModel):
     metadata_fetched_at: Optional[datetime] = None
     # sha1 is deliberately not exposed here, or anywhere else in the API. The
     # raw hash is not needed by any caller, and a caller that does need it
-    # should use the smart_media_detector package directly.
+    # should use the formatscout package directly.
     verification_status: VerificationStatus = "unchecked"
     # None unless verification_status is "mismatch", see GameItem's field
     # comment. Exposed so the frontend can pick message wording, not meant

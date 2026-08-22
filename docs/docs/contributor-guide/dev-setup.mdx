@@ -15,14 +15,12 @@ Windows only. There is no Linux dev path.
 git clone <repo-url>
 cd peach_1up
 
-# Vendored deps are not committed. Clone them first.
-git clone https://github.com/rymorrisj/formatscout services/vendor/formatscout
-git clone https://github.com/rymorrisj/wincage    services/vendor/wincage
-# wincage needs sandbox_host.exe compiled via MSYS2, see its README
-
 uv sync --group dev
 start.bat
 ```
+
+`formatscout` and `wincage` install automatically as regular pip dependencies via
+`uv sync`, no separate clone or build step required.
 
 | Service | URL |
 |---|---|

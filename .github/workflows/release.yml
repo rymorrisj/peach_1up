@@ -85,9 +85,8 @@ jobs:
             docs/package-lock.json
 
       # windows-latest ships MSYS2 preinstalled at C:\msys64 but without the
-      # gcc/cmake/ninja packages build.bat's UCRT64 guard expects, and not on
-      # PATH. release: false reuses that preinstalled MSYS2 in place (matching
-      # build.bat's own %SystemDrive%\msys64\ucrt64\bin\g++.exe check) instead
+      # gcc/cmake/ninja packages extract-xiso's build.sh needs, and not on
+      # PATH. release: false reuses that preinstalled MSYS2 in place instead
       # of downloading a second copy.
       - name: Set up MSYS2 UCRT64 toolchain
         uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2.32.0
@@ -100,16 +99,15 @@ jobs:
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
 
-      # build.bat's own steps for these two binaries are commented out today
-      # (developer runs build.sh manually first, per the comments in
-      # build.bat and services/vendor/extract-xiso/build.sh). Neither binary
-      # is committed to git, so CI must do this manual pre-step itself before
-      # build.bat's "if not exist ...exe" guards run, this mirrors the
-      # documented local workflow, it does not reimplement any build.bat step.
-      - name: Build sandbox_host.exe (MSYS2 UCRT64 g++)
-        shell: msys2 {0}
-        run: bash services/vendor/wincage/wincage/build.sh
-
+      # build.bat only has an existence guard for extract-xiso.exe (it does
+      # not build it); the developer runs build.sh manually first, per the
+      # comments in build.bat and services/vendor/extract-xiso/build.sh. The
+      # binary is not committed to git, so CI must do this manual pre-step
+      # itself before build.bat's "if not exist ...exe" guard runs, this
+      # mirrors the documented local workflow, it does not reimplement any
+      # build.bat step. sandbox_host.exe no longer needs a build step here,
+      # it ships prebuilt inside the pip-installed wincage wheel.
+      #
       # CMAKE_GENERATOR=Ninja pins the generator explicitly rather than
       # relying on cmake's ambient auto-detection (which, left to itself on a
       # Visual-Studio-equipped runner, is not guaranteed to pick the MSYS2
@@ -139,7 +137,7 @@ jobs:
 
       # Stub, conditional on a secret that does not exist yet. Signing is
       # blocked on obtaining an OSS code signing certificate (see
-      # DECISIONS.md). Once that secret exists and real signing is
+      # CHANGELOG.md). Once that secret exists and real signing is
       # implemented here, this becomes a one-step change, not a workflow
       # redesign. If the secret is ever set before signing is implemented,
       # this fails loudly instead of silently shipping an unsigned installer

@@ -464,8 +464,8 @@ path derived from the slug, so no user string reaches the command directly.
 
 ### `hash_index.json` is committed but not reproducible
 
-The bundled index
-(`services/vendor/formatscout/formatscout/hashing/hash_index.json`) ships in the package,
+The bundled index (`formatscout/hashing/hash_index.json` inside the installed package)
+ships in the package,
 but the No-Intro/Redump DAT files it was built from do not: they are external, licensed
 datasets. There is no way to regenerate or verify the index from files in the repo alone.
 Flag only, no fix planned.
@@ -544,9 +544,9 @@ Current state after the P9 follow-up hardening pass:
   grant directories with no cleanup on user deletion.
 
 `BrokerFile.mode` accepts `"grant"`, `"secure"`, and `"inherit"`. Only `grant` and `secure`
-modify an ACL, and `grant` is the recursive one. See
-`services/vendor/wincage/README.md` for the
-authoritative per-mode semantics.
+modify an ACL, and `grant` is the recursive one. See the
+[`wincage`](https://github.com/rymorrisj/wincage) README for the authoritative per-mode
+semantics.
 
 To be addressed in a future hardening pass, either by restoring a configurable allowlist
 with an opt-out flag or by surfacing an explicit warning at environment registration time.

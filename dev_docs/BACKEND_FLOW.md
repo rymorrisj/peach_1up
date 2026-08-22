@@ -491,11 +491,11 @@ Aggregate reads live under `/api/v1/health`: `summary`, `recompute-all`, `storag
 | API and middleware | all routes; `request_logging.py`, `security.py`, `dependencies.py` |
 | Launch coordination | `launch/coordinator.py`, `launch_spec.py`, `launchable_resolver.py`, `utils/backend_router.py` |
 | Backends | `backends/{dosbox,box86,xemu,rpcs3,flycast,xenia,console}.py` |
-| Sandbox and isolation | in-tree `platform/windows/process/launcher.py` and `app_container.py`; vendored `wincage/{job,process,sandbox}.py` and `wincage/checker/` |
+| Sandbox and isolation | in-tree `platform/windows/process/launcher.py` and `app_container.py`; pip package `wincage/{job,process,sandbox}.py` and `wincage/checker/` |
 | BIOS validation | `emulator_catalog.validate_bios_from_descriptor`, `check_bios_presence`, `bios_placement.py` |
 | Provisioning | `vm/provisioner.py`, `vm/vhd.py`, `ini_writer.py` |
 | Emulator catalog and install | `emulator_catalog.py`, `emulator_descriptor.py`, `emulator_installer.py`, `github_release_installer.py`, `install_registry.py` |
-| Ingest | `games/items.py`, `games/folder_ingest.py`, `games/path_import.py`, vendored `formatscout`, `era_media.py`, `era_defaults.py`, `drive_utils.py`, `upload_utils.py`, `rating_detect.py`, `media_dup_index.py` |
+| Ingest | `games/items.py`, `games/folder_ingest.py`, `games/path_import.py`, pip package `formatscout`, `era_media.py`, `era_defaults.py`, `drive_utils.py`, `upload_utils.py`, `rating_detect.py`, `media_dup_index.py` |
 | Uploads | `uploads/core.py`, `uploads/registry.py`, `uploads/software_{games,media,apps}.py` |
 | Drive and FAT | `launch/drive_hydration.py`, `drive_utils.py`, `fat/*` |
 | Auth and session | `identity.py`, `auth.py`, `dependencies.py`, `rate_limit.py` |

@@ -151,9 +151,9 @@ with `apply_limits=False` and exists only as a teardown handle and for launch-hi
 reporting. The resolved era numbers reach it through `SandboxConfig`; without that it
 silently falls back to inert defaults (50% CPU, no memory cap).
 
-Job Object and process lifecycle live in the vendored
-[`wincage`](../services/vendor/wincage/) package (`wincage/process.py`, `wincage/job.py`,
-`wincage/sandbox.py`). Peach 1UP's era-limit resolution wrapper is
+Job Object and process lifecycle live in the [`wincage`](https://pypi.org/project/wincage/)
+package (`wincage/process.py`, `wincage/job.py`, `wincage/sandbox.py`). Peach 1UP's
+era-limit resolution wrapper is
 [`launcher.py`](../backend/service/utils/platform/windows/process/launcher.py).
 
 ## Troubleshooting

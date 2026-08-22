@@ -84,9 +84,9 @@ what remains is structural.
 ## 4. formatscout contract
 
 Extracted from `backend/service/utils/smart_media_detector/` into the standalone
-`formatscout` package, vendored at [`services/vendor/formatscout/`](../services/vendor/formatscout/)
-and declared as a path dependency in `pyproject.toml`. The Peach-specific launch-target
-resolvers that stayed behind live in
+[`formatscout`](https://pypi.org/project/formatscout/) package, installed as a regular
+dependency in `pyproject.toml`. The Peach-specific launch-target resolvers that stayed
+behind live in
 [`backend/service/utils/detection/`](../backend/service/utils/detection/).
 
 | Entry point | Signature | Returns |

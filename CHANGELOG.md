@@ -33,7 +33,6 @@ the source documents.
 
 | Item | State |
 |---|---|
-| `wincage` and `formatscout` vendor mirrors | Not committed. Both are gitignored under `services/vendor/` and must be cloned manually before `uv sync`. Two upstream mirror pulls still outstanding. |
 | `sha1 = NULL` on directory-shaped leaves | Ingest runs `classify()` against the leaf's `file_path`. When that path is a directory (PS3 folder layouts, DOS loose-file folders) no hash is computed and `sha1` persists as `NULL`. Manual re-verify then takes the no-baseline branch, resolves the directory to its inner media file, and stores *that* file's hash, so the two paths disagree about what the leaf's hash represents. |
 | Frontend test-runner hang | `TabbedLayout.test.tsx` and `test/routing.sectionRedirects.test.tsx` pass their assertions but never let the Vitest process exit. Leaked-async-handle signature, source not pinned down, hang point inconsistent between runs. Both skipped, both carry a `TODO`. |
 | PSS-3, PSS-6, PSS-7 | On hold. The trained executable-detection model needed the eXoDOS dataset; its torrents and The Eye are both down. The LLM-assisted config path is not needed for alpha. |
@@ -47,6 +46,14 @@ the source documents.
 | 86Box drivers | The ROM pack and BIOS ship, but there are no guest drivers to actually use them. |
 | xemu relaunch crash | `0xc0000409` in `msvcrt.dll` on any launch with system files configured. Confirmed upstream (xemu-project/xemu#1486), cross-vendor GPU. Workaround is disabling Control Flow Guard for `xemu.exe`. No code fix possible. |
 | Aspect/resolution detection | Some platforms launch at default or native settings and break graphics. |
+
+### 2026-08-22, formatscout/wincage migrated to pip-installed dependencies
+
+Supersedes the "consumed as local editable path dependencies under `services/vendor/`"
+description in the August 2026 package-extraction entry below. Both `formatscout` and
+`wincage` are now regular PyPI dependencies resolved by `uv sync`; the `services/vendor/`
+trees for both packages were removed. `wincage`'s `sandbox_host.exe` ships prebuilt inside
+its installed wheel, no native build step required.
 
 ### 2026-08-12, Project64/RPCS3/Xenia corrections
 

@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from backend.models.drive import Drive
 
 # iso/cue media is mounted directly and never passed to format_fat16 (it always
-# sets requires_install=True, see smart_media_detector._compute_requires_install),
+# sets requires_install=True, see formatscout.detector._compute_requires_install),
 # so this cap is independent of FAT16_SIZE_MAX_MB and can exceed it.
 _ISO_CUE_SIZE_MAX_MB = 2048
 

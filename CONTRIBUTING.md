@@ -6,16 +6,11 @@ treat this as "how to send a change that can actually be merged" rather than a p
 ## Quick start
 
 ```bash
-# 1. Vendored deps are not committed. Clone them first.
-git clone https://github.com/rymorrisj/formatscout services/vendor/formatscout
-git clone https://github.com/rymorrisj/wincage    services/vendor/wincage
-# wincage needs sandbox_host.exe compiled via MSYS2, see its README
-
-# 2. Install and run
+# 1. Install and run
 uv sync --group dev
 start.bat
 
-# 3. Branch
+# 2. Branch
 git checkout -b feat/your-topic
 ```
 

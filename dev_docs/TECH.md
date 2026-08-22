@@ -40,16 +40,17 @@ Pydantic validation.
 | `PyYAML` | `eras.yaml`, `constants.yaml` |
 | `python-dotenv` | `.env` secrets |
 
-Two components are extracted into standalone packages and consumed as local editable path
-dependencies under [`services/vendor/`](../services/vendor/):
+Two components are extracted into standalone packages and consumed as regular PyPI
+dependencies:
 
 | Package | Covers |
 |---|---|
-| [`formatscout`](../services/vendor/formatscout/) | Disk-image and directory format detection, hashing, verification |
-| [`wincage`](../services/vendor/wincage/) | Windows AppContainer and Job Object sandboxing, plus `sandbox_host.exe` |
+| [`formatscout`](https://pypi.org/project/formatscout/) | Disk-image and directory format detection, hashing, verification |
+| [`wincage`](https://pypi.org/project/wincage/) | Windows AppContainer and Job Object sandboxing, plus `sandbox_host.exe` |
 
-Neither is committed. Both are gitignored and must be cloned into their matching paths
-before `uv sync`. `wincage` additionally needs its native binary compiled via MSYS2 first.
+Both install via `uv sync` like any other dependency. `wincage`'s wheel is Windows-only
+(`win_amd64`) and ships a prebuilt `sandbox_host.exe` inside the installed package
+directory, no MSYS2 or other native build step required.
 
 ## Database
 
@@ -119,7 +120,7 @@ Full detail: [windows-sandbox.md](windows-sandbox.md) and [SECURITY.md](SECURITY
 
 ## Media detection
 
-Detection lives in the vendored [`formatscout`](../services/vendor/formatscout/) package.
+Detection lives in the [`formatscout`](https://pypi.org/project/formatscout/) package.
 The Peach-specific launch-target resolvers that stayed behind (PS3, Xbox 360 XEX, Xbox
 optical images, `MediaTarget`) live in
 [`backend/service/utils/detection/`](../backend/service/utils/detection/). Backend code

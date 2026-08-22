@@ -9,7 +9,7 @@ software_games.finalize_reassembled (finalize creates the DB row directly)
 but deliberately simplified: apps.py's own create path already establishes
 that Apps get no era detection ("the caller supplies era explicitly", per
 service/apps/items.py) and no multi-disc concept, so this finalize does
-not run smart_media_detector or disc-pointer selection either. era is left
+not run formatscout or disc-pointer selection either. era is left
 "unknown" (AppItemBundleCreate's own default), the user can set it from the
 detail page's edit form after upload, same as any other field a human, not a
 detector, is the source of truth for here.

@@ -26,8 +26,6 @@ from wincage import BrokerFile, SandboxConfig, SandboxError, SandboxStage
 
 logger = get_logger(__name__)
 
-EXE_NAME: str = "sandbox_host.exe"
-
 # Floor mirrors MinRate in job_objects.py (cpu_min_rate_percent * 100 / 10000).
 _CPU_MIN_RATE: int = get_cpu_min_rate("")
 
