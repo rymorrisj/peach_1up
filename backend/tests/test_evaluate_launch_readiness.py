@@ -16,8 +16,6 @@ of already-resolved state" in its own docstring), never a real DB row.
 
 from types import SimpleNamespace
 
-import pytest
-
 from backend.service.utils.era_defaults import (
     CANDIDATE_EVAL_PROFILE_SENTINEL,
     evaluate_launch_readiness,

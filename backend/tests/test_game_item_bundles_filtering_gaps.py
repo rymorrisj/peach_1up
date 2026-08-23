@@ -295,8 +295,8 @@ class TestPageTotalReflectsFilteredCountUnderPagination:
     def test_total_excludes_restricted_items_even_when_page_is_truncated_by_limit(self, http_client):
         c, db, app = http_client
         user = _make_user(db)
-        first = _make_collection(db, slug="first", content_rating="E")
-        second = _make_collection(db, slug="second", content_rating="E")
+        _make_collection(db, slug="first", content_rating="E")
+        _make_collection(db, slug="second", content_rating="E")
         restricted = _make_collection(db, slug="restricted", content_rating="E")
         _restrict(db, user, restricted)
         _set_active_user(app, user)
@@ -313,8 +313,8 @@ class TestPageTotalReflectsFilteredCountUnderPagination:
     def test_total_excludes_over_rated_items(self, http_client):
         c, db, app = http_client
         capped = _make_user(db, max_content_rating="E")
-        allowed = _make_collection(db, slug="allowed", content_rating="E")
-        over_rated = _make_collection(db, slug="over-rated", content_rating="M")
+        _make_collection(db, slug="allowed", content_rating="E")
+        _make_collection(db, slug="over-rated", content_rating="M")
         _set_active_user(app, capped)
 
         resp = c.get("/api/v1/game-items")

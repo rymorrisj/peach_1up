@@ -20,6 +20,22 @@ if not _SANDBOX_HOST_EXE.is_file():
         "The installed wincage wheel did not include a prebuilt binary."
     )
 
+# magic_signatures.toml ships inside the pip-installed formatscout wheel's
+# package directory and is opened relative to its own module file at import
+# time (formatscout/magic/magic_detect.py), not through any Python import
+# mechanism. PyInstaller's own import analysis does not pick up non-Python
+# package data automatically, so it needs an explicit datas entry.
+# Destination "formatscout/magic" mirrors the installed package layout so
+# the same Path(__file__).parent lookup resolves in the frozen build.
+import formatscout.magic  # noqa: E402
+
+_MAGIC_SIGNATURES_TOML = Path(formatscout.magic.__file__).parent / "magic_signatures.toml"
+if not _MAGIC_SIGNATURES_TOML.is_file():
+    raise FileNotFoundError(
+        f"magic_signatures.toml not found at {_MAGIC_SIGNATURES_TOML}. "
+        "The installed formatscout wheel did not include its magic signature data."
+    )
+
 hiddenimports = (
     collect_submodules("fastapi")
     + collect_submodules("starlette")
@@ -58,6 +74,7 @@ a = Analysis(
         ("docs/build/", "docs/build/"),
         ("scripts/", "scripts/"),
         (str(_SANDBOX_HOST_EXE), "wincage"),
+        (str(_MAGIC_SIGNATURES_TOML), "formatscout/magic"),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],
