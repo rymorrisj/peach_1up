@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { chunkedUpload } from '@/lib/chunkedUpload';
 import { apiFetch, ApiError } from '@/api/client';
@@ -116,7 +116,15 @@ export default function UploadBody({
     (folderStatus === 'uploading' && !folderJobId) ||
     browseImports.some((e) => e.status === 'importing');
 
-  useEffect(() => {
+  // Resets all local state once the modal is closed and nothing is still
+  // busy. Adjusted during render (tracking previous open/busy) rather than
+  // in a useEffect: every reset here is a plain local setState call, and
+  // most targets are already at their reset value, so re-running the block
+  // on an unrelated render is harmless, only the [open, busy] transition
+  // itself needs a guard to avoid doing this on every render.
+  const [prevResetKey, setPrevResetKey] = useState({ open, busy });
+  if (open !== prevResetKey.open || busy !== prevResetKey.busy) {
+    setPrevResetKey({ open, busy });
     if (!open && !busy) {
       setEntries([]);
       setStagedDiscs([]);
@@ -141,12 +149,14 @@ export default function UploadBody({
       setBrowseImports([]);
       setBrowserOpen(false);
     }
-  }, [open, busy]);
+  }
 
   // Default the folder-name field from the first staged disc's filename (or
-  // the set title, if no disc is staged yet) until the user edits it directly.
-  useEffect(() => {
-    if (folderNameTouched) return;
+  // the set title, if no disc is staged yet) until the user edits it
+  // directly. Derived directly during render rather than in a useEffect:
+  // setFolderName is called with a plain string, so once it stabilizes at
+  // the derived value further identical calls are no-ops (no loop risk).
+  if (!folderNameTouched) {
     if (stagedDiscs.length > 0) {
       setFolderName(
         stagedDiscs[0].file.name
@@ -157,7 +167,7 @@ export default function UploadBody({
     } else if (discSetTitle.trim()) {
       setFolderName(discSetTitle.trim());
     }
-  }, [stagedDiscs, discSetTitle, folderNameTouched]);
+  }
 
   function startUpload(entry: UploadEntry) {
     const title = entry.file.name

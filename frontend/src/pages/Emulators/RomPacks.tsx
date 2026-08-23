@@ -37,7 +37,7 @@ function RomPackRow({ entry, isLast }: { entry: CatalogEntry; isLast: boolean })
       setIsCloning(false);
       setCloneError(cloneStatus.error ?? 'Clone failed.');
     }
-  }, [cloneStatus]);
+  }, [cloneStatus, queryClient]);
 
   async function handleClone() {
     setIsCloning(true);

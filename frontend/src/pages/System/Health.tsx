@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/api/client';
@@ -50,7 +50,7 @@ function formatBytes(n: number) {
 // every read, nothing persisted or cached), replaces the old stale
 // isHealthy(status), which treated the never-updated "unknown" default as
 // healthy and so never actually gated anything.
-export function isHealthy(p: Platform) {
+function isHealthy(p: Platform) {
   return p.is_present;
 }
 
@@ -158,12 +158,17 @@ export default function Health() {
     retry: retryUnlessForbidden,
   });
 
-  useEffect(() => {
+  // Checked once per page load, self-terminating via the !permissionDenied
+  // guard (queries disable themselves once true, so no further error can
+  // arrive), so this is adjusted during render rather than in a useEffect:
+  // a plain local setState call, no separate "did this change" tracking
+  // needed.
+  if (!permissionDenied) {
     const errors = [platformsError, storageError, summaryQueryError];
     if (errors.some((e) => e instanceof ApiError && e.status === 403)) {
       setPermissionDenied(true);
     }
-  }, [platformsError, storageError, summaryQueryError]);
+  }
 
   const userPlatforms = platforms;
   const healthy = userPlatforms.filter(isHealthy);

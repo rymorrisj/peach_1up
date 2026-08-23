@@ -60,14 +60,6 @@ export interface GameItemBundleData extends EntityBundleBase {
   items: GameItemData[];
 }
 
-// Game's cover art lives on the leaf item (keyed by display/launch disk id),
-// not the bundle itself, this is the CoverArtResolver<GameItemBundleData>.
-export function getGameCoverArt(bundle: GameItemBundleData): string | null {
-  const effectiveDisplayId = bundle.display_disk_id ?? bundle.launch_disk_id;
-  const displayDisc = bundle.items.find((d) => d.id === effectiveDisplayId) ?? bundle.items[0];
-  return displayDisc?.cover_art_url ?? null;
-}
-
 // Literal hex tints per era key (lowercase) for chip borders/backgrounds
 const ERA_HEX: Record<string, string> = {
   dos: '#d6a64a',

@@ -13,7 +13,7 @@ interface TopBarProps {
 }
 
 export default function TopBar({ title, children }: TopBarProps) {
-  const { state, dispatch: _dispatch } = useAppContext();
+  const { state } = useAppContext();
   const navigate = useNavigate();
 
   const { data: launches = [] } = useQuery<LaunchHistory[]>({

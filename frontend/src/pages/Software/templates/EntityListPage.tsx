@@ -72,12 +72,18 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
   const { showToast } = useToast();
 
   // Only re-syncs from the URL for domains that opt into the era filter, so
-  // this effect is a no-op (never touches state) for every other domain.
-  useEffect(() => {
-    if (!config.filters?.era) return;
+  // this is a no-op (never touches state) for every other domain. Adjusted
+  // during render (tracking previous searchParams) rather than in a
+  // useEffect: plain local setState calls reacting to the router's own
+  // searchParams object, matching the old effect's [searchParams,
+  // config.filters?.era] deps, including firing again (harmlessly, same
+  // values) when this page's own Select already updated both together.
+  const [prevSearchParams, setPrevSearchParams] = useState(searchParams);
+  if (config.filters?.era && searchParams !== prevSearchParams) {
+    setPrevSearchParams(searchParams);
     setFilters((f) => ({ ...f, era: searchParams.get('era') ?? '' }));
     setOffset(0);
-  }, [searchParams, config.filters?.era]);
+  }
 
   // Filtering is server-side: only params a domain's config opts into are
   // ever forwarded, so a domain with no `filters` config sends exactly the

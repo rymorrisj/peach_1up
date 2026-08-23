@@ -152,22 +152,25 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
   // subsequent AppContext poll tick while other jobs stay active (which would
   // otherwise hand ScanBody a new `status` object each tick and re-trigger its
   // "auto-select all" effect, wiping manual deselections).
-  useEffect(() => {
-    if (!activeJobId) return;
+  // Self-terminating via the activeJobId guard (cleared as soon as this
+  // fires, so it can't refire for the same job), so this is adjusted during
+  // render rather than in a useEffect: purely local setState calls reacting
+  // to the shared job store, no external side effect attached.
+  if (activeJobId) {
     const job = state.backgroundJobs.find((j) => j.id === activeJobId);
-    if (!job) return;
-    if (job.status === 'processing' || job.status === 'cancelling') return;
-    setActiveJobId(null);
-    setScanning(false);
-    if (job.status === 'cancelled') {
-      setStatus({ running: false, preview: [], error: null, cancelled: true });
-    } else if (job.status === 'error') {
-      setStatus({ running: false, preview: [], error: job.error ?? 'Scan failed.' });
-    } else {
-      const result = job.result as ScanJobResult | undefined;
-      setStatus({ running: false, preview: result?.preview ?? [], error: null });
+    if (job && job.status !== 'processing' && job.status !== 'cancelling') {
+      setActiveJobId(null);
+      setScanning(false);
+      if (job.status === 'cancelled') {
+        setStatus({ running: false, preview: [], error: null, cancelled: true });
+      } else if (job.status === 'error') {
+        setStatus({ running: false, preview: [], error: job.error ?? 'Scan failed.' });
+      } else {
+        const result = job.result as ScanJobResult | undefined;
+        setStatus({ running: false, preview: result?.preview ?? [], error: null });
+      }
     }
-  }, [state.backgroundJobs, activeJobId]);
+  }
 
   function handleScan() {
     const generation = ++generationRef.current;

@@ -4,7 +4,7 @@ import PathInput from '@/components/common/PathInput';
 import BrowsePanel from '@/components/common/BrowsePanel';
 import { apiFetch } from '@/api/client';
 import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants';
-import { ERA_TO_EMULATOR, isPcEra } from '@/pages/Environments/EnvironmentModal';
+import { ERA_TO_EMULATOR, isPcEra } from '@/pages/Environments/environmentForm';
 import { PlatformField } from './PlatformField';
 import type { SoftwareGameForm as EditFormFields } from '../types/gameForm';
 import type { components } from '@shared/types';

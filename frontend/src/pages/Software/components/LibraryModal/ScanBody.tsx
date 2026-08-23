@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useLibraryScan } from '@/hooks/useLibraryScan';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { Button, Modal, Checkbox } from '@/ui';
@@ -31,16 +31,28 @@ export default function ScanBody({
   const hasPreview = !status?.running && !importResult && preview.length > 0;
   const allSelected = preview.length > 0 && selected.size === preview.length;
 
-  // Auto-select all items when the preview first loads
-  useEffect(() => {
+  // Auto-select all items when the preview first loads. Adjusted during
+  // render (tracking previous status/importResult) rather than in a
+  // useEffect: a plain local setState reacting to values that only change
+  // when useLibraryScan hands back a new preview, matching the old effect's
+  // [status, importResult] deps.
+  const [prevAutoSelect, setPrevAutoSelect] = useState({ status, importResult });
+  if (status !== prevAutoSelect.status || importResult !== prevAutoSelect.importResult) {
+    setPrevAutoSelect({ status, importResult });
     if (status && !status.running && !importResult && status.preview.length > 0) {
       setSelected(new Set(status.preview.map((p) => p.file_path)));
     }
-  }, [status, importResult]);
+  }
 
-  useEffect(() => {
+  // Resets the selection whenever the modal closes. Adjusted during render
+  // (tracking previous `open`) rather than in a useEffect: without the
+  // transition guard, an unconditional `setSelected(new Set())` on every
+  // render while closed would create a new Set reference each time and loop.
+  const [prevOpenForSelection, setPrevOpenForSelection] = useState(open);
+  if (open !== prevOpenForSelection) {
+    setPrevOpenForSelection(open);
     if (!open) setSelected(new Set());
-  }, [open]);
+  }
 
   function toggleAll() {
     setSelected(allSelected ? new Set() : new Set(preview.map((p) => p.file_path)));

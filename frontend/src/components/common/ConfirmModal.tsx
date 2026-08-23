@@ -34,10 +34,17 @@ export default function ConfirmModal({
 
   // Re-seed the checkbox from defaultChecked every time a new confirmation
   // opens, since callers may pass a different seed value on each invocation.
-  useEffect(() => {
+  // Adjusted during render (tracking the previous `open`) rather than in a
+  // useEffect, since `open` stays true across many renders while the dialog
+  // is up and an effect would need the same transition-only guard anyway;
+  // checkbox is deliberately excluded from the trigger, only `open` flipping
+  // true should re-seed, matching the original effect's intentionally
+  // incomplete deps array.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) setChecked(checkbox?.defaultChecked ?? false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }
 
   return (
     <dialog

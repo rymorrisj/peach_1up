@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/api/client';
 import { Button } from '@/ui';
@@ -68,9 +68,20 @@ export default function BrowsePanel({
 }: BrowsePanelProps) {
   const [currentPath, setCurrentPath] = useState<string | null>(rootPath ?? null);
 
-  useEffect(() => {
+  // Resets currentPath whenever the panel (re)opens or rootPath changes while
+  // open, mirroring the old effect's [open, rootPath] deps. Adjusted during
+  // render (React's documented alternative to an Effect for this) rather than
+  // in a useEffect, since `open` can stay true across many renders and an
+  // unconditional effect body would otherwise need to re-run only on actual
+  // transitions, not on every render.
+  const [prevResetSignal, setPrevResetSignal] = useState<[boolean, string | null | undefined]>([
+    open,
+    rootPath,
+  ]);
+  if (open !== prevResetSignal[0] || rootPath !== prevResetSignal[1]) {
+    setPrevResetSignal([open, rootPath]);
     if (open) setCurrentPath(rootPath ?? null);
-  }, [open, rootPath]);
+  }
 
   const { data: drivesData } = useQuery({
     queryKey: ['filesystem', 'drives'],

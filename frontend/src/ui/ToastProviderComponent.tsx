@@ -1,9 +1,10 @@
-import { createContext, useCallback, useContext, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import * as RadixToast from '@radix-ui/react-toast';
 import { Toast } from './Toast';
 import type { ToastVariant } from './Toast';
+import { ToastContext } from './ToastContext';
 
 interface ToastEntry {
   id: string;
@@ -11,13 +12,6 @@ interface ToastEntry {
   variant: ToastVariant;
   duration?: number;
 }
-
-interface ToastContextValue {
-  showToast: (message: string, variant?: ToastVariant, duration?: number) => string;
-  dismissToast: (id: string) => void;
-}
-
-const ToastContext = createContext<ToastContextValue | null>(null);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
@@ -61,10 +55,4 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       </RadixToast.Provider>
     </ToastContext.Provider>
   );
-}
-
-export function useToast(): ToastContextValue {
-  const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error('useToast must be used within ToastProvider');
-  return ctx;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 interface UseEditFormOptions<C, F> {
   collection: C | undefined;
@@ -14,11 +14,13 @@ interface UseEditFormOptions<C, F> {
 export function useEditForm<C, F>({ collection, formFromCollection }: UseEditFormOptions<C, F>) {
   const [form, setFormState] = useState<F | null>(null);
 
-  useEffect(() => {
-    if (collection && !form) {
-      setFormState(formFromCollection(collection));
-    }
-  }, [collection, form, formFromCollection]);
+  // Seeds form once, the first time collection loads. Self-terminating via
+  // the `!form` guard (form is never reset to null afterward), so this is
+  // adjusted during render rather than in a useEffect: no separate "did this
+  // change" tracking is needed, the guard itself only ever fires once.
+  if (collection && !form) {
+    setFormState(formFromCollection(collection));
+  }
 
   function setFormField<K extends keyof F>(key: K, value: F[K]) {
     setFormState((prev) => prev && { ...prev, [key]: value });

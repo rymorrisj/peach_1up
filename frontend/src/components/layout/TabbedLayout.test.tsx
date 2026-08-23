@@ -6,7 +6,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppProvider } from '@/context/AppContext';
-import TabbedLayout, { buildTabRoutes } from './TabbedLayout';
+import TabbedLayout from './TabbedLayout';
+import { buildTabRoutes } from './buildTabRoutes';
 import type { TabConfig } from './TabbedLayout';
 
 // dev_docs/v2/08_emulator_profiles_navigation.md, Locked decision 4: TabbedLayout

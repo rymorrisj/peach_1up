@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/api/client';
 
@@ -24,11 +24,18 @@ export function useCollectionRestrictions({
   const [restrictedIds, setRestrictedIds] = useState<Set<number>>(new Set());
   const [restrictionsDirty, setRestrictionsDirty] = useState(false);
 
-  useEffect(() => {
+  // Syncs restrictedIds from the fetched restrictionsData, except while a
+  // local edit is unsaved (restrictionsDirty), matching the old effect's
+  // [restrictionsData, restrictionsDirty] deps. Adjusted during render rather
+  // than in a useEffect since both inputs are plain local/query values with
+  // no external side effect attached.
+  const [prevSync, setPrevSync] = useState({ restrictionsData, restrictionsDirty });
+  if (restrictionsData !== prevSync.restrictionsData || restrictionsDirty !== prevSync.restrictionsDirty) {
+    setPrevSync({ restrictionsData, restrictionsDirty });
     if (restrictionsData && !restrictionsDirty) {
       setRestrictedIds(new Set(restrictionsData.restricted_user_item_ids));
     }
-  }, [restrictionsData, restrictionsDirty]);
+  }
 
   function toggleRestriction(userId: number) {
     setRestrictedIds((prev) => {

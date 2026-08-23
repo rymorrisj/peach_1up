@@ -128,7 +128,7 @@ export default function EmulatorDetail() {
       setIsInstalling(false);
       setInstallError(installStatus.error ?? 'Install failed.');
     }
-  }, [installStatus]);
+  }, [installStatus, queryClient]);
 
   useEffect(() => {
     if (!cloneStatus) return;
@@ -140,7 +140,7 @@ export default function EmulatorDetail() {
       setIsCloning(false);
       setCloneError(cloneStatus.error ?? 'Clone failed.');
     }
-  }, [cloneStatus]);
+  }, [cloneStatus, queryClient]);
 
   async function handleSandboxToggle(
     field: 'container_enabled' | 'skip_cpu_limit' | 'skip_memory_limit',
@@ -428,28 +428,24 @@ export default function EmulatorDetail() {
           style={{ borderBottom: '1px solid rgb(var(--border))', marginBottom: 18 }}
         >
           <TabBtn
-            id="overview"
             label="Overview"
             active={tab === 'overview'}
             onClick={() => setTab('overview')}
           />
           {romPackSlug && (
             <TabBtn
-              id="rom"
               label="ROM Packs"
               active={tab === 'rom'}
               onClick={() => setTab('rom')}
             />
           )}
           <TabBtn
-            id="ext"
             label="Extensions"
             active={tab === 'ext'}
             onClick={() => setTab('ext')}
           />
           {(entry?.known_limitations?.length ?? 0) > 0 && (
             <TabBtn
-              id="limits"
               label="Known Limitations"
               count={entry!.known_limitations!.length}
               active={tab === 'limits'}

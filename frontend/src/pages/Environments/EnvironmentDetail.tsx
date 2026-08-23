@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError, TimeoutError } from '@/api/client';
@@ -154,9 +154,16 @@ export default function EnvironmentDetail() {
     enabled: !!id,
   });
 
-  useEffect(() => {
-    if (platform) setNotes(platform.notes ?? '');
-  }, [platform?.id]);
+  // Seeds notes once per platform id, not on every background refetch of the
+  // same platform (e.g. after handleSaveNotes's own invalidateQueries), so
+  // the textarea isn't clobbered mid-edit. Adjusted during render (tracking
+  // the previous platform id) rather than in a useEffect: a plain local
+  // setState call, matching the old effect's [platform?.id] deps exactly.
+  const [seededPlatformId, setSeededPlatformId] = useState<number | undefined>(undefined);
+  if (platform && platform.id !== seededPlatformId) {
+    setSeededPlatformId(platform.id);
+    setNotes(platform.notes ?? '');
+  }
 
   async function handleSaveNotes() {
     if (!platform) return;

@@ -10,11 +10,8 @@ import { useConfirm } from '@/hooks/useConfirm';
 import { useToast } from '@/ui/ToastProvider';
 import type { components } from '@shared/types';
 import EnvironmentCard from './EnvironmentCard';
-import EnvironmentModal, {
-  type EnvironmentForm,
-  EMPTY_ENV_FORM,
-  ERA_TO_EMULATOR,
-} from './EnvironmentModal';
+import EnvironmentModal from './EnvironmentModal';
+import { type EnvironmentForm, EMPTY_ENV_FORM, ERA_TO_EMULATOR } from './environmentForm';
 
 type Platform = components['schemas']['EnvironmentItemRead'];
 

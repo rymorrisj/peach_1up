@@ -89,30 +89,28 @@ export function FetchMetadataModal({
   const [acceptingAll, setAcceptingAll] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
 
-  // Pre-fill the search field with the item's title on open, editable, not
-  // re-applied on every render (only when the modal transitions to open).
-  useEffect(() => {
-    if (open) setQuery(entityTitle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  // Restore cached results from sessionStorage on modal open
-  useEffect(() => {
-    if (!open) return;
-    const cached = sessionStorage.getItem(storageKey);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached) as SearchResult[];
-        setResults(parsed);
-      } catch {
-        // ignore malformed cache
+  // Handles both open-transitions: on open, pre-fill the search field
+  // (editable afterward, not re-applied while it stays open) and restore any
+  // cached results from sessionStorage; on close, reset all transient state.
+  // Adjusted during render (tracking the previous `open`) rather than in
+  // three separate useEffects, since `open` stays at one value across many
+  // renders and every branch here is a plain local setState call with no
+  // external side effect attached besides the sessionStorage read (itself
+  // side-effect-free).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      setQuery(entityTitle);
+      const cached = sessionStorage.getItem(storageKey);
+      if (cached) {
+        try {
+          setResults(JSON.parse(cached) as SearchResult[]);
+        } catch {
+          // ignore malformed cache
+        }
       }
-    }
-  }, [open, storageKey]);
-
-  // Reset transient state when modal closes
-  useEffect(() => {
-    if (!open) {
+    } else {
       setQuery('');
       setSearching(false);
       setSearchError(null);
@@ -127,7 +125,7 @@ export function FetchMetadataModal({
       setAcceptingAll(false);
       setAcceptError(null);
     }
-  }, [open]);
+  }
 
   async function handleSearch() {
     const q = query.trim();

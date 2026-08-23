@@ -9,7 +9,7 @@ import type { LinkedEntityRef } from '../types';
 // /software/media/:id resolves bundle ids only (backend/api/routes/media.py
 // exposes a leaf item only via the separate GET /media-item/{id} route, with
 // no frontend page for it), so it renders as plain text, not a link.
-export function linkedEntityRoute(ref: LinkedEntityRef): string | null {
+function linkedEntityRoute(ref: LinkedEntityRef): string | null {
   switch (ref.entity_type) {
     case 'game_item_bundle':
       return ref.slug ? `${GAME_ROUTE_BASE}/${ref.slug}` : null;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/api/client';
@@ -15,8 +15,9 @@ import { formFromCollection, type SoftwareGameForm as EditFormFields } from '../
 import { resolveLaunchCommands } from '@/hooks/resolveLaunchCommands';
 import { FetchMetadataModal } from '../components/FetchMetadataModal';
 import { DiscOrderList } from '../components/DiscOrderList';
-import { CollectionCard, getGameCoverArt } from '../components/CollectionCard';
+import { CollectionCard } from '../components/CollectionCard';
 import type { GameItemBundleData } from '../components/CollectionCard';
+import { getGameCoverArt } from '../components/gameCoverArt';
 import { LinkedItemsSection } from '../components/LinkedItemsSection';
 import type { EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types';
 import { launchGateFromReason, SOFTWARE_SORT_OPTIONS, GAME_ROUTE_BASE } from '../types';
@@ -165,12 +166,16 @@ function useGameDetailExtras(
     formFromCollection,
   });
 
-  useEffect(() => {
-    if (bundle && !form) {
-      setLaunchCommandsState(bundle.launch_commands ?? null);
-      setLocalInstalled(bundle.installed);
-    }
-  }, [bundle, form]);
+  // Seeds launchCommands/localInstalled once, the first time bundle loads,
+  // same self-terminating `!form` gate useEditForm's own seed uses (form
+  // comes from the same useEditForm call above and never resets to null
+  // afterward), so this is adjusted during render rather than in a
+  // useEffect: the guard itself only ever fires once, no separate "did this
+  // change" tracking needed.
+  if (bundle && !form) {
+    setLaunchCommandsState(bundle.launch_commands ?? null);
+    setLocalInstalled(bundle.installed);
+  }
 
   const {
     discOrder,

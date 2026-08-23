@@ -20,11 +20,14 @@ import { cleanup, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppProvider } from '@/context/AppContext';
 import { ToastProvider } from '@/ui/ToastProvider';
-import Software, { softwareTabRoutes } from '@/pages/Software';
+import Software from '@/pages/Software';
+import { softwareTabRoutes } from '@/pages/Software/tabs';
 import CollectionDetail from '@/pages/Software/CollectionDetail';
-import Emulators, { emulatorsTabRoutes } from '@/pages/Emulators';
+import Emulators from '@/pages/Emulators';
+import { emulatorsTabRoutes } from '@/pages/Emulators/tabs';
 import EmulatorDetail from '@/pages/Emulators/EmulatorDetail';
-import System, { systemTabRoutes } from '@/pages/System';
+import System from '@/pages/System';
+import { systemTabRoutes } from '@/pages/System/tabs';
 import NotFound from '@/pages/NotFound';
 import { apiFetch } from '@/api/client';
 

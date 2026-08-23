@@ -1,7 +1,7 @@
 import { Button, Card, FormField, Input, Textarea, Select } from '@/ui';
 import PathInput from '@/components/common/PathInput';
 import { ERA_LABELS } from '@/generated/constants';
-import { ERA_TO_EMULATOR } from '@/pages/Environments/EnvironmentModal';
+import { ERA_TO_EMULATOR } from '@/pages/Environments/environmentForm';
 import { PlatformField } from './PlatformField';
 import type { SoftwareAppForm } from '../types/appForm';
 import type { components } from '@shared/types';

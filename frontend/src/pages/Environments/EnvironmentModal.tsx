@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button, FormField, Input, Modal, Textarea } from '@/ui';
 import PathInput from '@/components/common/PathInput';
 import FileUpload from '@/components/common/FileUpload';
 import BrowsePanel from '@/components/common/BrowsePanel';
 import LaunchCommandList from '@/components/LaunchCommandList';
 import type { HardwareProfile } from '@/generated/constants';
-
-type PCEra = 'dos' | 'win95' | 'win98' | 'winxp';
+import { ERA_TO_EMULATOR, type EnvironmentForm, type PCEra } from './environmentForm';
 
 const PC_ERAS: { value: PCEra; label: string }[] = [
   { value: 'dos', label: 'DOS' },
@@ -14,13 +13,6 @@ const PC_ERAS: { value: PCEra; label: string }[] = [
   { value: 'win98', label: 'Windows 98' },
   { value: 'winxp', label: 'Windows XP' },
 ];
-
-const ERA_TO_EMULATOR: Record<PCEra, string> = {
-  dos: 'dosbox-x',
-  win95: '86box',
-  win98: '86box',
-  winxp: '86box',
-};
 
 const EMULATOR_LABELS: Record<string, string> = {
   'dosbox-x': 'DOSBox-X',
@@ -52,39 +44,6 @@ const HARDWARE_PROFILES: { value: HardwareProfile; label: string; description: s
     description: 'For strategy and adventure games with Roland MIDI soundtracks (C&C, X-COM, etc.)',
   },
 ];
-
-export interface EnvironmentForm {
-  name: string;
-  era: PCEra | null;
-  base_image_path: string;
-  working_image_path: string;
-  hardware_profile: HardwareProfile;
-  machine_override: string;
-  notes: string;
-  launch_commands: string[];
-}
-
-export const EMPTY_ENV_FORM: EnvironmentForm = {
-  name: '',
-  era: null,
-  base_image_path: '',
-  working_image_path: '',
-  hardware_profile: 'standard',
-  machine_override: '',
-  notes: '',
-  launch_commands: [],
-};
-
-export { ERA_TO_EMULATOR };
-
-// Whether an item's era makes it PC-launchable (Environment-driven) rather
-// than console (fixed era-to-emulator mapping, no per-item Environment
-// picker). Same membership check AppEditForm's handleEraChange already uses
-// to keep is_pc in sync with era, pulled out so Games' Platform-field gating
-// (era-based) can share it without duplicating the check.
-export function isPcEra(era: string): boolean {
-  return era in ERA_TO_EMULATOR;
-}
 
 interface EnvironmentModalProps {
   open: boolean;
@@ -127,10 +86,17 @@ export default function EnvironmentModal({
     form.launch_commands.length > 0
   );
   const [showAdvanced, setShowAdvanced] = useState(false);
-  useEffect(() => {
+  // Re-seeds showAdvanced from hasAdvancedValues every time the modal
+  // (re)opens, without fighting the user's own toggle click while it stays
+  // open. Adjusted during render (tracking the previous `open`) rather than
+  // in a useEffect, for the same reason as ConfirmModal's checkbox reset;
+  // hasAdvancedValues is deliberately excluded from the trigger, matching
+  // the original effect's intentionally incomplete deps array.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) setShowAdvanced(hasAdvancedValues);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }
   const [machineBrowserOpen, setMachineBrowserOpen] = useState(false);
 
   return (
