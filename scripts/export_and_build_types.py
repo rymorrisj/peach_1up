@@ -88,7 +88,7 @@ def main() -> None:
             cwd=REPO_ROOT / "frontend",
             check=True,
         )
-        print("[OK] Types generated successfully → shared/types.ts")
+        print("[OK] Types generated successfully -> shared/types.ts")
     except subprocess.CalledProcessError as exc:
         print(f"ERROR: Type generation failed (exit {exc.returncode})", file=sys.stderr)
         sys.exit(1)
