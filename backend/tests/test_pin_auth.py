@@ -397,3 +397,81 @@ class TestUnlockSubAccount:
         refreshed = mem_session.get(UserItem, sub.id)
         assert refreshed.is_locked is False
         assert refreshed.failed_pin_attempts == 0
+
+
+class TestLogoutAndRefreshSession:
+    """POST /api/v1/auth/logout and POST /api/v1/auth/refresh, session-lifecycle
+    endpoints with no prior dedicated coverage. SECURITY.md: 'One active
+    session per user by design ... session_token_hash is the only revocation
+    surface' and refresh_session's own docstring: the token is left
+    untouched on refresh, only session_token_expires_at moves."""
+
+    def test_logout_clears_session_hash_in_db_and_invalidates_cookie(self, app_client, mem_session, owner):
+        from backend.models.user import UserItem
+
+        login_resp = app_client.post("/api/v1/auth/switch", json={"user_item_id": owner.id, "pin": "1234"})
+        assert login_resp.status_code == 200
+        cookie = login_resp.cookies.get("peach_token")
+
+        before = mem_session.get(UserItem, owner.id)
+        assert before.session_token_hash is not None
+
+        logout_resp = app_client.post("/api/v1/auth/logout", cookies={"peach_token": cookie})
+        assert logout_resp.status_code == 200
+
+        after = mem_session.get(UserItem, owner.id)
+        assert after.session_token_hash is None
+
+        me_resp = app_client.get("/api/v1/auth/me", cookies={"peach_token": cookie})
+        assert me_resp.status_code == 401
+
+    def test_refresh_moves_expiry_forward_and_sets_new_cookie(self, app_client, mem_session):
+        from backend.models.user import UserItem
+
+        sub = UserItem(
+            name="Kid", is_owner=False, is_admin=False, pin_required=False,
+            session_token_ttl=60,
+        )
+        mem_session.add(sub)
+        mem_session.commit()
+        mem_session.refresh(sub)
+
+        login_resp = app_client.post("/api/v1/auth/switch", json={"user_item_id": sub.id, "pin": ""})
+        assert login_resp.status_code == 200
+        cookie = login_resp.cookies.get("peach_token")
+
+        before = mem_session.get(UserItem, sub.id).session_token_expires_at
+        assert before is not None
+
+        refresh_resp = app_client.post("/api/v1/auth/refresh", cookies={"peach_token": cookie})
+        assert refresh_resp.status_code == 200
+        assert "peach_token" in refresh_resp.cookies
+
+        after = mem_session.get(UserItem, sub.id).session_token_expires_at
+        assert after > before
+
+    def test_refresh_with_expired_session_returns_401(self, app_client, mem_session, owner):
+        from datetime import datetime, timedelta, timezone
+        from backend.models.user import UserItem
+
+        login_resp = app_client.post("/api/v1/auth/switch", json={"user_item_id": owner.id, "pin": "1234"})
+        assert login_resp.status_code == 200
+        cookie = login_resp.cookies.get("peach_token")
+
+        # Backdate the DB row directly rather than waiting on a real ttl,
+        # the owner fixture sets no session_token_ttl so issue_session would
+        # otherwise leave expires_at unset (never-expiring).
+        row = mem_session.get(UserItem, owner.id)
+        row.session_token_expires_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+        mem_session.add(row)
+        mem_session.commit()
+
+        resp = app_client.post("/api/v1/auth/refresh", cookies={"peach_token": cookie})
+
+        assert resp.status_code == 401
+
+    def test_refresh_with_no_cookie_returns_401(self, app_client):
+        resp = app_client.post("/api/v1/auth/refresh")
+
+        assert resp.status_code == 401
+        assert "peach_token" not in resp.cookies
