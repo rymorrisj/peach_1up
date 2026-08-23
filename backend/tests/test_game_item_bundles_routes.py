@@ -159,6 +159,15 @@ class TestImportFromPath:
         # test methods within the same process, bypass it at the source.
         monkeypatch.setattr(game_item_bundles, "_enforce_rate_limit", lambda *a, **kw: None)
 
+        # import_background runs as a BackgroundTask with its own DB session,
+        # opened via backend.core.database.get_engine() directly (background
+        # tasks can't take FastAPI Depends), not through the get_db override
+        # below. Without this, that session binds to the real app engine
+        # instead of this test's isolated in-memory one, same hazard fixed in
+        # test_upload.py's client fixture.
+        import backend.core.database as database_mod
+        monkeypatch.setattr(database_mod, "get_engine", mem_db_session.get_bind)
+
         app = FastAPI()
         app.include_router(game_item_bundles.router)
         app.include_router(jobs_routes.router)
