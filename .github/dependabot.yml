@@ -4,16 +4,19 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-
-  - package-ecosystem: "npm"
-    directory: "/frontend"
-    schedule:
-      interval: "weekly"
+    groups:
+      all-pip:
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
     directory: "/docs"
     schedule:
       interval: "weekly"
+    groups:
+      all-docs-npm:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"

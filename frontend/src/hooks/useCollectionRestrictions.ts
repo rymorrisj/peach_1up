@@ -30,7 +30,10 @@ export function useCollectionRestrictions({
   // than in a useEffect since both inputs are plain local/query values with
   // no external side effect attached.
   const [prevSync, setPrevSync] = useState({ restrictionsData, restrictionsDirty });
-  if (restrictionsData !== prevSync.restrictionsData || restrictionsDirty !== prevSync.restrictionsDirty) {
+  if (
+    restrictionsData !== prevSync.restrictionsData ||
+    restrictionsDirty !== prevSync.restrictionsDirty
+  ) {
     setPrevSync({ restrictionsData, restrictionsDirty });
     if (restrictionsData && !restrictionsDirty) {
       setRestrictedIds(new Set(restrictionsData.restricted_user_item_ids));

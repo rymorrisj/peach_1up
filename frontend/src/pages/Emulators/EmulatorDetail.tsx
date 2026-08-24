@@ -188,7 +188,8 @@ export default function EmulatorDetail() {
     if (!runningLaunch || isForceClosing) return;
     const confirmed = await confirm({
       title: `Force close ${entry?.name ?? slug}?`,
-      consequence: 'This immediately terminates the running process. Unsaved progress in the emulator will be lost.',
+      consequence:
+        'This immediately terminates the running process. Unsaved progress in the emulator will be lost.',
       destructive: true,
     });
     if (!confirmed) return;
@@ -429,23 +430,11 @@ export default function EmulatorDetail() {
           className="flex gap-0"
           style={{ borderBottom: '1px solid rgb(var(--border))', marginBottom: 18 }}
         >
-          <TabBtn
-            label="Overview"
-            active={tab === 'overview'}
-            onClick={() => setTab('overview')}
-          />
+          <TabBtn label="Overview" active={tab === 'overview'} onClick={() => setTab('overview')} />
           {romPackSlug && (
-            <TabBtn
-              label="ROM Packs"
-              active={tab === 'rom'}
-              onClick={() => setTab('rom')}
-            />
+            <TabBtn label="ROM Packs" active={tab === 'rom'} onClick={() => setTab('rom')} />
           )}
-          <TabBtn
-            label="Extensions"
-            active={tab === 'ext'}
-            onClick={() => setTab('ext')}
-          />
+          <TabBtn label="Extensions" active={tab === 'ext'} onClick={() => setTab('ext')} />
           {(entry?.known_limitations?.length ?? 0) > 0 && (
             <TabBtn
               label="Known Limitations"

@@ -275,10 +275,7 @@ function IGDBSection() {
             placeholder={enabled ? '••••••••' : 'Paste client ID here'}
           />
         </FormField>
-        <FormField
-          label="Client secret"
-          hint="Write-only, leave blank to keep the existing value."
-        >
+        <FormField label="Client secret" hint="Write-only, leave blank to keep the existing value.">
           <Input
             type="password"
             value={clientSecret}

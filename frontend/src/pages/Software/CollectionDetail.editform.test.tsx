@@ -316,9 +316,7 @@ describe('CollectionDetail edit form (field-level)', () => {
     await waitForLoaded();
 
     await selectRadixOption(user, 'Content Rating', 'M, Mature');
-    expect(screen.getByRole('combobox', { name: 'Content Rating' })).toHaveTextContent(
-      'M, Mature',
-    );
+    expect(screen.getByRole('combobox', { name: 'Content Rating' })).toHaveTextContent('M, Mature');
 
     await saveAndWait(user);
     const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');

@@ -57,26 +57,23 @@ describe('PlatformField', () => {
     ['environment_not_present', 'not present'],
     ['environment_not_provisioned', 'not yet provisioned'],
     ['environment_not_installed', 'OS not installed yet'],
-  ])(
-    'labels and disables a candidate whose server reason is %s',
-    async (reason, label) => {
-      const user = userEvent.setup();
-      render(
-        <PlatformField
-          isPcLaunchable
-          value=""
-          onChange={vi.fn()}
-          platforms={[makePlatform({ launch_blocked_reason: reason })]}
-          disabledNote=""
-        />,
-      );
-      await openPlatformDropdown(user);
+  ])('labels and disables a candidate whose server reason is %s', async (reason, label) => {
+    const user = userEvent.setup();
+    render(
+      <PlatformField
+        isPcLaunchable
+        value=""
+        onChange={vi.fn()}
+        platforms={[makePlatform({ launch_blocked_reason: reason })]}
+        disabledNote=""
+      />,
+    );
+    await openPlatformDropdown(user);
 
-      const option = await screen.findByRole('option', { name: `Win98 Box, ${label}` });
-      expect(option).toBeInTheDocument();
-      expect(option).toHaveAttribute('aria-disabled', 'true');
-    },
-  );
+    const option = await screen.findByRole('option', { name: `Win98 Box, ${label}` });
+    expect(option).toBeInTheDocument();
+    expect(option).toHaveAttribute('aria-disabled', 'true');
+  });
 
   it('falls back to disabling on an unrecognized reason code, does not hide it', async () => {
     const user = userEvent.setup();

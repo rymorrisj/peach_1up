@@ -65,4 +65,3 @@ export default function TabbedLayout({ tabs, title }: TabbedLayoutProps) {
     </div>
   );
 }
-
