@@ -1,7 +1,4 @@
 """Tests for backend.api.middleware.security: SecurityMiddleware and CSRFMiddleware.
-
-Run with:
-    pytest backend/tests/test_security_middleware.py
 """
 from fastapi import FastAPI
 from fastapi.testclient import TestClient

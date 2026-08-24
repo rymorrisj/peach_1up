@@ -1,23 +1,18 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/game_item_bundles.py.
 
-Per dev_docs/v2/09_test_coverage.md item 3, the largest untested route file
-(699 lines) and a parental-control-adjacent surface. Prior to this file, only
-/confirm-delete and DELETE were exercised (test_upload.py). This file covers
-the route's other untested surfaces:
+Covers the permission gates on:
 
-    - POST /software/import-from-path (can_manage_game gate)
-    - POST /software/scan/import (can_manage_game gate)
-    - PATCH .../items/reorder (can_manage_game gate)
-    - POST .../flag-launch (can_launch_media gate)
+    - POST /software/import-from-path (can_manage_game)
+    - POST /software/scan/import (can_manage_game)
+    - PATCH .../items/reorder (can_manage_game)
+    - POST .../flag-launch (can_launch_media)
 
-Does NOT duplicate the get_filtered_game_item_bundles/get_filtered_game_item_bundle
-rating-filter coverage already in test_dependencies_content_rating.py
-(TestGetFilteredCollectionsUnknownRatingDenies, TestGetFilteredCollection,
-TestSoftwareListRouteFiltering, TestGameItemBundleDetailRouteNoLeak).
+Rating-filter coverage for get_filtered_game_item_bundles /
+get_filtered_game_item_bundle lives in test_dependencies_content_rating.py,
+confirm-delete and DELETE in test_upload.py; neither is repeated here.
 
-Uses the same in-memory SQLModel SQLite DB + StaticPool +
-get_active_user/get_db dependency-override pattern as
-test_dependencies_content_rating.py and test_users_create_delete_reset.py.
+In-memory SQLModel SQLite + StaticPool + get_active_user/get_db dependency
+overrides, as in test_dependencies_content_rating.py.
 """
 
 import pytest

@@ -1,13 +1,13 @@
 """Tests for backend/service/utils/emulator_descriptor.py, the Pydantic
 schema every config/emulators/*.toml file is validated against at load time
-(_load_raw_catalog in emulator_catalog.py). Previously zero coverage.
+(_load_raw_catalog in emulator_catalog.py).
 
-Covers: EmulatorDescriptor's required-field enforcement, the slug pattern
-(feeds directly into filesystem paths with no further sanitisation, see the
-module docstring on why traversal-shaped slugs must be rejected), the
-extra="forbid" typo/staleness guard, ContainerBrokerFile's exactly-one-of
-path/path_key validator, and both of EmulatorDescriptor's model_validators:
-_validate_install_dir_write_access and _validate_supported_formats_matches_eras.
+Covers EmulatorDescriptor's required-field enforcement, the slug pattern
+(slugs reach filesystem paths with no later sanitisation, so traversal-shaped
+ones must be rejected here), the extra="forbid" typo/staleness guard,
+ContainerBrokerFile's exactly-one-of path/path_key validator, and both
+model_validators: _validate_install_dir_write_access and
+_validate_supported_formats_matches_eras.
 """
 
 import pytest

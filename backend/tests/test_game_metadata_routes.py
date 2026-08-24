@@ -1,10 +1,8 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/game_metadata.py.
 
-Per dev_docs/P1_AUDIT.md TST-11, game_metadata.py had zero route-level
-coverage; test_enrich.py exercises enrich_entity() directly, never
-POST /enrich, so the route's is_owner gate and its
-rating_change_requires_confirmation wiring (backend/core/dependencies.py)
-were never exercised at HTTP. Covers:
+Scoped to the routes themselves, the is_owner gate and the
+rating_change_requires_confirmation wiring (backend/core/dependencies.py);
+test_enrich.py drives enrich_entity() directly. Covers:
 
     - is_owner gating (403 for non-owner) on all four routes
       (/metadata-search, /metadata-details, /enrich, /{id}/accept-metadata-assets)
@@ -13,12 +11,10 @@ were never exercised at HTTP. Covers:
     - a content_rating change that does not lower the rating (same value, or
       moving off an unset rating) needs no confirmation at all
 
-Uses the same in-memory SQLModel SQLite DB + StaticPool +
-get_active_user/get_db dependency-override pattern as the other *_routes
-test files. rating_change_requires_confirmation's settings-backed ordinal
-override (_load_rating_ordinals) falls back to the built-in defaults on the
-RuntimeError this in-memory app raises before init_settings() ever runs —
-no settings stub is needed here, unlike the emulators.py route tests.
+In-memory SQLModel SQLite + StaticPool + get_active_user/get_db dependency
+overrides, as in the other *_routes test files. No settings stub is needed:
+_load_rating_ordinals falls back to the built-in defaults on the RuntimeError
+this app raises before init_settings() runs.
 """
 
 import pytest

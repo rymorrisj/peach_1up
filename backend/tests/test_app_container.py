@@ -2,12 +2,11 @@
 
 Covers get_container_config's settings-tier CPU/memory limit resolution
 (SECURITY.md, "Both skip flags are honoured on both isolation layers"),
-build_container_moniker's pure string format, and
+build_container_moniker's string format, and
 validate_descriptor_grant_surface's startup-validation contract.
 
-Only pure config-generation logic is exercised here (SandboxConfig
-construction), never wincage.launch() or any Win32/AppContainer call, so
-these tests carry no process/thread/handle risk.
+Config generation only (SandboxConfig construction), never wincage.launch()
+or any Win32/AppContainer call, so no process/thread/handle is created.
 """
 
 import pytest
@@ -20,9 +19,8 @@ def _patch_common(monkeypatch, app_container, *, descriptor=None, skip_cpu=False
     """Isolate get_container_config from the real catalog/eras.yaml/settings.
 
     descriptor defaults to a bare entry with no container_broker_files, so
-    broker_files resolution (and therefore _resolve_path_key/settings) is
-    never exercised by tests that only care about the CPU/memory/moniker
-    fields.
+    tests that only care about the CPU/memory/moniker fields never reach
+    _resolve_path_key.
     """
     monkeypatch.setattr(app_container, "get_emulator", lambda slug: descriptor or {"container_broker_files": []})
     monkeypatch.setattr(app_container, "_load_era", lambda slug: dict(_FAKE_ERA))
@@ -34,29 +32,17 @@ def _patch_common(monkeypatch, app_container, *, descriptor=None, skip_cpu=False
 # get_container_config: skip_cpu_limit resolution
 # ---------------------------------------------------------------------------
 #
-# NOTE on scenario framing: the task that produced this file asked for a
-# settings=true / descriptor=false combination to assert skip_cpu_limit=True.
-# That combination does not reach True in the real resolver: emulator_catalog
-# ._resolve_skip_flag() treats a descriptor False as a floor a settings-tier
-# override cannot raise (SECURITY.md never documents that combination as
-# yielding True; the settings row may only move the flag toward *more*
-# restrictive, never less). Asserting True there would assert behavior the
-# code deliberately does not have. The regression SECURITY.md actually
-# documents is narrower: get_container_config must source skip_cpu_limit
-# from get_skip_cpu_limit() (the settings-aware resolver), not read the
-# descriptor field directly the way the container path used to (fixed value,
-# cap applied unconditionally). These tests lock in that call boundary by
-# monkeypatching get_skip_cpu_limit directly and using a descriptor whose own
-# (unread) skip_cpu_limit field disagrees with it, so the test would fail if
-# get_container_config ever went back to reading descriptor.get(...) instead.
+# get_container_config must source the flag from get_skip_cpu_limit()
+# rather than reading descriptor["skip_cpu_limit"] directly.
+# Each test patches get_skip_cpu_limit to disagree with the
+# descriptor field so a return to descriptor.get() fails them.
+#
+# Resolution *within* get_skip_cpu_limit is emulator_catalog's own concern and
+# is covered there so settings=True/descriptor=False deliberately does not yield True.
 
 class TestGetContainerConfigSkipCpuLimit:
     def test_skip_cpu_limit_sourced_from_get_skip_cpu_limit_not_descriptor(self, monkeypatch):
-        """SECURITY.md: 'sandbox_host.exe had no representation of
-        skip_cpu_limit at all ... job.cpp applied CPU rate control
-        unconditionally. It now travels ... resolved through
-        get_skip_cpu_limit().' Descriptor disagrees (False) with the
-        resolver (True); the resolver must win."""
+        """Descriptor says False, the resolver says True; the resolver wins."""
         import backend.service.utils.platform.windows.app_container as app_container
         descriptor = {"container_broker_files": [], "skip_cpu_limit": False}
         _patch_common(monkeypatch, app_container, descriptor=descriptor, skip_cpu=True, skip_mem=False)
@@ -79,8 +65,7 @@ class TestGetContainerConfigSkipCpuLimit:
 
 class TestGetContainerConfigSkipMemoryLimit:
     def test_skip_memory_limit_true_nulls_memory_limit_mb(self, monkeypatch):
-        """SECURITY.md notes this mirrors the skip_cpu_limit bug class:
-        resolved through get_skip_memory_limit(), not descriptor.get()."""
+        """Same call-boundary regression as skip_cpu_limit above."""
         import backend.service.utils.platform.windows.app_container as app_container
         descriptor = {"container_broker_files": [], "skip_memory_limit": False}
         _patch_common(monkeypatch, app_container, descriptor=descriptor, skip_cpu=False, skip_mem=True)
@@ -117,6 +102,49 @@ class TestGetContainerConfigLaunchPathsOverride:
 
 
 # ---------------------------------------------------------------------------
+# get_container_config: era-derived cpu_limit_percent
+# ---------------------------------------------------------------------------
+
+class TestGetContainerConfigCpuLimitMissing:
+    def test_missing_cpu_limit_percent_raises_instead_of_defaulting(self, monkeypatch):
+        """Fail-loud: an era block with no cpu_limit_percent must raise, never
+        fall back to an unlimited (or arbitrary) rate on the container path."""
+        import backend.service.utils.platform.windows.app_container as app_container
+        _patch_common(monkeypatch, app_container)
+        monkeypatch.setattr(app_container, "_load_era", lambda slug: {"memory_limit_mb": 2048})
+
+        with pytest.raises(RuntimeError, match="cpu_limit_percent"):
+            app_container.get_container_config("fake-emu", "fake.exe")
+
+
+# ---------------------------------------------------------------------------
+# _resolve_path_key: derived map wins over a same-named settings row
+# ---------------------------------------------------------------------------
+
+class TestResolvePathKeyPrecedence:
+    def test_derived_path_wins_over_a_same_named_settings_row(self, monkeypatch):
+        """The descriptor vocabulary (install_dir, cache, content, nvram, ...)
+        is schema-fixed, so a user-editable settings key spelled the same must
+        never redirect a grant the descriptor already gave a fixed meaning."""
+        import backend.service.utils.platform.windows.app_container as app_container
+        from backend.service.utils import settings as settings_mod
+
+        monkeypatch.setattr(app_container, "resolve_derived_path", lambda pk, slug: "/derived/cache")
+        monkeypatch.setattr(settings_mod, "get", lambda key, *a, **kw: "/settings/cache")
+
+        assert app_container._resolve_path_key("cache", "xemu") == "/derived/cache"
+
+    def test_settings_row_is_used_only_when_the_derived_map_misses(self, monkeypatch):
+        import backend.service.utils.platform.windows.app_container as app_container
+        from backend.service.utils import settings as settings_mod
+
+        monkeypatch.setattr(app_container, "resolve_derived_path", lambda pk, slug: None)
+        monkeypatch.setattr(settings_mod, "get", lambda key, *a, **kw: "/settings/roms")
+
+        assert app_container._resolve_path_key("ROMS_PATH", "xemu") == "/settings/roms"
+
+
+# ---------------------------------------------------------------------------
 # build_container_moniker: pure string construction
 # ---------------------------------------------------------------------------
 
@@ -130,24 +158,25 @@ class TestBuildContainerMoniker:
         assert build_container_moniker("xemu", 7) == "Peach1UP.xemu.7"
 
 
+# INTEGRATION TEST NEEDED: nothing above proves the SandboxConfig built here
+# is the one that reaches sandbox_host.exe, or that the native side honours
+# skip_cpu_limit/memory_limit_mb once it does. Needs a real launch with a
+# live process. See TESTING.md, "AppContainer and sandbox_host.exe".
+
 # ---------------------------------------------------------------------------
 # validate_descriptor_grant_surface
 # ---------------------------------------------------------------------------
 
 class TestValidateDescriptorGrantSurface:
     def test_passes_against_real_emulator_catalog(self, monkeypatch, tmp_path):
-        """Same catalog-loading pattern as test_emulator_catalog.py's
-        test_load_catalog_returns_all_emulators: no monkeypatching of the
-        catalog itself. APPDATA is stubbed only so xemu's appdata_xemu
-        path_key resolves deterministically off Windows too (the real
-        launch-time behavior already requires APPDATA to be set)."""
+        """Runs against the real config/emulators/ catalog, unpatched. APPDATA
+        is stubbed so xemu's appdata_xemu path_key resolves off Windows too."""
         import backend.service.utils.platform.windows.app_container as app_container
         monkeypatch.setenv("APPDATA", str(tmp_path))
         app_container.validate_descriptor_grant_surface()
 
     def test_raises_for_descriptor_with_unresolvable_path_key(self, monkeypatch):
-        """Negative case uses a minimal fake descriptor via a patched
-        load_catalog rather than mutating the real config/emulators/ catalog."""
+        """Fake descriptor via a patched load_catalog, never a real one."""
         from backend.service.utils import emulator_catalog
         import backend.service.utils.platform.windows.app_container as app_container
         fake_descriptor = {

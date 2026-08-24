@@ -1,24 +1,18 @@
-"""Route-level (TestClient/HTTP) tests for backend/api/routes/apps.py.
+"""Route-level (TestClient/HTTP) tests for backend/api/routes/apps.py
+(9 routes, mounted at /api/v1/app-item*).
 
-Per dev_docs/P1_AUDIT.md TST-8, apps.py (9 routes, mounted at
-/api/v1/app-item*) had no route-level test at all. Note: unlike the Game
-domain, AppItemBundle has no content_rating/max_content_rating concept
-(backend/core/dependencies.py::get_filtered_app_items docstring, "Apps have
-no content_rating/max_content_rating concept to filter on"), so the
-parental-control surface here is the manual MediaRestriction blocklist only,
-not a rating ceiling. Covers:
+AppItemBundle has no content_rating/max_content_rating, so the manual
+MediaRestriction blocklist is the whole parental-control surface here.
 
     - can_manage_app gating on create/update/delete/confirm-delete
-    - the manual MediaRestriction blocklist 404s a restricted app on both
-      GET /app-item-bundle/{id} and excludes it from GET /app-items, the
-      same no-leak 404 pattern as the Game domain
+    - the blocklist 404s a restricted app on GET /app-item-bundle/{id} and
+      excludes it from GET /app-items
     - owner bypasses both the permission gate and the blocklist filter
     - leaf-level (/app-item/{id}) visibility inherits the parent bundle's
       blocklist filter via _visible_leaf
 
-Uses the same in-memory SQLModel SQLite DB + StaticPool +
-get_active_user/get_db dependency-override pattern as
-test_drives_routes.py / test_launches_routes.py.
+In-memory SQLModel SQLite + StaticPool + get_active_user/get_db dependency
+overrides, as in test_drives_routes.py.
 """
 
 import pytest

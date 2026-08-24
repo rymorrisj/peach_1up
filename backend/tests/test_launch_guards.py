@@ -39,10 +39,9 @@ def mem_session():
 
 
 class _FakeSettings:
-    """Same fake-settings convention as test_game_items.py, get_settings()
-    is a process-wide singleton gated by init_settings(), so unit tests patch
-    it directly rather than depending on some other test file having already
-    triggered the real init via a TestClient lifespan startup."""
+    """Same fake-settings convention as test_game_items.py. get_settings() is
+    a process-wide singleton gated by init_settings(), so unit tests patch it
+    directly instead of relying on a real init from another test file."""
 
     def get(self, key, default=None):
         return default

@@ -3,15 +3,11 @@ the single source of truth for pre-launch gating on both call sites
 (coordinator.py's real launch enforcement and the read-time
 launch_blocked_reason UI signal on models/game.py and models/app.py).
 
-Previously zero direct unit coverage: test_era_defaults.py exercises
-defaults_for_era and lookup_environment_and_profile only, and
-test_environments_routes.py only exercises this function indirectly through
-the read-model builder, no test constructs its inputs directly and asserts
-on its return value. This file tests the function itself, every branch, for
-both call_site="item" and call_site="environment", using plain SimpleNamespace
-stand-ins for the Environment argument since the function only ever reads
-.era / .working_image_path / .installed_at off it (documented as "pure reads
-of already-resolved state" in its own docstring), never a real DB row.
+Every branch, for both call_site="item" and call_site="environment".
+
+The Environment argument is a plain SimpleNamespace stand-in: the function
+only reads .era / .working_image_path / .installed_at off it, never a real
+DB row.
 """
 
 from types import SimpleNamespace

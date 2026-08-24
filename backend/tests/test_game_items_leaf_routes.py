@@ -1,10 +1,8 @@
 """Route-level (TestClient/HTTP) tests for the leaf routes in
 backend/api/routes/game_items.py.
 
-Per dev_docs/P1_AUDIT.md TST-13, test_game_items.py only exercises the
-_prepare_item service helper; a capped sub-account's ability to see or
-verify an over-rated leaf inside an allowed bundle was never tested at HTTP.
-Covers:
+Scoped to what a capped sub-account may see or verify at HTTP;
+test_game_items.py covers the _prepare_item service helper. Covers:
 
     - GET /game-item/{leaf_id} 404s (no leak) when the parent bundle is
       denied by either the manual MediaRestriction blocklist or the
@@ -13,13 +11,11 @@ Covers:
       caller may see
     - owner bypasses both filters
     - POST /game-item/{leaf_id}/verify enforces the same parent-bundle
-      visibility filter as GET, via _visible_leaf, before ever calling
-      backend.service.games.items.reverify_library_leaf (fixed; previously
-      this route had no visibility check at all)
+      visibility filter as GET, via _visible_leaf, before calling
+      backend.service.games.items.reverify_library_leaf
 
-Uses the same in-memory SQLModel SQLite DB + StaticPool +
-get_active_user/get_db dependency-override pattern as the other *_routes
-test files.
+In-memory SQLModel SQLite + StaticPool + get_active_user/get_db dependency
+overrides, as in the other *_routes test files.
 """
 
 import pytest

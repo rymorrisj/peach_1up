@@ -1,23 +1,15 @@
 """Tests for backend/service/utils/env_secrets.py's real read/write path.
 
-Every existing caller-side test mocks get_env_secret/set_env_secret out, so
-the actual atomic-write implementation (persists PIN_PEPPER and third-party
-API keys to .env) had no coverage. These tests exercise the real
-implementation against a tmp_path .env file, never the real project .env.
+Runs the real implementation, the atomic write that persists PIN_PEPPER and
+the third-party API keys, against a tmp_path .env. Every other test file
+mocks get_env_secret/set_env_secret out.
 
-Isolation notes:
-  - _env_path() is monkeypatched to a tmp_path file, so the real .env is
-    never opened.
-  - _dotenv_loaded is a module-level, process-lifetime cache; monkeypatched
-    back to False for each test so a test observes only its own tmp_path
-    file, and restored on teardown.
-  - set_env_secret/get_env_secret also read/write the real process
-    os.environ for each key directly, not just the file. Every key in
-    _ENV_KEYS is monkeypatch.delenv'd (raising=False) at the start of each
-    test so a value written by one test can never leak into the next test
-    or file: monkeypatch restores whatever os.environ held for that key
-    before the test, once at teardown, regardless of what env_secrets.py
-    wrote to it in between.
+Isolation, all handled by the isolated_env fixture:
+  - _env_path() points at tmp_path, so the real project .env is never opened.
+  - _dotenv_loaded is a process-lifetime cache, reset to False per test.
+  - set_env_secret/get_env_secret also touch the real os.environ, so every
+    _ENV_KEYS entry is delenv'd up front and monkeypatch restores it at
+    teardown, keeping a written value out of the next test.
 """
 
 import pytest
@@ -84,11 +76,16 @@ class TestSetEnvSecretDisallowedKey:
         assert after == before
 
 
+# INTEGRATION TEST NEEDED: set_env_secret is read-modify-write with no lock,
+# so two concurrent settings PATCHes writing different keys can have the
+# second rename clobber the first key's line. Needs real concurrent requests
+# against a live app to verify both keys survive (or to confirm the race).
+
+
 class TestSetEnvSecretFailedWrite:
     def test_failed_replace_leaves_original_file_and_no_temp_file(self, isolated_env, monkeypatch):
-        """Injection point: os.replace, the atomic-rename step. This is the
-        real internal write mechanism the docstring calls out ('Atomic via
-        temp file + rename'), not an internal detail invented for the test."""
+        """Fails the atomic-rename step itself (os.replace), the mechanism the
+        docstring's "Atomic via temp file + rename" guarantee rests on."""
         import os as os_mod
         env_file, env_secrets_mod = isolated_env
         original = "PIN_PEPPER=old_pepper\n"
@@ -112,12 +109,41 @@ class TestGetEnvSecretRoundTrip:
 
         env_secrets_mod.set_env_secret("IGDB_CLIENT_ID", "abc-123-def")
 
-        # Force get_env_secret to actually reload from the .env file rather
-        # than short-circuiting on the in-process os.environ value
-        # set_env_secret also wrote, so this exercises the real read path.
+        # Clear the os.environ value set_env_secret also wrote, so the read
+        # comes from the file rather than short-circuiting in-process.
         monkeypatch.delenv("IGDB_CLIENT_ID", raising=False)
         monkeypatch.setattr(env_secrets_mod, "_dotenv_loaded", False)
 
         result = env_secrets_mod.get_env_secret("IGDB_CLIENT_ID")
 
         assert result == "abc-123-def"
+
+
+class TestGetEnvSecretDisallowedKey:
+    def test_raises_value_error_naming_the_key(self, isolated_env):
+        """_check_key gates the read side too, not just set_env_secret."""
+        _env_file, env_secrets_mod = isolated_env
+        with pytest.raises(ValueError, match="not a recognised"):
+            env_secrets_mod.get_env_secret("NOT_A_REAL_SECRET_KEY")
+
+
+class TestGetEnvSecretUnset:
+    def test_allowed_key_with_no_value_returns_empty_string(self, isolated_env):
+        """Never None: callers (pin_hashing.get_pin_pepper, the TheGamesDB key
+        lookup) treat the return as a str unconditionally."""
+        env_file, env_secrets_mod = isolated_env
+        env_file.write_text("PIN_PEPPER=set\n", encoding="utf-8")
+
+        assert env_secrets_mod.get_env_secret("AI_API_KEY") == ""
+
+
+class TestSetEnvSecretUpdatesProcessEnvironment:
+    def test_value_is_visible_in_os_environ_without_a_reload(self, isolated_env):
+        """Documented: set_env_secret persists to .env *and* the current
+        process environment, so a same-process reader sees it immediately."""
+        import os
+        _env_file, env_secrets_mod = isolated_env
+
+        env_secrets_mod.set_env_secret("THEGAMESDB_API_KEY", "live-key")
+
+        assert os.environ["THEGAMESDB_API_KEY"] == "live-key"

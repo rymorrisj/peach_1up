@@ -4,16 +4,10 @@
   and the success path with mocked FAT I/O.
 - hydrate_drive_for_entity: skip conditions and the FAT copy trigger.
 
-Architecture note, P3.1 transactional gap (still present in the code):
-  hydrate_drive_for_entity() issues two separate db.commit() calls: one when
-  drive.size_mb changes and a second when entity._db_collection.installed = True is
-  written back.  A crash or exception between these two commits leaves the
-  drive image freshly formatted but installed=False, causing a full re-format
-  on the next launch.  No test here can paper over that race; it is noted for
-  awareness.
-
-Run with:
-    pytest backend/tests/test_drive_hydration.py
+hydrate_drive_for_entity() commits twice, once for a changed drive.size_mb
+and once for entity._db_collection.installed = True. A crash between the two
+leaves the image freshly formatted with installed=False, forcing a full
+re-format on the next launch.
 """
 from unittest.mock import MagicMock
 

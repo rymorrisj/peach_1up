@@ -1,13 +1,16 @@
 """Route-level tests for ControllerMapping CRUD (backend/api/routes/controllers.py).
 
-list/get/create/duplicate are open to any authenticated user by design (confirmed
-with Ryan, not a gap). update/delete are gated by check_controller_edit_permission,
-a compound rule that is NOT a simple flag check: owner bypasses everything, OR the
-row's creator, OR (is_admin AND can_manage_controllerMapping) together, the AND is
-genuine, so both flags must be proven independently insufficient and jointly
-sufficient. backend/api/routes/tags.py imports and reuses this exact function for
-controller_mapping tag assignments (see test_tags.py's
-TestControllerMappingAssignmentReusesEditPermission) rather than duplicating it.
+list/get/create/duplicate are open to any authenticated user by design.
+update/delete go through check_controller_edit_permission, which grants on:
+
+    - owner, or
+    - the row's creator, or
+    - is_admin AND can_manage_controllerMapping (a real AND, neither flag
+      is sufficient on its own)
+
+backend/api/routes/tags.py reuses the same function for controller_mapping
+tag assignments, see test_tags.py's
+TestControllerMappingAssignmentReusesEditPermission.
 """
 
 import pytest

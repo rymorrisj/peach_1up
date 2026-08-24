@@ -1,9 +1,11 @@
 """Tests for GET /api/v1/health/storage caching and the drive-images category.
 
-storage_footprint() walks several directory trees unboundedly via _dir_size;
-these tests confirm the TTL cache added on top of it avoids re-walking on
-repeated calls, that the rescan endpoint busts the cache, and that drive
-image usage is now counted in the response.
+storage_footprint() walks several directory trees unboundedly via _dir_size.
+Covers:
+
+- the TTL cache avoids re-walking on repeated calls
+- the rescan endpoint busts the cache
+- drive image usage is counted in the response
 """
 
 import pytest

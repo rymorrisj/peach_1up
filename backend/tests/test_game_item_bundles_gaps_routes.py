@@ -1,23 +1,20 @@
-"""Route-level (TestClient/HTTP) tests closing the remaining gap in
-backend/api/routes/game_item_bundles.py identified by dev_docs/P1_AUDIT.md
-TST-5: of its 19 routes, test_dependencies_content_rating.py covers list and
-detail (both rating-ceiling and manual MediaRestriction filtering, HTTP
-level), test_game_item_bundles_routes.py covers import-from-path,
-scan/import, flag-launch, and items/reorder, and test_upload.py covers
-confirm-delete and delete. That leaves scan status/cancel, the full scan
-trigger, by-slug, bundle-level verify, convert-xiso plus its status, and the
-per-leaf patch route (nested under the bundle path) untested. Covers those,
-plus two extra routes (create, update) found uncovered during this pass that
-TST-5 did not call out by name.
+"""Route-level (TestClient/HTTP) tests for the routes in
+backend/api/routes/game_item_bundles.py not covered by
+test_dependencies_content_rating.py, test_game_item_bundles_routes.py, or
+test_upload.py:
 
-Fixed: GET /game-items/scan/status and POST /game-items/scan/{job_id}/cancel
-now require can_manage_game (P1_AUDIT.md P3-S2), matching every sibling
-route in the same scan family (scan, scan/import, import-from-path). The
-tests below assert the gate rather than the previously-ungated behavior.
+    - scan trigger, scan status, scan cancel
+    - by-slug
+    - bundle-level verify
+    - convert-xiso and its status
+    - the per-leaf patch route nested under the bundle path
+    - create, update
 
-Uses the same in-memory SQLModel SQLite DB + StaticPool +
-get_active_user/get_db dependency-override pattern as the other *_routes
-test files.
+scan/status and scan/{job_id}/cancel require can_manage_game, matching every
+sibling route in the scan family (scan, scan/import, import-from-path).
+
+In-memory SQLModel SQLite + StaticPool + get_active_user/get_db dependency
+overrides, as in the other *_routes test files.
 """
 
 import pytest

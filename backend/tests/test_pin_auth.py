@@ -1,9 +1,8 @@
 """Tests for PIN-based account switching and account lockout.
 
-The spec referenced POST /api/v1/auth/verify-pin, but no such endpoint
-exists. The actual PIN verification flow is POST /api/v1/auth/switch
-(api/routes/auth.py:switch_user), which is what these tests exercise.
-Account unlock is POST /api/v1/user-items/{user_item_id}/unlock (api/routes/users.py).
+PIN verification is POST /api/v1/auth/switch (api/routes/auth.py:switch_user);
+there is no /auth/verify-pin endpoint. Account unlock is
+POST /api/v1/user-items/{user_item_id}/unlock (api/routes/users.py).
 """
 
 import pytest
@@ -400,11 +399,11 @@ class TestUnlockSubAccount:
 
 
 class TestLogoutAndRefreshSession:
-    """POST /api/v1/auth/logout and POST /api/v1/auth/refresh, session-lifecycle
-    endpoints with no prior dedicated coverage. SECURITY.md: 'One active
-    session per user by design ... session_token_hash is the only revocation
-    surface' and refresh_session's own docstring: the token is left
-    untouched on refresh, only session_token_expires_at moves."""
+    """POST /api/v1/auth/logout and POST /api/v1/auth/refresh.
+
+    One active session per user, and session_token_hash is the only
+    revocation surface. Refresh leaves the token untouched and moves only
+    session_token_expires_at."""
 
     def test_logout_clears_session_hash_in_db_and_invalidates_cookie(self, app_client, mem_session, owner):
         from backend.models.user import UserItem

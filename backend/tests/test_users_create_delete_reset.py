@@ -1,12 +1,10 @@
 """Tests for backend/api/routes/users.py, create_user, delete_user, reset_pin.
 
-Per dev_docs/v2/09_test_coverage.md item 2. update_user's permission matrix is
-already covered by test_pin_auth.py::TestUpdateUser; this file only covers
-create_user, delete_user, and reset_pin.
+update_user's permission matrix lives in test_pin_auth.py::TestUpdateUser.
 
-Uses an in-memory SQLModel SQLite DB with StaticPool and get_active_user/get_db
-dependency overrides (same pattern as test_dependencies_content_rating.py),
-not test_pin_auth.py's cookie-based flow.
+In-memory SQLModel SQLite + StaticPool + get_active_user/get_db dependency
+overrides, as in test_dependencies_content_rating.py, not test_pin_auth.py's
+cookie-based flow.
 """
 
 import pytest

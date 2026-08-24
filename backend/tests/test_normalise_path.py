@@ -3,11 +3,12 @@ filesystem allowlist enforcement built on top of it (api/routes/filesystem.py).
 
 normalise_path itself only handles null-byte rejection, separator
 unification, and ``Path.resolve()`` (which silently collapses ``..``
-segments, it does not raise on traversal). The allowlist check that
-rejects paths outside configured roots lives in
-``api/routes/filesystem._within_allowed`` and is exercised here via
+segments, it does not raise on traversal). The allowlist check that rejects
+paths outside configured roots is ``path_utils.is_within_roots``, called by
+``api/routes/filesystem.browse`` and exercised here via
 GET /api/v1/filesystem/browse, the closest equivalent to a "scan endpoint"
-that accepts an arbitrary path.
+that accepts an arbitrary path. browse()'s own listing behaviour lives in
+test_filesystem_browse.py.
 """
 
 import pytest
@@ -108,13 +109,9 @@ class TestFilesystemAllowlist:
 
 
 class TestFilesystemPermissionGate:
-    """dev_docs/P1_AUDIT.md TST-14, TestFilesystemAllowlist above always
-    overrides get_active_user with an owner, so
-    require_game_or_environment_editor's own permission check (as opposed to
-    the owner bypass baked into it) was never exercised, and GET /drives /
-    GET /launch-file-extensions had no test at all. This class covers a
-    non-editor 403 on all three routes, plus basic 200 coverage for the two
-    previously-untested ones.
+    """require_game_or_environment_editor's permission check itself, not the
+    owner bypass TestFilesystemAllowlist above exercises. Non-editor 403 on
+    browse, drives, and launch-file-extensions, plus 200s for the latter two.
     """
 
     @pytest.fixture

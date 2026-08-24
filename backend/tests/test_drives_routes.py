@@ -1,9 +1,8 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/drives.py.
 
-Per dev_docs/P1_AUDIT.md TST-7, drives.py had zero test coverage despite
-gating a destructive on-disk image delete behind a confirmation-token flow
-and a permission check that differs by drive ownership (can_manage_game for
-game-owned drives, can_manage_app for app-owned drives). Covers:
+DELETE is a destructive on-disk image delete behind a confirmation-token
+flow, and the permission flag varies by drive ownership (can_manage_game for
+game-owned, can_manage_app for app-owned). Covers:
 
     - 404 for a nonexistent drive on confirm-token issuance and delete
     - 403 for a non-editor on confirm-token issuance and delete, for both
@@ -14,9 +13,8 @@ game-owned drives, can_manage_app for app-owned drives). Covers:
     - end-to-end delete: the on-disk image file is removed, the owning
       bundle's drive_id is cleared, and the Drive row itself is deleted
 
-Uses the same in-memory SQLModel SQLite DB + StaticPool +
-get_active_user/get_db dependency-override pattern as
-test_launches_routes.py / test_game_item_bundles_routes.py.
+In-memory SQLModel SQLite + StaticPool + get_active_user/get_db dependency
+overrides, as in test_launches_routes.py.
 """
 
 import time

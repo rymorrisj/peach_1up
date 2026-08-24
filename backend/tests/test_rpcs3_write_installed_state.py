@@ -1,17 +1,14 @@
-"""Tests for _write_installed_state (backend/service/backends/rpcs3.py),
-previously zero coverage. This is the write-back that persists PS3 .pkg
-install completion onto GameItemBundle.installed, called from two sites with
-deliberately different failure semantics (reraise=False at launch(), the
-best-effort bookkeeping path; reraise=True from the background install-poll
-thread, a genuine background job failure with nothing else to protect). The
-reraise split is the fail-loud-relevant branch: a caller that needs to know
-the write failed must actually see the exception, not have it silently
-swallowed the same way the best-effort launch-time call site does.
+"""Tests for _write_installed_state (backend/service/backends/rpcs3.py), the
+write-back that persists PS3 .pkg install completion onto
+GameItemBundle.installed. Two call sites, different failure semantics:
 
-Uses an in-memory SQLite engine, monkeypatching
-backend.core.database.get_engine (the module attribute _write_installed_state
-resolves via its own deferred import at call time, so patching the module
-attribute before each call is sufficient, no need to touch the real DB path).
+    - launch(), reraise=False: best-effort bookkeeping, swallows the error
+    - background install-poll thread, reraise=True: the caller must see the
+      exception
+
+In-memory SQLite engine via monkeypatched backend.core.database.get_engine.
+_write_installed_state resolves it through a deferred import at call time, so
+patching the module attribute before each call is enough.
 """
 
 import pytest

@@ -1,9 +1,6 @@
 """Tests for backend/core/dependencies.py, the parental-control enforcement
 layer (max_content_rating + block_unrated_media + MediaRestriction).
 
-Per dev_docs/v2/09_test_coverage.md item 1, this was the highest-risk
-zero-coverage gap in the codebase: the server-side enforcement of content
-rating ceilings on GameItemBundle visibility. Functions under test:
 get_filtered_game_item_bundles, get_filtered_game_item_bundle, validate_max_content_rating,
 rating_change_requires_confirmation, normalize_content_rating,
 _load_rating_ordinals / _derive_rating_ordinals.

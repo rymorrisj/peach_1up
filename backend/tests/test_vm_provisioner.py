@@ -1,9 +1,9 @@
 """Unit tests for backend/service/utils/vm/provisioner.py.
 
-Covers _resolve_within's traversal guard and success path,
-_load_default_disk_size_mb against the real eras.yaml (same pattern
-test_sandbox.py uses for _load_era_limits), and provision_86box_vm's path
-structure with the actual image-byte write stubbed out.
+Covers _resolve_within's traversal guard, _load_default_disk_size_mb against
+the real eras.yaml (the pattern test_sandbox.py uses for _load_era_limits),
+provision_86box_vm's path structure with the image write stubbed out, and
+provision_dosbox_drive's preconditions.
 """
 
 from pathlib import Path
@@ -47,8 +47,8 @@ class TestResolveWithin:
 
 class TestLoadDefaultDiskSizeMb:
     def test_known_era_returns_real_default_from_eras_yaml(self):
+        """Unpatched, against the shipped config/eras.yaml."""
         from backend.service.utils.vm.provisioner import _load_default_disk_size_mb
-        # config/eras.yaml: win95.default_disk_size_mb == 1024
         assert _load_default_disk_size_mb("win95") == 1024
 
     def test_unknown_era_raises_file_not_found_naming_the_era(self):
@@ -79,17 +79,13 @@ _FAKE_PROFILE = {
 
 
 class TestProvision86BoxVmPathStructure:
-    """provision_86box_vm is exercised here rather than provision_dosbox_drive:
-    only the 86Box path writes under emulators/86box/vms/<slug>/, the
-    documented VM directory layout (CHANGELOG.md, 2026-05-19). DOS's
-    provision_dosbox_drive writes to platform.working_image_path directly, a
-    caller-supplied path with no such layout to assert on.
+    """Only the 86Box path has a fixed layout to assert on
+    (emulators/86box/vms/<slug>/); provision_dosbox_drive writes to a
+    caller-supplied working_image_path.
 
-    The real image write is two steps, _build_vhd_footer (footer bytes) then
-    an inline seek/write in provision_86box_vm sized off the disk size. Both
-    are neutralized here: _build_vhd_footer is stubbed, and
-    _load_default_disk_size_mb is monkeypatched to 1 MB so even the
-    unstubbed seek/write stays tiny.
+    The image write is stubbed two ways so nothing large lands on disk:
+    _build_vhd_footer returns fixed bytes, and the disk size is patched to
+    1 MB so the inline seek/write stays tiny.
     """
 
     def test_image_and_config_land_under_vms_slug_dir_not_cwd(self, tmp_path, monkeypatch):
@@ -135,3 +131,74 @@ class TestProvision86BoxVmPathStructure:
         cwd = Path.cwd().resolve()
         assert cwd not in vhd_path.parents
         assert cwd not in cfg_path.parents
+
+    def test_unsupported_era_raises_before_any_directory_is_created(self, tmp_path, monkeypatch):
+        import backend.service.utils.vm.provisioner as provisioner_mod
+
+        monkeypatch.setattr(provisioner_mod, "get_base_path", lambda: tmp_path)
+        platform = types.SimpleNamespace(era="ps2", slug="my-test-env", id=42)
+
+        with pytest.raises(ValueError, match="unsupported era 'ps2'"):
+            provisioner_mod.provision_86box_vm(
+                platform, box86_path="unused", rom_path=str(tmp_path / "roms"),
+            )
+
+        assert not (tmp_path / "emulators").exists()
+
+
+# ---------------------------------------------------------------------------
+# provision_dosbox_drive preconditions
+# ---------------------------------------------------------------------------
+
+class TestProvisionDosboxDrive:
+    def test_existing_working_image_is_returned_without_reformatting(self, tmp_path, monkeypatch):
+        """CLAUDE.md: never write to or overwrite an existing image. A second
+        provision pass on an already-provisioned environment must be a no-op,
+        not a reformat that discards the user's installed DOS software."""
+        import backend.service.utils.vm.provisioner as provisioner_mod
+        from backend.service.utils import fat as fat_mod
+
+        existing = tmp_path / "drives" / "c.img"
+        existing.parent.mkdir(parents=True)
+        existing.write_bytes(b"\xf8" * 1024)
+
+        def _format_should_not_be_called(*a, **kw):
+            raise AssertionError("format_fat16 must not touch an existing image")
+        monkeypatch.setattr(fat_mod, "format_fat16", _format_should_not_be_called)
+
+        platform = types.SimpleNamespace(
+            era="dos", slug="my-dos-env", id=1, working_image_path=str(existing),
+        )
+
+        result = provisioner_mod.provision_dosbox_drive(platform)
+
+        assert result == (None, str(existing.resolve()), None, None, None)
+        assert existing.read_bytes() == b"\xf8" * 1024
+
+    def test_missing_working_image_path_raises(self, tmp_path):
+        """The path is preset when the environment row is seeded, so an unset
+        one means seeding is broken; fail loudly rather than inventing a path."""
+        import backend.service.utils.vm.provisioner as provisioner_mod
+
+        platform = types.SimpleNamespace(
+            era="dos", slug="my-dos-env", id=1, working_image_path=None,
+        )
+
+        with pytest.raises(RuntimeError, match="no.*working_image_path"):
+            provisioner_mod.provision_dosbox_drive(platform)
+
+    def test_unsupported_era_raises(self, tmp_path):
+        import backend.service.utils.vm.provisioner as provisioner_mod
+
+        platform = types.SimpleNamespace(
+            era="win95", slug="my-env", id=1, working_image_path=str(tmp_path / "c.img"),
+        )
+
+        with pytest.raises(ValueError, match="unsupported era 'win95'"):
+            provisioner_mod.provision_dosbox_drive(platform)
+
+
+# INTEGRATION TEST NEEDED: the VHD write itself is stubbed above
+# (_build_vhd_footer plus a 1 MB size), so nothing verifies that a
+# full-size image with a real footer is one 86Box actually mounts, or that
+# the insufficient-disk-space guards fire against a real volume.

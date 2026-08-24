@@ -1,19 +1,14 @@
 """Tests for backend/service/utils/extract_xiso.py's convert_dvd_rip_to_xiso.
 
-The module's own docstring states the guarantee under test: extract-xiso can
-report success (exit 0) without having actually rewritten anything (its own
-err_iso_no_files case resets the exit code to 0 internally), so exit 0 is
-never trusted on its own. After a 0 exit, the result is re-inspected: the
-file must still exist, be a plausible size, and no longer detect as
-dvd_rip. Each test below that locks in one leg of that re-verification says
-so.
+extract-xiso can exit 0 without having rewritten anything (its own
+err_iso_no_files case resets the exit code internally), so a 0 exit is
+re-verified three ways: the file still exists, is a plausible size, and no
+longer detects as dvd_rip. One test per leg below.
 
-No real subprocess is ever spawned: subprocess.run is monkeypatched to
-return a stubbed result in every test. detect_xbox_image_type is
-monkeypatched the same way test_xbox_image.py's own tests stub detection,
-except at its real import site (backend.service.utils.detection.xbox_image),
-since convert_dvd_rip_to_xiso imports it locally inside the function body,
-not at extract_xiso module level.
+No real subprocess: subprocess.run is stubbed everywhere.
+detect_xbox_image_type is patched at its own module
+(backend.service.utils.detection.xbox_image) rather than on extract_xiso,
+because convert_dvd_rip_to_xiso imports it inside the function body.
 """
 
 from types import SimpleNamespace
@@ -22,9 +17,8 @@ import pytest
 
 
 def _patch_common(monkeypatch, extract_xiso_mod, tmp_path):
-    """Bypass the binary-existence check and allowlist against a fake path
-    and tmp_path itself, so only the exit-code/size/detection behavior under
-    test drives each scenario."""
+    """Satisfy the binary-existence check and the allowlist, so only the
+    exit-code/size/detection behavior drives each scenario."""
     fake_binary = tmp_path / "extract-xiso.exe"
     monkeypatch.setattr(extract_xiso_mod, "get_extract_xiso_path", lambda: fake_binary)
     monkeypatch.setattr(extract_xiso_mod, "allowed_browse_roots", lambda: [tmp_path.resolve()])
@@ -34,7 +28,37 @@ def _stub_run(returncode: int, stdout: str = "", stderr: str = ""):
     return lambda *a, **kw: SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
 
-class TestConvertDvdRipToXisoAllowlist:
+class TestConvertDvdRipToXisoPreflight:
+    def test_unbuilt_binary_raises_before_touching_the_source(self, tmp_path, monkeypatch):
+        """get_extract_xiso_path() returns None when the vendored binary was
+        never built; that must be the first thing checked."""
+        import backend.service.utils.extract_xiso as extract_xiso_mod
+
+        monkeypatch.setattr(extract_xiso_mod, "get_extract_xiso_path", lambda: None)
+        calls = []
+        monkeypatch.setattr(extract_xiso_mod.subprocess, "run", lambda *a, **kw: calls.append((a, kw)))
+
+        with pytest.raises(FileNotFoundError, match="not built"):
+            extract_xiso_mod.convert_dvd_rip_to_xiso(tmp_path / "rip.iso")
+
+        assert calls == []
+
+    def test_nonexistent_source_raises_before_the_allowlist_check(self, tmp_path, monkeypatch):
+        """A missing source must report itself as missing, not as an
+        allowlist violation, even with an empty allowlist configured."""
+        import backend.service.utils.extract_xiso as extract_xiso_mod
+
+        monkeypatch.setattr(
+            extract_xiso_mod, "get_extract_xiso_path", lambda: tmp_path / "extract-xiso.exe")
+        monkeypatch.setattr(extract_xiso_mod, "allowed_browse_roots", lambda: [])
+        calls = []
+        monkeypatch.setattr(extract_xiso_mod.subprocess, "run", lambda *a, **kw: calls.append((a, kw)))
+
+        with pytest.raises(FileNotFoundError, match="Source media not found"):
+            extract_xiso_mod.convert_dvd_rip_to_xiso(tmp_path / "missing.iso")
+
+        assert calls == []
+
     def test_source_outside_allowed_roots_raises_before_subprocess(self, tmp_path, monkeypatch):
         import backend.service.utils.extract_xiso as extract_xiso_mod
 
@@ -57,9 +81,35 @@ class TestConvertDvdRipToXisoAllowlist:
 
 
 class TestConvertDvdRipToXisoExitZeroReverification:
+    def test_exit_zero_but_source_gone_afterward_raises(self, tmp_path, monkeypatch):
+        """Existence leg: the rewrite is in place, so the file disappearing
+        under a reported success means the only copy of the rip is gone."""
+        import backend.service.utils.extract_xiso as extract_xiso_mod
+        import backend.service.utils.detection.xbox_image as xbox_image_mod
+        _patch_common(monkeypatch, extract_xiso_mod, tmp_path)
+
+        source = tmp_path / "rip.iso"
+        source.write_bytes(b"\x00" * 2048)
+
+        detect_calls = []
+        monkeypatch.setattr(
+            xbox_image_mod, "detect_xbox_image_type",
+            lambda path: detect_calls.append(path) or "xiso",
+        )
+
+        def _run_and_delete(*a, **kw):
+            source.unlink()
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(extract_xiso_mod.subprocess, "run", _run_and_delete)
+
+        with pytest.raises(RuntimeError, match="no longer exists"):
+            extract_xiso_mod.convert_dvd_rip_to_xiso(source)
+
+        assert detect_calls == []
+
     def test_exit_zero_but_implausibly_small_output_raises(self, tmp_path, monkeypatch):
-        """Locks in the size-floor leg of the re-verification: exit 0 alone
-        is not enough if the file is implausibly small afterward."""
+        """Size-floor leg: exit 0 is not enough if the result is truncated."""
         import backend.service.utils.extract_xiso as extract_xiso_mod
         _patch_common(monkeypatch, extract_xiso_mod, tmp_path)
 
@@ -73,8 +123,7 @@ class TestConvertDvdRipToXisoExitZeroReverification:
             extract_xiso_mod.convert_dvd_rip_to_xiso(source)
 
     def test_exit_zero_plausible_size_but_still_detects_dvd_rip_raises(self, tmp_path, monkeypatch):
-        """Locks in the detection leg: a plausible size is not enough either
-        if the rewritten file still detects as a raw DVD rip."""
+        """Detection leg: the exact silent no-op err_iso_no_files produces."""
         import backend.service.utils.extract_xiso as extract_xiso_mod
         import backend.service.utils.detection.xbox_image as xbox_image_mod
         _patch_common(monkeypatch, extract_xiso_mod, tmp_path)
@@ -91,11 +140,10 @@ class TestConvertDvdRipToXisoExitZeroReverification:
 
 class TestConvertDvdRipToXisoNonZeroExit:
     def test_nonzero_exit_raises_with_binary_failure_surfaced_not_reverification(self, tmp_path, monkeypatch):
-        """A nonzero exit must raise on the returncode check itself, before
-        ever reaching the post-success re-verification, confirmed here by a
-        source that would ALSO fail the size and detection checks (small,
-        still dvd_rip) but whose failure is attributable only to the exit
-        code: detect_xbox_image_type is never even called."""
+        """A nonzero exit must raise on the returncode check, before the
+        post-success re-verification. The source here would fail the size and
+        detection checks too, so the assertion that detect_xbox_image_type was
+        never called is what pins the failure to the exit code."""
         import backend.service.utils.extract_xiso as extract_xiso_mod
         import backend.service.utils.detection.xbox_image as xbox_image_mod
         _patch_common(monkeypatch, extract_xiso_mod, tmp_path)
@@ -131,3 +179,11 @@ class TestConvertDvdRipToXisoHappyPath:
         result = extract_xiso_mod.convert_dvd_rip_to_xiso(source)
 
         assert result == source.resolve()
+
+
+# INTEGRATION TEST NEEDED: the real extract-xiso.exe against a real rip.
+# Everything above stubs subprocess.run, so the invocation contract is
+# unverified: that cwd pinning puts the rewritten file next to the source
+# rather than in the backend's cwd, that the '<name>.old' backup is created
+# and left on disk, that a pre-existing '.old' makes extract-xiso refuse and
+# surface its own stderr, and that err_iso_no_files really does exit 0.

@@ -1,10 +1,9 @@
 """Route-level tests for the generic tag-assignment endpoints
-(backend/api/routes/tags.py), dispatch order in _resolve_assignment_entity,
-one create+delete pass per entity_type in _ASSIGNMENT_TARGETS, and confirmation
-that controller_mapping assignments reuse check_controller_edit_permission
-(backend/api/routes/controllers.py) rather than duplicating it, see
-test_controllers.py for the source-of-truth permission matrix this file mirrors
-for the controller_mapping case.
+(backend/api/routes/tags.py). Covers dispatch order in
+_resolve_assignment_entity, one create+delete pass per entity_type in
+_ASSIGNMENT_TARGETS, and that controller_mapping assignments reuse
+check_controller_edit_permission (backend/api/routes/controllers.py) rather
+than duplicating it. test_controllers.py holds that permission matrix.
 
 httpx's TestClient.delete() has no json/content parameter (DELETE-with-body is
 non-standard), so every delete_tag_assignment call below uses

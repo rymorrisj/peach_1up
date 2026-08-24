@@ -1,28 +1,20 @@
 """Route-level (TestClient/HTTP) tests closing the remaining gaps in the
 parental-control filtering surface of backend/api/routes/game_item_bundles.py.
 
-test_dependencies_content_rating.py already covers HTTP-level max_content_rating
-and MediaRestriction filtering for GET /game-items (list) and
-GET /game-item-bundle/{id} (detail), plus owner bypass on the detail route.
-This file does not repeat that coverage. It closes what was still missing
-after reading both existing suites:
+max_content_rating and MediaRestriction filtering on list and detail live in
+test_dependencies_content_rating.py and are not repeated. Covers:
 
-    - block_unrated_media exclusion, exercised over TestClient (only
-      unit-tested directly against get_filtered_game_item_bundles before)
-    - the list route's own query filters (era, tag, profile_assigned) chained
-      on top of the parental-control base query, confirming a restricted or
-      over-rated item stays excluded even when it would otherwise match an
-      additional filter, not just that the unfiltered list works
-    - owner bypass on the LIST route specifically (only detail route was
-      HTTP-tested for this)
-    - GET .../by-slug/{slug} combined with the manual MediaRestriction
-      blocklist (only content_rating was covered for by-slug)
+    - block_unrated_media exclusion over TestClient
+    - the list route's own filters (era, tag, profile_assigned) chained onto
+      the parental-control base query: a restricted or over-rated item stays
+      excluded even when it matches the additional filter
+    - owner bypass on the list route
+    - GET .../by-slug/{slug} against the manual MediaRestriction blocklist
     - Page.total reflecting the post-filter, post-restriction count under
       pagination, not the raw table count
 
-Uses the same in-memory SQLModel SQLite DB + StaticPool +
-get_active_user/get_db dependency-override pattern as the other
-game_item_bundles route test files.
+In-memory SQLModel SQLite + StaticPool + get_active_user/get_db dependency
+overrides, as in the other game_item_bundles route test files.
 """
 
 import pytest

@@ -5,14 +5,8 @@
   (20 MB default), SSRF via redirect, non-image content-type, HTTP error
   passthrough
 
-Moved here from test_enrich.py when _is_forbidden_redirect_host and
-_download_cover_art (renamed download_remote_image, filename now
-parameterized) were generalized out of backend/service/games/enrich.py into
-this shared module, reused by both enrich.py's cover-art path and
-backend/service/games/media_link.py's Accept All asset downloads.
-
-Run with:
-    pytest backend/tests/test_asset_fetch.py
+Both are shared code. enrich.py's cover-art path and media_link.py's Accept
+All asset downloads call into them.
 """
 from unittest.mock import MagicMock
 

@@ -1,11 +1,8 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/launches.py.
 
-Per dev_docs/v2/09_test_coverage.md item 4, test_launch_guards.py and
-test_launch_error_detection.py drive backend/service/launch/coordinator.py
-directly; no TestClient touches the routes themselves. This file confirms
-the security gates are actually wired at the endpoint, not the coordinator
-logic they call into (concurrent-launch guards, crash detection, etc. stay
-in those two files and are not duplicated here). Covers:
+Scoped to the security gates as wired at the endpoint. The coordinator logic
+behind them (concurrent-launch guards, crash detection) stays in
+test_launch_guards.py and test_launch_error_detection.py. Covers:
 
     - can_launch_media gating on POST /game-item-bundle/{id}/launch
       (launches.py:33)
@@ -17,10 +14,8 @@ in those two files and are not duplicated here). Covers:
       (launches.py:50) and the missing-environment 404 branch
     - can_launch_media gating on POST /launches/{id}/stop (launches.py:117)
 
-Uses the same in-memory SQLModel SQLite DB + StaticPool +
-get_active_user/get_db dependency-override pattern as
-test_dependencies_content_rating.py / test_users_create_delete_reset.py /
-test_game_item_bundles_routes.py.
+In-memory SQLModel SQLite + StaticPool + get_active_user/get_db dependency
+overrides, as in test_dependencies_content_rating.py.
 """
 
 import pytest

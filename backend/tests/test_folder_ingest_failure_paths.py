@@ -4,16 +4,14 @@ scan-import) funnels through, and for _ingest_transaction /
 _replay_undo (backend/service/games/items.py), the rollback-and-undo machinery
 every ingest shape shares.
 
-test_folder_ingest.py already covers ingest_folder's constituent pieces
-(detect_disc_files, pick_folder_launch_file, dedup_disc_anchor,
-_prepare_multi_disc/_persist_multi_disc_collection happy paths) but never
-calls ingest_folder() itself, and nothing exercises what happens when a
-failure occurs after filesystem staging has already happened, only the
-happy path was covered anywhere for this pipeline. This file closes that:
-every test here confirms both "fails loud" (the exception actually
-propagates, is never silently swallowed) and "cleans up" (the DB rollback
-and the staged filesystem rename-undo both actually ran, no orphaned
-partial state left behind).
+Scoped to failures that happen after filesystem staging is already done.
+test_folder_ingest.py covers the happy paths of the constituent pieces.
+
+Every test here asserts both halves:
+
+    - fails loud: the exception propagates, never silently swallowed
+    - cleans up: the DB rollback and the staged filesystem rename-undo both
+      ran, no orphaned partial state left behind
 """
 
 from pathlib import Path

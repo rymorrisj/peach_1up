@@ -1,8 +1,6 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/profiles.py.
 
-Per dev_docs/P1_AUDIT.md TST-12, profiles.py (6 routes) had zero test
-coverage: can_manage_game gating, the is_bundled delete guard, and the
-slug-collision 409 were all unexercised. Covers:
+Covers:
 
     - can_manage_game gating (403) on create/update/delete
     - GET routes require only an active user (no permission flag), and 404
@@ -11,9 +9,8 @@ slug-collision 409 were all unexercised. Covers:
     - DELETE /{slug} 403s a bundled profile, regardless of can_manage_game
     - update renames trigger a fresh unique_slug (name change updates slug)
 
-Uses the same in-memory SQLModel SQLite DB + StaticPool +
-get_active_user/get_db dependency-override pattern as the other *_routes
-test files.
+In-memory SQLModel SQLite + StaticPool + get_active_user/get_db dependency
+overrides, as in the other *_routes test files.
 """
 
 import pytest

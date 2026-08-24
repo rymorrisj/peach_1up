@@ -1,8 +1,8 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/emulators.py.
 
-Per dev_docs/P1_AUDIT.md TST-9, only the rom-packs sub-router had coverage;
-install/sandbox/delete/xemu-asset-paths/status/confirm-token were untested,
-all is_admin-gated and touching the process-isolation surface. Covers:
+Scoped to the is_admin-gated process-isolation surface
+(install/sandbox/delete/xemu-asset-paths/status/confirm-token); the
+rom-packs sub-router is covered in test_rom_pack.py. Covers:
 
     - is_admin gating (403 for non-admin) on: POST /{slug}/install,
       GET /{slug}/status, PATCH /{slug}/sandbox, DELETE /{slug},
@@ -12,17 +12,13 @@ all is_admin-gated and touching the process-isolation surface. Covers:
       403s a non-admin rather than 404ing first)
     - owner bypasses the gate without the is_admin flag
     - GET "" (catalog list), GET /attribution, and GET /{slug}/confirm-token
-      carry no permission dependency at all in the current code (confirmed
-      by reading the route signatures, no Depends/require_permission on any
-      of the three) and are reachable with no active user set at all; this
-      is documented here as existing behavior, not asserted as a gap to fix.
+      carry no permission dependency and are reachable with no active user.
+      Asserted as current behaviour, not endorsed as correct.
 
-Uses the same in-memory SQLModel SQLite DB + StaticPool +
-get_active_user/get_db dependency-override pattern as
-test_drives_routes.py / test_launches_routes.py. Settings access
-(_settings.get/set_flag) is monkeypatched the same way
-test_emulator_catalog.py does, rather than running real settings.init(),
-since these route tests never boot the app lifespan.
+In-memory SQLModel SQLite + StaticPool + get_active_user/get_db dependency
+overrides, as in test_drives_routes.py. These tests never boot the app
+lifespan, so settings access (_settings.get/set_flag) is monkeypatched the
+way test_emulator_catalog.py does it instead of running settings.init().
 """
 
 import pytest

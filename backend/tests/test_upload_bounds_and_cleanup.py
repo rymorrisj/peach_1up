@@ -1,17 +1,14 @@
 """Unit-level tests for backend/service/uploads/core.py's init_session chunk-
 count bounds, reassemble's failure-cleanup guarantee, and sweep_orphans.
 
-Created as a separate file from test_upload.py rather than extending it:
-that file exercises this module exclusively through the HTTP route layer
-(POST .../init -> PUT .../chunks -> POST .../complete), and already covers
-init_session's basic manifest shape (missing files, oversized total) and
-reassemble's happy path at that level. The tests here call
-init_session/reassemble/sweep_orphans directly, a different (unit) altitude
-aimed specifically at the chunk-count arithmetic and the on-failure/on-sweep
-filesystem cleanup, neither of which the route-level tests exercise.
+test_upload.py drives this module through the HTTP route layer and covers
+the manifest shape and reassemble's happy path there. These call
+init_session/reassemble/sweep_orphans directly, for the chunk-count
+arithmetic and the on-failure/on-sweep filesystem cleanup the route-level
+tests never reach.
 
-No real subprocess/thread/sleep anywhere: sweep_orphans' TTL comparison is
-driven by monkeypatching core.time.time, never a real filesystem mtime wait.
+No sleep anywhere: sweep_orphans' TTL comparison is driven by patching
+core.time.time, never a real mtime wait.
 """
 
 import pytest
@@ -35,10 +32,8 @@ def _patch_library_path(monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def _reset_upload_sessions():
-    """core.py's _sessions dict is module-level, in-memory, and shared across
-    the whole test process (matching core.jobs' own _jobs dict), clear it
-    before and after each test so one test's session never leaks into
-    another's assertions."""
+    """_sessions is module-level and shared across the whole test process;
+    clear it either side so sessions never leak between tests."""
     from backend.service.uploads import core
     core._sessions.clear()
     yield
@@ -51,10 +46,8 @@ def _reset_upload_sessions():
 
 class TestInitSessionChunkCountBounds:
     def test_chunk_count_below_the_floor_is_rejected(self, tmp_path, monkeypatch):
-        """Locks in the chunk-exhaustion floor: a declared chunk count that
-        physically cannot carry the declared size within the per-chunk
-        ceiling (fewer chunks than ceil(size / chunk_max_bytes)) is
-        rejected as an impossible declaration."""
+        """Floor: fewer chunks than ceil(size / chunk_max_bytes) cannot carry
+        the declared size, since no single chunk may exceed the cap."""
         import math
         from backend.service.uploads import core
         _patch_library_path(monkeypatch, tmp_path)
@@ -72,12 +65,10 @@ class TestInitSessionChunkCountBounds:
             )
 
     def test_chunk_count_above_max_chunks_per_file_is_rejected(self, tmp_path, monkeypatch):
-        """Locks in the chunk-exhaustion ceiling: a declared chunk count
-        above the real _MAX_CHUNKS_PER_FILE constant is rejected regardless
-        of declared size. Size is picked (the 25 GB absolute cap) large
-        enough that the size-derived ceiling (ceil(size/_MIN_CHUNK_BYTES))
-        exceeds _MAX_CHUNKS_PER_FILE, so the constant itself, not the size
-        term, is what's confirmed to bind here."""
+        """Ceiling: _MAX_CHUNKS_PER_FILE binds regardless of declared size.
+        Size is the absolute cap so that the size-derived ceiling
+        (ceil(size/_MIN_CHUNK_BYTES)) is the larger of the two, making the
+        constant the term under test."""
         from backend.service.uploads import core
         from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES
         _patch_library_path(monkeypatch, tmp_path)
@@ -94,13 +85,10 @@ class TestInitSessionChunkCountBounds:
             )
 
     def test_realistic_frontend_manifest_finer_than_the_cap_is_accepted(self, tmp_path, monkeypatch):
-        """The exact regression the code comment calls out: the previous
-        revision divided by chunk_max_bytes for the UPPER bound too, which
-        would reject this exact manifest (ceil(50 MB / 8 MB) = 7, but this
-        declares 20 chunks, chunked finer than the server's 8 MB per-chunk
-        ceiling, well under _MIN_CHUNK_BYTES-derived absurdity territory).
-        A real client chunking finer than the cap must be accepted, not
-        rejected as if it were exhausting staging entries."""
+        """The regression the code comment calls out: dividing by
+        chunk_max_bytes for the upper bound too would reject this manifest
+        (ceil(50 MB / 8 MB) = 7 vs the 20 declared), and with it every upload
+        the bundled frontend produces over 8 MB."""
         from backend.service.uploads import core
         _patch_library_path(monkeypatch, tmp_path)
 
@@ -122,13 +110,10 @@ class TestInitSessionChunkCountBounds:
 # ---------------------------------------------------------------------------
 
 class TestReassembleFailureCleanup:
-    # init_session's plausibility check (_MIN_CHUNK_BYTES) rejects a declared
-    # size/chunk-count pair that couldn't come from a real client, so these
-    # tests can't use a toy size like 20 bytes for 2 chunks. Use a declared
-    # size/chunk_max_bytes pair that lands exactly on both bounds instead
-    # (2 chunks required and allowed); the actual bytes written to each
-    # .part file stay tiny since only reassemble's failure paths, not the
-    # byte content, are under test here.
+    # init_session's plausibility check rules out a toy size like 20 bytes for
+    # 2 chunks, so the declared size/chunk_max_bytes pair below lands exactly
+    # on both bounds. The .part files themselves stay tiny: only reassemble's
+    # failure paths are under test, not the byte content.
     def _start_session(self, tmp_path, monkeypatch, size: int, chunks: int, chunk_max_bytes: int):
         from backend.service.uploads import core
         _patch_library_path(monkeypatch, tmp_path)
@@ -139,9 +124,8 @@ class TestReassembleFailureCleanup:
         return core, upload_id, session["dir"]
 
     def test_missing_part_file_raises_and_leaves_no_dest_dir_or_staging_dir(self, tmp_path, monkeypatch):
-        """Locks in disk-leak-on-failure prevention: a missing .part file
-        must abort reassembly and leave neither the partial dest_dir nor
-        the staging dir behind."""
+        """A missing .part must abort reassembly and leave neither the partial
+        dest_dir nor the staging dir behind."""
         from backend.service.uploads import core as core_mod
         size = 2 * core_mod._MIN_CHUNK_BYTES
         core, upload_id, session_dir = self._start_session(
@@ -163,9 +147,8 @@ class TestReassembleFailureCleanup:
         assert core.get_session(upload_id) is None
 
     def test_size_mismatch_raises_and_leaves_no_dest_dir_or_staging_dir(self, tmp_path, monkeypatch):
-        """Same cleanup guarantee, triggered by the other failure mode: all
-        chunks present, but the reassembled total disagrees with the
-        declared size."""
+        """Same cleanup, other failure mode: all chunks present, reassembled
+        total disagrees with the declared size."""
         from backend.service.uploads import core as core_mod
         size = 2 * core_mod._MIN_CHUNK_BYTES
         core, upload_id, session_dir = self._start_session(
@@ -203,10 +186,8 @@ class TestSweepOrphans:
 
         real_time = core.time.time()
         ttl = 60.0
-        # No live session was ever registered for this dir (simulates a
-        # crash-lost session, sweep_orphans' documented target); push the
-        # clock forward instead of sleeping so its real mtime reads as
-        # older than ttl_seconds.
+        # No live session registered for this dir, the crash-lost case
+        # sweep_orphans exists for. The clock moves instead of the mtime.
         monkeypatch.setattr(core.time, "time", lambda: real_time + ttl + 10)
 
         removed = core.sweep_orphans(ttl)
@@ -231,3 +212,57 @@ class TestSweepOrphans:
 
         assert removed == 0
         assert young_dir.is_dir()
+
+    def test_dir_of_a_live_session_is_never_swept_however_old(self, tmp_path, monkeypatch):
+        """The sweep runs on a timer against a session that may legitimately
+        outlive the TTL (a slow multi-GB upload). Sweeping a live session's
+        dir would delete chunks out from under an in-flight transfer."""
+        from backend.service.uploads import core
+        _patch_library_path(monkeypatch, tmp_path)
+
+        size = 2 * core._MIN_CHUNK_BYTES
+        upload_id = core.init_session(
+            "file", "Test",
+            [{"name": "game.iso", "size": size, "chunks": 2}],
+            core._MIN_CHUNK_BYTES,
+        )
+        live_dir = core.get_session(upload_id)["dir"]
+
+        orphan_dir = core.tmp_root() / "orphan-upload-id"
+        orphan_dir.mkdir()
+
+        real_time = core.time.time()
+        ttl = 60.0
+        monkeypatch.setattr(core.time, "time", lambda: real_time + ttl + 10)
+
+        removed = core.sweep_orphans(ttl)
+
+        assert removed == 1
+        assert live_dir.is_dir()
+        assert not orphan_dir.exists()
+
+    def test_loose_file_in_the_staging_root_is_not_removed(self, tmp_path, monkeypatch):
+        """Only session directories are swept, so a stray file never counts
+        toward the removed total or gets deleted as if it were one."""
+        from backend.service.uploads import core
+        _patch_library_path(monkeypatch, tmp_path)
+
+        root = core.tmp_root()
+        root.mkdir(parents=True, exist_ok=True)
+        loose = root / "stray.txt"
+        loose.write_text("x")
+
+        real_time = core.time.time()
+        monkeypatch.setattr(core.time, "time", lambda: real_time + 10_000)
+
+        removed = core.sweep_orphans(60.0)
+
+        assert removed == 0
+        assert loose.is_file()
+
+
+# INTEGRATION TEST NEEDED: store_chunk's cumulative-bytes guard under real
+# concurrency. The read-check-write of slot["received_bytes"] is split across
+# two _lock acquisitions with the disk write in between, so verifying that
+# parallel chunk PUTs for one file cannot overshoot the declared size needs
+# real concurrent requests, not a single-threaded call sequence.

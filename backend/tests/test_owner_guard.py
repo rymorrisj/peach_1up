@@ -1,8 +1,8 @@
 """Tests for GET /api/v1/settings/owner-status: detects a missing/locked
 owner row so the frontend can render the recovery fallback page.
 
-Checked once at app load (FirstRunGuard in main.tsx), not on every request —
-there is no middleware backing this anymore.
+Checked once at app load (FirstRunGuard in main.tsx), not per request. No
+middleware backs it.
 """
 
 import pytest

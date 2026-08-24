@@ -1,16 +1,11 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/restrictions.py.
 
-GET/PUT /api/v1/restrictions/{domain}/{entity_id} (is_admin gate). Covers the
-"game" domain only, these were migrated as-is from
-test_game_item_bundles_routes.py's TestRestrictionsEndpoint when the
-restriction routes were consolidated out of game_item_bundles.py/apps.py/
-media.py into this dedicated module. Media/App domain coverage does not exist
-yet (the routes those dispatch to were added the same session with no tests
-of their own).
+GET/PUT /api/v1/restrictions/{domain}/{entity_id}, is_admin gate.
 
-Uses the same in-memory SQLModel SQLite DB + StaticPool +
-get_active_user/get_db dependency-override pattern as
-test_game_item_bundles_routes.py.
+"game" domain only. The media and app domains have no coverage.
+
+In-memory SQLModel SQLite + StaticPool + get_active_user/get_db dependency
+overrides, as in test_game_item_bundles_routes.py.
 """
 
 import pytest

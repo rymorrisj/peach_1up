@@ -1,13 +1,9 @@
 """Tests for backend.service.games.enrich.enrich_entity: error branches for
 not-found entities and unsupported operations.
 
-_is_forbidden_redirect_host and download_remote_image (the download logic
-enrich_entity's cover_art_url path calls into) live in
-backend/service/utils/asset_fetch.py now and are tested in
-backend/tests/test_asset_fetch.py, not here.
-
-Run with:
-    pytest backend/tests/test_enrich.py
+_is_forbidden_redirect_host and download_remote_image, which the
+cover_art_url path calls into, live in backend/service/utils/asset_fetch.py
+and are tested in test_asset_fetch.py.
 """
 import pytest
 

@@ -9,11 +9,9 @@ Covers three functions introduced in the folder-upload / multi-disc feature:
 - the multi-disc ingest stages (library service): _prepare_multi_disc plus
   _persist_multi_disc_collection, creating a bundle + one leaf per disc.
 
-GDI divergence note: _EXECUTABLE_PRIORITY in profile_builder.py did NOT include
-.gdi, so _prepare_item would store executable_path=None for Dreamcast folders
-even though _pick_folder_launch_file correctly identified the .gdi file first.
-The fix (prepending .gdi to _EXECUTABLE_PRIORITY) landed before these tests were
-written, so all tests reflect the corrected behaviour.
+.gdi leads _EXECUTABLE_PRIORITY in profile_builder.py deliberately. Without
+it, _prepare_item stores executable_path=None for Dreamcast folders even when
+_pick_folder_launch_file resolved the .gdi correctly.
 """
 
 from pathlib import Path

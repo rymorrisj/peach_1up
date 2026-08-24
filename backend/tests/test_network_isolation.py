@@ -2,19 +2,15 @@
 
 SECURITY.md, "Network isolation is emulator-native": each emulator disables
 its own network adapter when enable_networking is false on the active
-profile, rather than relying on a host firewall rule. This file locks in the
-config-writing side of that contract for the three backends whose isolation
-write had zero coverage: box86.py (86Box, [Network] net_type), console.py
-(PCSX2, [DEV9/Eth] EthEnable), and flycast.py ([network] Enable/GGPO).
+profile, rather than relying on a host firewall rule. Covers the
+config-writing side of that contract for box86.py (86Box, [Network]
+net_type), console.py (PCSX2, [DEV9/Eth] EthEnable), and flycast.py
+([network] Enable/GGPO).
 
-Kept separate from test_prepare_config.py, which is scoped to box86's
-general _prepare_config hardware/media behavior, not the cross-backend
-network-isolation invariant this file is about (matches the grouping
-SECURITY.md itself uses, one table row per emulator).
+box86's hardware/media config behavior is in test_prepare_config.py.
 
-Only pure config-writing functions are exercised (_prepare_config,
-ini_writer.set_ini_key). None of these tests call launch() or spawn a
-process, thread, or Win32 handle.
+Config-writing functions only (_prepare_config, ini_writer.set_ini_key), no
+launch() call, so no process, thread, or Win32 handle is created.
 """
 
 import configparser
@@ -59,13 +55,16 @@ def _parse(cfg: Path) -> configparser.RawConfigParser:
 # 86Box: [Network] net_type, written unconditionally by _prepare_config
 # ---------------------------------------------------------------------------
 #
-# _prepare_config has no enable_networking parameter at all: the "networking
-# disabled" state is simply _prepare_config's unconditional default. The
-# override to "slirp" for an explicitly networked profile happens separately
-# in launch() via patch_ini(), a one-line call gated on spec.enable_networking
-# that is not reachable without invoking launch() (which would spawn 86Box).
-# Both tests below therefore exercise _prepare_config only, matching
-# SECURITY.md: "net_type = none in [Network], written on every launch."
+# _prepare_config takes no enable_networking parameter: "disabled" is its
+# unconditional default (SECURITY.md, "net_type = none in [Network], written
+# on every launch"). The "slirp" override for a networked profile is a
+# separate patch_ini() call in launch(), gated on spec.enable_networking and
+# unreachable without spawning 86Box, so only _prepare_config is exercised.
+#
+# INTEGRATION TEST NEEDED: that launch() writes net_type = slirp when and
+# only when spec.enable_networking is true, over a config _prepare_config
+# just wrote none into. Needs a real launch (the gate and the patch_ini call
+# live inside it), asserting the on-disk value for both flag states.
 
 class TestBox86NetworkIsolation:
     def _run(self, tmp_path: Path, monkeypatch) -> Path:
@@ -97,10 +96,8 @@ class TestBox86NetworkIsolation:
         assert _parse(cfg).get("Network", "net_type") == "none"
 
     def test_net_type_stays_none_when_networking_not_overridden(self, tmp_path, monkeypatch):
-        """Equivalent to a profile with enable_networking=False: launch()'s
-        only networking-related step (the patch_ini override to "slirp") is
-        conditional on enable_networking being truthy, so for the disabled
-        case nothing runs after _prepare_config and its default must hold."""
+        """The enable_networking=False case: nothing runs after
+        _prepare_config, so its default is the value 86Box sees."""
         cfg = self._run(tmp_path, monkeypatch)
         assert _parse(cfg).get("Network", "net_type") == "none"
 
@@ -109,13 +106,14 @@ class TestBox86NetworkIsolation:
 # PCSX2 (console.py): [DEV9/Eth] EthEnable, written via set_ini_key
 # ---------------------------------------------------------------------------
 #
-# The disable write in console.py is a single inline set_ini_key(...) call
-# guarded by `if not spec.enable_networking`, not a separate helper function.
-# Isolating "just that computation" (per the task's own instruction for this
-# shape of override logic) means calling set_ini_key directly with the exact
-# section/key/value console.py uses, rather than invoking launch() (which
-# would spawn PCSX2). This does not exercise the enable_networking gate
-# itself, only the write's correctness and non-destructiveness.
+# console.py's disable write is an inline set_ini_key(...) guarded by
+# `if not spec.enable_networking`, with no helper to call. These tests call
+# set_ini_key with the exact section/key/value console.py passes, so they
+# cover the write's correctness and non-destructiveness but not the gate.
+#
+# INTEGRATION TEST NEEDED: that launch() writes EthEnable = false when and
+# only when spec.enable_networking is false. Same for flycast.py below
+# ([network] Enable/GGPO). Needs a real launch to reach the gate.
 
 class TestPcsx2NetworkIsolation:
     def test_eth_enable_false_written_to_dev9_eth_section(self, tmp_path):
@@ -141,9 +139,8 @@ class TestPcsx2NetworkIsolation:
 # Flycast: [network] Enable / GGPO, written via set_ini_key
 # ---------------------------------------------------------------------------
 #
-# Same shape as PCSX2 above: flycast.py's disable path is two inline
-# set_ini_key(...) calls guarded by `if not spec.enable_networking`, isolated
-# here by calling set_ini_key directly with flycast.py's exact literals.
+# Same shape as PCSX2 above: two inline set_ini_key(...) calls behind the
+# same gate, exercised here with flycast.py's exact literals.
 
 class TestFlycastNetworkIsolation:
     def test_enable_and_ggpo_written_no(self, tmp_path):

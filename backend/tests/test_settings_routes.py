@@ -1,9 +1,8 @@
 """Route-level (TestClient/HTTP) tests for backend/api/routes/settings.py.
 
-Per dev_docs/P1_AUDIT.md TST-10, only GET /owner-status had coverage
-(test_owner_guard.py); the step-up secret endpoints and the generic settings
-PATCH were untested, including the route that rotates PIN_PEPPER (the secret
-protecting every user's PIN hash). Covers:
+Scoped to the step-up secret endpoints and the generic settings PATCH,
+including PATCH /pin-pepper, which rotates the secret protecting every user's
+PIN hash. GET /owner-status is covered in test_owner_guard.py. Covers:
 
     - is_owner gating (403 for non-owner) on GET /pin-pepper/status,
       GET /thegamesdb-api-key/status, GET /igdb-status, PATCH /pin-pepper
@@ -15,14 +14,12 @@ protecting every user's PIN hash). Covers:
       with no existing owner pin_hash (owner_rehashed stays False, affected
       sub-accounts have pin_hash cleared and pin_required re-armed)
 
-get_env_secret/set_env_secret are monkeypatched rather than exercising the
-real .env file, since its contents are machine-specific and this suite must
-not depend on (or mutate) whatever the local .env happens to hold. Routes
-that touch backend.core.settings.get_settings() (the generic settings state
-facade, distinct from env_secrets) are out of scope here, that facade
-requires init_settings() to have run, which is a real DB/.env-backed process
-boot step this route-level suite does not perform; the PATCH /settings
-checks below all raise before reaching that call.
+get_env_secret/set_env_secret are monkeypatched, never the real .env, whose
+contents are machine-specific and must not be read or mutated here.
+
+Routes reaching backend.core.settings.get_settings() are out of scope: that
+facade needs init_settings(), a DB/.env-backed boot step this suite does not
+run. The PATCH /settings checks below all raise before they get that far.
 """
 
 import pytest

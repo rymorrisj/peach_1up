@@ -1,7 +1,4 @@
 """Tests for backend.core.rate_limit: sliding-window counter, lockout, retry-after, sweep.
-
-Run with:
-    pytest backend/tests/test_rate_limit.py
 """
 import time
 

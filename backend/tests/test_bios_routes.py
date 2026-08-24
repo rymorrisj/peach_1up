@@ -1,11 +1,11 @@
 """Route-level tests for POST /api/v1/bios/{slug}/place.
 
-bios_requirements.toml is loaded once at import time via a module-level cached
-path, so route tests can't redirect it to a tmp_path by patching get_base_path
-alone, instead load_bios_requirements is patched directly to return a single
-fixed entry, and get_base_path is patched (in both bios.py and
-emulator_catalog.py, since check_bios_presence calls it independently) so the
-configured bios_path resolves under tmp_path.
+bios_requirements.toml is loaded once at import time via a module-level
+cached path, so patching get_base_path alone does not redirect it.
+load_bios_requirements is patched directly to return one fixed entry, and
+get_base_path is patched in both bios.py and emulator_catalog.py
+(check_bios_presence calls it independently) so bios_path lands under
+tmp_path.
 """
 
 import pytest
@@ -137,7 +137,7 @@ class TestListRouteIncludesRequiredField:
 
 
 class TestListRoutePagination:
-    """GET /api/v1/bios returns Page[BiosItem] (dev_docs/v2/08, Task 3)."""
+    """GET /api/v1/bios returns Page[BiosItem]."""
 
     def _entries(self, n):
         return [

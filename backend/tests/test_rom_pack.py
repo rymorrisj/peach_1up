@@ -182,7 +182,7 @@ class TestListRomPacks:
 
 
 class TestListRomPacksPagination:
-    """GET /api/v1/emulator-items/rom-packs returns Page[RomPackItemRead] (dev_docs/v2/08, Task 4)."""
+    """GET /api/v1/emulator-items/rom-packs returns Page[RomPackItemRead]."""
 
     def _catalog(self, n):
         return [

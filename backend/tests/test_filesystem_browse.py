@@ -1,14 +1,9 @@
 """Tests for GET /api/v1/filesystem/browse's listing behavior.
 
-test_normalise_path.py already covers normalise_path itself and the
-outside-the-allowlist 400 case (TestFilesystemAllowlist, using a plain
-outside-directory path, no ".." involved) and the permission-gate 403s
-(TestFilesystemPermissionGate). Kept in a separate file rather than
-appended there because that file's own docstring scopes it to
-normalise_path plus the allowlist gate; the behaviors here (a ".."-bearing
-traversal path, symlink filtering, the extensions filter, and parent_path
-nulling at a root) are the listing logic inside browse() itself, a
-different concern.
+test_normalise_path.py covers normalise_path, the outside-the-allowlist 400,
+and the permission-gate 403s. This file covers the listing logic inside
+browse() itself: a ".."-bearing traversal path, symlink filtering, the
+extensions filter, show_files, and parent_path nulling at a root.
 """
 
 import pytest
@@ -35,9 +30,9 @@ class TestFilesystemBrowseListing:
                 "OS_PATH": "", "ROMS_PATH": "", "PROFILES_PATH": "",
             },
         )
-        # Same rationale as test_normalise_path.py's TestFilesystemAllowlist:
-        # allowed_browse_roots() also allowlists every drive letter, stub it
-        # down to just LIBRARY_PATH so only that allowlist is in play.
+        # allowed_browse_roots() also allowlists every drive letter, which
+        # would let paths outside LIBRARY_PATH through. Stub it down so only
+        # that allowlist is in play (as test_normalise_path.py does).
         monkeypatch.setattr(filesystem, "allowed_browse_roots", lambda: [library_path.resolve()])
 
         app = FastAPI()
@@ -48,11 +43,8 @@ class TestFilesystemBrowseListing:
             yield client, library_path
 
     def test_dotdot_traversal_path_outside_roots_returns_400(self, app_client, tmp_path):
-        """Distinct from TestFilesystemAllowlist's existing 400 case: that one
-        passes a directly-outside absolute path with no '..' in it. This
-        exercises the '..'-collapsing behavior itself (normalise_path
-        resolves it via Path.resolve(), see TestNormalisePath) landing
-        outside the allowlist."""
+        """normalise_path collapses '..' via Path.resolve() rather than
+        rejecting it, so the allowlist check is what has to catch the escape."""
         client, library_path = app_client
         outside = tmp_path / "outside"
         outside.mkdir()
@@ -89,8 +81,8 @@ class TestFilesystemBrowseListing:
         (library_path / "game.iso").write_bytes(b"x")
         (library_path / "game.cue").write_bytes(b"x")
         (library_path / "readme.txt").write_bytes(b"x")
-        # A directory whose name looks extension-like, to confirm the filter
-        # only ever touches the files branch, never the dirs branch.
+        # Extension-like directory name: the filter must never reach the dirs
+        # branch, or a filtered browse would hide navigable directories.
         (library_path / "some_dir.txt").mkdir()
 
         resp = client.get(
@@ -105,6 +97,52 @@ class TestFilesystemBrowseListing:
         dir_names = {d["name"] for d in body["dirs"]}
         assert "some_dir.txt" in dir_names
 
+    def test_show_files_false_returns_dirs_only(self, app_client):
+        client, library_path = app_client
+        (library_path / "game.iso").write_bytes(b"x")
+        (library_path / "sub").mkdir()
+
+        resp = client.get(
+            "/api/v1/filesystem/browse",
+            params={"path": str(library_path), "show_files": "false"},
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["files"] == []
+        assert {d["name"] for d in body["dirs"]} == {"sub"}
+
+    def test_dot_prefixed_dir_hidden_while_dot_prefixed_file_is_listed(self, app_client):
+        """The dot filter is on the dirs branch only, files are not filtered."""
+        client, library_path = app_client
+        (library_path / ".hidden_dir").mkdir()
+        (library_path / ".hidden_file").write_bytes(b"x")
+
+        resp = client.get("/api/v1/filesystem/browse", params={"path": str(library_path)})
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert ".hidden_dir" not in {d["name"] for d in body["dirs"]}
+        assert ".hidden_file" in {f["name"] for f in body["files"]}
+
+    def test_path_inside_roots_that_is_a_file_returns_400(self, app_client):
+        client, library_path = app_client
+        target = library_path / "game.iso"
+        target.write_bytes(b"x")
+
+        resp = client.get("/api/v1/filesystem/browse", params={"path": str(target)})
+
+        assert resp.status_code == 400
+
+    def test_path_inside_roots_that_does_not_exist_returns_400(self, app_client):
+        client, library_path = app_client
+
+        resp = client.get(
+            "/api/v1/filesystem/browse", params={"path": str(library_path / "no_such_dir")},
+        )
+
+        assert resp.status_code == 400
+
     def test_browsing_root_path_itself_has_null_parent_path(self, app_client):
         client, library_path = app_client
 
@@ -112,3 +150,18 @@ class TestFilesystemBrowseListing:
 
         assert resp.status_code == 200
         assert resp.json()["parent_path"] is None
+
+    def test_home_listing_omits_unset_and_nonexistent_path_keys(self, app_client, tmp_path):
+        """No path argument returns the configured base dirs. The fixture sets
+        only LIBRARY_PATH, so the other five keys must not appear as entries."""
+        client, library_path = app_client
+
+        resp = client.get("/api/v1/filesystem/browse")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["current_path"] is None
+        assert body["parent_path"] is None
+        assert body["files"] == []
+        assert [d["name"] for d in body["dirs"]] == ["Library"]
+        assert body["dirs"][0]["path"] == str(library_path.resolve())

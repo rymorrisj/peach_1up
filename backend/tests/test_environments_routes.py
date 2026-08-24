@@ -3,10 +3,7 @@ the live presence check computed by compute_environment_presence
 (backend/service/environments/environments.py), and the consolidated health
 aggregate endpoints now living in backend/api/routes/health.py.
 
-Renamed from test_platforms_routes.py: the module it tested was itself
-renamed platforms.py -> environments.py (and its aggregate-health endpoints
-later moved into health.py), so this file follows suit rather than keeping a
-name that no longer matches the route module it exercises.
+Was test_platforms_routes.py, following platforms.py -> environments.py.
 """
 
 import pytest
@@ -117,10 +114,10 @@ class TestListAndGetEnvironment:
 
 class TestListWithEraParam:
     """?era=<value> on GET /api/v1/environment-items computes a per-row
-    launch_blocked_reason for the platform-picker candidate list (PlatformField.tsx),
-    reusing evaluate_launch_readiness for the not-provisioned/not-installed
-    checks and a direct era/is_present comparison for the other two, per the
-    precedence documented at the call site in environments.py."""
+    launch_blocked_reason for the platform-picker candidate list
+    (PlatformField.tsx). evaluate_launch_readiness supplies the
+    not-provisioned/not-installed checks, a direct era/is_present comparison
+    supplies the other two. Precedence is at the call site in environments.py."""
 
     def _present_win98_environment(self, db, tmp_path, **overrides):
         working_image = tmp_path / "working.img"
