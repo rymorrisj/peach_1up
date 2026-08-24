@@ -27,6 +27,7 @@ function RomPackRow({ entry, isLast }: { entry: CatalogEntry; isLast: boolean })
   useEffect(() => {
     if (!cloneStatus) return;
     if (cloneStatus.status === 'complete') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- combined with queryClient.invalidateQueries in this effect; splitting requires deriving isCloning from query data, which has a known retry-after-error race not yet resolved
       setIsCloning(false);
       queryClient.invalidateQueries({ queryKey: ['emulators-catalog'] });
       queryClient.invalidateQueries({

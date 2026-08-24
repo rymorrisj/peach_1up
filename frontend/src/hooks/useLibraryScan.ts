@@ -103,6 +103,7 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
   useEffect(() => {
     if (open || scanning || importing) return;
     generationRef.current += 1;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- this effect also bumps generationRef, a load-bearing staleness guard; moving setState to render risks the ref firing at the wrong time relative to in-flight async callbacks
     setScanning(false);
     setStatus(null);
     setError(null);
