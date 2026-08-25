@@ -3,25 +3,25 @@ name = "peach1up"
 version = "0.0.0"
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.30.0",
-    "sqlalchemy>=2.0.0",
-    "sqlmodel>=0.0.21",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
-    "python-dotenv>=1.0.0",
-    "pyyaml>=6.0",
-    "bcrypt>=4.0.0",
-    "python-jose[cryptography]>=3.3.0",
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.52.4",
+    "sqlalchemy>=2.0.52",
+    "sqlmodel>=0.0.39",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.15.0",
+    "python-dotenv>=1.2.3",
+    "pyyaml>=6.0.3",
+    "bcrypt>=5.0.0",
+    "python-jose[cryptography]>=3.5.0",
     "passlib[bcrypt]>=1.7.4",
-    "httpx>=0.27.0",
-    "itsdangerous>=2.0.0",
-    "argon2-cffi>=23.1.0",
-    "pillow>=10.0.0",
-    "pystray>=0.19.0",
-    "python-multipart>=0.0.18",
-    "pycdlib>=1.14.0",
-    "formatscout>=0.1.0",
+    "httpx>=0.28.1",
+    "itsdangerous>=2.2.0",
+    "argon2-cffi>=25.1.0",
+    "pillow>=12.3.0",
+    "pystray>=0.19.5",
+    "python-multipart>=0.0.32",
+    "pycdlib>=1.20.0",
+    "formatscout>=0.1.1",
     "wincage>=0.1.0",
 ]
 
@@ -33,8 +33,8 @@ dependencies = [
 package = false
 
 [dependency-groups]
-dev = ["pytest==9.1.1", "pytest-cov==7.1.0", "ruff==0.16.1"]
-build = ["pyinstaller>=6.0.0"]
+dev = ["pytest==9.1.1", "pytest-cov==7.1.0", "ruff==0.16.4"]
+build = ["pyinstaller>=6.22.2"]
 
 [tool.ruff]
 line-length = 120
