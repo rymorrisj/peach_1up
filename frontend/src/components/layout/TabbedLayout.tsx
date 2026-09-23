@@ -32,7 +32,7 @@ export default function TabbedLayout({ tabs, title }: TabbedLayoutProps) {
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopBar title={title}>
+      <TopBar title={title} showStatus>
         <nav className="flex items-center gap-1" aria-label={`${title} sections`}>
           {visibleTabs.map((tab) => (
             <NavLink

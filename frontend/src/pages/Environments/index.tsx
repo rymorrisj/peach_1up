@@ -183,7 +183,7 @@ export default function Environments() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopBar title="Environments">
+      <TopBar title="Environments" showStatus>
         <Button
           variant="secondary"
           onClick={handleHealthCheckAll}

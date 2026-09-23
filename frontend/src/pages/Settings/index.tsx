@@ -14,7 +14,7 @@ const TABS: { id: Tab; label: string }[] = [
 export default function Settings() {
   return (
     <div className="flex flex-col min-h-full">
-      <TopBar title="Settings" />
+      <TopBar title="Settings" showStatus />
       <div className="p-6">
         <Tabs.Root defaultValue="attribution">
           <TabBar tabs={TABS} />

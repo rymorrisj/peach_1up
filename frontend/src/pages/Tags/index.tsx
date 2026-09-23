@@ -167,7 +167,7 @@ export default function Tags() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopBar title="Tags" />
+      <TopBar title="Tags" showStatus />
 
       <div className="p-6">
         {error && (

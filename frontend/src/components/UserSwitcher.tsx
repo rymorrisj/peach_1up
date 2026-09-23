@@ -8,11 +8,10 @@ import { Button, Input } from '@/ui';
 import { cn } from '@/lib/utils';
 import type { components } from '@shared/types';
 type User = components['schemas']['UserItemRead'];
-// /auth/switch's response user carries is_host (backend's SessionUserRead),
-// unlike the plain UserItemRead rows from GET /user-items used for the
-// switcher cards below. Not yet in the generated schema, see the matching
-// note in _AppContext.ts.
-type ActiveUser = User & { is_host: boolean };
+// /auth/switch's response user is SessionUserRead (carries is_host), unlike
+// the plain UserItemRead rows from GET /user-items used for the switcher
+// cards below.
+type ActiveUser = components['schemas']['SessionUserRead'];
 
 // Matches every Software-domain list/detail query key
 // ([domain, 'list', ...]/[domain, 'detail', ...], see EntityListPage.tsx:89

@@ -277,7 +277,7 @@ export default function EnvironmentDetail() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopBar>
+      <TopBar showStatus>
         <button
           type="button"
           onClick={() => navigate('/environments')}

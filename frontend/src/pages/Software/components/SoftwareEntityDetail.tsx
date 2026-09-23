@@ -154,7 +154,7 @@ export function SoftwareEntityDetail({
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopBar title={title} />
+      <TopBar title={title} showStatus />
 
       <div className="p-6">
         <div className="mb-6">

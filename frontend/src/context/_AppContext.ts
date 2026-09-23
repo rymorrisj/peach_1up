@@ -1,14 +1,10 @@
 import React, { createContext } from 'react';
 import type { components } from '@shared/types';
 
-// is_host is added by the backend (auth.py's SessionUserRead) on every
-// /auth/me, /auth/refresh, and /auth/switch response, but shared/types.ts is
-// generated from the OpenAPI spec and hasn't been regenerated to include it
-// yet (`python scripts/export_and_build_types.py`), so it's intersected in
-// here rather than hand-edited into the generated file. Drop this
-// intersection once shared/types.ts is regenerated and UserItemRead's schema
-// carries is_host natively.
-type User = components['schemas']['UserItemRead'] & { is_host: boolean };
+// /auth/me, /auth/refresh, and /auth/switch all return SessionUserRead
+// (UserItemRead's fields plus is_host), not the plain UserItemRead used for
+// listing/managing other users (see users.py, UserSwitcher.tsx's user list).
+type User = components['schemas']['SessionUserRead'];
 
 type Theme = 'dark' | 'light';
 

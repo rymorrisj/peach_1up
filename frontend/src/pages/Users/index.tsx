@@ -236,7 +236,7 @@ export default function Users() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopBar title="Users" />
+      <TopBar title="Users" showStatus />
       <div className="p-6">
         <div className="max-w-xl space-y-10">
           <UserSwitcher />

@@ -10,9 +10,14 @@ type LaunchHistory = components['schemas']['LaunchHistoryRead'];
 interface TopBarProps {
   title?: string;
   children?: ReactNode;
+  /** Show the Host/Client + running-sessions status badges. Only the real
+   *  section header (TabbedLayout) should set this; per-page TopBar calls
+   *  used purely as an action-button bar leave it off to avoid duplicating
+   *  the badges already shown by the section header above them. */
+  showStatus?: boolean;
 }
 
-export default function TopBar({ title, children }: TopBarProps) {
+export default function TopBar({ title, children, showStatus = false }: TopBarProps) {
   const { state } = useAppContext();
   const navigate = useNavigate();
 
@@ -67,7 +72,7 @@ export default function TopBar({ title, children }: TopBarProps) {
       )}
       {children}
       <div className="flex flex-1 items-center justify-end gap-3">
-        {state.activeUser && (
+        {showStatus && state.activeUser && (
           <span
             className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
             style={{
@@ -84,7 +89,7 @@ export default function TopBar({ title, children }: TopBarProps) {
             {state.activeUser.is_host ? 'Host' : 'Client'}
           </span>
         )}
-        {activeSessions > 0 && (
+        {showStatus && activeSessions > 0 && (
           <button
             type="button"
             onClick={handleActiveSessionsClick}

@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { apiFetch, ApiError } from '@/api/client';
 import { useAppContext } from '@/context/useAppContext';
 import type { components } from '@shared/types';
-type UserRead = components['schemas']['UserItemRead'];
+// /auth/setup-owner returns UserResponse (SessionUserRead, carries is_host
+// computed from the request's loopback status same as every other auth
+// endpoint), not the plain UserItemRead.
+type UserRead = components['schemas']['SessionUserRead'];
 
 interface Step0OwnerProps {
   onNext: () => void;
