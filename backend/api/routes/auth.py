@@ -43,8 +43,30 @@ class SetupOwnerRequest(BaseModel):
     confirm_pin: str
 
 
+class SessionUserRead(UserItemRead):
+    # Per-request, not a persisted user attribute: True when the caller's TCP
+    # peer is the loopback address. Presentational only (drives the
+    # Host/Client badge in the top bar), never an access-control signal, see
+    # SECURITY.md. Kept off UserItemRead itself since that model is also used
+    # for listing/managing every OTHER sub-account (users.py), where a value
+    # about the caller's own connection has no meaning.
+    is_host: bool
+
+
 class UserResponse(BaseModel):
-    user: UserItemRead
+    user: SessionUserRead
+
+
+_LOOPBACK_ADDRESSES = {"127.0.0.1", "::1"}
+
+
+def _is_host_request(request: Request) -> bool:
+    return request.client is not None and request.client.host in _LOOPBACK_ADDRESSES
+
+
+def _to_session_user(user: UserItem, request: Request) -> SessionUserRead:
+    base = UserItemRead.model_validate(user, from_attributes=True)
+    return SessionUserRead(**base.model_dump(), is_host=_is_host_request(request))
 
 
 def _cookies_secure() -> bool:
@@ -107,13 +129,13 @@ def _verify_pin(pin: str, pin_hash: str) -> bool:
     return verify_pin(pin, pin_hash)
 
 
-def _complete_login(response: Response, db: Session, user: UserItem) -> dict:
+def _complete_login(request: Request, response: Response, db: Session, user: UserItem) -> dict:
     user.failed_pin_attempts = 0
     db.commit()
     token, _expires_at = issue_session(db, user)
     _set_auth_cookie(response, user.id, token, user.session_token_ttl)
     _set_csrf_cookie(response, user.session_token_ttl)
-    return {"user": user}
+    return {"user": _to_session_user(user, request)}
 
 
 def _get_session_user(request: Request, db: Session) -> tuple[UserItem, str]:
@@ -130,7 +152,9 @@ def _get_session_user(request: Request, db: Session) -> tuple[UserItem, str]:
 
 
 @router.post("/setup-owner", response_model=UserResponse)
-def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depends(get_db)):
+def setup_owner(
+    body: SetupOwnerRequest, request: Request, response: Response, db: Session = Depends(get_db)
+):
     # Fast-path / friendly-error only. This SELECT COUNT is NOT the real guard:
     # two concurrent requests can both read count==0 here and both fall through
     # to the INSERT before either commits (TOCTOU). The idx_single_owner partial
@@ -180,7 +204,7 @@ def setup_owner(body: SetupOwnerRequest, response: Response, db: Session = Depen
     _set_auth_cookie(response, owner.id, token, owner.session_token_ttl)
     _set_csrf_cookie(response, owner.session_token_ttl)
     logger.info("Owner account created for %r", body.name.strip())
-    return {"user": owner}
+    return {"user": _to_session_user(owner, request)}
 
 
 @router.post("/switch", response_model=UserResponse)
@@ -213,16 +237,16 @@ def switch_user(body: SwitchRequest, request: Request, response: Response, db: S
         if user.pin_hash is None or not _verify_pin(body.pin, user.pin_hash):
             _record_failed_pin_attempt(db, user)
             raise HTTPException(status_code=401, detail="Invalid PIN.")
-        return _complete_login(response, db, user)
+        return _complete_login(request, response, db, user)
 
     if not user.pin_required:
-        return _complete_login(response, db, user)
+        return _complete_login(request, response, db, user)
 
     if user.pin_hash is None or not _verify_pin(body.pin, user.pin_hash):
         _record_failed_pin_attempt(db, user)
         raise HTTPException(status_code=401, detail="Invalid PIN.")
 
-    return _complete_login(response, db, user)
+    return _complete_login(request, response, db, user)
 
 
 @router.post("/logout")
@@ -243,10 +267,10 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     return {"success": True}
 
 
-@router.get("/me", response_model=UserItemRead)
+@router.get("/me", response_model=SessionUserRead)
 def me(request: Request, db: Session = Depends(get_db)):
     user, _ = _get_session_user(request, db)
-    return user
+    return _to_session_user(user, request)
 
 
 @router.post("/refresh", response_model=UserResponse)
@@ -265,4 +289,4 @@ def refresh_session(request: Request, response: Response, db: Session = Depends(
     if user.session_token_ttl is not None:
         _set_auth_cookie(response, user.id, token, user.session_token_ttl)
     _set_csrf_cookie(response, user.session_token_ttl)
-    return {"user": user}
+    return {"user": _to_session_user(user, request)}

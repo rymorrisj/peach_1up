@@ -67,6 +67,23 @@ export default function TopBar({ title, children }: TopBarProps) {
       )}
       {children}
       <div className="flex flex-1 items-center justify-end gap-3">
+        {state.activeUser && (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
+            style={{
+              background: 'rgb(var(--info) / 0.12)',
+              color: 'rgb(var(--info))',
+              border: '1px solid rgb(var(--info) / 0.3)',
+            }}
+            title={
+              state.activeUser.is_host
+                ? 'This browser is on the same machine running Peach 1UP'
+                : 'This browser is connecting from another device on the network'
+            }
+          >
+            {state.activeUser.is_host ? 'Host' : 'Client'}
+          </span>
+        )}
         {activeSessions > 0 && (
           <button
             type="button"

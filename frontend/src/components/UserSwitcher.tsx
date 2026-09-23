@@ -8,6 +8,11 @@ import { Button, Input } from '@/ui';
 import { cn } from '@/lib/utils';
 import type { components } from '@shared/types';
 type User = components['schemas']['UserItemRead'];
+// /auth/switch's response user carries is_host (backend's SessionUserRead),
+// unlike the plain UserItemRead rows from GET /user-items used for the
+// switcher cards below. Not yet in the generated schema, see the matching
+// note in _AppContext.ts.
+type ActiveUser = User & { is_host: boolean };
 
 // Matches every Software-domain list/detail query key
 // ([domain, 'list', ...]/[domain, 'detail', ...], see EntityListPage.tsx:89
@@ -22,7 +27,7 @@ function isSoftwareDomainListOrDetailQuery(query: Query): boolean {
 }
 
 interface SwitchResponse {
-  user: User;
+  user: ActiveUser;
 }
 
 function avatarInitial(name: string): string {
@@ -44,7 +49,7 @@ function avatarColor(id: number): string {
 
 interface PinModalProps {
   user: User;
-  onSuccess: (user: User) => void;
+  onSuccess: (user: ActiveUser) => void;
   onClose: () => void;
 }
 
@@ -196,7 +201,7 @@ export default function UserSwitcher() {
       });
   }
 
-  function handlePinSuccess(switched: User) {
+  function handlePinSuccess(switched: ActiveUser) {
     dispatch({ type: 'SET_ACTIVE_USER', payload: switched });
     queryClient.invalidateQueries({ predicate: isSoftwareDomainListOrDetailQuery });
     setPinTarget(null);

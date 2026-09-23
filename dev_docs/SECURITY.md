@@ -197,6 +197,16 @@ NIC, avoiding Windows PnP re-detection. `slirp` enables user-mode NAT when
 [86Box documentation](https://86box.readthedocs.io/) if you need it. `net_card` is never
 written by Peach 1UP, because changing it triggers Windows hardware detection.
 
+### `is_host` is a UX default only, not an access control
+
+`GET /api/v1/auth/me`, `/refresh`, `/switch`, and `/setup-owner` return `is_host`
+(`request.client.host in {"127.0.0.1", "::1"}`), used solely to drive a presentational
+Host/Client chip in the frontend top bar. It carries no authorization weight: every route
+reachable by a permitted session remains reachable identically from `127.0.0.1` and from a
+LAN peer once `ALLOW_NETWORK_ACCESS` is on. Do not gate any endpoint, permission check, or
+default-open UI state on this value without an explicit decision, since a LAN client and the
+host machine are equally trusted once authenticated.
+
 ## Destructive operations
 
 **Mandatory.** Any endpoint that deletes or overwrites data requires two steps:

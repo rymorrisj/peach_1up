@@ -4,7 +4,9 @@ import type { components } from '@shared/types';
 import { AppContext, initialState, appReducer, applyTheme, applyFontScale } from './_AppContext';
 import type { BackgroundJob } from './_AppContext';
 
-type User = components['schemas']['UserItemRead'];
+// See the matching note in _AppContext.ts: is_host isn't in the generated
+// schema yet, intersected here until shared/types.ts is regenerated.
+type User = components['schemas']['UserItemRead'] & { is_host: boolean };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState, (init) => {
