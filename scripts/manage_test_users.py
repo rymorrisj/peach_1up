@@ -35,12 +35,12 @@ def _session_factory(db_path: Path):
 
 def create_test_user(name: str, pin: str | None) -> int:
     from backend.core.identity import generate_identity_secret
-    from backend.models.user import User
+    from backend.models.user import UserItem
     from backend.service.utils.pin_hashing import hash_pin
 
     session_factory = _session_factory(_get_db_path())
     with session_factory() as db:
-        user = User(
+        user = UserItem(
             name=name,
             is_owner=False,
             pin_required=pin is not None,
@@ -57,12 +57,12 @@ def create_test_user(name: str, pin: str | None) -> int:
 
 def remove_test_user(user_id: int) -> bool:
     from backend.models.media_restriction import MediaRestriction
-    from backend.models.profile import Profile
-    from backend.models.user import User
+    from backend.models.profile import ProfileItem
+    from backend.models.user import UserItem
 
     session_factory = _session_factory(_get_db_path())
     with session_factory() as db:
-        user = db.get(User, user_id)
+        user = db.get(UserItem, user_id)
         if user is None:
             print(f"No user with id={user_id}.", file=sys.stderr)
             return False
@@ -70,11 +70,11 @@ def remove_test_user(user_id: int) -> bool:
             print("Refusing to remove the owner account.", file=sys.stderr)
             return False
 
-        owner = db.query(User).filter(User.is_owner.is_(True)).first()
-        db.query(MediaRestriction).filter(MediaRestriction.user_id == user_id).delete(synchronize_session=False)
+        owner = db.query(UserItem).filter(UserItem.is_owner.is_(True)).first()
+        db.query(MediaRestriction).filter(MediaRestriction.user_item_id == user_id).delete(synchronize_session=False)
         if owner is not None:
-            db.query(Profile).filter(Profile.user_id == user_id).update(
-                {Profile.user_id: owner.id}, synchronize_session=False
+            db.query(ProfileItem).filter(ProfileItem.user_item_id == user_id).update(
+                {ProfileItem.user_item_id: owner.id}, synchronize_session=False
             )
         db.delete(user)
         db.commit()
@@ -83,11 +83,11 @@ def remove_test_user(user_id: int) -> bool:
 
 
 def list_test_users() -> None:
-    from backend.models.user import User
+    from backend.models.user import UserItem
 
     session_factory = _session_factory(_get_db_path())
     with session_factory() as db:
-        users = db.query(User).filter(User.is_owner.is_(False)).all()
+        users = db.query(UserItem).filter(UserItem.is_owner.is_(False)).all()
         if not users:
             print("No non-owner users.")
             return
