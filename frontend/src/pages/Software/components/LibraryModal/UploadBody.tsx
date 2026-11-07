@@ -151,23 +151,17 @@ export default function UploadBody({
     }
   }
 
-  // Default the folder-name field from the first staged disc's filename (or
-  // the set title, if no disc is staged yet) until the user edits it
-  // directly. Derived directly during render rather than in a useEffect:
-  // setFolderName is called with a plain string, so once it stabilizes at
-  // the derived value further identical calls are no-ops (no loop risk).
-  if (!folderNameTouched) {
-    if (stagedDiscs.length > 0) {
-      setFolderName(
-        stagedDiscs[0].file.name
+  // Until the user edits the folder-name field, it follows the first staged
+  // disc's filename (or the set title when no disc is staged). Derived, not
+  // stored, so no setState runs during render.
+  const derivedFolderName =
+    stagedDiscs.length > 0
+      ? stagedDiscs[0].file.name
           .replace(/\.[^/.]+$/, '')
           .replace(/[-_]/g, ' ')
-          .trim(),
-      );
-    } else if (discSetTitle.trim()) {
-      setFolderName(discSetTitle.trim());
-    }
-  }
+          .trim()
+      : discSetTitle.trim();
+  const effectiveFolderName = folderNameTouched ? folderName : derivedFolderName;
 
   function startUpload(entry: UploadEntry) {
     const title = entry.file.name
@@ -268,7 +262,7 @@ export default function UploadBody({
   }
 
   async function submitSet() {
-    const title = folderName.trim() || discSetTitle.trim();
+    const title = effectiveFolderName.trim() || discSetTitle.trim();
     if (!title) return;
     if (stagedDiscs.length === 0) return;
 
@@ -527,7 +521,9 @@ export default function UploadBody({
               <Button
                 onClick={setStatus === 'success' ? onClose : submitSet}
                 disabled={
-                  busy || !(folderName.trim() || discSetTitle.trim()) || stagedDiscs.length === 0
+                  busy ||
+                  !(effectiveFolderName.trim() || discSetTitle.trim()) ||
+                  stagedDiscs.length === 0
                 }
               >
                 {setStatus === 'uploading'
@@ -627,7 +623,7 @@ export default function UploadBody({
             acceptFileTypes={config.acceptFileTypes}
             setTitle={discSetTitle}
             onSetTitleChange={setDiscSetTitle}
-            folderName={folderName}
+            folderName={effectiveFolderName}
             onFolderNameChange={(v) => {
               setFolderName(v);
               setFolderNameTouched(true);
