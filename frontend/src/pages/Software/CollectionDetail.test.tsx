@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -155,9 +155,14 @@ describe('CollectionDetail (read path)', () => {
     vi.resetAllMocks();
   });
 
-  it('shows a loading indicator while the collection is fetching', () => {
+  it('shows a loading indicator while the collection is fetching', async () => {
     mockApi({ user: plainUser, hangCollection: true });
     renderPage();
+    // Let AppProvider's /auth/me and /auth/refresh state updates land inside act.
+    await waitFor(() => {
+      expect(vi.mocked(apiFetch)).toHaveBeenCalledWith('/api/v1/auth/refresh', expect.anything());
+    });
+    await act(async () => {});
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
