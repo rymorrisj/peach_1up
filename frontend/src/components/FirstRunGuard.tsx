@@ -1,12 +1,13 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import ErrorState from '@/components/common/ErrorState';
 import OwnerBroken from '@/pages/OwnerBroken';
 import { apiFetch } from '@/api/client';
 import type { FirstRunStatus, OwnerStatus } from '@/pages/FirstRun/types';
 
 export function FirstRunGuard() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['first-run-status'],
     queryFn: () => apiFetch<FirstRunStatus>('/api/v1/settings/first-run-status'),
   });
@@ -25,6 +26,18 @@ export function FirstRunGuard() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-surface-0">
         <LoadingSpinner label="Checking setup status…" />
+      </main>
+    );
+  }
+
+  if (isError) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-surface-0">
+        <ErrorState
+          heading="Could not check setup status"
+          subtext="The request failed. Check that Peach 1UP is running and try again."
+          onRetry={() => void refetch()}
+        />
       </main>
     );
   }
