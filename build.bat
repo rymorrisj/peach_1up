@@ -19,7 +19,9 @@ del /s /q "backend\*.pyc" >nul 2>&1
 echo [OK] Clean complete
 
 REM ── Python check ─────────────────────────────────────────────
-for /f "tokens=2 delims= " %%v in ('py --version 2^>^&1') do set PYVER=%%v
+set PYVER=
+where py >nul 2>&1
+if not errorlevel 1 for /f "tokens=2 delims= " %%v in ('py --version 2^>nul') do set PYVER=%%v
 if "%PYVER%"=="" (
     echo ERROR: Python not found.
     echo Install Python 3.14 or later from https://www.python.org/downloads/
