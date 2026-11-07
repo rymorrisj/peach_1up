@@ -1391,7 +1391,7 @@ def delete_library_collection(collection_id: int, token: str, db: Session) -> No
 
 
 def update_library_collection(
-    collection_id: int, body: GameItemBundleUpdate, db: Session
+    collection_id: int, body: GameItemBundleUpdate, db: Session, *, confirm_rating_change: bool = False
 ) -> GameItemBundle:
     from sqlalchemy import select as _select
 
@@ -1416,6 +1416,28 @@ def update_library_collection(
             )
             if fields[disk_field] not in leaf_ids:
                 raise HTTPException(status_code=422, detail="disc does not belong to this collection.")
+    if "content_rating" in fields:
+        from backend.core.dependencies import normalize_content_rating, rating_change_requires_confirmation
+        new_rating = normalize_content_rating(fields["content_rating"])
+        # The visibility filter treats "" as unrated, same as None.
+        old_rating = collection.content_rating or None
+        if rating_change_requires_confirmation(old_rating, new_rating):
+            if not confirm_rating_change:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"content_rating change from {old_rating!r} to {new_rating!r} would "
+                        "lower, clear, or change the scheme of an already-set rating. Re-submit with "
+                        "confirm_rating_change=true to proceed."
+                    ),
+                )
+            from backend.core.logger import get_logger
+            get_logger(__name__).warning(
+                "content_rating lowered/cleared on game_item_bundle id=%s: %r -> %r "
+                "(confirmed by caller)",
+                collection_id, old_rating, new_rating,
+            )
+        fields["content_rating"] = new_rating
     for key, value in fields.items():
         setattr(collection, key, value)
     if "era" in fields:

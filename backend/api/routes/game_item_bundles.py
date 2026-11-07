@@ -554,10 +554,18 @@ def get_game_item_bundle(
 def update_game_item_bundle(
     collection_id: int,
     body: GameItemBundleUpdate,
+    confirm_rating_change: bool = Query(False),
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_game"),
+    active_user: UserItem = require_permission("can_manage_game"),
 ):
-    return game_item_bundle_to_read(lib_svc.update_library_collection(collection_id, body, db), db)
+    # Same 404 as a missing bundle, so a hidden item is neither patchable nor confirmed to exist.
+    get_filtered_game_item_bundle(collection_id, active_user, db)
+    return game_item_bundle_to_read(
+        lib_svc.update_library_collection(
+            collection_id, body, db, confirm_rating_change=confirm_rating_change,
+        ),
+        db,
+    )
 
 
 @router.post("/game-item-bundle/{collection_id}/verify", response_model=GameItemBundleRead)

@@ -6,6 +6,7 @@ Covers the permission gates on:
     - POST /software/scan/import (can_manage_game)
     - PATCH .../items/reorder (can_manage_game)
     - POST .../flag-launch (can_launch_media)
+    - PATCH /game-item-bundle/{id} content_rating confirmation and visibility
 
 Rating-filter coverage for get_filtered_game_item_bundles /
 get_filtered_game_item_bundle lives in test_dependencies_content_rating.py,
@@ -354,3 +355,123 @@ class TestFlagLaunch:
         db.expire_all()
         reloaded = db.get(GameItemBundle, collection.id)
         assert reloaded.launch_review_flagged is True
+
+
+# ---------------------------------------------------------------------------
+# PATCH /game-item-bundle/{id}, content_rating confirmation and visibility
+# ---------------------------------------------------------------------------
+
+
+class TestBundlePatchRatingGuard:
+    def _capped_editor(self, db):
+        return _make_user(db, can_manage_game=True, max_content_rating="T")
+
+    def _reloaded_rating(self, db, collection_id):
+        from backend.models.game import GameItemBundle
+
+        db.expire_all()
+        return db.get(GameItemBundle, collection_id).content_rating
+
+    @pytest.mark.parametrize("new_rating", ["E", None, "PEGI 12"])
+    def test_lower_clear_or_scheme_change_without_confirm_is_409(self, http_client, new_rating):
+        c, db, app = http_client
+        collection = _make_collection(db, content_rating="T")
+        _set_active_user(app, self._capped_editor(db))
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"content_rating": new_rating})
+
+        assert resp.status_code == 409, resp.text
+        assert "confirm_rating_change" in resp.json()["detail"]
+        assert self._reloaded_rating(db, collection.id) == "T"
+
+    def test_lower_with_confirm_is_applied(self, http_client):
+        c, db, app = http_client
+        collection = _make_collection(db, content_rating="T")
+        _set_active_user(app, self._capped_editor(db))
+
+        resp = c.patch(
+            f"/api/v1/game-item-bundle/{collection.id}",
+            params={"confirm_rating_change": "true"},
+            json={"content_rating": None},
+        )
+
+        assert resp.status_code == 200, resp.text
+        assert self._reloaded_rating(db, collection.id) is None
+
+    def test_raise_needs_no_confirm(self, http_client):
+        c, db, app = http_client
+        collection = _make_collection(db, content_rating="E")
+        _set_active_user(app, self._capped_editor(db))
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"content_rating": "T"})
+
+        assert resp.status_code == 200, resp.text
+        assert self._reloaded_rating(db, collection.id) == "T"
+
+    def test_unchanged_rating_alongside_other_edit_needs_no_confirm(self, http_client):
+        c, db, app = http_client
+        collection = _make_collection(db, content_rating="T")
+        _set_active_user(app, self._capped_editor(db))
+
+        resp = c.patch(
+            f"/api/v1/game-item-bundle/{collection.id}",
+            json={"title": "Renamed", "content_rating": "T"},
+        )
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["title"] == "Renamed"
+
+    def test_free_form_rating_is_normalized(self, http_client):
+        c, db, app = http_client
+        collection = _make_collection(db, content_rating=None)
+        _set_active_user(app, _make_user(db, is_owner=True))
+
+        resp = c.patch(
+            f"/api/v1/game-item-bundle/{collection.id}", json={"content_rating": "M - Mature 17+"},
+        )
+
+        assert resp.status_code == 200, resp.text
+        assert self._reloaded_rating(db, collection.id) == "M"
+
+    def test_owner_also_needs_confirm_to_clear(self, http_client):
+        c, db, app = http_client
+        collection = _make_collection(db, content_rating="M")
+        _set_active_user(app, _make_user(db, is_owner=True))
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"content_rating": None})
+
+        assert resp.status_code == 409, resp.text
+        assert self._reloaded_rating(db, collection.id) == "M"
+
+    def test_over_cap_item_is_not_patchable_and_matches_missing_item(self, http_client):
+        c, db, app = http_client
+        hidden = _make_collection(db, content_rating="M")
+        _set_active_user(app, self._capped_editor(db))
+
+        hidden_resp = c.patch(
+            f"/api/v1/game-item-bundle/{hidden.id}",
+            params={"confirm_rating_change": "true"},
+            json={"content_rating": None},
+        )
+        missing_resp = c.patch("/api/v1/game-item-bundle/999999", json={"title": "x"})
+
+        assert hidden_resp.status_code == 404, hidden_resp.text
+        assert hidden_resp.json() == missing_resp.json()
+        assert self._reloaded_rating(db, hidden.id) == "M"
+
+    def test_restricted_item_is_not_patchable(self, http_client):
+        from backend.models.game import GameItemBundle
+        from backend.models.media_restriction import MediaRestriction
+
+        c, db, app = http_client
+        collection = _make_collection(db, content_rating="E")
+        user = _make_user(db, can_manage_game=True)
+        db.add(MediaRestriction(user_item_id=user.id, game_item_bundle_id=collection.id))
+        db.commit()
+        _set_active_user(app, user)
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"title": "Renamed"})
+
+        assert resp.status_code == 404, resp.text
+        db.expire_all()
+        assert db.get(GameItemBundle, collection.id).title == "Doom"
