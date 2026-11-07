@@ -5,7 +5,7 @@ per-emulator descriptors in [`config/emulators/`](../config/emulators/); when th
 disagree, the TOML wins and this file is the bug.
 
 Related: [TECH.md](TECH.md) (stack) · [SECURITY.md](SECURITY.md) (isolation policy) ·
-[windows-sandbox.md](windows-sandbox.md) (resource caps).
+[WINDOWS_SANDBOX.md](WINDOWS_SANDBOX.md) (resource caps).
 
 ## Summary
 
@@ -31,7 +31,7 @@ Without its sentinel, each emulator falls back to `%APPDATA%\<Name>\`, except Xe
 
 Pass `-conf <path>` and DOSBox-X resolves data paths relative to the config file's
 directory. Peach 1UP writes a fresh conf per launch into a private temp directory; see
-[windows-sandbox.md](windows-sandbox.md) § DOSBox-X specifics.
+[WINDOWS_SANDBOX.md](WINDOWS_SANDBOX.md) § DOSBox-X specifics.
 
 No BIOS required. `FONT.ROM` (PC-98 BIOS for NEC systems) is optional, sits next to the
 binary, and is version-independent.

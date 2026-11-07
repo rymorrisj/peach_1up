@@ -130,7 +130,7 @@ a moniker of the form `Peach1UP.<slug>.<scope>` (for example `Peach1UP.duckstati
 
 Sandboxing itself is handled by [wincage](https://github.com/rymorrisj/wincage), a standalone
 Windows AppContainer and Job Object package extracted from this project. See
-[dev_docs/windows-sandbox.md](dev_docs/windows-sandbox.md) for the caps and how to tune them.
+[dev_docs/WINDOWS_SANDBOX.md](dev_docs/WINDOWS_SANDBOX.md) for the caps and how to tune them.
 
 ## Configuration
 
@@ -201,7 +201,7 @@ Contributor references live in [`dev_docs/`](dev_docs/):
 | [BACKEND_FLOW.md](dev_docs/BACKEND_FLOW.md) | Startup, launch, ingest, and upload flow atlas |
 | [AUTH.md](dev_docs/AUTH.md) | Auth flows, token and cookie lifecycle, permission model |
 | [SECURITY.md](dev_docs/SECURITY.md) | Threat model, mandatory implementation rules, known gaps |
-| [windows-sandbox.md](dev_docs/windows-sandbox.md) | Job Object and AppContainer isolation, resource caps |
+| [WINDOWS_SANDBOX.md](dev_docs/WINDOWS_SANDBOX.md) | Job Object and AppContainer isolation, resource caps |
 | [TYPES.md](dev_docs/TYPES.md) | Constants and type-generation pipelines, settings inventory |
 | [TESTING.md](dev_docs/TESTING.md) | What the suites cover, and what they do not |
 

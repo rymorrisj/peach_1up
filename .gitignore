@@ -92,7 +92,9 @@ profiles/conf/
 *.temp
 .cache/
 temp/
-dev_docs/
+dev_docs/AUDIT*.md
+dev_docs/*DISCOVERY*.md
+dev_docs/CLAUDE.md
 .coverage
 
 # Generated constants

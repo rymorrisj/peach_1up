@@ -7,7 +7,7 @@ OS-level resource management. The rules below are enforced at the implementation
 left to convention.
 
 Companion documents: [AUTH.md](AUTH.md) (auth flows and permission model) ·
-[windows-sandbox.md](windows-sandbox.md) (Job Object and resource caps) ·
+[WINDOWS_SANDBOX.md](WINDOWS_SANDBOX.md) (Job Object and resource caps) ·
 [CHANGELOG.md](../CHANGELOG.md) (decision history).
 
 ## Threat model
@@ -282,7 +282,7 @@ explicit decision.
   are individually waivable per emulator via `skip_cpu_limit` and `skip_memory_limit`.
   **Every descriptor in [`config/emulators/`](../config/emulators/) currently sets both to
   `false`**, so both caps are enforced for every emulator as shipped and kill-on-close is
-  not the only control in force. See [windows-sandbox.md](windows-sandbox.md) for the
+  not the only control in force. See [WINDOWS_SANDBOX.md](WINDOWS_SANDBOX.md) for the
   per-era numbers.
 - **Both skip flags are honoured on both isolation layers.** Until the P9 follow-up
   hardening pass they were honoured only by the Python-side Job Object.

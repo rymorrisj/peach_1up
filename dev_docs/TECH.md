@@ -115,7 +115,7 @@ waivers.
 Network blocking is emulator-native, applied on every launch: each emulator starts with
 its network adapter disabled when `enable_networking` is false on the active profile.
 
-Full detail: [windows-sandbox.md](windows-sandbox.md) and [SECURITY.md](SECURITY.md)
+Full detail: [WINDOWS_SANDBOX.md](WINDOWS_SANDBOX.md) and [SECURITY.md](SECURITY.md)
 § Windows-specific process rules.
 
 ## Media detection
