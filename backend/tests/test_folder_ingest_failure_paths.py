@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
+from sqlmodel import func, select
 
 
 @pytest.fixture
@@ -121,7 +122,7 @@ class TestMultiDiscGenericFailureCleansUpPartialState:
         assert not (media_root / "sonic-adventure").exists()
 
         # (2) no DB row survives the rollback.
-        assert mem_session.query(GameItemBundle).count() == 0
+        assert mem_session.exec(select(func.count()).select_from(GameItemBundle)).one() == 0
 
     def test_slug_collision_on_commit_rolls_back_and_undoes_rename(self, tmp_path, mem_session, monkeypatch):
         """A slug unique-violation IntegrityError at commit time (the
@@ -153,7 +154,7 @@ class TestMultiDiscGenericFailureCleansUpPartialState:
 
         assert original_dir.is_dir()
         assert not (media_root / "sonic-adventure").exists()
-        assert mem_session.query(GameItemBundle).count() == 0
+        assert mem_session.exec(select(func.count()).select_from(GameItemBundle)).one() == 0
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +179,7 @@ class TestCollectionOfOneValidationFailureLeavesNoPartialState:
             folder_ingest.ingest_folder(dest_dir, [junk], "Mystery Upload", mem_session, media_root)
 
         assert exc_info.value.status_code == 422
-        assert mem_session.query(GameItemBundle).count() == 0
+        assert mem_session.exec(select(func.count()).select_from(GameItemBundle)).one() == 0
         # Nothing was staged or moved, this fails before any filesystem write.
         assert junk.exists()
         assert dest_dir.is_dir()
@@ -226,7 +227,7 @@ class TestCollectionOfOneValidationFailureLeavesNoPartialState:
         result_type, collection, disc_count = folder_ingest.ingest_folder(
             src_dir, [exe], "Doom", mem_session, media_root,
         )
-        assert mem_session.query(GameItemBundle).count() == 1
+        assert mem_session.exec(select(func.count()).select_from(GameItemBundle)).one() == 1
         canonical_folder = Path(collection.items[0].folder_path)
         canonical_exe = Path(collection.items[0].file_path)
         assert canonical_folder.is_dir()
@@ -234,7 +235,7 @@ class TestCollectionOfOneValidationFailureLeavesNoPartialState:
         with pytest.raises(_ItemAlreadyExists):
             folder_ingest.ingest_folder(canonical_folder, [canonical_exe], "Doom Again", mem_session, media_root)
 
-        assert mem_session.query(GameItemBundle).count() == 1
+        assert mem_session.exec(select(func.count()).select_from(GameItemBundle)).one() == 1
 
 
 # ---------------------------------------------------------------------------

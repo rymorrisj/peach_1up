@@ -18,6 +18,7 @@ overrides, as in the other game_item_bundles route test files.
 """
 
 import pytest
+from sqlmodel import select
 
 
 @pytest.fixture
@@ -74,7 +75,7 @@ def _tag(db, collection, name):
     # Reuse an existing tag by name instead of always creating one, same
     # name lookup tags.py's create_tag does, tag names are unique so two
     # collections tagged with the same name must share one Tag row.
-    tag = db.query(Tag).filter(Tag.name == name).first()
+    tag = db.exec(select(Tag).where(Tag.name == name)).first()
     if tag is None:
         tag = Tag(name=name)
         db.add(tag)

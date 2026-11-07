@@ -18,6 +18,7 @@ on the rom_packs module itself.
 """
 
 import pytest
+from sqlmodel import select
 
 
 def _owner_user():
@@ -304,7 +305,7 @@ class TestVerifyRomPack:
         # other engine, by reading it back through the fixture's own session.
         from backend.models.rom_pack import RomPackItem
         db.expire_all()
-        row = db.query(RomPackItem).filter(RomPackItem.slug == "mame-roms").one_or_none()
+        row = db.exec(select(RomPackItem).where(RomPackItem.slug == "mame-roms")).one_or_none()
         assert row is not None
         assert row.is_present is True
         assert row.install_path == str(rom_dir)

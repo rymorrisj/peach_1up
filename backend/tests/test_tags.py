@@ -11,6 +11,7 @@ c.request("DELETE", url, json=...) instead of c.delete(url, json=...).
 """
 
 import pytest
+from sqlmodel import func, select
 
 
 def _user(id, **overrides):
@@ -249,15 +250,13 @@ class TestPerEntityTypeCreateDeleteAssignment:
         from backend.models.tag import EntityTag
 
         def _link():
-            return (
-                db.query(EntityTag)
-                .filter(
+            return db.exec(
+                select(EntityTag).where(
                     EntityTag.tag_id == tag.id,
                     EntityTag.entity_type == entity_type,
                     EntityTag.entity_id == entity.id,
                 )
-                .first()
-            )
+            ).first()
 
         assert _link() is not None
 
@@ -354,15 +353,15 @@ class TestCreateTagAssignmentIdempotency:
         assert second.status_code == 204
 
         from backend.models.tag import EntityTag
-        count = (
-            db.query(EntityTag)
-            .filter(
+        count = db.exec(
+            select(func.count())
+            .select_from(EntityTag)
+            .where(
                 EntityTag.tag_id == tag.id,
                 EntityTag.entity_type == "game_item_bundle",
                 EntityTag.entity_id == collection.id,
             )
-            .count()
-        )
+        ).one()
         assert count == 1
 
 

@@ -17,6 +17,7 @@ overrides, as in test_dependencies_content_rating.py.
 """
 
 import pytest
+from sqlmodel import select
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +270,7 @@ class TestScanImport:
         assert body["imported"] == 1
         assert body["errors"] == []
 
-        created = db.query(GameItemBundle).filter(GameItemBundle.title == "Game").first()
+        created = db.exec(select(GameItemBundle).where(GameItemBundle.title == "Game")).first()
         assert created is not None
 
 

@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
+from sqlmodel import select
 
 
 # ---------------------------------------------------------------------------
@@ -185,11 +186,13 @@ class TestCreateMultiDiscSet:
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
         _create_multi_disc_collection(disc_files, "Sonic Adventure", mem_session)
 
-        sets = mem_session.query(GameItemBundle).all()
+        sets = mem_session.exec(select(GameItemBundle)).all()
         assert len(sets) == 1
         assert sets[0].title == "Sonic Adventure"
 
-        items = mem_session.query(GameItem).filter(GameItem.game_item_bundle_id == sets[0].id).all()
+        items = mem_session.exec(
+            select(GameItem).where(GameItem.game_item_bundle_id == sets[0].id)
+        ).all()
         assert len(items) == 2
 
     def test_launch_disk_id_points_to_first_disc(self, tmp_path, mem_session):
@@ -198,12 +201,11 @@ class TestCreateMultiDiscSet:
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
         library_set = _create_multi_disc_collection(disc_files, "Test Game", mem_session)
 
-        items = (
-            mem_session.query(GameItem)
-            .filter(GameItem.game_item_bundle_id == library_set.id)
+        items = mem_session.exec(
+            select(GameItem)
+            .where(GameItem.game_item_bundle_id == library_set.id)
             .order_by(GameItem.disc_number)
-            .all()
-        )
+        ).all()
         assert library_set.launch_disk_id == items[0].id
 
     def test_each_item_has_gdi_as_executable_path(self, tmp_path, mem_session):
@@ -212,12 +214,11 @@ class TestCreateMultiDiscSet:
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
         library_set = _create_multi_disc_collection(disc_files, "Dreamcast Game", mem_session)
 
-        items = (
-            mem_session.query(GameItem)
-            .filter(GameItem.game_item_bundle_id == library_set.id)
+        items = mem_session.exec(
+            select(GameItem)
+            .where(GameItem.game_item_bundle_id == library_set.id)
             .order_by(GameItem.disc_number)
-            .all()
-        )
+        ).all()
         for idx, item in enumerate(items):
             assert item.executable_path == str(disc_files[idx])
             assert item.file_path == str(disc_files[idx])
@@ -229,12 +230,11 @@ class TestCreateMultiDiscSet:
         disc_files = self._make_disc_files(tmp_path, ["disc1.cue", "disc2.cue", "disc3.cue"])
         library_set = _create_multi_disc_collection(disc_files, "Triple-Disc Game", mem_session)
 
-        items = (
-            mem_session.query(GameItem)
-            .filter(GameItem.game_item_bundle_id == library_set.id)
+        items = mem_session.exec(
+            select(GameItem)
+            .where(GameItem.game_item_bundle_id == library_set.id)
             .order_by(GameItem.disc_number)
-            .all()
-        )
+        ).all()
         assert [i.disc_number for i in items] == [1, 2, 3]
 
     def test_era_from_detector_stored_on_set(self, tmp_path, mem_session):
@@ -267,12 +267,11 @@ class TestCreateMultiDiscSet:
         disc_files = self._make_disc_files(tmp_path, ["disc1.gdi", "disc2.gdi"])
         library_set = _create_multi_disc_collection(disc_files, "Cover Game", mem_session)
 
-        items = (
-            mem_session.query(GameItem)
-            .filter(GameItem.game_item_bundle_id == library_set.id)
+        items = mem_session.exec(
+            select(GameItem)
+            .where(GameItem.game_item_bundle_id == library_set.id)
             .order_by(GameItem.disc_number)
-            .all()
-        )
+        ).all()
         assert items[0].cover_art_path == str(tmp_path / "cover.jpg")
         assert items[1].cover_art_path is None
 
@@ -322,11 +321,11 @@ class TestDedupDiscAnchor:
         assert not new_disc1.exists()  # redundant upload copy removed
 
         collection = _create_multi_disc_collection(disc_files, "Dedup Orphan Game", mem_session)
-        leaf1 = (
-            mem_session.query(GameItem)
-            .filter(GameItem.game_item_bundle_id == collection.id, GameItem.disc_number == 1)
-            .first()
-        )
+        leaf1 = mem_session.exec(
+            select(GameItem).where(
+                GameItem.game_item_bundle_id == collection.id, GameItem.disc_number == 1
+            )
+        ).first()
         assert leaf1.file_path == str(orphan_disc1.resolve())
 
     def test_raises_item_already_exists_when_duplicate_is_still_tracked(self, tmp_path, mem_session):
