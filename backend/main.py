@@ -15,7 +15,7 @@ from backend.core.logger import get_logger  # noqa: E402
 
 logger = get_logger(__name__)
 
-from fastapi import FastAPI  # noqa: E402
+from fastapi import Depends, FastAPI  # noqa: E402
 from fastapi.responses import FileResponse, Response  # noqa: E402
 from fastapi.requests import Request  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
@@ -31,6 +31,8 @@ from backend.api.middleware.request_logging import RequestLoggingMiddleware  # n
 from backend.api.routes import ROUTERS  # noqa: E402
 from backend.core.lifespan import lifespan  # noqa: E402
 from backend.constants_generated import APP_VERSION  # noqa: E402
+from backend.core.dependencies import get_active_user  # noqa: E402
+from backend.models.user import UserItem  # noqa: E402
 
 app = FastAPI(
     title="Peach 1UP",
@@ -57,7 +59,7 @@ for _router in ROUTERS:
 
 
 @app.get("/media/{file_path:path}", include_in_schema=False)
-async def serve_media(file_path: str, request: Request):
+async def serve_media(file_path: str, request: Request, _: UserItem = Depends(get_active_user)):
     from backend.core.settings import get_settings
     svc = get_settings()
     allow_network = svc.get("ALLOW_NETWORK_ACCESS", False)
