@@ -19,7 +19,7 @@ export default function AttributionTab() {
   });
 
   return (
-    <div className="max-w-xl">
+    <div className="w-full max-w-2xl lg:max-w-4xl">
       <section>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
           Attribution
@@ -33,17 +33,17 @@ export default function AttributionTab() {
             <li key={entry.name} className="py-3">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                  <span className="break-words text-sm font-medium text-neutral-900 dark:text-neutral-100">
                     {entry.name}
                   </span>
                   {entry.copyright && (
-                    <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                    <p className="mt-0.5 break-words text-xs text-neutral-500 dark:text-neutral-400">
                       {entry.copyright}
                     </p>
                   )}
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="rounded bg-surface-3 px-1.5 py-0.5 font-mono text-xs text-neutral-500 dark:text-neutral-400">
+                <div className="flex min-w-0 max-w-[50%] flex-wrap items-center justify-end gap-x-2 gap-y-1">
+                  <span className="min-w-0 break-words rounded bg-surface-3 px-1.5 py-0.5 font-mono text-xs text-neutral-500 dark:text-neutral-400">
                     {entry.license}
                   </span>
                   {entry.source_url && (
