@@ -9,6 +9,11 @@ import { apiFetch, ApiError, TimeoutError } from '@/api/client';
 export const LAUNCH_TIMEOUT_MS = 45_000;
 import type { components } from '@shared/types';
 
+const POLL_INTERVAL_MS = 2000;
+// The poll tracks the running game until its process ends, so it has no
+// attempt cap. Only consecutive poll failures stop it.
+const MAX_POLL_FAILURES = 5;
+
 type LaunchResponse = components['schemas']['LaunchResponse'];
 
 type LaunchTargetType = 'game_item_bundle' | 'app' | 'environment';
@@ -29,6 +34,7 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
   const [launchId, setLaunchId] = useState<number | null>(null);
   const [launchSuccess, setLaunchSuccess] = useState(false);
   const [launchWarnings, setLaunchWarnings] = useState<string[]>([]);
+  const [pollError, setPollError] = useState<string | null>(null);
 
   const onSettledRef = useRef(onSettled);
   useEffect(() => {
@@ -37,19 +43,42 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
 
   useEffect(() => {
     if (!launchId) return;
+    let failures = 0;
+    let cancelled = false;
+    const giveUp = (message: string) => {
+      clearInterval(id);
+      setLaunchSuccess(false);
+      setLaunchId(null);
+      setPollError(message);
+    };
     const id = setInterval(async () => {
       try {
         const rec = await apiFetch<{ ended_at: string | null }>(`/api/v1/launches/${launchId}`);
+        if (cancelled) return;
+        failures = 0;
         if (rec.ended_at != null) {
+          clearInterval(id);
           setLaunchSuccess(false);
           setLaunchId(null);
           onSettledRef.current?.();
         }
-      } catch {
-        // poll errors are non-fatal
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Launch status poll failed:', err);
+        failures += 1;
+        if (failures >= MAX_POLL_FAILURES) {
+          giveUp(
+            err instanceof ApiError
+              ? `Lost track of the launch: ${err.detail}`
+              : 'Lost contact with the server while checking the launch.',
+          );
+        }
       }
-    }, 2000);
-    return () => clearInterval(id);
+    }, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, [launchId]);
 
   const launchMutation = useMutation<LaunchResponse, Error, number | null>({
@@ -73,6 +102,7 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
     setLaunchSuccess(false);
     setLaunchWarnings([]);
     setLaunchId(null);
+    setPollError(null);
     launchMutation.mutate(profileId);
   }
 
@@ -89,13 +119,14 @@ export function useLaunch({ targetId, targetType, onSettled }: UseLaunchOptions)
 
   const isLaunching = launchMutation.isPending || launchId !== null;
   const apiError = launchMutation.error instanceof ApiError ? launchMutation.error : null;
-  const error = launchMutation.isError
+  const mutationError = launchMutation.isError
     ? apiError
       ? apiError.detail
       : launchMutation.error instanceof TimeoutError
         ? 'Launch is taking longer than expected, check if it opened.'
         : 'Launch failed.'
     : null;
+  const error = pollError ?? mutationError;
   // Structured detail set by specific failure shapes (e.g. coordinator.py's
   // XboxDvdRipDetected branch) so callers can offer a targeted fix instead of
   // just showing the message, undefined for every ordinary launch failure.

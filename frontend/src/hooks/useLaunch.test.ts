@@ -140,4 +140,40 @@ describe('useLaunch', () => {
 
     expect(onSettled).toHaveBeenCalledOnce();
   });
+
+  it('stops polling and surfaces an error after 5 consecutive poll failures', async () => {
+    vi.useFakeTimers();
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockApiFetch.mockResolvedValueOnce({ launch_history_id: 5, warnings: [] });
+    for (let i = 0; i < 5; i += 1) {
+      mockApiFetch.mockRejectedValueOnce(new Error('network down'));
+    }
+
+    const { result } = renderHook(
+      () => useLaunch({ targetId: 1, targetType: 'game_item_bundle' }),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      result.current.launch(null);
+    });
+    await act(async () => {});
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+
+    expect(result.current.isLaunching).toBe(false);
+    expect(result.current.error).toBe('Lost contact with the server while checking the launch.');
+    expect(errorSpy).toHaveBeenCalledTimes(5);
+
+    const callsAtStop = mockApiFetch.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(mockApiFetch).toHaveBeenCalledTimes(callsAtStop);
+
+    errorSpy.mockRestore();
+  });
 });
