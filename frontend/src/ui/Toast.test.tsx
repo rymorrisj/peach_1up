@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as RadixToast from '@radix-ui/react-toast';
 import { Toast } from '@/ui/Toast';
@@ -57,7 +57,10 @@ describe('Toast', () => {
   it('does not auto-dismiss when duration is 0', async () => {
     const onDismiss = vi.fn();
     renderToast(<Toast message="Sticky" duration={0} onDismiss={onDismiss} />);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Radix ToastAnnounce updates state on the next frame, keep the wait in act.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
     expect(onDismiss).not.toHaveBeenCalled();
   });
 
