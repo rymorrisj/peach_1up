@@ -1,5 +1,6 @@
-import React, { useEffect, useReducer, useRef } from 'react';
-import { apiFetch } from '@/api/client';
+import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { apiFetch, ApiError } from '@/api/client';
+import ErrorState from '@/components/common/ErrorState';
 import type { components } from '@shared/types';
 import { AppContext, initialState, appReducer, applyTheme, applyFontScale } from './_AppContext';
 import type { BackgroundJob } from './_AppContext';
@@ -15,13 +16,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return init;
   });
   const didMountAuthCheck = useRef(false);
+  const [authUnreachable, setAuthUnreachable] = useState(false);
 
-  useEffect(() => {
-    // Guards against StrictMode's double-invoke of mount effects in dev,
-    // which would otherwise fire /auth/me -> /auth/refresh twice for the
-    // same mount.
-    if (didMountAuthCheck.current) return;
-    didMountAuthCheck.current = true;
+  const checkAuth = useCallback(() => {
     apiFetch<User>('/api/v1/auth/me')
       .then((user) => {
         dispatch({ type: 'SET_ACTIVE_USER', payload: user });
@@ -33,10 +30,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           })
           .catch(() => {});
       })
-      .catch(() => {
-        dispatch({ type: 'LOGOUT' });
+      .catch((err: unknown) => {
+        // Only a 401 means the session is gone. A network error or 5xx says
+        // nothing about the session, so keep it and let the user retry.
+        if (err instanceof ApiError && err.status === 401) {
+          dispatch({ type: 'LOGOUT' });
+        } else {
+          setAuthUnreachable(true);
+        }
       });
   }, []);
+
+  useEffect(() => {
+    // Guards against StrictMode's double-invoke of mount effects in dev,
+    // which would otherwise fire /auth/me -> /auth/refresh twice for the
+    // same mount.
+    if (didMountAuthCheck.current) return;
+    didMountAuthCheck.current = true;
+    checkAuth();
+  }, [checkAuth]);
+
+  function retryAuthCheck() {
+    setAuthUnreachable(false);
+    checkAuth();
+  }
 
   useEffect(() => {
     function handleSessionExpired() {
@@ -117,5 +134,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     prevJobsRef.current = state.backgroundJobs;
   }, [state.backgroundJobs]);
 
-  return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>;
+  return (
+    <AppContext.Provider value={{ state, dispatch }}>
+      {authUnreachable ? (
+        <main className="flex min-h-screen items-center justify-center bg-surface-0">
+          <ErrorState
+            heading="Cannot reach the server"
+            subtext="Your session was not changed. Check that Peach 1UP is running and try again."
+            onRetry={retryAuthCheck}
+          />
+        </main>
+      ) : (
+        children
+      )}
+    </AppContext.Provider>
+  );
 }
