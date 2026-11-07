@@ -31,6 +31,12 @@ class _FakeSettings:
         return default
 
 
+def _use_cookie(client, value):
+    """Make *value* the only peach_token the client sends, dropping any left by a login."""
+    client.cookies.clear()
+    client.cookies.set("peach_token", value)
+
+
 @pytest.fixture
 def app_client(mem_session, monkeypatch):
     from fastapi import FastAPI
@@ -129,10 +135,12 @@ class TestSessionInvalidation:
 
         assert cookie1 != cookie2
 
-        stale = app_client.get("/api/v1/auth/me", cookies={"peach_token": cookie1})
+        _use_cookie(app_client, cookie1)
+        stale = app_client.get("/api/v1/auth/me")
         assert stale.status_code == 401
 
-        fresh = app_client.get("/api/v1/auth/me", cookies={"peach_token": cookie2})
+        _use_cookie(app_client, cookie2)
+        fresh = app_client.get("/api/v1/auth/me")
         assert fresh.status_code == 200
 
 
@@ -148,27 +156,29 @@ class TestForceLogout:
         sub_resp = app_client.post("/api/v1/auth/switch", json={"user_item_id": sub.id, "pin": ""})
         assert sub_resp.status_code == 200
         sub_cookie = sub_resp.cookies.get("peach_token")
-        assert app_client.get("/api/v1/auth/me", cookies={"peach_token": sub_cookie}).status_code == 200
+        _use_cookie(app_client, sub_cookie)
+        assert app_client.get("/api/v1/auth/me").status_code == 200
 
         owner_resp = app_client.post("/api/v1/auth/switch", json={"user_item_id": owner.id, "pin": "1234"})
         owner_cookie = owner_resp.cookies.get("peach_token")
 
+        _use_cookie(app_client, owner_cookie)
         force_resp = app_client.post(
             f"/api/v1/user-items/{sub.id}/force-logout",
-            cookies={"peach_token": owner_cookie},
         )
         assert force_resp.status_code == 200
 
-        after = app_client.get("/api/v1/auth/me", cookies={"peach_token": sub_cookie})
+        _use_cookie(app_client, sub_cookie)
+        after = app_client.get("/api/v1/auth/me")
         assert after.status_code == 401
 
     def test_force_logout_against_owner_returns_403(self, app_client, owner):
         owner_resp = app_client.post("/api/v1/auth/switch", json={"user_item_id": owner.id, "pin": "1234"})
         owner_cookie = owner_resp.cookies.get("peach_token")
 
+        _use_cookie(app_client, owner_cookie)
         resp = app_client.post(
             f"/api/v1/user-items/{owner.id}/force-logout",
-            cookies={"peach_token": owner_cookie},
         )
         assert resp.status_code == 403
 
@@ -195,6 +205,7 @@ class TestSetupOwnerSession:
         """Regression: setup_owner must not depend on issue_session's lazy
         backfill, it's the primary first-run creation path, not a defensive
         fallback case like the CLI owner-recovery script."""
+        from sqlmodel import select
         from backend.models.user import UserItem
 
         resp = app_client.post(
@@ -203,7 +214,9 @@ class TestSetupOwnerSession:
         )
         assert resp.status_code == 200, resp.text
 
-        owner = mem_session.query(UserItem).filter(UserItem.is_owner.is_(True)).first()
+        owner = mem_session.exec(
+            select(UserItem).where(UserItem.is_owner.is_(True))
+        ).first()
         assert owner.identity_token_secret is not None
 
 
@@ -224,10 +237,10 @@ class TestUpdateUser:
         mem_session.commit()
         mem_session.refresh(sub)
 
+        _use_cookie(app_client, self._cookie(mem_session, sub))
         resp = app_client.patch(
             f"/api/v1/user-items/{sub.id}",
             json={"name": "New Name"},
-            cookies={"peach_token": self._cookie(mem_session, sub)},
         )
         assert resp.status_code == 403
 
@@ -239,10 +252,10 @@ class TestUpdateUser:
         mem_session.commit()
         mem_session.refresh(sub)
 
+        _use_cookie(app_client, self._cookie(mem_session, sub))
         resp = app_client.patch(
             f"/api/v1/user-items/{sub.id}",
             json={"name": "New Name"},
-            cookies={"peach_token": self._cookie(mem_session, sub)},
         )
         assert resp.status_code == 200, resp.text
         assert resp.json()["name"] == "New Name"
@@ -255,10 +268,10 @@ class TestUpdateUser:
         mem_session.commit()
         mem_session.refresh(sub)
 
+        _use_cookie(app_client, self._cookie(mem_session, sub))
         resp = app_client.post(
             f"/api/v1/user-items/{sub.id}/reset-pin",
             json={"pin": "4321"},
-            cookies={"peach_token": self._cookie(mem_session, sub)},
         )
         assert resp.status_code == 200, resp.text
         refreshed = mem_session.get(UserItem, sub.id)
@@ -286,10 +299,10 @@ class TestUpdateUser:
         mem_session.commit()
         mem_session.refresh(sub)
 
+        _use_cookie(app_client, self._cookie(mem_session, sub))
         resp = app_client.patch(
             f"/api/v1/user-items/{sub.id}",
             json=body,
-            cookies={"peach_token": self._cookie(mem_session, sub)},
         )
         assert resp.status_code == 403
 
@@ -307,10 +320,10 @@ class TestUpdateUser:
         mem_session.refresh(actor)
         mem_session.refresh(other)
 
+        _use_cookie(app_client, self._cookie(mem_session, actor))
         resp = app_client.patch(
             f"/api/v1/user-items/{other.id}",
             json={"is_admin": True},
-            cookies={"peach_token": self._cookie(mem_session, actor)},
         )
         assert resp.status_code == 403
 
@@ -325,10 +338,10 @@ class TestUpdateUser:
         mem_session.commit()
         mem_session.refresh(sub)
 
+        _use_cookie(app_client, self._cookie(mem_session, owner))
         resp = app_client.patch(
             f"/api/v1/user-items/{sub.id}",
             json={"is_admin": True, "can_manage_settings": True, "session_token_ttl": 120},
-            cookies={"peach_token": self._cookie(mem_session, owner)},
         )
         assert resp.status_code == 200, resp.text
 
@@ -347,10 +360,10 @@ class TestUpdateUser:
         mem_session.refresh(admin)
         mem_session.refresh(sub)
 
+        _use_cookie(app_client, self._cookie(mem_session, admin))
         resp = app_client.patch(
             f"/api/v1/user-items/{sub.id}",
             json={"can_manage_controllerMapping": True},
-            cookies={"peach_token": self._cookie(mem_session, admin)},
         )
         # P2.4: can_manage_controllerMapping is a privilege field; only the owner may set it.
         assert resp.status_code == 403
@@ -359,10 +372,10 @@ class TestUpdateUser:
         assert refreshed.can_manage_controllerMapping is False
 
     def test_owner_as_edit_target_is_rejected(self, app_client, mem_session, owner):
+        _use_cookie(app_client, self._cookie(mem_session, owner))
         resp = app_client.patch(
             f"/api/v1/user-items/{owner.id}",
             json={"name": "Renamed"},
-            cookies={"peach_token": self._cookie(mem_session, owner)},
         )
         assert resp.status_code == 403
 
@@ -387,9 +400,9 @@ class TestUnlockSubAccount:
 
         owner_token, _expires_at = issue_session(mem_session, owner)
 
+        _use_cookie(app_client, f"{owner.id}.{owner_token}")
         resp = app_client.post(
             f"/api/v1/user-items/{sub.id}/unlock",
-            cookies={"peach_token": f"{owner.id}.{owner_token}"},
         )
 
         assert resp.status_code == 200
@@ -415,13 +428,15 @@ class TestLogoutAndRefreshSession:
         before = mem_session.get(UserItem, owner.id)
         assert before.session_token_hash is not None
 
-        logout_resp = app_client.post("/api/v1/auth/logout", cookies={"peach_token": cookie})
+        _use_cookie(app_client, cookie)
+        logout_resp = app_client.post("/api/v1/auth/logout")
         assert logout_resp.status_code == 200
 
         after = mem_session.get(UserItem, owner.id)
         assert after.session_token_hash is None
 
-        me_resp = app_client.get("/api/v1/auth/me", cookies={"peach_token": cookie})
+        _use_cookie(app_client, cookie)
+        me_resp = app_client.get("/api/v1/auth/me")
         assert me_resp.status_code == 401
 
     def test_refresh_moves_expiry_forward_and_sets_new_cookie(self, app_client, mem_session):
@@ -442,7 +457,8 @@ class TestLogoutAndRefreshSession:
         before = mem_session.get(UserItem, sub.id).session_token_expires_at
         assert before is not None
 
-        refresh_resp = app_client.post("/api/v1/auth/refresh", cookies={"peach_token": cookie})
+        _use_cookie(app_client, cookie)
+        refresh_resp = app_client.post("/api/v1/auth/refresh")
         assert refresh_resp.status_code == 200
         assert "peach_token" in refresh_resp.cookies
 
@@ -465,7 +481,8 @@ class TestLogoutAndRefreshSession:
         mem_session.add(row)
         mem_session.commit()
 
-        resp = app_client.post("/api/v1/auth/refresh", cookies={"peach_token": cookie})
+        _use_cookie(app_client, cookie)
+        resp = app_client.post("/api/v1/auth/refresh")
 
         assert resp.status_code == 401
 

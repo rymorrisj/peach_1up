@@ -87,7 +87,8 @@ class TestGetActiveUser:
         user = make_user(name="Alice")
         cookie = make_session(user)
 
-        resp = app_client.get("/whoami", cookies={"peach_token": cookie})
+        app_client.cookies.set("peach_token", cookie)
+        resp = app_client.get("/whoami")
 
         assert resp.status_code == 200
         assert resp.json() == {"id": user.id, "name": "Alice"}
@@ -97,11 +98,13 @@ class TestGetActiveUser:
         assert resp.status_code == 401
 
     def test_malformed_cookie_no_separator_returns_401(self, app_client):
-        resp = app_client.get("/whoami", cookies={"peach_token": "no-dot-here"})
+        app_client.cookies.set("peach_token", "no-dot-here")
+        resp = app_client.get("/whoami")
         assert resp.status_code == 401
 
     def test_malformed_cookie_non_digit_user_id_returns_401(self, app_client):
-        resp = app_client.get("/whoami", cookies={"peach_token": "abc.sometoken"})
+        app_client.cookies.set("peach_token", "abc.sometoken")
+        resp = app_client.get("/whoami")
         assert resp.status_code == 401
 
     def test_logged_out_session_returns_401(self, app_client, mem_session, make_user, make_session):
@@ -111,7 +114,8 @@ class TestGetActiveUser:
         cookie = make_session(user)
         clear_session(mem_session, user)
 
-        resp = app_client.get("/whoami", cookies={"peach_token": cookie})
+        app_client.cookies.set("peach_token", cookie)
+        resp = app_client.get("/whoami")
         assert resp.status_code == 401
 
     def test_expired_session_returns_401(self, app_client, mem_session, make_user):
@@ -123,7 +127,8 @@ class TestGetActiveUser:
         mem_session.add(user)
         mem_session.commit()
 
-        resp = app_client.get("/whoami", cookies={"peach_token": f"{user.id}.some-token"})
+        app_client.cookies.set("peach_token", f"{user.id}.some-token")
+        resp = app_client.get("/whoami")
         assert resp.status_code == 401
 
     def test_invalid_session_does_not_fall_back_to_owner(self, app_client, make_user):
@@ -134,7 +139,8 @@ class TestGetActiveUser:
         make_user(name="Owner1", is_owner=True)
         make_user(name="Owner2", is_owner=True)
 
-        resp = app_client.get("/whoami", cookies={"peach_token": "999.bogus-token"})
+        app_client.cookies.set("peach_token", "999.bogus-token")
+        resp = app_client.get("/whoami")
         assert resp.status_code == 401
 
 
@@ -143,21 +149,24 @@ class TestRequirePermission:
         user = make_user(name="Editor", can_manage_game=True)
         cookie = make_session(user)
 
-        resp = app_client.get("/needs-flag", cookies={"peach_token": cookie})
+        app_client.cookies.set("peach_token", cookie)
+        resp = app_client.get("/needs-flag")
         assert resp.status_code == 200
 
     def test_raises_403_when_flag_false(self, app_client, make_user, make_session):
         user = make_user(name="ReadOnly", can_manage_game=False)
         cookie = make_session(user)
 
-        resp = app_client.get("/needs-flag", cookies={"peach_token": cookie})
+        app_client.cookies.set("peach_token", cookie)
+        resp = app_client.get("/needs-flag")
         assert resp.status_code == 403
 
     def test_owner_bypasses_flag(self, app_client, make_user, make_session):
         user = make_user(name="Owner", is_owner=True, can_manage_game=False)
         cookie = make_session(user)
 
-        resp = app_client.get("/needs-flag", cookies={"peach_token": cookie})
+        app_client.cookies.set("peach_token", cookie)
+        resp = app_client.get("/needs-flag")
         assert resp.status_code == 200
 
 
@@ -166,7 +175,8 @@ class TestRequireSelfOrAdmin:
         user = make_user(name="Self")
         cookie = make_session(user)
 
-        resp = app_client.get(f"/users/{user.id}/private", cookies={"peach_token": cookie})
+        app_client.cookies.set("peach_token", cookie)
+        resp = app_client.get(f"/users/{user.id}/private")
         assert resp.status_code == 200
 
     def test_admin_can_access_any_resource(self, app_client, make_user, make_session):
@@ -174,7 +184,8 @@ class TestRequireSelfOrAdmin:
         other = make_user(name="Other")
         cookie = make_session(admin)
 
-        resp = app_client.get(f"/users/{other.id}/private", cookies={"peach_token": cookie})
+        app_client.cookies.set("peach_token", cookie)
+        resp = app_client.get(f"/users/{other.id}/private")
         assert resp.status_code == 200
 
     def test_non_admin_cannot_access_other_users_resource(self, app_client, make_user, make_session):
@@ -182,5 +193,6 @@ class TestRequireSelfOrAdmin:
         other = make_user(name="Other")
         cookie = make_session(user)
 
-        resp = app_client.get(f"/users/{other.id}/private", cookies={"peach_token": cookie})
+        app_client.cookies.set("peach_token", cookie)
+        resp = app_client.get(f"/users/{other.id}/private")
         assert resp.status_code == 403

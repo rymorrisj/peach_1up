@@ -133,6 +133,13 @@ class TestCSRFMiddleware:
         app = _make_app()
         return TestClient(_with_client_ip(app, "127.0.0.1"), raise_server_exceptions=False)
 
+    def _client_with_cookies(self, cookies):
+        # A fresh client per call, so the cookies cannot leak into a later request.
+        client = self._client()
+        for name, value in cookies.items():
+            client.cookies.set(name, value)
+        return client
+
     def test_get_request_skips_csrf_check(self):
         resp = self._client().get("/api/v1/ping")
         assert resp.status_code == 200
@@ -150,32 +157,28 @@ class TestCSRFMiddleware:
         assert resp.status_code != 403
 
     def test_csrf_cookie_matches_header_is_allowed(self):
-        resp = self._client().post(
+        resp = self._client_with_cookies({"peach_token": "1.sometoken", "peach_csrf": "abc123"}).post(
             "/api/v1/library/items",
-            cookies={"peach_token": "1.sometoken", "peach_csrf": "abc123"},
             headers={"X-CSRF-Token": "abc123"},
         )
         assert resp.status_code != 403
 
     def test_csrf_cookie_mismatch_header_is_rejected(self):
-        resp = self._client().post(
+        resp = self._client_with_cookies({"peach_token": "1.sometoken", "peach_csrf": "abc123"}).post(
             "/api/v1/library/items",
-            cookies={"peach_token": "1.sometoken", "peach_csrf": "abc123"},
             headers={"X-CSRF-Token": "WRONG"},
         )
         assert resp.status_code == 403
 
     def test_csrf_cookie_present_but_header_absent_is_rejected(self):
-        resp = self._client().post(
+        resp = self._client_with_cookies({"peach_token": "1.sometoken", "peach_csrf": "abc123"}).post(
             "/api/v1/library/items",
-            cookies={"peach_token": "1.sometoken", "peach_csrf": "abc123"},
         )
         assert resp.status_code == 403
 
     def test_empty_csrf_cookie_with_session_is_rejected(self):
-        resp = self._client().post(
+        resp = self._client_with_cookies({"peach_token": "1.sometoken", "peach_csrf": ""}).post(
             "/api/v1/library/items",
-            cookies={"peach_token": "1.sometoken", "peach_csrf": ""},
             headers={"X-CSRF-Token": ""},
         )
         assert resp.status_code == 403
