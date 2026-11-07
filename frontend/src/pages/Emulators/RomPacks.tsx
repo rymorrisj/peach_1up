@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/api/client';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import EmptyState from '@/components/common/EmptyState';
+import ErrorState from '@/components/common/ErrorState';
 import { Button } from '@/ui';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import { StatusDot, GuidanceNote } from './components/EmulatorDetailPrimitives';
@@ -122,9 +123,11 @@ function RomPackRow({ entry, isLast }: { entry: CatalogEntry; isLast: boolean })
 // CloneRomPackButton/GuidanceNote components need, the backend derives both
 // endpoints from the same catalog, so every paginated slug always resolves.
 export default function RomPacks() {
+  const queryClient = useQueryClient();
   const {
     items: romPackItems,
     isLoading: isRomPacksLoading,
+    isError: isRomPacksError,
     page,
     pageCount,
     hasPrevPage,
@@ -133,7 +136,11 @@ export default function RomPacks() {
     nextPage,
   } = usePaginatedList<RomPackItem>({ path: '/api/v1/emulator-items/rom-packs' });
 
-  const { data: catalog = [], isLoading: isCatalogLoading } = useQuery<CatalogEntry[]>({
+  const {
+    data: catalog = [],
+    isLoading: isCatalogLoading,
+    isError: isCatalogError,
+  } = useQuery<CatalogEntry[]>({
     queryKey: ['emulators-catalog'],
     queryFn: () => apiFetch<CatalogEntry[]>('/api/v1/emulator-items'),
     staleTime: 10_000,
@@ -142,6 +149,14 @@ export default function RomPacks() {
   // Both sources must be loaded before rendering, romPacks below depends on
   // cross-referencing the two, so a partial load must not show an empty state.
   const isLoading = isRomPacksLoading || isCatalogLoading;
+  const isError = isRomPacksError || isCatalogError;
+
+  function retry() {
+    queryClient.invalidateQueries({
+      queryKey: ['paginated-list', '/api/v1/emulator-items/rom-packs'],
+    });
+    queryClient.invalidateQueries({ queryKey: ['emulators-catalog'] });
+  }
 
   const romPacks = romPackItems
     .map((item) => catalog.find((c) => c.slug === item.slug))
@@ -154,6 +169,12 @@ export default function RomPacks() {
           <LoadingSpinner label="Loading ROM packs…" />
           <span aria-hidden="true">Loading ROM packs…</span>
         </div>
+      ) : isError ? (
+        <ErrorState
+          heading="Could not load ROM packs"
+          subtext="The request failed. Check that the server is running and try again."
+          onRetry={retry}
+        />
       ) : romPacks.length === 0 ? (
         <EmptyState
           heading="No ROM packs"

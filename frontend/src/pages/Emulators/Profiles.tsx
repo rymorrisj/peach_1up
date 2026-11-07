@@ -4,6 +4,7 @@ import { apiFetch, ApiError } from '@/api/client';
 import { Button } from '@/ui';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import EmptyState from '@/components/common/EmptyState';
+import ErrorState from '@/components/common/ErrorState';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useConfirm } from '@/hooks/useConfirm';
 import { useToast } from '@/ui/ToastProvider';
@@ -52,6 +53,7 @@ export default function Profiles() {
   const {
     items: profiles,
     isLoading,
+    isError,
     page,
     pageCount,
     hasPrevPage,
@@ -199,6 +201,12 @@ export default function Profiles() {
           <LoadingSpinner label="Loading launch profiles…" />
           <span aria-hidden="true">Loading launch profiles…</span>
         </div>
+      ) : isError ? (
+        <ErrorState
+          heading="Could not load launch profiles"
+          subtext="The request failed. Check that the server is running and try again."
+          onRetry={invalidateProfiles}
+        />
       ) : profiles.length === 0 ? (
         <EmptyState
           heading="No launch profiles"

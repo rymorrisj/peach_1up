@@ -1,5 +1,7 @@
+import { useQueryClient } from '@tanstack/react-query';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import EmptyState from '@/components/common/EmptyState';
+import ErrorState from '@/components/common/ErrorState';
 import { Button } from '@/ui';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import { StatusDot, GuidanceNote } from './components/EmulatorDetailPrimitives';
@@ -9,9 +11,11 @@ type BiosItem = components['schemas']['BiosItem'];
 
 // GET /api/v1/bios returns Page[BiosItem] (dev_docs/v2/08, Task 3).
 export default function Bios() {
+  const queryClient = useQueryClient();
   const {
     items: bios,
     isLoading,
+    isError,
     page,
     pageCount,
     hasPrevPage,
@@ -27,6 +31,14 @@ export default function Bios() {
           <LoadingSpinner label="Loading BIOS requirements…" />
           <span aria-hidden="true">Loading BIOS requirements…</span>
         </div>
+      ) : isError ? (
+        <ErrorState
+          heading="Could not load BIOS requirements"
+          subtext="The request failed. Check that the server is running and try again."
+          onRetry={() =>
+            queryClient.invalidateQueries({ queryKey: ['paginated-list', '/api/v1/bios'] })
+          }
+        />
       ) : bios.length === 0 ? (
         <EmptyState
           heading="No BIOS requirements"
