@@ -61,6 +61,9 @@ frontend/dist/
 frontend/node_modules/
 frontend/src/api/generated/
 
+# Installers
+installer/Peach1UP-Setup.exe
+
 # Logs
 *.log
 logs/
