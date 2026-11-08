@@ -2,10 +2,31 @@ import React from 'react';
 import { render } from '@testing-library/react';
 import type { RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AppProvider } from '@/context/AppContext';
+import { AppContext, appReducer, initialState } from '@/context/_AppContext';
 import { ToastProvider } from '@/ui/ToastProvider';
 import type { components } from '@shared/types';
 type LibraryCollection = components['schemas']['GameItemBundleRead'];
+type SessionUser = components['schemas']['SessionUserRead'];
+
+export const TEST_USER: SessionUser = {
+  id: 1,
+  name: 'Test User',
+  is_owner: false,
+  pin_required: false,
+  can_launch_media: true,
+  can_manage_environment: false,
+  can_manage_game: false,
+  can_manage_media: false,
+  can_manage_app: false,
+  can_manage_controllerMapping: false,
+  can_manage_settings: false,
+  can_manage_users: false,
+  is_admin: false,
+  block_unrated_media: false,
+  is_locked: false,
+  failed_pin_attempts: 0,
+  is_host: false,
+};
 
 function createTestQueryClient() {
   return new QueryClient({
@@ -16,13 +37,37 @@ function createTestQueryClient() {
   });
 }
 
-export function renderWithProviders(ui: React.ReactElement): RenderResult {
+// Supplies the app context directly so no test depends on a real /auth/me call.
+function TestAppProvider({
+  activeUser,
+  children,
+}: {
+  activeUser: SessionUser | null;
+  children: React.ReactNode;
+}) {
+  const [state, dispatch] = React.useReducer(appReducer, {
+    ...initialState,
+    activeUser,
+    authChecked: true,
+  });
+  return React.createElement(AppContext.Provider, { value: { state, dispatch } }, children);
+}
+
+// activeUser defaults to a signed-in TEST_USER. Pass null to render signed out.
+export function renderWithProviders(
+  ui: React.ReactElement,
+  { activeUser = TEST_USER }: { activeUser?: SessionUser | null } = {},
+): RenderResult {
   const queryClient = createTestQueryClient();
   return render(
     React.createElement(
       QueryClientProvider,
       { client: queryClient },
-      React.createElement(ToastProvider, null, React.createElement(AppProvider, null, ui)),
+      React.createElement(
+        ToastProvider,
+        null,
+        React.createElement(TestAppProvider, { activeUser }, ui),
+      ),
     ),
   );
 }
