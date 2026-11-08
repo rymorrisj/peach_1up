@@ -48,6 +48,21 @@ quietly vanishing along with the old source documents.
 | xemu relaunch crash | `0xc0000409` in `msvcrt.dll` on any launch with system files configured. Confirmed upstream (xemu-project/xemu#1486), cross-vendor GPU. The workaround is disabling Control Flow Guard for `xemu.exe`. No code fix is possible on our end. |
 | Aspect/resolution detection | Some platforms launch at default or native settings and end up with broken graphics. |
 
+### 2026-11-07, audit fixes: rating guard, authenticated /media, fail-loud UI, httpx2
+
+Fixes from the October audit that change behavior or correct an earlier claim in this log.
+
+| Change | Detail |
+|---|---|
+| Bundle rating guard | `PATCH /game-item-bundle/{id}` now normalizes `content_rating` and requires `?confirm_rating_change=true` to lower or clear a rating or change its scheme (409 otherwise), the same rule enrich uses. The caller's visibility filter runs first, so a hidden or restricted bundle returns the same 404 as a missing one. Before this, a sub-account with `can_manage_game` could clear a rating and unhide content. Setting a rating on an unrated item still needs no confirmation, which is an open owner decision. |
+| Authenticated `/media` | `/media/{path}` requires a valid session and returns 401 without one. This corrects the 2026-05-29 entry, which described the route as authenticated when it only enforced the localhost gate. There is still no per-item visibility filtering on it. |
+| Known limitation | The game edit form sends `content_rating` on every save with no confirm step, so lowering or clearing a rating from that form now fails with a 409 until a confirm dialog is added. |
+| Launch poll | The poll no longer gives up after one hour, so a long play session keeps its Stop button. It now ends when the process ends, the user stops it, the component unmounts, or 5 consecutive status requests fail, which shows an error. |
+| Session loss | A failed `/auth/me` logs the user out only on a 401. A network error or 5xx shows a "Cannot reach the server" screen with Retry and keeps the session. |
+| Failed fetches | BIOS, Profiles, ROM Packs and the first-run check show an error with Retry when the fetch fails, instead of the empty state or loading the app. |
+
+httpx2 is the HTTP client going forward, because httpx is no longer actively maintained and is deprecated by packages used by FastAPI. It is a Pydantic-maintained fork with the same API. All backend HTTP calls and tests use it, and httpx is no longer installed. On Windows, TLS verification now uses the OS certificate store (truststore) instead of certifi, so a root certificate installed on the machine, such as one from antivirus TLS inspection, is now trusted. The default User-Agent on outbound calls is now `python-httpx2/<version>`.
+
 ### 2026-08-22, formatscout/wincage migrated to pip-installed dependencies
 
 Supersedes the note below about `formatscout` and `wincage` being consumed as local
