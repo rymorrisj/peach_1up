@@ -188,7 +188,7 @@ class TestImportFromPath:
 
     def test_permitted_user_succeeds(self, client):
         """import-from-path always finalizes as a background job now (see
-        service.games.path_import.import_background); TestClient/httpx's
+        service.games.path_import.import_background); TestClient/httpx2's
         ASGI transport runs BackgroundTasks to completion as part of the same
         request/response cycle, so the job is already 'done' by the time
         this polls it, same pattern as test_upload.py's _upload helper."""

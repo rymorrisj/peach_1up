@@ -14,7 +14,7 @@ from __future__ import annotations
 import ipaddress
 from pathlib import Path
 
-import httpx
+import httpx2
 from fastapi import HTTPException
 
 _TIMEOUT = 15.0
@@ -32,7 +32,7 @@ def _is_forbidden_redirect_host(host: str) -> bool:
     """Return True if the host is a private/internal address that should not be reached."""
     if host.lower() == "localhost":
         return True
-    # httpx.URL.host strips brackets from IPv6 literals, so ip_address() can parse directly
+    # httpx2.URL.host strips brackets from IPv6 literals, so ip_address() can parse directly
     try:
         addr = ipaddress.ip_address(host)
         return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved
@@ -73,11 +73,11 @@ def download_remote_image(
     except ValueError:
         raise HTTPException(status_code=422, detail="Resolved asset destination is outside LIBRARY_PATH.")
 
-    with httpx.Client(timeout=_TIMEOUT, follow_redirects=True) as client:
+    with httpx2.Client(timeout=_TIMEOUT, follow_redirects=True) as client:
         with client.stream("GET", url) as resp:
             try:
                 resp.raise_for_status()
-            except httpx.HTTPStatusError as e:
+            except httpx2.HTTPStatusError as e:
                 raise HTTPException(status_code=502, detail=f"Asset fetch failed: {e}")
 
             # Re-validate the final URL after redirects, scheme and host may differ from the original

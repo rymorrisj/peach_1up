@@ -2,14 +2,14 @@
 
 Each function reads the API key fresh from .env at call time.
 Raises ValueError if the key is not configured.
-Raises httpx.HTTPStatusError on non-2xx responses.
-Raises httpx.TimeoutException on timeout.
+Raises httpx2.HTTPStatusError on non-2xx responses.
+Raises httpx2.TimeoutException on timeout.
 No caching, no retries, no rate-limit tracking.
 """
 
 from __future__ import annotations
 
-import httpx
+import httpx2
 
 _BASE_V1 = "https://api.thegamesdb.net/v1"
 _BASE_V1_1 = "https://api.thegamesdb.net/v1.1"
@@ -37,11 +37,11 @@ def search_games(name: str) -> dict:
 
     Raises:
         ValueError: If THEGAMESDB_API_KEY is not configured.
-        httpx.HTTPStatusError: On non-2xx response.
-        httpx.TimeoutException: On request timeout.
+        httpx2.HTTPStatusError: On non-2xx response.
+        httpx2.TimeoutException: On request timeout.
     """
     key = _api_key()
-    response = httpx.get(
+    response = httpx2.get(
         f"{_BASE_V1_1}/Games/ByGameName",
         params={"apikey": key, "name": name},
         timeout=_TIMEOUT,
@@ -60,11 +60,11 @@ def get_game_images(game_id: int) -> dict:
 
     Raises:
         ValueError: If THEGAMESDB_API_KEY is not configured.
-        httpx.HTTPStatusError: On non-2xx response.
-        httpx.TimeoutException: On request timeout.
+        httpx2.HTTPStatusError: On non-2xx response.
+        httpx2.TimeoutException: On request timeout.
     """
     key = _api_key()
-    response = httpx.get(
+    response = httpx2.get(
         f"{_BASE_V1}/Games/Images",
         params={"apikey": key, "games_id": game_id},
         timeout=_TIMEOUT,
@@ -82,11 +82,11 @@ def get_genres() -> dict:
 
     Raises:
         ValueError: If THEGAMESDB_API_KEY is not configured.
-        httpx.HTTPStatusError: On non-2xx response.
-        httpx.TimeoutException: On request timeout.
+        httpx2.HTTPStatusError: On non-2xx response.
+        httpx2.TimeoutException: On request timeout.
     """
     key = _api_key()
-    response = httpx.get(
+    response = httpx2.get(
         f"{_BASE_V1}/Genres",
         params={"apikey": key},
         timeout=_TIMEOUT,
@@ -102,11 +102,11 @@ def get_developers() -> dict:
 
     Raises:
         ValueError: If THEGAMESDB_API_KEY is not configured.
-        httpx.HTTPStatusError: On non-2xx response.
-        httpx.TimeoutException: On request timeout.
+        httpx2.HTTPStatusError: On non-2xx response.
+        httpx2.TimeoutException: On request timeout.
     """
     key = _api_key()
-    response = httpx.get(
+    response = httpx2.get(
         f"{_BASE_V1}/Developers",
         params={"apikey": key},
         timeout=_TIMEOUT,
@@ -122,11 +122,11 @@ def get_publishers() -> dict:
 
     Raises:
         ValueError: If THEGAMESDB_API_KEY is not configured.
-        httpx.HTTPStatusError: On non-2xx response.
-        httpx.TimeoutException: On request timeout.
+        httpx2.HTTPStatusError: On non-2xx response.
+        httpx2.TimeoutException: On request timeout.
     """
     key = _api_key()
-    response = httpx.get(
+    response = httpx2.get(
         f"{_BASE_V1}/Publishers",
         params={"apikey": key},
         timeout=_TIMEOUT,
@@ -149,11 +149,11 @@ def get_game_details(game_id: int) -> dict:
 
     Raises:
         ValueError: If THEGAMESDB_API_KEY is not configured.
-        httpx.HTTPStatusError: On non-2xx response.
-        httpx.TimeoutException: On request timeout.
+        httpx2.HTTPStatusError: On non-2xx response.
+        httpx2.TimeoutException: On request timeout.
     """
     key = _api_key()
-    response = httpx.get(
+    response = httpx2.get(
         f"{_BASE_V1}/Games/ByGameID",
         params={
             "apikey": key,

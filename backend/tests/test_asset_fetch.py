@@ -10,7 +10,7 @@ All asset downloads call into them.
 """
 from unittest.mock import MagicMock
 
-import httpx as real_httpx
+import httpx2
 import pytest
 
 
@@ -56,7 +56,7 @@ class TestIsForbiddenRedirectHost:
 # ---------------------------------------------------------------------------
 
 
-def _make_mock_httpx(
+def _make_mock_httpx2(
     *,
     url_scheme: str = "https",
     url_host: str = "cdn.example.com",
@@ -64,10 +64,10 @@ def _make_mock_httpx(
     body_chunks: list[bytes] | None = None,
     raise_for_status_exc=None,
 ) -> MagicMock:
-    """Return a MagicMock suitable for monkeypatching asset_fetch_mod.httpx.
+    """Return a MagicMock suitable for monkeypatching asset_fetch_mod.httpx2.
 
     Preserves the real HTTPStatusError class so that
-    `except httpx.HTTPStatusError` in download_remote_image still works.
+    `except httpx2.HTTPStatusError` in download_remote_image still works.
     """
     if body_chunks is None:
         body_chunks = [b"fake-image-data"]
@@ -97,12 +97,12 @@ def _make_mock_httpx(
     client_ctx.__enter__ = MagicMock(return_value=mock_client)
     client_ctx.__exit__ = MagicMock(return_value=False)
 
-    mock_httpx = MagicMock()
-    mock_httpx.Client = MagicMock(return_value=client_ctx)
-    # Preserve the real exception class so `except httpx.HTTPStatusError` still works
-    mock_httpx.HTTPStatusError = real_httpx.HTTPStatusError
+    mock_httpx2 = MagicMock()
+    mock_httpx2.Client = MagicMock(return_value=client_ctx)
+    # Preserve the real exception class so `except httpx2.HTTPStatusError` still works
+    mock_httpx2.HTTPStatusError = httpx2.HTTPStatusError
 
-    return mock_httpx
+    return mock_httpx2
 
 
 @pytest.fixture
@@ -153,11 +153,11 @@ class TestDownloadRemoteImage:
         import backend.service.utils.asset_fetch as asset_fetch_mod
         from fastapi import HTTPException
 
-        exc = real_httpx.HTTPStatusError(
+        exc = httpx2.HTTPStatusError(
             "404 Not Found", request=MagicMock(), response=MagicMock()
         )
-        mock_httpx = _make_mock_httpx(raise_for_status_exc=exc)
-        monkeypatch.setattr(asset_fetch_mod, "httpx", mock_httpx)
+        mock_httpx2 = _make_mock_httpx2(raise_for_status_exc=exc)
+        monkeypatch.setattr(asset_fetch_mod, "httpx2", mock_httpx2)
 
         with pytest.raises(HTTPException) as exc_info:
             asset_fetch_mod.download_remote_image("https://cdn.example.com/art.jpg", tmp_lib)
@@ -167,8 +167,8 @@ class TestDownloadRemoteImage:
         import backend.service.utils.asset_fetch as asset_fetch_mod
         from fastapi import HTTPException
 
-        mock_httpx = _make_mock_httpx(url_scheme="http")
-        monkeypatch.setattr(asset_fetch_mod, "httpx", mock_httpx)
+        mock_httpx2 = _make_mock_httpx2(url_scheme="http")
+        monkeypatch.setattr(asset_fetch_mod, "httpx2", mock_httpx2)
 
         with pytest.raises(HTTPException) as exc_info:
             asset_fetch_mod.download_remote_image("https://cdn.example.com/art.jpg", tmp_lib)
@@ -179,8 +179,8 @@ class TestDownloadRemoteImage:
         import backend.service.utils.asset_fetch as asset_fetch_mod
         from fastapi import HTTPException
 
-        mock_httpx = _make_mock_httpx(url_scheme="https", url_host="192.168.1.10")
-        monkeypatch.setattr(asset_fetch_mod, "httpx", mock_httpx)
+        mock_httpx2 = _make_mock_httpx2(url_scheme="https", url_host="192.168.1.10")
+        monkeypatch.setattr(asset_fetch_mod, "httpx2", mock_httpx2)
 
         with pytest.raises(HTTPException) as exc_info:
             asset_fetch_mod.download_remote_image("https://cdn.example.com/art.jpg", tmp_lib)
@@ -190,8 +190,8 @@ class TestDownloadRemoteImage:
         import backend.service.utils.asset_fetch as asset_fetch_mod
         from fastapi import HTTPException
 
-        mock_httpx = _make_mock_httpx(content_type="application/octet-stream")
-        monkeypatch.setattr(asset_fetch_mod, "httpx", mock_httpx)
+        mock_httpx2 = _make_mock_httpx2(content_type="application/octet-stream")
+        monkeypatch.setattr(asset_fetch_mod, "httpx2", mock_httpx2)
 
         with pytest.raises(HTTPException) as exc_info:
             asset_fetch_mod.download_remote_image("https://cdn.example.com/art.jpg", tmp_lib)
@@ -205,8 +205,8 @@ class TestDownloadRemoteImage:
 
         # 21 chunks of 1 MB each → 21 MB, exceeding the default 20 MB cap
         chunk = b"x" * (1024 * 1024)
-        mock_httpx = _make_mock_httpx(body_chunks=[chunk] * 21)
-        monkeypatch.setattr(asset_fetch_mod, "httpx", mock_httpx)
+        mock_httpx2 = _make_mock_httpx2(body_chunks=[chunk] * 21)
+        monkeypatch.setattr(asset_fetch_mod, "httpx2", mock_httpx2)
 
         with pytest.raises(HTTPException) as exc_info:
             asset_fetch_mod.download_remote_image("https://cdn.example.com/art.jpg", tmp_lib)
@@ -217,8 +217,8 @@ class TestDownloadRemoteImage:
         import backend.service.utils.asset_fetch as asset_fetch_mod
 
         image_data = b"\xff\xd8\xff"  # minimal JPEG header
-        mock_httpx = _make_mock_httpx(content_type="image/jpeg", body_chunks=[image_data])
-        monkeypatch.setattr(asset_fetch_mod, "httpx", mock_httpx)
+        mock_httpx2 = _make_mock_httpx2(content_type="image/jpeg", body_chunks=[image_data])
+        monkeypatch.setattr(asset_fetch_mod, "httpx2", mock_httpx2)
 
         result = asset_fetch_mod.download_remote_image("https://cdn.example.com/art.jpg", tmp_lib)
 
@@ -234,8 +234,8 @@ class TestDownloadRemoteImage:
         import backend.service.utils.asset_fetch as asset_fetch_mod
 
         image_data = b"\xff\xd8\xff"
-        mock_httpx = _make_mock_httpx(content_type="image/jpeg", body_chunks=[image_data])
-        monkeypatch.setattr(asset_fetch_mod, "httpx", mock_httpx)
+        mock_httpx2 = _make_mock_httpx2(content_type="image/jpeg", body_chunks=[image_data])
+        monkeypatch.setattr(asset_fetch_mod, "httpx2", mock_httpx2)
 
         result = asset_fetch_mod.download_remote_image(
             "https://cdn.example.com/art.jpg", tmp_lib, filename_stem="boxart_front",

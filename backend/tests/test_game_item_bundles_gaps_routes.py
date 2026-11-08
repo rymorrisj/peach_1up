@@ -322,7 +322,7 @@ class TestPerLeafPatch:
 # the pre-flight DB-row walk that used to run synchronously in the route and
 # block the response. It now runs inside _run_scan (the background task)
 # instead. Exercised as a direct function call rather than over TestClient,
-# TestClient/httpx's ASGI transport runs BackgroundTasks to completion as
+# TestClient/httpx2's ASGI transport runs BackgroundTasks to completion as
 # part of the same request/response cycle, which would hide the very
 # ordering this test needs to observe.
 # ---------------------------------------------------------------------------

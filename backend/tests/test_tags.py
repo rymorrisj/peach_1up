@@ -5,7 +5,7 @@ _ASSIGNMENT_TARGETS, and that controller_mapping assignments reuse
 check_controller_edit_permission (backend/api/routes/controllers.py) rather
 than duplicating it. test_controllers.py holds that permission matrix.
 
-httpx's TestClient.delete() has no json/content parameter (DELETE-with-body is
+httpx2's TestClient.delete() has no json/content parameter (DELETE-with-body is
 non-standard), so every delete_tag_assignment call below uses
 c.request("DELETE", url, json=...) instead of c.delete(url, json=...).
 """

@@ -226,7 +226,7 @@ class TestSoftwareUploadRoute:
         """Run the full init → PUT chunk → complete flow, then resolve the
         background finalize job to its terminal state and return that GET
         /api/v1/jobs/{id} response. Every upload finalizes as a background
-        job now (no inline path), but TestClient/httpx's ASGI transport runs
+        job now (no inline path), but TestClient/httpx2's ASGI transport runs
         BackgroundTasks to completion as part of the same request/response
         cycle (no real async boundary/thread), so the job is already
         terminal ("done" or "error") by the time /complete responds, this

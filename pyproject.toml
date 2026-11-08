@@ -14,7 +14,6 @@ dependencies = [
     "bcrypt>=4.0.0",
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",
-    "httpx>=0.27.0",
     "itsdangerous>=2.0.0",
     "argon2-cffi>=23.1.0",
     "pillow>=10.0.0",
@@ -23,6 +22,7 @@ dependencies = [
     "pycdlib>=1.14.0",
     "formatscout>=0.1.0",
     "wincage>=0.1.0",
+    "httpx2>=2.16.0",
 ]
 
 # Not distributed via PyPI or installed as an importable package (the app is
@@ -33,7 +33,11 @@ dependencies = [
 package = false
 
 [dependency-groups]
-dev = ["pytest==9.1.1", "pytest-cov==7.1.0", "ruff==0.16.1"]
+dev = [
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "ruff==0.16.1",
+]
 build = ["pyinstaller>=6.0.0"]
 
 [tool.ruff]

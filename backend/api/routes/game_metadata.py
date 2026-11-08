@@ -64,7 +64,7 @@ def search_metadata(
 ):
     _enforce_rate_limit("library-metadata", request, _METADATA_RATE_LIMIT, _METADATA_RATE_WINDOW_SECONDS)
 
-    import httpx
+    import httpx2
     from backend.service.metadata_providers import get_active_provider
 
     try:
@@ -74,12 +74,12 @@ def search_metadata(
         raise HTTPException(status_code=503, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
-    except httpx.HTTPStatusError as exc:
+    except httpx2.HTTPStatusError as exc:
         raise HTTPException(
             status_code=502,
             detail=f"Metadata provider API error: {exc.response.status_code}",
         )
-    except httpx.TimeoutException:
+    except httpx2.TimeoutException:
         raise HTTPException(status_code=504, detail="Metadata provider API request timed out.")
 
     return {
@@ -99,7 +99,7 @@ def get_metadata_details(
 ):
     _enforce_rate_limit("library-metadata", request, _METADATA_RATE_LIMIT, _METADATA_RATE_WINDOW_SECONDS)
 
-    import httpx
+    import httpx2
     from backend.service.metadata_providers import get_active_provider
 
     try:
@@ -109,12 +109,12 @@ def get_metadata_details(
         raise HTTPException(status_code=503, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
-    except httpx.HTTPStatusError as exc:
+    except httpx2.HTTPStatusError as exc:
         raise HTTPException(
             status_code=502,
             detail=f"Metadata provider API error: {exc.response.status_code}",
         )
-    except httpx.TimeoutException:
+    except httpx2.TimeoutException:
         raise HTTPException(status_code=504, detail="Metadata provider API request timed out.")
 
     return {

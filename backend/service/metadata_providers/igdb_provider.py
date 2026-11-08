@@ -19,7 +19,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-import httpx
+import httpx2
 
 from backend.models.metadata_lookup import get_or_create_developer, get_or_create_genre, get_or_create_publisher
 from backend.service.metadata_providers import GameDetails, MetadataAsset, SearchResult
@@ -53,7 +53,7 @@ def _client_credentials() -> tuple[str, str]:
 def _fetch_new_token() -> tuple[str, float]:
     """POST to Twitch's client-credentials endpoint. Returns (access_token, expires_at_epoch)."""
     client_id, client_secret = _client_credentials()
-    response = httpx.post(
+    response = httpx2.post(
         _TWITCH_TOKEN_URL,
         params={
             "client_id": client_id,
@@ -101,10 +101,10 @@ def _post(path: str, body: str) -> list[dict]:
     """POST an Apicalypse query to IGDB, retrying once on 401 with a forced token refresh."""
     client_id, _ = _client_credentials()
     headers = {"Client-ID": client_id, "Authorization": f"Bearer {_get_valid_token()}"}
-    response = httpx.post(f"{_IGDB_BASE_URL}/{path}", headers=headers, content=body, timeout=_TIMEOUT)
+    response = httpx2.post(f"{_IGDB_BASE_URL}/{path}", headers=headers, content=body, timeout=_TIMEOUT)
     if response.status_code == 401:
         headers["Authorization"] = f"Bearer {_get_valid_token(force_refresh=True)}"
-        response = httpx.post(f"{_IGDB_BASE_URL}/{path}", headers=headers, content=body, timeout=_TIMEOUT)
+        response = httpx2.post(f"{_IGDB_BASE_URL}/{path}", headers=headers, content=body, timeout=_TIMEOUT)
     response.raise_for_status()
     return response.json()
 

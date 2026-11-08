@@ -33,7 +33,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-import httpx
+import httpx2
 
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import ensure_portable_mode, get_emulator
@@ -83,7 +83,7 @@ def _fetch_manifest() -> dict:
     Raises:
         RuntimeError: On any non-2xx response or invalid JSON.
     """
-    with httpx.Client(timeout=_MANIFEST_TIMEOUT, follow_redirects=True) as client:
+    with httpx2.Client(timeout=_MANIFEST_TIMEOUT, follow_redirects=True) as client:
         resp = client.get(_MANIFEST_URL, headers=_HTTP_HEADERS)
     if resp.status_code != 200:
         raise RuntimeError(
@@ -120,7 +120,7 @@ def _download_asset(download_url: str, dest: Path) -> None:
     Raises:
         RuntimeError: On any non-2xx response.
     """
-    with httpx.Client(timeout=_DOWNLOAD_TIMEOUT, follow_redirects=True) as client:
+    with httpx2.Client(timeout=_DOWNLOAD_TIMEOUT, follow_redirects=True) as client:
         with client.stream("GET", download_url, headers=_HTTP_HEADERS) as resp:
             if resp.status_code != 200:
                 raise RuntimeError(
