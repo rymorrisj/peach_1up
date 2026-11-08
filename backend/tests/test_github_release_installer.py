@@ -1,19 +1,21 @@
 """Tests for backend/service/utils/github_release_installer.py's offline
 guards: the zip-slip and .git rejection in _safe_extract_zip and
 _safe_extract_7z, the digest comparison in _verify_digest, the required-field
-check in _manifest_entry, and the decompression-bomb size cap in
-_safe_extract_7z.
+check in _manifest_entry (including the optional version default), and the
+decompression-bomb size cap in _safe_extract_7z.
 
 Security-sensitive: the module extracts an executable archive to disk from a
 fetched manifest. The zip-slip guard and the .git component rejection are
 load-bearing, do not relax them.
 
-No network and no subprocess: _fetch_manifest, _download_asset, and
-install_from_github_release are never invoked; zips are built in-memory and
-written to tmp_path only because _safe_extract_zip takes a real Path; the 7z
-tests patch _list_7z_entries and _run_7za so 7za.exe is never run.
+No network and no subprocess: _fetch_manifest, _download_asset, get_emulator,
+and ensure_portable_mode are patched wherever install_from_github_release is
+invoked; zips are built in-memory and written to tmp_path only because
+_safe_extract_zip takes a real Path; the 7z tests patch _list_7z_entries and
+_run_7za so 7za.exe is never run.
 """
 
+import hashlib
 import io
 import zipfile
 from pathlib import Path
@@ -30,6 +32,20 @@ def _build_zip(tmp_path: Path, members: dict[str, bytes]) -> Path:
     zip_path = tmp_path / "asset.zip"
     zip_path.write_bytes(buf.getvalue())
     return zip_path
+
+
+def _manifest_shaped_entry(**overrides) -> dict:
+    """A manifest.json entry as published for an emulator with no upstream
+    version: tag, asset, sha256, released_at, and no version key. Pass
+    ``version=...`` to add one, or any other key to override it."""
+    entry = {
+        "tag": "duckstation-2026-08-01",
+        "asset": "emulator.zip",
+        "sha256": "ab" * 32,
+        "released_at": "2026-08-01T00:00:00Z",
+    }
+    entry.update(overrides)
+    return entry
 
 
 # ---------------------------------------------------------------------------
@@ -110,6 +126,122 @@ class TestManifestEntry:
         from backend.service.utils.github_release_installer import _manifest_entry
         with pytest.raises(RuntimeError, match="No manifest entry for 'flycast'"):
             _manifest_entry({"pcsx2": {}}, "flycast")
+
+    @pytest.mark.parametrize("field", ["tag", "asset", "sha256"])
+    def test_missing_required_field_raises_naming_it(self, field):
+        from backend.service.utils.github_release_installer import _manifest_entry
+        entry = _manifest_shaped_entry()
+        del entry[field]
+
+        with pytest.raises(RuntimeError, match=rf"\['{field}'\]"):
+            _manifest_entry({"rpcs3": entry}, "rpcs3")
+
+    def test_entry_with_version_is_returned_unchanged(self):
+        from backend.service.utils.github_release_installer import _manifest_entry
+        entry = _manifest_shaped_entry(version="0.0.41")
+
+        assert _manifest_entry({"rpcs3": entry}, "rpcs3") == entry
+
+    def test_absent_version_defaults_to_latest(self):
+        from backend.service.utils.github_release_installer import _manifest_entry
+        entry = _manifest_shaped_entry()
+        assert "version" not in entry
+
+        result = _manifest_entry({"duckstation": entry}, "duckstation")
+
+        assert result["version"] == "latest"
+        assert result["tag"] == entry["tag"]
+        assert result["asset"] == entry["asset"]
+        assert result["sha256"] == entry["sha256"]
+
+    @pytest.mark.parametrize("empty_version", [None, ""])
+    def test_null_or_empty_version_defaults_to_latest(self, empty_version):
+        from backend.service.utils.github_release_installer import _manifest_entry
+        entry = _manifest_shaped_entry(version=empty_version)
+
+        result = _manifest_entry({"xenia": entry}, "xenia")
+
+        assert result["version"] == "latest"
+
+    def test_default_does_not_mutate_the_fetched_manifest(self):
+        from backend.service.utils.github_release_installer import _manifest_entry
+        manifest = {"duckstation": _manifest_shaped_entry()}
+
+        _manifest_entry(manifest, "duckstation")
+
+        assert "version" not in manifest["duckstation"]
+
+
+# ---------------------------------------------------------------------------
+# install_from_github_release: version handling, network and catalog stubbed
+# ---------------------------------------------------------------------------
+
+def _patch_install_flow(monkeypatch, installer, tmp_path, manifest, zip_bytes):
+    """Stub every external dependency of install_from_github_release so the
+    real manifest check, digest check, zip-slip guard, and extraction run
+    against an in-memory archive. Returns the list of download URLs requested."""
+    requested_urls: list[str] = []
+
+    def _fake_download(download_url, dest):
+        requested_urls.append(download_url)
+        dest.write_bytes(zip_bytes)
+
+    monkeypatch.setattr(installer, "_BASE_DIR", tmp_path / "emulators")
+    monkeypatch.setattr(installer, "_fetch_manifest", lambda: manifest)
+    monkeypatch.setattr(installer, "_download_asset", _fake_download)
+    monkeypatch.setattr(
+        installer,
+        "get_emulator",
+        lambda slug: {"install_type": "github_release", "binary": "app.exe"},
+    )
+    monkeypatch.setattr(installer, "ensure_portable_mode", lambda slug, binary_path: None)
+    return requested_urls
+
+
+class TestInstallVersionHandling:
+    def test_entry_without_version_installs_normally_as_latest(self, tmp_path, monkeypatch):
+        from backend.service.utils import github_release_installer as installer
+
+        zip_bytes = _build_zip(tmp_path, {"app.exe": b"binary"}).read_bytes()
+        digest = hashlib.sha256(zip_bytes).hexdigest()
+        entry = _manifest_shaped_entry(sha256=digest)
+        assert "version" not in entry
+        requested = _patch_install_flow(
+            monkeypatch, installer, tmp_path, {"duckstation": entry}, zip_bytes,
+        )
+
+        result = installer.install_from_github_release("duckstation")
+
+        assert result["version"] == "latest"
+        assert result["digest_verified"] is True
+        assert result["sha256"] == digest
+        assert requested == [f"{installer._RELEASE_DOWNLOAD_ROOT}/{entry['tag']}/{entry['asset']}"]
+        assert (tmp_path / "emulators" / "duckstation" / "app.exe").read_bytes() == b"binary"
+
+    def test_entry_with_version_keeps_it(self, tmp_path, monkeypatch):
+        from backend.service.utils import github_release_installer as installer
+
+        zip_bytes = _build_zip(tmp_path, {"app.exe": b"binary"}).read_bytes()
+        entry = _manifest_shaped_entry(
+            version="0.0.41", sha256=hashlib.sha256(zip_bytes).hexdigest(),
+        )
+        _patch_install_flow(monkeypatch, installer, tmp_path, {"rpcs3": entry}, zip_bytes)
+
+        result = installer.install_from_github_release("rpcs3")
+
+        assert result["version"] == "0.0.41"
+
+    def test_digest_mismatch_still_aborts_for_an_entry_without_version(self, tmp_path, monkeypatch):
+        from backend.service.utils import github_release_installer as installer
+
+        zip_bytes = _build_zip(tmp_path, {"app.exe": b"binary"}).read_bytes()
+        entry = _manifest_shaped_entry(sha256="0" * 64)
+        _patch_install_flow(monkeypatch, installer, tmp_path, {"xenia": entry}, zip_bytes)
+
+        with pytest.raises(RuntimeError, match="SHA256 mismatch"):
+            installer.install_from_github_release("xenia")
+
+        assert not (tmp_path / "emulators" / "xenia").exists()
 
 
 # ---------------------------------------------------------------------------

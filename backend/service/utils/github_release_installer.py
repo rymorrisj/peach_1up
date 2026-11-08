@@ -74,7 +74,11 @@ _HTTP_HEADERS = {
 #     ...
 #   }
 # ``released_at`` is part of the schema but is not consumed by this module.
-_MANIFEST_REQUIRED_FIELDS = ("version", "tag", "asset", "sha256")
+# ``version`` is optional: emulators with no upstream version (DuckStation,
+# Project64, RPCS3, Xenia) omit it and ``_manifest_entry`` fills in
+# ``_DEFAULT_VERSION``.
+_MANIFEST_REQUIRED_FIELDS = ("tag", "asset", "sha256")
+_DEFAULT_VERSION = "latest"
 
 
 def _fetch_manifest() -> dict:
@@ -99,6 +103,10 @@ def _fetch_manifest() -> dict:
 def _manifest_entry(manifest: dict, slug: str) -> dict:
     """Return the manifest entry for ``slug``.
 
+    ``version`` is optional. When it is absent, null, or empty the returned
+    entry carries ``_DEFAULT_VERSION`` instead. The fetched manifest dict is
+    not mutated.
+
     Raises:
         RuntimeError: If ``slug`` has no manifest entry, or the entry is
             missing a required field.
@@ -111,7 +119,7 @@ def _manifest_entry(manifest: dict, slug: str) -> dict:
         raise RuntimeError(
             f"Manifest entry for '{slug}' is missing required field(s): {missing}."
         )
-    return entry
+    return {**entry, "version": entry.get("version") or _DEFAULT_VERSION}
 
 
 def _download_asset(download_url: str, dest: Path) -> None:
