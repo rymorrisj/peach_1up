@@ -19,7 +19,7 @@ license = "GPL-2.0"
 copyright = "Copyright 2011-2024 the RPCS3 team and contributors"
 source_url = "https://github.com/RPCS3/rpcs3-binaries-win"
 supported_formats = [".iso", ".pkg"]
-guidance_text = "RPCS3 is auto-installed from github.com/RPCS3/rpcs3-binaries-win, a companion binaries repo to the primary RPCS3/rpcs3 source repo, which has no downloadable releases of its own. Portable mode is automatic on Windows, no sentinel file is needed."
+guidance_text = "RPCS3 is installed from the Peach 1UP emulator bundle repo (github.com/rymorrisj/peach_1up_emulator_bundles_win) into emulators/rpcs3/ when you install it from this page. Portable mode is automatic on Windows, no sentinel file is needed."
 guidance_url = "https://rpcs3.net/quickstart"
 
 [[container_broker_files]]

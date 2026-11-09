@@ -23,7 +23,7 @@ license = "GPL-3.0"
 copyright = "Copyright 2002–2024 PCSX2 Dev Team"
 source_url = "https://github.com/PCSX2/pcsx2"
 supported_formats = [".iso", ".bin", ".cue", ".chd"]
-guidance_text = "PCSX2 is not included with Peach 1UP. Click Install to download the current Windows release from github.com/PCSX2/pcsx2 into emulators/pcsx2/."
+guidance_text = "PCSX2 is installed from the Peach 1UP emulator bundle repo (github.com/rymorrisj/peach_1up_emulator_bundles_win) into emulators/pcsx2/ when you install it from this page. A portable.txt file is created next to the executable for portable mode."
 guidance_url = "https://pcsx2.net"
 
 [[container_broker_files]]
