@@ -15,19 +15,16 @@ skip_memory_limit = true
 skip_cpu_limit = false
 description = "Nintendo 64 emulation"
 required = false
-# NOT github_release: project64/project64 publishes git tags but has no
-# published GitHub releases at all (the /releases API returns an empty list and
-# /releases/latest returns 404), so there is no release asset to match. Windows
-# builds ship only from pj64-emu.com. Until a release-hosting source exists this
-# stays a user-supplied drop-in, which at least fails with an actionable error
-# instead of the previous "bundled" no-op.
-install_type = "zip"
+# Installed from the Peach 1UP emulator bundle repo (manifest tag "project64",
+# asset project64.zip, no version). The installer does not strip a wrapping
+# folder, so Project64.exe must sit at the archive root.
+install_type = "github_release"
 install_scope = "portable"
 license = "GPL-2.0"
 copyright = "Copyright 2001–2024 Project64 Ltd and contributors"
 source_url = "https://github.com/project64/project64"
 supported_formats = [".z64", ".n64", ".v64"]
-guidance_text = "Project64 is not included with Peach 1UP and cannot be downloaded automatically, because the project publishes no GitHub release assets. Download the Windows build from pj64-emu.com and extract it into emulators/project64/ so that Project64.exe is inside."
+guidance_text = "Project64 is installed from the Peach 1UP emulator bundle repo (github.com/rymorrisj/peach_1up_emulator_bundles_win) into emulators/project64/ when you install it from this page."
 guidance_url = "https://www.pj64-emu.com"
 
 [[container_broker_files]]
