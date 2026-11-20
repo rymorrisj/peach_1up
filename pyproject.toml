@@ -20,7 +20,7 @@ dependencies = [
     "pystray>=0.19.0",
     "python-multipart>=0.0.18",
     "pycdlib>=1.14.0",
-    "formatscout>=0.1.0",
+    "formatscout>=0.2.0",
     "wincage>=0.1.0",
     "httpx2>=2.16.0",
 ]
