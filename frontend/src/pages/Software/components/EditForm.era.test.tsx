@@ -167,7 +167,9 @@ describe('EditForm era field treatment', () => {
         eraReview: 'unreviewed',
         eraConfirm: { onConfirm, pending: false, error: null },
       });
-      expect(screen.getByText("Only after you've seen the game run correctly.")).toBeInTheDocument();
+      expect(
+        screen.getByText("Only after you've seen the game run correctly."),
+      ).toBeInTheDocument();
       await userEvent.setup().click(screen.getByRole('button', { name: 'Confirm platform' }));
       expect(onConfirm).toHaveBeenCalledTimes(1);
     });

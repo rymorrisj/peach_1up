@@ -31,7 +31,10 @@ describe('defaultUploadTitle', () => {
   });
 
   it('falls back to the folder name when no media file is recognised', () => {
-    const files = [makeFile('readme.txt', 'Stuff/readme.txt'), makeFile('cover.jpg', 'Stuff/cover.jpg')];
+    const files = [
+      makeFile('readme.txt', 'Stuff/readme.txt'),
+      makeFile('cover.jpg', 'Stuff/cover.jpg'),
+    ];
     expect(defaultUploadTitle(files)).toBe('Stuff');
   });
 
