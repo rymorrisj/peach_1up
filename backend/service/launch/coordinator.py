@@ -179,6 +179,36 @@ def _resolve_profile_for_environment(platform: EnvironmentItem, profile_item_id:
     return profile
 
 
+def _backend_slug_for_era(era: str) -> str:
+    """Resolve the backend slug for *era*, turning an unresolvable era into a
+    422 instead of letting the ValueError from era_to_enum / resolve_backend_name
+    (an era with no eras.yaml backend, such as "unknown") surface as a 500."""
+    from backend.constants import era_to_enum
+    from backend.service.utils.backend_router import resolve_backend_name
+
+    try:
+        return resolve_backend_name(era_to_enum(era))
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"No emulator is configured for era '{era}'. Set the item's era on its detail page.",
+        ) from exc
+
+
+def _require_known_era(entity: "LaunchableEntity") -> None:
+    """Refuse to launch a game whose era is still "unknown". Apps keep
+    era="unknown" legitimately (the upload finalizer never detects one), so
+    they are not gated here."""
+    if entity.source_type != "app" and entity.era == "unknown":
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Platform not set: this item's era is unknown, so Peach 1UP cannot "
+                "choose an emulator. Set its era on the detail page, then launch again."
+            ),
+        )
+
+
 def _build_spec_for_entity(
     entity: "LaunchableEntity",
     profile: ProfileItem,
@@ -197,10 +227,10 @@ def _build_spec_for_entity(
     """
     from backend.constants_generated import BackendSlug
     from backend.constants import era_to_enum
-    from backend.service.utils.backend_router import resolve_backend_name, get_executable_path
+    from backend.service.utils.backend_router import get_executable_path
 
+    slug = _backend_slug_for_era(entity.era)
     era_enum = era_to_enum(entity.era)
-    slug = resolve_backend_name(era_enum)
 
     # box86 and xemu resolve their own binary paths internally.
     executable_path: str | None = None
@@ -327,10 +357,7 @@ def _build_spec_for_environment(
     just ran provisioning (box86), they let box86.launch reuse the binary
     and ROM paths provisioning already resolved instead of re-resolving them.
     """
-    from backend.constants import era_to_enum
-    from backend.service.utils.backend_router import resolve_backend_name
-
-    slug = resolve_backend_name(era_to_enum(platform.era))
+    slug = _backend_slug_for_era(platform.era)
 
     config_path: Path | None = None
     vm_dir: Path | None = None
@@ -580,6 +607,7 @@ async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None
     Expects the caller (launch_collection) to have already called
     process_registry.cleanup_exited() and write_session_ends.
     """
+    _require_known_era(entity)
     profile = _resolve_profile_for_item(entity.profile_item_id, profile_item_id, db)
 
     # Environment is strictly PC (doc 02 A5): console entities never touch
