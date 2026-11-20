@@ -9,12 +9,14 @@ collection-of-one).
 """
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from backend.service.games import items as lib_svc
+from backend.service.games import leftover_folder
 from backend.service.games.items import _ItemAlreadyExists
 from backend.service.utils.file_types import all_supported_extensions
 
@@ -98,25 +100,34 @@ def pick_folder_launch_file(files: list[Path]) -> Path:
 
 
 def dedup_disc_anchor(media_root: Path, anchor: Path, db: Session) -> Path:
-    """Consult the content-hash index for *anchor* (the disc-1 pointer/media file
-    of a multi-disc upload) and repoint at an existing byte-identical file when
-    one exists on disk, avoiding a redundant copy, the same treatment a
-    ``kind == "file"`` upload already gets via ``find_existing_duplicate``.
+    """Look *anchor* (the disc-1 pointer/media file of a multi-disc upload) up in
+    the content-hash index and apply ``reuse_tracked_duplicate`` to the result.
 
-    The multi-disc ingest stages carry no existing-file_path guard the way
-    ``_prepare_item`` does for single items, so a duplicate that is still a
-    live ``GameItem.file_path`` is rejected here with ``_ItemAlreadyExists``
-    (same exception the file-kind path raises, caught by the upload route as a
-    409) rather than being silently repointed, that would create a second
-    tracked row sharing one file_path with an existing collection. Only a
-    duplicate that is an *orphan* (physically on disk, not referenced by any
-    live item, e.g. left behind after its item was deleted, per
-    ``find_existing_duplicate``'s own docstring) is reused.
+    Kept as the one-call form of lookup plus reuse. ``ingest_folder`` does the
+    lookup itself (once per disc, see leftover_folder.lookup_matches) and calls
+    ``reuse_tracked_duplicate`` directly, so disc 1 is never hashed twice.
     """
-    from backend.models.game import GameItemBundle, GameItem
     from backend.service.utils.upload_utils import find_existing_duplicate
 
     duplicate = find_existing_duplicate(media_root, anchor, anchor.stat().st_size)
+    return reuse_tracked_duplicate(media_root, anchor, duplicate, db)
+
+
+def reuse_tracked_duplicate(media_root: Path, anchor: Path, duplicate: Path | None, db: Session) -> Path:
+    """Apply the DB-tracked half of the anchor dedup to an index match.
+
+    * No match: *anchor* is returned unchanged.
+    * The match is a live ``GameItem.file_path``: ``_ItemAlreadyExists`` (a 409
+      upstream), never a second tracked row sharing one file_path.
+    * The match sits in a DB-tracked folder (but is not itself a leaf): the
+      anchor is deleted and the match returned, as before.
+    * Any other match (an untracked leftover, a loose file at the games root, a
+      sibling in the staging dir) is NOT reused. Repointing disc 1 there would
+      split the set across folders; whole untracked leftover sets are adopted
+      by ``leftover_folder.find_adoptable_folder`` instead.
+    """
+    from backend.models.game import GameItemBundle, GameItem
+
     if duplicate is None:
         return anchor
 
@@ -124,8 +135,72 @@ def dedup_disc_anchor(media_root: Path, anchor: Path, db: Session) -> Path:
     if live_leaf is not None:
         raise _ItemAlreadyExists(db.get(GameItemBundle, live_leaf.game_item_bundle_id))
 
-    anchor.unlink(missing_ok=True)
-    return duplicate
+    in_own_folder = duplicate.parent != media_root.resolve()
+    if in_own_folder and lib_svc._folder_is_db_tracked(duplicate.parent, db):
+        anchor.unlink(missing_ok=True)
+        return duplicate
+    return anchor
+
+
+def _discard_staging(dest_dir: Path) -> None:
+    """Drop the staged upload once its content is indexed from a leftover.
+    Same cleanup finalize_reassembled applies to a reused single-file upload;
+    only ever called after the adopting transaction committed."""
+    shutil.rmtree(dest_dir, ignore_errors=True)
+
+
+def _persist_disc_set(disc_files: list[Path], staging_dir: Path, title: str, db: Session):
+    """Run the multi-disc ingest stages for *disc_files* inside one transaction
+    and commit. *staging_dir* is the folder that owns the set: the upload's
+    staging dir for a new import, the leftover folder for an adoption. Its slug
+    rename registers its undo on the transaction like every staging mutation."""
+    clean_title = title.strip()
+    undo_ops: list = []
+    with lib_svc._ingest_transaction(
+        db,
+        undo_ops,
+        slug_collision_detail=lib_svc.multi_disc_slug_collision_detail(clean_title, disc_files),
+    ):
+        collection_fields, leaf_rows = lib_svc._prepare_multi_disc(
+            disc_files, clean_title, db, staging_dir=staging_dir, undo_stack=undo_ops
+        )
+        collection = lib_svc._persist_multi_disc_collection(collection_fields, leaf_rows, db)
+        db.commit()
+    db.refresh(collection)
+    return collection
+
+
+def _ingest_multi_disc(
+    dest_dir: Path, disc_files: list[Path], title: str, db: Session, media_root: Path
+):
+    """Multi-disc branch: adopt an untracked leftover folder only when EVERY disc
+    matches a file in it, else import the set into its own folder."""
+    matches = leftover_folder.lookup_matches(disc_files, media_root)
+    leftover = leftover_folder.find_adoptable_folder(disc_files, matches, dest_dir, media_root, db)
+    if leftover is not None:
+        collection = _persist_disc_set(matches, leftover, title, db)
+        _discard_staging(dest_dir)
+        return "game_item_bundle", collection, len(matches)
+
+    if matches:
+        disc_files[0] = reuse_tracked_duplicate(media_root, disc_files[0], matches[0], db)
+    collection = _persist_disc_set(disc_files, dest_dir, title, db)
+    return "game_item_bundle", collection, len(disc_files)
+
+
+def _ingest_single_disc(dest_dir: Path, title: str, db: Session, media_root: Path):
+    """Collection-of-one branch: index a matching untracked leftover folder in
+    place (directory branch, DB rows only), else the staged folder as before."""
+    anchor = leftover_folder.pick_single_disc_anchor(dest_dir)
+    leftover = None
+    if anchor is not None:
+        matches = leftover_folder.lookup_matches([anchor], media_root)
+        leftover = leftover_folder.find_adoptable_folder([anchor], matches, dest_dir, media_root, db)
+    if leftover is None:
+        return "game_item_bundle", lib_svc._ingest_media_entry(str(dest_dir), title.strip(), db), 1
+    collection = lib_svc._ingest_media_entry(str(leftover), title.strip(), db)
+    _discard_staging(dest_dir)
+    return "game_item_bundle", collection, 1
 
 
 def ingest_folder(
@@ -139,32 +214,22 @@ def ingest_folder(
     on a duplicate/collision, callers translate those (inline route) or mark the
     job failed (background finalizer).
 
-    This function owns the multi-disc transaction: it drives the ingest stages
-    itself and commits. On failure ``_ingest_transaction`` rolls the session
-    back and replays the staging stage's undo callables, which is what renames
-    ``dest_dir`` back from its slug name so this module's caller
-    (``software_games.finalize_reassembled``) can still find and remove it by
-    the pre-rename path it holds. The collection-of-one branch below delegates
-    to ``_ingest_media_entry``, which runs the identical sequence internally.
+    *media_root* is the games root. A folder already in the library with no DB
+    row is indexed in place instead of imported a second time: see
+    leftover_folder for the rules and _ingest_multi_disc/_ingest_single_disc
+    for the two branches. In that case *dest_dir* (the staged upload) is
+    removed after the commit, and nothing from it is copied into the leftover.
+
+    Each branch owns its transaction and commits. On failure
+    ``_ingest_transaction`` rolls the session back and replays the staging
+    stage's undo callables, which is what renames the staged (or adopted)
+    folder back from its slug name so this module's caller
+    (``software_games.finalize_reassembled``) can still find and remove the
+    staging dir by the pre-rename path it holds.
     """
     disc_files = detect_disc_files(written_paths)
     if disc_files:
-        disc_files[0] = dedup_disc_anchor(media_root, disc_files[0], db)
-        clean_title = title.strip()
-        undo_ops: list = []
-        with lib_svc._ingest_transaction(
-            db,
-            undo_ops,
-            slug_collision_detail=lib_svc.multi_disc_slug_collision_detail(clean_title, disc_files),
-        ):
-            collection_fields, leaf_rows = lib_svc._prepare_multi_disc(
-                disc_files, clean_title, db, staging_dir=dest_dir, undo_stack=undo_ops
-            )
-            collection = lib_svc._persist_multi_disc_collection(collection_fields, leaf_rows, db)
-            db.commit()
-        db.refresh(collection)
-        return "game_item_bundle", collection, len(disc_files)
+        return _ingest_multi_disc(dest_dir, disc_files, title, db, media_root)
 
     pick_folder_launch_file(written_paths)
-    collection = lib_svc._ingest_media_entry(str(dest_dir), title.strip(), db)
-    return "game_item_bundle", collection, 1
+    return _ingest_single_disc(dest_dir, title, db, media_root)

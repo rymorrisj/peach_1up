@@ -1258,7 +1258,10 @@ def _prepare_multi_disc(
     staging_dir, when given, is the shared directory the caller staged every
     disc_files entry into (service.uploads.core.reassemble() / path_import's
     stage_from_source(), named via unique_slug() against filesystem
-    existence). It is renamed to match this collection's DB slug (generated
+    existence), or an untracked leftover library folder that already holds
+    every disc and is being adopted in place (folder_ingest, see
+    leftover_folder), in which case nothing is staged and only the slug rename
+    can touch the disk. It is renamed to match this collection's DB slug (generated
     below against DB uniqueness, a different domain) so the two never diverge,
     and that rename registers its undo on *undo_stack* like every other
     staging-stage mutation. Deliberately NOT inferred from
