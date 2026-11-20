@@ -10,6 +10,13 @@ from backend.constants_generated import Era, EraValue
 # the environments install-media route (api/routes/media.py).
 PC_ERAS: frozenset[str] = frozenset({"dos", "win95", "win98", "winxp"})
 
+# Marker stored in GameItem.detection_reason when a user, not formatscout,
+# chose the bundle's era (at import or via PATCH). It is display text only: it
+# tells the era hint where the era came from. Whether the era is trusted is the
+# stored GameItemBundle.era_confirmed flag, never this text, so no read-model
+# rule compares against it. Writers use this constant, never the raw string.
+ERA_SELECTED_BY_USER_REASON: str = "Selected by user during import"
+
 
 def era_to_enum(value: EraValue) -> Era:
     """Construct the Era enum from a boundary value (DB column / API I/O).

@@ -2,6 +2,7 @@ from typing import Literal
 
 from sqlalchemy.orm import Session
 
+from backend.constants import PC_ERAS
 from backend.constants_generated import ERA_BACKENDS
 
 # Eras served by DOSBox-X (per-item FAT16 C: drive, not a shared working image).
@@ -43,6 +44,32 @@ def lookup_environment_and_profile(
         .first()
     )
     return (platform.id if platform else None, profile.id if profile else None)
+
+
+def resolve_era_defaults(era: str, db: Session) -> tuple[int | None, int | None]:
+    """Return (environment_item_id, profile_item_id) defaults for *era*.
+
+    Used when an existing bundle's era is corrected, so its bindings follow the
+    new era instead of keeping the old era's profile and environment.
+
+    "unknown" and any era without a backend mapping resolve to (None, None),
+    defaults_for_era already returns (None, None) for them. The environment is
+    only ever filled for a PC era (Environment is strictly PC), and it comes
+    from lookup_system_environment_by_era, the same era-matched lookup the
+    launch fallback uses, rather than from lookup_environment_and_profile,
+    whose environment half matches on emulator_slug alone and can return a
+    different era's row for the three 86Box eras. Only the profile half of
+    lookup_environment_and_profile is used here.
+    """
+    emulator_slug, profile_era = defaults_for_era(era)
+    if not emulator_slug or not profile_era:
+        return (None, None)
+    _, profile_item_id = lookup_environment_and_profile(emulator_slug, profile_era, db)
+    environment_item_id: int | None = None
+    if era in PC_ERAS:
+        environment = lookup_system_environment_by_era(era, db)
+        environment_item_id = environment.id if environment else None
+    return (environment_item_id, profile_item_id)
 
 
 def environment_is_installed(env) -> bool:

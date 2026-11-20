@@ -476,3 +476,316 @@ class TestBundlePatchRatingGuard:
         assert resp.status_code == 404, resp.text
         db.expire_all()
         assert db.get(GameItemBundle, collection.id).title == "Doom"
+
+
+# ---------------------------------------------------------------------------
+# PATCH /game-item-bundle/{id}, era correction re-binds profile and environment
+# and marks the era as user-selected
+# ---------------------------------------------------------------------------
+
+
+class TestBundlePatchEra:
+    def _editor(self, db):
+        return _make_user(db, can_manage_game=True)
+
+    def _profile(self, db, era, emulator_slug, slug=None):
+        from backend.models.profile import ProfileItem
+
+        profile = ProfileItem(
+            name=slug or f"{era} profile", slug=slug or f"{era}-profile", emulator_slug=emulator_slug, era=era,
+        )
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+        return profile
+
+    def _system_environment(self, db, era, emulator_slug):
+        from backend.models.environment import EnvironmentItem
+
+        environment = EnvironmentItem(
+            name=f"{era} env", slug=f"{era}-env", era=era, emulator_slug=emulator_slug, is_system=True,
+        )
+        db.add(environment)
+        db.commit()
+        db.refresh(environment)
+        return environment
+
+    def _reloaded(self, db, collection_id):
+        from backend.models.game import GameItemBundle
+
+        db.expire_all()
+        return db.get(GameItemBundle, collection_id)
+
+    def _two_disc_ps1_bundle(self, db, ps1_profile):
+        collection = _make_collection(db, era="ps1", slug="ico", title="Ico", profile_item_id=ps1_profile.id)
+        _make_item(db, collection.id, disc_number=1, file_path="/library/games/ps1/ico/d1.chd", detection_reason="CHD header")
+        _make_item(db, collection.id, disc_number=2, file_path="/library/games/ps1/ico/d2.chd", detection_reason="CHD header")
+        return collection
+
+    def test_era_change_refills_profile_and_marks_every_leaf(self, http_client):
+        from backend.constants import ERA_SELECTED_BY_USER_REASON
+
+        c, db, app = http_client
+        ps1 = self._profile(db, "ps1", "duckstation")
+        ps2 = self._profile(db, "ps2", "pcsx2")
+        collection = self._two_disc_ps1_bundle(db, ps1)
+        _set_active_user(app, self._editor(db))
+
+        # The form echoes the stored profile id on every save.
+        resp = c.patch(
+            f"/api/v1/game-item-bundle/{collection.id}",
+            json={"era": "ps2", "profile_item_id": ps1.id, "environment_item_id": None},
+        )
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["era"] == "ps2"
+        assert body["profile_item_id"] == ps2.id
+        assert body["environment_item_id"] is None
+        assert [i["detection_reason"] for i in body["items"]] == [ERA_SELECTED_BY_USER_REASON] * 2
+        assert body["era_review"] == "confirmed"
+        assert body["era_confirmed"] is True
+        assert self._reloaded(db, collection.id).profile_item_id == ps2.id
+
+    def test_pc_era_gets_era_matched_system_environment(self, http_client):
+        c, db, app = http_client
+        ps1 = self._profile(db, "ps1", "duckstation")
+        dos = self._profile(db, "dos", "dosbox-x")
+        dos_env = self._system_environment(db, "dos", "dosbox-x")
+        collection = self._two_disc_ps1_bundle(db, ps1)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"era": "dos"})
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["profile_item_id"] == dos.id
+        assert resp.json()["environment_item_id"] == dos_env.id
+
+    def test_explicit_ids_in_the_same_request_win(self, http_client):
+        c, db, app = http_client
+        ps1 = self._profile(db, "ps1", "duckstation")
+        self._profile(db, "ps2", "pcsx2")
+        custom = self._profile(db, "ps2", "pcsx2", slug="my-ps2-profile")
+        collection = self._two_disc_ps1_bundle(db, ps1)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(
+            f"/api/v1/game-item-bundle/{collection.id}",
+            json={"era": "ps2", "profile_item_id": custom.id},
+        )
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["profile_item_id"] == custom.id
+
+    def test_changing_to_unknown_leaves_both_empty(self, http_client):
+        c, db, app = http_client
+        dos = self._profile(db, "dos", "dosbox-x")
+        dos_env = self._system_environment(db, "dos", "dosbox-x")
+        collection = _make_collection(
+            db, era="dos", slug="doom2", profile_item_id=dos.id, environment_item_id=dos_env.id,
+        )
+        _make_item(db, collection.id)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(
+            f"/api/v1/game-item-bundle/{collection.id}",
+            json={"era": "unknown", "profile_item_id": dos.id, "environment_item_id": dos_env.id},
+        )
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["profile_item_id"] is None
+        assert body["environment_item_id"] is None
+        # Unknown is always unreviewed, even though the user chose it.
+        assert body["era_review"] == "unreviewed"
+
+    def test_resending_the_unchanged_era_keeps_bindings_and_reason(self, http_client):
+        c, db, app = http_client
+        ps1 = self._profile(db, "ps1", "duckstation")
+        collection = self._two_disc_ps1_bundle(db, ps1)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(
+            f"/api/v1/game-item-bundle/{collection.id}",
+            json={"era": "ps1", "profile_item_id": ps1.id, "title": "Ico (renamed)"},
+        )
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["profile_item_id"] == ps1.id
+        assert [i["detection_reason"] for i in body["items"]] == ["CHD header"] * 2
+        assert body["era_review"] == "unreviewed"
+
+
+# ---------------------------------------------------------------------------
+# PATCH /game-item-bundle/{id}, era_confirmed: set by an era change, set by the
+# explicit Confirm action, never un-set directly
+# ---------------------------------------------------------------------------
+
+
+class TestBundlePatchEraConfirmed:
+    def _editor(self, db):
+        return _make_user(db, can_manage_game=True)
+
+    def _reloaded(self, db, collection_id):
+        from backend.models.game import GameItemBundle
+
+        db.expire_all()
+        return db.get(GameItemBundle, collection_id)
+
+    def _detected_bundle(self, db, era="ps1", **overrides):
+        collection = _make_collection(db, era=era, slug="ico", title="Ico", **overrides)
+        _make_item(db, collection.id, file_path="/library/games/ps1/ico/d1.chd", detection_reason="CHD header")
+        return collection
+
+    def test_new_bundle_starts_unconfirmed(self, http_client):
+        c, db, app = http_client
+        collection = self._detected_bundle(db)
+        _set_active_user(app, self._editor(db))
+
+        body = c.get(f"/api/v1/game-item-bundle/{collection.id}").json()
+
+        assert body["era_confirmed"] is False
+        assert body["era_review"] == "unreviewed"
+
+    def test_era_change_sets_era_confirmed(self, http_client):
+        c, db, app = http_client
+        collection = self._detected_bundle(db)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"era": "ps2"})
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["era_confirmed"] is True
+        assert resp.json()["era_review"] == "confirmed"
+        assert self._reloaded(db, collection.id).era_confirmed is True
+
+    def test_era_change_to_unknown_leaves_era_unconfirmed(self, http_client):
+        c, db, app = http_client
+        collection = self._detected_bundle(db, era_confirmed=True)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"era": "unknown"})
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["era_confirmed"] is False
+        assert resp.json()["era_review"] == "unreviewed"
+
+    def test_resending_the_unchanged_era_does_not_confirm(self, http_client):
+        c, db, app = http_client
+        collection = self._detected_bundle(db)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(
+            f"/api/v1/game-item-bundle/{collection.id}", json={"era": "ps1", "title": "Ico (renamed)"},
+        )
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["era_confirmed"] is False
+        assert self._reloaded(db, collection.id).era_confirmed is False
+
+    def test_unrelated_save_keeps_a_confirmed_era_confirmed(self, http_client):
+        c, db, app = http_client
+        collection = self._detected_bundle(db, era_confirmed=True)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"title": "Ico (renamed)"})
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["era_confirmed"] is True
+
+    def test_explicit_true_confirms_with_can_manage_game(self, http_client):
+        c, db, app = http_client
+        collection = self._detected_bundle(db)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"era_confirmed": True})
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["era"] == "ps1"
+        assert body["era_confirmed"] is True
+        assert body["era_review"] == "confirmed"
+        # Confirm is not an era edit, the detected reason stays as it was.
+        assert [i["detection_reason"] for i in body["items"]] == ["CHD header"]
+        assert self._reloaded(db, collection.id).era_confirmed is True
+
+    def test_explicit_true_is_rejected_without_can_manage_game(self, http_client):
+        c, db, app = http_client
+        collection = self._detected_bundle(db)
+        _set_active_user(app, _make_user(db, can_manage_game=False, can_launch_media=True))
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"era_confirmed": True})
+
+        assert resp.status_code == 403, resp.text
+        assert self._reloaded(db, collection.id).era_confirmed is False
+
+    def test_explicit_true_is_allowed_for_the_owner(self, http_client):
+        c, db, app = http_client
+        collection = self._detected_bundle(db)
+        _set_active_user(app, _make_user(db, is_owner=True))
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"era_confirmed": True})
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["era_confirmed"] is True
+
+    def test_explicit_false_is_422_and_changes_nothing(self, http_client):
+        c, db, app = http_client
+        collection = self._detected_bundle(db, era_confirmed=True)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"era_confirmed": False})
+
+        assert resp.status_code == 422, resp.text
+        assert self._reloaded(db, collection.id).era_confirmed is True
+
+    def test_explicit_null_is_422(self, http_client):
+        c, db, app = http_client
+        collection = self._detected_bundle(db)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"era_confirmed": None})
+
+        assert resp.status_code == 422, resp.text
+
+    def test_true_on_unknown_era_is_422(self, http_client):
+        c, db, app = http_client
+        collection = _make_collection(db, era="unknown", slug="mystery", title="Mystery")
+        _make_item(db, collection.id)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(f"/api/v1/game-item-bundle/{collection.id}", json={"era_confirmed": True})
+
+        assert resp.status_code == 422, resp.text
+        assert self._reloaded(db, collection.id).era_confirmed is False
+
+    def test_true_with_a_same_request_change_to_unknown_is_422(self, http_client):
+        c, db, app = http_client
+        collection = self._detected_bundle(db)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(
+            f"/api/v1/game-item-bundle/{collection.id}", json={"era": "unknown", "era_confirmed": True},
+        )
+
+        assert resp.status_code == 422, resp.text
+        assert self._reloaded(db, collection.id).era == "ps1"
+
+    def test_true_with_a_same_request_change_to_a_known_era_is_accepted(self, http_client):
+        c, db, app = http_client
+        collection = _make_collection(db, era="unknown", slug="mystery", title="Mystery")
+        _make_item(db, collection.id)
+        _set_active_user(app, self._editor(db))
+
+        resp = c.patch(
+            f"/api/v1/game-item-bundle/{collection.id}", json={"era": "ps2", "era_confirmed": True},
+        )
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["era_confirmed"] is True
+
+    def test_create_does_not_accept_era_confirmed(self):
+        from backend.models.game import GameItemBundleCreate
+
+        assert "era_confirmed" not in GameItemBundleCreate.model_fields

@@ -218,6 +218,13 @@ class GameItemBundle(SQLModel, table=True):
     installed: bool = False
     requires_install: bool = False
     launch_review_flagged: bool = Field(default=False)
+    # Whether the platform (era) is proven: formatscout's detection was
+    # authoritative (ScanResult.authoritative, incl. the PS3 folder structure), the user chose
+    # the era at import, the user changed it later, or the user confirmed a
+    # detected era after seeing the game run. Never true while era is
+    # "unknown". Written at ingest, by PATCH (see _apply_era_change and
+    # _validate_era_confirmation in service/games/items.py), never by create.
+    era_confirmed: bool = Field(default=False)
     # None = inherit the global delete_media_on_removal setting. True/False
     # explicitly overrides it for this bundle only.
     delete_media_override: Optional[bool] = None
@@ -315,6 +322,10 @@ class GameItemBundleUpdate(SQLModel):
     installed: Optional[bool] = None
     requires_install: Optional[bool] = None
     delete_media_override: Optional[bool] = None
+    # Only `true` is accepted (the "Confirm platform" action), and only when
+    # the resulting era is known. Enforced by _validate_era_confirmation in
+    # service/games/items.py, which needs the stored era this model cannot see.
+    era_confirmed: Optional[bool] = None
     environment_item_id: Optional[int] = None
     profile_item_id: Optional[int] = None
     display_disk_id: Optional[int] = None
@@ -328,6 +339,15 @@ class GameItemBundleUpdate(SQLModel):
                 "drive_size_mb is not a valid update field and has no database column."
             )
         return data
+
+
+# How far the bundle's era can be trusted, computed per read (never stored):
+#   "confirmed"  the stored era_confirmed flag is true (authoritative
+#                detection, a user-chosen or user-changed era, or an explicit
+#                Confirm).
+#   "verified"   not confirmed, but every disc hash-verified.
+#   "unreviewed" a guess nothing has proven, including era "unknown".
+EraReview = Literal["confirmed", "verified", "unreviewed"]
 
 
 class GameItemBundleRead(SQLModel):
@@ -352,6 +372,9 @@ class GameItemBundleRead(SQLModel):
     installed: bool = False
     requires_install: bool = False
     launch_review_flagged: bool = False
+    # Stored flag, see GameItemBundle.era_confirmed. era_review below is what
+    # the UI reads, this is exposed so a client can tell "confirmed" apart.
+    era_confirmed: bool = False
     delete_media_override: Optional[bool] = None
     environment_item_id: Optional[int] = None
     profile_item_id: Optional[int] = None
@@ -388,6 +411,15 @@ class GameItemBundleRead(SQLModel):
     # above, not an independent computation. None unless that leaf's own
     # status is "mismatch".
     verification_similarity: Optional[float] = None
+    # Computed at read time (not stored) by _compute_era_review below, how much
+    # to trust this bundle's era. Set after verification_status, it reads it.
+    era_review: EraReview = "unreviewed"
+    # Computed at read time (not stored) by _bundle_has_launched below: True
+    # when any LaunchHistory row exists for this bundle, whatever its outcome.
+    # Set on the single-bundle (detail) read only. None on list reads, which
+    # would otherwise pay one query per bundle (launch_count and
+    # last_launched_at are never written, so they are no usable source).
+    has_launched: Optional[bool] = None
 
 
 # Worst-wins severity order for the bundle-level rollup, highest number is
@@ -422,6 +454,33 @@ def _rollup_verification_item(items: list[GameItemRead]) -> GameItemRead | None:
     if not items:
         return None
     return max(items, key=lambda item: _VERIFICATION_SEVERITY[item.verification_status])
+
+
+def _compute_era_review(era_confirmed: bool, verification_status: VerificationStatus) -> EraReview:
+    """Three-way era trust signal, see EraReview: "confirmed" when the stored
+    flag is set, else "verified" when the rolled-up verification_status is
+    verified, else "unreviewed". Reads no detection_reason text."""
+    if era_confirmed:
+        return "confirmed"
+    if verification_status == "verified":
+        return "verified"
+    return "unreviewed"
+
+
+def _bundle_has_launched(bundle_id: int, db: "Session") -> bool:
+    """True when at least one LaunchHistory row exists for *bundle_id*. Looks at
+    nothing but existence: not error_message, exit_code, ended_at or whether a
+    process is still running. One EXISTS query, so only the single-bundle read
+    calls it."""
+    from sqlalchemy import exists, select as _select
+
+    from backend.models.launch_history import LaunchHistory
+
+    return bool(
+        db.execute(
+            _select(exists().where(LaunchHistory.game_item_bundle_id == bundle_id))
+        ).scalar()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -555,6 +614,8 @@ def game_item_bundle_to_read(c: "GameItemBundle", db: "Session") -> GameItemBund
     _worst = _rollup_verification_item(read.items)
     read.verification_status = _worst.verification_status if _worst is not None else "unchecked"
     read.verification_similarity = _worst.verification_similarity if _worst is not None else None
+    read.era_review = _compute_era_review(c.era_confirmed, read.verification_status)
+    read.has_launched = _bundle_has_launched(c.id, db)
     return read
 
 
@@ -606,5 +667,6 @@ def game_item_bundles_to_read_bulk(
         _worst = _rollup_verification_item(read.items)
         read.verification_status = _worst.verification_status if _worst is not None else "unchecked"
         read.verification_similarity = _worst.verification_similarity if _worst is not None else None
+        read.era_review = _compute_era_review(c.era_confirmed, read.verification_status)
         reads.append(read)
     return reads

@@ -20,6 +20,9 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import func, select
+from formatscout.result import Method, ScanResult
+
+from backend.tests.scan_factory import make_scan
 
 
 @pytest.fixture
@@ -38,16 +41,14 @@ def mem_session():
         yield session
 
 
-class _FakeScanResult:
-    era = "dreamcast"
-    reason = "gdi header"
-    requires_install = False
+def _fake_scan_result() -> ScanResult:
+    return make_scan("dreamcast", reason="gdi header", method=Method.MAGIC)
 
 
 @pytest.fixture(autouse=True)
 def _patch_detect(monkeypatch):
     import formatscout as smd
-    monkeypatch.setattr(smd, "detect", lambda path: _FakeScanResult())
+    monkeypatch.setattr(smd, "detect", lambda path: _fake_scan_result())
 
 
 @pytest.fixture(autouse=True)
@@ -217,12 +218,10 @@ class TestCollectionOfOneValidationFailureLeavesNoPartialState:
         # ingest resolves file_path to doom.exe the way a real DOS folder does.
         import formatscout as smd
 
-        class _DosScanResult:
-            era = "dos"
-            reason = "exe header"
-            requires_install = False
-
-        monkeypatch.setattr(smd, "detect", lambda path: _DosScanResult())
+        monkeypatch.setattr(
+            smd, "detect",
+            lambda path: make_scan("dos", reason="exe header", method=Method.PE_HEADER),
+        )
 
         result_type, collection, disc_count = folder_ingest.ingest_folder(
             src_dir, [exe], "Doom", mem_session, media_root,

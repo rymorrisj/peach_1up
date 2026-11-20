@@ -19,6 +19,9 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 from sqlmodel import select
+from formatscout.result import Method, ScanResult
+
+from backend.tests.scan_factory import make_scan
 
 
 # ---------------------------------------------------------------------------
@@ -154,17 +157,15 @@ def _create_multi_disc_collection(disc_files, title, db, *, staging_dir=None):
     return collection
 
 
-class _FakeScanResult:
-    era = "dreamcast"
-    reason = "gdi header"
-    requires_install = False
+def _fake_scan_result() -> ScanResult:
+    return make_scan("dreamcast", reason="gdi header", method=Method.MAGIC)
 
 
 class TestCreateMultiDiscSet:
     @pytest.fixture(autouse=True)
     def _patch_detect(self, monkeypatch):
         import formatscout as smd
-        monkeypatch.setattr(smd, "detect", lambda path: _FakeScanResult())
+        monkeypatch.setattr(smd, "detect", lambda path: _fake_scan_result())
 
     @pytest.fixture(autouse=True)
     def _patch_era_defaults(self, monkeypatch):
@@ -284,7 +285,7 @@ class TestDedupDiscAnchor:
     @pytest.fixture(autouse=True)
     def _patch_detect(self, monkeypatch):
         import formatscout as smd
-        monkeypatch.setattr(smd, "detect", lambda path: _FakeScanResult())
+        monkeypatch.setattr(smd, "detect", lambda path: _fake_scan_result())
 
     @pytest.fixture(autouse=True)
     def _patch_era_defaults(self, monkeypatch):

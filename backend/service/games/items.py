@@ -12,7 +12,7 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.constants import PC_ERAS
+from backend.constants import ERA_SELECTED_BY_USER_REASON, PC_ERAS
 from backend.models.game import (
     GameItemBundle, GameItemBundleCreate, GameItemBundleUpdate,
     GameItem, GameItemReorder, GameItemUpdate, derive_item_type,
@@ -42,6 +42,7 @@ _COLLECTION_COLUMNS = {
     "year", "external_game_id", "metadata_source", "content_rating",
     "launch_commands", "launch_review_flagged", "installed", "requires_install",
     "environment_item_id", "profile_item_id", "last_launched_at", "launch_count",
+    "era_confirmed",
 }
 _LEAF_COLUMNS = {
     "file_path", "executable_path", "cover_art_path", "file_type",
@@ -421,7 +422,7 @@ def _detect_directory_source(
     and requires_install now always come from the same pass.
     """
     from formatscout import detect as _smart_detect
-    from formatscout.result import ScanResult
+    from formatscout.result import Method, ScanResult
     from backend.service.utils.detection import resolve_ps3_target
 
     executable = _pick_folder_executable(folder)
@@ -434,10 +435,14 @@ def _detect_directory_source(
         # its module docstring), so running _smart_detect() on the folder here
         # would silently come back with era=None. The resolver's era is
         # authoritative, use it directly instead of re-deriving it generically.
+        # USRDIR/EBOOT.BIN structure is proof, so the result is built
+        # authoritative and ingest persists era_confirmed from it.
         scan = ScanResult(
             title=None, platform="ps3", era=ps3_target.era, confidence=1.0,
             reason="PS3 folder structure (USRDIR/EBOOT.BIN)",
             requires_install=ps3_target.requires_install,
+            method=Method.DIRECTORY_MARKER, authoritative=True,
+            evidence=("dir_ps3_usrdir_eboot",),
         )
     else:
         scan = _smart_detect(detect_path)
@@ -727,6 +732,16 @@ def _target_size(path: Path) -> int | None:
         return None
 
 
+def _era_confirmed_at_ingest(scan: ScanResult, user_override_era: str | None) -> bool:
+    """Whether a freshly ingested bundle's era starts out confirmed: true when
+    the user chose it (override path), or when *scan* (the winning detect pass:
+    the narrowed one when it replaced the first, disc 1 for a multi-disc set)
+    is authoritative per formatscout. An unknown era is never confirmed."""
+    if user_override_era is not None:
+        return user_override_era != "unknown"
+    return scan.authoritative
+
+
 def _finalize_row_fields(
     title: str,
     target_paths: list[Path],
@@ -742,7 +757,7 @@ def _finalize_row_fields(
 
     Era resolution has two sources, in precedence order:
         1. ``user_override_era``, a genuine user selection. Sets
-           ``detection_reason`` to "Selected by user during import".
+           ``detection_reason`` to ERA_SELECTED_BY_USER_REASON.
         2. ``scan``, the detect stage's winning pass against the file on disk.
 
     The scan-preview era a client echoes back at import time is deliberately
@@ -767,7 +782,7 @@ def _finalize_row_fields(
 
     if user_override_era is not None:
         era = user_override_era
-        detection_reason = "Selected by user during import"
+        detection_reason = ERA_SELECTED_BY_USER_REASON
     elif scan.era is not None:
         era = scan.era
         detection_reason = scan.reason
@@ -777,6 +792,7 @@ def _finalize_row_fields(
 
     collection_fields: dict = {
         "era": era,
+        "era_confirmed": _era_confirmed_at_ingest(scan, user_override_era),
         "requires_install": scan.requires_install,
         "content_rating": detect_rating(str(target_paths[0])) or None,
         "environment_item_id": None,
@@ -1390,6 +1406,75 @@ def delete_library_collection(collection_id: int, token: str, db: Session) -> No
     db.commit()
 
 
+def _mark_leaves_era_user_selected(collection: GameItemBundle) -> None:
+    """Stamp every leaf's detection_reason with the user-selected marker, so the
+    era hint can say where the era came from. Display text only, the trust
+    signal is GameItemBundle.era_confirmed."""
+    for leaf in collection.items:
+        leaf.detection_reason = ERA_SELECTED_BY_USER_REASON
+
+
+def _rebind_defaults_for_era(
+    collection: GameItemBundle, fields: dict, new_era: str, db: Session
+) -> None:
+    """Point the PATCH's profile and environment at *new_era*'s defaults.
+
+    Mutates *fields* (the PATCH's exclude_unset dump) so the caller's single
+    setattr loop applies it. A value counts as set explicitly only when it is
+    not None and differs from the bundle's stored value. The edit form echoes
+    the stored ids on every save, so an echo of the old era's profile is not a
+    choice and is refilled, which is exactly the stale binding this exists to
+    drop. Unknown and unmapped eras refill to None, environment is PC only (see
+    resolve_era_defaults).
+    """
+    from backend.service.utils.era_defaults import resolve_era_defaults
+
+    environment_item_id, profile_item_id = resolve_era_defaults(new_era, db)
+    for key, default in (
+        ("profile_item_id", profile_item_id),
+        ("environment_item_id", environment_item_id),
+    ):
+        chosen = fields.get(key)
+        if chosen is None or chosen == getattr(collection, key):
+            fields[key] = default
+
+
+def _validate_era_confirmation(collection: GameItemBundle, fields: dict) -> None:
+    """Reject an era_confirmed value in a PATCH that is not the Confirm action.
+
+    Only ``true`` is accepted, so ``false`` and an explicit null are 422: an era
+    is un-confirmed only by changing it, never directly. ``true`` is also 422
+    when the resulting era (the request's, else the stored one) is "unknown",
+    since nothing was detected to confirm. A no-op when the key is absent."""
+    if "era_confirmed" not in fields:
+        return
+    if fields["era_confirmed"] is not True:
+        raise HTTPException(
+            status_code=422,
+            detail="era_confirmed can only be set to true. Change the era to reset it.",
+        )
+    if fields.get("era", collection.era) == "unknown":
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot confirm the platform while the era is unknown. Set an era first.",
+        )
+
+
+def _apply_era_change(collection: GameItemBundle, fields: dict, db: Session) -> None:
+    """When a PATCH changes the bundle's era (new value differs from the stored
+    one), rebind profile and environment to the new era, mark the era as
+    user-selected on every leaf, and set era_confirmed (a user choosing an era
+    is a confirmation, except "unknown", which has nothing to confirm). A no-op
+    otherwise, including when the form resends the unchanged era on an
+    unrelated save."""
+    new_era = fields.get("era")
+    if new_era is None or new_era == collection.era:
+        return
+    _rebind_defaults_for_era(collection, fields, new_era, db)
+    _mark_leaves_era_user_selected(collection)
+    fields["era_confirmed"] = new_era != "unknown"
+
+
 def update_library_collection(
     collection_id: int, body: GameItemBundleUpdate, db: Session, *, confirm_rating_change: bool = False
 ) -> GameItemBundle:
@@ -1438,6 +1523,8 @@ def update_library_collection(
                 collection_id, old_rating, new_rating,
             )
         fields["content_rating"] = new_rating
+    _validate_era_confirmation(collection, fields)
+    _apply_era_change(collection, fields, db)
     for key, value in fields.items():
         setattr(collection, key, value)
     if "era" in fields:
