@@ -7,6 +7,7 @@ import { useConfirm } from '@/hooks/useConfirm';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import { Button, Modal, Checkbox } from '@/ui';
 import { newEntryId, stageFolderFiles } from './helpers';
+import { defaultUploadTitle } from './defaultUploadTitle';
 import SingleFileMode from './SingleFileMode';
 import MultiDiscMode from './MultiDiscMode';
 import FolderUploadMode from './FolderUploadMode';
@@ -50,6 +51,9 @@ export default function UploadBody({
   const [folderMode, setFolderMode] = useState(false);
   const [folderFiles, setFolderFiles] = useState<File[]>([]);
   const [folderTitle, setFolderTitle] = useState('');
+  // The last title this component filled in itself, so a re-selection may
+  // replace it but never a title the user typed.
+  const [folderAutoTitle, setFolderAutoTitle] = useState('');
   const [folderStatus, setFolderStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>(
     'idle',
   );
@@ -139,6 +143,7 @@ export default function UploadBody({
       setMultiDisc(false);
       setFolderFiles([]);
       setFolderTitle('');
+      setFolderAutoTitle('');
       setFolderStatus('idle');
       setFolderError(null);
       setFolderProgress(0);
@@ -309,6 +314,15 @@ export default function UploadBody({
     } finally {
       setAbortRef.current = null;
     }
+  }
+
+  // Stores the picked folder and pre-fills the Title from it, but only while
+  // the field is empty or still holds the previous auto-default.
+  function handleFolderSelected(files: File[]) {
+    setFolderFiles(files);
+    const next = defaultUploadTitle(files);
+    if (folderTitle === '' || folderTitle === folderAutoTitle) setFolderTitle(next);
+    setFolderAutoTitle(next);
   }
 
   async function submitFolderUpload() {
@@ -604,6 +618,7 @@ export default function UploadBody({
                   setFolderMode(checked);
                   setFolderFiles([]);
                   setFolderTitle('');
+                  setFolderAutoTitle('');
                   setFolderStatus('idle');
                   setFolderError(null);
                   setFolderResult(null);
@@ -648,7 +663,7 @@ export default function UploadBody({
             folderTitle={folderTitle}
             onFolderTitleChange={setFolderTitle}
             folderFiles={folderFiles}
-            onSelectFiles={setFolderFiles}
+            onSelectFiles={handleFolderSelected}
             folderStatus={folderStatus}
             folderError={folderError}
             folderProgress={folderProgress}
