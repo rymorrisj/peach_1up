@@ -6,18 +6,34 @@ import { apiFetch } from '@/api/client';
 import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants';
 import { ERA_TO_EMULATOR, isPcEra } from '@/pages/Environments/environmentForm';
 import { PlatformField } from './PlatformField';
+import { ConfirmPlatform } from './ConfirmPlatform';
+import { EraReviewHint } from './EraReviewHint';
+import { eraHintText, type EraReview } from './eraReview';
 import type { SoftwareGameForm as EditFormFields } from '../types/gameForm';
 import type { components } from '@shared/types';
 
 type LaunchProfile = components['schemas']['ProfileItemRead'];
 type Platform = components['schemas']['EnvironmentItemRead'];
 
+// Warning ring on the era field while its platform is only a guess (era_review
+// is "unreviewed"). Verified and confirmed get no styling.
+const ERA_UNREVIEWED_RING = 'ring-1 ring-warning/60';
+
 type EditableItem = {
   era: string;
+  era_review?: EraReview;
   detection_reason?: string | null;
   file_path?: string | null;
   folder_path?: string | null;
 };
+
+// The "Confirm platform" action. Present only when it should be offered, see
+// canOfferEraConfirm in ./eraReview.
+export interface EraConfirmAction {
+  onConfirm: () => void;
+  pending: boolean;
+  error: string | null;
+}
 
 interface EditFormProps {
   item: EditableItem;
@@ -33,6 +49,7 @@ interface EditFormProps {
   setLaunchCommands?: (cmds: string[]) => void;
   profiles: LaunchProfile[];
   platforms: Platform[];
+  eraConfirm?: EraConfirmAction;
 }
 
 export function EditForm({
@@ -47,6 +64,7 @@ export function EditForm({
   setExecBrowserOpen,
   profiles,
   platforms,
+  eraConfirm,
 }: EditFormProps) {
   const { data: launchFileExtensions } = useQuery({
     queryKey: ['filesystem', 'launch-file-extensions'],
@@ -65,6 +83,7 @@ export function EditForm({
   const profileEraMismatch =
     chosenProfile && expectedEmulator != null && chosenProfile.emulator_slug !== expectedEmulator;
   const isPcLaunchable = isPcEra(form.era);
+  const eraUnreviewed = item.era_review === 'unreviewed';
 
   // Console items have no per-item Environment (fixed era-to-emulator
   // mapping), so switching away from a PC era clears any previously
@@ -225,26 +244,42 @@ export function EditForm({
 
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Era" htmlFor="detail-era">
-              <Select
-                id="detail-era"
-                value={form.era || 'none'}
-                onValueChange={(v) => handleEraChange(v === 'none' ? '' : v)}
-                options={[
-                  { value: 'none', label: '— No era —' },
-                  ...Object.entries(ERA_LABELS).map(([key, label]) => ({ value: key, label })),
-                ]}
-              />
-              {item.detection_reason ? (
-                <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-                  Era was detected automatically from your media. You can change it if the detection
-                  was wrong.{' '}
-                  <span className="italic">Detected because: {item.detection_reason}</span>
-                </p>
-              ) : item.era === 'unknown' || !item.era ? (
+              <div className="flex items-center gap-2">
+                <div
+                  data-testid="era-select-wrapper"
+                  className={`min-w-0 flex-1 rounded-md ${eraUnreviewed ? ERA_UNREVIEWED_RING : ''}`}
+                >
+                  <Select
+                    id="detail-era"
+                    value={form.era || 'none'}
+                    onValueChange={(v) => handleEraChange(v === 'none' ? '' : v)}
+                    options={[
+                      { value: 'none', label: '— No era —' },
+                      ...Object.entries(ERA_LABELS).map(([key, label]) => ({
+                        value: key,
+                        label,
+                      })),
+                    ]}
+                  />
+                </div>
+                {item.era_review && (
+                  <EraReviewHint
+                    text={eraHintText(item.era_review, item.era, item.detection_reason)}
+                  />
+                )}
+              </div>
+              {eraConfirm && (
+                <ConfirmPlatform
+                  onConfirm={eraConfirm.onConfirm}
+                  pending={eraConfirm.pending}
+                  error={eraConfirm.error}
+                />
+              )}
+              {(item.era === 'unknown' || !item.era) && (
                 <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
                   Era could not be detected automatically. Please select one.
                 </p>
-              ) : null}
+              )}
             </FormField>
 
             <PlatformField

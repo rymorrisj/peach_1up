@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppProvider } from '@/context/AppContext';
 import { ToastProvider } from '@/ui/ToastProvider';
 import CollectionDetail from '@/pages/Software/CollectionDetail';
-import { apiFetch } from '@/api/client';
+import { apiFetch, ApiError } from '@/api/client';
 import { createMockLibraryItem } from '@/test/helpers';
 
 // Field-level coverage for the edit form (EditForm.tsx) rendered inside
@@ -625,5 +625,164 @@ describe('CollectionDetail edit form (field-level)', () => {
     await saveAndWait(user);
     const patch = callsTo(calls, '/api/v1/game-item-bundle/1/items/100', 'PATCH');
     expect(patch[0].body).toMatchObject({ executable_path: 'C:\\Games\\Doom\\DOOM.EXE' });
+  });
+});
+
+describe('CollectionDetail era confirmation', () => {
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  const SLUG_URL = '/api/v1/game-item-bundle/by-slug/doom';
+  const BUNDLE_URL = '/api/v1/game-item-bundle/1';
+  const CONFIRM_NAME = 'Confirm platform';
+
+  const limitedUser = { ...adminUser, is_owner: false, is_admin: false, can_manage_game: false };
+  const managerUser = { ...limitedUser, can_manage_game: true };
+
+  function bundleHandler(overrides: Record<string, unknown>) {
+    return {
+      match: SLUG_URL,
+      method: 'GET',
+      respond: () => fullCollection(overrides),
+    };
+  }
+
+  it('offers the button for an unreviewed era on a launched game, to the owner', async () => {
+    setupApi([bundleHandler({ era_review: 'unreviewed', has_launched: true })]);
+    renderPage();
+    await waitForLoaded();
+
+    expect(await screen.findByRole('button', { name: CONFIRM_NAME })).toBeInTheDocument();
+  });
+
+  it('offers the button to a non-owner who can manage games', async () => {
+    setupApi([
+      bundleHandler({ era_review: 'unreviewed', has_launched: true }),
+      { match: '/api/v1/auth/me', respond: () => managerUser },
+      { match: '/api/v1/auth/refresh', respond: () => ({ user: managerUser }) },
+    ]);
+    renderPage();
+    await waitForLoaded();
+
+    expect(await screen.findByRole('button', { name: CONFIRM_NAME })).toBeInTheDocument();
+  });
+
+  it('hides the button from a user who cannot manage games', async () => {
+    setupApi([
+      bundleHandler({ era_review: 'unreviewed', has_launched: true }),
+      { match: '/api/v1/auth/me', respond: () => limitedUser },
+      { match: '/api/v1/auth/refresh', respond: () => ({ user: limitedUser }) },
+    ]);
+    renderPage();
+    await waitForLoaded();
+
+    expect(screen.queryByRole('button', { name: CONFIRM_NAME })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['the game has never been launched', { era_review: 'unreviewed', has_launched: false }],
+    ['has_launched is absent', { era_review: 'unreviewed' }],
+    ['the era is already confirmed', { era_review: 'confirmed', has_launched: true }],
+    ['the era is already verified', { era_review: 'verified', has_launched: true }],
+    ['the era is unknown', { era: 'unknown', era_review: 'unreviewed', has_launched: true }],
+  ])('hides the button when %s', async (_label, overrides) => {
+    setupApi([bundleHandler(overrides)]);
+    renderPage();
+    await waitForLoaded();
+
+    expect(screen.queryByRole('button', { name: CONFIRM_NAME })).not.toBeInTheDocument();
+  });
+
+  it('hides the button, and the ring, while the form holds an unsaved era change', async () => {
+    const user = userEvent.setup();
+    setupApi([bundleHandler({ era_review: 'unreviewed', has_launched: true })]);
+    renderPage();
+    await waitForLoaded();
+    expect(await screen.findByRole('button', { name: CONFIRM_NAME })).toBeInTheDocument();
+    expect(screen.getByTestId('era-select-wrapper').className).toContain('ring-warning');
+
+    await selectRadixOption(user, 'Era', 'Windows 95');
+
+    expect(screen.queryByRole('button', { name: CONFIRM_NAME })).not.toBeInTheDocument();
+    expect(screen.getByTestId('era-select-wrapper').className).not.toContain('ring-');
+  });
+
+  it('sends era_confirmed true alone, then refetches and drops the ring and the button', async () => {
+    const user = userEvent.setup();
+    let confirmed = false;
+    const calls = setupApi([
+      {
+        match: SLUG_URL,
+        method: 'GET',
+        respond: () =>
+          fullCollection({
+            era_review: confirmed ? 'confirmed' : 'unreviewed',
+            era_confirmed: confirmed,
+            has_launched: true,
+          }),
+      },
+      {
+        match: BUNDLE_URL,
+        method: 'PATCH',
+        respond: () => {
+          confirmed = true;
+          return {};
+        },
+      },
+    ]);
+    renderPage();
+    await waitForLoaded();
+
+    await user.click(await screen.findByRole('button', { name: CONFIRM_NAME }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: CONFIRM_NAME })).not.toBeInTheDocument();
+    });
+    const patches = callsTo(calls, BUNDLE_URL, 'PATCH');
+    expect(patches).toHaveLength(1);
+    expect(patches[0].body).toEqual({ era_confirmed: true });
+    expect(screen.getByTestId('era-select-wrapper').className).not.toContain('ring-');
+  });
+
+  it('shows a failed confirmation loudly and keeps the button', async () => {
+    const user = userEvent.setup();
+    setupApi([
+      bundleHandler({ era_review: 'unreviewed', has_launched: true }),
+      {
+        match: BUNDLE_URL,
+        method: 'PATCH',
+        respond: () => {
+          throw new ApiError(403, 'Permission denied: requires can_manage_game.');
+        },
+      },
+    ]);
+    renderPage();
+    await waitForLoaded();
+
+    await user.click(await screen.findByRole('button', { name: CONFIRM_NAME }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Permission denied: requires can_manage_game.',
+    );
+    expect(screen.getByRole('button', { name: CONFIRM_NAME })).toBeEnabled();
+  });
+
+  it('never sends era_confirmed on a normal save', async () => {
+    const user = userEvent.setup();
+    const calls = setupApi([
+      bundleHandler({ era_review: 'unreviewed', has_launched: true }),
+      { match: BUNDLE_URL, method: 'PATCH', respond: () => ({}) },
+      { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
+    ]);
+    renderPage();
+    await waitForLoaded();
+
+    await user.type(screen.getByLabelText('Sort Title'), 'Doom, The');
+    await saveAndWait(user);
+
+    const patches = callsTo(calls, BUNDLE_URL, 'PATCH');
+    expect(patches).toHaveLength(1);
+    expect(patches[0].body).not.toHaveProperty('era_confirmed');
   });
 });

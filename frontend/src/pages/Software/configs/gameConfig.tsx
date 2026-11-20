@@ -8,6 +8,8 @@ import { useXisoConvert } from '@/hooks/useXisoConvert';
 import { useDiscOrder } from '@/hooks/useDiscOrder';
 import { useInstalledToggle } from '@/hooks/useInstalledToggle';
 import { useFlagLaunch } from '@/hooks/useFlagLaunch';
+import { useConfirmEra } from '@/hooks/useConfirmEra';
+import { useAppContext } from '@/context/useAppContext';
 import { useVerifyGameCollection } from '@/hooks/useVerifyGameCollection';
 import { useDeleteCollection } from '@/hooks/useDeleteCollection';
 import { useEditForm } from '@/hooks/useEditForm';
@@ -16,6 +18,7 @@ import { resolveLaunchCommands } from '@/hooks/resolveLaunchCommands';
 import { FetchMetadataModal } from '../components/FetchMetadataModal';
 import { DiscOrderList } from '../components/DiscOrderList';
 import { CollectionCard } from '../components/CollectionCard';
+import { canOfferEraConfirm } from '../components/eraReview';
 import type { GameItemBundleData } from '../components/CollectionCard';
 import { getGameCoverArt } from '../components/gameCoverArt';
 import { LinkedItemsSection } from '../components/LinkedItemsSection';
@@ -277,6 +280,15 @@ function useGameDetailExtras(
     detailQueryKey,
   });
 
+  const { confirmEra, confirmingEra, confirmEraError } = useConfirmEra({
+    collectionId: bundleId,
+    detailQueryKey,
+  });
+  // Same rule the backend enforces on PATCH: the owner, or can_manage_game.
+  const { state: appState } = useAppContext();
+  const canManageGame =
+    (appState.activeUser?.is_owner ?? false) || (appState.activeUser?.can_manage_game ?? false);
+
   const xisoConvert = useXisoConvert(bundleId ?? 0);
 
   if (!bundle || !formIsReady(form)) {
@@ -308,6 +320,9 @@ function useGameDetailExtras(
   // so an all-null bundle still renders no tile rather than a fake "0 B".
   const mediaSizeBytes = sortedItems.reduce((sum, item) => sum + (item.file_size_bytes ?? 0), 0);
   const showDiscSwapWarning = (bundle.era === 'ps1' || bundle.era === 'ps2') && isMultiDisc;
+  // True while the form's era differs from the saved one (form.era is '' for
+  // an unset era, which is not a change).
+  const eraEditPending = Boolean(form.era) && form.era !== bundle.era;
 
   // Staged order takes precedence over the server's disc_number order once
   // the user has dragged/moved a disc, so the "Launch File" field below and
@@ -437,6 +452,11 @@ function useGameDetailExtras(
     editForm: {
       item: {
         era: form.era || bundle.era,
+        // detection_reason comes from the first leaf and era_review from the
+        // bundle rollup. Both describe the saved era, so they are withheld
+        // while the form holds an unsaved era change.
+        detection_reason: eraEditPending ? null : (sortedItems[0]?.detection_reason ?? null),
+        era_review: eraEditPending ? undefined : bundle.era_review,
         file_path: currentLaunchDisc?.file_path,
         folder_path: currentLaunchDisc?.folder_path,
       },
@@ -454,6 +474,15 @@ function useGameDetailExtras(
       setExecBrowserOpen,
       profiles,
       platforms,
+      eraConfirm: canOfferEraConfirm({
+        eraReview: bundle.era_review,
+        hasLaunched: bundle.has_launched,
+        canManageGame,
+        era: bundle.era,
+        eraEditPending,
+      })
+        ? { onConfirm: confirmEra, pending: confirmingEra, error: confirmEraError }
+        : undefined,
     },
 
     advancedSection: {

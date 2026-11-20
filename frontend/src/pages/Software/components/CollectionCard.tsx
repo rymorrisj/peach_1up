@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { ERA_LABEL, ERA_PLACEHOLDER, ERA_PLACEHOLDER_DEFAULT } from '@/types/era';
 import type { EntityBundleBase } from '../types';
+import type { EraReview } from './eraReview';
 
 // Leaf (per-disc) record within a bundle. Renamed from the former
 // LibrarySetItemData; single-disc games are bundles-of-one.
@@ -57,6 +58,15 @@ export interface GameItemBundleData extends EntityBundleBase {
   verification_status: 'verified' | 'caution' | 'not_in_index' | 'mismatch' | 'unchecked';
   // verification_similarity of whichever leaf's status won the rollup above.
   verification_similarity: number | null;
+  // Backend-computed (not stored) trust signal for era, see _compute_era_review
+  // in backend/models/game.py. Optional so older cached responses and fixtures
+  // without it still type-check.
+  era_review?: EraReview;
+  // The stored flag behind era_review's "confirmed".
+  era_confirmed?: boolean;
+  // True when any launch history row exists for the bundle, whatever its
+  // outcome. Set on the single-bundle read only, null on list reads.
+  has_launched?: boolean | null;
   items: GameItemData[];
 }
 
