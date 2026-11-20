@@ -135,12 +135,15 @@ def _reconcile_folder_to_slug(
             )
         slug = unique_slug(
             slug,
-            lambda s: (folder.parent / s).exists() or _folder_is_db_tracked(folder.parent / s, db),
+            lambda s: s != folder.name
+            and ((folder.parent / s).exists() or _folder_is_db_tracked(folder.parent / s, db)),
         )
         try:
             target = resolve_under(folder.parent, slug)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=f"Slug-based folder name is invalid: {exc}")
+        if target == folder.resolve():
+            return folder
     rename_exc: OSError | None = None
     for delay in (0.0, *_FOLDER_RENAME_RETRY_DELAYS):
         if delay:
@@ -539,6 +542,128 @@ def _stage_directory_source(row: dict, folder: Path, detection: _Detection) -> P
     return folder
 
 
+_MAX_LISTED_ENTRIES = 5
+
+
+def _describe_entries(folder: Path) -> str:
+    """Names directly inside *folder* for an error message: at most
+    _MAX_LISTED_ENTRIES, then a count of the rest."""
+    try:
+        names = sorted(p.name for p in folder.iterdir())
+    except OSError:
+        return "unreadable"
+    if not names:
+        return "empty"
+    listed = ", ".join(f"'{n}'" for n in names[:_MAX_LISTED_ENTRIES])
+    extra = len(names) - _MAX_LISTED_ENTRIES
+    return f"{listed} and {extra} more" if extra > 0 else listed
+
+
+def _refuse_symlinks(*paths: Path) -> None:
+    """409 if any of *paths* is a symlink. Symlinks are never followed on this
+    path: resolving one could point the ingest at a folder outside the library."""
+    linked = [str(p) for p in paths if p.is_symlink()]
+    if linked:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Refusing to follow symlink(s): {', '.join(linked)}.",
+        )
+
+
+def _require_direct_child(folder: Path, games_root: Path) -> None:
+    """400 unless *folder* resolves to a direct child of *games_root*.
+
+    Defense-in-depth: dest_folder is built from slugify(), which already limits
+    it to [a-z0-9-], but adoption and reuse of an on-disk folder must not rely
+    on that alone.
+    """
+    if folder.resolve().parent != games_root.resolve():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Folder '{folder}' is not a direct child of the games library.",
+        )
+
+
+def _refuse_tracked_folder(folder: Path, db: Session) -> None:
+    """409 naming the folder's entries when a DB row already tracks it."""
+    if _folder_is_db_tracked(folder, db):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Folder '{folder}' is already tracked by a library item "
+                f"(contains: {_describe_entries(folder)})."
+            ),
+        )
+
+
+def _already_at_destination(media_src: Path, dest: Path, dest_folder: Path) -> bool:
+    """True when *media_src* is dest itself or sits anywhere inside dest_folder."""
+    src = media_src.resolve()
+    return src == dest.resolve() or src.is_relative_to(dest_folder.resolve())
+
+
+def _adopt_in_place(
+    row: dict, media_src: Path, dest_folder: Path, games_root: Path, db: Session,
+) -> None:
+    """Index a library file where it already lives: fills *row* only, touches
+    no file. The folder's other contents are left alone and never inspected.
+
+    Raises 409 for a symlink or a folder some GameItem already tracks, 400 if
+    dest_folder is not a direct child of the games root.
+    """
+    _refuse_symlinks(dest_folder, media_src)
+    _require_direct_child(dest_folder, games_root)
+    _refuse_tracked_folder(dest_folder, db)
+    row["folder_path"] = str(dest_folder)
+    row["folder_owned"] = True
+    row["file_path"] = str(media_src)
+
+
+def _claim_dest_folder(
+    media_src: Path, dest_folder: Path, games_root: Path, db: Session,
+) -> Path:
+    """Return a folder this ingest can stage *media_src* into without writing
+    into anyone else's files.
+
+    dest_folder is used when absent or an empty directory. A DB-tracked or
+    symlinked folder is a 409. Any other occupied folder (a leftover with
+    media, a stray file) is not a collision: a suffixed sibling is picked via
+    unique_slug, the same way the dest_leaf branch does. Content is never
+    compared here, so a folder is never adopted from a staged file; matching
+    leftovers are adopted upstream by find_existing_duplicate.
+    """
+    _refuse_symlinks(dest_folder)
+    _require_direct_child(dest_folder, games_root)
+    if not dest_folder.exists():
+        return dest_folder
+    _refuse_tracked_folder(dest_folder, db)
+    if dest_folder.is_dir() and not any(dest_folder.iterdir()):
+        return dest_folder
+    free = games_root / unique_slug(
+        media_src.stem,
+        lambda s: (games_root / s).exists()
+        or (games_root / s).is_symlink()
+        or _folder_is_db_tracked(games_root / s, db),
+    )
+    _require_direct_child(free, games_root)
+    return free
+
+
+def _move_into_folder(
+    media_src: Path, dest_folder: Path, dest: Path, undo_stack: list | None,
+) -> None:
+    """Create dest_folder if needed and move *media_src* to *dest*, registering
+    an undo for each step this call performed. The folder is only removed on
+    undo when this call created it, and only if empty (rmdir, never rmtree)."""
+    existed = dest_folder.exists()
+    dest_folder.mkdir(parents=True, exist_ok=existed)
+    if undo_stack is not None and not existed:
+        undo_stack.append(lambda _d=dest_folder: _d.rmdir() if _d.exists() else None)
+    shutil.move(str(media_src), str(dest))
+    if undo_stack is not None:
+        undo_stack.append(lambda _s=media_src, _d=dest: shutil.move(str(_d), str(_s)) if _d.exists() else None)
+
+
 def _stage_file_source(
     row: dict, media_src: Path, db: Session, *, games_root_str: str, undo_stack: list | None,
 ) -> Path | None:
@@ -630,57 +755,35 @@ def _stage_file_source(
         )
         dest = dest_folder / media_src.name
 
-    # If the file already lives in a direct subfolder of games_root that
-    # only needs renaming to match the canonical slug, rename in place
-    # instead of creating a new folder and moving the file out.
-    if (
-        _src_parent.resolve() != _games_root
-        and _src_parent.parent.resolve() == _games_root
-        and not dest_folder.exists()
-    ):
-        _src_parent.rename(dest_folder)
-        if undo_stack is not None:
-            undo_stack.append(lambda _o=_src_parent, _n=dest_folder: _n.rename(_o) if _n.exists() else None)
+    # A file already at its destination (or anywhere inside dest_folder) is a
+    # library folder being indexed, not staged: no move, no copy, and the
+    # neighbours (cover art, {slug}.img, anything else) are none of our
+    # business, so this runs before any check on what else the folder holds.
+    if _already_at_destination(media_src, dest, dest_folder):
+        _adopt_in_place(row, media_src, dest_folder, _games_root, db)
+    else:
+        dest_folder = _claim_dest_folder(media_src, dest_folder, _games_root, db)
+        dest = dest_folder / media_src.name
+        # If the file already lives in a direct subfolder of games_root that
+        # only needs renaming to match the canonical slug, rename in place
+        # instead of creating a new folder and moving the file out.
+        if (
+            _src_parent.resolve() != _games_root
+            and _src_parent.parent.resolve() == _games_root
+            and not dest_folder.exists()
+        ):
+            _src_parent.rename(dest_folder)
+            if undo_stack is not None:
+                undo_stack.append(lambda _o=_src_parent, _n=dest_folder: _n.rename(_o) if _n.exists() else None)
+        else:
+            _move_into_folder(media_src, dest_folder, dest, undo_stack)
         row["folder_path"] = str(dest_folder)
         row["folder_owned"] = True
         row["file_path"] = str(dest)
-    else:
-        # dest_folder may already exist here (the rename-in-place branch
-        # above only fires when it doesn't). Reusing it blind via
-        # exist_ok=True would silently write into a stale, tampered, or
-        # leftover directory. Only the exact target file is a known-safe
-        # thing to find already present (crash-after-move retry, handled
-        # by the dest.exists() size check below), anything else present
-        # is unexpected and must fail loud rather than be picked around.
-        if dest_folder.exists() and any(f != dest for f in dest_folder.iterdir()):
-            raise HTTPException(
-                status_code=409,
-                detail=f"Directory '{dest_folder}' already exists and contains unexpected files; refusing to reuse it.",
-            )
-        dest_folder.mkdir(parents=True, exist_ok=True)
-        row["folder_path"] = str(dest_folder)
-        row["folder_owned"] = True
-
-        if dest.exists():
-            if dest.stat().st_size == media_src.stat().st_size:
-                # Identical file already in place, reuse without re-copy
-                row["file_path"] = str(dest)
-            else:
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"A different file named '{media_src.name}' already exists in '{dest_folder}'.",
-                )
-        else:
-            if media_src.resolve() == dest.resolve():
-                row["file_path"] = str(dest)
-            else:
-                shutil.move(str(media_src), str(dest))
-                if undo_stack is not None:
-                    undo_stack.append(lambda _s=media_src, _d=dest: shutil.move(str(_d), str(_s)) if _d.exists() else None)
-                row["file_path"] = str(dest)
 
     cover = _find_cover(dest_folder)
     if cover:
+        _refuse_symlinks(cover)
         row["cover_art_path"] = str(cover)
 
     return dest_folder

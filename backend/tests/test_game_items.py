@@ -262,3 +262,265 @@ class TestPrepareDuplication:
         canonical_file = Path(leaf_fields["file_path"])
         with pytest.raises(_ItemAlreadyExists):
             _call_prepare(str(canonical_file), "Doom Again", mem_session)
+
+
+# ---------------------------------------------------------------------------
+# Library folders already on disk: adopt in place, never stage or overwrite
+# ---------------------------------------------------------------------------
+
+
+def _games_root(tmp_path: Path) -> tuple[Path, Path]:
+    media_root = tmp_path / "media"
+    games_root = media_root / "games"
+    games_root.mkdir(parents=True)
+    return media_root, games_root
+
+
+def _snapshot(folder: Path) -> dict[str, bytes]:
+    return {p.name: p.read_bytes() for p in sorted(folder.iterdir()) if p.is_file()}
+
+
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=target.is_dir())
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not available in this environment")
+
+
+class TestAdoptLibraryFolderInPlace:
+    def test_library_file_with_cover_neighbour_imports_in_place(self, tmp_path, mem_session, monkeypatch):
+        """(a) games/doom/{doom.exe,cover.png,doom.img}: the neighbours must not
+        block the import, and nothing may be moved, copied or created."""
+        media_root, games_root = _games_root(tmp_path)
+        folder = games_root / "doom"
+        folder.mkdir()
+        (folder / "doom.exe").write_bytes(b"fake exe")
+        (folder / "cover.png").write_bytes(b"png")
+        (folder / "doom.img").write_bytes(b"img")
+        before = _snapshot(folder)
+
+        _patch_settings(monkeypatch, media_root)
+        _collection_fields, leaf_fields = _call_prepare(str(folder / "doom.exe"), "Doom", mem_session)
+
+        assert _snapshot(folder) == before
+        assert [p.name for p in games_root.iterdir()] == ["doom"]
+        assert leaf_fields["folder_path"] == str(folder)
+        assert leaf_fields["file_path"] == str(folder / "doom.exe")
+        assert leaf_fields["cover_art_path"] == str(folder / "cover.png")
+
+    def test_upload_matching_leftover_adopts_it_and_drops_staged_copy(self, tmp_path, mem_session, monkeypatch):
+        """(b) Same bytes as a leftover folder: find_existing_duplicate (already
+        hash-backed) hands the leftover path to the ingest, the staged dir is
+        removed, and the in-place adopt leaves no -2 folder behind."""
+        from types import SimpleNamespace
+
+        from backend.service.games import items as lib_svc
+        from backend.service.uploads import core as cu
+        from backend.service.uploads.software_games import finalize_reassembled
+        from backend.service.utils import media_dup_index
+
+        media_dup_index._index.clear()
+        media_dup_index._built_for = None
+        media_root, games_root = _games_root(tmp_path)
+        leftover = games_root / "doom"
+        leftover.mkdir()
+        (leftover / "doom.exe").write_bytes(b"same bytes")
+        (leftover / "cover.png").write_bytes(b"png")
+        staged = games_root / "doom-2"
+        staged.mkdir()
+        (staged / "doom.exe").write_bytes(b"same bytes")
+
+        seen: dict = {}
+
+        def _fake_ingest(path, title, db, **_kw):
+            seen["path"] = Path(path)
+            return SimpleNamespace(id=1, title=title)
+
+        monkeypatch.setattr(lib_svc, "_ingest_media_entry", _fake_ingest)
+        reasm = cu.ReassembledUpload(
+            kind="file", title="Doom", dest_dir=staged, paths=[staged / "doom.exe"], total_bytes=len(b"same bytes"),
+        )
+        result = finalize_reassembled(reasm, games_root, mem_session)
+
+        assert result["reused_existing_media"] is True
+        assert seen["path"].resolve() == (leftover / "doom.exe").resolve()
+        assert not staged.exists()
+
+        monkeypatch.undo()
+        _patch_settings(monkeypatch, media_root)
+        _cf, leaf_fields = _call_prepare(str(seen["path"]), "Doom", mem_session)
+        assert leaf_fields["folder_path"] == str(leftover)
+        assert sorted(p.name for p in games_root.iterdir()) == ["doom"]
+
+    def test_different_content_same_slug_gets_suffixed_folder(self, tmp_path, mem_session, monkeypatch):
+        """(c) Untracked games/doom holds other bytes: the upload goes to doom-2
+        and the original folder is byte-for-byte untouched."""
+        media_root, games_root = _games_root(tmp_path)
+        folder = games_root / "doom"
+        folder.mkdir()
+        (folder / "doom.exe").write_bytes(b"original")
+        (folder / "cover.png").write_bytes(b"png")
+        before = _snapshot(folder)
+        incoming = media_root / "incoming" / "doom.exe"
+        incoming.parent.mkdir()
+        incoming.write_bytes(b"different content")
+
+        _patch_settings(monkeypatch, media_root)
+        _cf, leaf_fields = _call_prepare(str(incoming), "Doom", mem_session)
+
+        assert _snapshot(folder) == before
+        assert leaf_fields["folder_path"] == str(games_root / "doom-2")
+        assert (games_root / "doom-2" / "doom.exe").read_bytes() == b"different content"
+        assert not incoming.exists()
+
+    def test_size_only_match_does_not_adopt(self, tmp_path, mem_session, monkeypatch):
+        """(g) Equal size, different bytes: the old size check would have reused
+        the existing file. It must now be treated as different content."""
+        media_root, games_root = _games_root(tmp_path)
+        folder = games_root / "doom"
+        folder.mkdir()
+        (folder / "doom.exe").write_bytes(b"AAAA")
+        incoming = media_root / "incoming" / "doom.exe"
+        incoming.parent.mkdir()
+        incoming.write_bytes(b"BBBB")
+
+        _patch_settings(monkeypatch, media_root)
+        _cf, leaf_fields = _call_prepare(str(incoming), "Doom", mem_session)
+
+        assert (folder / "doom.exe").read_bytes() == b"AAAA"
+        assert leaf_fields["folder_path"] == str(games_root / "doom-2")
+        assert leaf_fields["file_path"] == str(games_root / "doom-2" / "doom.exe")
+
+    def test_empty_leftover_folder_is_reused(self, tmp_path, mem_session, monkeypatch):
+        """An empty untracked directory holds nothing to overwrite."""
+        media_root, games_root = _games_root(tmp_path)
+        (games_root / "doom").mkdir()
+        incoming = media_root / "incoming" / "doom.exe"
+        incoming.parent.mkdir()
+        incoming.write_bytes(b"x")
+
+        _patch_settings(monkeypatch, media_root)
+        _cf, leaf_fields = _call_prepare(str(incoming), "Doom", mem_session)
+
+        assert leaf_fields["folder_path"] == str(games_root / "doom")
+
+    def test_mkdir_is_undone_when_created_by_the_call(self, tmp_path, mem_session, monkeypatch):
+        from backend.service.games.items import _move_into_folder
+
+        _media_root, games_root = _games_root(tmp_path)
+        src = tmp_path / "doom.exe"
+        src.write_bytes(b"x")
+        folder = games_root / "doom"
+        undo: list = []
+
+        _move_into_folder(src, folder, folder / "doom.exe", undo)
+        assert folder.is_dir() and not src.exists()
+        for fn in reversed(undo):
+            fn()
+        assert src.is_file()
+        assert not folder.exists()
+
+
+class TestAdoptSafety:
+    def test_symlinked_dest_folder_is_refused(self, tmp_path, mem_session, monkeypatch):
+        """(d) games/doom is a symlink to a directory elsewhere."""
+        from fastapi import HTTPException
+
+        media_root, games_root = _games_root(tmp_path)
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        _symlink_or_skip(games_root / "doom", outside)
+        incoming = media_root / "incoming" / "doom.exe"
+        incoming.parent.mkdir()
+        incoming.write_bytes(b"x")
+
+        _patch_settings(monkeypatch, media_root)
+        with pytest.raises(HTTPException) as exc_info:
+            _call_prepare(str(incoming), "Doom", mem_session)
+
+        assert exc_info.value.status_code == 409
+        assert "symlink" in exc_info.value.detail
+        assert list(outside.iterdir()) == []
+        assert incoming.is_file()
+
+    def test_symlinked_cover_is_refused(self, tmp_path, mem_session, monkeypatch):
+        """(d) A cover.png symlink inside an adopted folder is never followed."""
+        from fastapi import HTTPException
+
+        media_root, games_root = _games_root(tmp_path)
+        folder = games_root / "doom"
+        folder.mkdir()
+        (folder / "doom.exe").write_bytes(b"x")
+        target = tmp_path / "elsewhere.png"
+        target.write_bytes(b"png")
+        _symlink_or_skip(folder / "cover.png", target)
+
+        _patch_settings(monkeypatch, media_root)
+        with pytest.raises(HTTPException) as exc_info:
+            _call_prepare(str(folder / "doom.exe"), "Doom", mem_session)
+
+        assert exc_info.value.status_code == 409
+        assert "cover.png" in exc_info.value.detail
+
+    def test_symlinked_file_helper_is_refused(self, tmp_path):
+        """(d) _refuse_symlinks catches a symlinked file without resolving it."""
+        from fastapi import HTTPException
+
+        from backend.service.games.items import _refuse_symlinks
+
+        real = tmp_path / "real.exe"
+        real.write_bytes(b"x")
+        link = tmp_path / "link.exe"
+        _symlink_or_skip(link, real)
+
+        with pytest.raises(HTTPException) as exc_info:
+            _refuse_symlinks(real, link)
+        assert exc_info.value.status_code == 409
+        assert "link.exe" in exc_info.value.detail
+
+    def test_db_tracked_folder_gives_409_naming_the_files(self, tmp_path, mem_session, monkeypatch):
+        """(e) A second file inside an already-tracked folder is not adopted;
+        the 409 names up to five entries and counts the rest."""
+        from fastapi import HTTPException
+
+        media_root, games_root = _games_root(tmp_path)
+        folder = games_root / "doom"
+        folder.mkdir()
+        (folder / "doom.exe").write_bytes(b"first")
+
+        _patch_settings(monkeypatch, media_root)
+        collection_fields, leaf_fields = _call_prepare(str(folder / "doom.exe"), "Doom", mem_session)
+        _commit_row(collection_fields, leaf_fields, mem_session)
+
+        (folder / "doom.iso").write_bytes(b"second")
+        for extra in ("a.txt", "b.txt", "c.txt", "d.txt"):
+            (folder / extra).write_bytes(b"x")
+        before = _snapshot(folder)
+
+        with pytest.raises(HTTPException) as exc_info:
+            _call_prepare(str(folder / "doom.iso"), "Doom ISO", mem_session)
+
+        assert exc_info.value.status_code == 409
+        detail = exc_info.value.detail
+        assert "'a.txt'" in detail and "'doom.exe'" in detail
+        assert "and 1 more" in detail
+        assert _snapshot(folder) == before
+
+    def test_dest_folder_outside_games_root_is_refused(self, tmp_path):
+        """(f) Anything that does not resolve to a direct child of the games root."""
+        from fastapi import HTTPException
+
+        from backend.service.games.items import _require_direct_child
+
+        _media_root, games_root = _games_root(tmp_path)
+        for bad in (
+            games_root / ".." / "evil",
+            games_root / "a" / "b",
+            games_root,
+            tmp_path / "elsewhere",
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                _require_direct_child(bad, games_root)
+            assert exc_info.value.status_code == 400
+
+        _require_direct_child(games_root / "doom", games_root)
