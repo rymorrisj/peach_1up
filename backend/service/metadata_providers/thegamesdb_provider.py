@@ -20,7 +20,7 @@ from backend.models.metadata_lookup import (
     Developer, Genre, Publisher,
     get_or_create_developer, get_or_create_genre, get_or_create_publisher,
 )
-from backend.service.metadata_providers import GameDetails, MetadataAsset, SearchResult
+from backend.service.metadata_providers import ASSET_TYPES, GameDetails, MetadataAsset, SearchResult
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -218,8 +218,13 @@ class TheGamesDBProvider:
             full_url, thumb_url = _asset_urls(base_url_obj, filename)
             if not full_url:
                 continue
+            label = _asset_type_label(img)
+            if label not in ASSET_TYPES:
+                # Accept All rejects any type outside ASSET_TYPES, so an
+                # unrecognised label is not offered to the client at all.
+                continue
             result.assets.append(
-                MetadataAsset(url=full_url, type=_asset_type_label(img), thumb_url=thumb_url)
+                MetadataAsset(url=full_url, type=label, thumb_url=thumb_url)
             )
 
         front_boxart = next(

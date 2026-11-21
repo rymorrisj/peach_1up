@@ -31,6 +31,7 @@ from backend.core.logger import get_logger
 from backend.models.user import UserItem
 from backend.service.uploads import core as cu
 from backend.service.uploads import registry
+from backend.service.utils.path_utils import safe_basename
 from backend.service.utils.upload_utils import DEFAULT_CHUNK_MAX_BYTES
 
 logger = get_logger(__name__)
@@ -83,6 +84,14 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
                 status_code=422,
                 detail=f"Upload kind '{body.kind}' is not supported for this domain.",
             )
+        if domain.allowed_extensions is not None:
+            for f in body.files:
+                ext = Path(safe_basename(f.name)).suffix.lower()
+                if ext not in domain.allowed_extensions:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"File extension '{ext or '(none)'}' is not allowed for this domain.",
+                    )
         client_ip = request.client.host if request.client else "unknown"
         rate_limit.enforce("library-upload", client_ip, _INIT_RATE_LIMIT, _INIT_RATE_WINDOW_SECONDS)
 

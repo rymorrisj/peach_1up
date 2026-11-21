@@ -31,6 +31,7 @@ from backend.core import jobs
 from backend.core.logger import get_logger
 from backend.service.uploads import core as cu
 from backend.service.uploads.registry import UploadDomain, register_domain
+from backend.service.utils.media_extensions import MEDIA_UPLOAD_EXTENSIONS
 
 logger = get_logger(__name__)
 
@@ -72,5 +73,7 @@ def register() -> None:
             allowed_kinds=frozenset({"file"}),
             root_resolver=_root,
             finalize_background=finalize_background,
+            # Same allowlist as POST /api/v1/media-items/upload (MED-11).
+            allowed_extensions=MEDIA_UPLOAD_EXTENSIONS,
         )
     )

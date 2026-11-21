@@ -24,7 +24,9 @@ _PLATFORM_ERAS = frozenset({"dos", "win95", "win98", "winxp"})
 def _validate_image_path(path_str: str) -> Path:
     from backend.service.utils.path_utils import normalise_path
     try:
-        resolved = normalise_path(path_str)
+        # allow_unc: Environment images may live on NAS shares (SECURITY.md,
+        # "Environment image path traversal relies on the OS trust model").
+        resolved = normalise_path(path_str, allow_unc=True)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     if not resolved.exists():

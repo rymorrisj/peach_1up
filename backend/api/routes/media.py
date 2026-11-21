@@ -1,5 +1,6 @@
 import shutil
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
@@ -10,6 +11,7 @@ from backend.core.dependencies import (
     get_active_user, get_filtered_media_item, get_filtered_media_item_bundle,
     get_filtered_media_item_bundles, get_filtered_media_items, require_permission,
 )
+from backend.constants_generated import MediaKind
 from backend.core.logger import get_logger
 from backend.models.media import (
     MediaItemBundle, MediaItemBundleCreate, MediaItemBundleRead, MediaItemBundleUpdate,
@@ -19,10 +21,55 @@ from backend.models.media import (
 )
 from backend.models.pagination import Page
 from backend.models.user import UserItem
+from backend.service.utils.media_extensions import INLINE_IMAGE_TYPES, check_media_extension
+from backend.service.utils.path_utils import normalise_path
 from backend.service.utils.sort_utils import apply_bundle_sort
 
 router = APIRouter(prefix="/api/v1", tags=["media"])
 logger = get_logger(__name__)
+
+
+def _media_root() -> Path:
+    from backend.core.settings import get_settings
+    try:
+        raw = get_settings().get_env_var("MEDIA_PATH")
+    except (KeyError, RuntimeError):
+        raw = ""
+    if not raw:
+        raise HTTPException(status_code=503, detail="MEDIA_PATH is not configured.")
+    return Path(raw).resolve()
+
+
+def _validated_cover_art_path(raw: Optional[str]) -> Optional[str]:
+    """Canonicalise a client-supplied cover_art_path and confine it to
+    MEDIA_PATH (MED-3). Runs on item and bundle create and PATCH, the only
+    routes that write this column from request input.
+
+    None or blank clears the cover. Anything else must normalise cleanly
+    (no null byte, UNC, device or drive-relative form), resolve inside
+    MEDIA_PATH, be an existing file, and be an inline-servable image, since
+    it is only ever rendered as an <img> from /media.
+
+    Raises:
+        HTTPException: 400 on any rejection (logged), 503 if MEDIA_PATH is
+            not configured.
+    """
+    if raw is None or not raw.strip():
+        return None
+    media_root = _media_root()
+    try:
+        resolved = normalise_path(raw)
+    except ValueError as exc:
+        logger.warning("Rejected media cover_art_path %r: %s", raw, exc)
+        raise HTTPException(status_code=400, detail=f"cover_art_path: {exc}")
+    if not resolved.is_relative_to(media_root):
+        logger.warning("Rejected media cover_art_path %r: resolves outside MEDIA_PATH (%s)", raw, resolved)
+        raise HTTPException(status_code=400, detail="cover_art_path must be inside the media library (MEDIA_PATH).")
+    if resolved.suffix.lower() not in INLINE_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="cover_art_path must be a png, jpg, gif, webp, bmp or avif image.")
+    if not resolved.is_file():
+        raise HTTPException(status_code=400, detail=f"cover_art_path does not exist: {resolved}")
+    return str(resolved)
 
 
 # ---------------------------------------------------------------------------
@@ -60,6 +107,11 @@ def create_media_item(
     # second title claim, so it must not consume a slot in the item's
     # title/title-2/title-3 sequence, that sequence belongs to genuine
     # cross-table title collisions between distinct items/bundles.
+    try:
+        check_media_extension(body.file_path, body.media_kind)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    cover_art_path = _validated_cover_art_path(body.cover_art_path)
     item_slug = unique_media_slug(body.title, db)
 
     bundle_id = body.media_item_bundle_id
@@ -67,7 +119,7 @@ def create_media_item(
         bundle = MediaItemBundle(
             title=body.title,
             media_kind=body.media_kind,
-            cover_art_path=body.cover_art_path,
+            cover_art_path=cover_art_path,
             slug=unique_media_slug(f"{body.title} Collection", db),
         )
         db.add(bundle)
@@ -75,7 +127,8 @@ def create_media_item(
         bundle_id = bundle.id
 
     item = MediaItem(
-        **body.model_dump(exclude={"media_item_bundle_id"}),
+        **body.model_dump(exclude={"media_item_bundle_id", "cover_art_path"}),
+        cover_art_path=cover_art_path,
         media_item_bundle_id=bundle_id,
         slug=item_slug,
     )
@@ -107,7 +160,10 @@ def update_media_item(
     item = db.get(MediaItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Media item not found.")
-    for key, value in body.model_dump(exclude_unset=True).items():
+    fields = body.model_dump(exclude_unset=True)
+    if "cover_art_path" in fields:
+        fields["cover_art_path"] = _validated_cover_art_path(fields["cover_art_path"])
+    for key, value in fields.items():
         setattr(item, key, value)
     db.add(item)
     db.commit()
@@ -140,7 +196,11 @@ def create_media_item_bundle(
     db: Session = Depends(get_db),
     _: UserItem = require_permission("can_manage_media"),
 ):
-    collection = MediaItemBundle(**body.model_dump(), slug=unique_media_slug(body.title, db))
+    collection = MediaItemBundle(
+        **body.model_dump(exclude={"cover_art_path"}),
+        cover_art_path=_validated_cover_art_path(body.cover_art_path),
+        slug=unique_media_slug(body.title, db),
+    )
     db.add(collection)
     db.commit()
     db.refresh(collection)
@@ -188,7 +248,10 @@ def update_media_item_bundle(
     collection = db.get(MediaItemBundle, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Media collection not found.")
-    for key, value in body.model_dump(exclude_unset=True).items():
+    fields = body.model_dump(exclude_unset=True)
+    if "cover_art_path" in fields:
+        fields["cover_art_path"] = _validated_cover_art_path(fields["cover_art_path"])
+    for key, value in fields.items():
         setattr(collection, key, value)
     db.add(collection)
     db.commit()
@@ -284,10 +347,18 @@ def delete_media_item_bundle(
 @router.post("/media-items/upload")
 async def upload_media_archive(
     file: UploadFile,
+    media_kind: Optional[MediaKind] = Query(default=None),
     _: UserItem = require_permission("can_manage_media"),
 ):
     if not file.filename:
         raise HTTPException(status_code=422, detail="A filename is required.")
+    # Extension allowlist (MED-11): *media_kind*'s set when the caller names
+    # one, else the union over every kind. POST /media-items re-checks the
+    # stored file_path against the item's actual kind.
+    try:
+        check_media_extension(file.filename, media_kind)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
     from backend.core.settings import get_settings
     from backend.service.utils.upload_utils import DEFAULT_MAX_BYTES, begin_upload, stream_upload_to_disk

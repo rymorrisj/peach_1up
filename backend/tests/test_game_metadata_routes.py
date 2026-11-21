@@ -192,3 +192,111 @@ class TestRatingChangeConfirmation:
         assert resp.status_code == 200, resp.text
         db.refresh(bundle)
         assert bundle.content_rating == "M"
+
+
+# ---------------------------------------------------------------------------
+# Accept All asset type allowlist (META-3) and per-asset unique stems (META-1)
+# ---------------------------------------------------------------------------
+
+
+class TestAcceptMetadataAssetsTypeAllowlist:
+    @pytest.mark.parametrize("asset_type", [
+        "..\\..\\evil",
+        "../../evil",
+        "C:\\Windows\\evil",
+        "\\\\attacker\\share\\evil",
+        "boxart_front.html",
+        "",
+        "Cover",
+    ])
+    def test_unlisted_asset_type_is_422_and_nothing_is_downloaded(self, http_client, monkeypatch, asset_type):
+        import backend.service.games.media_link as media_link_mod
+
+        c, db, app = http_client
+        bundle = _make_game_bundle(db)
+        _set_active_user(app, _make_user(db, is_owner=True))
+        called = []
+        monkeypatch.setattr(
+            media_link_mod, "create_linked_media_from_metadata", lambda *a, **k: called.append(a),
+        )
+
+        resp = c.post(
+            f"/api/v1/game-items/{bundle.id}/accept-metadata-assets",
+            json={"assets": [{"url": "https://cdn.thegamesdb.net/images/original/x.jpg", "type": asset_type}]},
+        )
+
+        assert resp.status_code == 422, resp.text
+        assert called == []
+
+    def test_route_literal_matches_provider_asset_types(self):
+        """The route body's allowlist is derived from the provider package,
+        not a second hand-maintained copy."""
+        from typing import get_args
+
+        from backend.api.routes.game_metadata import MetadataAssetBody
+        from backend.service.metadata_providers import ASSET_TYPES
+
+        assert set(get_args(MetadataAssetBody.model_fields["type"].annotation)) == ASSET_TYPES
+
+
+class TestAssetFilenameStem:
+    def test_stems_are_unique_per_index(self):
+        from backend.service.games.media_link import asset_filename_stem
+
+        stems = [asset_filename_stem("screenshot", i) for i in range(10)]
+        assert len(set(stems)) == 10
+        assert stems[0] == "screenshot-0"
+
+    @pytest.mark.parametrize("asset_type,expected", [
+        ("boxart_front", "boxart_front-3"),
+        ("..\\..\\evil", "evil-3"),
+        ("../../evil", "evil-3"),
+        ("\\\\attacker\\share\\evil", "evil-3"),
+        ("", "asset-3"),
+    ])
+    def test_stem_is_a_safe_basename(self, asset_type, expected):
+        from backend.service.games.media_link import asset_filename_stem
+
+        stem = asset_filename_stem(asset_type, 3)
+        assert stem == expected
+        assert "/" not in stem and "\\" not in stem and ".." not in stem
+
+    def test_accept_all_passes_distinct_stems(self, mem_db_session, tmp_path, monkeypatch):
+        """Ten same-type assets produce ten distinct download stems (no
+        overwrite of one screenshot.jpg)."""
+        import backend.core.settings as core_settings
+        import backend.service.utils.asset_fetch as asset_fetch_mod
+        from backend.service.games.media_link import create_linked_media_from_metadata
+        from backend.service.metadata_providers import MetadataAsset
+
+        class _S:
+            def get_env_var(self, key):
+                return str(tmp_path / "media") if key == "MEDIA_PATH" else ""
+
+        monkeypatch.setattr(core_settings, "get_settings", lambda: _S())
+        seen: list[str] = []
+
+        def _fake_download(url, dest_dir, *, filename_stem, **kwargs):
+            seen.append(filename_stem)
+            return dest_dir / f"{filename_stem}.jpg"
+
+        monkeypatch.setattr(asset_fetch_mod, "download_remote_image", _fake_download)
+        bundle = _make_game_bundle(mem_db_session)
+        assets = [
+            MetadataAsset(url=f"https://cdn.thegamesdb.net/images/original/s{i}.jpg", type="screenshot")
+            for i in range(10)
+        ]
+
+        create_linked_media_from_metadata(bundle.id, assets, mem_db_session)
+
+        assert len(set(seen)) == 10
+
+
+class TestTheGamesDBAssetTypeFilter:
+    def test_label_outside_allowlist_is_not_offered(self):
+        from backend.service.metadata_providers import ASSET_TYPES
+        from backend.service.metadata_providers.thegamesdb_provider import _asset_type_label
+
+        assert _asset_type_label({"type": "boxart", "side": "front"}) in ASSET_TYPES
+        assert _asset_type_label({"type": "screenshot"}) in ASSET_TYPES
+        assert _asset_type_label({"type": "../evil", "side": "x"}) not in ASSET_TYPES

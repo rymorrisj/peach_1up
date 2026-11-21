@@ -90,7 +90,7 @@ def provision_86box_vm(
     if platform.base_image_path:
         from backend.service.utils.path_utils import normalise_path
         from backend.service.utils.disk_utils import has_valid_mbr
-        base_img = normalise_path(platform.base_image_path)
+        base_img = normalise_path(platform.base_image_path, allow_unc=True)
         if not base_img.exists():
             raise FileNotFoundError(
                 f"Base image not found: {base_img}. "
@@ -214,7 +214,7 @@ def provision_dosbox_drive(
             "working_image_path preset, cannot provision its C: drive."
         )
 
-    target = normalise_path(platform.working_image_path)
+    target = normalise_path(platform.working_image_path, allow_unc=True)
     if target.exists():
         return None, str(target), None, None, None
 

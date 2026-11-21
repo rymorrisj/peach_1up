@@ -525,7 +525,7 @@ def _validate_environment_drive(working_image_path: Path | None) -> Path:
     # grant lands on its resolved target, and DOSBox-X's open would fail
     # resolving the symlink itself if the AppContainer lacks traverse access
     # to whatever directory the symlink lives in.
-    return normalise_path(str(working_image_path))
+    return normalise_path(str(working_image_path), allow_unc=True)
 
 
 def _build_environment_drive_mount_line(working_image_path: Path) -> str:
@@ -710,7 +710,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             # normalises the same value at provision time; re-doing it at the
             # point of use follows SECURITY.md's "validated inputs must be
             # checked again at the point of use" rule.
-            env_image = normalise_path(str(spec.working_image_path))
+            env_image = normalise_path(str(spec.working_image_path), allow_unc=True)
             # Scope: DOSBox-X opens exactly one file for an environment launch.
             # write_environment_conf emits a single
             # "IMGMOUNT C <file> -t hdd" plus "C:" and nothing else, and the

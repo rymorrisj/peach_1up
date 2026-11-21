@@ -500,13 +500,59 @@ class TestMediaArchiveUploadRoute:
 
     def test_traversal_filename_stays_inside_media_root(self, client):
         c, media_path = client
+        # An allowlisted extension, so this exercises containment, not the
+        # extension allowlist (the extensionless "passwd" case is below).
         resp = c.post(
             "/api/v1/media-items/upload",
-            files={"file": ("../../../etc/passwd", b"payload", "application/octet-stream")},
+            files={"file": ("../../../etc/passwd.mp3", b"payload", "application/octet-stream")},
         )
         assert resp.status_code == 200, resp.text
         result_path = Path(resp.json()["path"]).resolve()
         assert result_path.is_relative_to(media_path.resolve())
+
+    @pytest.mark.parametrize("filename", [
+        "../../../etc/passwd",   # no extension survives
+        "page.html",
+        "page.htm",
+        "art.svg",
+        "page.xhtml",
+        "script.js",
+        "tool.exe",
+        "evil.ht ml",            # sanitised to .html on disk
+        "cover.png.html",
+    ])
+    def test_disallowed_extension_is_422_and_nothing_is_staged(self, client, filename):
+        c, media_path = client
+        resp = c.post(
+            "/api/v1/media-items/upload",
+            files={"file": (filename, b"<script>alert(1)</script>", "application/octet-stream")},
+        )
+        assert resp.status_code == 422, resp.text
+        assert list(media_path.iterdir()) == []
+
+    @pytest.mark.parametrize("media_kind,filename,status", [
+        ("audio", "track.mp3", 200),
+        ("audio", "cover.png", 422),
+        ("image", "cover.png", 200),
+        ("image", "track.mp3", 422),
+        ("text", "manual.pdf", 200),
+        ("video", "notes.txt", 422),
+    ])
+    def test_media_kind_narrows_the_allowlist(self, client, media_kind, filename, status):
+        c, _ = client
+        resp = c.post(
+            f"/api/v1/media-items/upload?media_kind={media_kind}",
+            files={"file": (filename, b"bytes", "application/octet-stream")},
+        )
+        assert resp.status_code == status, resp.text
+
+    def test_unknown_media_kind_is_422(self, client):
+        c, _ = client
+        resp = c.post(
+            "/api/v1/media-items/upload?media_kind=html",
+            files={"file": ("track.mp3", b"bytes", "application/octet-stream")},
+        )
+        assert resp.status_code == 422
 
     def test_requires_can_manage_media_permission(self, client):
         c, _ = client
@@ -632,3 +678,74 @@ class TestEnvironmentInstallMediaRoute:
             files={"file": ("win98.iso", b"data", "application/octet-stream")},
         )
         assert resp.status_code == 403
+
+
+
+# ---------------------------------------------------------------------------
+# /api/v1/uploads/software-media/init, chunked Media upload extension
+# allowlist (MED-11). Same set as the single-shot route above, enforced
+# before an upload session is created.
+# ---------------------------------------------------------------------------
+
+class TestChunkedMediaUploadExtensionAllowlist:
+    @pytest.fixture
+    def client(self, tmp_path, monkeypatch):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from backend.api.routes import uploads
+        from backend.core.dependencies import get_active_user
+        from backend.core.lifespan import _register_upload_domains
+        from backend.service.uploads import core as cu
+        import backend.core.rate_limit as rl
+
+        media_path = tmp_path / "media"
+        media_path.mkdir()
+
+        import backend.core.settings as settings_mod
+        monkeypatch.setattr(
+            settings_mod,
+            "get_settings",
+            lambda: _FakeSettings({"MEDIA_PATH": str(media_path), "LIBRARY_PATH": str(tmp_path)}),
+        )
+        monkeypatch.setattr(rl, "enforce", lambda *a, **kw: None)
+        _register_upload_domains()
+
+        created: list[str] = []
+        real_init = cu.init_session
+
+        def _tracking_init(*args, **kwargs):
+            upload_id = real_init(*args, **kwargs)
+            created.append(upload_id)
+            return upload_id
+
+        monkeypatch.setattr(cu, "init_session", _tracking_init)
+
+        app = FastAPI()
+        app.include_router(uploads.software_media_router)
+        app.dependency_overrides[get_active_user] = _owner_user
+
+        with TestClient(app) as c:
+            yield c, created
+        for upload_id in created:
+            cu.abort(upload_id)
+
+    @staticmethod
+    def _init(c, name: str):
+        return c.post(
+            "/api/v1/uploads/software-media/init",
+            json={"kind": "file", "title": None, "files": [{"name": name, "size": 4, "chunks": 1}]},
+        )
+
+    @pytest.mark.parametrize("name", ["page.html", "art.svg", "script.js", "noext", "evil.ht ml"])
+    def test_disallowed_extension_is_422_and_no_session_is_created(self, client, name):
+        c, created = client
+        resp = self._init(c, name)
+        assert resp.status_code == 422, resp.text
+        assert created == []
+
+    @pytest.mark.parametrize("name", ["track.mp3", "cover.PNG", "manual.pdf", "clip.mkv", "pack.zip"])
+    def test_allowlisted_extension_is_accepted(self, client, name):
+        c, created = client
+        resp = self._init(c, name)
+        assert resp.status_code == 200, resp.text
+        assert len(created) == 1

@@ -33,6 +33,10 @@ class UploadDomain:
     allowed_kinds: frozenset[str]  # subset of {"file", "folder", "set"}
     root_resolver: Callable[[], Path]
     finalize_background: FinalizeBackground
+    # Lowercased extensions (".mp3") every manifest file must have after
+    # safe_basename sanitisation, checked at /init before a session exists.
+    # None means no extension restriction (games and apps).
+    allowed_extensions: frozenset[str] | None = None
 
 
 _domains: dict[str, UploadDomain] = {}

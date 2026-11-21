@@ -510,3 +510,207 @@ class TestMakeEntityLink:
         db.add(make_entity_link("game_item_bundle", collection.id, "media_item", item.id))
         with pytest.raises(IntegrityError):
             db.flush()
+
+
+# ---------------------------------------------------------------------------
+# cover_art_path validation on create and PATCH (MED-3), and the per-kind
+# file_path extension check on item create (MED-11)
+# ---------------------------------------------------------------------------
+
+
+class _FakeMediaSettings:
+    def __init__(self, media_path: str):
+        self._media_path = media_path
+
+    def get_env_var(self, key):
+        return self._media_path if key == "MEDIA_PATH" else ""
+
+    def get(self, key, default=None):
+        return default
+
+
+@pytest.fixture
+def media_env(client, tmp_path, monkeypatch):
+    """client plus MEDIA_PATH = tmp_path/software/media (inside the patched
+    LIBRARY_PATH), with one valid cover image and a few decoys."""
+    import backend.core.settings as core_settings
+
+    media_root = tmp_path / "software" / "media"
+    (media_root / "doom").mkdir(parents=True)
+    cover = media_root / "doom" / "cover.png"
+    cover.write_bytes(b"\x89PNG\r\n\x1a\n")
+    (media_root / "doom" / "notes.txt").write_text("not an image")
+    outside = tmp_path / "outside.png"
+    outside.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    monkeypatch.setattr(core_settings, "get_settings", lambda: _FakeMediaSettings(str(media_root)))
+    c, db = client
+    return c, db, media_root, cover, outside
+
+
+def _hostile_cover_paths(media_root, outside) -> list[str]:
+    return [
+        "../outside.png",                                     # relative traversal
+        str(outside),                                         # absolute, outside MEDIA_PATH
+        str(media_root / ".." / ".." / "outside.png"),        # absolute with traversal
+        "\\\\attacker\\share\\cover.png",                     # UNC
+        "\\\\?\\C:\\Windows\\cover.png",                      # device path
+        "C:cover.png",                                        # drive-relative
+        str(media_root / "doom" / "cover.png\x00.txt"),       # null byte
+        str(media_root / "doom" / "notes.txt"),               # inside, but not an image
+        str(media_root / "doom" / "missing.png"),             # inside, but does not exist
+    ]
+
+
+class TestMediaCoverArtPathValidation:
+    def _create_item(self, c, **overrides):
+        body = {"title": "Doom OST", "media_kind": "audio", "file_path": "/library/media/doom-ost.mp3"}
+        body.update(overrides)
+        return c.post("/api/v1/media-items", json=body)
+
+    def test_item_create_with_valid_cover_stores_canonical_path(self, media_env):
+        c, db, media_root, cover, _ = media_env
+
+        resp = self._create_item(c, cover_art_path=str(media_root / "doom" / ".." / "doom" / "cover.png"))
+
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["cover_art_path"] == str(cover.resolve())
+        from backend.models.media import MediaItemBundle
+        bundle = db.get(MediaItemBundle, resp.json()["media_item_bundle_id"])
+        assert bundle.cover_art_path == str(cover.resolve())  # implicit bundle gets the same canonical path
+
+    def test_item_create_rejects_hostile_cover_paths(self, media_env):
+        c, db, media_root, _, outside = media_env
+        from backend.models.media import MediaItem, MediaItemBundle
+
+        for raw in _hostile_cover_paths(media_root, outside):
+            resp = self._create_item(c, cover_art_path=raw)
+            assert resp.status_code == 400, (raw, resp.text)
+        assert db.query(MediaItem).count() == 0
+        assert db.query(MediaItemBundle).count() == 0
+
+    def test_item_create_unc_cover_detail_names_unc(self, media_env):
+        c, *_ = media_env
+
+        resp = self._create_item(c, cover_art_path="\\\\attacker\\share\\cover.png")
+
+        assert resp.status_code == 400
+        assert "UNC" in resp.json()["detail"]
+
+    def test_item_patch_rejects_hostile_cover_paths_and_leaves_row_unchanged(self, media_env):
+        c, db, media_root, cover, outside = media_env
+        item_id = self._create_item(c, cover_art_path=str(cover)).json()["id"]
+
+        for raw in _hostile_cover_paths(media_root, outside):
+            resp = c.patch(f"/api/v1/media-item/{item_id}", json={"cover_art_path": raw})
+            assert resp.status_code == 400, (raw, resp.text)
+
+        assert c.get(f"/api/v1/media-item/{item_id}").json()["cover_art_path"] == str(cover.resolve())
+
+    def test_item_patch_valid_cover_and_clear(self, media_env):
+        c, _, _, cover, _ = media_env
+        item_id = self._create_item(c).json()["id"]
+
+        resp = c.patch(f"/api/v1/media-item/{item_id}", json={"cover_art_path": str(cover)})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["cover_art_path"] == str(cover.resolve())
+
+        for clear in (None, "", "   "):
+            resp = c.patch(f"/api/v1/media-item/{item_id}", json={"cover_art_path": clear})
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["cover_art_path"] is None
+
+    def test_item_patch_without_cover_field_skips_validation(self, media_env, monkeypatch):
+        """A title-only PATCH never consults MEDIA_PATH."""
+        import backend.core.settings as core_settings
+
+        c, *_ = media_env
+        item_id = self._create_item(c).json()["id"]
+
+        def _raise():
+            raise RuntimeError("must not be called")
+
+        monkeypatch.setattr(core_settings, "get_settings", _raise)
+        resp = c.patch(f"/api/v1/media-item/{item_id}", json={"title": "Renamed"})
+        assert resp.status_code == 200, resp.text
+
+    def test_bundle_create_valid_and_hostile(self, media_env):
+        c, db, media_root, cover, outside = media_env
+        from backend.models.media import MediaItemBundle
+
+        ok = c.post(
+            "/api/v1/media-item-bundles",
+            json={"title": "Doom Art", "media_kind": "image", "cover_art_path": str(cover)},
+        )
+        assert ok.status_code == 201, ok.text
+        assert ok.json()["cover_art_path"] == str(cover.resolve())
+
+        for raw in _hostile_cover_paths(media_root, outside):
+            resp = c.post(
+                "/api/v1/media-item-bundles",
+                json={"title": "Bad Art", "media_kind": "image", "cover_art_path": raw},
+            )
+            assert resp.status_code == 400, (raw, resp.text)
+        assert db.query(MediaItemBundle).count() == 1
+
+    def test_bundle_patch_valid_hostile_and_clear(self, media_env):
+        c, _, media_root, cover, outside = media_env
+        bundle_id = c.post(
+            "/api/v1/media-item-bundles", json={"title": "Doom Art", "media_kind": "image"},
+        ).json()["id"]
+
+        for raw in _hostile_cover_paths(media_root, outside):
+            resp = c.patch(f"/api/v1/media-item-bundle/{bundle_id}", json={"cover_art_path": raw})
+            assert resp.status_code == 400, (raw, resp.text)
+
+        resp = c.patch(f"/api/v1/media-item-bundle/{bundle_id}", json={"cover_art_path": str(cover)})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["cover_art_path"] == str(cover.resolve())
+
+        resp = c.patch(f"/api/v1/media-item-bundle/{bundle_id}", json={"cover_art_path": None})
+        assert resp.status_code == 200
+        assert resp.json()["cover_art_path"] is None
+
+    def test_cover_rejected_when_media_path_unset(self, client, tmp_path, monkeypatch):
+        import backend.core.settings as core_settings
+
+        c, _ = client
+        cover = tmp_path / "cover.png"
+        cover.write_bytes(b"\x89PNG\r\n\x1a\n")
+        monkeypatch.setattr(core_settings, "get_settings", lambda: _FakeMediaSettings(""))
+
+        resp = self._create_item(c, cover_art_path=str(cover))
+
+        assert resp.status_code == 503
+
+
+class TestMediaItemFileKindExtension:
+    @pytest.mark.parametrize("kind,file_path", [
+        ("audio", "/library/media/x.png"),
+        ("image", "/library/media/x.mp3"),
+        ("text", "/library/media/x.html"),
+        ("image", "/library/media/x.svg"),
+        ("video", "/library/media/x"),
+    ])
+    def test_mismatched_or_disallowed_extension_is_422(self, client, kind, file_path):
+        c, db = client
+        from backend.models.media import MediaItem
+
+        resp = c.post("/api/v1/media-items", json={"title": "X", "media_kind": kind, "file_path": file_path})
+
+        assert resp.status_code == 422, resp.text
+        assert db.query(MediaItem).count() == 0
+
+    @pytest.mark.parametrize("kind,file_path", [
+        ("audio", "/library/media/x.FLAC"),
+        ("image", "/library/media/x.webp"),
+        ("text", "/library/media/x.pdf"),
+        ("video", "/library/media/x.mkv"),
+        ("audio", "/library/media/soundtrack.zip"),
+    ])
+    def test_matching_extension_is_accepted(self, client, kind, file_path):
+        c, _ = client
+
+        resp = c.post("/api/v1/media-items", json={"title": f"X {kind} {file_path}", "media_kind": kind, "file_path": file_path})
+
+        assert resp.status_code == 201, resp.text

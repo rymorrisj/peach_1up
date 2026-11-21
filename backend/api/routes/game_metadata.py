@@ -10,6 +10,7 @@ from backend.core.dependencies import require_permission
 from backend.models.game import GameItemRead, game_item_bundle_to_read
 from backend.models.user import UserItem
 from backend.service.games import enrich as enrich_svc
+from backend.service.metadata_providers import AssetType
 
 router = APIRouter(prefix="/api/v1/game-items", tags=["games"])
 
@@ -48,7 +49,9 @@ class EnrichBody(BaseModel):
 
 class MetadataAssetBody(BaseModel):
     url: str
-    type: str
+    # Allowlisted, not free text: the type becomes part of the on-disk
+    # filename stem in media_link.py (META-3).
+    type: AssetType
     thumb_url: Optional[str] = None
 
 

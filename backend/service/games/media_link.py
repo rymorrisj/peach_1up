@@ -16,11 +16,25 @@ from typing import TYPE_CHECKING
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 
+from backend.service.utils.path_utils import safe_basename
+
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.models.media import MediaItemBundle
     from backend.service.metadata_providers import MetadataAsset
+
+
+def asset_filename_stem(asset_type: str, index: int) -> str:
+    """On-disk filename stem for the *index*-th asset of one Accept All call.
+
+    The type is reduced to a safe basename (no separators, no ``..``) even
+    though the route already allowlists it, and the per-call index makes
+    every stem unique, so ten screenshots land as ten files instead of
+    overwriting one ``screenshot.jpg`` (META-1, META-3). download_remote_image
+    additionally creates the file exclusively, so a collision fails loudly.
+    """
+    return f"{safe_basename(asset_type or '', fallback='asset')}-{index}"
 
 
 def create_linked_media_from_metadata(
@@ -80,8 +94,7 @@ def create_linked_media_from_metadata(
 
     downloaded: list[tuple["MetadataAsset", Path]] = []
     for i, asset in enumerate(assets):
-        stem = asset.type or f"asset-{i}"
-        path = download_remote_image(asset.url, dest_dir, filename_stem=stem)
+        path = download_remote_image(asset.url, dest_dir, filename_stem=asset_filename_stem(asset.type, i))
         downloaded.append((asset, path))
 
     is_new_bundle = bundle is None

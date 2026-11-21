@@ -57,6 +57,173 @@ class TestNormalisePath:
         assert result == tmp_path.resolve()
 
 
+def _no_configured_roots(monkeypatch):
+    import backend.service.utils.settings as settings_mod
+
+    monkeypatch.setattr(settings_mod, "get", lambda key, default=None: default)
+
+
+def _configured_library_root(monkeypatch, root: str):
+    import backend.service.utils.settings as settings_mod
+
+    monkeypatch.setattr(
+        settings_mod, "get", lambda key, default=None: root if key == "LIBRARY_PATH" else default,
+    )
+
+
+class TestNormalisePathRejections:
+    """MED-10: UNC, device and drive-relative forms are rejected lexically,
+    before Path.resolve() can touch the filesystem (resolving a UNC path
+    opens an SMB connection to the named host)."""
+
+    @pytest.fixture(autouse=True)
+    def _never_resolve(self, monkeypatch):
+        """Any rejection must happen before resolve(); fail loudly if not."""
+        from pathlib import Path
+
+        real_resolve = Path.resolve
+
+        def _guard(self, *args, **kwargs):
+            s = str(self).replace("\\", "/")
+            if s.startswith("//") or s.startswith("/??/"):
+                raise AssertionError(f"resolve() reached for rejected path {self!s}")
+            return real_resolve(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "resolve", _guard)
+
+    @pytest.mark.parametrize("path", [
+        "\\\\attacker\\share\\x.png",
+        "//attacker/share/x.png",
+        "\\\\attacker.example.com\\c$\\Windows",
+        "\\/attacker/share/x.png",
+        "\\\\127.0.0.1\\share\\x",
+    ])
+    def test_unc_rejected(self, monkeypatch, path):
+        from backend.service.utils.path_utils import normalise_path
+
+        _no_configured_roots(monkeypatch)
+        with pytest.raises(ValueError, match="UNC"):
+            normalise_path(path)
+
+    @pytest.mark.parametrize("path", [
+        "\\\\?\\C:\\Windows\\System32",
+        "\\\\.\\PhysicalDrive0",
+        "//?/C:/Windows",
+        "//./COM1",
+        "\\??\\C:\\Windows",
+        "\\\\?\\UNC\\attacker\\share",
+    ])
+    def test_device_paths_rejected(self, monkeypatch, path):
+        from backend.service.utils.path_utils import normalise_path
+
+        _no_configured_roots(monkeypatch)
+        with pytest.raises(ValueError, match="Device"):
+            normalise_path(path)
+
+    @pytest.mark.parametrize("path", ["\\\\?\\C:\\x", "\\\\.\\pipe\\x"])
+    def test_device_paths_rejected_even_with_allow_unc(self, path):
+        from backend.service.utils.path_utils import normalise_path
+
+        with pytest.raises(ValueError, match="Device"):
+            normalise_path(path, allow_unc=True)
+
+    @pytest.mark.parametrize("path", ["C:foo", "c:..\\..\\Windows", "D:", "Z:relative\\x.png"])
+    def test_drive_relative_rejected(self, path):
+        from backend.service.utils.path_utils import normalise_path
+
+        with pytest.raises(ValueError, match="Drive-relative"):
+            normalise_path(path)
+
+    def test_drive_absolute_is_not_drive_relative(self):
+        """'C:\\x' and 'C:/x' are absolute and must pass the drive-relative
+        check (the result is platform-dependent, so only no-raise is asserted)."""
+        from backend.service.utils.path_utils import normalise_path
+
+        normalise_path("C:\\library\\x.png")
+        normalise_path("C:/library/x.png")
+
+    def test_null_byte_still_rejected_before_unc_check(self):
+        from backend.service.utils.path_utils import normalise_path
+
+        with pytest.raises(ValueError, match="null byte"):
+            normalise_path("\\\\attacker\\share\x00")
+
+    def test_unc_rejected_when_settings_uninitialised(self, monkeypatch):
+        """No configured roots (settings.get raises) fails closed."""
+        import backend.service.utils.settings as settings_mod
+        from backend.service.utils.path_utils import normalise_path
+
+        def _raise(key, default=None):
+            raise RuntimeError("settings.init() has not been called.")
+
+        monkeypatch.setattr(settings_mod, "get", _raise)
+        with pytest.raises(ValueError, match="UNC"):
+            normalise_path("\\\\attacker\\share\\x")
+
+
+class TestNormalisePathUncExemptions:
+    """The two exemptions agreed for MED-10: allow_unc=True (Environment
+    images, SECURITY.md's NAS exception) and UNC paths lexically inside an
+    operator-configured library root (a library on a mapped network drive,
+    which Path.resolve() stores as UNC)."""
+
+    @pytest.fixture(autouse=True)
+    def _no_disk(self, monkeypatch):
+        """Exempted UNC paths still resolve(); stub it for UNC paths only so
+        no test opens SMB. Every other path resolves normally."""
+        from pathlib import Path
+
+        real_resolve = Path.resolve
+
+        def _stub(self, *args, **kwargs):
+            if str(self).replace("\\", "/").startswith("//"):
+                return self
+            return real_resolve(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "resolve", _stub)
+
+    def test_allow_unc_accepts_unc(self, monkeypatch):
+        from backend.service.utils.path_utils import normalise_path
+
+        _no_configured_roots(monkeypatch)
+        result = normalise_path("\\\\nas\\images\\win98.vhd", allow_unc=True)
+        assert str(result).replace("\\", "/").endswith("nas/images/win98.vhd")
+
+    def test_unc_under_configured_root_accepted(self, monkeypatch):
+        from backend.service.utils.path_utils import normalise_path
+
+        _configured_library_root(monkeypatch, "\\\\nas\\share\\library")
+        normalise_path("\\\\nas\\share\\library\\software\\media\\x.png")
+        normalise_path("//NAS/Share/Library/software/x.png")  # case-insensitive, either separator
+
+    def test_unc_root_itself_accepted(self, monkeypatch):
+        from backend.service.utils.path_utils import normalise_path
+
+        _configured_library_root(monkeypatch, "\\\\nas\\share\\library")
+        normalise_path("\\\\nas\\share\\library")
+
+    @pytest.mark.parametrize("path", [
+        "\\\\attacker\\share\\library\\x.png",            # different host
+        "\\\\nas\\other\\library\\x.png",                 # different share
+        "\\\\nas\\share\\library-evil\\x.png",            # prefix, not a child
+        "\\\\nas\\share\\library\\..\\..\\..\\x.png",     # climbs out lexically
+        "\\\\nas\\share\\library\\..\\secrets\\x.png",
+    ])
+    def test_unc_outside_configured_root_rejected(self, monkeypatch, path):
+        from backend.service.utils.path_utils import normalise_path
+
+        _configured_library_root(monkeypatch, "\\\\nas\\share\\library")
+        with pytest.raises(ValueError, match="UNC"):
+            normalise_path(path)
+
+    def test_local_root_does_not_exempt_unc(self, monkeypatch):
+        from backend.service.utils.path_utils import normalise_path
+
+        _configured_library_root(monkeypatch, "C:\\library")
+        with pytest.raises(ValueError, match="UNC"):
+            normalise_path("\\\\attacker\\share\\x.png")
+
+
 class TestFilesystemAllowlist:
     @pytest.fixture
     def app_client(self, tmp_path, monkeypatch):

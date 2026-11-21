@@ -10,10 +10,44 @@ changes are needed.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional, Protocol
+from typing import TYPE_CHECKING, Literal, Optional, Protocol, get_args
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
+
+# Every asset type label a provider can emit, and therefore the only values
+# the Accept All route (backend/api/routes/game_metadata.py) accepts back
+# from the client. The label becomes part of an on-disk filename stem
+# (backend/service/games/media_link.py), so it is allowlisted at the API
+# boundary rather than trusted.
+#   IGDB:       "cover" (igdb_provider.py emits exactly one).
+#   TheGamesDB: "{type}_{side}" when the image has a side, else "{type}"
+#               (thegamesdb_provider._asset_type_label), over TheGamesDB's
+#               documented image types. Labels outside this set are dropped
+#               by the provider, never offered to the client.
+AssetType = Literal[
+    "cover",
+    "boxart_front",
+    "boxart_back",
+    "screenshot",
+    "fanart",
+    "banner",
+    "clearlogo",
+    "icon",
+]
+ASSET_TYPES: frozenset[str] = frozenset(get_args(AssetType))
+
+# The only hosts the server-side asset downloader
+# (backend/service/utils/asset_fetch.py) will contact, on the first request
+# and on every redirect hop. IGDB builds its image URLs against
+# images.igdb.com (igdb_provider._cover_url); TheGamesDB returns
+# base_url.original/thumb on cdn.thegamesdb.net. Adding a provider means
+# adding its image CDN host here.
+ASSET_CDN_HOSTS: frozenset[str] = frozenset({
+    "images.igdb.com",
+    "cdn.thegamesdb.net",
+})
 
 
 @dataclass

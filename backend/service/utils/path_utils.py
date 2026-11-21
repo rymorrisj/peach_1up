@@ -5,8 +5,9 @@ forms) must pass through normalise_path before any allowlist check or filesystem
 operation. This module is the single choke-point for that normalisation.
 """
 
+import ntpath
 import re
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 
 def safe_basename(filename: str, *, fallback: str = "upload") -> str:
@@ -93,7 +94,39 @@ def resolve_under(base: Path, *parts: str) -> Path:
     return resolved
 
 
-def normalise_path(path: str) -> Path:
+# Win32 device and NT object-namespace prefixes, compared after unifying
+# separators to "/": \\?\ (long-path / raw device), \\.\ (device namespace,
+# e.g. \\.\PhysicalDrive0), \??\ (NT object manager). Never legitimate input.
+_DEVICE_PREFIXES = ("//?/", "//./", "/??/")
+# "C:foo" or bare "C:": relative to drive C's per-process current directory,
+# so its meaning depends on hidden process state.
+_DRIVE_RELATIVE_RE = re.compile(r"^[a-zA-Z]:(?![\\/])")
+_ROOT_SETTING_KEYS = ("LIBRARY_PATH", "SOFTWARE_PATH", "MEDIA_PATH", "OS_PATH", "ROMS_PATH", "PROFILES_PATH")
+
+
+def _configured_unc_roots() -> list[PureWindowsPath]:
+    """Operator-configured library roots, lexically normalised, never touching
+    disk. Empty when settings are not initialised (tests, early startup)."""
+    try:
+        from backend.service.utils import settings as _s
+        values = [_s.get(key, "") or "" for key in _ROOT_SETTING_KEYS]
+    except RuntimeError:
+        return []
+    return [PureWindowsPath(ntpath.normpath(v)) for v in values if v]
+
+
+def _is_under_configured_root(path: str) -> bool:
+    """True if UNC *path* is lexically inside an operator-configured library
+    root. ``ntpath.normpath`` collapses ``..`` without resolving, and a UNC
+    path's ``\\\\server\\share`` anchor cannot be climbed out of, so a
+    ``..``-laden path cannot reach a different host this way. Deciding this
+    must not touch the filesystem: resolving an attacker-chosen UNC path is
+    itself the NTLM leak MED-10 describes."""
+    candidate = PureWindowsPath(ntpath.normpath(path))
+    return any(candidate == root or candidate.is_relative_to(root) for root in _configured_unc_roots())
+
+
+def normalise_path(path: str, *, allow_unc: bool = False) -> Path:
     """Normalise a user-supplied path to an absolute resolved Path.
 
     The result is a canonical absolute path, independent of the terminal it was
@@ -105,18 +138,40 @@ def normalise_path(path: str) -> Path:
     Steps applied in order:
         1. Empty / whitespace-only rejection.
         2. Null-byte rejection (common injection vector).
-        3. Git Bash / MSYS2 virtual path translation.
-        4. Absolute resolution via ``Path.resolve()``, eliminates ``..``
+        3. Device-path rejection (``\\\\?\\``, ``\\\\.\\``, ``\\??\\``), always.
+        4. UNC rejection (``\\\\host\\share``) unless *allow_unc* is set or
+           the path is lexically under an operator-configured library root
+           (a library on a mapped network drive is stored as UNC, because
+           ``Path.resolve()`` expands mapped drives). Checked before any
+           filesystem access, since resolving a UNC path opens an SMB
+           connection to that host.
+        5. Drive-relative rejection (``C:foo``).
+        6. Git Bash / MSYS2 virtual path translation.
+        7. Absolute resolution via ``Path.resolve()``, eliminates ``..``
            segments and relative references.
 
+    Args:
+        path: The raw path string.
+        allow_unc: Accept any UNC path. Only for Environment image paths,
+            which SECURITY.md explicitly allows on NAS shares.
+
     Raises:
-        ValueError: If path is empty or contains a null byte.
+        ValueError: If path is empty, contains a null byte, or is a
+            device, disallowed UNC, or drive-relative path.
     """
     if not path or not path.strip():
         raise ValueError("Path must not be empty.")
 
     if "\x00" in path:
         raise ValueError("Path contains a null byte.")
+
+    unified = path.replace("\\", "/")
+    if unified.startswith(_DEVICE_PREFIXES):
+        raise ValueError("Device paths are not allowed.")
+    if unified.startswith("//") and not allow_unc and not _is_under_configured_root(path):
+        raise ValueError("UNC network paths are not allowed.")
+    if _DRIVE_RELATIVE_RE.match(path):
+        raise ValueError("Drive-relative paths (e.g. 'C:folder') are not allowed, use 'C:\\folder'.")
 
     # Git Bash / MSYS2 style virtual paths (/c/Users -> C:/Users).
     if re.match(r"^/[a-zA-Z]/", path):

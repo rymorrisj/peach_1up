@@ -1,7 +1,8 @@
 import sys
 from pathlib import Path
 
-from backend.service.utils.path_utils import normalise_path
+from backend.service.utils.media_extensions import ARCHIVE_EXTENSIONS, INLINE_IMAGE_TYPES, SERVABLE_MEDIA_EXTENSIONS
+from backend.service.utils.path_utils import resolve_under, sanitize_relative_path
 
 from backend.core.settings import init_settings
 init_settings()
@@ -58,6 +59,16 @@ for _router in ROUTERS:
 
 
 
+def _is_under_media_root(svc, resolved: Path) -> bool:
+    try:
+        raw = svc.get_env_var("MEDIA_PATH")
+    except KeyError:
+        raw = svc.get("MEDIA_PATH", "") or ""
+    if not raw:
+        return False
+    return resolved.is_relative_to(Path(raw).resolve())
+
+
 @app.get("/media/{file_path:path}", include_in_schema=False)
 async def serve_media(file_path: str, request: Request, _: UserItem = Depends(get_active_user)):
     from backend.core.settings import get_settings
@@ -73,13 +84,27 @@ async def serve_media(file_path: str, request: Request, _: UserItem = Depends(ge
     # cover_art_url (computed fresh per-read in models/game.py) points at the
     # new, correct location.
     library_root = Path(svc.get("LIBRARY_PATH")).resolve()
+    # Validate the URL path's segments lexically BEFORE joining it onto the
+    # root: an absolute, UNC or drive-letter component would replace
+    # library_root outright in the join, and resolving that (a \\host\share
+    # UNC path) opens an SMB connection before any containment check runs
+    # (MED-10). sanitize_relative_path rejects empty, ".", "..", drive and
+    # "~" segments; resolve_under then re-checks containment after symlinks.
     try:
-        resolved = normalise_path(str(library_root / file_path))
+        resolved = resolve_under(library_root, *sanitize_relative_path(file_path))
     except ValueError:
         return Response(status_code=404)
-    if not resolved.is_relative_to(library_root) or not resolved.exists():
+    ext = resolved.suffix.lower()
+    if ext not in SERVABLE_MEDIA_EXTENSIONS or not resolved.is_file():
         return Response(status_code=404)
-    return FileResponse(resolved)
+    if ext in ARCHIVE_EXTENSIONS and not _is_under_media_root(svc, resolved):
+        return Response(status_code=404)
+    # MED-11: never let the browser second-guess the type, and only plain
+    # raster images render inline from our origin. Everything else downloads.
+    headers = {"X-Content-Type-Options": "nosniff"}
+    if ext in INLINE_IMAGE_TYPES:
+        return FileResponse(resolved, media_type=INLINE_IMAGE_TYPES[ext], headers=headers)
+    return FileResponse(resolved, headers=headers, filename=resolved.name, content_disposition_type="attachment")
 
 frontend_dist = resource_path("frontend/dist")
 logger.debug("[PEACH] frozen=%s", getattr(sys, 'frozen', False))

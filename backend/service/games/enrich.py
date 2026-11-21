@@ -113,7 +113,9 @@ def enrich_entity(
             )
         if cover_art_url:
             dest_dir = Path(entity.folder_path) if entity.folder_path else Path(entity.file_path).parent
-            entity.cover_art_path = str(download_remote_image(cover_art_url, dest_dir))
+            # overwrite=True: a re-fetch replaces this leaf's own cover.{ext},
+            # the one caller of download_remote_image that does so.
+            entity.cover_art_path = str(download_remote_image(cover_art_url, dest_dir, overwrite=True))
             entity.metadata_fetched_at = datetime.now(timezone.utc)
 
     else:
