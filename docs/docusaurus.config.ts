@@ -28,7 +28,9 @@ const config: Config = {
   // here). Backend serves this build under app.mount("/docs", ...)
   // (backend/main.py), so the site's own baseUrl must match that mount path
   // for its emitted asset/script paths to resolve under the mount instead of
-  // falling through to the SPA catch-all.
+  // falling through to the SPA catch-all. The docs plugin below uses
+  // routeBasePath '/', so pages live directly under baseUrl
+  // (/docs/user-guide, not /docs/docs/user-guide).
   baseUrl: '/docs/',
 
   onBrokenLinks: 'throw',
@@ -47,6 +49,10 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
+          // Docs-only mode: serve docs at the site root so the full URL is
+          // baseUrl + slug. The root route is the doc with `slug: /`
+          // (docs/intro.md), which replaces the old src/pages/index.tsx.
+          routeBasePath: '/',
           docItemComponent: '@theme/ApiItem',
         },
         blog: false,
@@ -82,6 +88,9 @@ const config: Config = {
       '@easyops-cn/docusaurus-search-local',
       {
         hashed: true,
+        // Must match the docs plugin's routeBasePath. The plugin defaults to
+        // 'docs' and would otherwise index no pages.
+        docsRouteBasePath: '/',
       },
     ],
     'docusaurus-theme-openapi-docs',
@@ -110,27 +119,21 @@ const config: Config = {
         {
           title: 'Docs',
           items: [
-            // No leading slash: Docusaurus's addBaseUrl (theme-classic's
-            // FooterLinkItem calls useBaseUrl(to) with default options)
-            // skips prepending baseUrl whenever `to` already starts with
-            // the configured baseUrl string. With baseUrl now '/docs/',
-            // a leading-slash value like '/docs/getting-started' collides
-            // with that guard and is left un-prefixed, pointing at
-            // '/docs/getting-started' while the actual generated route
-            // (baseUrl + docs routeBasePath) is '/docs/docs/getting-started'.
-            // Dropping the leading slash avoids the collision so baseUrl
-            // is correctly prepended, landing on the real route.
+            // Site-relative paths: baseUrl ('/docs/') is prepended
+            // automatically, so these resolve to /docs/getting-started etc.
+            // Do not write the baseUrl into `to`; addBaseUrl skips the
+            // prepend whenever `to` already starts with it.
             {
               label: 'Getting Started',
-              to: 'docs/getting-started',
+              to: '/getting-started',
             },
             {
               label: 'User Guide',
-              to: 'docs/user-guide',
+              to: '/user-guide',
             },
             {
               label: 'Contributor Guide',
-              to: 'docs/contributor-guide',
+              to: '/contributor-guide',
             },
           ],
         },

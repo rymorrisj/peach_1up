@@ -29,7 +29,7 @@ const NAV_ITEMS = [
   { to: '/tags', label: 'Tags', glyph: '🏷️' },
   { to: '/users', label: 'Users', glyph: '👤' },
   {
-    to: `${DOCS_BASE_URL}/docs/docs/user-guide`,
+    to: `${DOCS_BASE_URL}/docs/user-guide`,
     label: 'Guides',
     glyph: '📖',
     external: true,
