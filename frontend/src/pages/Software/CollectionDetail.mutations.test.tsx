@@ -105,7 +105,10 @@ function setupApi(user: unknown, handlers: Handler[] = []): RecordedCall[] {
       match: '/api/v1/settings/library-defaults',
       respond: () => ({ delete_media_on_removal: false, delete_original_on_upload: false }),
     },
-    { match: '/api/v1/settings', respond: () => ({ metadata_provider: 'thegamesdb' }) },
+    {
+      match: '/api/v1/settings',
+      respond: () => ({ metadata_provider: 'thegamesdb', metadata_fetch_enabled: true }),
+    },
     {
       match: /settings\/(thegamesdb-api-key\/status|igdb-status)/,
       respond: () => ({ enabled: true }),
@@ -1090,6 +1093,65 @@ describe('CollectionDetail (mutation path)', () => {
         expect(screen.getByRole('alert')).toHaveTextContent('Enrich failed.');
       });
       expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+  });
+
+  // ── metadata_fetch_enabled owner toggle gates Fetch Metadata / Cover Art ──
+  describe('Metadata fetching disabled in Settings', () => {
+    const collectionHandler: Handler = {
+      match: '/api/v1/game-item-bundle/by-slug/doom',
+      method: 'GET',
+      respond: () => fullCollection(),
+    };
+
+    it('disables Fetch Metadata and Cover Art with the Settings tooltip when off', async () => {
+      setupApi(adminUser, [
+        collectionHandler,
+        { match: '/api/v1/settings', respond: () => ({ metadata_provider: 'thegamesdb' }) },
+      ]);
+      renderPage();
+      await waitForLoaded();
+
+      const fetchButton = await screen.findByRole('button', { name: 'Fetch Metadata' });
+      const coverButton = screen.getByRole('button', { name: 'Cover Art' });
+      for (const button of [fetchButton, coverButton]) {
+        expect(button).toBeDisabled();
+        expect(button).toHaveAttribute('title', 'Enable metadata fetching in Settings');
+      }
+    });
+
+    it('the off state takes precedence over the missing-credentials tooltip', async () => {
+      setupApi(adminUser, [
+        collectionHandler,
+        { match: '/api/v1/settings', respond: () => ({ metadata_provider: 'thegamesdb' }) },
+        {
+          match: /settings\/(thegamesdb-api-key\/status|igdb-status)/,
+          respond: () => ({ enabled: false }),
+        },
+      ]);
+      renderPage();
+      await waitForLoaded();
+
+      const fetchButton = await screen.findByRole('button', { name: 'Fetch Metadata' });
+      await waitFor(() => {
+        expect(fetchButton).toHaveAttribute('title', 'Enable metadata fetching in Settings');
+      });
+      expect(screen.getByRole('button', { name: 'Cover Art' })).toHaveAttribute(
+        'title',
+        'Enable metadata fetching in Settings',
+      );
+      expect(screen.queryByText(/Requires TheGamesDB credentials/)).not.toBeInTheDocument();
+    });
+
+    it('enables both buttons when the setting is on and credentials are configured', async () => {
+      setupApi(adminUser, [collectionHandler]);
+      renderPage();
+      await waitForLoaded();
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Fetch Metadata' })).toBeEnabled();
+      });
+      expect(screen.getByRole('button', { name: 'Cover Art' })).toBeEnabled();
     });
   });
 });

@@ -26,6 +26,11 @@ import type { EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig 
 import { launchGateFromReason, SOFTWARE_SORT_OPTIONS, GAME_ROUTE_BASE } from '../types';
 import type { LibraryModalConfig } from '../components/LibraryModal';
 import { parseNaiveUtc } from '@/lib/date';
+import {
+  isMetadataFetchEnabled,
+  metadataActionTitle,
+  METADATA_FETCH_DISABLED_HINT,
+} from '@/lib/metadataFetch';
 import type { components } from '@shared/types';
 
 type LaunchHistory = components['schemas']['LaunchHistoryRead'];
@@ -92,6 +97,8 @@ function useGameDetailExtras(
   });
   const activeProviderStatus = activeProvider === 'igdb' ? igdbStatus : theGamesDbStatus;
   const metadataProviderEnabled = isOwner && activeProviderStatus?.enabled !== false;
+  const metadataFetchEnabled = isMetadataFetchEnabled(settings);
+  const metadataActionsEnabled = metadataFetchEnabled && metadataProviderEnabled;
 
   const [fetchMetadataOpen, setFetchMetadataOpen] = useState(false);
   const [fetchDiscId, setFetchDiscId] = useState<number | null>(null);
@@ -504,13 +511,13 @@ function useGameDetailExtras(
               if (confirmRefetchIfAlreadyFetched(bundle.metadata_fetched_at))
                 setFetchMetadataOpen(true);
             }}
-            disabled={!metadataProviderEnabled || bundleMetadataBusy}
+            disabled={!metadataActionsEnabled || bundleMetadataBusy}
             loading={bundleMetadataBusy}
-            title={
-              !metadataProviderEnabled
-                ? `${activeProviderLabel} credentials not configured, set them in Settings > Advanced`
-                : undefined
-            }
+            title={metadataActionTitle(
+              metadataFetchEnabled,
+              metadataProviderEnabled,
+              `${activeProviderLabel} credentials not configured, set them in Settings > Advanced`,
+            )}
           >
             Fetch Metadata
           </Button>
@@ -522,21 +529,26 @@ function useGameDetailExtras(
                 if (confirmRefetchIfAlreadyFetched(sortedItems[0].metadata_fetched_at))
                   setFetchDiscId(sortedItems[0].id);
               }}
-              disabled={!metadataProviderEnabled || discMetadataBusy}
+              disabled={!metadataActionsEnabled || discMetadataBusy}
               loading={discMetadataBusy && fetchDiscId === sortedItems[0].id}
-              title={
-                !metadataProviderEnabled
-                  ? `${activeProviderLabel} credentials not configured`
-                  : 'Fetch cover art for this disc'
-              }
+              title={metadataActionTitle(
+                metadataFetchEnabled,
+                metadataProviderEnabled,
+                `${activeProviderLabel} credentials not configured`,
+                'Fetch cover art for this disc',
+              )}
             >
               Cover Art
             </Button>
           )}
-          {!metadataProviderEnabled && (
-            <span className="text-xs text-neutral-400">
-              Requires {activeProviderLabel} credentials (Settings &gt; Advanced)
-            </span>
+          {!metadataFetchEnabled ? (
+            <span className="text-xs text-neutral-400">{METADATA_FETCH_DISABLED_HINT}</span>
+          ) : (
+            !metadataProviderEnabled && (
+              <span className="text-xs text-neutral-400">
+                Requires {activeProviderLabel} credentials (Settings &gt; Advanced)
+              </span>
+            )
           )}
         </div>
       </section>
@@ -571,13 +583,14 @@ function useGameDetailExtras(
                         if (confirmRefetchIfAlreadyFetched(disc.metadata_fetched_at))
                           setFetchDiscId(disc.id);
                       }}
-                      disabled={!metadataProviderEnabled || discMetadataBusy}
+                      disabled={!metadataActionsEnabled || discMetadataBusy}
                       loading={discMetadataBusy && fetchDiscId === disc.id}
-                      title={
-                        !metadataProviderEnabled
-                          ? `${activeProviderLabel} credentials not configured`
-                          : 'Fetch cover art for this disc'
-                      }
+                      title={metadataActionTitle(
+                        metadataFetchEnabled,
+                        metadataProviderEnabled,
+                        `${activeProviderLabel} credentials not configured`,
+                        'Fetch cover art for this disc',
+                      )}
                       className="shrink-0"
                     >
                       Cover Art

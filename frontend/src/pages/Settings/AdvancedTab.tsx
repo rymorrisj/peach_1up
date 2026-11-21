@@ -2,7 +2,20 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/api/client';
 import { useAppContext } from '@/context/useAppContext';
-import { Button, Modal, Input, FormField, Card, RadioGroup, Radio, Checkbox, Select } from '@/ui';
+import { Info } from 'lucide-react';
+import {
+  Button,
+  Modal,
+  Input,
+  FormField,
+  Card,
+  RadioGroup,
+  Radio,
+  Checkbox,
+  Select,
+  Tooltip,
+} from '@/ui';
+import { isMetadataFetchEnabled, METADATA_FETCH_DISCLAIMER } from '@/lib/metadataFetch';
 
 const FONT_SCALE_OPTIONS = [
   { value: '0.9', label: '90%' },
@@ -36,9 +49,36 @@ function AppearanceSection() {
   );
 }
 
+// Info icon beside the "Enable metadata fetching" label. A real button so the
+// tooltip also opens on keyboard focus, kept outside the Checkbox's <label>
+// so clicking it never toggles the setting.
+function MetadataFetchHint() {
+  return (
+    <Tooltip
+      content={
+        <span className="block max-w-xs whitespace-normal break-words">
+          {METADATA_FETCH_DISCLAIMER}
+        </span>
+      }
+      side="top"
+    >
+      <button
+        type="button"
+        aria-label="About metadata fetching"
+        className="inline-flex shrink-0 items-center rounded-full text-fg-3 hover:text-fg-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        <Info size={16} aria-hidden="true" />
+      </button>
+    </Tooltip>
+  );
+}
+
 function MetadataProviderSection() {
+  const { state: appState } = useAppContext();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
+  const [fetchSaving, setFetchSaving] = useState(false);
+  const [confirmFetchOpen, setConfirmFetchOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { data: settings } = useQuery<Record<string, unknown>>({
@@ -47,6 +87,40 @@ function MetadataProviderSection() {
   });
 
   const activeProvider = (settings?.metadata_provider as string | undefined) ?? 'thegamesdb';
+  const fetchEnabled = isMetadataFetchEnabled(settings);
+  // Owner-write only on the server; a can_manage_settings sub-account sees
+  // the state but cannot change it.
+  const isOwner = !!appState.activeUser?.is_owner;
+
+  async function saveFetchEnabled(next: boolean) {
+    setFetchSaving(true);
+    setError(null);
+    try {
+      await apiFetch('/api/v1/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ updates: { metadata_fetch_enabled: next } }),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['settings'] });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : 'Failed to update metadata fetching.');
+    } finally {
+      setFetchSaving(false);
+    }
+  }
+
+  // Turning on asks for confirmation first; turning off applies at once.
+  function handleFetchToggle(next: boolean) {
+    if (next) {
+      setConfirmFetchOpen(true);
+      return;
+    }
+    void saveFetchEnabled(false);
+  }
+
+  async function handleConfirmFetch() {
+    await saveFetchEnabled(true);
+    setConfirmFetchOpen(false);
+  }
 
   async function handleSelect(provider: 'thegamesdb' | 'igdb') {
     if (provider === activeProvider) return;
@@ -69,6 +143,16 @@ function MetadataProviderSection() {
     <Card>
       <Card.Header>Metadata Provider</Card.Header>
       <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="metadata-fetch-enabled"
+            checked={fetchEnabled}
+            onCheckedChange={handleFetchToggle}
+            disabled={!isOwner || fetchSaving}
+            label="Enable metadata fetching"
+          />
+          {fetchEnabled && <MetadataFetchHint />}
+        </div>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
           Which service "Fetch Metadata" searches. Only one provider is active at a time, switching
           providers below doesn't clear either one's saved credentials, it only changes which one is
@@ -92,15 +176,37 @@ function MetadataProviderSection() {
             Metadata fetched via this tool is powered by IGDB.com.
           </p>
         )}
-        <p className="text-xs text-neutral-400 dark:text-neutral-500">
-          Fetched metadata, including ratings, may be incomplete or inaccurate. If you rely on
-          content filtering, verify ratings manually.
-        </p>
         {error && (
           <p role="alert" className="text-sm text-red-600 dark:text-red-400">
             ❌ {error}
           </p>
         )}
+
+        <Modal
+          open={confirmFetchOpen}
+          title="Enable metadata fetching"
+          onClose={() => setConfirmFetchOpen(false)}
+          busy={fetchSaving}
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setConfirmFetchOpen(false)}
+                disabled={fetchSaving}
+              >
+                Cancel
+              </Button>
+              <Button size="sm" loading={fetchSaving} onClick={handleConfirmFetch}>
+                Confirm
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            {METADATA_FETCH_DISCLAIMER}
+          </p>
+        </Modal>
       </div>
     </Card>
   );

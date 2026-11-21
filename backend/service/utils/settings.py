@@ -56,6 +56,10 @@ _DEFAULTS: dict = {
     "delete_original_on_upload": False,
     "UPLOAD_TMP_TTL_SECONDS": DEFAULT_UPLOAD_TMP_TTL_SECONDS,
     "metadata_provider": "thegamesdb",
+    # Owner opt-in for every outbound metadata fetch (search, details, enrich,
+    # Accept All). Off until the owner accepts the accuracy disclaimer in
+    # Settings. Enforced server-side in backend/api/routes/game_metadata.py.
+    "metadata_fetch_enabled": False,
     # Retention window for launch history. "never" preserves the pre-existing
     # unbounded behaviour. See models/settings.py LaunchHistoryRetention.
     "launch_history_retention": "never",

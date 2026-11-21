@@ -10,6 +10,9 @@ PIN hash. GET /owner-status is covered in test_owner_guard.py. Covers:
       plus its structural rejections that run before any settings I/O:
       PIN_PEPPER routed to the wrong endpoint (400), a disallowed key (403),
       and an invalid launch_history_retention value (422)
+    - metadata_fetch_enabled: default false, owner-write only (403 for a
+      can_manage_settings sub-account), bool only (422), with get_settings
+      monkeypatched to a recorder so no real settings I/O happens
     - PATCH /pin-pepper's same-pepper no-op short-circuit, and a rotation
       with no existing owner pin_hash (owner_rehashed stays False, affected
       sub-accounts have pin_hash cleared and pin_required re-armed)
@@ -182,6 +185,83 @@ class TestPatchSettingsGate:
         resp = c.patch("/api/v1/settings", json={"updates": {"launch_history_retention": "not-a-real-value"}})
 
         assert resp.status_code == 422, resp.text
+
+
+# ---------------------------------------------------------------------------
+# metadata_fetch_enabled, owner-write only, bool only, default false
+# ---------------------------------------------------------------------------
+
+
+class _RecordingSettings:
+    def __init__(self):
+        self.flags: list[tuple[str, object]] = []
+
+    def set_flag(self, key, value):
+        self.flags.append((key, value))
+
+
+class TestMetadataFetchEnabledSetting:
+    def test_default_is_false(self):
+        from backend.service.utils.settings import _DEFAULTS
+
+        assert _DEFAULTS["metadata_fetch_enabled"] is False
+
+    def test_settings_manager_non_owner_refused_403_and_nothing_written(self, http_client, monkeypatch):
+        from backend.api.routes import settings as settings_routes
+
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, can_manage_settings=True, is_admin=True))
+        recorder = _RecordingSettings()
+        monkeypatch.setattr(settings_routes, "get_settings", lambda: recorder)
+
+        resp = c.patch("/api/v1/settings", json={"updates": {"metadata_fetch_enabled": True}})
+
+        assert resp.status_code == 403, resp.text
+        assert recorder.flags == []
+
+    def test_non_owner_refused_even_when_mixed_with_writable_keys(self, http_client, monkeypatch):
+        from backend.api.routes import settings as settings_routes
+
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, can_manage_settings=True))
+        recorder = _RecordingSettings()
+        monkeypatch.setattr(settings_routes, "get_settings", lambda: recorder)
+
+        resp = c.patch(
+            "/api/v1/settings",
+            json={"updates": {"metadata_provider": "igdb", "metadata_fetch_enabled": True}},
+        )
+
+        assert resp.status_code == 403, resp.text
+        assert recorder.flags == []
+
+    @pytest.mark.parametrize("value", [True, False])
+    def test_owner_can_write(self, http_client, monkeypatch, value):
+        from backend.api.routes import settings as settings_routes
+
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_owner=True))
+        recorder = _RecordingSettings()
+        monkeypatch.setattr(settings_routes, "get_settings", lambda: recorder)
+
+        resp = c.patch("/api/v1/settings", json={"updates": {"metadata_fetch_enabled": value}})
+
+        assert resp.status_code == 200, resp.text
+        assert recorder.flags == [("metadata_fetch_enabled", value)]
+
+    @pytest.mark.parametrize("value", ["true", "yes", None])
+    def test_owner_non_bool_rejected_422(self, http_client, monkeypatch, value):
+        from backend.api.routes import settings as settings_routes
+
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_owner=True))
+        recorder = _RecordingSettings()
+        monkeypatch.setattr(settings_routes, "get_settings", lambda: recorder)
+
+        resp = c.patch("/api/v1/settings", json={"updates": {"metadata_fetch_enabled": value}})
+
+        assert resp.status_code == 422, resp.text
+        assert recorder.flags == []
 
 
 # ---------------------------------------------------------------------------

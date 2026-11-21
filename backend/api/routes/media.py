@@ -9,7 +9,8 @@ from sqlmodel import SQLModel
 from backend.core.database import get_db
 from backend.core.dependencies import (
     get_active_user, get_filtered_media_item, get_filtered_media_item_bundle,
-    get_filtered_media_item_bundles, get_filtered_media_items, require_permission,
+    get_filtered_media_item_bundles, get_filtered_media_items, normalize_content_rating,
+    require_permission,
 )
 from backend.constants_generated import MediaKind
 from backend.core.logger import get_logger
@@ -21,6 +22,7 @@ from backend.models.media import (
 )
 from backend.models.pagination import Page
 from backend.models.user import UserItem
+from backend.service.media.content_rating import checked_media_rating_change
 from backend.service.utils.media_extensions import INLINE_IMAGE_TYPES, check_media_extension
 from backend.service.utils.path_utils import normalise_path
 from backend.service.utils.sort_utils import apply_bundle_sort
@@ -87,14 +89,14 @@ def list_media_items(
     q = get_filtered_media_items(active_user, db).order_by(MediaItem.id)
     total = q.count()
     rows = q.offset(offset).limit(limit).all()
-    return Page(items=items_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
+    return Page(items=items_to_read_bulk(rows, db, viewer=active_user), total=total, limit=limit, offset=offset)
 
 
 @router.post("/media-items", response_model=MediaItemRead, status_code=201)
 def create_media_item(
     body: MediaItemCreate,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_media"),
+    active_user: UserItem = require_permission("can_manage_media"),
 ):
     # Every item gets a collection-of-one MediaItemBundle on creation when the
     # caller doesn't attach it to an existing one, mirroring App's
@@ -115,7 +117,11 @@ def create_media_item(
     item_slug = unique_media_slug(body.title, db)
 
     bundle_id = body.media_item_bundle_id
-    if bundle_id is None:
+    if bundle_id is not None:
+        # Same 404 as a missing bundle, so a hidden bundle can be neither
+        # attached to nor confirmed to exist.
+        get_filtered_media_item_bundle(bundle_id, active_user, db)
+    else:
         bundle = MediaItemBundle(
             title=body.title,
             media_kind=body.media_kind,
@@ -135,7 +141,7 @@ def create_media_item(
     db.add(item)
     db.commit()
     db.refresh(item)
-    return item_to_read(item, db)
+    return item_to_read(item, db, viewer=active_user)
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +153,7 @@ def create_media_item(
 def get_media_item(
     item_id: int, db: Session = Depends(get_db), active_user: UserItem = Depends(get_active_user)
 ):
-    return item_to_read(get_filtered_media_item(item_id, active_user, db), db)
+    return item_to_read(get_filtered_media_item(item_id, active_user, db), db, viewer=active_user)
 
 
 @router.patch("/media-item/{item_id}", response_model=MediaItemRead)
@@ -155,12 +161,14 @@ def update_media_item(
     item_id: int,
     body: MediaItemUpdate,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_media"),
+    active_user: UserItem = require_permission("can_manage_media"),
 ):
-    item = db.get(MediaItem, item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Media item not found.")
+    # Visibility filter first: a hidden item, or a hidden target bundle,
+    # returns the same 404 as a missing one.
+    item = get_filtered_media_item(item_id, active_user, db)
     fields = body.model_dump(exclude_unset=True)
+    if fields.get("media_item_bundle_id") is not None:
+        get_filtered_media_item_bundle(fields["media_item_bundle_id"], active_user, db)
     if "cover_art_path" in fields:
         fields["cover_art_path"] = _validated_cover_art_path(fields["cover_art_path"])
     for key, value in fields.items():
@@ -168,7 +176,7 @@ def update_media_item(
     db.add(item)
     db.commit()
     db.refresh(item)
-    return item_to_read(item, db)
+    return item_to_read(item, db, viewer=active_user)
 
 
 @router.delete("/media-item/{item_id}", status_code=204)
@@ -194,17 +202,20 @@ def delete_media_item(
 def create_media_item_bundle(
     body: MediaItemBundleCreate,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_media"),
+    active_user: UserItem = require_permission("can_manage_media"),
 ):
+    # A new bundle has no links yet, so its own rating always applies and
+    # null to rated needs no confirmation. Same normaliser as games.
     collection = MediaItemBundle(
-        **body.model_dump(exclude={"cover_art_path"}),
+        **body.model_dump(exclude={"cover_art_path", "content_rating"}),
         cover_art_path=_validated_cover_art_path(body.cover_art_path),
+        content_rating=normalize_content_rating(body.content_rating),
         slug=unique_media_slug(body.title, db),
     )
     db.add(collection)
     db.commit()
     db.refresh(collection)
-    return media_item_bundle_to_read(collection, db)
+    return media_item_bundle_to_read(collection, db, viewer=active_user)
 
 
 @router.get("/media-item-bundles", response_model=Page[MediaItemBundleRead])
@@ -228,35 +239,42 @@ def list_media_item_bundles(
         q = q.filter(MediaItemBundle.id.in_(subq))
     total = q.count()
     rows = apply_bundle_sort(q, MediaItemBundle, sort).offset(offset).limit(limit).all()
-    return Page(items=media_item_bundle_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
+    return Page(items=media_item_bundle_to_read_bulk(rows, db, viewer=active_user), total=total, limit=limit, offset=offset)
 
 
 @router.get("/media-item-bundle/{collection_id}", response_model=MediaItemBundleRead)
 def get_media_item_bundle(
     collection_id: int, db: Session = Depends(get_db), active_user: UserItem = Depends(get_active_user)
 ):
-    return media_item_bundle_to_read(get_filtered_media_item_bundle(collection_id, active_user, db), db)
+    return media_item_bundle_to_read(
+        get_filtered_media_item_bundle(collection_id, active_user, db), db, viewer=active_user,
+    )
 
 
 @router.patch("/media-item-bundle/{collection_id}", response_model=MediaItemBundleRead)
 def update_media_item_bundle(
     collection_id: int,
     body: MediaItemBundleUpdate,
+    confirm_rating_change: bool = Query(False),
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_media"),
+    active_user: UserItem = require_permission("can_manage_media"),
 ):
-    collection = db.get(MediaItemBundle, collection_id)
-    if not collection:
-        raise HTTPException(status_code=404, detail="Media collection not found.")
+    # Same 404 as a missing bundle, so a hidden bundle is neither patchable
+    # nor confirmed to exist (mirrors update_game_item_bundle).
+    collection = get_filtered_media_item_bundle(collection_id, active_user, db)
     fields = body.model_dump(exclude_unset=True)
     if "cover_art_path" in fields:
         fields["cover_art_path"] = _validated_cover_art_path(fields["cover_art_path"])
+    if "content_rating" in fields:
+        fields["content_rating"] = checked_media_rating_change(
+            collection, fields["content_rating"], confirm_rating_change=confirm_rating_change, db=db,
+        )
     for key, value in fields.items():
         setattr(collection, key, value)
     db.add(collection)
     db.commit()
     db.refresh(collection)
-    return media_item_bundle_to_read(collection, db)
+    return media_item_bundle_to_read(collection, db, viewer=active_user)
 
 
 class MediaCoverArtToGamesBody(SQLModel):
@@ -268,7 +286,7 @@ def apply_cover_art_to_linked_games(
     collection_id: int,
     body: MediaCoverArtToGamesBody,
     db: Session = Depends(get_db),
-    _media: UserItem = require_permission("can_manage_media"),
+    active_user: UserItem = require_permission("can_manage_media"),
     _game: UserItem = require_permission("can_manage_game"),
 ):
     """Reuse one of this media collection's files as cover art for every
@@ -287,9 +305,7 @@ def apply_cover_art_to_linked_games(
     (frontend/src/pages/Software/types.ts) exactly. Writing any other leaf
     would be silently invisible, since nothing reads from it for display.
     """
-    collection = db.get(MediaItemBundle, collection_id)
-    if not collection:
-        raise HTTPException(status_code=404, detail="Media collection not found.")
+    collection = get_filtered_media_item_bundle(collection_id, active_user, db)
     if not any(item.file_path == body.file_path for item in collection.items):
         raise HTTPException(status_code=422, detail="file_path does not belong to this media item.")
 
@@ -297,7 +313,8 @@ def apply_cover_art_to_linked_games(
     from backend.service.games.items import update_library_leaf
 
     linked_game_ids = [
-        ref.entity_id for ref in _linked_items_for("media_item_bundle", collection_id, db)
+        ref.entity_id
+        for ref in _linked_items_for("media_item_bundle", collection_id, db, viewer=active_user)
         if ref.entity_type == "game_item_bundle"
     ]
     if not linked_game_ids:

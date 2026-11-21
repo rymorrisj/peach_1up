@@ -10,6 +10,9 @@ test_enrich.py drives enrich_entity() directly. Covers:
       confirm_rating_change, and succeeds (rating actually updated) with it
     - a content_rating change that does not lower the rating (same value, or
       moving off an unset rating) needs no confirmation at all
+    - the metadata_fetch_enabled owner toggle: all four routes refuse with
+      403 and the stable "disabled" detail while it is off, the permission
+      403 still wins for a non-owner, and the routes run normally when on
 
 In-memory SQLModel SQLite + StaticPool + get_active_user/get_db dependency
 overrides, as in the other *_routes test files. No settings stub is needed:
@@ -81,6 +84,22 @@ def _set_active_user(app, user):
     app.dependency_overrides[get_active_user] = lambda: user
 
 
+@pytest.fixture
+def metadata_fetch_enabled(monkeypatch):
+    """Turn the owner's metadata_fetch_enabled toggle on for one test. The
+    routes resolve is_metadata_fetch_enabled from the package at call time."""
+    import backend.service.metadata_providers as providers_mod
+
+    monkeypatch.setattr(providers_mod, "is_metadata_fetch_enabled", lambda: True)
+
+
+@pytest.fixture
+def metadata_fetch_disabled(monkeypatch):
+    import backend.service.metadata_providers as providers_mod
+
+    monkeypatch.setattr(providers_mod, "is_metadata_fetch_enabled", lambda: False)
+
+
 # ---------------------------------------------------------------------------
 # is_owner gate
 # ---------------------------------------------------------------------------
@@ -133,6 +152,7 @@ class TestIsOwnerGate:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("metadata_fetch_enabled")
 class TestRatingChangeConfirmation:
     def test_lowering_rating_without_confirm_returns_409(self, http_client):
         c, db, app = http_client
@@ -300,3 +320,132 @@ class TestTheGamesDBAssetTypeFilter:
         assert _asset_type_label({"type": "boxart", "side": "front"}) in ASSET_TYPES
         assert _asset_type_label({"type": "screenshot"}) in ASSET_TYPES
         assert _asset_type_label({"type": "../evil", "side": "x"}) not in ASSET_TYPES
+
+
+# ---------------------------------------------------------------------------
+# metadata_fetch_enabled owner toggle, enforced server-side on all four routes
+# ---------------------------------------------------------------------------
+
+_DISABLED_DETAIL = "Metadata fetching is disabled in Settings"
+
+
+def _call_route(c, route, bundle_id):
+    if route == "search":
+        return c.get("/api/v1/game-items/metadata-search", params={"name": "Doom"})
+    if route == "details":
+        return c.get("/api/v1/game-items/metadata-details", params={"game_id": 1})
+    if route == "enrich":
+        return c.post(
+            "/api/v1/game-items/enrich",
+            json={"entity_type": "game_item_bundle", "entity_id": bundle_id, "title": "New Title"},
+        )
+    return c.post(f"/api/v1/game-items/{bundle_id}/accept-metadata-assets", json={"assets": []})
+
+
+_ROUTES = ["search", "details", "enrich", "accept"]
+
+
+class TestMetadataFetchToggle:
+    def test_is_metadata_fetch_enabled_fails_closed_before_settings_init(self, monkeypatch):
+        import backend.service.utils.settings as settings_mod
+        from backend.service.metadata_providers import is_metadata_fetch_enabled
+
+        monkeypatch.setattr(settings_mod, "_state", None)
+
+        assert is_metadata_fetch_enabled() is False
+
+    def test_is_metadata_fetch_enabled_defaults_to_false(self, monkeypatch):
+        import backend.service.utils.settings as settings_mod
+        from backend.service.metadata_providers import is_metadata_fetch_enabled
+
+        assert settings_mod._DEFAULTS["metadata_fetch_enabled"] is False
+        monkeypatch.setattr(settings_mod, "_state", dict(settings_mod._DEFAULTS))
+
+        assert is_metadata_fetch_enabled() is False
+
+    def test_is_metadata_fetch_enabled_true_for_stored_true(self, monkeypatch):
+        import backend.service.utils.settings as settings_mod
+        from backend.service.metadata_providers import is_metadata_fetch_enabled
+
+        monkeypatch.setattr(settings_mod, "_state", {"metadata_fetch_enabled": True})
+
+        assert is_metadata_fetch_enabled() is True
+
+    @pytest.mark.parametrize("stored", ["true", 1, "1", None])
+    def test_is_metadata_fetch_enabled_rejects_non_bool_values(self, monkeypatch, stored):
+        import backend.service.utils.settings as settings_mod
+        from backend.service.metadata_providers import is_metadata_fetch_enabled
+
+        monkeypatch.setattr(settings_mod, "_state", {"metadata_fetch_enabled": stored})
+
+        assert is_metadata_fetch_enabled() is False
+
+    @pytest.mark.usefixtures("metadata_fetch_disabled")
+    @pytest.mark.parametrize("route", _ROUTES)
+    def test_route_refuses_when_disabled(self, http_client, monkeypatch, route):
+        import backend.service.games.enrich as enrich_mod
+        import backend.service.games.media_link as media_link_mod
+        import backend.service.metadata_providers as providers_mod
+
+        c, db, app = http_client
+        bundle = _make_game_bundle(db, content_rating="M")
+        _set_active_user(app, _make_user(db, is_owner=True))
+        reached = []
+        monkeypatch.setattr(providers_mod, "get_active_provider", lambda: reached.append("provider"))
+        monkeypatch.setattr(enrich_mod, "enrich_entity", lambda *a, **k: reached.append("enrich"))
+        monkeypatch.setattr(
+            media_link_mod, "create_linked_media_from_metadata", lambda *a, **k: reached.append("accept"),
+        )
+
+        resp = _call_route(c, route, bundle.id)
+
+        assert resp.status_code == 403, resp.text
+        assert resp.json()["detail"] == _DISABLED_DETAIL
+        assert reached == []
+        db.refresh(bundle)
+        assert bundle.title == "Doom"
+
+    @pytest.mark.usefixtures("metadata_fetch_disabled")
+    @pytest.mark.parametrize("route", _ROUTES)
+    def test_permission_check_runs_before_disabled_check(self, http_client, route):
+        c, db, app = http_client
+        bundle = _make_game_bundle(db)
+        _set_active_user(app, _make_user(db, can_manage_game=True, can_manage_settings=True))
+
+        resp = _call_route(c, route, bundle.id)
+
+        assert resp.status_code == 403, resp.text
+        assert resp.json()["detail"] != _DISABLED_DETAIL
+
+    @pytest.mark.usefixtures("metadata_fetch_enabled")
+    def test_search_runs_when_enabled(self, http_client, monkeypatch):
+        import backend.service.metadata_providers as providers_mod
+        from backend.service.metadata_providers import SearchResult
+
+        class _Provider:
+            def search_games(self, name):
+                return [SearchResult(game_id=7, title=name, release_date=None)]
+
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_owner=True))
+        monkeypatch.setattr(providers_mod, "get_active_provider", lambda: _Provider())
+
+        resp = c.get("/api/v1/game-items/metadata-search", params={"name": "Doom"})
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["results"][0]["game_id"] == 7
+
+    @pytest.mark.usefixtures("metadata_fetch_enabled")
+    def test_enrich_runs_when_enabled(self, http_client):
+        c, db, app = http_client
+        bundle = _make_game_bundle(db)
+        _set_active_user(app, _make_user(db, is_owner=True))
+
+        resp = c.post(
+            "/api/v1/game-items/enrich",
+            json={"entity_type": "game_item_bundle", "entity_id": bundle.id, "title": "New Title"},
+        )
+
+        assert resp.status_code == 200, resp.text
+        db.refresh(bundle)
+        assert bundle.title == "New Title"

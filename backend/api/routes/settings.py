@@ -63,6 +63,12 @@ _SENSITIVE_KEYS = {
 # because changing it requires re-hashing the owner PIN (see patch_pin_pepper).
 _ENV_SECRET_KEYS = {"THEGAMESDB_API_KEY", "AI_API_KEY", "IGDB_CLIENT_ID", "IGDB_CLIENT_SECRET"}
 
+# Writable through the generic PATCH below by the owner only, never by a
+# sub-account holding can_manage_settings, and only as a real JSON bool.
+# metadata_fetch_enabled gates every outbound metadata fetch and is turned on
+# only after the owner accepts the accuracy disclaimer in Settings.
+_OWNER_ONLY_BOOL_KEYS = {"metadata_fetch_enabled"}
+
 # The only keys a can_manage_settings user may write through the generic PATCH
 # endpoint. Anything not listed here is refused, notably ALLOW_NETWORK_ACCESS
 # (relaxes the network security boundary), reset_db (destructive), and any
@@ -70,14 +76,33 @@ _ENV_SECRET_KEYS = {"THEGAMESDB_API_KEY", "AI_API_KEY", "IGDB_CLIENT_ID", "IGDB_
 # PIN_PEPPER is handled by its own dedicated route and is intentionally absent.
 # Path keys and _ENV_SECRET_KEYS are each routed through their own dedicated
 # write path below (set_path() / set_env_secret()) rather than written to
-# settings state raw.
+# settings state raw. _OWNER_ONLY_BOOL_KEYS are allowlisted here and then
+# narrowed to the owner by _check_owner_only_bool_keys.
 _USER_WRITABLE_KEYS = _ALL_PATH_KEYS | _ENV_SECRET_KEYS | {
     "suppress_confirmations",
     "delete_media_on_removal",
     "delete_original_on_upload",
     "metadata_provider",
     "launch_history_retention",
-}
+} | _OWNER_ONLY_BOOL_KEYS
+
+
+def _check_owner_only_bool_keys(updates: dict, active_user: UserItem) -> None:
+    """Refuse owner-only keys from non-owners (403) and non-bool values (422).
+
+    Runs before any settings I/O, so a refused request writes nothing.
+    """
+    owner_only = sorted(set(updates) & _OWNER_ONLY_BOOL_KEYS)
+    if not owner_only:
+        return
+    if not active_user.is_owner:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Only the owner can change: {', '.join(owner_only)}.",
+        )
+    for key in owner_only:
+        if not isinstance(updates[key], bool):
+            raise HTTPException(status_code=422, detail=f"{key} must be true or false.")
 
 
 @router.get("", response_model=dict)
@@ -113,7 +138,7 @@ def get_library_defaults(_: UserItem = require_permission("can_manage_game")):
 
 
 @router.patch("")
-def patch_settings(body: SettingsPatch, _: UserItem = require_permission("can_manage_settings")):
+def patch_settings(body: SettingsPatch, active_user: UserItem = require_permission("can_manage_settings")):
     if "PIN_PEPPER" in body.updates:
         raise HTTPException(
             status_code=400,
@@ -127,6 +152,7 @@ def patch_settings(body: SettingsPatch, _: UserItem = require_permission("can_ma
             status_code=403,
             detail=f"These settings cannot be changed here: {', '.join(disallowed)}.",
         )
+    _check_owner_only_bool_keys(body.updates, active_user)
     if "launch_history_retention" in body.updates:
         from backend.models.settings import LAUNCH_HISTORY_RETENTION_VALUES
         value = body.updates["launch_history_retention"]

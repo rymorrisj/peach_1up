@@ -1,7 +1,7 @@
 import re
 
 from fastapi import Depends, HTTPException, Request
-from sqlalchemy import or_
+from sqlalchemy import and_, or_, true
 from sqlalchemy.orm import Session
 
 from backend.constants_generated import CONTENT_RATINGS
@@ -252,28 +252,39 @@ def get_filtered_game_item_bundles(active_user: UserItem, db: Session):
 
     restricted_ids = _restricted_bundle_ids(MediaRestriction.game_item_bundle_id, active_user, db)
     q = q.filter(GameItemBundle.id.not_in(restricted_ids))
+    return q.filter(content_rating_visible(GameItemBundle.content_rating, active_user))
 
+
+def content_rating_visible(rating_column, active_user: UserItem):
+    """SQL predicate: a row whose rating lives in *rating_column* passes
+    *active_user*'s ``block_unrated_media`` and ``max_content_rating`` filter.
+
+    The one visibility rule behind get_filtered_game_item_bundles and the
+    media effective-rating rule (backend/service/media/content_rating.py),
+    parameterized only by which column holds the rating. Fail-closed rules
+    are documented on get_filtered_game_item_bundles. Owner bypass is each
+    caller's responsibility. Never evaluates to SQL NULL, so it is safe to
+    negate with ``not_()``.
+    """
+    clauses = []
     if active_user.block_unrated_media:
-        q = q.filter(
-            GameItemBundle.content_rating.isnot(None),
-            GameItemBundle.content_rating != "",
-        )
+        clauses.append(and_(rating_column.isnot(None), rating_column != ""))
 
     if active_user.max_content_rating:
         ordinal_map = _load_rating_ordinals()
         max_ord = ordinal_map.get(active_user.max_content_rating)
         # An unresolvable ceiling must fail closed (deny all rated content),
-        # not silently disable the rating filter, see docstring above.
+        # not silently disable the rating filter, see get_filtered_game_item_bundles.
         allowed = {r for r, o in ordinal_map.items() if o <= max_ord} if max_ord is not None else set()
-        q = q.filter(
+        clauses.append(
             or_(
-                GameItemBundle.content_rating.is_(None),
-                GameItemBundle.content_rating == "",
-                GameItemBundle.content_rating.in_(list(allowed)),
+                rating_column.is_(None),
+                rating_column == "",
+                rating_column.in_(list(allowed)),
             )
         )
 
-    return q
+    return and_(true(), *clauses)
 
 
 def get_filtered_game_item_bundle(id_or_slug: int | str, active_user: UserItem, db: Session) -> GameItemBundle:
@@ -351,14 +362,23 @@ def get_filtered_app_item(id_or_slug: int | str, active_user: UserItem, db: Sess
 def get_filtered_media_item_bundles(active_user: UserItem, db: Session):
     """Return a MediaItemBundle query filtered to what *active_user* may see.
 
-    Owner sees all collections. Manual blocklist only, Media has no
-    content_rating/max_content_rating concept to filter on.
+    Owner sees all collections. Non-owners: the MediaRestriction blocklist,
+    then the effective-rating rule (media_rating_visible): a bundle linked
+    to software is visible only if every linked game passes this user's
+    rating filter, an unlinked bundle is judged on its own content_rating.
     """
+    from backend.service.media.content_rating import media_rating_visible
+
     q = db.query(MediaItemBundle)
     if active_user.is_owner:
         return q
     restricted_ids = _restricted_bundle_ids(MediaRestriction.media_item_bundle_id, active_user, db)
-    return q.filter(MediaItemBundle.id.not_in(restricted_ids))
+    return q.filter(
+        MediaItemBundle.id.not_in(restricted_ids),
+        media_rating_visible(
+            "media_item_bundle", MediaItemBundle.id, MediaItemBundle.content_rating, active_user,
+        ),
+    )
 
 
 def get_filtered_media_item_bundle(id_or_slug: int | str, active_user: UserItem, db: Session) -> MediaItemBundle:
@@ -381,19 +401,31 @@ def get_filtered_media_item_bundle(id_or_slug: int | str, active_user: UserItem,
 def get_filtered_media_items(active_user: UserItem, db: Session):
     """Return a MediaItem query filtered to what *active_user* may see.
 
-    Owner sees all items. Non-owners: items with no parent bundle
-    (media_item_bundle_id is None) always pass through, since there is no
-    bundle-level restriction to check for them. Items belonging to a
-    restricted MediaItemBundle are excluded.
+    Owner sees all items. Non-owners: an item in a bundle is visible exactly
+    when its bundle is (get_filtered_media_item_bundles, blocklist plus
+    effective rating). An item with no parent bundle has no blocklist row
+    and no rating column of its own, so it goes through the same
+    effective-rating rule on its own item-level links with an unrated own
+    rating: it needs every linked game to pass, or, unlinked, it is treated
+    as unrated (hidden from block_unrated_media accounts), failing closed.
     """
+    from sqlalchemy import String, cast, null
+
+    from backend.service.media.content_rating import media_rating_visible
+
     q = db.query(MediaItem)
     if active_user.is_owner:
         return q
-    restricted_ids = _restricted_bundle_ids(MediaRestriction.media_item_bundle_id, active_user, db)
+    visible_bundle_ids = (
+        get_filtered_media_item_bundles(active_user, db).with_entities(MediaItemBundle.id).subquery()
+    )
     return q.filter(
         or_(
-            MediaItem.media_item_bundle_id.is_(None),
-            MediaItem.media_item_bundle_id.not_in(restricted_ids),
+            and_(
+                MediaItem.media_item_bundle_id.is_(None),
+                media_rating_visible("media_item", MediaItem.id, cast(null(), String), active_user),
+            ),
+            MediaItem.media_item_bundle_id.in_(visible_bundle_ids.select()),
         )
     )
 

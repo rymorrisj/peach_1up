@@ -12,6 +12,8 @@ from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_enti
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+    from backend.models.user import UserItem
+
 # ---------------------------------------------------------------------------
 # Leaf entity: MediaItem (one archival file, audio/text/image/video).
 # Mirrors GameItem/GameItemBundle deliberately (see backend/models/game.py).
@@ -144,6 +146,11 @@ class MediaItemBundle(SQLModel, table=True):
     media_kind: MediaKind = Field(sa_column=Column(String, nullable=False))
     description: Optional[str] = None
     cover_art_path: Optional[str] = None
+    # The bundle's own rating, same vocabulary and normaliser as
+    # GameItemBundle.content_rating. Used for visibility only while the
+    # bundle has no linked game; a linked bundle inherits from its games
+    # (backend/service/media/content_rating.py) and this stays null.
+    content_rating: Optional[str] = Field(default=None, index=True)
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=False),
@@ -167,12 +174,14 @@ class MediaItemBundleCreate(SQLModel):
     media_kind: MediaKind
     description: Optional[str] = None
     cover_art_path: Optional[str] = None
+    content_rating: Optional[str] = None
 
 
 class MediaItemBundleUpdate(SQLModel):
     title: Optional[str] = None
     description: Optional[str] = None
     cover_art_path: Optional[str] = None
+    content_rating: Optional[str] = None
 
 
 class MediaItemBundleRead(SQLModel):
@@ -183,6 +192,12 @@ class MediaItemBundleRead(SQLModel):
     description: Optional[str] = None
     cover_art_path: Optional[str] = None
     cover_art_url: Optional[str] = None
+    # Own stored value, effective value the visibility filter applies, and
+    # whether that effective value comes from linked software. Read-only,
+    # filled by the read builders below.
+    content_rating: Optional[str] = None
+    effective_content_rating: Optional[str] = None
+    is_inherited: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     items: list[MediaItemRead] = []
@@ -341,13 +356,28 @@ def delete_links_for(entity_type: str, entity_id: int, db: "Session") -> None:
 
 
 def _linked_items_for(
-    entity_type: str, entity_id: int, db: "Session"
+    entity_type: str, entity_id: int, db: "Session", *, viewer: Optional["UserItem"] = None
 ) -> list[LinkedEntityRef]:
-    return _linked_items_for_many(entity_type, [entity_id], db).get(entity_id, [])
+    return _linked_items_for_many(entity_type, [entity_id], db, viewer=viewer).get(entity_id, [])
+
+
+def _counterpart_rows(target_type: str, model: type, ids: set[int], db: "Session", viewer: Optional["UserItem"]):
+    """Counterpart rows for one entity_type. With *viewer*, game counterparts
+    go through get_filtered_game_item_bundles, so a game the viewer cannot
+    see is never named (MED-7). Without one, rows are unfiltered, which is
+    only correct for internal callers that never return the refs to a
+    client (e.g. media_link.py's bundle lookup)."""
+    from sqlalchemy import select as _select
+
+    if viewer is not None and target_type == "game_item_bundle":
+        from backend.core.dependencies import get_filtered_game_item_bundles
+
+        return get_filtered_game_item_bundles(viewer, db).filter(model.id.in_(ids)).all()
+    return db.execute(_select(model).where(model.id.in_(ids))).scalars().all()
 
 
 def _linked_items_for_many(
-    entity_type: str, entity_ids: list[int], db: "Session"
+    entity_type: str, entity_ids: list[int], db: "Session", *, viewer: Optional["UserItem"] = None
 ) -> dict[int, list[LinkedEntityRef]]:
     """Bulk variant: one MediaLink query plus one bulk query per distinct
     counterpart entity_type found, instead of a per-entity N+1.
@@ -391,8 +421,7 @@ def _linked_items_for_many(
         model = _link_target_model(target_type)
         if model is None:
             continue
-        found = db.execute(_select(model).where(model.id.in_(ids))).scalars().all()
-        for obj in found:
+        for obj in _counterpart_rows(target_type, model, ids, db, viewer):
             titles[(target_type, obj.id)] = (obj.title, getattr(obj, "slug", None))
 
     result: dict[int, list[LinkedEntityRef]] = {}
@@ -414,19 +443,24 @@ def _linked_items_for_many(
     return result
 
 
-def item_to_read(item: MediaItem, db: "Session") -> MediaItemRead:
+# Every builder takes a required keyword-only *viewer* (the active user), so
+# linked game titles are filtered to what that user can see (MED-7) and no
+# caller can forget to pass it.
+
+
+def item_to_read(item: MediaItem, db: "Session", *, viewer: "UserItem") -> MediaItemRead:
     read = MediaItemRead.model_validate(item)
     read.tags = get_tags_for_entity("media_item", item.id, db)
-    read.linked_items = _linked_items_for("media_item", item.id, db)
+    read.linked_items = _linked_items_for("media_item", item.id, db, viewer=viewer)
     return read
 
 
-def items_to_read_bulk(items: list[MediaItem], db: "Session") -> list[MediaItemRead]:
+def items_to_read_bulk(items: list[MediaItem], db: "Session", *, viewer: "UserItem") -> list[MediaItemRead]:
     if not items:
         return []
     item_ids = [i.id for i in items]
     tag_map = get_tags_for_entities("media_item", item_ids, db)
-    linked_map = _linked_items_for_many("media_item", item_ids, db)
+    linked_map = _linked_items_for_many("media_item", item_ids, db, viewer=viewer)
     reads = []
     for i in items:
         read = MediaItemRead.model_validate(i)
@@ -436,27 +470,33 @@ def items_to_read_bulk(items: list[MediaItem], db: "Session") -> list[MediaItemR
     return reads
 
 
-def media_item_bundle_to_read(bundle: MediaItemBundle, db: "Session") -> MediaItemBundleRead:
-    read = MediaItemBundleRead.model_validate(bundle)
-    read.items = items_to_read_bulk(list(bundle.items), db)
-    read.tags = get_tags_for_entity("media_item_bundle", bundle.id, db)
-    read.linked_items = _linked_items_for("media_item_bundle", bundle.id, db)
-    return read
+def media_item_bundle_to_read(
+    bundle: MediaItemBundle, db: "Session", *, viewer: "UserItem"
+) -> MediaItemBundleRead:
+    return media_item_bundle_to_read_bulk([bundle], db, viewer=viewer)[0]
 
 
 def media_item_bundle_to_read_bulk(
-    bundles: list[MediaItemBundle], db: "Session"
+    bundles: list[MediaItemBundle], db: "Session", *, viewer: "UserItem"
 ) -> list[MediaItemBundleRead]:
+    from backend.service.media.content_rating import effective_content_rating, linked_game_ratings
+
     if not bundles:
         return []
     bundle_ids = [c.id for c in bundles]
     tag_map = get_tags_for_entities("media_item_bundle", bundle_ids, db)
-    linked_map = _linked_items_for_many("media_item_bundle", bundle_ids, db)
+    linked_map = _linked_items_for_many("media_item_bundle", bundle_ids, db, viewer=viewer)
+    # Ratings of every linked game, visible or not: the effective rating is
+    # what the filter applied, and it names no game (MED-7 covers titles).
+    rating_map = linked_game_ratings("media_item_bundle", bundle_ids, db)
     reads = []
     for c in bundles:
         read = MediaItemBundleRead.model_validate(c)
-        read.items = items_to_read_bulk(list(c.items), db)
+        read.items = items_to_read_bulk(list(c.items), db, viewer=viewer)
         read.tags = tag_map.get(c.id, [])
         read.linked_items = linked_map.get(c.id, [])
+        read.effective_content_rating, read.is_inherited = effective_content_rating(
+            c.content_rating, rating_map.get(c.id)
+        )
         reads.append(read)
     return reads

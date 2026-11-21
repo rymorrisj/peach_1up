@@ -96,6 +96,20 @@ class MetadataProvider(Protocol):
     def get_game_details(self, game_id: int, db: "Session") -> GameDetails: ...
 
 
+def is_metadata_fetch_enabled() -> bool:
+    """Return True only when the owner has turned on metadata_fetch_enabled.
+
+    Fails closed: an unset key, a non-bool stored value, or settings not yet
+    initialised (RuntimeError) all read as disabled.
+    """
+    from backend.service.utils import settings as _s
+
+    try:
+        return _s.get("metadata_fetch_enabled", False) is True
+    except RuntimeError:
+        return False
+
+
 def get_active_provider() -> MetadataProvider:
     """Return the MetadataProvider selected by the metadata_provider settings key.
 

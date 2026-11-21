@@ -29,10 +29,16 @@ export interface MediaItemBundleData extends EntityBundleBase {
   media_kind: string;
   cover_art_path: string | null;
   cover_art_url: string | null;
+  // Own rating, the effective rating the visibility filter applies, and
+  // whether that effective rating is inherited from linked software.
+  content_rating: string | null;
+  effective_content_rating: string | null;
+  is_inherited: boolean;
   items: MediaItemLeaf[];
 }
 
-// Minimal edit form: title, description, cover_art_path. A single PATCH,
+// Minimal edit form: title, description, cover_art_path, plus the own
+// content_rating for bundles with no linked software. A single PATCH,
 // no multi-step disc/leaf sequence like Game's since cover_art_path lives
 // directly on the bundle (see formFromCollection in types/mediaForm.ts).
 function useMediaDetailExtras(
@@ -56,6 +62,9 @@ function useMediaDetailExtras(
           title: f.title.trim() || undefined,
           description: f.description.trim() || null,
           cover_art_path: f.cover_art_path.trim() || null,
+          // The backend rejects content_rating on a linked bundle (422), so
+          // it is sent only for a standalone one.
+          ...(collection?.is_inherited ? {} : { content_rating: f.content_rating || null }),
         }),
       });
       return refetchEntity();
@@ -130,6 +139,10 @@ function useMediaDetailExtras(
       <MediaEditForm
         form={form}
         setField={setFormField}
+        rating={{
+          isInherited: collection.is_inherited,
+          effectiveRating: collection.effective_content_rating,
+        }}
         handleSave={() => saveMutation.mutate(form)}
         saving={saveMutation.isPending}
         saveError={

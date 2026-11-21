@@ -31,6 +31,24 @@ def _enforce_rate_limit(bucket: str, request: Request, limit: int, window_second
         )
 
 
+METADATA_FETCH_DISABLED_DETAIL = "Metadata fetching is disabled in Settings"
+
+
+def _require_metadata_fetch_enabled() -> None:
+    """Refuse with 403 unless the owner has enabled metadata fetching.
+
+    Called first in each route body, so the require_permission dependency has
+    already run (a non-owner still gets the permission 403, not this one) and
+    a refused call never consumes rate-limit budget or reaches a provider.
+    403 matches the other setting-gated refusal in this app, the
+    ALLOW_NETWORK_ACCESS check in backend/api/middleware/security.py.
+    """
+    from backend.service.metadata_providers import is_metadata_fetch_enabled
+
+    if not is_metadata_fetch_enabled():
+        raise HTTPException(status_code=403, detail=METADATA_FETCH_DISABLED_DETAIL)
+
+
 class EnrichBody(BaseModel):
     entity_type: Literal["game_item_bundle", "game_item"]
     entity_id: int
@@ -65,6 +83,7 @@ def search_metadata(
     name: str = Query(...),
     _: UserItem = require_permission("is_owner"),
 ):
+    _require_metadata_fetch_enabled()
     _enforce_rate_limit("library-metadata", request, _METADATA_RATE_LIMIT, _METADATA_RATE_WINDOW_SECONDS)
 
     import httpx2
@@ -100,6 +119,7 @@ def get_metadata_details(
     db: Session = Depends(get_db),
     _: UserItem = require_permission("is_owner"),
 ):
+    _require_metadata_fetch_enabled()
     _enforce_rate_limit("library-metadata", request, _METADATA_RATE_LIMIT, _METADATA_RATE_WINDOW_SECONDS)
 
     import httpx2
@@ -147,6 +167,7 @@ def enrich_library_entity(
     db: Session = Depends(get_db),
     _: UserItem = require_permission("is_owner"),
 ):
+    _require_metadata_fetch_enabled()
     _enforce_rate_limit("library-enrich", request, _ENRICH_RATE_LIMIT, _ENRICH_RATE_WINDOW_SECONDS)
 
     entity, entity_type = enrich_svc.enrich_entity(
@@ -176,7 +197,7 @@ def accept_metadata_assets(
     request: Request,
     body: AcceptMetadataAssetsBody,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("is_owner"),
+    active_user: UserItem = require_permission("is_owner"),
 ):
     """Accept All step of the Fetch Metadata flow: downloads every asset the
     frontend already fetched via /metadata-details (no second round trip to
@@ -186,6 +207,7 @@ def accept_metadata_assets(
     is_owner) and the same rate-limit bucket as /enrich, since both are
     write operations against this game.
     """
+    _require_metadata_fetch_enabled()
     _enforce_rate_limit("library-enrich", request, _ENRICH_RATE_LIMIT, _ENRICH_RATE_WINDOW_SECONDS)
 
     from backend.models.media import media_item_bundle_to_read
@@ -197,4 +219,4 @@ def accept_metadata_assets(
         for a in body.assets
     ]
     bundle = create_linked_media_from_metadata(id, assets, db)
-    return media_item_bundle_to_read(bundle, db)
+    return media_item_bundle_to_read(bundle, db, viewer=active_user)
