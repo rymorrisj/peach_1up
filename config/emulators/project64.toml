@@ -7,8 +7,8 @@ binary = "Project64.exe"
 download_url = "https://www.pj64-emu.com"
 portable_sentinel = ""
 cli_args_prefix = []
-container_enabled = true
-container_permanently_excluded = false
+container_enabled = false
+container_permanently_excluded = true
 container_hardcap_disabled = false
 container_hardcap_note = ""
 skip_memory_limit = true
@@ -49,6 +49,11 @@ access = "rw"
 mode = "grant"
 
 [[known_limitations]]
-title = "Crashes under AppContainer when memory limit is enabled"
-severity = "moderate"
-description = "Project64 crashes on launch (Main.cpp:99, exit_code=1) specifically when a Job Object memory limit is enforced alongside AppContainer. Root cause unknown. Workaround is to run with the memory limit disabled (skip_memory_limit = true); the CPU limit and AppContainer isolation itself are unaffected."
+title = "AppContainer is permanently excluded"
+severity = "warning"
+description = "Under AppContainer, Project64 shows an error dialog (\"Exception caught, File: main.cpp, Line: 99\") and exits with code 1. The root cause is unknown. It runs under Job Object isolation only, and AppContainer cannot be turned on for it. If you see that dialog, check that AppContainer is off for Project64 on its Overview tab."
+
+[[known_limitations]]
+title = "First-run Support prompt"
+severity = "info"
+description = "Project64 shows a \"Support Project64\" prompt with a Continue button after a short wait. Before launching from Peach 1UP for the first time, start Project64 once from its own folder and click Continue. A launch from the command line before the prompt was cleared failed once on a fresh install; whether the two are linked is unconfirmed."

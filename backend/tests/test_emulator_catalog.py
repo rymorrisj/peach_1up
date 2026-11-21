@@ -207,6 +207,83 @@ class TestResolveContainerEnabled:
 
 
 # ---------------------------------------------------------------------------
+# Project64: AppContainer off, durable in the descriptor
+#
+# These read the real config/emulators/project64.toml (no get_emulator stub),
+# so they fail if the descriptor ever regresses. Only the settings store is
+# stubbed, to model a fresh or recreated DB holding no sandbox_* rows.
+# ---------------------------------------------------------------------------
+
+class TestProject64ContainerExcluded:
+    @pytest.fixture(autouse=True)
+    def _empty_settings(self, monkeypatch):
+        from backend.service.utils import emulator_catalog
+        monkeypatch.setattr(emulator_catalog._settings, "get", lambda key, default=None: default)
+
+    def test_descriptor_loads_with_exclusion_flags(self):
+        from backend.service.utils.emulator_catalog import get_emulator
+        entry = get_emulator("project64")
+        assert entry["container_enabled"] is False
+        assert entry["container_permanently_excluded"] is True
+
+    def test_descriptor_validates_against_schema(self):
+        from backend.service.utils.emulator_catalog import get_emulator
+        from backend.service.utils.emulator_descriptor import EmulatorDescriptor
+        descriptor = EmulatorDescriptor.model_validate(get_emulator("project64"))
+        assert descriptor.container_enabled is False
+        assert descriptor.container_permanently_excluded is True
+
+    def test_resolves_disabled_with_no_override(self):
+        from backend.service.utils import emulator_catalog
+        assert emulator_catalog.resolve_container_enabled("project64", None) is False
+
+    def test_settings_override_cannot_enable_container(self, monkeypatch):
+        # A stored sandbox_project64_container_enabled=True must not win: the
+        # descriptor's container_enabled=false floors the settings override.
+        from backend.service.utils import emulator_catalog
+        monkeypatch.setattr(
+            emulator_catalog._settings, "get",
+            lambda key, default=None: True if key == "sandbox_project64_container_enabled" else default,
+        )
+        assert emulator_catalog.get_container_enabled("project64") is False
+        assert emulator_catalog.resolve_container_enabled("project64", None) is False
+
+    def test_profile_or_spec_override_true_is_ignored_and_warns(self, caplog):
+        # Profile.container_enabled and LaunchSpec.container_enabled both feed
+        # the same override argument of resolve_container_enabled().
+        from backend.service.utils import emulator_catalog
+        with caplog.at_level("WARNING"):
+            result = emulator_catalog.resolve_container_enabled("project64", True)
+        assert result is False
+        assert any("permanently excluded" in r.getMessage() for r in caplog.records)
+
+    def test_cpu_limit_is_enforced(self):
+        from backend.service.utils import emulator_catalog
+        assert emulator_catalog.get_emulator("project64")["skip_cpu_limit"] is False
+        assert emulator_catalog.get_skip_cpu_limit("project64") is False
+
+    def test_memory_limit_waiver_is_unchanged(self):
+        # Pins the descriptor value this change deliberately left alone. It is
+        # currently True (cap waived); a stored sandbox_project64_skip_memory_limit
+        # = false row is what enforces the cap today. Flip this assertion only
+        # in a change that decides to enforce the cap in the descriptor.
+        from backend.service.utils import emulator_catalog
+        assert emulator_catalog.get_emulator("project64")["skip_memory_limit"] is True
+        assert emulator_catalog.get_skip_memory_limit("project64") is True
+
+    def test_known_limitations_record_exclusion_and_support_prompt(self):
+        # LimitationsTab renders these verbatim and only styles "warning" and
+        # "critical"; the schema itself accepts any string, so pin the values
+        # the UI actually understands.
+        from backend.service.utils.emulator_catalog import get_emulator
+        limits = get_emulator("project64")["known_limitations"]
+        assert {lim["severity"] for lim in limits} <= {"info", "warning", "critical"}
+        text = " ".join(f"{lim['title']} {lim['description']}" for lim in limits)
+        assert "AppContainer" in text and "main.cpp" in text
+        assert "Support Project64" in text
+
+
+# ---------------------------------------------------------------------------
 # build_media_broker_config
 # ---------------------------------------------------------------------------
 

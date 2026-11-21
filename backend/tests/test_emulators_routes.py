@@ -222,3 +222,31 @@ class TestUngatedRoutes:
 
         assert resp.status_code == 200, resp.text
         assert "token" in resp.json()
+
+
+# ---------------------------------------------------------------------------
+# PATCH /{slug}/sandbox, permanently excluded container (Project64)
+# ---------------------------------------------------------------------------
+
+
+class TestSandboxPatchPermanentlyExcluded:
+    def test_enabling_container_for_project64_returns_400(self, http_client, monkeypatch):
+        from backend.api.routes import emulators
+
+        written: list = []
+        monkeypatch.setattr(emulators._settings, "set_flag", lambda key, value: written.append((key, value)))
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_admin=True))
+
+        resp = c.patch("/api/v1/emulator-items/project64/sandbox", json={"container_enabled": True})
+
+        assert resp.status_code == 400, resp.text
+        assert written == []  # rejected before anything was persisted
+
+    def test_disabling_container_for_project64_is_allowed(self, http_client):
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_admin=True))
+
+        resp = c.patch("/api/v1/emulator-items/project64/sandbox", json={"container_enabled": False})
+
+        assert resp.status_code == 200, resp.text
