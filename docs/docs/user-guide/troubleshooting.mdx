@@ -1,0 +1,93 @@
+---
+title: Troubleshooting
+---
+
+# Troubleshooting
+
+When a launch goes wrong, work through these in order. Peach 1UP never falls back to an
+unsandboxed launch, so a failed launch is reported to you rather than retried quietly. See
+[Launching](./launching.mdx).
+
+## An emulator shows an error dialog or exits immediately, but runs when started by hand
+
+This pattern means the emulator itself is fine and something about how Peach 1UP starts it
+differs from starting it yourself.
+
+**1. Check the era memory cap.** Every launch runs under a Job Object with a per-era memory
+cap. A cap that is too low for the emulator makes it crash or fail to load large games.
+Raise `memory_limit_mb` for the era in `config/eras.yaml` and restart the backend. See
+[Windows Sandboxing](../contributor-guide/windows-sandboxing.mdx).
+
+**2. Start the emulator by hand with the same ROM.** Run the emulator's own executable from
+its folder in `emulators/`, with the same ROM or disc image, from a terminal. If it also
+fails there, the problem is the emulator, the media, or a missing BIOS, not the way Peach 1UP
+launches it.
+
+If it works by hand, try turning AppContainer off for that emulator:
+
+1. Open the **Emulators** page and select the emulator.
+2. On the **Overview** tab, find the **Sandbox** section.
+3. Switch the **AppContainer** toggle off, then launch again.
+
+Turning AppContainer off does not remove the Job Object. Kill-on-close and the resource caps
+stay in force, and there is still no unsandboxed fallback. What you give up is AppContainer's
+filesystem restriction. Switch it back on once you have your answer, unless the emulator is
+one of the known cases below.
+
+To tell which path a launch took, open Process Explorer while the emulator is running. If
+its parent process is `sandbox_host.exe`, it was launched through AppContainer. If the
+parent is anything else, it was launched without AppContainer.
+
+If the toggle is missing or cannot be switched on, that emulator is excluded from
+AppContainer. See the known cases below.
+
+**3. Known cases.**
+
+| Emulator | AppContainer | What to do |
+|---|---|---|
+| Project64 | Permanently excluded | Nothing to switch. It always runs under the Job Object only. See [Project64](#project64) below |
+| 86Box | Off by default | It works with AppContainer in some environments and not others. Leave it off unless you are testing |
+| RPCS3 | See the [Emulator Reference](../contributor-guide/emulators.mdx) | Follow the reference for its current state |
+
+**4. When you report a problem,** include the emulator, your CPU, your GPU, your Windows
+version, the exact error text, and whether the emulator runs when started by hand.
+
+## Project64
+
+**Install.** Install Project64 from the Emulators page. If you supply your own copy,
+`Project64.exe` must sit directly in `emulators/project64/`.
+
+**First-run Support prompt.** The official Project64 build shows a "Support Project64" prompt
+with a Continue button after a short wait. Before launching from Peach 1UP for the first
+time, start Project64 once from its own folder and click **Continue**. On one fresh install, a
+command-line launch before the prompt had been cleared failed once. Whether the two are
+linked is unconfirmed.
+
+**AppContainer.** Project64 is permanently excluded from AppContainer. Under it, Project64
+shows an error dialog and exits with code 1. The root cause is unknown. A profile that asks for
+AppContainer is ignored, and the Sandbox toggle refuses to switch it on. Project64 runs under
+the Job Object only.
+
+**Resource caps.** The shipped descriptor enforces the CPU cap and waives the memory cap.
+Both caps can be switched on or off with the **CPU limit enabled** and **Memory limit
+enabled** toggles in the same Sandbox section. Project64 has been run with both enabled.
+
+**The "Exception caught" dialog.** If you see a dialog reading `Exception caught, File:
+main.cpp, Line: 99`:
+
+1. Confirm AppContainer is off for Project64 on its Overview tab.
+2. Launch the ROM from a terminal, from the Project64 folder: run `Project64.exe` followed by
+   the full path to the ROM. If that works, the problem is in how Peach 1UP launched it. If
+   it fails the same way, the problem is the ROM or the Project64 install.
+3. Report it with the details listed above.
+
+**A log line that is not an error.** `Project64.log` can contain an error-level line reading
+`CRecompiler::ClearRecompCode_Virt, Delete table` after a normal, successful run. It is not a
+failure and can be ignored.
+
+## About the hardware notes in these docs
+
+Most development testing was done on an Intel and NVIDIA machine. Recent testing is on an AMD
+Ryzen system. Where a note names hardware, it says so, and it describes what was observed on
+that hardware, not a general rule. If you see a different result on your own CPU or GPU, please
+report it with the details above.

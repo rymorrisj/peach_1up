@@ -13,6 +13,7 @@ slug: /user-guide
 | [Launch Profiles](./profiles.mdx) | Reusable per-emulator launch configuration, and what a profile deliberately cannot control |
 | [Accounts and Parental Controls](./accounts.mdx) | Owner and sub-accounts, permission flags, PINs and lockout, content-rating filtering |
 | [Settings](./settings.mdx) | What is configurable and where, secrets, sandbox overrides, and the known gap around library paths |
+| [Troubleshooting](./troubleshooting.mdx) | An emulator that errors or exits but runs by hand, turning AppContainer off, and Project64 notes |
 
 ## Preparing media
 

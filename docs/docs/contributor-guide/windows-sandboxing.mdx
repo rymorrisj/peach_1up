@@ -17,8 +17,10 @@ layered on top where the emulator supports it.
 | CPU cap | Threads are throttled past the per-era budget per scheduling interval, applied as `MaxRate` under `MIN_MAX_RATE` | `skip_cpu_limit` |
 | Memory cap | Per-process cap so a runaway emulator cannot exhaust host RAM | `skip_memory_limit` |
 
-**No emulator waives either cap today.** Every descriptor in `config/emulators/` sets both
-flags to `false`, so all three controls are in force on every launch.
+**One descriptor waives a cap today.** Every descriptor in `config/emulators/` sets
+`skip_cpu_limit = false`, and every descriptor except Project64's sets `skip_memory_limit =
+false`. Project64's descriptor has `skip_memory_limit = true`, so its memory cap is waived by
+default. Kill-on-close is always in force.
 
 If the Job Object cannot be created, or the emulator cannot be assigned to it, **the launch
 is aborted**. There is no fallback to an uncontained launch.
@@ -37,14 +39,14 @@ or block network access at the OS level (that is emulator-native, see
 |---|---|---|
 | DOSBox-X | Yes | |
 | DuckStation | Yes | |
-| Flycast | Yes | Its own descriptor note still claims otherwise. That text is stale; the flag is authoritative |
+| Flycast | Yes | |
 | Mesen | Yes | |
 | PCSX2 | Yes | |
 | Xenia | Yes | |
 | xemu | Yes | Re-enabled 2026-08-11. The earlier QEMU TCG diagnosis was wrong; the real cause was undersized limits colliding with xemu's pre-allocated JIT heap |
-| 86Box | No | Works in some environments and not others. Disabled by default, not hard-locked, so it can be enabled per install. Not being investigated further |
+| 86Box | No | Works in some environments and not others. Disabled by default, not hard-locked, so it can be enabled per install. Not being investigated further at this time |
 | RPCS3 | No | JIT recompiler (Cell PPU/SPU and RSX) incompatible with AppContainer's restricted token |
-| Project64 | No, permanently | Crashes on launch under AppContainer (`Main.cpp:99`, `exit_code=1`) even with limits raised. Root cause unknown. No override can turn it on |
+| Project64 | No, permanently | `container_enabled = false` and `container_permanently_excluded = true`. Under AppContainer it shows an `Exception caught, File: main.cpp, Line: 99` dialog and exits with code 1. Root cause unknown. Runs under the Job Object only. No override can turn it on. Seen on an AMD and Intel systems, hardware dependence unknown |
 
 Container monikers are `Peach1UP.<slug>.<scope>`, where `<scope>` is `shared` or the decimal
 user item ID. Confirmed examples: `Peach1UP.duckstation.shared`, `Peach1UP.mesen.shared`.
@@ -154,6 +156,29 @@ processes to an OS-managed job, and a second assignment fails with access denied
 process was launched with `CREATE_BREAKAWAY_FROM_JOB`. The launcher retries automatically.
 If the retry also fails (the process is inside a non-breakaway job set by a third-party tool
 or debugger) the launch aborts and the error surfaces to the user.
+
+**An emulator errors or exits but runs when started by hand.** Try AppContainer off for that
+emulator before anything else. The user-facing steps are in
+[Troubleshooting](../user-guide/troubleshooting.mdx).
+
+## Sandbox overrides and the database
+
+The per-emulator toggles on the Emulators page (**Overview** tab, **Sandbox** section) write
+settings rows named `sandbox_<slug>_container_enabled`, `sandbox_<slug>_skip_cpu_limit` and
+`sandbox_<slug>_skip_memory_limit`. They are stored in the `settings` table of the SQLite
+database, not in the descriptor.
+
+- Deleting the `.db` file by hand loses them, and the emulator falls back to its descriptor.
+- The `reset_db` flag does not lose them. The backend replays the in-memory settings into the
+  fresh database after the delete.
+- An exclusion that must survive a database reset therefore belongs in the descriptor, not
+  only in an override. Project64 carries `container_enabled = false` and
+  `container_permanently_excluded = true` for this reason.
+- The descriptor is also a floor. A `false` in the descriptor for `container_enabled` stops a
+  settings row from switching AppContainer on. A `false` for a skip flag stops a settings row
+  from waiving that cap.
+- The same applies in reverse for a cap that is waived in the descriptor. Project64's
+  `skip_memory_limit = true` means that with no override row, its memory cap is waived.
 
 ## DOSBox-X specifics
 

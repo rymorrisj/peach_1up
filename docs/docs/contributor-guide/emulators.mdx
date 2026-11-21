@@ -255,15 +255,41 @@ side switching happens inside Mesen.
 Portable by default whenever its install directory is writable; all config lives in
 `AppPath\Config\`. No BIOS required.
 
-**Not auto-installable.** The project publishes git tags but no GitHub release assets, so
-there is nothing for the installer to match. The user downloads the Windows build from
-pj64-emu.com and extracts it into `emulators/project64/`. This is permanent, not a deferred
-decision.
+**Install.** The descriptor installs it from the Peach 1UP emulator bundle repo
+(`install_type = "github_release"`, asset `project64.zip`) into `emulators/project64/`.
+`Project64.exe` must sit at the archive root, because the installer does not strip a
+wrapping folder.
 
-**AppContainer permanently excluded** (`container_permanently_excluded = true`). Project64
-crashes on launch under AppContainer (`Main.cpp:99`, `exit_code=1`), reproduced with memory
-and CPU limits raised. Root cause unknown. Job Object caps remain the only active isolation
-layer, and both are enforced.
+**AppContainer permanently excluded** (`container_enabled = false` and
+`container_permanently_excluded = true`). Under AppContainer, Project64 shows an
+`Exception caught, File: main.cpp, Line: 99` dialog and exits with code 1. Root cause
+unknown. Project64 runs when started from a terminal, and when Peach 1UP launches it with
+AppContainer off. A profile or spec override is ignored and logged, and
+`PATCH /{slug}/sandbox` rejects enabling it with 400. Job Object isolation is the only
+active layer.
+
+**Observation, not a diagnosis.** In Process Explorer, the failing launch's parent was
+`sandbox_host.exe`, and the process showed DEP permanent and forced ASLR. A terminal launch
+showed neither. Nothing here proves those settings are the cause.
+
+**Hardware.** The AppContainer crash was seen on an AMD Ryzen system. It has not been tested
+on Intel or NVIDIA hardware, and whether it depends on hardware either way is unknown.
+
+**Resource caps.** The descriptor sets `skip_cpu_limit = false` and `skip_memory_limit =
+true`, so the CPU cap is enforced and the memory cap is waived by default. Project64 has
+been run with both caps enabled through the per-emulator sandbox overrides.
+
+**Support prompt.** The official build shows a modal "Support Project64" prompt, with a
+Continue button after a short wait. On a fresh install, a command-line launch before it was
+cleared failed once. The link is unconfirmed. The descriptor's `known_limitations` tells the
+user to start Project64 once from its folder and click Continue first.
+
+**Benign log line.** `Project64.log` can show an error-level `CRecompiler::ClearRecompCode_Virt,
+Delete table` line after a normal, successful run. It is not a failure.
+
+**Overrides are not durable.** The per-emulator sandbox overrides (the `sandbox_<slug>_*`
+settings rows) live in the database. See [Windows Sandboxing](./windows-sandboxing.mdx) for
+what that means for an exclusion.
 
 **Multi-disc:** not applicable for cartridges. 64DD disk titles, rare here, swap manually
 inside Project64's own menu.
