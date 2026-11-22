@@ -77,6 +77,39 @@ describe('useConfirmToken', () => {
     });
   });
 
+  it('consume() sends delete_media only when given, as true or false', async () => {
+    mockApiFetch.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useConfirmToken());
+
+    await act(async () => {
+      await result.current.consume('/api/v1/library/1', 'tok', { deleteMedia: true });
+    });
+    expect(mockApiFetch).toHaveBeenLastCalledWith('/api/v1/library/1?confirmation_token=tok&delete_media=true', {
+      method: 'DELETE',
+    });
+
+    await act(async () => {
+      await result.current.consume('/api/v1/library/1', 'tok', { deleteMedia: false, confirmRatingChange: true });
+    });
+    expect(mockApiFetch).toHaveBeenLastCalledWith(
+      '/api/v1/library/1?confirmation_token=tok&confirm_rating_change=true&delete_media=false',
+      { method: 'DELETE' },
+    );
+  });
+
+  it('consume() marks only the rating-change 409 as quiet when ratingChangeHandled', async () => {
+    mockApiFetch.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useConfirmToken());
+
+    await act(async () => {
+      await result.current.consume('/api/v1/library/1', 'tok', { ratingChangeHandled: true });
+    });
+    expect(mockApiFetch).toHaveBeenLastCalledWith('/api/v1/library/1?confirmation_token=tok', {
+      method: 'DELETE',
+      quietErrorTypes: ['rating_change_requires_confirmation'],
+    });
+  });
+
   it('error from issue() propagates to the caller', async () => {
     mockApiFetch.mockRejectedValueOnce(new ApiError(403, 'Forbidden'));
 

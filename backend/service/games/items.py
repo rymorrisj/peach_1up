@@ -1485,7 +1485,14 @@ def _should_delete_media(collection: GameItemBundle) -> bool:
     return bool(get_settings().get("delete_media_on_removal", False))
 
 
-def delete_library_collection(collection_id: int, token: str, db: Session) -> None:
+def delete_library_collection(
+    collection_id: int, token: str, db: Session, *, delete_media: bool | None = None,
+) -> None:
+    """Delete one collection after consuming its confirmation token.
+
+    *delete_media* overrides the delete-media decision for this call only
+    (None falls back to _should_delete_media), and is never persisted.
+    """
     if not _consume(token, "game", collection_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
     collection = db.get(GameItemBundle, collection_id)
@@ -1497,7 +1504,7 @@ def delete_library_collection(collection_id: int, token: str, db: Session) -> No
     from backend.service.utils.drive_utils import delete_drive_for_collection
     delete_drive_for_collection(collection, db)
 
-    if _should_delete_media(collection):
+    if delete_media if delete_media is not None else _should_delete_media(collection):
         _delete_leaf_media_folders(collection)
 
     # MediaLink carries no DB-level FK to game_item_bundles (a polymorphic

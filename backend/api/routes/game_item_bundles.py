@@ -584,6 +584,7 @@ def verify_game_item_bundle(
     POST /api/v1/game-item/{leaf_id}/verify (single disc only). Per-disc
     verification means only this endpoint reflects the whole game's true
     state for a multi-disc collection."""
+    get_filtered_game_item_bundle(collection_id, active_user, db)
     return game_item_bundle_to_read(
         lib_svc.reverify_library_collection(collection_id, db), db, viewer=active_user,
     )
@@ -595,9 +596,9 @@ def flag_launch(
     db: Session = Depends(get_db),
     active_user: UserItem = require_permission("can_launch_media"),
 ):
-    collection = db.get(GameItemBundle, collection_id)
-    if not collection:
-        raise HTTPException(status_code=404, detail="Software collection not found.")
+    # can_launch_media is on by default, so this must not hand a capped
+    # account the full read of a hidden game: same 404 as a missing one.
+    collection = get_filtered_game_item_bundle(collection_id, active_user, db)
     collection.launch_review_flagged = True
     db.commit()
     db.refresh(collection)
@@ -658,8 +659,11 @@ def start_xiso_conversion(
 @router.get("/game-item-bundle/{collection_id}/convert-xiso/status")
 def get_xiso_conversion_status(
     collection_id: int,
-    _: UserItem = require_permission("can_launch_media"),
+    db: Session = Depends(get_db),
+    active_user: UserItem = require_permission("can_launch_media"),
 ):
+    # output_path names the game's media file, so a hidden bundle 404s.
+    get_filtered_game_item_bundle(collection_id, active_user, db)
     status = install_registry.get_status(_xiso_convert_key(collection_id))
     return {
         "status": status["status"],
@@ -686,9 +690,14 @@ def delete_game_item_bundle(
     collection_id: int,
     confirmation_token: str = Query(...),
     confirm_rating_change: bool = Query(False),
+    delete_media: bool | None = Query(None),
     db: Session = Depends(get_db),
     active_user: UserItem = require_permission("can_manage_game"),
 ):
+    """*delete_media*, when given, is the delete-confirm checkbox's choice
+    for this delete only. It travels with the confirmed DELETE so nothing is
+    persisted when the user cancels the rating-change prompt; omitted, the
+    bundle's delete_media_override (else the global setting) applies."""
     get_filtered_game_item_bundle(collection_id, active_user, db)
     # Deleting the game drops every link it has, which can loosen the
     # effective rating of linked media. Checked before the service consumes
@@ -698,7 +707,7 @@ def delete_game_item_bundle(
         confirm_rating_change=confirm_rating_change,
         action="game delete",
     )
-    lib_svc.delete_library_collection(collection_id, confirmation_token, db)
+    lib_svc.delete_library_collection(collection_id, confirmation_token, db, delete_media=delete_media)
 
 
 @router.patch("/game-item-bundle/{collection_id}/items/reorder", response_model=GameItemBundleRead)
@@ -711,6 +720,7 @@ def reorder_game_item_bundle_items(
     # Registered before the "/items/{leaf_id}" route below: {leaf_id} has no
     # type constraint in the path itself, so a literal "reorder" segment
     # would otherwise match that route first and 422 on int conversion.
+    get_filtered_game_item_bundle(collection_id, active_user, db)
     collection = lib_svc.reorder_library_items(collection_id, body, db)
     return game_item_bundle_to_read(collection, db, viewer=active_user)
 
@@ -721,8 +731,9 @@ def update_game_item(
     leaf_id: int,
     body: GameItemUpdate,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_game"),
+    active_user: UserItem = require_permission("can_manage_game"),
 ):
+    get_filtered_game_item_bundle(collection_id, active_user, db)
     return GameItemRead.model_validate(
         lib_svc.update_library_leaf(collection_id, leaf_id, body, db)
     )

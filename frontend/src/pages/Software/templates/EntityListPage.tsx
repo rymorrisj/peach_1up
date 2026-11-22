@@ -213,19 +213,19 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
     if (!confirmed) return;
     try {
       const base = deleteConfig.bundleByIdApiPath(entity.id);
+      // Sent as delete_media on the DELETE itself, never PATCHed first, so a
+      // cancelled rating-change prompt leaves delete_media_override untouched.
       const checkedDeleteMedia = getCheckboxValue();
-      if (checkedDeleteMedia !== resolvedDeleteMedia) {
-        await apiFetch(base, {
-          method: 'PATCH',
-          body: JSON.stringify({ delete_media_override: checkedDeleteMedia }),
-        });
-      }
       // A game delete can loosen linked media's effective rating (409 until
       // confirmed). A fresh token per attempt, since the prompt can outlast
       // the token's 60s TTL. App deletes never raise it.
       const completed = await withRatingChangeConfirm(async (confirmRatingChange) => {
         const token = await issueToken(`${base}/confirm-delete`);
-        await consumeToken(base, token, { confirmRatingChange });
+        await consumeToken(base, token, {
+          confirmRatingChange,
+          deleteMedia: checkedDeleteMedia,
+          ratingChangeHandled: true,
+        });
       });
       if (completed) invalidate();
     } catch (err) {

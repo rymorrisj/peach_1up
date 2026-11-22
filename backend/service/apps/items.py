@@ -239,7 +239,14 @@ def _delete_leaf_media_folders(collection: AppItemBundle) -> None:
                 log.warning("Could not delete media file %s: %s", file_path, exc)
 
 
-def delete_app_item_bundle(collection_id: int, token: str, db: Session) -> None:
+def delete_app_item_bundle(
+    collection_id: int, token: str, db: Session, *, delete_media: bool | None = None,
+) -> None:
+    """Delete one app collection after consuming its confirmation token.
+
+    *delete_media* overrides the delete-media decision for this call only
+    (None falls back to _should_delete_media), and is never persisted.
+    """
     if not _consume(token, "app_item_bundle", collection_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
     collection = db.get(AppItemBundle, collection_id)
@@ -254,7 +261,7 @@ def delete_app_item_bundle(collection_id: int, token: str, db: Session) -> None:
     from backend.service.utils.drive_utils import delete_drive_for_collection
     delete_drive_for_collection(collection, db)
 
-    if _should_delete_media(collection):
+    if delete_media if delete_media is not None else _should_delete_media(collection):
         _delete_leaf_media_folders(collection)
 
     # MediaLink carries no DB-level FK to app_item_bundles (a polymorphic

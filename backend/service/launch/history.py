@@ -43,6 +43,61 @@ def scope_launch_query(q, active_user):
     )
 
 
+_LAUNCH_TARGET_COLUMNS = (
+    ("game_item_bundle", "game_item_bundle_id"),
+    ("app_item_bundle", "app_item_bundle_id"),
+)
+
+
+def filter_visible_launch_targets(q, active_user, db):
+    """Drop LaunchHistory rows whose game or app target *active_user* cannot
+    see, so a hidden title's launch activity is indistinguishable from none.
+
+    Separate from scope_launch_query on purpose: that one is attribution
+    (owner/admin bypass), this is content visibility, where only the owner
+    bypasses, matching every get_filtered_* helper. Environment launches
+    carry no visibility rule and always pass.
+    """
+    if active_user.is_owner:
+        return q
+    from sqlalchemy import or_
+    from backend.core.dependencies import get_filtered_entity_query
+    from backend.models import LaunchHistory
+    from backend.models.app import AppItemBundle
+    from backend.models.game import GameItemBundle
+
+    models = {"game_item_bundle": GameItemBundle, "app_item_bundle": AppItemBundle}
+    for entity_type, column_name in _LAUNCH_TARGET_COLUMNS:
+        column = getattr(LaunchHistory, column_name)
+        visible_ids = (
+            get_filtered_entity_query(entity_type, active_user, db)
+            .with_entities(models[entity_type].id)
+            .subquery()
+        )
+        q = q.filter(or_(column.is_(None), column.in_(visible_ids.select())))
+    return q
+
+
+def launch_target_visible(record, active_user, db) -> bool:
+    """Record-level counterpart to filter_visible_launch_targets."""
+    if active_user.is_owner:
+        return True
+    from fastapi import HTTPException
+    from backend.core.dependencies import get_filtered_entity
+
+    for entity_type, column_name in _LAUNCH_TARGET_COLUMNS:
+        target_id = getattr(record, column_name)
+        if target_id is None:
+            continue
+        try:
+            get_filtered_entity(entity_type, target_id, active_user, db)
+        except HTTPException as exc:
+            if exc.status_code == 404:
+                return False
+            raise
+    return True
+
+
 def user_can_view_launch(record, active_user, db) -> bool:
     """Record-level counterpart to scope_launch_query, for single-row reads."""
     if active_user.is_owner or active_user.is_admin:

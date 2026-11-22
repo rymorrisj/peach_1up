@@ -43,13 +43,26 @@ export interface ApiFetchOptions extends RequestInit {
    * the previous one is aborted first (last request for a key wins).
    */
   abortKey?: string;
+  /**
+   * Structured-error `error_type` values this caller handles itself, so the
+   * global 'api-error' toast is skipped for them (the ApiError still throws).
+   * Only for a caller that actually shows its own UI for that error, e.g. the
+   * rating-change confirm dialog; any other error still toasts.
+   */
+  quietErrorTypes?: readonly string[];
+}
+
+function hasQuietErrorType(rawDetail: unknown, quiet: readonly string[] | undefined): boolean {
+  if (!quiet || quiet.length === 0 || rawDetail == null || typeof rawDetail !== 'object') return false;
+  const errorType = (rawDetail as { error_type?: unknown }).error_type;
+  return typeof errorType === 'string' && quiet.includes(errorType);
 }
 
 class ApiClient {
   private readonly controllers = new Map<string, AbortController>();
 
   async fetch<T>(path: string, init: ApiFetchOptions = {}): Promise<T> {
-    const { timeoutMs, abortKey, ...requestInit } = init;
+    const { timeoutMs, abortKey, quietErrorTypes, ...requestInit } = init;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Request-ID': crypto.randomUUID(),
@@ -124,7 +137,7 @@ class ApiClient {
         // keep statusText as detail
       }
 
-      if (!isSessionError) {
+      if (!isSessionError && !hasQuietErrorType(rawDetail, quietErrorTypes)) {
         window.dispatchEvent(new CustomEvent('api-error', { detail }));
       }
 

@@ -272,7 +272,10 @@ class TestTargetTypeFailClosed:
     def test_known_target_type_filters_correctly(self, http_client):
         c, db, app = http_client
         env_record = _make_launch_history(db, environment_item_id=1)
-        collection_record = _make_launch_history(db, game_item_bundle_id=1)
+        # A real, visible game: launch rows for a game the caller cannot see
+        # (including one that does not exist) are dropped from history.
+        collection = _make_collection(db)
+        collection_record = _make_launch_history(db, game_item_bundle_id=collection.id)
         user = _make_user(db)
         _set_active_user(app, user)
 
@@ -282,7 +285,7 @@ class TestTargetTypeFailClosed:
         assert env_ids == {env_record.id}
 
         collection_resp = c.get(
-            "/api/v1/launches", params={"target_id": 1, "target_type": "game_item_bundle"}
+            "/api/v1/launches", params={"target_id": collection.id, "target_type": "game_item_bundle"}
         )
         assert collection_resp.status_code == 200, collection_resp.text
         collection_ids = {row["id"] for row in collection_resp.json()}

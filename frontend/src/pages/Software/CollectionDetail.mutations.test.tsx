@@ -437,7 +437,7 @@ describe('CollectionDetail (mutation path)', () => {
           respond: () => ({ confirmation_token: 'tok-123' }),
         },
         {
-          match: /^\/api\/v1\/game-item-bundle\/1\?confirmation_token=tok-123$/,
+          match: /^\/api\/v1\/game-item-bundle\/1\?confirmation_token=tok-123&delete_media=false$/,
           method: 'DELETE',
           respond: () => undefined,
         },
@@ -453,13 +453,8 @@ describe('CollectionDetail (mutation path)', () => {
         expect(screen.getByTestId('location-probe')).toHaveTextContent('/software');
       });
 
-      // Two distinct calls, in order, not collapsed into one.
-      const patchIdx = calls.findIndex(
-        (c) =>
-          c.url === '/api/v1/game-item-bundle/1' &&
-          c.method === 'PATCH' &&
-          'delete_media_override' in (c.body as object),
-      );
+      // Token issue then delete, in order. The checkbox choice rides on the
+      // DELETE as delete_media, there is no PATCH of delete_media_override.
       const issueIdx = calls.findIndex(
         (c) => c.url === '/api/v1/game-item-bundle/1/confirm-delete' && c.method === 'POST',
       );
@@ -468,9 +463,9 @@ describe('CollectionDetail (mutation path)', () => {
           c.url.startsWith('/api/v1/game-item-bundle/1?confirmation_token=') &&
           c.method === 'DELETE',
       );
-      expect(patchIdx).toBeGreaterThanOrEqual(0);
-      expect(issueIdx).toBeGreaterThan(patchIdx);
+      expect(issueIdx).toBeGreaterThanOrEqual(0);
       expect(deleteIdx).toBeGreaterThan(issueIdx);
+      expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
     });
 
     it('surfaces an error and does not navigate when issuing the confirmation token fails', async () => {
@@ -517,7 +512,7 @@ describe('CollectionDetail (mutation path)', () => {
           respond: () => ({ confirmation_token: 'tok-expired' }),
         },
         {
-          match: /^\/api\/v1\/game-item-bundle\/1\?confirmation_token=tok-expired$/,
+          match: /^\/api\/v1\/game-item-bundle\/1\?confirmation_token=tok-expired&delete_media=false$/,
           method: 'DELETE',
           respond: () => Promise.reject(new ApiError(400, 'Confirmation token expired.')),
         },
@@ -565,7 +560,7 @@ describe('CollectionDetail (mutation path)', () => {
           respond: () => ({ confirmation_token: 'tok-456' }),
         },
         {
-          match: /^\/api\/v1\/game-item-bundle\/1\?confirmation_token=tok-456$/,
+          match: /^\/api\/v1\/game-item-bundle\/1\?confirmation_token=tok-456&delete_media=true$/,
           method: 'DELETE',
           respond: () => undefined,
         },
@@ -587,13 +582,108 @@ describe('CollectionDetail (mutation path)', () => {
         expect(screen.getByTestId('location-probe')).toHaveTextContent('/software');
       });
 
-      const patch = calls.find(
+      const del = calls.find(
         (c) =>
-          c.url === '/api/v1/game-item-bundle/1' &&
-          c.method === 'PATCH' &&
-          'delete_media_override' in (c.body as object),
+          c.url.startsWith('/api/v1/game-item-bundle/1?confirmation_token=') &&
+          c.method === 'DELETE',
       );
-      expect(patch?.body).toEqual({ delete_media_override: true });
+      expect(del?.url).toContain('delete_media=true');
+      expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
+    });
+
+    it('persists nothing when the rating-change prompt is cancelled', async () => {
+      const user = userEvent.setup();
+      const calls = setupApi(adminUser, [
+        {
+          match: '/api/v1/game-item-bundle/by-slug/doom',
+          method: 'GET',
+          respond: () => fullCollection({ delete_media_override: null }),
+        },
+        { match: '/api/v1/game-item-bundle/1', method: 'PATCH', respond: () => ({}) },
+        {
+          match: '/api/v1/game-item-bundle/1/confirm-delete',
+          method: 'POST',
+          respond: () => ({ confirmation_token: 'tok-789' }),
+        },
+        {
+          match: /^\/api\/v1\/game-item-bundle\/1\?confirmation_token=tok-789/,
+          method: 'DELETE',
+          respond: () =>
+            Promise.reject(
+              new ApiError(409, 'loosens a rating', {
+                error_type: 'rating_change_requires_confirmation',
+                message: 'loosens a rating',
+                affected_count: 2,
+              }),
+            ),
+        },
+      ]);
+      renderPage();
+      await waitForLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Delete this game' }));
+      await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+      // Toggle the media checkbox so a pre-delete PATCH would have had
+      // something to write, then confirm the delete itself.
+      await user.click(screen.getByRole('checkbox', { name: /also delete media files from disk/i }));
+      await user.click(screen.getByRole('button', { name: 'Confirm' }));
+
+      // The rating-change prompt appears; cancel it.
+      await waitFor(() => {
+        expect(screen.getByText('This changes who can see 2 media items. Continue?')).toBeInTheDocument();
+      });
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(screen.getByTestId('location-probe')).toHaveTextContent('/software/games/doom');
+      // No delete_media_override write at any point, and exactly one DELETE
+      // attempt (the refused one), no confirmed retry.
+      expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
+      expect(calls.filter((c) => c.method === 'DELETE')).toHaveLength(1);
+      // The handled 409 is not also reported as an error on the page.
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('marks the rating-change 409 as handled so the global error toast is suppressed', async () => {
+      const user = userEvent.setup();
+      const calls: { url: string; init?: Record<string, unknown> }[] = [];
+      setupApi(adminUser, [
+        {
+          match: '/api/v1/game-item-bundle/by-slug/doom',
+          method: 'GET',
+          respond: () => fullCollection(),
+        },
+        {
+          match: '/api/v1/game-item-bundle/1/confirm-delete',
+          method: 'POST',
+          respond: () => ({ confirmation_token: 'tok-q' }),
+        },
+        {
+          match: /^\/api\/v1\/game-item-bundle\/1\?confirmation_token=tok-q/,
+          method: 'DELETE',
+          respond: () => undefined,
+        },
+      ]);
+      const recorded = vi.mocked(apiFetch).getMockImplementation()!;
+      vi.mocked(apiFetch).mockImplementation((url: unknown, init?: RequestInit) => {
+        calls.push({ url: String(url), init: init as Record<string, unknown> | undefined });
+        return recorded(url as string, init);
+      });
+      renderPage();
+      await waitForLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Delete this game' }));
+      await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+      await user.click(screen.getByRole('button', { name: 'Confirm' }));
+      await waitFor(() => {
+        expect(screen.getByTestId('location-probe')).toHaveTextContent('/software');
+      });
+
+      const del = calls.find((c) => c.init?.method === 'DELETE');
+      expect(del?.init?.quietErrorTypes).toEqual(['rating_change_requires_confirmation']);
+      // The token issue is not wrapped by the rating dialog, so it stays loud.
+      const issue = calls.find((c) => c.url.endsWith('/confirm-delete'));
+      expect(issue?.init?.quietErrorTypes).toBeUndefined();
     });
   });
 

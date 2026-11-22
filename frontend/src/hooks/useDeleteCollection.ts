@@ -17,17 +17,13 @@ interface UseDeleteCollectionOptions {
 // or unchecking PATCHes immediately, no staging behind Save Changes, plus
 // the destructive two-step confirm-token delete flow.
 //
-// delete_media_override is written by two independent paths here: the
-// standalone mutation below (fire-and-forget, from the page's own checkbox),
-// and an unconditional PATCH inside handleDelete just before issuing the
-// confirm token. That second PATCH is intentionally unconditional, not
-// gated on whether the confirm dialog's checkbox differs from
-// resolvedDeleteMedia (React Query cache), because the cache can still be
-// stale if the standalone mutation was toggled moments earlier and hasn't
-// round-tripped yet. Writing unconditionally makes handleDelete the single
-// source of truth delete_library_collection reads, regardless of cache
-// freshness. Keep both writes, don't collapse them into one conditional
-// PATCH.
+// The standalone mutation below (from the page's own checkbox) is the only
+// path that persists delete_media_override. handleDelete never PATCHes: the
+// delete-confirm dialog's checkbox value is always sent as delete_media on
+// the DELETE itself, unconditionally (not gated on differing from the
+// possibly stale resolvedDeleteMedia cache), so it is still the single
+// source of truth for this delete regardless of cache freshness, and
+// nothing is written if the user cancels the rating-change prompt.
 export function useDeleteCollection({
   collectionId,
   title,
@@ -89,12 +85,8 @@ export function useDeleteCollection({
     setDeleting(true);
     setDeleteError(null);
     try {
+      // See the module comment above: sent on every attempt, never PATCHed.
       const checkedDeleteMedia = getDeleteCheckboxValue();
-      // See the module comment above, this write must stay unconditional.
-      await apiFetch(`/api/v1/game-item-bundle/${collectionId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ delete_media_override: checkedDeleteMedia }),
-      });
       // A fresh token per attempt: the rating-change prompt can outlast the
       // token's 60s TTL.
       const completed = await withRatingChangeConfirm(async (confirmRatingChange) => {
@@ -103,6 +95,8 @@ export function useDeleteCollection({
         );
         await consumeDeleteToken(`/api/v1/game-item-bundle/${collectionId}`, token, {
           confirmRatingChange,
+          deleteMedia: checkedDeleteMedia,
+          ratingChangeHandled: true,
         });
       });
       if (!completed) {

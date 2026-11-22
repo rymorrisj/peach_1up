@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 
-from backend.service.utils.path_utils import safe_basename
+from backend.service.utils.path_utils import media_root, safe_basename
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -61,7 +61,6 @@ def create_linked_media_from_metadata(
     Raises:
         HTTPException: 404 if the game doesn't exist, 422 if assets is empty.
     """
-    from backend.core.settings import get_settings
     from backend.models.game import GameItemBundle
     from backend.models.media import (
         MediaItem, MediaItemBundle, _linked_items_for, make_entity_link, unique_media_slug,
@@ -74,6 +73,13 @@ def create_linked_media_from_metadata(
         raise HTTPException(status_code=404, detail="Game not found.")
     if not assets:
         raise HTTPException(status_code=422, detail="No downloadable assets to accept.")
+    # Resolved before any lookup, download or write: an unset or blank
+    # MEDIA_PATH is a 503, never Path("").resolve() (the working directory),
+    # matching the media upload routes.
+    try:
+        root = media_root()
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail="MEDIA_PATH is not configured.") from exc
 
     existing_refs = [
         ref for ref in _linked_items_for("game_item_bundle", game_item_bundle_id, db)
@@ -84,8 +90,7 @@ def create_linked_media_from_metadata(
         earliest = min(existing_refs, key=lambda r: r.link_id)
         bundle = db.get(MediaItemBundle, earliest.entity_id)
 
-    media_root = Path(get_settings().get_env_var("MEDIA_PATH")).resolve()
-    dest_dir, _ = begin_upload(media_root, game.title)
+    dest_dir, _ = begin_upload(root, game.title)
 
     # "First/boxart": the front-boxart asset if present, else whichever
     # asset happens to be first in the list (IGDB's single "cover" asset,

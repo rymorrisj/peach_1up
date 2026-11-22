@@ -150,6 +150,59 @@ describe('api.fetch session/error events', () => {
       window.removeEventListener('api-error', errorHandler);
     }
   });
+
+  describe('quietErrorTypes', () => {
+    const ratingConflict = () =>
+      new Response(
+        JSON.stringify({
+          detail: {
+            error_type: 'rating_change_requires_confirmation',
+            message: 'loosens a rating',
+            affected_count: 1,
+          },
+        }),
+        { status: 409 },
+      );
+
+    async function errorEventsFor(response: Response, quietErrorTypes?: readonly string[]) {
+      const errorHandler = vi.fn();
+      window.addEventListener('api-error', errorHandler);
+      try {
+        mockFetch.mockResolvedValueOnce(response);
+        await expect(
+          api.fetch('/api/v1/game-item-bundle/1', { method: 'DELETE', quietErrorTypes }),
+        ).rejects.toMatchObject({ name: 'ApiError', status: 409 });
+        return errorHandler.mock.calls.length;
+      } finally {
+        window.removeEventListener('api-error', errorHandler);
+      }
+    }
+
+    it('skips the api-error toast for a listed error_type but still throws', async () => {
+      expect(await errorEventsFor(ratingConflict(), ['rating_change_requires_confirmation'])).toBe(0);
+    });
+
+    it('still toasts the same 409 when the caller does not mark it handled', async () => {
+      expect(await errorEventsFor(ratingConflict())).toBe(1);
+    });
+
+    it('still toasts an unlisted error_type or a plain-string 409', async () => {
+      const other = new Response(
+        JSON.stringify({ detail: { error_type: 'something_else', message: 'x' } }),
+        { status: 409 },
+      );
+      const plain = new Response(JSON.stringify({ detail: 'Conflict' }), { status: 409 });
+      expect(await errorEventsFor(other, ['rating_change_requires_confirmation'])).toBe(1);
+      expect(await errorEventsFor(plain, ['rating_change_requires_confirmation'])).toBe(1);
+    });
+
+    it('is not forwarded to fetch as a request option', async () => {
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+      await api.fetch('/api/v1/x', { method: 'DELETE', quietErrorTypes: ['a'] });
+      const [, init] = mockFetch.mock.calls[0] as [string, Record<string, unknown>];
+      expect('quietErrorTypes' in init).toBe(false);
+    });
+  });
 });
 
 describe('api.fetch timeout', () => {

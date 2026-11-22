@@ -13,7 +13,9 @@ from backend.models import EnvironmentItem, LaunchHistory, ProfileItem
 from backend.models.launch_history import LaunchHistoryRead
 from backend.models.user import UserItem
 from backend.service.launch import coordinator as svc
-from backend.service.launch.history import scope_launch_query, user_can_view_launch
+from backend.service.launch.history import (
+    filter_visible_launch_targets, launch_target_visible, scope_launch_query, user_can_view_launch,
+)
 from backend.service.utils.emulator_catalog import resolve_container_enabled
 
 logger = get_logger(__name__)
@@ -94,7 +96,10 @@ async def launch_environment(
 def _scoped_launch_history(db: Session, active_user: UserItem, q, limit: int) -> list[LaunchHistory]:
     # Scoped: owner/admin see all, other users see only launches attributable to
     # them (their profiles) or unattributed shared launches. See scope_launch_query.
+    # Then rows for a game/app the caller cannot see are dropped, so a hidden
+    # id's history reads exactly like a missing id's (an empty list).
     q = scope_launch_query(q, active_user)
+    q = filter_visible_launch_targets(q, active_user, db)
     return q.order_by(LaunchHistory.started_at.desc()).limit(limit).all()
 
 
@@ -161,7 +166,11 @@ def get_launch(
     record = db.get(LaunchHistory, history_id)
     # Return 404 (not 403) when the record exists but isn't the caller's, so a
     # non-admin can't probe which launch ids exist for other users.
-    if not record or not user_can_view_launch(record, active_user, db):
+    if (
+        not record
+        or not user_can_view_launch(record, active_user, db)
+        or not launch_target_visible(record, active_user, db)
+    ):
         raise HTTPException(status_code=404, detail="Launch record not found.")
 
     # container_moniker is computed here, not stored, see the field comment on
@@ -186,4 +195,9 @@ def stop_launch(
     db: Session = Depends(get_db),
     active_user: UserItem = require_permission("can_launch_media"),
 ):
+    # A launch of a hidden game/app 404s like a missing record, so the
+    # {stopped} answer cannot confirm a hidden title is running.
+    record = db.get(LaunchHistory, history_id)
+    if record is not None and not launch_target_visible(record, active_user, db):
+        raise HTTPException(status_code=404, detail="Launch record not found.")
     return svc.stop_launch(history_id, active_user, db)

@@ -1,10 +1,11 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user
+from backend.core.dependencies import get_active_user, get_filtered_entity, get_filtered_entity_query
 from backend.core.logger import get_logger
 from backend.models.app import AppItemBundle
 from backend.models.drive import Drive, DriveRead
@@ -32,17 +33,48 @@ def _require_drive_owner_permission(drive: Drive, active_user: UserItem) -> None
         raise HTTPException(status_code=403, detail=f"Permission denied: requires {flag}.")
 
 
-@router.get("", response_model=list[DriveRead])
-def list_drives(db: Session = Depends(get_db), _: UserItem = Depends(get_active_user)):
-    return db.query(Drive).all()
-
-
-@router.get("/{drive_id}", response_model=DriveRead)
-def get_drive(drive_id: int, db: Session = Depends(get_db), _: UserItem = Depends(get_active_user)):
+def _visible_drive(drive_id: int, active_user: UserItem, db: Session) -> Drive:
+    """Return a drive whose owning game/app the caller may see, else the same
+    404 as a missing drive. A drive's name and image_path name its owner's
+    folder, so a drive is visible exactly when its owning bundle is."""
     drive = db.get(Drive, drive_id)
     if not drive:
         raise HTTPException(status_code=404, detail="Drive not found.")
+    if drive.app_item_bundle_id is not None:
+        entity_type, owner_id = "app_item_bundle", drive.app_item_bundle_id
+    else:
+        entity_type, owner_id = "game_item_bundle", drive.game_item_bundle_id
+    try:
+        get_filtered_entity(entity_type, owner_id, active_user, db)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            raise HTTPException(status_code=404, detail="Drive not found.") from None
+        raise
     return drive
+
+
+@router.get("", response_model=list[DriveRead])
+def list_drives(db: Session = Depends(get_db), active_user: UserItem = Depends(get_active_user)):
+    q = db.query(Drive)
+    if active_user.is_owner:
+        return q.all()
+    visible_games = (
+        get_filtered_entity_query("game_item_bundle", active_user, db).with_entities(GameItemBundle.id).subquery()
+    )
+    visible_apps = (
+        get_filtered_entity_query("app_item_bundle", active_user, db).with_entities(AppItemBundle.id).subquery()
+    )
+    return q.filter(
+        or_(
+            Drive.game_item_bundle_id.in_(visible_games.select()),
+            Drive.app_item_bundle_id.in_(visible_apps.select()),
+        )
+    ).all()
+
+
+@router.get("/{drive_id}", response_model=DriveRead)
+def get_drive(drive_id: int, db: Session = Depends(get_db), active_user: UserItem = Depends(get_active_user)):
+    return _visible_drive(drive_id, active_user, db)
 
 
 @router.get("/{drive_id}/confirm-token")
@@ -51,9 +83,7 @@ def issue_delete_token(
     db: Session = Depends(get_db),
     active_user: UserItem = Depends(get_active_user),
 ):
-    drive = db.get(Drive, drive_id)
-    if not drive:
-        raise HTTPException(status_code=404, detail="Drive not found.")
+    drive = _visible_drive(drive_id, active_user, db)
     _require_drive_owner_permission(drive, active_user)
     return {"confirmation_token": confirmation_tokens.issue("drive", drive_id), "expires_in_seconds": TOKEN_TTL}
 
@@ -65,9 +95,7 @@ def delete_drive(
     db: Session = Depends(get_db),
     active_user: UserItem = Depends(get_active_user),
 ):
-    drive = db.get(Drive, drive_id)
-    if not drive:
-        raise HTTPException(status_code=404, detail="Drive not found.")
+    drive = _visible_drive(drive_id, active_user, db)
     _require_drive_owner_permission(drive, active_user)
     if not confirmation_tokens.consume(confirmation_token, "drive", drive_id):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")

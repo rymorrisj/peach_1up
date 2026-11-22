@@ -155,7 +155,19 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
             raise HTTPException(status_code=409, detail="Upload incomplete, some chunks are missing.")
 
         domain = registry.get_domain(domain_name)
-        media_root: Path = domain.root_resolver()
+        job_id = session.get("job_id")
+        try:
+            media_root: Path = domain.root_resolver()
+        except HTTPException as exc:
+            # e.g. software_media's 503 for an unset MEDIA_PATH. No finalize
+            # task will ever run for this upload, so resolve its job here or
+            # the nav bell shows it "processing" forever. Same terminal
+            # handling as a finalize_background failure: drop the session
+            # (and its staged chunks) and mark the job failed.
+            cu.abort(upload_id)
+            if job_id is not None:
+                jobs.fail(job_id, str(exc.detail))
+            raise
         # job_id was created and attached to the session back at /init, not
         # here, so the nav bell tracks the upload from the start of byte
         # transfer, not just its server-side finalize tail. Every upload
@@ -165,7 +177,6 @@ def _build_domain_router(domain_name: str, permission_flag: str) -> APIRouter:
         # finalize_background itself, not translated into an HTTP response
         # here, there is nothing left running synchronously in this request
         # to raise one from.
-        job_id = session["job_id"]
         background_tasks.add_task(
             domain.finalize_background, upload_id, str(media_root), job_id
         )

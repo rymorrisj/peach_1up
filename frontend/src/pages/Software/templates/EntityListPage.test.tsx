@@ -137,9 +137,12 @@ describe('EntityListPage', () => {
       const issued = calls.find((c) => c.method === 'POST' && c.url.endsWith('/confirm-delete'));
       expect(issued?.url).toBe('/api/v1/app-item-bundle/42/confirm-delete');
       const del = calls.find((c) => c.method === 'DELETE');
+      // The dialog's checkbox choice rides on the DELETE as delete_media
+      // (never a PATCH of delete_media_override first).
       expect(del?.url).toBe(
-        '/api/v1/app-item-bundle/42?confirmation_token=test-confirmation-token',
+        '/api/v1/app-item-bundle/42?confirmation_token=test-confirmation-token&delete_media=false',
       );
+      expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
     });
   });
 });

@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user, get_filtered_app_item, get_filtered_app_items, require_permission
+from backend.core.dependencies import (
+    get_active_user, get_filtered_app_item, get_filtered_app_items, get_filtered_entity, require_permission,
+)
 from backend.models.app import (
     AppItemBundle, AppItemBundleCreate, AppItemBundleRead, AppItemBundleUpdate,
     AppItem, AppItemRead, AppItemUpdate, app_item_bundle_to_read, app_item_bundles_to_read_bulk,
@@ -91,6 +93,9 @@ def update_app_item_bundle(
     db: Session = Depends(get_db),
     active_user: UserItem = require_permission("can_manage_app"),
 ):
+    # Same 404 as a missing bundle, so a hidden bundle is neither patchable
+    # nor confirmed to exist.
+    get_filtered_app_item(collection_id, active_user, db)
     return app_item_bundle_to_read(
         app_svc.update_app_item_bundle(collection_id, body, db), db, viewer=active_user,
     )
@@ -100,11 +105,9 @@ def update_app_item_bundle(
 def issue_delete_token(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_app"),
+    active_user: UserItem = require_permission("can_manage_app"),
 ):
-    collection = db.get(AppItemBundle, collection_id)
-    if not collection:
-        raise HTTPException(status_code=404, detail="App collection not found.")
+    get_filtered_app_item(collection_id, active_user, db)
     token = confirmation_tokens.issue("app_item_bundle", collection_id)
     return {"confirmation_token": token, "expires_in_seconds": TOKEN_TTL}
 
@@ -113,10 +116,16 @@ def issue_delete_token(
 def delete_app_item_bundle(
     collection_id: int,
     confirmation_token: str = Query(...),
+    delete_media: bool | None = Query(None),
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_app"),
+    active_user: UserItem = require_permission("can_manage_app"),
 ):
-    app_svc.delete_app_item_bundle(collection_id, confirmation_token, db)
+    """*delete_media*, when given, applies to this delete only and is never
+    persisted (see DELETE /game-item-bundle/{id})."""
+    # Checked before the service consumes the token, so a hidden bundle
+    # 404s exactly like a missing one and the token stays unspent.
+    get_filtered_app_item(collection_id, active_user, db)
+    app_svc.delete_app_item_bundle(collection_id, confirmation_token, db, delete_media=delete_media)
 
 
 # ---------------------------------------------------------------------------
@@ -125,13 +134,15 @@ def delete_app_item_bundle(
 
 
 def _visible_leaf(leaf_id: int, active_user: UserItem, db: Session) -> AppItem:
-    """Return a leaf whose parent bundle the caller is allowed to see, else 404."""
-    leaf = db.get(AppItem, leaf_id)
-    if leaf is None:
-        raise HTTPException(status_code=404, detail="App item not found.")
-    # Enforces the caller's restriction filter on the owning bundle.
-    get_filtered_app_item(leaf.app_item_bundle_id, active_user, db)
-    return leaf
+    """Return a leaf whose parent bundle the caller is allowed to see, else
+    the same 404 as a missing leaf (a hidden parent must not answer with the
+    bundle's own "not found" detail, which would reveal the leaf exists)."""
+    try:
+        return get_filtered_entity("app_item", leaf_id, active_user, db)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            raise HTTPException(status_code=404, detail="App item not found.") from None
+        raise
 
 
 @router.get("/app-item/{leaf_id}", response_model=AppItemRead)
@@ -148,11 +159,9 @@ def update_app_item(
     leaf_id: int,
     body: AppItemUpdate,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_app"),
+    active_user: UserItem = require_permission("can_manage_app"),
 ):
-    leaf = db.get(AppItem, leaf_id)
-    if leaf is None:
-        raise HTTPException(status_code=404, detail="App item not found.")
+    leaf = _visible_leaf(leaf_id, active_user, db)
     return AppItemRead.model_validate(app_svc.update_app_leaf(leaf.app_item_bundle_id, leaf_id, body, db))
 
 
@@ -160,10 +169,8 @@ def update_app_item(
 def delete_app_item(
     leaf_id: int,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_app"),
+    active_user: UserItem = require_permission("can_manage_app"),
 ):
-    leaf = db.get(AppItem, leaf_id)
-    if leaf is None:
-        raise HTTPException(status_code=404, detail="App item not found.")
+    leaf = _visible_leaf(leaf_id, active_user, db)
     db.delete(leaf)
     db.commit()
