@@ -3,7 +3,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user, get_filtered_entity_query, require_permission
+from backend.core.dependencies import (
+    get_active_user, get_filtered_entity_query, reject_old_era_query_param, require_permission,
+)
 from backend.models.launch_history import LaunchHistory
 from backend.models.game import GameItemBundle, GameItemBundleRead, game_item_bundles_to_read_bulk
 from backend.models.pagination import Page
@@ -68,17 +70,17 @@ def _with_stats_bulk(profiles: list[ProfileItem], db: Session, viewer: UserItem)
     return results
 
 
-@router.get("", response_model=Page[ProfileItemRead])
+@router.get("", response_model=Page[ProfileItemRead], dependencies=[Depends(reject_old_era_query_param)])
 def list_profiles(
-    era: str | None = None,
+    platform: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     active_user: UserItem = Depends(get_active_user),
 ):
     q = db.query(ProfileItem)
-    if era:
-        q = q.filter(ProfileItem.era == era)
+    if platform:
+        q = q.filter(ProfileItem.platform == platform)
     total = q.count()
     rows = q.order_by(ProfileItem.id).offset(offset).limit(limit).all()
     return Page(items=_with_stats_bulk(rows, db, active_user), total=total, limit=limit, offset=offset)

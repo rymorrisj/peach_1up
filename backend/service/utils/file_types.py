@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import get_args
 
 from backend.constants_generated import FileType
-from backend.service.utils.eras_config import get_eras
+from backend.service.utils.platforms_config import get_platforms_config
 
 # The generated FileType Literal is the single source of truth for the allowed
 # file_type vocabulary. Producers below are validated against it so an
@@ -14,23 +14,23 @@ _VALID_FILE_TYPES: frozenset[str] = frozenset(get_args(FileType))
 
 
 def all_supported_extensions() -> frozenset[str]:
-    """Return every media extension across all eras in eras.yaml, lowercased."""
+    """Return every media extension across all platforms in platforms.yaml, lowercased."""
     try:
-        eras = get_eras()
+        platforms = get_platforms_config()
         exts: set[str] = set()
-        for era_data in eras.values():
-            if isinstance(era_data, dict):
-                for ext in era_data.get("supported_media", []):
+        for platform_data in platforms.values():
+            if isinstance(platform_data, dict):
+                for ext in platform_data.get("supported_media", []):
                     exts.add(ext.lower())
         return frozenset(exts)
     except Exception:
         return frozenset()
 
 
-def supported_extensions_for_era(era: str) -> list[str]:
+def supported_extensions_for_platform(platform: str) -> list[str]:
     try:
-        eras = get_eras()
-        return [ext.lower() for ext in eras.get(era, {}).get("supported_media", [])]
+        platforms = get_platforms_config()
+        return [ext.lower() for ext in platforms.get(platform, {}).get("supported_media", [])]
     except Exception:
         return []
 
@@ -98,23 +98,23 @@ def file_type_from_path(path: Path) -> str:
     return file_type
 
 
-def resolve_media_file_from_directory(directory: Path, era: str | None) -> Path:
-    """Return the best media file in *directory* for the given era.
+def resolve_media_file_from_directory(directory: Path, platform: str | None) -> Path:
+    """Return the best media file in *directory* for the given platform.
 
-    Raises ValueError if era is unset, no supported extensions are configured,
+    Raises ValueError if platform is unset, no supported extensions are configured,
     or no matching file exists. Candidates are sorted by extension priority
-    (order in eras.yaml supported_media list) then by filename.
+    (order in platforms.yaml supported_media list) then by filename.
     """
-    if not era:
+    if not platform:
         raise ValueError(
             f"Cannot resolve a launch file from directory '{directory}': "
-            "the item has no era set. Please set the era on the item."
+            "the item has no platform set. Please set the platform on the item."
         )
-    extensions = supported_extensions_for_era(era)
+    extensions = supported_extensions_for_platform(platform)
     if not extensions:
         raise ValueError(
             f"Cannot resolve a launch file from directory '{directory}': "
-            f"no supported_media extensions found for era '{era}' in eras.yaml."
+            f"no supported_media extensions found for platform '{platform}' in platforms.yaml."
         )
     folder_name = directory.name
     candidates: list[Path] = []
@@ -124,7 +124,7 @@ def resolve_media_file_from_directory(directory: Path, era: str | None) -> Path:
     if not candidates:
         raise ValueError(
             f"No supported media file found in '{directory}'. "
-            f"Expected extensions for era '{era}': {', '.join(extensions)}."
+            f"Expected extensions for platform '{platform}': {', '.join(extensions)}."
         )
     candidates.sort(key=lambda f: (extensions.index(f.suffix.lower()), f.name))
     return candidates[0]

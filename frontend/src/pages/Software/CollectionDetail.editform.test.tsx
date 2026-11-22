@@ -36,7 +36,7 @@ function fullCollection(overrides?: Record<string, unknown>) {
     id: 1,
     slug: 'doom',
     title: 'Doom',
-    era: 'dos',
+    platform: 'dos',
     launch_count: 5,
     launch_review_flagged: false,
     installed: true,
@@ -323,7 +323,7 @@ describe('CollectionDetail edit form (field-level)', () => {
     expect(patch[0].body).toMatchObject({ content_rating: 'M' });
   });
 
-  it('edits the platform (environment_item_id) and sends it as a parsed integer on save', async () => {
+  it('edits the Environment (environment_item_id) and sends it as a parsed integer on save', async () => {
     const user = userEvent.setup();
     const calls = setupApi([
       {
@@ -337,7 +337,7 @@ describe('CollectionDetail edit form (field-level)', () => {
           {
             id: 5,
             name: 'My DOS PC',
-            era: 'dos',
+            platform: 'dos',
             emulator_slug: 'dosbox-x',
             is_present: true,
             is_system: false,
@@ -351,20 +351,20 @@ describe('CollectionDetail edit form (field-level)', () => {
     renderPage();
     await waitForLoaded();
 
-    await selectRadixOption(user, 'Platform', 'My DOS PC');
-    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('My DOS PC');
+    await selectRadixOption(user, 'Environment', 'My DOS PC');
+    expect(screen.getByRole('combobox', { name: 'Environment' })).toHaveTextContent('My DOS PC');
 
     await saveAndWait(user);
     const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');
     expect(patch[0].body).toMatchObject({ environment_item_id: 5 });
   });
 
-  it('shows the platform field disabled with an explanatory note for a console era', async () => {
+  it('hides the Environment field for a console platform', async () => {
     setupApi([
       {
         match: '/api/v1/game-item-bundle/by-slug/doom',
         method: 'GET',
-        respond: () => fullCollection({ era: 'ps1' }),
+        respond: () => fullCollection({ platform: 'ps1' }),
       },
       {
         match: /^\/api\/v1\/environment-items/,
@@ -372,7 +372,7 @@ describe('CollectionDetail edit form (field-level)', () => {
           {
             id: 5,
             name: 'My DOS PC',
-            era: 'dos',
+            platform: 'dos',
             emulator_slug: 'dosbox-x',
             is_present: true,
             is_system: false,
@@ -384,21 +384,17 @@ describe('CollectionDetail edit form (field-level)', () => {
     renderPage();
     await waitForLoaded();
 
-    const select = screen.getByLabelText('Platform');
-    expect(select).toBeInTheDocument();
-    expect(select).toBeDisabled();
-    expect(
-      screen.getByText('Determined automatically by era, no environment needed.'),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('PlayStation 1');
+    expect(screen.queryByRole('combobox', { name: 'Environment' })).not.toBeInTheDocument();
   });
 
-  it('clears environment_item_id and disables the platform field when era changes to a console era', async () => {
+  it('clears environment_item_id and hides the Environment field when the platform changes to console', async () => {
     const user = userEvent.setup();
     const calls = setupApi([
       {
         match: '/api/v1/game-item-bundle/by-slug/doom',
         method: 'GET',
-        respond: () => fullCollection({ era: 'dos', environment_item_id: 5 }),
+        respond: () => fullCollection({ platform: 'dos', environment_item_id: 5 }),
       },
       {
         match: /^\/api\/v1\/environment-items/,
@@ -406,7 +402,7 @@ describe('CollectionDetail edit form (field-level)', () => {
           {
             id: 5,
             name: 'My DOS PC',
-            era: 'dos',
+            platform: 'dos',
             emulator_slug: 'dosbox-x',
             is_present: true,
             is_system: false,
@@ -420,20 +416,19 @@ describe('CollectionDetail edit form (field-level)', () => {
     renderPage();
     await waitForLoaded();
 
-    const platformSelect = screen.getByRole('combobox', { name: 'Platform' });
-    expect(platformSelect).toHaveTextContent('My DOS PC');
-    expect(platformSelect).not.toBeDisabled();
+    expect(await screen.findByRole('combobox', { name: 'Environment' })).toHaveTextContent(
+      'My DOS PC',
+    );
 
-    await selectRadixOption(user, 'Era', 'PlayStation 1');
-    expect(platformSelect).toBeDisabled();
-    expect(platformSelect).toHaveTextContent('No platform selected');
+    await selectRadixOption(user, 'Platform', 'PlayStation 1');
+    expect(screen.queryByRole('combobox', { name: 'Environment' })).not.toBeInTheDocument();
 
     await saveAndWait(user);
     const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');
-    expect(patch[0].body).toMatchObject({ era: 'ps1', environment_item_id: null });
+    expect(patch[0].body).toMatchObject({ platform: 'ps1', environment_item_id: null });
   });
 
-  it('edits the launch profile (a matching-era option) and sends it as a parsed integer on save', async () => {
+  it('edits the launch profile (a matching-platform option) and sends it as a parsed integer on save', async () => {
     const user = userEvent.setup();
     const calls = setupApi([
       {
@@ -449,7 +444,7 @@ describe('CollectionDetail edit form (field-level)', () => {
               id: 10,
               name: 'DOSBox Default',
               slug: 'dosbox-default',
-              era: 'dos',
+              platform: 'dos',
               emulator_slug: 'dosbox-x',
               is_bundled: true,
               enable_networking: false,
@@ -472,7 +467,7 @@ describe('CollectionDetail edit form (field-level)', () => {
       'DOSBox Default (default)',
     );
     expect(
-      screen.queryByText('Selected profile targets a different era, launch may fail.'),
+      screen.queryByText('Selected profile targets a different platform, launch may fail.'),
     ).not.toBeInTheDocument();
 
     await saveAndWait(user);
@@ -480,12 +475,12 @@ describe('CollectionDetail edit form (field-level)', () => {
     expect(patch[0].body).toMatchObject({ profile_item_id: 10 });
   });
 
-  describe('era change interactions (mismatch warning, profile grouping)', () => {
+  describe('platform change interactions (mismatch warning, profile grouping)', () => {
     const dosProfile = {
       id: 10,
       name: 'DOSBox Default',
       slug: 'dosbox-default',
-      era: 'dos',
+      platform: 'dos',
       emulator_slug: 'dosbox-x',
       is_bundled: true,
       enable_networking: false,
@@ -498,7 +493,7 @@ describe('CollectionDetail edit form (field-level)', () => {
       id: 20,
       name: 'Win95 Default',
       slug: 'win95-default',
-      era: 'win95',
+      platform: 'win95',
       emulator_slug: '86box',
       is_bundled: false,
       enable_networking: false,
@@ -508,13 +503,13 @@ describe('CollectionDetail edit form (field-level)', () => {
       updated_at: '2024-01-01T00:00:00Z',
     };
 
-    it('groups profiles by era match and shows no mismatch warning while the era matches the assigned profile', async () => {
+    it('groups profiles by platform match and shows no mismatch warning while the platform matches the assigned profile', async () => {
       const user = userEvent.setup();
       setupApi([
         {
           match: '/api/v1/game-item-bundle/by-slug/doom',
           method: 'GET',
-          respond: () => fullCollection({ era: 'dos', profile_item_id: 10 }),
+          respond: () => fullCollection({ platform: 'dos', profile_item_id: 10 }),
         },
         {
           match: /^\/api\/v1\/profile-items/,
@@ -524,9 +519,9 @@ describe('CollectionDetail edit form (field-level)', () => {
       renderPage();
       await waitForLoaded();
 
-      // Radix does not render closed listbox content, open it first. Matching-era
-      // profile renders without an era suffix; the other-era profile is labeled
-      // with its own era so the "Other eras" grouping in EditForm.tsx is
+      // Radix does not render closed listbox content, open it first. Matching-platform
+      // profile renders without an platform suffix; the other-platform profile is labeled
+      // with its own platform so the "Other platforms" grouping in EditForm.tsx is
       // distinguishable in the option list.
       await user.click(screen.getByRole('combobox', { name: 'Launch Profile' }));
       expect(screen.getByRole('option', { name: 'DOSBox Default (default)' })).toBeInTheDocument();
@@ -534,17 +529,17 @@ describe('CollectionDetail edit form (field-level)', () => {
         screen.getByRole('option', { name: 'Win95 Default (Windows 95)' }),
       ).toBeInTheDocument();
       expect(
-        screen.queryByText('Selected profile targets a different era, launch may fail.'),
+        screen.queryByText('Selected profile targets a different platform, launch may fail.'),
       ).not.toBeInTheDocument();
     });
 
-    it("shows the mismatch warning once the era is changed away from the assigned profile's era", async () => {
+    it("shows the mismatch warning once the platform is changed away from the assigned profile's platform", async () => {
       const user = userEvent.setup();
       const calls = setupApi([
         {
           match: '/api/v1/game-item-bundle/by-slug/doom',
           method: 'GET',
-          respond: () => fullCollection({ era: 'dos', profile_item_id: 10 }),
+          respond: () => fullCollection({ platform: 'dos', profile_item_id: 10 }),
         },
         {
           match: /^\/api\/v1\/profile-items/,
@@ -556,16 +551,16 @@ describe('CollectionDetail edit form (field-level)', () => {
       renderPage();
       await waitForLoaded();
 
-      await selectRadixOption(user, 'Era', 'Windows 95');
-      expect(screen.getByRole('combobox', { name: 'Era' })).toHaveTextContent('Windows 95');
+      await selectRadixOption(user, 'Platform', 'Windows 95');
+      expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('Windows 95');
 
       expect(
-        screen.getByText('Selected profile targets a different era, launch may fail.'),
+        screen.getByText('Selected profile targets a different platform, launch may fail.'),
       ).toBeInTheDocument();
 
       await saveAndWait(user);
       const patch = callsTo(calls, '/api/v1/game-item-bundle/1', 'PATCH');
-      expect(patch[0].body).toMatchObject({ era: 'win95' });
+      expect(patch[0].body).toMatchObject({ platform: 'win95' });
     });
   });
 
@@ -628,7 +623,7 @@ describe('CollectionDetail edit form (field-level)', () => {
   });
 });
 
-describe('CollectionDetail era confirmation', () => {
+describe('CollectionDetail platform confirmation', () => {
   afterEach(() => {
     vi.resetAllMocks();
   });
@@ -648,8 +643,8 @@ describe('CollectionDetail era confirmation', () => {
     };
   }
 
-  it('offers the button for an unreviewed era on a launched game, to the owner', async () => {
-    setupApi([bundleHandler({ era_review: 'unreviewed', has_launched: true })]);
+  it('offers the button for an unreviewed platform on a launched game, to the owner', async () => {
+    setupApi([bundleHandler({ platform_review: 'unreviewed', has_launched: true })]);
     renderPage();
     await waitForLoaded();
 
@@ -658,7 +653,7 @@ describe('CollectionDetail era confirmation', () => {
 
   it('offers the button to a non-owner who can manage games', async () => {
     setupApi([
-      bundleHandler({ era_review: 'unreviewed', has_launched: true }),
+      bundleHandler({ platform_review: 'unreviewed', has_launched: true }),
       { match: '/api/v1/auth/me', respond: () => managerUser },
       { match: '/api/v1/auth/refresh', respond: () => ({ user: managerUser }) },
     ]);
@@ -670,7 +665,7 @@ describe('CollectionDetail era confirmation', () => {
 
   it('hides the button from a user who cannot manage games', async () => {
     setupApi([
-      bundleHandler({ era_review: 'unreviewed', has_launched: true }),
+      bundleHandler({ platform_review: 'unreviewed', has_launched: true }),
       { match: '/api/v1/auth/me', respond: () => limitedUser },
       { match: '/api/v1/auth/refresh', respond: () => ({ user: limitedUser }) },
     ]);
@@ -681,11 +676,14 @@ describe('CollectionDetail era confirmation', () => {
   });
 
   it.each([
-    ['the game has never been launched', { era_review: 'unreviewed', has_launched: false }],
-    ['has_launched is absent', { era_review: 'unreviewed' }],
-    ['the era is already confirmed', { era_review: 'confirmed', has_launched: true }],
-    ['the era is already verified', { era_review: 'verified', has_launched: true }],
-    ['the era is unknown', { era: 'unknown', era_review: 'unreviewed', has_launched: true }],
+    ['the game has never been launched', { platform_review: 'unreviewed', has_launched: false }],
+    ['has_launched is absent', { platform_review: 'unreviewed' }],
+    ['the platform is already confirmed', { platform_review: 'confirmed', has_launched: true }],
+    ['the platform is already verified', { platform_review: 'verified', has_launched: true }],
+    [
+      'the platform is unknown',
+      { platform: 'unknown', platform_review: 'unreviewed', has_launched: true },
+    ],
   ])('hides the button when %s', async (_label, overrides) => {
     setupApi([bundleHandler(overrides)]);
     renderPage();
@@ -694,21 +692,21 @@ describe('CollectionDetail era confirmation', () => {
     expect(screen.queryByRole('button', { name: CONFIRM_NAME })).not.toBeInTheDocument();
   });
 
-  it('hides the button, and the ring, while the form holds an unsaved era change', async () => {
+  it('hides the button, and the ring, while the form holds an unsaved platform change', async () => {
     const user = userEvent.setup();
-    setupApi([bundleHandler({ era_review: 'unreviewed', has_launched: true })]);
+    setupApi([bundleHandler({ platform_review: 'unreviewed', has_launched: true })]);
     renderPage();
     await waitForLoaded();
     expect(await screen.findByRole('button', { name: CONFIRM_NAME })).toBeInTheDocument();
-    expect(screen.getByTestId('era-select-wrapper').className).toContain('ring-warning');
+    expect(screen.getByTestId('platform-select-wrapper').className).toContain('ring-warning');
 
-    await selectRadixOption(user, 'Era', 'Windows 95');
+    await selectRadixOption(user, 'Platform', 'Windows 95');
 
     expect(screen.queryByRole('button', { name: CONFIRM_NAME })).not.toBeInTheDocument();
-    expect(screen.getByTestId('era-select-wrapper').className).not.toContain('ring-');
+    expect(screen.getByTestId('platform-select-wrapper').className).not.toContain('ring-');
   });
 
-  it('sends era_confirmed true alone, then refetches and drops the ring and the button', async () => {
+  it('sends platform_confirmed true alone, then refetches and drops the ring and the button', async () => {
     const user = userEvent.setup();
     let confirmed = false;
     const calls = setupApi([
@@ -717,8 +715,8 @@ describe('CollectionDetail era confirmation', () => {
         method: 'GET',
         respond: () =>
           fullCollection({
-            era_review: confirmed ? 'confirmed' : 'unreviewed',
-            era_confirmed: confirmed,
+            platform_review: confirmed ? 'confirmed' : 'unreviewed',
+            platform_confirmed: confirmed,
             has_launched: true,
           }),
       },
@@ -741,14 +739,14 @@ describe('CollectionDetail era confirmation', () => {
     });
     const patches = callsTo(calls, BUNDLE_URL, 'PATCH');
     expect(patches).toHaveLength(1);
-    expect(patches[0].body).toEqual({ era_confirmed: true });
-    expect(screen.getByTestId('era-select-wrapper').className).not.toContain('ring-');
+    expect(patches[0].body).toEqual({ platform_confirmed: true });
+    expect(screen.getByTestId('platform-select-wrapper').className).not.toContain('ring-');
   });
 
   it('shows a failed confirmation loudly and keeps the button', async () => {
     const user = userEvent.setup();
     setupApi([
-      bundleHandler({ era_review: 'unreviewed', has_launched: true }),
+      bundleHandler({ platform_review: 'unreviewed', has_launched: true }),
       {
         match: BUNDLE_URL,
         method: 'PATCH',
@@ -768,10 +766,10 @@ describe('CollectionDetail era confirmation', () => {
     expect(screen.getByRole('button', { name: CONFIRM_NAME })).toBeEnabled();
   });
 
-  it('never sends era_confirmed on a normal save', async () => {
+  it('never sends platform_confirmed on a normal save', async () => {
     const user = userEvent.setup();
     const calls = setupApi([
-      bundleHandler({ era_review: 'unreviewed', has_launched: true }),
+      bundleHandler({ platform_review: 'unreviewed', has_launched: true }),
       { match: BUNDLE_URL, method: 'PATCH', respond: () => ({}) },
       { match: '/api/v1/game-item-bundle/1/items/100', method: 'PATCH', respond: () => ({}) },
     ]);
@@ -783,6 +781,6 @@ describe('CollectionDetail era confirmation', () => {
 
     const patches = callsTo(calls, BUNDLE_URL, 'PATCH');
     expect(patches).toHaveLength(1);
-    expect(patches[0].body).not.toHaveProperty('era_confirmed');
+    expect(patches[0].body).not.toHaveProperty('platform_confirmed');
   });
 });

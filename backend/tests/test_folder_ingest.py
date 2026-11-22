@@ -37,7 +37,7 @@ class TestPickFolderLaunchFile:
             paths = [base / n for n in names]
         return pick_folder_launch_file(paths)
 
-    def test_gdi_returned_first_dreamcast_era(self, tmp_path):
+    def test_gdi_returned_first_dreamcast_platform(self, tmp_path):
         (tmp_path / "track.gdi").write_bytes(b"")
         result = self._call("track.gdi", base=tmp_path)
         assert result.suffix.lower() == ".gdi"
@@ -168,10 +168,10 @@ class TestCreateMultiDiscSet:
         monkeypatch.setattr(smd, "detect", lambda path: _fake_scan_result())
 
     @pytest.fixture(autouse=True)
-    def _patch_era_defaults(self, monkeypatch):
-        import backend.service.utils.era_defaults as ead
-        # Return (None, None) to skip platform/profile lookup, not under test here.
-        monkeypatch.setattr(ead, "defaults_for_era", lambda era: (None, None))
+    def _patch_platform_defaults(self, monkeypatch):
+        import backend.service.utils.platform_defaults as ead
+        # Return (None, None) to skip the profile lookup, not under test here.
+        monkeypatch.setattr(ead, "defaults_for_platform", lambda platform: (None, None))
 
     def _make_disc_files(self, tmp_path: Path, names: list[str]) -> list[Path]:
         files = []
@@ -238,14 +238,14 @@ class TestCreateMultiDiscSet:
         ).all()
         assert [i.disc_number for i in items] == [1, 2, 3]
 
-    def test_era_from_detector_stored_on_set(self, tmp_path, mem_session):
+    def test_platform_from_detector_stored_on_set(self, tmp_path, mem_session):
         from backend.models.game import GameItemBundle
 
         disc_files = self._make_disc_files(tmp_path, ["d1.gdi", "d2.gdi"])
-        library_set = _create_multi_disc_collection(disc_files, "Era Test", mem_session)
+        library_set = _create_multi_disc_collection(disc_files, "Platform Test", mem_session)
 
         stored = mem_session.get(GameItemBundle, library_set.id)
-        assert stored.era == "dreamcast"
+        assert stored.platform == "dreamcast"
 
     def test_content_rating_detected_from_disc_one_filename(self, tmp_path, mem_session):
         """detect_rating is called with disc_files[0] only, a bracketed rating
@@ -288,9 +288,9 @@ class TestDedupDiscAnchor:
         monkeypatch.setattr(smd, "detect", lambda path: _fake_scan_result())
 
     @pytest.fixture(autouse=True)
-    def _patch_era_defaults(self, monkeypatch):
-        import backend.service.utils.era_defaults as ead
-        monkeypatch.setattr(ead, "defaults_for_era", lambda era: (None, None))
+    def _patch_platform_defaults(self, monkeypatch):
+        import backend.service.utils.platform_defaults as ead
+        monkeypatch.setattr(ead, "defaults_for_platform", lambda platform: (None, None))
 
     def test_does_not_repoint_to_a_match_in_an_untracked_folder(self, tmp_path, mem_session):
         """A byte-identical file in an untracked leftover folder is NOT reused by
@@ -330,7 +330,7 @@ class TestDedupDiscAnchor:
         tracked_dir.mkdir()
         stray_disc1 = tracked_dir / "disc1.gdi"
         stray_disc1.write_bytes(content)
-        collection = GameItemBundle(title="Tracked Game", era="dreamcast", slug="tracked-game")
+        collection = GameItemBundle(title="Tracked Game", platform="dreamcast", slug="tracked-game")
         mem_session.add(collection)
         mem_session.flush()
         mem_session.add(GameItem(
@@ -366,7 +366,7 @@ class TestDedupDiscAnchor:
         tracked_disc1 = tracked_dir / "disc1.gdi"
         tracked_disc1.write_bytes(content)
 
-        existing_collection = GameItemBundle(title="Existing Game", era="dreamcast", slug="existing-game")
+        existing_collection = GameItemBundle(title="Existing Game", platform="dreamcast", slug="existing-game")
         mem_session.add(existing_collection)
         mem_session.flush()
         existing_leaf = GameItem(
@@ -418,7 +418,7 @@ def library(tmp_path, monkeypatch) -> Path:
     from types import SimpleNamespace
 
     import backend.core.settings as settings_mod
-    import backend.service.utils.era_defaults as ead
+    import backend.service.utils.platform_defaults as ead
     import formatscout as smd
     from backend.service.utils import media_dup_index
 
@@ -431,7 +431,7 @@ def library(tmp_path, monkeypatch) -> Path:
         smd, "classify",
         lambda *a, **k: SimpleNamespace(status="unchecked", similarity=None, computed_sha1=None),
     )
-    monkeypatch.setattr(ead, "defaults_for_era", lambda era: (None, None))
+    monkeypatch.setattr(ead, "defaults_for_platform", lambda platform: (None, None))
     media_dup_index._index.clear()
     monkeypatch.setattr(media_dup_index, "_built_for", None)
     return games_root
@@ -466,7 +466,7 @@ def _track(db, folder: Path, file_name: str) -> None:
     """A live bundle whose single leaf is *folder*/*file_name*, folder owned."""
     from backend.models.game import GameItemBundle, GameItem
 
-    bundle = GameItemBundle(title="Tracked Game", era="dreamcast", slug="tracked-game")
+    bundle = GameItemBundle(title="Tracked Game", platform="dreamcast", slug="tracked-game")
     db.add(bundle)
     db.flush()
     db.add(GameItem(

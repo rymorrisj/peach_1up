@@ -11,21 +11,26 @@ import { useToast } from '@/ui/ToastProvider';
 import type { components } from '@shared/types';
 import EnvironmentCard from './EnvironmentCard';
 import EnvironmentModal from './EnvironmentModal';
-import { type EnvironmentForm, EMPTY_ENV_FORM, ERA_TO_EMULATOR } from './environmentForm';
+import {
+  type EnvironmentForm,
+  BOX86_PLATFORMS,
+  EMPTY_ENV_FORM,
+  PLATFORM_TO_EMULATOR,
+} from './environmentForm';
 
-type Platform = components['schemas']['EnvironmentItemRead'];
+type Environment = components['schemas']['EnvironmentItemRead'];
 
-type EnvModalState = null | { mode: 'create' } | { mode: 'edit'; platform: Platform };
+type EnvModalState = null | { mode: 'create' } | { mode: 'edit'; environment: Environment };
 
-function formFromPlatform(p: Platform): EnvironmentForm {
-  const ext = p as Platform & {
+function formFromEnvironment(p: Environment): EnvironmentForm {
+  const ext = p as Environment & {
     hardware_profile?: string;
     machine_override?: string;
     launch_commands?: string[] | null;
   };
   return {
     name: p.name,
-    era: p.era as EnvironmentForm['era'],
+    platform: p.platform as EnvironmentForm['platform'],
     base_image_path: p.base_image_path ?? '',
     working_image_path: p.working_image_path ?? '',
     hardware_profile: (ext.hardware_profile ?? 'standard') as EnvironmentForm['hardware_profile'],
@@ -40,12 +45,12 @@ export default function Environments() {
   const { confirm, isOpen, options, handleConfirm, handleCancel } = useConfirm();
   const { showToast } = useToast();
 
-  const { data: platforms, isLoading } = useQuery<Platform[]>({
-    queryKey: ['platforms'],
-    queryFn: () => apiFetch<Platform[]>('/api/v1/environment-items'),
+  const { data: environments, isLoading } = useQuery<Environment[]>({
+    queryKey: ['environments'],
+    queryFn: () => apiFetch<Environment[]>('/api/v1/environment-items'),
   });
 
-  const userPlatforms = (platforms ?? []).filter((p) => !p.is_system);
+  const userEnvironments = (environments ?? []).filter((p) => !p.is_system);
 
   const [modal, setModal] = useState<EnvModalState>(null);
   const [form, setForm] = useState<EnvironmentForm>(EMPTY_ENV_FORM);
@@ -62,11 +67,11 @@ export default function Environments() {
     setModal({ mode: 'create' });
   }
 
-  function openEdit(platform: Platform) {
-    setForm(formFromPlatform(platform));
+  function openEdit(environment: Environment) {
+    setForm(formFromEnvironment(environment));
     setFormErrors({});
     setSubmitError(null);
-    setModal({ mode: 'edit', platform });
+    setModal({ mode: 'edit', environment });
   }
 
   function closeModal() {
@@ -78,19 +83,17 @@ export default function Environments() {
     setFormErrors((prev) => ({ ...prev, [key]: undefined }));
   }
 
-  const INSTALL_MEDIA_ERAS = new Set(['win95', 'win98', 'winxp']);
-
   function validate(): boolean {
     const errors: Partial<Record<keyof EnvironmentForm, string>> = {};
     if (!form.name.trim()) errors.name = 'Name is required.';
-    if (!form.era) errors.era = 'Select an environment era.';
+    if (!form.platform) errors.platform = 'Select an environment platform.';
     if (
       modal?.mode === 'create' &&
-      form.era &&
-      INSTALL_MEDIA_ERAS.has(form.era) &&
+      form.platform &&
+      BOX86_PLATFORMS.has(form.platform) &&
       !form.base_image_path.trim()
     ) {
-      errors.base_image_path = 'Installation media is required for this era.';
+      errors.base_image_path = 'Installation media is required for this platform.';
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -101,11 +104,11 @@ export default function Environments() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const era = form.era!;
+      const platform = form.platform!;
       const body = {
         name: form.name.trim(),
-        era,
-        emulator_slug: ERA_TO_EMULATOR[era],
+        platform,
+        emulator_slug: PLATFORM_TO_EMULATOR[platform],
         base_image_path: form.base_image_path.trim() || null,
         working_image_path: form.working_image_path.trim() || null,
         hardware_profile: form.hardware_profile,
@@ -116,12 +119,12 @@ export default function Environments() {
       if (modal?.mode === 'create') {
         await apiFetch('/api/v1/environment-items', { method: 'POST', body: JSON.stringify(body) });
       } else if (modal?.mode === 'edit') {
-        await apiFetch(`/api/v1/environment-items/${modal.platform.id}`, {
+        await apiFetch(`/api/v1/environment-items/${modal.environment.id}`, {
           method: 'PATCH',
           body: JSON.stringify(body),
         });
       }
-      await queryClient.invalidateQueries({ queryKey: ['platforms'] });
+      await queryClient.invalidateQueries({ queryKey: ['environments'] });
       closeModal();
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.detail : 'Something went wrong.');
@@ -130,33 +133,33 @@ export default function Environments() {
     }
   }
 
-  async function handleDelete(platform: Platform) {
+  async function handleDelete(environment: Environment) {
     const confirmed = await confirm({
-      title: `Delete "${platform.name}"?`,
+      title: `Delete "${environment.name}"?`,
       consequence: 'This removes the environment registration. OS images on disk are not deleted.',
       destructive: true,
     });
     if (!confirmed) return;
     try {
       const { confirmation_token } = await apiFetch<{ confirmation_token: string }>(
-        `/api/v1/environment-items/${platform.id}/confirm-delete`,
+        `/api/v1/environment-items/${environment.id}/confirm-delete`,
         { method: 'POST' },
       );
       await apiFetch(
-        `/api/v1/environment-items/${platform.id}?confirmation_token=${encodeURIComponent(confirmation_token)}`,
+        `/api/v1/environment-items/${environment.id}?confirmation_token=${encodeURIComponent(confirmation_token)}`,
         { method: 'DELETE' },
       );
-      await queryClient.invalidateQueries({ queryKey: ['platforms'] });
+      await queryClient.invalidateQueries({ queryKey: ['environments'] });
     } catch (err) {
       showToast(err instanceof ApiError ? err.detail : 'Delete failed.', 'error');
     }
   }
 
-  async function handleHealthCheck(platform: Platform) {
-    setHealthLoading(platform.id);
+  async function handleHealthCheck(environment: Environment) {
+    setHealthLoading(environment.id);
     try {
-      await apiFetch(`/api/v1/environment-items/${platform.id}/health`, { method: 'POST' });
-      await queryClient.invalidateQueries({ queryKey: ['platforms'] });
+      await apiFetch(`/api/v1/environment-items/${environment.id}/health`, { method: 'POST' });
+      await queryClient.invalidateQueries({ queryKey: ['environments'] });
       // An unhealthy *result* is not an error here, it's a 200 whose status
       // update is reflected via the invalidation above. Only a failed request
       // itself (network/permission/500) reaches this catch.
@@ -171,7 +174,7 @@ export default function Environments() {
     setHealthCheckAllRunning(true);
     try {
       await apiFetch('/api/v1/health/recompute-all', { method: 'POST' });
-      await queryClient.invalidateQueries({ queryKey: ['platforms'] });
+      await queryClient.invalidateQueries({ queryKey: ['environments'] });
       // Per-environment failures are handled server-side and reflected via the
       // invalidation above; only a failed request itself reaches this catch.
     } catch (err) {
@@ -201,7 +204,7 @@ export default function Environments() {
             <LoadingSpinner label="Loading environments…" />
             <span aria-hidden="true">Loading environments…</span>
           </div>
-        ) : userPlatforms.length === 0 ? (
+        ) : userEnvironments.length === 0 ? (
           <EmptyState
             heading="No environments yet"
             subtext="Add an environment to register a PC OS image for launching."
@@ -209,11 +212,11 @@ export default function Environments() {
           />
         ) : (
           <div className="space-y-3">
-            {userPlatforms.map((platform) => (
+            {userEnvironments.map((environment) => (
               <EnvironmentCard
-                key={platform.id}
-                platform={platform}
-                healthLoading={healthLoading === platform.id}
+                key={environment.id}
+                environment={environment}
+                healthLoading={healthLoading === environment.id}
                 onEdit={openEdit}
                 onDelete={handleDelete}
                 onHealthCheck={handleHealthCheck}
@@ -226,7 +229,7 @@ export default function Environments() {
       <EnvironmentModal
         open={modal !== null}
         mode={modal?.mode ?? 'create'}
-        slug={modal?.mode === 'edit' ? (modal.platform.slug ?? undefined) : undefined}
+        slug={modal?.mode === 'edit' ? (modal.environment.slug ?? undefined) : undefined}
         form={form}
         formErrors={formErrors}
         submitError={submitError}

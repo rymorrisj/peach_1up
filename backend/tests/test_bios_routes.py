@@ -32,7 +32,7 @@ def client(tmp_path, monkeypatch):
     fake_entry = {
         "slug": "ps1-bios",
         "name": "PS1 BIOS",
-        "platform": "ps1",
+        "bios_group": "ps1",
         "bios_path": "test-bios",
         "guidance_text": "Place your BIOS.",
         "guidance_url": "https://example.invalid",
@@ -144,7 +144,7 @@ class TestListRoutePagination:
             {
                 "slug": f"bios-{i}",
                 "name": f"BIOS {i}",
-                "platform": "ps1",
+                "bios_group": "ps1",
                 "bios_path": f"test-bios-{i}",
                 "required": True,
             }

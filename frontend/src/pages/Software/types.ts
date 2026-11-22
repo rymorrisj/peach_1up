@@ -27,7 +27,7 @@ export interface Page<T> {
 // (Game/Media/App). created_at/updated_at are typed Optional here because
 // Media's backend schema marks them Optional while Game/App's don't —
 // treating them as optional everywhere keeps this shape safe for all three.
-// Domain-specific fields (era, content_rating, is_pc, media_kind, ...) stay
+// Domain-specific fields (platform, content_rating, is_pc, media_kind, ...) stay
 // out of this shape and live on each domain's own extended type instead.
 export interface EntityBundleBase {
   id: number;
@@ -68,11 +68,16 @@ export interface LaunchGate {
   launchDisabled: boolean;
   launchButtonLabel: string;
   launchNote: string | null;
+  /** Set when the note's next step is on another page. */
+  launchNoteLink: { to: string; label: string } | null;
 }
 
+// *userEnvironmentCount* is the number of Environments on the Environments
+// page (undefined while unknown); it only changes the no_environment copy.
 export function launchGateFromReason(
   reason: string | null | undefined,
   isLaunching: boolean,
+  userEnvironmentCount?: number,
 ): LaunchGate {
   switch (reason) {
     case 'no_profile':
@@ -80,44 +85,70 @@ export function launchGateFromReason(
         launchDisabled: true,
         launchButtonLabel: 'Assign a profile to launch',
         launchNote: 'Assign a launch profile to enable launch.',
+        launchNoteLink: null,
       };
     case 'no_environment':
+      if (userEnvironmentCount === 0) {
+        return {
+          launchDisabled: true,
+          launchButtonLabel: 'Create an Environment to launch',
+          launchNote:
+            'No Environments exist yet. Create one, then choose it in the Environment field.',
+          launchNoteLink: { to: '/environments', label: 'Go to Environments' },
+        };
+      }
       return {
         launchDisabled: true,
-        launchButtonLabel: 'Configure an Environment to launch',
-        launchNote: 'Create an Environment for this era to enable launch.',
+        launchButtonLabel: 'Choose an Environment to launch',
+        launchNote: 'Choose an Environment in the Environment field to enable launch.',
+        launchNoteLink: null,
       };
     default:
       return {
         launchDisabled: isLaunching,
         launchButtonLabel: 'Launch',
         launchNote: null,
+        launchNoteLink: null,
       };
   }
+}
+
+// Shown beside an Environment that cannot be chosen yet, naming the next step.
+// Reason codes come from GET /api/v1/environment-items?platform=...
+const ENVIRONMENT_BLOCKED_REASONS: Record<string, string> = {
+  environment_not_present: 'image files missing, fix its paths on the Environments page',
+  environment_not_provisioned: 'no disk image yet, set one up on the Environments page',
+  environment_not_installed:
+    'OS not installed yet, launch it from the Environments page and mark it installed',
+};
+
+export function environmentBlockedReason(reason: string | null | undefined): string | null {
+  if (!reason) return null;
+  return ENVIRONMENT_BLOCKED_REASONS[reason] ?? reason;
 }
 
 // Filter bar support for EntityListPage, presence-gated the same pattern as
 // uploadConfig: a domain that omits `filters` entirely gets no filter bar and
 // no change to its list query params. Modeled on Games.tsx's Filters state
-// (era + profileFilter). Game (GET /api/v1/game-items, game_item_bundles.py:
+// (platform + profileFilter). Game (GET /api/v1/game-items, game_item_bundles.py:
 // list_game_items) and App (GET /api/v1/app-items, apps.py:list_apps) both
-// have backend support for era and profile_assigned. Media has no era/profile
+// have backend support for platform and profile_assigned. Media has no platform/profile
 // concept at all, so it leaves this unset.
 export interface EntityFilterConfig {
-  // Renders an "All eras" + ERA_LABELS select, synced to the `?era=` URL
+  // Renders an "All platforms" + PLATFORM_LABELS select, synced to the `?platform=` URL
   // search param (survives navigation/back-button, mirrors Games.tsx) and
-  // serialized as `?era=` on the list request.
-  era?: boolean;
+  // serialized as `?platform=` on the list request.
+  platform?: boolean;
   // Renders an "All / Profile assigned / No profile" select, serialized as
   // `?profile_assigned=true|false` on the list request. Not URL-synced,
-  // matching Games.tsx (era is the only URL-synced filter there).
+  // matching Games.tsx (platform is the only URL-synced filter there).
   profileAssigned?: boolean;
   // Renders an "All tags" + tag-name select, serialized as `?tag=` on the
   // list request. Not URL-synced, same as profileAssigned. The backend
   // `tag` param (list_game_items/list_apps/list_media_item_bundles) matches
   // a single tag by exact `Tag.name`, not id, and not a multi-value list, so
   // this is a single-select control, not a multi-select typeahead. Shared by
-  // all three domains since tags (unlike era/profile) are the one filter
+  // all three domains since tags (unlike platform/profile) are the one filter
   // dimension genuinely common across Game, App, and Media.
   tag?: boolean;
 }
@@ -245,7 +276,7 @@ export interface EntityDomainConfig<TBundle extends EntityBundleBase> {
   // only domain with a working Scan today) stays on its own bespoke
   // two-button/two-modal layout, untouched.
   scanConfig?: LibraryModalConfig;
-  // Era/profile filter bar, see EntityFilterConfig. Omitted for Media.
+  // Platform/profile filter bar, see EntityFilterConfig. Omitted for Media.
   filters?: EntityFilterConfig;
   // Sort control for EntityListPage's list query, presence-gated the same way
   // uploadConfig/filters are: a domain that omits this renders no sort
@@ -262,10 +293,10 @@ export interface EntityDomainConfig<TBundle extends EntityBundleBase> {
   deleteConfig?: EntityDeleteConfig<TBundle>;
   // Full custom card renderer for a domain whose grid card departs from
   // EntityCard's generic layout. Game's CollectionCard has stacked-disc
-  // background layers, an era-tinted placeholder with publisher/year, a
+  // background layers, a platform-tinted placeholder with publisher/year, a
   // stack-count badge, and a display-vs-launch-disc divergence badge, none
   // of which EntityCard renders (EntityCard is deliberately the simple,
-  // era-agnostic card Media/App use). When set, EntityListPage renders this
+  // platform-agnostic card Media/App use). When set, EntityListPage renders this
   // instead of <EntityCard> for every entity in the grid. Omitted for Media
   // and App, whose rendering via EntityCard is unchanged.
   renderCard?: (props: {
@@ -292,11 +323,11 @@ export interface EntityDetailExtrasContext<TBundle extends EntityBundleBase> {
 // casts them once, at the single point it spreads into SoftwareEntityDetail,
 // which already owns those real types.
 export interface EntityDetailExtras {
-  // Raw era slug (e.g. "ps1"), not a pre-formatted label, so the header chip
+  // Raw platform slug (e.g. "ps1"), not a pre-formatted label, so the header chip
   // can look up both its short display code and its token color from
-  // types/era.ts the same way grid cards already do. Omitted entirely for
-  // domains with no era concept (Media).
-  era?: string;
+  // types/platform.ts the same way grid cards already do. Omitted entirely for
+  // domains with no platform concept (Media).
+  platform?: string;
   year?: number | null;
   publisher?: string | null;
   launchCount?: number;

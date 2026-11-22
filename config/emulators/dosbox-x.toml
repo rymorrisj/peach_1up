@@ -1,5 +1,5 @@
 slug = "dosbox-x"
-era = "dos"
+sizing_platform = "dos"
 settings_key = "DOSBOX_PATH"
 display_name = "DOSBox-X"
 name = "DOSBox-X"

@@ -63,7 +63,7 @@ def client(mem_db_session, tmp_path, monkeypatch, media_deletes):
 def _game(db, rating=None, override=None):
     from backend.models.game import GameItemBundle
 
-    game = GameItemBundle(title="Doom", era="dos", slug="doom", content_rating=rating,
+    game = GameItemBundle(title="Doom", platform="dos", slug="doom", content_rating=rating,
                           delete_media_override=override)
     db.add(game)
     db.commit()
@@ -74,7 +74,7 @@ def _game(db, rating=None, override=None):
 def _app(db, override=None):
     from backend.models.app import AppItemBundle
 
-    app = AppItemBundle(title="Tool", era="ps1", slug="tool", delete_media_override=override)
+    app = AppItemBundle(title="Tool", platform="ps1", slug="tool", delete_media_override=override)
     db.add(app)
     db.commit()
     db.refresh(app)

@@ -1,11 +1,11 @@
-"""Tests for backend routing, era → backend mapping and routing invariants."""
+"""Tests for backend routing, platform → backend mapping and routing invariants."""
 
 import sys
 from unittest.mock import MagicMock
 
 import pytest
 
-from backend.constants_generated import BackendSlug, Era
+from backend.constants_generated import BackendSlug, Platform
 
 
 # ---------------------------------------------------------------------------
@@ -13,32 +13,32 @@ from backend.constants_generated import BackendSlug, Era
 # ---------------------------------------------------------------------------
 
 _ROUTE_CASES = [
-    (Era.DOS,   BackendSlug.DOSBOX_X.value),
-    (Era.WIN95, BackendSlug.BOX86.value),
-    (Era.WIN98, BackendSlug.BOX86.value),
-    (Era.WINXP, BackendSlug.BOX86.value),
-    (Era.PS1,   BackendSlug.DUCKSTATION.value),
-    (Era.PS2,   BackendSlug.PCSX2.value),
-    (Era.XBOX,  BackendSlug.XEMU.value),
-    (Era.NES,       BackendSlug.MESEN.value),
-    (Era.N64,       BackendSlug.PROJECT64.value),
-    (Era.DREAMCAST, BackendSlug.FLYCAST.value),
+    (Platform.DOS,   BackendSlug.DOSBOX_X.value),
+    (Platform.WIN95, BackendSlug.BOX86.value),
+    (Platform.WIN98, BackendSlug.BOX86.value),
+    (Platform.WINXP, BackendSlug.BOX86.value),
+    (Platform.PS1,   BackendSlug.DUCKSTATION.value),
+    (Platform.PS2,   BackendSlug.PCSX2.value),
+    (Platform.XBOX,  BackendSlug.XEMU.value),
+    (Platform.NES,       BackendSlug.MESEN.value),
+    (Platform.N64,       BackendSlug.PROJECT64.value),
+    (Platform.DREAMCAST, BackendSlug.FLYCAST.value),
 ]
 
 _ROUTE_IDS = ["dos", "win95", "win98", "winxp",
               "ps1", "ps2", "xbox", "nes", "n64", "dreamcast"]
 
 _EXEC_CASES = [
-    (Era.DOS,       "dosbox-x"),
-    (Era.WIN95,     "86box"),
-    (Era.WIN98,     "86box"),
-    (Era.WINXP,     "86box"),
-    (Era.PS1,       "duckstation"),
-    (Era.PS2,       "pcsx2"),
-    (Era.XBOX,      "xemu"),
-    (Era.NES,       "mesen"),
-    (Era.N64,       "project64"),
-    (Era.DREAMCAST, "flycast"),
+    (Platform.DOS,       "dosbox-x"),
+    (Platform.WIN95,     "86box"),
+    (Platform.WIN98,     "86box"),
+    (Platform.WINXP,     "86box"),
+    (Platform.PS1,       "duckstation"),
+    (Platform.PS2,       "pcsx2"),
+    (Platform.XBOX,      "xemu"),
+    (Platform.NES,       "mesen"),
+    (Platform.N64,       "project64"),
+    (Platform.DREAMCAST, "flycast"),
 ]
 
 _EXEC_IDS = ["dos", "win95", "win98", "winxp",
@@ -46,16 +46,16 @@ _EXEC_IDS = ["dos", "win95", "win98", "winxp",
 
 # Slug → module path for dispatch tests.
 _DISPATCH_CASES = [
-    (Era.DOS,   BackendSlug.DOSBOX_X.value,    "backend.service.backends.dosbox"),
-    (Era.WIN95, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
-    (Era.WIN98, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
-    (Era.WINXP, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
-    (Era.PS1,   BackendSlug.DUCKSTATION.value, "backend.service.backends.console"),
-    (Era.PS2,   BackendSlug.PCSX2.value,       "backend.service.backends.console"),
-    (Era.XBOX,  BackendSlug.XEMU.value,        "backend.service.backends.xemu"),
-    (Era.NES,   BackendSlug.MESEN.value,       "backend.service.backends.console"),
-    (Era.N64,   BackendSlug.PROJECT64.value,   "backend.service.backends.console"),
-    (Era.DREAMCAST, BackendSlug.FLYCAST.value, "backend.service.backends.flycast"),
+    (Platform.DOS,   BackendSlug.DOSBOX_X.value,    "backend.service.backends.dosbox"),
+    (Platform.WIN95, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
+    (Platform.WIN98, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
+    (Platform.WINXP, BackendSlug.BOX86.value,       "backend.service.backends.box86"),
+    (Platform.PS1,   BackendSlug.DUCKSTATION.value, "backend.service.backends.console"),
+    (Platform.PS2,   BackendSlug.PCSX2.value,       "backend.service.backends.console"),
+    (Platform.XBOX,  BackendSlug.XEMU.value,        "backend.service.backends.xemu"),
+    (Platform.NES,   BackendSlug.MESEN.value,       "backend.service.backends.console"),
+    (Platform.N64,   BackendSlug.PROJECT64.value,   "backend.service.backends.console"),
+    (Platform.DREAMCAST, BackendSlug.FLYCAST.value, "backend.service.backends.flycast"),
 ]
 
 _DISPATCH_IDS = ["dos", "win95", "win98", "winxp",
@@ -63,26 +63,26 @@ _DISPATCH_IDS = ["dos", "win95", "win98", "winxp",
 
 
 # ---------------------------------------------------------------------------
-# resolve_backend_name, complete era→backend string mapping
+# resolve_backend_name, complete platform→backend string mapping
 # ---------------------------------------------------------------------------
 
 class TestResolveBackendName:
-    @pytest.mark.parametrize("era,expected", _ROUTE_CASES, ids=_ROUTE_IDS)
-    def test_era_routes_to_expected_backend(self, era, expected):
+    @pytest.mark.parametrize("platform,expected", _ROUTE_CASES, ids=_ROUTE_IDS)
+    def test_platform_routes_to_expected_backend(self, platform, expected):
         from backend.service.utils.backend_router import resolve_backend_name
-        assert resolve_backend_name(era) == expected
+        assert resolve_backend_name(platform) == expected
 
-    @pytest.mark.parametrize("era", [Era.WIN95, Era.WIN98, Era.WINXP])
-    def test_win9x_does_not_route_to_dosbox(self, era):
+    @pytest.mark.parametrize("platform", [Platform.WIN95, Platform.WIN98, Platform.WINXP])
+    def test_win9x_does_not_route_to_dosbox(self, platform):
         from backend.service.utils.backend_router import resolve_backend_name
-        assert resolve_backend_name(era) != BackendSlug.DOSBOX_X.value
+        assert resolve_backend_name(platform) != BackendSlug.DOSBOX_X.value
 
-    def test_resolve_raises_value_error_for_missing_era_in_config(self, monkeypatch):
-        import backend.service.utils.eras_config as eras_config_mod
-        monkeypatch.setattr(eras_config_mod, "_ERAS_CACHE", {})
+    def test_resolve_raises_value_error_for_missing_platform_in_config(self, monkeypatch):
+        import backend.service.utils.platforms_config as platforms_config_mod
+        monkeypatch.setattr(platforms_config_mod, "_PLATFORMS_CACHE", {})
         from backend.service.utils.backend_router import resolve_backend_name
         with pytest.raises((ValueError, RuntimeError)):
-            resolve_backend_name(Era.DOS)
+            resolve_backend_name(Platform.DOS)
 
 
 # ---------------------------------------------------------------------------
@@ -125,10 +125,10 @@ class TestNoAccuracyMode:
         import backend.service.utils.backend_router as router_mod
         assert "accuracy_mode" not in inspect.getsource(router_mod)
 
-    @pytest.mark.parametrize("era", [Era.WIN95, Era.WIN98, Era.WINXP])
-    def test_win9x_routes_to_86box_with_no_accuracy_mode_context(self, era):
+    @pytest.mark.parametrize("platform", [Platform.WIN95, Platform.WIN98, Platform.WINXP])
+    def test_win9x_routes_to_86box_with_no_accuracy_mode_context(self, platform):
         from backend.service.utils.backend_router import resolve_backend_name
-        assert resolve_backend_name(era) == BackendSlug.BOX86.value
+        assert resolve_backend_name(platform) == BackendSlug.BOX86.value
 
 
 # ---------------------------------------------------------------------------
@@ -142,15 +142,15 @@ def _fake_backend(label: str) -> MagicMock:
 
 
 class TestDispatch:
-    @pytest.mark.parametrize("era,slug,module_path", _DISPATCH_CASES, ids=_DISPATCH_IDS)
-    def test_dispatch_routes_to_correct_module(self, era, slug, module_path, monkeypatch):
+    @pytest.mark.parametrize("platform,slug,module_path", _DISPATCH_CASES, ids=_DISPATCH_IDS)
+    def test_dispatch_routes_to_correct_module(self, platform, slug, module_path, monkeypatch):
         from backend.service.launch.launch_spec import LaunchSpec
         from backend.service.utils.backend_router import dispatch
 
         fake = _fake_backend(module_path)
         monkeypatch.setitem(sys.modules, module_path, fake)
 
-        spec = LaunchSpec(slug=slug, era=era.value)
+        spec = LaunchSpec(slug=slug, platform=platform.value)
         dispatch(spec)
         fake.launch.assert_called_once_with(spec)
 
@@ -158,7 +158,7 @@ class TestDispatch:
         from backend.service.launch.launch_spec import LaunchSpec
         from backend.service.utils.backend_router import dispatch
 
-        spec = LaunchSpec(slug="ghost_backend", era="dos")
+        spec = LaunchSpec(slug="ghost_backend", platform="dos")
         with pytest.raises(ValueError, match="Unknown backend slug"):
             dispatch(spec)
 
@@ -179,7 +179,7 @@ class TestDispatch:
         # Also remove from cache so the patched import is actually called.
         monkeypatch.delitem(sys.modules, "backend.service.backends.dosbox", raising=False)
 
-        spec = LaunchSpec(slug="dosbox-x", era="dos")
+        spec = LaunchSpec(slug="dosbox-x", platform="dos")
         with pytest.raises(ImportError, match="could not be imported"):
             router_mod.dispatch(spec)
 
@@ -191,7 +191,7 @@ class TestDispatch:
         fake = _fake_backend("backend.service.backends.flycast")
         monkeypatch.setitem(sys.modules, "backend.service.backends.flycast", fake)
 
-        spec = LaunchSpec(slug=BackendSlug.FLYCAST.value, era=Era.DREAMCAST.value)
+        spec = LaunchSpec(slug=BackendSlug.FLYCAST.value, platform=Platform.DREAMCAST.value)
         dispatch(spec)
         fake.launch.assert_called_once_with(spec)
 
@@ -199,33 +199,33 @@ class TestDispatch:
         from backend.service.launch.launch_spec import LaunchSpec
         from backend.service.utils.backend_router import dispatch, resolve_backend_name
 
-        slug = resolve_backend_name(Era.WIN95)
+        slug = resolve_backend_name(Platform.WIN95)
         fake_box86 = _fake_backend("backend.service.backends.box86")
         monkeypatch.setitem(sys.modules, "backend.service.backends.box86", fake_box86)
 
-        spec = LaunchSpec(slug=slug, era=Era.WIN95.value)
+        spec = LaunchSpec(slug=slug, platform=Platform.WIN95.value)
         dispatch(spec)
         fake_box86.launch.assert_called_once_with(spec)
 
 
 # ---------------------------------------------------------------------------
-# get_executable_path, correct catalog slug resolved per era
+# get_executable_path, correct catalog slug resolved per platform
 # get_install_path is mocked so no installed emulators are required.
 # ---------------------------------------------------------------------------
 
 class TestGetExecutablePath:
     @pytest.mark.parametrize(
-        "era,expected_catalog_slug",
+        "platform,expected_catalog_slug",
         _EXEC_CASES,
         ids=_EXEC_IDS,
     )
-    def test_returns_correct_path_for_era(
-        self, era, expected_catalog_slug, monkeypatch, tmp_path
+    def test_returns_correct_path_for_platform(
+        self, platform, expected_catalog_slug, monkeypatch, tmp_path
     ):
         import backend.service.utils.emulator_catalog as catalog_mod
         fake_exe = tmp_path / f"{expected_catalog_slug}.exe"
         fake_exe.touch()
         monkeypatch.setattr(catalog_mod, "get_install_path", lambda slug: fake_exe if slug == expected_catalog_slug else None)
         import backend.service.utils.backend_router as router_mod
-        path = router_mod.get_executable_path(era)
+        path = router_mod.get_executable_path(platform)
         assert path == str(fake_exe)

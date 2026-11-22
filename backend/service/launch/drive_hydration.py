@@ -50,14 +50,14 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
     """
     from backend.models.game import GameItem
     from backend.service.utils.drive_utils import compute_drive_size_mb, create_drive_for_collection
-    from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DRIVE_ERAS
+    from backend.constants import DOSBOX_PLATFORMS
 
     drive = entity.drive
 
     # Auto-create a drive for DOS collections/apps that don't have one yet.
-    # entity.era already resolves correctly for both source types (era column
-    # for Software, the linked Environment's era for Apps, see
-    # launchable_resolver.resolve_launchable_app), so the DOS-era gate below
+    # entity.platform already resolves correctly for both source types (platform column
+    # for Software, the linked Environment's platform for Apps, see
+    # launchable_resolver.resolve_launchable_app), so the DOS gate below
     # is source-type-agnostic. Only the launch-leaf lookup differs, since
     # GameItem and AppItem are separate tables with non-overlapping id
     # spaces, collection.launch_disk_id must be resolved against whichever
@@ -65,7 +65,7 @@ def hydrate_drive_for_entity(entity: "LaunchableEntity", db: "Session") -> "Driv
     collection = entity._db_collection
     if (
         drive is None
-        and entity.era in _DRIVE_ERAS
+        and entity.platform in DOSBOX_PLATFORMS
         and collection is not None
         and collection.launch_disk_id
     ):

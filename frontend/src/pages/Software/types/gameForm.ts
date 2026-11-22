@@ -6,7 +6,7 @@ export interface SoftwareGameForm extends BaseSoftwareForm {
   year: string;
   category: string;
   content_rating: string;
-  era: string;
+  platform: string;
   environment_item_id: string;
   profile_item_id: string;
   executable_path: string;
@@ -26,7 +26,7 @@ export interface EditableCollection {
   year: number | null;
   category: string | null;
   content_rating: string | null;
-  era: string;
+  platform: string;
   environment_item_id: number | null;
   profile_item_id: number | null;
   launch_disk_id: number | null;
@@ -48,7 +48,7 @@ export function formFromCollection(c: EditableCollection): SoftwareGameForm {
     category: c.category ?? '',
     cover_art_path: launchDisc?.cover_art_path ?? '',
     content_rating: c.content_rating ?? '',
-    era: c.era && c.era !== 'unknown' ? c.era : '',
+    platform: c.platform && c.platform !== 'unknown' ? c.platform : '',
     environment_item_id: c.environment_item_id?.toString() ?? '',
     profile_item_id: c.profile_item_id?.toString() ?? '',
     executable_path: launchDisc?.executable_path ?? '',

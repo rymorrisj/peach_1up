@@ -21,9 +21,13 @@ describe('ratingChangeAffectedCount', () => {
   });
 
   it('returns null for other errors', () => {
-    expect(ratingChangeAffectedCount(new ApiError(409, 'conflict', 'A plain string detail'))).toBeNull();
     expect(
-      ratingChangeAffectedCount(new ApiError(409, 'x', { error_type: 'something_else', message: 'x' })),
+      ratingChangeAffectedCount(new ApiError(409, 'conflict', 'A plain string detail')),
+    ).toBeNull();
+    expect(
+      ratingChangeAffectedCount(
+        new ApiError(409, 'x', { error_type: 'something_else', message: 'x' }),
+      ),
     ).toBeNull();
     expect(
       ratingChangeAffectedCount(
@@ -91,7 +95,9 @@ describe('useRatingChangeConfirm', () => {
 
   it('propagates any other error without prompting', async () => {
     const confirm = vi.fn();
-    const run = vi.fn().mockRejectedValueOnce(new ApiError(400, 'Invalid or expired confirmation token.'));
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError(400, 'Invalid or expired confirmation token.'));
     const { result } = renderHook(() => useRatingChangeConfirm(confirm));
 
     await expect(

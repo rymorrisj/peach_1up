@@ -172,7 +172,7 @@ class TestAcceptAllMediaRoot:
     def _game(self, db):
         from backend.models.game import GameItemBundle
 
-        game = GameItemBundle(title="Doom", era="dos", slug="doom")
+        game = GameItemBundle(title="Doom", platform="dos", slug="doom")
         db.add(game)
         db.commit()
         db.refresh(game)

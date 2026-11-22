@@ -19,7 +19,7 @@ def issue(resource: str, resource_id: int | str, action: str | None = None) -> s
     """Issue a single-use confirmation token for a destructive action.
 
     Args:
-        resource:    Logical resource type (e.g. "library", "platform", "drive").
+        resource:    Logical resource type (e.g. "game", "environment_item", "drive").
         resource_id: Primary key or slug of the target resource.
         action:      Optional action discriminator (e.g. "delete", "restore").
 

@@ -9,7 +9,7 @@ interface UseEnvironmentInstalledToggleOptions {
 // Win9x/WinXp "OS installed" flag: whether the user has finished running the
 // installer inside this Environment. Same interaction shape as
 // useInstalledToggle (DOS game-files-copied flag), confirm dialog first,
-// since environment_is_installed() (era_defaults.py) now gates launch
+// since environment_is_installed() (platform_defaults.py) now gates launch
 // eligibility on this value, so flipping it wrong hides a real Environment
 // from PlatformField or marks an unfinished install as ready.
 export function useEnvironmentInstalledToggle({
@@ -34,8 +34,8 @@ export function useEnvironmentInstalledToggle({
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['platforms'] });
-      queryClient.invalidateQueries({ queryKey: ['platform', environmentId] });
+      queryClient.invalidateQueries({ queryKey: ['environments'] });
+      queryClient.invalidateQueries({ queryKey: ['environment', environmentId] });
     },
   });
   const installedError = installedMutation.isError

@@ -21,7 +21,7 @@ interface EntityDetailPageProps<TBundle extends EntityBundleBase> {
 // Generic detail page: fetch by id (or slug, see config.identifierParam),
 // tags, restrictions, and an optional launch button (omitted entirely when
 // config.launchTargetType is unset, e.g. Media). Game-only concerns, disc
-// reordering, xiso conversion, metadata fetch/enrich, era/profile editing,
+// reordering, xiso conversion, metadata fetch/enrich, platform/profile editing,
 // DOS-install, are wired in via config.useRenderExtras (see
 // configs/gameConfig.tsx) rather than hardcoded here, so this shell carries
 // no game-specific knowledge. useRenderExtras is omitted entirely for App/Media,
@@ -180,7 +180,7 @@ export function EntityDetailPage<TBundle extends EntityBundleBase>({
   return (
     <SoftwareEntityDetail
       title={entity.title}
-      era={extras.era}
+      platform={extras.platform}
       year={extras.year}
       publisher={extras.publisher}
       coverArtUrl={config.coverArt(entity)}

@@ -169,10 +169,10 @@ class TheGamesDBProvider:
             youtube_url = _youtube_url(game.get("youtube"))
             if youtube_url:
                 result.video_urls = [youtube_url]
-            raw_platform = game.get("platform")
-            if raw_platform is not None:
+            raw_provider_platform = game.get("platform")
+            if raw_provider_platform is not None:
                 try:
-                    result.platform_id = int(raw_platform)
+                    result.provider_platform_id = int(raw_provider_platform)
                 except (ValueError, TypeError):
                     pass
 

@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/api/client';
 import TopBar from '@/components/layout/TopBar';
-import { ERA_COLOR, ERA_LABEL } from '@/types/era';
+import { PLATFORM_COLOR, PLATFORM_SHORT_LABEL } from '@/types/platform';
 import type { components } from '@shared/types';
 
-type Platform = components['schemas']['EnvironmentItemRead'];
+type Environment = components['schemas']['EnvironmentItemRead'];
 
-interface EraBreakdown {
-  era: string;
+interface PlatformBreakdown {
+  platform: string;
   label: string;
   size_bytes: number;
   count: number;
@@ -19,7 +19,7 @@ interface StorageCategory {
   key: string;
   label: string;
   size_bytes: number;
-  breakdown: EraBreakdown[];
+  breakdown: PlatformBreakdown[];
   unsized_count?: number;
 }
 
@@ -50,7 +50,7 @@ function formatBytes(n: number) {
 // every read, nothing persisted or cached), replaces the old stale
 // isHealthy(status), which treated the never-updated "unknown" default as
 // healthy and so never actually gated anything.
-function isHealthy(p: Platform) {
+function isHealthy(p: Environment) {
   return p.is_present;
 }
 
@@ -70,10 +70,10 @@ function StatusDot({ healthy }: { healthy: boolean }) {
   );
 }
 
-function EraChip({ era }: { era: string }) {
-  const eraKey = ERA_LABEL[era] ?? era.toUpperCase();
-  const color = ERA_COLOR[eraKey] ?? 'rgb(var(--fg-3))';
-  const label = eraKey;
+function PlatformChip({ platform }: { platform: string }) {
+  const platformKey = PLATFORM_SHORT_LABEL[platform] ?? platform.toUpperCase();
+  const color = PLATFORM_COLOR[platformKey] ?? 'rgb(var(--fg-3))';
+  const label = platformKey;
   return (
     <span
       style={{
@@ -105,7 +105,7 @@ const CAT_COLORS: Record<string, string> = {
   logs: 'var(--fg-4)',
 };
 
-// A 403 means the user lacks the platforms permission, stop retrying and
+// A 403 means the user lacks the environments permission, stop retrying and
 // polling immediately instead of burning the normal retry count. Any other
 // error (network, 500, etc.) keeps the default retry behavior.
 function retryUnlessForbidden(failureCount: number, error: unknown) {
@@ -118,18 +118,18 @@ export default function Health() {
   const navigate = useNavigate();
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
   const [rescanning, setRescanning] = useState(false);
-  // Checked once per page load: as soon as any Platform Health query comes
+  // Checked once per page load: as soon as any Environment Health query comes
   // back 403, stop querying/polling for the rest of this page's lifetime
   // and show a terminal no-permission state.
   const [permissionDenied, setPermissionDenied] = useState(false);
 
   const {
-    data: platforms = [],
+    data: environments = [],
     isLoading,
-    error: platformsError,
-  } = useQuery<Platform[]>({
-    queryKey: ['platforms'],
-    queryFn: () => apiFetch<Platform[]>('/api/v1/environment-items'),
+    error: environmentsError,
+  } = useQuery<Environment[]>({
+    queryKey: ['environments'],
+    queryFn: () => apiFetch<Environment[]>('/api/v1/environment-items'),
     enabled: !permissionDenied,
     retry: retryUnlessForbidden,
   });
@@ -152,7 +152,7 @@ export default function Health() {
     isLoading: summaryLoading,
     error: summaryQueryError,
   } = useQuery<HealthSummary>({
-    queryKey: ['platforms-health-summary'],
+    queryKey: ['environments-health-summary'],
     queryFn: () => apiFetch<HealthSummary>('/api/v1/health/summary'),
     enabled: !permissionDenied,
     retry: retryUnlessForbidden,
@@ -164,20 +164,20 @@ export default function Health() {
   // a plain local setState call, no separate "did this change" tracking
   // needed.
   if (!permissionDenied) {
-    const errors = [platformsError, storageError, summaryQueryError];
+    const errors = [environmentsError, storageError, summaryQueryError];
     if (errors.some((e) => e instanceof ApiError && e.status === 403)) {
       setPermissionDenied(true);
     }
   }
 
-  const userPlatforms = platforms;
-  const healthy = userPlatforms.filter(isHealthy);
-  const degraded = userPlatforms.filter((p) => !isHealthy(p));
+  const userEnvironments = environments;
+  const healthy = userEnvironments.filter(isHealthy);
+  const degraded = userEnvironments.filter((p) => !isHealthy(p));
 
   async function handleHealthCheckAll() {
     try {
       await apiFetch('/api/v1/health/recompute-all', { method: 'POST' });
-      await queryClient.invalidateQueries({ queryKey: ['platforms'] });
+      await queryClient.invalidateQueries({ queryKey: ['environments'] });
     } catch {
       // individual statuses updated via query invalidation
     }
@@ -216,7 +216,7 @@ export default function Health() {
               color: 'rgb(var(--fg-3))',
             }}
           >
-            You don't have permission to view platform health.
+            You don't have permission to view environment health.
           </div>
         </div>
       </div>
@@ -287,7 +287,7 @@ export default function Health() {
               }}
             >
               <strong>
-                {degraded.length} platform{degraded.length > 1 ? 's need' : ' needs'} attention.
+                {degraded.length} environment{degraded.length > 1 ? 's need' : ' needs'} attention.
               </strong>{' '}
               Check your environment configuration or re-register.
             </span>
@@ -305,7 +305,7 @@ export default function Health() {
           >
             Loading…
           </div>
-        ) : userPlatforms.length === 0 ? (
+        ) : userEnvironments.length === 0 ? (
           <div
             className="rounded-xl p-10 text-center text-sm"
             style={{
@@ -315,14 +315,14 @@ export default function Health() {
                 'repeating-linear-gradient(0deg, transparent 0 11px, rgb(var(--peach-500) / 0.04) 11px 12px), repeating-linear-gradient(90deg, transparent 0 11px, rgb(var(--peach-500) / 0.04) 11px 12px)',
             }}
           >
-            No environments registered. Add environments to track platform health.
+            No environments registered. Add environments to track environment health.
           </div>
         ) : (
           <div
             className="rounded-xl overflow-hidden"
             style={{ background: 'rgb(var(--surface-1))', border: '1px solid rgb(var(--border))' }}
           >
-            {userPlatforms.map((p, i) => {
+            {userEnvironments.map((p, i) => {
               const ok = isHealthy(p);
               return (
                 <div
@@ -330,13 +330,13 @@ export default function Health() {
                   className="flex items-center gap-3.5 px-[18px] py-4"
                   style={{
                     borderBottom:
-                      i < userPlatforms.length - 1 ? '1px solid rgb(var(--border))' : 'none',
+                      i < userEnvironments.length - 1 ? '1px solid rgb(var(--border))' : 'none',
                   }}
                 >
                   <StatusDot healthy={ok} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2.5 mb-0.5">
-                      <EraChip era={p.era} />
+                      <PlatformChip platform={p.platform} />
                       <span
                         style={{
                           fontFamily: 'var(--font-display)',
@@ -617,7 +617,7 @@ export default function Health() {
                           </div>
                         </div>
 
-                        {/* Era breakdown */}
+                        {/* Platform breakdown */}
                         {hasBreakdown && expanded && (
                           <div
                             style={{
@@ -626,16 +626,18 @@ export default function Health() {
                             }}
                           >
                             {cat.breakdown.map((row, ri) => {
-                              const eraKey = ERA_LABEL[row.era] ?? row.era.toUpperCase();
-                              const eraColor = ERA_COLOR[eraKey] ?? 'rgb(var(--fg-3))';
-                              const eraLabel = ERA_LABEL[row.era] ?? row.label;
-                              const eraBarWidth =
+                              const platformKey =
+                                PLATFORM_SHORT_LABEL[row.platform] ?? row.platform.toUpperCase();
+                              const platformColor =
+                                PLATFORM_COLOR[platformKey] ?? 'rgb(var(--fg-3))';
+                              const platformLabel = PLATFORM_SHORT_LABEL[row.platform] ?? row.label;
+                              const platformBarWidth =
                                 cat.size_bytes > 0
                                   ? Math.max(0.5, (row.size_bytes / cat.size_bytes) * 100)
                                   : 0;
                               return (
                                 <div
-                                  key={row.era}
+                                  key={row.platform}
                                   className="flex items-center gap-3 pl-10 pr-[18px] py-2.5"
                                   style={{
                                     borderBottom:
@@ -653,12 +655,12 @@ export default function Health() {
                                       textTransform: 'uppercase',
                                       padding: '2px 5px',
                                       borderRadius: 'var(--r-1)',
-                                      border: `1px solid ${eraColor}`,
-                                      color: eraColor,
+                                      border: `1px solid ${platformColor}`,
+                                      color: platformColor,
                                       whiteSpace: 'nowrap',
                                     }}
                                   >
-                                    {eraLabel}
+                                    {platformLabel}
                                   </span>
                                   <div className="flex-1 min-w-0">
                                     <div
@@ -676,8 +678,8 @@ export default function Health() {
                                           left: 0,
                                           top: 0,
                                           height: '100%',
-                                          width: `${eraBarWidth}%`,
-                                          background: eraColor,
+                                          width: `${platformBarWidth}%`,
+                                          background: platformColor,
                                           borderRadius: 2,
                                           opacity: 0.7,
                                           transition: 'width 300ms ease',

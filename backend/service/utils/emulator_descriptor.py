@@ -32,7 +32,7 @@ class EmulatorDependency(BaseModel):
 
     name: str
     display_name: str = ""
-    platform: str = ""
+    bios_group: str = ""
     acquire_method: str = ""
     acquire_url: str = ""
     acquire_tag: str = ""
@@ -88,7 +88,7 @@ class EmulatorDescriptor(BaseModel):
     Covers both launchable emulator descriptors and the rom-pack config
     (86box-roms.toml, install_type == "rom_pack") in one shape: the two
     differ only in which optional fields they populate (a rom pack has no
-    era, container, or binary-launch fields), not in overall structure.
+    sizing platform, container, or binary-launch fields), not in overall structure.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -104,8 +104,8 @@ class EmulatorDescriptor(BaseModel):
     name: str
     display_name: str = ""
     description: str = ""
-    era: Optional[str] = None
-    supported_eras: list[str] = Field(default_factory=list)
+    sizing_platform: Optional[str] = None
+    supported_platforms: list[str] = Field(default_factory=list)
     settings_key: Optional[str] = None
     version: str = ""
     binary: str
@@ -192,48 +192,48 @@ class EmulatorDescriptor(BaseModel):
         )
 
     @model_validator(mode="after")
-    def _validate_supported_formats_matches_eras(self) -> "EmulatorDescriptor":
+    def _validate_supported_formats_matches_platforms(self) -> "EmulatorDescriptor":
         """supported_formats is display-only (GET /emulators) today, no launch
-        backend trusts it for validation, they all read config/eras.yaml's
+        backend trusts it for validation, they all read config/platforms.yaml's
         supported_media directly (see backend.service.utils.file_types.
-        supported_extensions_for_era) so a drift here can never cause a real
+        supported_extensions_for_platform) so a drift here can never cause a real
         launch to accept or reject the wrong file. But a drifted display list
         actively misinforms users on the Emulators page, so this closes it at
         the same producer choke-point every other TOML field already goes
         through: fail loud at load time rather than let it silently diverge
         from the one enforced source of truth.
 
-        supported_eras (when set, e.g. mesen serving both nes and snes) is
-        checked in full instead of just era, since a multi-era emulator's
-        supported_formats is expected to cover every era it serves, not only
-        its single most-demanding one (era's role is AppContainer sizing, a
-        different axis, see DECISIONS.md 2026-05-28).
+        supported_platforms (when set, e.g. mesen serving both nes and snes) is
+        checked in full instead of just sizing_platform, since a multi-platform
+        emulator's supported_formats is expected to cover every platform it
+        serves, not only its single most-demanding one (sizing_platform's role is
+        AppContainer sizing, a different axis, see DECISIONS.md 2026-05-28).
 
-        Skipped entirely for a descriptor with neither era nor supported_eras
-        set (the rom_pack config, 86box-roms.toml, has no era of its own).
+        Skipped entirely for a descriptor with neither sizing_platform nor supported_platforms
+        set (the rom_pack config, 86box-roms.toml, has no platform of its own).
         """
-        eras_to_check = self.supported_eras or ([self.era] if self.era else [])
-        if not eras_to_check:
+        platforms_to_check = self.supported_platforms or ([self.sizing_platform] if self.sizing_platform else [])
+        if not platforms_to_check:
             return self
 
-        # Deferred import: file_types.py -> eras_config.py has no import-time
+        # Deferred import: file_types.py -> platforms_config.py has no import-time
         # dependency on this module, but every other cross-module import in
         # this file is deferred for consistency with the cycle-avoidance
         # pattern _validate_install_dir_write_access already established.
-        from backend.service.utils.file_types import supported_extensions_for_era
+        from backend.service.utils.file_types import supported_extensions_for_platform
 
         expected: set[str] = set()
-        for era in eras_to_check:
-            expected.update(supported_extensions_for_era(era))
+        for platform in platforms_to_check:
+            expected.update(supported_extensions_for_platform(platform))
         actual = set(self.supported_formats)
         if actual != expected:
             missing = sorted(expected - actual)
             extra = sorted(actual - expected)
             raise ValueError(
                 f"{self.slug}: supported_formats {sorted(actual)} does not match "
-                f"config/eras.yaml's supported_media for era(s) {sorted(eras_to_check)} "
+                f"config/platforms.yaml's supported_media for platform(s) {sorted(platforms_to_check)} "
                 f"(expected {sorted(expected)}). Missing: {missing or 'none'}; "
                 f"unexpected: {extra or 'none'}. Update config/emulators/{self.slug}.toml "
-                "or config/eras.yaml so they agree."
+                "or config/platforms.yaml so they agree."
             )
         return self

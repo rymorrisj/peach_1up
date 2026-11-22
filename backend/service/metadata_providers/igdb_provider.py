@@ -238,9 +238,9 @@ class IGDBProvider:
         # this app's parental content-rating filter. The real content rating
         # comes from the separate age_ratings field, resolved below.
         result.rating = _resolve_igdb_content_rating(game.get("age_ratings"))
-        platforms = game.get("platforms") or []
-        if platforms and isinstance(platforms[0], int):
-            result.platform_id = platforms[0]
+        provider_platforms = game.get("platforms") or []
+        if provider_platforms and isinstance(provider_platforms[0], int):
+            result.provider_platform_id = provider_platforms[0]
 
         genre_names: list[str] = []
         for genre in game.get("genres") or []:

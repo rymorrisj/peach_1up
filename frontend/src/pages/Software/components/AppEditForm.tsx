@@ -1,12 +1,9 @@
 import { Button, Card, FormField, Input, Textarea, Select } from '@/ui';
 import PathInput from '@/components/common/PathInput';
-import { ERA_LABELS } from '@/generated/constants';
-import { ERA_TO_EMULATOR } from '@/pages/Environments/environmentForm';
-import { PlatformField } from './PlatformField';
+import { isPcPlatform } from '@/pages/Environments/environmentForm';
+import { platformSelectOptions } from '@/types/platform';
+import { EnvironmentField } from './EnvironmentField';
 import type { SoftwareAppForm } from '../types/appForm';
-import type { components } from '@shared/types';
-
-type Platform = components['schemas']['EnvironmentItemRead'];
 
 interface AppEditFormProps {
   form: SoftwareAppForm;
@@ -15,7 +12,6 @@ interface AppEditFormProps {
   saving: boolean;
   saveError: string | null;
   saveSuccess: boolean;
-  platforms: Platform[];
 }
 
 export function AppEditForm({
@@ -25,16 +21,15 @@ export function AppEditForm({
   saving,
   saveError,
   saveSuccess,
-  platforms,
 }: AppEditFormProps) {
-  // is_pc is derived from era on the backend, not independently settable
-  // (see appForm.ts), so changing era here keeps is_pc in sync locally and
-  // clears environment_item_id when the new era is console, rather than
+  // is_pc is derived from platform on the backend, not independently settable
+  // (see appForm.ts), so changing platform here keeps is_pc in sync locally and
+  // clears environment_item_id when the new platform is console, rather than
   // leaving a stale value that would 422 against the console+environment
   // rule (_enforce_environment_binding) on save.
-  function handleEraChange(era: string) {
-    const isPc = era in ERA_TO_EMULATOR;
-    setField('era', era);
+  function handlePlatformChange(platform: string) {
+    const isPc = isPcPlatform(platform);
+    setField('platform', platform);
     setField('is_pc', isPc);
     if (!isPc) setField('environment_item_id', '');
   }
@@ -85,33 +80,28 @@ export function AppEditForm({
         <Card.Header>Launch Setup</Card.Header>
         <div className="space-y-4">
           <FormField
-            label="Era"
-            htmlFor="detail-era"
+            label="Platform"
+            htmlFor="detail-platform"
             hint={
-              form.era
+              form.platform
                 ? form.is_pc
-                  ? 'PC app, an Environment is required before this can launch.'
+                  ? 'PC app, choose an Environment below before this can launch.'
                   : 'Console app, no Environment needed.'
                 : undefined
             }
           >
             <Select
-              id="detail-era"
-              value={form.era || 'none'}
-              onValueChange={(v) => handleEraChange(v === 'none' ? '' : v)}
-              options={[
-                { value: 'none', label: 'No era selected' },
-                ...Object.entries(ERA_LABELS).map(([key, label]) => ({ value: key, label })),
-              ]}
+              id="detail-platform"
+              value={form.platform || 'none'}
+              onValueChange={(v) => handlePlatformChange(v === 'none' ? '' : v)}
+              options={platformSelectOptions('No platform selected')}
             />
           </FormField>
 
-          <PlatformField
-            isPcLaunchable={form.is_pc}
+          <EnvironmentField
+            platform={form.platform}
             value={form.environment_item_id}
             onChange={(v) => setField('environment_item_id', v)}
-            platforms={platforms}
-            disabledNote="Determined automatically by platform type, no environment needed."
           />
         </div>
       </Card>

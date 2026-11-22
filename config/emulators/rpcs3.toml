@@ -1,5 +1,5 @@
 slug = "rpcs3"
-era = "ps3"
+sizing_platform = "ps3"
 display_name = "RPCS3"
 name = "RPCS3"
 version = "0.0.41"
@@ -47,7 +47,7 @@ name = "ps3-firmware"
 acquire_method = "user_supplied"
 required = true
 display_name = "PS3 Firmware (PS3UPDAT.PUP)"
-platform = "ps3"
+bios_group = "ps3"
 bios_path = "emulators/rpcs3/dev_flash/vsh/etc"
 required_files = ["version.txt"]
 guidance_text = "Launch RPCS3 directly at least once before real use to install PS3 firmware: File > Install Firmware, or rpcs3.exe --installfw <path-to-PS3UPDAT.PUP>. This populates dev_flash/ under RPCS3's portable data folder. Peach 1UP does not provide PS3UPDAT.PUP."

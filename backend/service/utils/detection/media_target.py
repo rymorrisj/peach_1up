@@ -51,6 +51,6 @@ class MediaTarget:
     kind: Literal["file", "disc_folder", "installed_dir", "xex_folder"]
     detect_path: Path
     launch_path: Path
-    era: str | None
+    platform: str | None
     requires_install: bool
     license_files: tuple[Path, ...] = ()

@@ -58,7 +58,7 @@ def resolve_ps3_target(folder: Path) -> MediaTarget | None:
     detect_path is always the resolved EBOOT.BIN (what classify()/hash_file()
     should hash); launch_path is always the folder itself (what RPCS3 is
     handed, it does its own internal walk from the folder root for both
-    shapes). era is resolved structurally here, not by suffix-dispatching
+    shapes). platform is resolved structurally here, not by suffix-dispatching
     the returned EBOOT.BIN through detect()'s generic .bin handling.
 
     Returns:
@@ -72,5 +72,5 @@ def resolve_ps3_target(folder: Path) -> MediaTarget | None:
     kind = "disc_folder" if is_disc_format_folder(folder) else "installed_dir"
     return MediaTarget(
         kind=kind, detect_path=eboot, launch_path=folder,
-        era="ps3", requires_install=False, license_files=(),
+        platform="ps3", requires_install=False, license_files=(),
     )

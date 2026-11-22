@@ -34,12 +34,6 @@ const config: Config = {
         warning: 'rgb(var(--warning) / <alpha-value>)',
         error: 'rgb(var(--error) / <alpha-value>)',
         info: 'rgb(var(--info) / <alpha-value>)',
-        era: {
-          dos: 'rgb(var(--era-dos) / <alpha-value>)',
-          win95: 'rgb(var(--era-win95) / <alpha-value>)',
-          win98: 'rgb(var(--era-win98) / <alpha-value>)',
-          winxp: 'rgb(var(--era-winxp) / <alpha-value>)',
-        },
         'tag-color': {
           1: 'rgb(var(--tag-color-1) / <alpha-value>)',
           2: 'rgb(var(--tag-color-2) / <alpha-value>)',

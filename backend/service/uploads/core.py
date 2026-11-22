@@ -9,7 +9,7 @@ passes to ``reassemble``. Staging lives under the shared library root rather
 than any one domain's root because at staging time the upload's eventual
 destination domain is not yet known (the client can pick any registered
 domain's route without this module caring), and reassembly is what resolves
-it. Ingest (dedup, era detection, DB persistence) is NOT done here, that is
+it. Ingest (dedup, platform detection, DB persistence) is NOT done here, that is
 each domain's own finalize module's job (see backend.service.uploads.registry
 and software_games.py / software_media.py / software_apps.py). Cleanup of the
 staging area is owned entirely by this module (success, abort, and orphan

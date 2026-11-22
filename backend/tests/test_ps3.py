@@ -85,7 +85,7 @@ class TestResolvePs3Target:
         assert target.kind == "disc_folder"
         assert target.detect_path == eboot
         assert target.launch_path == tmp_path
-        assert target.era == "ps3"
+        assert target.platform == "ps3"
         assert target.requires_install is False
         assert target.license_files == ()
 

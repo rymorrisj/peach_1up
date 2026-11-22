@@ -58,7 +58,7 @@ const DONE_JOB = {
       {
         title: 'Game',
         file_path: '/lib/game.nes',
-        detected_era: 'nes',
+        detected_platform: 'nes',
         is_loose: true,
         is_zip: false,
       },

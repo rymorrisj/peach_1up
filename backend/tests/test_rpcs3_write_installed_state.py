@@ -22,7 +22,7 @@ from backend.service.backends.rpcs3 import _write_installed_state
 def _make_spec(**overrides):
     from backend.service.launch.launch_spec import LaunchSpec
 
-    kwargs = dict(slug="rpcs3", era="ps3", source_type="game", collection_id=1)
+    kwargs = dict(slug="rpcs3", platform="ps3", source_type="game", collection_id=1)
     kwargs.update(overrides)
     return LaunchSpec(**kwargs)
 
@@ -41,7 +41,7 @@ def mem_engine(monkeypatch):
 def _make_bundle(engine, **overrides):
     from backend.models.game import GameItemBundle
 
-    kwargs = dict(title="Bayonetta", era="ps3", slug="bayonetta", installed=False)
+    kwargs = dict(title="Bayonetta", platform="ps3", slug="bayonetta", installed=False)
     kwargs.update(overrides)
     with Session(engine) as db:
         bundle = GameItemBundle(**kwargs)
@@ -52,15 +52,15 @@ def _make_bundle(engine, **overrides):
 
 
 # ---------------------------------------------------------------------------
-# Era/source_type/collection_id gate: a no-op skip, not an error, for any
+# Platform/source_type/collection_id gate: a no-op skip, not an error, for any
 # launch that isn't a PS3 game bundle install.
 # ---------------------------------------------------------------------------
 
 
-class TestEraGateSkipsWriteEntirely:
-    def test_non_ps3_era_never_touches_the_db(self, mem_engine):
-        spec = _make_spec(era="dos", source_type="game", collection_id=1)
-        # Must not raise; the era gate returns before a session is ever opened,
+class TestPlatformGateSkipsWriteEntirely:
+    def test_non_ps3_platform_never_touches_the_db(self, mem_engine):
+        spec = _make_spec(platform="dos", source_type="game", collection_id=1)
+        # Must not raise; the platform gate returns before a session is ever opened,
         # so there's no DB state to assert on here.
         _write_installed_state(spec, True)
 

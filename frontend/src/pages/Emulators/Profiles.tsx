@@ -10,7 +10,7 @@ import { useConfirm } from '@/hooks/useConfirm';
 import { useToast } from '@/ui/ToastProvider';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import { slugify } from '@/lib/slugify';
-import { ERA_LABELS, EMULATOR_CATALOG_SLUGS } from '@/generated/constants';
+import { PLATFORM_LABELS, EMULATOR_CATALOG_SLUGS } from '@/generated/constants';
 import { ProfilesList } from './components/ProfilesList';
 import { ProfileForm } from './components/ProfileForm';
 import type {
@@ -20,14 +20,17 @@ import type {
   ProfileModalState,
 } from '@/types/profiles';
 
-const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }));
+const PLATFORM_OPTIONS = Object.entries(PLATFORM_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
 const EMULATOR_OPTIONS = EMULATOR_CATALOG_SLUGS.map((slug) => ({ value: slug, label: slug }));
 
 const EMPTY_PROFILE_FORM: ProfileFormData = {
   name: '',
   slug: '',
   emulator_slug: '',
-  era: '',
+  platform: '',
   extra_args: '',
   enable_networking: false,
   enable_dgvoodoo2: false,
@@ -94,7 +97,7 @@ export default function Profiles() {
       name: profile.name,
       slug: profile.slug,
       emulator_slug: profile.emulator_slug as ProfileFormData['emulator_slug'],
-      era: profile.era,
+      platform: profile.platform,
       extra_args: profile.extra_args ?? '',
       enable_networking: profile.enable_networking,
       enable_dgvoodoo2: ext.enable_dgvoodoo2 ?? false,
@@ -127,7 +130,7 @@ export default function Profiles() {
     if (!form.name.trim()) errors.name = 'Name is required.';
     if (!form.slug.trim()) errors.slug = 'Slug is required.';
     if (!form.emulator_slug.trim()) errors.emulator_slug = 'Emulator slug is required.';
-    if (!form.era) errors.era = 'Era is required.';
+    if (!form.platform) errors.platform = 'Platform is required.';
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -141,7 +144,7 @@ export default function Profiles() {
         name: form.name.trim(),
         slug: form.slug.trim(),
         emulator_slug: form.emulator_slug.trim(),
-        era: form.era,
+        platform: form.platform,
         enable_networking: form.enable_networking,
         enable_dgvoodoo2: form.enable_dgvoodoo2,
         launch_commands: form.launch_commands,
@@ -183,7 +186,8 @@ export default function Profiles() {
     }
   }
 
-  const eraLabel = (era: string) => ERA_OPTIONS.find((e) => e.value === era)?.label ?? era;
+  const platformLabel = (platform: string) =>
+    PLATFORM_OPTIONS.find((e) => e.value === platform)?.label ?? platform;
 
   return (
     <div className="p-6">
@@ -217,7 +221,7 @@ export default function Profiles() {
         <>
           <ProfilesList
             profiles={profiles}
-            eraLabel={eraLabel}
+            platformLabel={platformLabel}
             formatDate={formatDate}
             onEdit={openEdit}
             onDelete={handleDelete}
@@ -245,7 +249,7 @@ export default function Profiles() {
         submitError={submitError}
         submitting={submitting}
         emulators={emulators}
-        eraOptions={ERA_OPTIONS}
+        platformOptions={PLATFORM_OPTIONS}
         emulatorOptions={EMULATOR_OPTIONS}
         setField={setField}
         onSubmit={handleSubmit}

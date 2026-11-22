@@ -75,7 +75,7 @@ def _make_tag(db, **overrides):
 
 def _make_software_collection(db, **overrides):
     from backend.models.game import GameItemBundle
-    kwargs = dict(title="Doom", file_path="/library/games/dos/doom", era="dos", slug="doom")
+    kwargs = dict(title="Doom", file_path="/library/games/dos/doom", platform="dos", slug="doom")
     kwargs.update(overrides)
     row = GameItemBundle(**kwargs)
     db.add(row)
@@ -120,7 +120,7 @@ def _make_media_collection(db, **overrides):
 
 def _make_environment(db, **overrides):
     from backend.models.environment import EnvironmentItem
-    kwargs = dict(name="Win98 Box", era="win98", emulator_slug="86box", slug="win98-box")
+    kwargs = dict(name="Win98 Box", platform="win98", emulator_slug="86box", slug="win98-box")
     kwargs.update(overrides)
     row = EnvironmentItem(**kwargs)
     db.add(row)

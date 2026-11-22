@@ -78,7 +78,7 @@ export function createMockLibraryItem(overrides?: Partial<LibraryCollection>): L
     id: 1,
     slug: 'test-game',
     title: 'Test Game',
-    era: 'dos',
+    platform: 'dos',
     launch_count: 0,
     launch_review_flagged: false,
     installed: false,

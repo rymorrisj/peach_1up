@@ -36,7 +36,7 @@ def list_bios_requirements(
         result.append({
             "slug": entry["slug"],
             "name": entry["name"],
-            "platform": entry.get("platform", ""),
+            "bios_group": entry.get("bios_group", ""),
             "bios_path": bios_path,
             "guidance_text": entry.get("guidance_text", ""),
             "guidance_url": entry.get("guidance_url", ""),

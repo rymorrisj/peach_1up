@@ -2,7 +2,7 @@
 Regression tests for the Windows Job Object isolation layer.
 
 Coverage:
-  _load_era_limits     , eras.yaml parsing and all error paths
+  _load_platform_limits     , platforms.yaml parsing and all error paths
   WindowsJobObject     , constructor, pre-create error guards, Win32 lifecycle
   SandboxProcess       , attribute/state paths that do not call Win32 APIs
 
@@ -18,59 +18,59 @@ requires_windows = pytest.mark.skipif(not WINDOWS, reason="Windows only")
 
 
 # ---------------------------------------------------------------------------
-# _load_era_limits
+# _load_platform_limits
 # ---------------------------------------------------------------------------
 
-class TestLoadEraLimits:
-    def test_reads_dos_values_from_real_eras_yaml(self):
-        from backend.service.utils.platform.windows.process.launcher import _load_era_limits
-        memory_mb, cpu_pct = _load_era_limits("dos")
+class TestLoadPlatformLimits:
+    def test_reads_dos_values_from_real_platforms_yaml(self):
+        from backend.service.utils.host_os.windows.process.launcher import _load_platform_limits
+        memory_mb, cpu_pct = _load_platform_limits("dos")
         assert memory_mb == 512
         assert cpu_pct == 50
 
-    def test_reads_win95_values_from_real_eras_yaml(self):
-        from backend.service.utils.platform.windows.process.launcher import _load_era_limits
-        memory_mb, cpu_pct = _load_era_limits("win95")
+    def test_reads_win95_values_from_real_platforms_yaml(self):
+        from backend.service.utils.host_os.windows.process.launcher import _load_platform_limits
+        memory_mb, cpu_pct = _load_platform_limits("win95")
         assert memory_mb == 2048
         assert cpu_pct == 75
 
-    def test_reads_winxp_values_from_real_eras_yaml(self):
-        from backend.service.utils.platform.windows.process.launcher import _load_era_limits
-        memory_mb, cpu_pct = _load_era_limits("winxp")
+    def test_reads_winxp_values_from_real_platforms_yaml(self):
+        from backend.service.utils.host_os.windows.process.launcher import _load_platform_limits
+        memory_mb, cpu_pct = _load_platform_limits("winxp")
         assert memory_mb == 3072
         assert cpu_pct == 80
 
-    def test_unknown_era_raises_runtime_error(self):
-        from backend.service.utils.platform.windows.process.launcher import _load_era_limits
-        with pytest.raises(RuntimeError, match="not found in eras.yaml"):
-            _load_era_limits("nonexistent_era_xyz")
+    def test_unknown_platform_raises_runtime_error(self):
+        from backend.service.utils.host_os.windows.process.launcher import _load_platform_limits
+        with pytest.raises(RuntimeError, match="not found in platforms.yaml"):
+            _load_platform_limits("nonexistent_platform_xyz")
 
     def test_missing_file_raises_file_not_found(self, monkeypatch, tmp_path):
-        import backend.service.utils.eras_config as eras_config_mod
-        import backend.service.utils.platform.windows.process.launcher as jo
-        monkeypatch.setattr(eras_config_mod, "_ERAS_CACHE", None)
-        monkeypatch.setattr(eras_config_mod, "_ERAS_PATH", tmp_path / "missing.yaml")
+        import backend.service.utils.platforms_config as platforms_config_mod
+        import backend.service.utils.host_os.windows.process.launcher as jo
+        monkeypatch.setattr(platforms_config_mod, "_PLATFORMS_CACHE", None)
+        monkeypatch.setattr(platforms_config_mod, "_PLATFORMS_PATH", tmp_path / "missing.yaml")
 
         with pytest.raises(FileNotFoundError):
-            jo._load_era_limits("dos")
+            jo._load_platform_limits("dos")
 
     def test_missing_memory_field_raises_runtime_error(self, monkeypatch):
-        import backend.service.utils.eras_config as eras_config_mod
-        import backend.service.utils.platform.windows.process.launcher as jo
-        monkeypatch.setattr(eras_config_mod, "_ERAS_CACHE", {"dos": {"cpu_limit_percent": 50}})
+        import backend.service.utils.platforms_config as platforms_config_mod
+        import backend.service.utils.host_os.windows.process.launcher as jo
+        monkeypatch.setattr(platforms_config_mod, "_PLATFORMS_CACHE", {"dos": {"cpu_limit_percent": 50}})
         with pytest.raises(RuntimeError, match="memory_limit_mb not defined"):
-            jo._load_era_limits("dos")
+            jo._load_platform_limits("dos")
 
     def test_missing_cpu_field_raises_runtime_error(self, monkeypatch):
-        import backend.service.utils.eras_config as eras_config_mod
-        import backend.service.utils.platform.windows.process.launcher as jo
-        monkeypatch.setattr(eras_config_mod, "_ERAS_CACHE", {"dos": {"memory_limit_mb": 256}})
+        import backend.service.utils.platforms_config as platforms_config_mod
+        import backend.service.utils.host_os.windows.process.launcher as jo
+        monkeypatch.setattr(platforms_config_mod, "_PLATFORMS_CACHE", {"dos": {"memory_limit_mb": 256}})
         with pytest.raises(RuntimeError, match="cpu_limit_percent not defined"):
-            jo._load_era_limits("dos")
+            jo._load_platform_limits("dos")
 
     def test_returns_integers_not_strings(self):
-        from backend.service.utils.platform.windows.process.launcher import _load_era_limits
-        memory_mb, cpu_pct = _load_era_limits("dos")
+        from backend.service.utils.host_os.windows.process.launcher import _load_platform_limits
+        memory_mb, cpu_pct = _load_platform_limits("dos")
         assert isinstance(memory_mb, int)
         assert isinstance(cpu_pct, int)
 
@@ -185,12 +185,12 @@ class TestWindowsJobObjectLifecycle:
         job.teardown()  # no handle, must not raise
 
     @requires_windows
-    def test_create_applies_era_limits_from_eras_yaml(self):
-        """End-to-end: limits from eras.yaml are applied to a real Job Object."""
+    def test_create_applies_platform_limits_from_platforms_yaml(self):
+        """End-to-end: limits from platforms.yaml are applied to a real Job Object."""
         from wincage import WindowsJobObject
-        from backend.service.utils.platform.windows.process.launcher import _load_era_limits
-        memory_mb, cpu_pct = _load_era_limits("dos")
-        job = WindowsJobObject("PeachTest_EraLimits", memory_mb, cpu_pct)
+        from backend.service.utils.host_os.windows.process.launcher import _load_platform_limits
+        memory_mb, cpu_pct = _load_platform_limits("dos")
+        job = WindowsJobObject("PeachTest_PlatformLimits", memory_mb, cpu_pct)
         job.create()
         try:
             assert job.handle_is_open() is True

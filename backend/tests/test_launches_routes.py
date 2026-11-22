@@ -57,7 +57,7 @@ def _make_user(db, **overrides):
 def _make_collection(db, **overrides):
     from backend.models.game import GameItemBundle
 
-    kwargs = dict(title="Doom", file_path="/library/games/dos/doom", era="dos", slug="doom")
+    kwargs = dict(title="Doom", file_path="/library/games/dos/doom", platform="dos", slug="doom")
     kwargs.update(overrides)
     collection = GameItemBundle(**kwargs)
     db.add(collection)
@@ -81,7 +81,7 @@ def _make_launch_history(db, **overrides):
 def _make_environment(db, **overrides):
     from backend.models import EnvironmentItem
 
-    kwargs = dict(name="DOS Box", era="dos", emulator_slug="dosbox-x")
+    kwargs = dict(name="DOS Box", platform="dos", emulator_slug="dosbox-x")
     kwargs.update(overrides)
     env = EnvironmentItem(**kwargs)
     db.add(env)
@@ -136,8 +136,8 @@ def _stub_launch_environment(monkeypatch, *, history_id=1):
 
     calls = []
 
-    async def _fake_launch_environment(platform, profile_item_id, db):
-        calls.append((platform.id, profile_item_id))
+    async def _fake_launch_environment(environment, profile_item_id, db):
+        calls.append((environment.id, profile_item_id))
         return LaunchResult(history_id=history_id)
 
     monkeypatch.setattr(launches_mod.svc, "launch_environment", _fake_launch_environment)

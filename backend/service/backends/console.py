@@ -16,10 +16,10 @@ from backend.service.utils.emulator_catalog import (
     build_media_broker_config,
     validate_bios_from_descriptor,
 )
-from backend.service.utils.file_types import supported_extensions_for_era
+from backend.service.utils.file_types import supported_extensions_for_platform
 from backend.core.logger import get_logger
 from backend.service.utils.ini_writer import set_ini_key
-from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
+from backend.service.utils.host_os.windows.process.launcher import launch_under_job_object
 from wincage import SandboxProcess, WindowsJobObject
 
 logger = get_logger(__name__)
@@ -34,7 +34,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch a console emulator under Job Object isolation.
 
     Args:
-        spec: LaunchSpec with slug, era, media_path, executable_path set.
+        spec: LaunchSpec with slug, platform, media_path, executable_path set.
             slug must be one of 'mesen', 'project64', 'duckstation', 'pcsx2'.
             enable_networking is honored per-emulator, not universally: PCSX2
             emulates the PS2 DEV9/SMAP Ethernet adapter, so when networking is
@@ -57,20 +57,20 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     entry = get_emulator(spec.slug)
     display_name = entry.get("display_name", spec.slug)
-    # eras.yaml is the single enforced source for launch-time format
+    # platforms.yaml is the single enforced source for launch-time format
     # validation (matches dosbox.py/flycast.py/xemu.py's pattern), not the
     # TOML descriptor's own supported_formats field, which stays display-only
-    # (surfaced by GET /emulators) and is now cross-checked against eras.yaml
+    # (surfaced by GET /emulators) and is now cross-checked against platforms.yaml
     # at startup by EmulatorDescriptor's validator instead of trusted here.
-    # Mesen alone serves two eras (nes, snes, see mesen.toml's supported_eras);
+    # Mesen alone serves two platforms (nes, snes, see mesen.toml's supported_platforms);
     # every other console slug serves exactly one, so unioning
-    # supported_eras-or-[era] here is correct for all four without a
+    # supported_platforms-or-[platform] here is correct for all four without a
     # slug-specific branch.
-    _formats_eras = entry.get("supported_eras") or [entry.get("era")]
+    _formats_platforms = entry.get("supported_platforms") or [entry.get("sizing_platform")]
     supported_formats: set[str] = set()
-    for _era in _formats_eras:
-        if _era:
-            supported_formats.update(supported_extensions_for_era(_era))
+    for _platform in _formats_platforms:
+        if _platform:
+            supported_formats.update(supported_extensions_for_platform(_platform))
 
     if not spec.executable_path or not Path(spec.executable_path).exists():
         raise FileNotFoundError(f"{display_name} executable not found: {spec.executable_path}")
@@ -114,7 +114,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     return launch_under_job_object(
         executable_path=spec.executable_path,
         args=args,
-        era=spec.era,
+        platform=spec.platform,
         job_name_prefix=job_name_prefix,
         slug=spec.slug,
         cwd=cwd,

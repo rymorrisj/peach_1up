@@ -53,7 +53,7 @@ function minimalApp(overrides?: Record<string, unknown>) {
     description: null,
     tags: [],
     linked_items: [],
-    era: 'winxp',
+    platform: 'winxp',
     is_pc: true,
     category: null,
     publisher: null,
@@ -84,7 +84,7 @@ const oneEnvironment = [
   {
     id: 5,
     name: 'My XP Box',
-    era: 'winxp',
+    platform: 'winxp',
     emulator_slug: '86box',
     is_system: false,
     is_present: true,
@@ -160,54 +160,60 @@ describe('AppDetail', () => {
   });
 
   describe('edit form', () => {
-    it('renders the edit form pre-filled from the entity, showing Platform for a PC era', async () => {
-      mockApi(minimalApp({ title: 'My App', era: 'winxp' }), oneEnvironment);
+    it('renders the edit form pre-filled, with the Environment field for a PC platform', async () => {
+      mockApi(minimalApp({ title: 'My App', platform: 'winxp' }), oneEnvironment);
       renderPage();
 
       await waitFor(() => {
         expect(screen.getByLabelText('Title')).toHaveValue('My App');
       });
-      expect(screen.getByRole('combobox', { name: 'Era' })).toHaveTextContent('Windows XP');
-      expect(screen.getByLabelText('Platform')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('Windows XP');
+      expect(await screen.findByRole('combobox', { name: 'Environment' })).toBeInTheDocument();
     });
 
-    it('shows the Platform field disabled with an explanatory note for a console era', async () => {
-      mockApi(minimalApp({ era: 'ps1', is_pc: false }));
+    it('hides the Environment field for a console platform', async () => {
+      mockApi(minimalApp({ platform: 'ps1', is_pc: false }));
       renderPage();
 
       await screen.findByLabelText('Title');
-      const platformSelect = screen.getByLabelText('Platform');
-      expect(platformSelect).toBeInTheDocument();
-      expect(platformSelect).toBeDisabled();
-      expect(
-        screen.getByText('Determined automatically by platform type, no environment needed.'),
-      ).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('PlayStation 1');
+      expect(screen.queryByRole('combobox', { name: 'Environment' })).not.toBeInTheDocument();
     });
 
-    it('clears environment_item_id and disables the field when era changes to console', async () => {
+    it('clears the Environment and hides the field when the platform changes to console', async () => {
       const user = userEvent.setup();
-      mockApi(minimalApp({ era: 'winxp', is_pc: true, environment_item_id: 5 }), oneEnvironment);
+      const calls = mockApi(
+        minimalApp({ platform: 'winxp', is_pc: true, environment_item_id: 5 }),
+        oneEnvironment,
+      );
       renderPage();
 
       await screen.findByLabelText('Title');
-      expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('My XP Box');
-      expect(screen.getByRole('combobox', { name: 'Platform' })).not.toBeDisabled();
+      expect(await screen.findByRole('combobox', { name: 'Environment' })).toHaveTextContent(
+        'My XP Box',
+      );
 
-      await selectRadixOption(user, 'Era', 'PlayStation 1');
-      const platformSelect = screen.getByRole('combobox', { name: 'Platform' });
-      expect(platformSelect).toBeDisabled();
-      expect(platformSelect).toHaveTextContent('No platform selected');
+      await selectRadixOption(user, 'Platform', 'PlayStation 1');
+      expect(screen.queryByRole('combobox', { name: 'Environment' })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+      await waitFor(() => {
+        const bundlePatch = calls.find(
+          (c) => c.url === '/api/v1/app-item-bundle/1' && c.method === 'PATCH',
+        );
+        expect(bundlePatch?.body).toMatchObject({ platform: 'ps1', environment_item_id: null });
+      });
     });
 
     it('sends the expected PATCH bodies on save', async () => {
       const user = userEvent.setup();
-      const calls = mockApi(minimalApp({ era: 'winxp', is_pc: true }), oneEnvironment);
+      const calls = mockApi(minimalApp({ platform: 'winxp', is_pc: true }), oneEnvironment);
       renderPage();
 
       const title = await screen.findByLabelText('Title');
       await user.clear(title);
       await user.type(title, 'Renamed App');
-      await selectRadixOption(user, 'Platform', 'My XP Box');
+      await selectRadixOption(user, 'Environment', 'My XP Box');
       await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 
       await waitFor(() => {
@@ -217,7 +223,7 @@ describe('AppDetail', () => {
         expect(bundlePatch).toBeTruthy();
         expect(bundlePatch?.body).toMatchObject({
           title: 'Renamed App',
-          era: 'winxp',
+          platform: 'winxp',
           environment_item_id: 5,
         });
         expect(bundlePatch?.body).not.toHaveProperty('is_pc');

@@ -19,7 +19,7 @@ from backend.service.launch.drive_hydration import hydrate_drive_for_entity
 from backend.service.launch.history import write_session_ends
 from backend.service.launch.launch_spec import LaunchSpec
 from backend.service.launch.monitor import register_short_lived_check
-from backend.service.utils.era_defaults import PROVISIONABLE_ERAS, evaluate_launch_readiness
+from backend.service.utils.platform_defaults import PROVISIONABLE_PLATFORMS, evaluate_launch_readiness
 from backend.service.utils.file_types import resolve_media_file_from_directory
 from backend.service.utils.fat.directory import _to_83_str
 from backend.service.utils.detection.xbox_image import XboxDvdRipDetected
@@ -161,50 +161,50 @@ def _resolve_profile_for_item(entity_profile_id: int | None, profile_item_id: in
     return profile
 
 
-def _resolve_profile_for_environment(platform: EnvironmentItem, profile_item_id: int | None, db: Session) -> ProfileItem:
+def _resolve_profile_for_environment(environment: EnvironmentItem, profile_item_id: int | None, db: Session) -> ProfileItem:
     profile: ProfileItem | None = None
     if profile_item_id:
         profile = db.get(ProfileItem, profile_item_id)
         if not profile:
             raise HTTPException(status_code=404, detail="Profile not found.")
-    if profile is None and platform.profile_item_id:
-        profile = db.get(ProfileItem, platform.profile_item_id)
+    if profile is None and environment.profile_item_id:
+        profile = db.get(ProfileItem, environment.profile_item_id)
     if profile is None:
         profile = db.query(ProfileItem).filter(
-            ProfileItem.era == platform.era,
+            ProfileItem.platform == environment.platform,
             ProfileItem.is_bundled.is_(True),
         ).first()
     if profile is None:
-        raise HTTPException(status_code=422, detail="No profile found for this environment's era.")
+        raise HTTPException(status_code=422, detail="No profile found for this environment's platform.")
     return profile
 
 
-def _backend_slug_for_era(era: str) -> str:
-    """Resolve the backend slug for *era*, turning an unresolvable era into a
-    422 instead of letting the ValueError from era_to_enum / resolve_backend_name
-    (an era with no eras.yaml backend, such as "unknown") surface as a 500."""
-    from backend.constants import era_to_enum
+def _backend_slug_for_platform(platform: str) -> str:
+    """Resolve the backend slug for *platform*, turning an unresolvable platform into a
+    422 instead of letting the ValueError from platform_to_enum / resolve_backend_name
+    (a platform with no platforms.yaml backend, such as "unknown") surface as a 500."""
+    from backend.constants import platform_to_enum
     from backend.service.utils.backend_router import resolve_backend_name
 
     try:
-        return resolve_backend_name(era_to_enum(era))
+        return resolve_backend_name(platform_to_enum(platform))
     except ValueError as exc:
         raise HTTPException(
             status_code=422,
-            detail=f"No emulator is configured for era '{era}'. Set the item's era on its detail page.",
+            detail=f"No emulator is configured for platform '{platform}'. Set the item's platform on its detail page.",
         ) from exc
 
 
-def _require_known_era(entity: "LaunchableEntity") -> None:
-    """Refuse to launch a game whose era is still "unknown". Apps keep
-    era="unknown" legitimately (the upload finalizer never detects one), so
+def _require_known_platform(entity: "LaunchableEntity") -> None:
+    """Refuse to launch a game whose platform is still "unknown". Apps keep
+    platform="unknown" legitimately (the upload finalizer never detects one), so
     they are not gated here."""
-    if entity.source_type != "app" and entity.era == "unknown":
+    if entity.source_type != "app" and entity.platform == "unknown":
         raise HTTPException(
             status_code=422,
             detail=(
-                "Platform not set: this item's era is unknown, so Peach 1UP cannot "
-                "choose an emulator. Set its era on the detail page, then launch again."
+                "Platform not set: this item's platform is unknown, so Peach 1UP cannot "
+                "choose an emulator. Set its platform on the detail page, then launch again."
             ),
         )
 
@@ -212,7 +212,7 @@ def _require_known_era(entity: "LaunchableEntity") -> None:
 def _build_spec_for_entity(
     entity: "LaunchableEntity",
     profile: ProfileItem,
-    platform: EnvironmentItem | None,
+    environment: EnvironmentItem | None,
     drive: "Drive | None",
     effective_media_path: str,
     resolved_install_path: str | None = None,
@@ -226,21 +226,21 @@ def _build_spec_for_entity(
     and ROM paths already resolved instead of re-resolving them from scratch.
     """
     from backend.constants_generated import BackendSlug
-    from backend.constants import era_to_enum
+    from backend.constants import platform_to_enum
     from backend.service.utils.backend_router import get_executable_path
 
-    slug = _backend_slug_for_era(entity.era)
-    era_enum = era_to_enum(entity.era)
+    slug = _backend_slug_for_platform(entity.platform)
+    platform_enum = platform_to_enum(entity.platform)
 
     # box86 and xemu resolve their own binary paths internally.
     executable_path: str | None = None
     if slug not in (BackendSlug.BOX86.value, BackendSlug.XEMU.value):
-        path = get_executable_path(era_enum, slug)
+        path = get_executable_path(platform_enum, slug)
         if not path:
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    f"The emulator for era '{entity.era}' is not installed. "
+                    f"The emulator for platform '{entity.platform}' is not installed. "
                     "Install it via the Emulators page."
                 ),
             )
@@ -295,24 +295,24 @@ def _build_spec_for_entity(
     working_image_path: Path | None = None
     base_image_path: Path | None = None
     hardware_profile = "standard"
-    platform_name: str | None = None
-    platform_slug_val: str | None = None
+    environment_name: str | None = None
+    environment_slug_val: str | None = None
 
-    if platform is not None:
-        if platform.config_path:
-            config_path = Path(platform.config_path)
+    if environment is not None:
+        if environment.config_path:
+            config_path = Path(environment.config_path)
             vm_dir = config_path.parent.resolve()
-        if platform.working_image_path:
-            working_image_path = Path(platform.working_image_path)
-        if platform.base_image_path:
-            base_image_path = Path(platform.base_image_path)
-        hardware_profile = platform.hardware_profile or "standard"
-        platform_name = platform.name
-        platform_slug_val = platform.slug
+        if environment.working_image_path:
+            working_image_path = Path(environment.working_image_path)
+        if environment.base_image_path:
+            base_image_path = Path(environment.base_image_path)
+        hardware_profile = environment.hardware_profile or "standard"
+        environment_name = environment.name
+        environment_slug_val = environment.slug
 
     return LaunchSpec(
         slug=slug,
-        era=entity.era,
+        platform=entity.platform,
         emulator_slug=profile.emulator_slug,
         media_path=Path(effective_media_path),
         executable_path=executable_path,
@@ -335,8 +335,8 @@ def _build_spec_for_entity(
         working_image_path=working_image_path,
         base_image_path=base_image_path,
         hardware_profile=hardware_profile,
-        platform_name=platform_name,
-        platform_slug=platform_slug_val,
+        environment_name=environment_name,
+        environment_slug=environment_slug_val,
         disc_paths=[Path(p) for p in entity.disc_paths],
         collection_id=entity.collection_id,
         launch_review_flagged=bool(entity.launch_review_flagged),
@@ -346,7 +346,7 @@ def _build_spec_for_entity(
 
 
 def _build_spec_for_environment(
-    platform: EnvironmentItem,
+    environment: EnvironmentItem,
     profile: ProfileItem,
     resolved_install_path: str | None = None,
     resolved_rom_path: str | None = None,
@@ -357,17 +357,17 @@ def _build_spec_for_environment(
     just ran provisioning (box86), they let box86.launch reuse the binary
     and ROM paths provisioning already resolved instead of re-resolving them.
     """
-    slug = _backend_slug_for_era(platform.era)
+    slug = _backend_slug_for_platform(environment.platform)
 
     config_path: Path | None = None
     vm_dir: Path | None = None
-    if platform.config_path:
-        config_path = Path(platform.config_path)
+    if environment.config_path:
+        config_path = Path(environment.config_path)
         vm_dir = config_path.parent.resolve()
 
     return LaunchSpec(
         slug=slug,
-        era=platform.era,
+        platform=environment.platform,
         emulator_slug=profile.emulator_slug,
         media_path=None,
         executable_path=resolved_install_path,
@@ -377,12 +377,12 @@ def _build_spec_for_environment(
         user_item_id=profile.user_item_id,
         vm_dir=vm_dir,
         config_path=config_path,
-        working_image_path=Path(platform.working_image_path) if platform.working_image_path else None,
-        base_image_path=Path(platform.base_image_path) if platform.base_image_path else None,
-        hardware_profile=platform.hardware_profile or "standard",
-        platform_name=platform.name,
-        platform_slug=platform.slug,
-        platform_id=platform.id,
+        working_image_path=Path(environment.working_image_path) if environment.working_image_path else None,
+        base_image_path=Path(environment.base_image_path) if environment.base_image_path else None,
+        hardware_profile=environment.hardware_profile or "standard",
+        environment_name=environment.name,
+        environment_slug=environment.slug,
+        environment_id=environment.id,
         resolved_rom_path=Path(resolved_rom_path) if resolved_rom_path else None,
     )
 
@@ -404,7 +404,7 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
     from backend.service.utils.backend_router import dispatch
 
     network_blocked = not spec.enable_networking
-    # is_environment: a platform launch rather than a library collection.
+    # is_environment: an environment launch rather than a library collection.
     is_environment = spec.collection_id is None
 
     # Reserve both guard keys before any spawn work starts. The check and the
@@ -423,7 +423,7 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
         history = LaunchHistory(
             game_item_bundle_id=spec.collection_id if not is_app else None,
             app_item_bundle_id=spec.collection_id if is_app else None,
-            environment_item_id=spec.platform_id,
+            environment_item_id=spec.environment_id,
             profile_item_id=spec.profile_item_id,
             emulator_slug=spec.emulator_slug,
             started_at=datetime.now(timezone.utc),
@@ -512,7 +512,7 @@ async def launch(spec: LaunchSpec, db: Session) -> LaunchResult:
             # the same integer, keying off collection_id alone here would
             # risk flagging an unrelated SoftwareCollection row.
             if spec.collection_id is not None and not is_app:
-                register_short_lived_check(spec.collection_id, proc, launch_time, spec.era)
+                register_short_lived_check(spec.collection_id, proc, launch_time, spec.platform)
 
         return LaunchResult(
             history_id=history.id,
@@ -565,40 +565,15 @@ def _verify_media_path_containment(path_str: str, source_type: str) -> None:
 
 
 def _resolve_environment_for_pc_entity(entity: "LaunchableEntity", db: Session) -> EnvironmentItem | None:
-    """Resolve the Environment for a PC SoftwareCollection launch (doc 02 A5).
+    """The Environment the user chose for a PC item (environment_item_id), or None.
 
-    Resolves directly via the collection's own environment_item_id FK instead of
-    the old EnvironmentItem.profile_item_id reverse-lookup. Falls back to the
-    era-matched system Environment only when environment_item_id is still null —
-    a runtime fallback for the backfill transition window, not a migration.
-
-    Last line of defense against era mismatch: the read-time gate
-    (evaluate_launch_readiness) and the frontend PlatformField both filter
-    on era match already, but neither is trusted alone (fail-loud standard,
-    CLAUDE.md). A win98 item bound to a win95-era Environment previously
-    launched silently here because only presence, not era, was ever checked —
-    this raises instead of resolving a mismatched Environment.
+    There is no fallback and no platform compatibility rule: the user creates
+    and chooses the Environment, and evaluate_launch_readiness reports a
+    missing one as no_environment.
     """
-    if entity.environment_item_id is not None:
-        environment = db.get(EnvironmentItem, entity.environment_item_id)
-    else:
-        from backend.service.utils.era_defaults import lookup_system_environment_by_era
-        environment = lookup_system_environment_by_era(entity.era, db)
-
-    if environment is not None and environment.era != entity.era:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "error_type": "environment_era_mismatch",
-                "message": (
-                    f"This item's era ({entity.era}) does not match its Environment's "
-                    f"era ({environment.era}). Select an Environment for the correct era "
-                    "before launching."
-                ),
-                "collection_id": entity.collection_id,
-            },
-        )
-    return environment
+    if entity.environment_item_id is None:
+        return None
+    return db.get(EnvironmentItem, entity.environment_item_id)
 
 
 async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None, db: Session) -> LaunchResult:
@@ -607,30 +582,24 @@ async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None
     Expects the caller (launch_collection) to have already called
     process_registry.cleanup_exited() and write_session_ends.
     """
-    _require_known_era(entity)
+    _require_known_platform(entity)
     profile = _resolve_profile_for_item(entity.profile_item_id, profile_item_id, db)
 
     # Environment is strictly PC (doc 02 A5): console entities never touch
     # Environment at all, not even to check for one.
-    platform_record: EnvironmentItem | None = None
+    environment_record: EnvironmentItem | None = None
     resolved_install_path: str | None = None
     resolved_rom_path: str | None = None
     if entity.item_type == "pc":
-        platform_record = _resolve_environment_for_pc_entity(entity, db)
+        environment_record = _resolve_environment_for_pc_entity(entity, db)
 
         # Single source of truth for the PC pre-launch gates (evaluate_launch_readiness,
-        # backend/service/utils/era_defaults.py). "no_profile" and
-        # "environment_era_mismatch" cannot actually surface here: the profile
-        # resolve above and _resolve_environment_for_pc_entity above already
-        # raise for those cases before this line is ever reached. They're
-        # still evaluated (harmlessly unreachable) because this same function
-        # also backs the read-time launch_blocked_reason signal in
-        # models/game.py / models/app.py, which has no such upstream guards.
+        # backend/service/utils/platform_defaults.py), shared with the read-time
+        # launch_blocked_reason signal in models/game.py / models/app.py.
         blocked = evaluate_launch_readiness(
             call_site="item",
-            environment=platform_record,
+            environment=environment_record,
             is_pc=True,
-            era=entity.era,
             profile_item_id=profile.id,
         )
         if blocked == "no_environment":
@@ -639,8 +608,8 @@ async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None
                 detail={
                     "error_type": "no_environment",
                     "message": (
-                        "This PC item has no Environment configured. "
-                        "Create an Environment for this era first."
+                        "This PC item has no Environment chosen. Create one on the "
+                        "Environments page, then choose it in the item's Environment field."
                     ),
                     "collection_id": entity.collection_id,
                 },
@@ -648,7 +617,7 @@ async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None
         if blocked == "environment_not_provisioned":
             raise HTTPException(
                 status_code=422,
-                detail="Environment has no working image. Provisioning is not available for this era.",
+                detail="Environment has no working image. Provisioning is not available for this platform.",
             )
         if blocked == "environment_not_installed":
             raise HTTPException(
@@ -663,7 +632,7 @@ async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None
                 },
             )
 
-        resolved_install_path, resolved_rom_path = await _ensure_environment_provisioned(platform_record, db)
+        resolved_install_path, resolved_rom_path = await _ensure_environment_provisioned(environment_record, db)
 
     drive = hydrate_drive_for_entity(entity, db)
 
@@ -671,12 +640,12 @@ async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None
     if Path(effective_media_path).is_dir() and drive is None:
         try:
             effective_media_path = str(
-                _resolve_media_file_from_directory(Path(effective_media_path), entity.era)
+                _resolve_media_file_from_directory(Path(effective_media_path), entity.platform)
             )
         except ValueError as exc:
-            if entity.era != "ps3":
+            if entity.platform != "ps3":
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
-            # ps3's supported_media is .iso/.pkg only (config/eras.yaml), so this
+            # ps3's supported_media is .iso/.pkg only (config/platforms.yaml), so this
             # resolver always raises for an extracted disc folder: there is no
             # single top-level file to resolve to, the folder itself is the
             # correct launch target (matches rpcs3.launch()'s own is_dir()
@@ -687,7 +656,7 @@ async def _launch_entity(entity: "LaunchableEntity", profile_item_id: int | None
     _verify_media_path_containment(effective_media_path, entity.source_type)
 
     spec = _build_spec_for_entity(
-        entity, profile, platform_record, drive, effective_media_path,
+        entity, profile, environment_record, drive, effective_media_path,
         resolved_install_path=resolved_install_path,
         resolved_rom_path=resolved_rom_path,
     )
@@ -711,7 +680,7 @@ async def launch_collection(collection_id: int, profile_item_id: int | None, db:
 async def launch_app_collection(app_collection_id: int, profile_item_id: int | None, db: Session) -> LaunchResult:
     """App entry point. Mirrors launch_collection but resolves an AppCollection.
 
-    Reuses _launch_entity unchanged: entity.item_type is now era-derived
+    Reuses _launch_entity unchanged: entity.item_type is now platform-derived
     (pc/console, see AppItemBundle.is_pc and resolve_launchable_app) exactly
     like GameItemBundle, so console apps skip Environment resolution entirely
     and PC apps go through the same _resolve_environment_for_pc_entity /
@@ -730,15 +699,15 @@ async def launch_app_collection(app_collection_id: int, profile_item_id: int | N
 
 
 async def _ensure_environment_provisioned(
-    platform: EnvironmentItem, db: Session
+    environment: EnvironmentItem, db: Session
 ) -> tuple[str | None, str | None]:
-    """Auto-provision platform's working image if missing, then guarantee one exists.
+    """Auto-provision environment's working image if missing, then guarantee one exists.
 
     Extracted from launch_environment's former inline block so launch_collection
     / launch_app_collection (via _launch_entity) get the identical provisioning
     attempt and the identical clean 422s on failure, not the generic 500 that
     resulted previously from a PC game/app pointed at an unprovisioned Environment
-    bypassing this logic entirely. Mutates platform in place (working_image_path,
+    bypassing this logic entirely. Mutates environment in place (working_image_path,
     config_path, base_image_path) exactly as the inline block did.
 
     Returns (resolved_install_path, resolved_rom_path), set only when
@@ -749,78 +718,78 @@ async def _ensure_environment_provisioned(
     """
     resolved_install_path: str | None = None
     resolved_rom_path: str | None = None
-    if platform.working_image_path is None and platform.era in PROVISIONABLE_ERAS:
+    if environment.working_image_path is None and environment.platform in PROVISIONABLE_PLATFORMS:
         try:
-            from backend.service.utils.vm import provision_platform
+            from backend.service.utils.vm import provision_environment
             (
                 _iso_path,
                 working_path,
                 config_path,
                 resolved_install_path,
                 resolved_rom_path,
-            ) = await asyncio.to_thread(provision_platform, platform)
-            if _iso_path and not platform.base_image_path:
+            ) = await asyncio.to_thread(provision_environment, environment)
+            if _iso_path and not environment.base_image_path:
                 db.execute(
                     update(EnvironmentItem)
-                    .where(EnvironmentItem.id == platform.id)
+                    .where(EnvironmentItem.id == environment.id)
                     .values(base_image_path=str(_iso_path))
                 )
                 db.flush()
             if working_path:
-                platform.working_image_path = working_path
+                environment.working_image_path = working_path
             if config_path:
-                platform.config_path = config_path
+                environment.config_path = config_path
             db.commit()
-            db.refresh(platform)
+            db.refresh(environment)
         except Exception as exc:
-            logger.exception("On-launch provisioning failed for platform %d", platform.id)
+            logger.exception("On-launch provisioning failed for environment %d", environment.id)
             raise HTTPException(
                 status_code=422,
                 detail=f"Environment has no working image and automatic provisioning failed: {exc}",
             )
 
-    if platform.working_image_path is None:
+    if environment.working_image_path is None:
         raise HTTPException(
             status_code=422,
-            detail="Environment has no working image. Provisioning is not available for this era.",
+            detail="Environment has no working image. Provisioning is not available for this platform.",
         )
 
     return resolved_install_path, resolved_rom_path
 
 
-async def launch_environment(platform: EnvironmentItem, profile_item_id: int | None, db: Session) -> LaunchResult:
-    logger.info("launch_environment entry: platform_id=%d era=%s profile_item_id=%s", platform.id, platform.era, profile_item_id)
+async def launch_environment(environment: EnvironmentItem, profile_item_id: int | None, db: Session) -> LaunchResult:
+    logger.info("launch_environment entry: environment_id=%d platform=%s profile_item_id=%s", environment.id, environment.platform, profile_item_id)
     exited = process_registry.cleanup_exited()
     if exited:
         await asyncio.to_thread(write_session_ends, exited)
 
-    profile = _resolve_profile_for_environment(platform, profile_item_id, db)
+    profile = _resolve_profile_for_environment(environment, profile_item_id, db)
 
     # call_site="environment": this is a direct Environment launch, how a user
     # boots in to run the OS installer in the first place, so
     # evaluate_launch_readiness structurally never checks environment_not_installed
     # on this call site. Only environment_not_provisioned applies (no working
-    # image and this era can never get one auto-provisioned). Do not widen this
+    # image and this platform can never get one auto-provisioned). Do not widen this
     # to the item-launch gate set here.
-    blocked = evaluate_launch_readiness(call_site="environment", environment=platform)
+    blocked = evaluate_launch_readiness(call_site="environment", environment=environment)
     if blocked == "environment_not_provisioned":
         raise HTTPException(
             status_code=422,
-            detail="Environment has no working image. Provisioning is not available for this era.",
+            detail="Environment has no working image. Provisioning is not available for this platform.",
         )
 
-    resolved_install_path, resolved_rom_path = await _ensure_environment_provisioned(platform, db)
+    resolved_install_path, resolved_rom_path = await _ensure_environment_provisioned(environment, db)
 
     try:
         spec = _build_spec_for_environment(
-            platform, profile,
+            environment, profile,
             resolved_install_path=resolved_install_path,
             resolved_rom_path=resolved_rom_path,
         )
     except Exception:
         logger.exception(
-            "launch_environment failed to build LaunchSpec: platform_id=%d era=%s config_path=%r",
-            platform.id, platform.era, platform.config_path,
+            "launch_environment failed to build LaunchSpec: environment_id=%d platform=%s config_path=%r",
+            environment.id, environment.platform, environment.config_path,
         )
         raise
     return await launch(spec, db)

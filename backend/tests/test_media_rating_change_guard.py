@@ -70,7 +70,7 @@ def client(mem_db_session, tmp_path, monkeypatch, active_user_box):
 def _game(db, slug, rating):
     from backend.models.game import GameItemBundle
 
-    game = GameItemBundle(title=f"Game {slug}", file_path=f"/library/games/ps1/{slug}", era="ps1", slug=slug,
+    game = GameItemBundle(title=f"Game {slug}", file_path=f"/library/games/ps1/{slug}", platform="ps1", slug=slug,
                           content_rating=rating)
     db.add(game)
     db.commit()

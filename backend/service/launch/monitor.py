@@ -1,6 +1,6 @@
 """Short-lived launch detection.
 
-Fires for every non-app software launch (across all eras, not just DOS)
+Fires for every non-app software launch (across all platforms, not just DOS)
 within the 3s crash-review window after launch. Replaces the per-launch
 daemon thread. Instead of spawning a thread that sleeps for 3 seconds per
 launch, `register_short_lived_check` stores the process handle, and
@@ -24,15 +24,15 @@ logger = get_logger(__name__)
 
 _SHORT_LIVED_TIMEOUT = 3.0
 
-# collection_id -> (proc, launch_time_monotonic, era)
+# collection_id -> (proc, launch_time_monotonic, platform)
 _pending: dict[int, tuple[object, float, str | None]] = {}
 _lock = threading.Lock()
 
 
-def register_short_lived_check(collection_id: int, proc: object, launch_time: float, era: str | None = None) -> None:
+def register_short_lived_check(collection_id: int, proc: object, launch_time: float, platform: str | None = None) -> None:
     """Register a newly-launched software process for short-lived exit detection."""
     with _lock:
-        _pending[collection_id] = (proc, launch_time, era)
+        _pending[collection_id] = (proc, launch_time, platform)
 
 
 def poll_short_lived() -> None:
@@ -42,20 +42,20 @@ def poll_short_lived() -> None:
     to_remove: list[int] = []
 
     with _lock:
-        for collection_id, (proc, launch_time, era) in list(_pending.items()):
+        for collection_id, (proc, launch_time, platform) in list(_pending.items()):
             exit_code = proc.poll() if hasattr(proc, "poll") else None
             if exit_code is not None:
-                to_flag.append((collection_id, exit_code, now - launch_time, era))
+                to_flag.append((collection_id, exit_code, now - launch_time, platform))
                 to_remove.append(collection_id)
             elif now - launch_time > _SHORT_LIVED_TIMEOUT:
                 to_remove.append(collection_id)
         for collection_id in to_remove:
             _pending.pop(collection_id, None)
 
-    for collection_id, exit_code, lifetime, era in to_flag:
+    for collection_id, exit_code, lifetime, platform in to_flag:
         logger.warning(
             "Short-lived %s launch detected: collection_id=%d exit_code=%r lifetime=%.2fs, flagging for review",
-            era or "software",
+            platform or "software",
             collection_id,
             exit_code,
             lifetime,

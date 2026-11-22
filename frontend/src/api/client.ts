@@ -53,7 +53,8 @@ export interface ApiFetchOptions extends RequestInit {
 }
 
 function hasQuietErrorType(rawDetail: unknown, quiet: readonly string[] | undefined): boolean {
-  if (!quiet || quiet.length === 0 || rawDetail == null || typeof rawDetail !== 'object') return false;
+  if (!quiet || quiet.length === 0 || rawDetail == null || typeof rawDetail !== 'object')
+    return false;
   const errorType = (rawDetail as { error_type?: unknown }).error_type;
   return typeof errorType === 'string' && quiet.includes(errorType);
 }

@@ -2,7 +2,13 @@ import type { ComponentProps, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import TopBar from '@/components/layout/TopBar';
 import { Card } from '@/ui';
-import { ERA_LABEL, ERA_COLOR, ERA_PLACEHOLDER, ERA_PLACEHOLDER_DEFAULT } from '@/types/era';
+import {
+  PLATFORM_SHORT_LABEL,
+  PLATFORM_COLOR,
+  PLATFORM_PLACEHOLDER,
+  PLATFORM_PLACEHOLDER_DEFAULT,
+} from '@/types/platform';
+import { CoverImage } from './CoverImage';
 import { RestrictionsSection } from './RestrictionsSection';
 import { LaunchHistorySection } from './LaunchHistory';
 import { LaunchSection } from './LaunchSection';
@@ -38,15 +44,15 @@ interface RestrictionsProps {
 
 interface SoftwareEntityDetailProps {
   title: string;
-  /** Raw era slug (e.g. "ps1"), omitted entirely for domains with no era
-   * concept (Media). Used to render the header's era chip via types/era.ts,
+  /** Raw platform slug (e.g. "ps1"), omitted entirely for domains with no platform
+   * concept (Media). Used to render the header's platform chip via types/platform.ts,
    * the same token/color source the grid cards already use. */
-  era?: string;
+  platform?: string;
   year?: number | null;
   publisher?: string | null;
   /** Header thumbnail. Same resolver every grid card already uses
    * (config.coverArt), just not previously threaded into the detail page.
-   * Falls back to an era-tinted placeholder (types/era.ts) when null,
+   * Falls back to a platform-tinted placeholder (types/platform.ts) when null,
    * matching the grid cards' own placeholder treatment. */
   coverArtUrl?: string | null;
   launchCount?: number;
@@ -113,7 +119,7 @@ interface SoftwareEntityDetailProps {
 
 export function SoftwareEntityDetail({
   title,
-  era,
+  platform,
   year,
   publisher,
   coverArtUrl,
@@ -144,12 +150,15 @@ export function SoftwareEntityDetail({
   launchHistoryCanDelete,
   afterContent,
 }: SoftwareEntityDetailProps) {
-  const eraCode = era && era !== 'unknown' ? (ERA_LABEL[era] ?? era.toUpperCase()) : null;
-  const eraColor = era ? (ERA_COLOR[eraCode ?? ''] ?? undefined) : undefined;
-  const hasChipLine = eraCode || year || publisher;
-  const placeholderStyle = era
-    ? (ERA_PLACEHOLDER[era] ?? ERA_PLACEHOLDER_DEFAULT)
-    : ERA_PLACEHOLDER_DEFAULT;
+  const platformCode =
+    platform && platform !== 'unknown'
+      ? (PLATFORM_SHORT_LABEL[platform] ?? platform.toUpperCase())
+      : null;
+  const platformColor = platform ? (PLATFORM_COLOR[platformCode ?? ''] ?? undefined) : undefined;
+  const hasChipLine = platformCode || year || publisher;
+  const placeholderStyle = platform
+    ? (PLATFORM_PLACEHOLDER[platform] ?? PLATFORM_PLACEHOLDER_DEFAULT)
+    : PLATFORM_PLACEHOLDER_DEFAULT;
   const hasAtAGlance = installedStatus != null || (mediaSizeBytes != null && mediaSizeBytes > 0);
 
   return (
@@ -167,31 +176,34 @@ export function SoftwareEntityDetail({
         </div>
 
         <div className="max-w-5xl space-y-6">
-          {/* ── Header, not inside a card: cover art thumbnail left, title/era middle, Launch right (omitted entirely when onLaunch isn't supplied, e.g. Media) ── */}
+          {/* ── Header, not inside a card: cover art thumbnail left, title/platform middle, Launch right (omitted entirely when onLaunch isn't supplied, e.g. Media) ── */}
           <div className="flex items-start gap-4">
-            <div
-              className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-surface-2"
-              style={coverArtUrl ? undefined : { background: placeholderStyle.bg }}
-            >
-              {coverArtUrl && (
-                <img src={coverArtUrl} alt={title} className="h-full w-full object-cover" />
-              )}
+            <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-surface-2">
+              <CoverImage
+                src={coverArtUrl}
+                alt={title}
+                loading="eager"
+                className="h-full w-full object-cover"
+                fallback={
+                  <div className="absolute inset-0" style={{ background: placeholderStyle.bg }} />
+                }
+              />
             </div>
 
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl font-semibold tracking-tight text-fg-1">{title}</h1>
               {hasChipLine && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {eraCode && (
+                  {platformCode && (
                     <span
                       className="inline-flex shrink-0 items-center rounded-[4px] border px-[7px] py-1 font-mono text-[0.65625rem] font-medium leading-none tracking-[0.08em]"
                       style={{
-                        color: eraColor,
-                        borderColor: `color-mix(in srgb, ${eraColor} 42%, transparent)`,
-                        background: `color-mix(in srgb, ${eraColor} 10%, transparent)`,
+                        color: platformColor,
+                        borderColor: `color-mix(in srgb, ${platformColor} 42%, transparent)`,
+                        background: `color-mix(in srgb, ${platformColor} 10%, transparent)`,
                       }}
                     >
-                      {eraCode}
+                      {platformCode}
                     </span>
                   )}
                   {year && <span className="text-xs text-fg-3">{year}</span>}
@@ -217,7 +229,7 @@ export function SoftwareEntityDetail({
             )}
           </div>
 
-          {/* ── Compact read-only meta (era moved to the header chip above) ── */}
+          {/* ── Compact read-only meta (platform moved to the header chip above) ── */}
           {(metaBefore || (launchCount != null && launchCount > 0) || metaAfter) && (
             <section className="space-y-1 text-sm text-neutral-600 dark:text-neutral-300">
               {metaBefore}

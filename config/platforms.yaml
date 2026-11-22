@@ -1,9 +1,11 @@
-# Peach 1UP Era Configuration
-# Era to backend mapping and defaults
+# Peach 1UP platform configuration
+# kind (pc or console) and backend are the single source for every PC/console
+# and platform-to-backend set in the backend and frontend.
 
 cpu_min_rate_percent: 5
 
 dos:
+  kind: pc
   backend: dosbox-x
   memory_limit_mb: 512
   cpu_limit_percent: 50
@@ -14,6 +16,8 @@ dos:
   default_disk_size_mb: 512
 
 win95:
+  kind: pc
+  backend: 86box
   memory_limit_mb: 2048
   cpu_limit_percent: 75
   supported_media: [".iso", ".img", ".cue"]
@@ -22,6 +26,8 @@ win95:
   dgvoodoo2_supported: true
 
 win98:
+  kind: pc
+  backend: 86box
   memory_limit_mb: 2048
   cpu_limit_percent: 75
   supported_media: [".iso", ".img", ".cue"]
@@ -30,6 +36,8 @@ win98:
   dgvoodoo2_supported: true
 
 winxp:
+  kind: pc
+  backend: 86box
   memory_limit_mb: 3072
   cpu_limit_percent: 80
   supported_media: [".iso", ".img", ".cue"]
@@ -38,60 +46,69 @@ winxp:
   dgvoodoo2_supported: true
 
 ps1:
+  kind: console
   backend: duckstation
   memory_limit_mb: 1024
   cpu_limit_percent: 60
   supported_media: [".iso", ".bin", ".cue", ".chd"]
 
 ps2:
+  kind: console
   backend: pcsx2
   memory_limit_mb: 4096
   cpu_limit_percent: 80
   supported_media: [".iso", ".bin", ".cue", ".chd"]
 
 ps3:
+  kind: console
   backend: rpcs3
   memory_limit_mb: 12288
   cpu_limit_percent: 90
   supported_media: [".iso", ".pkg"]
 
 xbox:
+  kind: console
   backend: xemu
   memory_limit_mb: 3072
   cpu_limit_percent: 75
   supported_media: [".iso", ".xiso"]
 
 xbox360:
+  kind: console
   backend: xenia
   memory_limit_mb: 6144
   cpu_limit_percent: 75
   supported_media: [".iso", ".xex"]
 
 nes:
+  kind: console
   backend: mesen
   memory_limit_mb: 512
   cpu_limit_percent: 30
   supported_media: [".nes", ".chd"]
 
 snes:
+  kind: console
   backend: mesen
   memory_limit_mb: 768
   cpu_limit_percent: 50
   # .fig/.swc are legitimate SNES ROM header variants Mesen already opens
   # (config/emulators/mesen.toml's supported_formats already listed them);
-  # added here so eras.yaml, the single enforced source for launch-time
+  # added here so platforms.yaml, the single enforced source for launch-time
   # format validation, doesn't reject a file mesen.toml always claimed to
   # support.
   supported_media: [".sfc", ".smc", ".zip", ".fig", ".swc"]
   mount_type: rom
 
 n64:
+  kind: console
   backend: project64
   memory_limit_mb: 2048
   cpu_limit_percent: 60
   supported_media: [".z64", ".n64", ".v64"]
 
 dreamcast:
+  kind: console
   backend: flycast
   memory_limit_mb: 1024
   cpu_limit_percent: 60

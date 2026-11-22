@@ -8,7 +8,7 @@ import { useXisoConvert } from '@/hooks/useXisoConvert';
 import { useDiscOrder } from '@/hooks/useDiscOrder';
 import { useInstalledToggle } from '@/hooks/useInstalledToggle';
 import { useFlagLaunch } from '@/hooks/useFlagLaunch';
-import { useConfirmEra } from '@/hooks/useConfirmEra';
+import { useConfirmPlatform } from '@/hooks/useConfirmPlatform';
 import { useAppContext } from '@/context/useAppContext';
 import { useVerifyGameCollection } from '@/hooks/useVerifyGameCollection';
 import { useDeleteCollection } from '@/hooks/useDeleteCollection';
@@ -18,10 +18,12 @@ import { resolveLaunchCommands } from '@/hooks/resolveLaunchCommands';
 import { FetchMetadataModal } from '../components/FetchMetadataModal';
 import { DiscOrderList } from '../components/DiscOrderList';
 import { CollectionCard } from '../components/CollectionCard';
-import { canOfferEraConfirm } from '../components/eraReview';
+import { canOfferPlatformConfirm } from '../components/platformReview';
 import type { GameItemBundleData } from '../components/CollectionCard';
 import { getGameCoverArt } from '../components/gameCoverArt';
 import { LinkedItemsSection } from '../components/LinkedItemsSection';
+import { LaunchNote } from '../components/LaunchNote';
+import { useUserEnvironmentCount } from '@/hooks/useUserEnvironmentCount';
 import type { EntityDetailExtras, EntityDetailExtrasContext, EntityDomainConfig } from '../types';
 import { launchGateFromReason, SOFTWARE_SORT_OPTIONS, GAME_ROUTE_BASE } from '../types';
 import type { LibraryModalConfig } from '../components/LibraryModal';
@@ -35,7 +37,6 @@ import type { components } from '@shared/types';
 
 type LaunchHistory = components['schemas']['LaunchHistoryRead'];
 type LaunchProfile = components['schemas']['ProfileItemRead'];
-type Platform = components['schemas']['EnvironmentItemRead'];
 
 // Game's detail route/fetch is keyed by slug (no numeric-id lookup endpoint
 // on the backend), so bundleApiPath here means "by-slug", not "by-id".
@@ -127,16 +128,9 @@ function useGameDetailExtras(
       (await apiFetch<{ items: LaunchProfile[] }>('/api/v1/profile-items?limit=200')).items,
   });
 
-  // era in the query key so switching bundles (a different era) refetches
-  // with the right per-candidate launch_blocked_reason instead of serving a
-  // stale list computed against the previous bundle's era.
-  const { data: platforms = [] } = useQuery<Platform[]>({
-    queryKey: ['platforms', bundle?.era],
-    queryFn: () =>
-      apiFetch<Platform[]>(
-        `/api/v1/environment-items${bundle?.era ? `?era=${encodeURIComponent(bundle.era)}` : ''}`,
-      ),
-  });
+  const userEnvironmentCount = useUserEnvironmentCount(
+    bundle?.launch_blocked_reason === 'no_environment',
+  );
 
   const { data: launchHistory = [] } = useQuery<LaunchHistory[]>({
     queryKey: ['launches', 'game', bundleId],
@@ -160,7 +154,7 @@ function useGameDetailExtras(
     confirmOptions: installedConfirmOptions,
     handleConfirm: handleInstalledConfirm,
     handleCancel: handleInstalledCancel,
-  } = useInstalledToggle({ collectionId: bundleId, detailQueryKey, era: bundle?.era });
+  } = useInstalledToggle({ collectionId: bundleId, detailQueryKey, platform: bundle?.platform });
 
   // Bundle-scoped, re-verifies every disc in one call (see Part B, every
   // disc gets its own persisted sha1/verification_status now, so a
@@ -210,12 +204,12 @@ function useGameDetailExtras(
           year: f.year ? parseInt(f.year, 10) : null,
           category: f.category.trim() || null,
           content_rating: f.content_rating || null,
-          // era has a NOT NULL column on the backend. When unset in the form,
+          // platform has a NOT NULL column on the backend. When unset in the form,
           // omit the key entirely (undefined is dropped by JSON.stringify)
           // instead of sending null, so the backend's exclude_unset=True
           // leaves the existing DB value untouched rather than trying to
           // null out a NOT NULL column.
-          era: f.era || undefined,
+          platform: f.platform || undefined,
           environment_item_id: f.environment_item_id ? parseInt(f.environment_item_id, 10) : null,
           profile_item_id: f.profile_item_id ? parseInt(f.profile_item_id, 10) : null,
           launch_commands: resolveLaunchCommands(launchCommands, bundle?.launch_commands),
@@ -287,7 +281,7 @@ function useGameDetailExtras(
     detailQueryKey,
   });
 
-  const { confirmEra, confirmingEra, confirmEraError } = useConfirmEra({
+  const { confirmPlatform, confirmingPlatform, confirmPlatformError } = useConfirmPlatform({
     collectionId: bundleId,
     detailQueryKey,
   });
@@ -326,10 +320,11 @@ function useGameDetailExtras(
   // SoftwareEntityDetail.tsx render side only shows the tile when this is > 0,
   // so an all-null bundle still renders no tile rather than a fake "0 B".
   const mediaSizeBytes = sortedItems.reduce((sum, item) => sum + (item.file_size_bytes ?? 0), 0);
-  const showDiscSwapWarning = (bundle.era === 'ps1' || bundle.era === 'ps2') && isMultiDisc;
-  // True while the form's era differs from the saved one (form.era is '' for
-  // an unset era, which is not a change).
-  const eraEditPending = Boolean(form.era) && form.era !== bundle.era;
+  const showDiscSwapWarning =
+    (bundle.platform === 'ps1' || bundle.platform === 'ps2') && isMultiDisc;
+  // True while the form's platform differs from the saved one (form.platform is '' for
+  // an unset platform, which is not a change).
+  const platformEditPending = Boolean(form.platform) && form.platform !== bundle.platform;
 
   // Staged order takes precedence over the server's disc_number order once
   // the user has dragged/moved a disc, so the "Launch File" field below and
@@ -344,14 +339,18 @@ function useGameDetailExtras(
   // now, no parallel client-side profile check. effectiveProfileId is still used
   // as the launch payload so a saved profile override is honored, but it no
   // longer decides whether the button is enabled.
-  const launchGate = launchGateFromReason(bundle.launch_blocked_reason, isLaunching);
+  const launchGate = launchGateFromReason(
+    bundle.launch_blocked_reason,
+    isLaunching,
+    userEnvironmentCount,
+  );
 
   const storageKey = `fetch_metadata_${window.location.pathname}_${activeProvider}`;
   const activeDisc =
     fetchDiscId != null ? sortedItems.find((d) => d.id === fetchDiscId) : undefined;
 
   return {
-    era: bundle.era,
+    platform: bundle.platform,
     year: bundle.year,
     publisher: bundle.publisher,
     launchCount: bundle.launch_count,
@@ -360,7 +359,7 @@ function useGameDetailExtras(
     // At a Glance stats, see EntityDetailExtras (types.ts) for the omit-vs-
     // fabricate contract. localInstalled mirrors bundle.installed and
     // already exists for the DOS-only editable toggle below (metaAfter), this
-    // just also surfaces it as a read-only tile for every era.
+    // just also surfaces it as a read-only tile for every platform.
     installedStatus: localInstalled,
     mediaSizeBytes,
 
@@ -437,7 +436,7 @@ function useGameDetailExtras(
             {verifyError}
           </p>
         )}
-        {(bundle.era === 'dos' || bundle.era === 'ps3') && (
+        {(bundle.platform === 'dos' || bundle.platform === 'ps3') && (
           <div className="flex items-center gap-2">
             <span className="font-medium shrink-0">Installed:</span>
             <span className="text-neutral-500 dark:text-neutral-400">
@@ -458,12 +457,12 @@ function useGameDetailExtras(
 
     editForm: {
       item: {
-        era: form.era || bundle.era,
-        // detection_reason comes from the first leaf and era_review from the
-        // bundle rollup. Both describe the saved era, so they are withheld
-        // while the form holds an unsaved era change.
-        detection_reason: eraEditPending ? null : (sortedItems[0]?.detection_reason ?? null),
-        era_review: eraEditPending ? undefined : bundle.era_review,
+        platform: form.platform || bundle.platform,
+        // detection_reason comes from the first leaf and platform_review from the
+        // bundle rollup. Both describe the saved platform, so they are withheld
+        // while the form holds an unsaved platform change.
+        detection_reason: platformEditPending ? null : (sortedItems[0]?.detection_reason ?? null),
+        platform_review: platformEditPending ? undefined : bundle.platform_review,
         file_path: currentLaunchDisc?.file_path,
         folder_path: currentLaunchDisc?.folder_path,
       },
@@ -480,15 +479,14 @@ function useGameDetailExtras(
       execBrowserOpen,
       setExecBrowserOpen,
       profiles,
-      platforms,
-      eraConfirm: canOfferEraConfirm({
-        eraReview: bundle.era_review,
+      platformConfirm: canOfferPlatformConfirm({
+        platformReview: bundle.platform_review,
         hasLaunched: bundle.has_launched,
         canManageGame,
-        era: bundle.era,
-        eraEditPending,
+        platform: bundle.platform,
+        platformEditPending,
       })
-        ? { onConfirm: confirmEra, pending: confirmingEra, error: confirmEraError }
+        ? { onConfirm: confirmPlatform, pending: confirmingPlatform, error: confirmPlatformError }
         : undefined,
     },
 
@@ -629,11 +627,7 @@ function useGameDetailExtras(
     onLaunch: () => launch(effectiveProfileId),
     launchDisabled: launchGate.launchDisabled,
     launchButtonLabel: launchGate.launchButtonLabel,
-    launchNote: launchGate.launchNote ? (
-      <p className="text-center text-xs text-neutral-400 dark:text-neutral-500">
-        {launchGate.launchNote}
-      </p>
-    ) : undefined,
+    launchNote: <LaunchNote gate={launchGate} />,
     launchErrorAction:
       launchErrorType === 'xbox_dvd_rip' ? (
         <div className="mt-2 space-y-1 text-center">
@@ -785,10 +779,10 @@ export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
   showDescriptionMeta: false,
   filterRestrictionUsers: (users) => users.filter((u) => !u.is_owner),
   useRenderExtras: useGameDetailExtras,
-  // Era/profile/tag filter bar (EntityListPage.tsx). Confirmed backend
+  // Platform/profile/tag filter bar (EntityListPage.tsx). Confirmed backend
   // support: GET /api/v1/game-items (game_item_bundles.py:list_game_items)
-  // accepts `era`, `profile_assigned`, and `tag` query params today.
-  filters: { era: true, profileAssigned: true, tag: true },
+  // accepts `platform`, `profile_assigned`, and `tag` query params today.
+  filters: { platform: true, profileAssigned: true, tag: true },
   // Sort control (EntityListPage.tsx). Confirmed backend support: GET
   // /api/v1/game-items (game_item_bundles.py:list_game_items) accepts `sort`
   // ("title" | "date_added") today, same shared value set as App and Media.
@@ -824,7 +818,7 @@ export const gameDomainConfig: EntityDomainConfig<GameItemBundleData> = {
     bundleByIdApiPath: (id) => `/api/v1/game-item-bundle/${id}`,
     resolveDeleteMediaOverride: (bundle) => bundle.delete_media_override,
   },
-  // Game's grid card is CollectionCard (stacked-disc layers, era placeholder,
+  // Game's grid card is CollectionCard (stacked-disc layers, platform placeholder,
   // stack-count/divergence badges, hover play button), not EntityCard's
   // generic layout. Ported as-is from Games.tsx/CollectionCard.tsx so the
   // grid's visuals and disc-strip interaction are pixel-for-pixel identical

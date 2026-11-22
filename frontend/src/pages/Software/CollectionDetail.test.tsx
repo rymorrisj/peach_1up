@@ -30,7 +30,7 @@ function fullCollection(overrides?: Record<string, unknown>) {
     id: 1,
     slug: 'doom',
     title: 'Doom',
-    era: 'dos',
+    platform: 'dos',
     launch_count: 5,
     launch_review_flagged: false,
     installed: true,

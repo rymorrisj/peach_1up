@@ -31,7 +31,7 @@ def _cleanup_stale_sessions(db) -> None:
         logger.warning("Startup session cleanup failed: %s", exc)
 
 
-def _flag_corrupt_platform_working_paths(db) -> None:
+def _flag_corrupt_environment_working_paths(db) -> None:
     """Log-only, no persisted flag. status/last_health_check were removed from
     EnvironmentItem in favor of a live presence check (compute_environment_presence),
     which already reports these rows as not-present on every read since a .cfg

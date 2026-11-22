@@ -215,7 +215,9 @@ describe('AdvancedTab, metadata fetching toggle', () => {
     );
     expect(screen.getByRole('button', { name: 'About metadata fetching' })).toBeInTheDocument();
     // Owner-only cards stay hidden for the resolved non-owner user.
-    expect(screen.queryByText(/API key for TheGamesDB metadata enrichment/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/API key for TheGamesDB metadata enrichment/),
+    ).not.toBeInTheDocument();
 
     expect(toggle).toBeDisabled();
     await user.click(toggle);

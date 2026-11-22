@@ -16,12 +16,12 @@ import wincage
 from backend.core.logger import get_logger
 from backend.service.utils.emulator_catalog import (
     get_emulator,
-    get_emulator_era,
+    get_emulator_sizing_platform,
     get_skip_cpu_limit,
     get_skip_memory_limit,
 )
 from backend.service.utils.emulator_paths import resolve_derived_path
-from backend.service.utils.eras_config import get_cpu_min_rate, get_era
+from backend.service.utils.platforms_config import get_cpu_min_rate, get_platform_config
 from wincage import BrokerFile, SandboxConfig, SandboxError, SandboxStage
 
 logger = get_logger(__name__)
@@ -30,20 +30,20 @@ logger = get_logger(__name__)
 _CPU_MIN_RATE: int = get_cpu_min_rate("")
 
 
-def _load_era(slug: str) -> dict:
-    """Load the eras.yaml block for *slug*'s era.
+def _load_sizing_limits(slug: str) -> dict:
+    """Load the platforms.yaml block for *slug*'s sizing_platform.
 
-    Raises (matching launcher._load_era_limits's fail-loud behaviour for the
+    Raises (matching launcher._load_platform_limits's fail-loud behaviour for the
     same condition): ValueError if the emulator descriptor has no usable
-    ``era`` field, RuntimeError if that era has no block in eras.yaml.
+    ``sizing_platform`` field, RuntimeError if that platform has no block in platforms.yaml.
     """
-    era_key = get_emulator_era(slug)
-    era = get_era(era_key)
-    if not era:
+    platform_key = get_emulator_sizing_platform(slug)
+    sizing_limits = get_platform_config(platform_key)
+    if not sizing_limits:
         raise RuntimeError(
-            f"Era '{era_key}' (used by emulator '{slug}') not found in eras.yaml."
+            f"Platform '{platform_key}' (used by emulator '{slug}') not found in platforms.yaml."
         )
-    return era
+    return sizing_limits
 
 
 def _resolve_path_key(path_key: str, slug: str) -> str:
@@ -136,7 +136,7 @@ def get_container_config(
     """Build a SandboxConfig for the given emulator.
 
     Reads container_broker_files from the emulator descriptor, resolves each
-    path_key, then combines the resolved paths with era-derived CPU and memory
+    path_key, then combines the resolved paths with platform-derived CPU and memory
     limits into a SandboxConfig ready to pass to wincage.launch().
 
     Args:
@@ -158,7 +158,7 @@ def get_container_config(
         ValueError: If emulator_slug is not found in the catalog.
     """
     descriptor = get_emulator(emulator_slug)
-    era = _load_era(emulator_slug)
+    sizing_limits = _load_sizing_limits(emulator_slug)
 
     files_raw = descriptor.get("container_broker_files", [])
 
@@ -188,10 +188,10 @@ def get_container_config(
         for entry in files_raw
     ]
 
-    cpu_limit_percent = era.get("cpu_limit_percent")
+    cpu_limit_percent = sizing_limits.get("cpu_limit_percent")
     if cpu_limit_percent is None:
         raise RuntimeError(
-            f"cpu_limit_percent not defined in eras.yaml for the era used by emulator '{emulator_slug}'."
+            f"cpu_limit_percent not defined in platforms.yaml for the platform used by emulator '{emulator_slug}'."
         )
     cpu_max_rate: int = int(cpu_limit_percent)
 
@@ -202,10 +202,10 @@ def get_container_config(
     # PATCH /emulators/{slug}/sandbox, which launcher.py's Python-side Job
     # Object path already honours via this resolver.
     if not get_skip_memory_limit(emulator_slug):
-        memory_limit_mb_cfg = era.get("memory_limit_mb")
+        memory_limit_mb_cfg = sizing_limits.get("memory_limit_mb")
         if memory_limit_mb_cfg is None:
             raise RuntimeError(
-                f"memory_limit_mb not defined in eras.yaml for the era used by emulator '{emulator_slug}'."
+                f"memory_limit_mb not defined in platforms.yaml for the platform used by emulator '{emulator_slug}'."
             )
         memory_limit_mb = int(memory_limit_mb_cfg)
 

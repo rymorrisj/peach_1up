@@ -90,7 +90,7 @@ export default function Bios() {
                       color: 'rgb(var(--fg-3))',
                     }}
                   >
-                    {b.platform}
+                    {b.bios_group}
                   </span>
                   <StatusDot ok={b.is_present} />
                 </div>

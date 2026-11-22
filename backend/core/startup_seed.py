@@ -1,102 +1,21 @@
-import json
-
 from backend.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-# DOSBox-X is deliberately absent from this list. DOS is the one PC era that
-# _seed_dosbox_environments below also seeds as an is_system=True Environment
-# (the real launch target, with working_image_path set), and era is what
-# lookup_system_environment_by_era/_resolve_environment_for_pc_entity match
-# on for a PC item with no explicit environment_item_id. A DOSBox-X catalog
-# row here would create a second is_system row for era="dos" with no
-# working_image_path, exactly the duplicate that made era-fallback resolution
-# non-deterministic (fixed at the source here; era_defaults.py's ORDER BY is
-# defense in depth for any future case, not a substitute for not creating
-# this duplicate in the first place). Every other emulator in this list is
-# console-only or 86Box, neither of which has this collision: console eras
-# never resolve an Environment at all, and 86Box's catalog row (era="win95")
-# has no seeded real-launch-target counterpart the way DOS does.
-_SYSTEM_PLATFORMS = [
-    {
-        "name": "86Box",
-        "slug": "86box",
-        "era": "win95",
-        "emulator_slug": "86box",
-        "is_system": True,
-        "supported_eras": json.dumps(["win95", "win98", "winxp"]),
-        "download_url": "https://86box.net",
-    },
-    {
-        "name": "DuckStation",
-        "slug": "duckstation",
-        "era": "ps1",
-        "emulator_slug": "duckstation",
-        "is_system": True,
-        "supported_eras": json.dumps(["ps1"]),
-        "download_url": "https://www.duckstation.org",
-    },
-    {
-        "name": "PCSX2",
-        "slug": "pcsx2",
-        "era": "ps2",
-        "emulator_slug": "pcsx2",
-        "is_system": True,
-        "supported_eras": json.dumps(["ps2"]),
-        "download_url": "https://pcsx2.net",
-    },
-    {
-        "name": "Mesen (NES, SNES)",
-        "slug": "mesen",
-        "era": "nes",
-        "emulator_slug": "mesen",
-        "is_system": True,
-        "supported_eras": json.dumps(["nes", "snes"]),
-        "download_url": "https://www.mesen.ca",
-    },
-    {
-        "name": "Project64",
-        "slug": "project64",
-        "era": "n64",
-        "emulator_slug": "project64",
-        "is_system": True,
-        "supported_eras": json.dumps(["n64"]),
-        "download_url": "https://www.pj64-emu.com",
-    },
-    {
-        "name": "Flycast",
-        "slug": "flycast",
-        "era": "dreamcast",
-        "emulator_slug": "flycast",
-        "is_system": True,
-        "supported_eras": json.dumps(["dreamcast"]),
-        "download_url": "https://github.com/flyinghead/flycast",
-    },
-    {
-        "name": "xemu",
-        "slug": "xemu",
-        "era": "xbox",
-        "emulator_slug": "xemu",
-        "is_system": True,
-        "supported_eras": json.dumps(["xbox"]),
-        "download_url": "https://xemu.app",
-    },
-]
-
 _DEFAULT_PROFILES = [
-    {"name": "DOS Default",     "slug": "dos-default",   "era": "dos",   "emulator_slug": "dosbox-x",   "is_bundled": True},
-    {"name": "Win 95 Default",  "slug": "win95-compat",  "era": "win95", "emulator_slug": "86box",       "is_bundled": True},
-    {"name": "Win 98 Default",  "slug": "win98-compat",  "era": "win98", "emulator_slug": "86box",       "is_bundled": True},
-    {"name": "Win XP Default",  "slug": "winxp-default", "era": "winxp", "emulator_slug": "86box",       "is_bundled": True},
-    {"name": "PS1 Default",     "slug": "ps1-default",   "era": "ps1",   "emulator_slug": "duckstation", "is_bundled": True},
-    {"name": "PS2 Default",     "slug": "ps2-default",   "era": "ps2",   "emulator_slug": "pcsx2",       "is_bundled": True},
-    {"name": "PS3 Default",  "slug": "ps3-default",  "era": "ps3", "emulator_slug": "rpcs3",     "is_bundled": True},
-    {"name": "Xbox OG Default", "slug": "xbox-default",  "era": "xbox",  "emulator_slug": "xemu",        "is_bundled": True},
-    {"name": "xbox 360 Default",  "slug": "xbox-360-default",  "era": "xbox360", "emulator_slug": "xenia",     "is_bundled": True},
-    {"name": "NES Default",     "slug": "nes-default",   "era": "nes",   "emulator_slug": "mesen",       "is_bundled": True},
-    {"name": "SNES Default",    "slug": "snes-default",  "era": "snes",  "emulator_slug": "mesen",       "is_bundled": True},
-    {"name": "N64 Default",        "slug": "n64-default",        "era": "n64",       "emulator_slug": "project64",   "is_bundled": True},
-    {"name": "Dreamcast Default",  "slug": "dreamcast-default",  "era": "dreamcast", "emulator_slug": "flycast",     "is_bundled": True},
+    {"name": "DOS Default",     "slug": "dos-default",   "platform": "dos",   "emulator_slug": "dosbox-x",   "is_bundled": True},
+    {"name": "Win 95 Default",  "slug": "win95-compat",  "platform": "win95", "emulator_slug": "86box",       "is_bundled": True},
+    {"name": "Win 98 Default",  "slug": "win98-compat",  "platform": "win98", "emulator_slug": "86box",       "is_bundled": True},
+    {"name": "Win XP Default",  "slug": "winxp-default", "platform": "winxp", "emulator_slug": "86box",       "is_bundled": True},
+    {"name": "PS1 Default",     "slug": "ps1-default",   "platform": "ps1",   "emulator_slug": "duckstation", "is_bundled": True},
+    {"name": "PS2 Default",     "slug": "ps2-default",   "platform": "ps2",   "emulator_slug": "pcsx2",       "is_bundled": True},
+    {"name": "PS3 Default",  "slug": "ps3-default",  "platform": "ps3", "emulator_slug": "rpcs3",     "is_bundled": True},
+    {"name": "Xbox OG Default", "slug": "xbox-default",  "platform": "xbox",  "emulator_slug": "xemu",        "is_bundled": True},
+    {"name": "xbox 360 Default",  "slug": "xbox-360-default",  "platform": "xbox360", "emulator_slug": "xenia",     "is_bundled": True},
+    {"name": "NES Default",     "slug": "nes-default",   "platform": "nes",   "emulator_slug": "mesen",       "is_bundled": True},
+    {"name": "SNES Default",    "slug": "snes-default",  "platform": "snes",  "emulator_slug": "mesen",       "is_bundled": True},
+    {"name": "N64 Default",        "slug": "n64-default",        "platform": "n64",       "emulator_slug": "project64",   "is_bundled": True},
+    {"name": "Dreamcast Default",  "slug": "dreamcast-default",  "platform": "dreamcast", "emulator_slug": "flycast",     "is_bundled": True},
 ]
 
 
@@ -104,10 +23,10 @@ _DEFAULT_PROFILES = [
 # actually reachable and the frontend "System tags" section renders real
 # API data instead of hardcoded constants. Names and grouping are migrated
 # verbatim from frontend/src/pages/Tags/index.tsx (SYSTEM_HARDWARE_TAGS,
-# SYSTEM_CONTENT_TAGS, and the ERA_LABELS-derived era pills). Era names are
-# pulled from the shared ERA_LABELS constant rather than re-listed here so
+# SYSTEM_CONTENT_TAGS, and the PLATFORM_LABELS-derived platform pills). Platform names are
+# pulled from the shared PLATFORM_LABELS constant rather than re-listed here so
 # they cannot drift from the generated source of truth. Colors are drawn from
-# the TagColor swatch set to preserve the original hardware/content/era visual
+# the TagColor swatch set to preserve the original hardware/content/platform visual
 # grouping (amber/sky/coral); they are not new categories.
 _SYSTEM_HARDWARE_TAG_NAMES = [
     "MT-32",
@@ -136,12 +55,12 @@ def _seed_system_tags(db) -> bool:
     """
     try:
         from backend.models.tag import Tag
-        from backend.constants_generated import ERA_LABELS
+        from backend.constants_generated import PLATFORM_LABELS
 
-        # (name, color) pairs. Era names come from ERA_LABELS so they track the
+        # (name, color) pairs. Platform names come from PLATFORM_LABELS so they track the
         # generated constant; hardware/content are the verbatim frontend labels.
         specs: list[tuple[str, str]] = (
-            [(label, "coral") for label in ERA_LABELS.values()]
+            [(label, "coral") for label in PLATFORM_LABELS.values()]
             + [(name, "amber") for name in _SYSTEM_HARDWARE_TAG_NAMES]
             + [(name, "sky") for name in _SYSTEM_CONTENT_TAG_NAMES]
         )
@@ -157,24 +76,6 @@ def _seed_system_tags(db) -> bool:
     except Exception as exc:
         db.rollback()
         logger.error("System tag seeding failed: %s", exc)
-        return False
-
-
-def _seed_system_environments(db) -> bool:
-    try:
-        from backend.models import EnvironmentItem
-        added = 0
-        for data in _SYSTEM_PLATFORMS:
-            if not db.query(EnvironmentItem).filter(EnvironmentItem.slug == data["slug"]).first():
-                db.add(EnvironmentItem(**data))
-                added += 1
-        if added:
-            db.flush()
-            logger.info("Seeded %d system platform(s)", added)
-        return True
-    except Exception as exc:
-        db.rollback()
-        logger.error("System platform seeding failed: %s", exc)
         return False
 
 
@@ -196,17 +97,17 @@ def _seed_default_profiles(db) -> bool:
         return False
 
 
-# DOS environment. Seeded to provide a Platform record with a
-# linked bundled profile so item launches resolve the right emulator/settings
-# via Platform.profile_item_id. Per-item drives are created lazily by drive_hydration
-# at launch time; no shared working image is mounted by DOSBox-X item launches.
+# DOS environment. Seeded as a normal Environment (is_system False) with a
+# linked bundled profile, so it is listed on the Environments page and in the
+# Environment field like a user-created one. Per-item drives are created
+# lazily by drive_hydration; DOSBox-X item launches mount no shared image.
 _DOSBOX_ENVIRONMENTS = [
-    {"slug": "dos",   "name": "DOS",          "era": "dos",   "profile_slug": "dos-default",   "image_rel": "os/dos/dos.img"},
+    {"slug": "dos",   "name": "DOS",          "platform": "dos",   "profile_slug": "dos-default",   "image_rel": "os/dos/dos.img"},
 ]
 
 
 def _seed_dosbox_environments(db) -> bool:
-    """Seed the DOS environment platform.
+    """Seed the DOS environment.
 
     Must run after _seed_default_profiles so the bundled dos-default
     profile exists to link via profile_item_id. working_image_path is
@@ -233,11 +134,11 @@ def _seed_dosbox_environments(db) -> bool:
             db.add(EnvironmentItem(
                 slug=env["slug"],
                 name=env["name"],
-                era=env["era"],
+                platform=env["platform"],
                 emulator_slug="dosbox-x",
                 profile_item_id=profile.id,
                 working_image_path=image_path,
-                is_system=True,
+                is_system=False,
             ))
             added += 1
         if added:

@@ -92,7 +92,7 @@ def client(mem_db_session, tmp_path, monkeypatch, active_user_box):
 def _game(db, slug, rating, **extra):
     from backend.models.game import GameItemBundle
 
-    extra.setdefault("era", "ps1")
+    extra.setdefault("platform", "ps1")
     game = GameItemBundle(title=f"Game {slug}", slug=slug, content_rating=rating, **extra)
     db.add(game)
     db.commit()
@@ -116,7 +116,7 @@ def _game_leaf(db, game, disc_number=1):
 def _app(db, slug):
     from backend.models.app import AppItemBundle
 
-    app = AppItemBundle(title=f"App {slug}", era="ps1", slug=slug)
+    app = AppItemBundle(title=f"App {slug}", platform="ps1", slug=slug)
     db.add(app)
     db.commit()
     db.refresh(app)
@@ -143,7 +143,7 @@ def _restrict_app(db, user, app):
 def _profile(db, slug="ps1-default"):
     from backend.models.profile import ProfileItem
 
-    profile = ProfileItem(name=f"Profile {slug}", slug=slug, emulator_slug="duckstation", era="ps1")
+    profile = ProfileItem(name=f"Profile {slug}", slug=slug, emulator_slug="duckstation", platform="ps1")
     db.add(profile)
     db.commit()
     db.refresh(profile)
@@ -305,7 +305,7 @@ class TestXisoStatus:
     def test_hidden_matches_missing_and_hides_output_path(self, client, mem_db_session):
         from backend.core import install_registry
 
-        hidden = _game(mem_db_session, "m", "M", era="xbox")
+        hidden = _game(mem_db_session, "m", "M", platform="xbox")
         install_registry.set_status(f"xiso-convert-{hidden.id}", "complete", install_path="/library/secret.iso")
         try:
             hidden_resp = client.get(f"/api/v1/game-item-bundle/{hidden.id}/convert-xiso/status")
@@ -527,7 +527,7 @@ class TestLaunchHistory:
         from backend.models.environment import EnvironmentItem
 
         db = mem_db_session
-        env = EnvironmentItem(name="Win98", slug="win98", era="win98", emulator_slug="86box")
+        env = EnvironmentItem(name="Win98", slug="win98", platform="win98", emulator_slug="86box")
         db.add(env)
         db.commit()
         row = _launch(db, environment_item_id=env.id)
@@ -542,7 +542,7 @@ class TestLaunchHistory:
 
 class TestDrives:
     def _seed(self, db, viewer):
-        visible_game, hidden_game = _game(db, "t", "T", era="dos"), _game(db, "m", "M", era="dos")
+        visible_game, hidden_game = _game(db, "t", "T", platform="dos"), _game(db, "m", "M", platform="dos")
         hidden_app = _app(db, "tool")
         _restrict_app(db, viewer, hidden_app)
         return {

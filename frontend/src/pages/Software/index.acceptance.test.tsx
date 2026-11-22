@@ -55,8 +55,8 @@ describe('Software acceptance', () => {
   it('shows library items then opens the Add Media modal on button click', async () => {
     const user = userEvent.setup();
     const items = [
-      createMockLibraryItem({ id: 1, title: 'Doom', era: 'dos', slug: 'doom' }),
-      createMockLibraryItem({ id: 2, title: 'Ultima VII', era: 'dos', slug: 'ultima-vii' }),
+      createMockLibraryItem({ id: 1, title: 'Doom', platform: 'dos', slug: 'doom' }),
+      createMockLibraryItem({ id: 2, title: 'Ultima VII', platform: 'dos', slug: 'ultima-vii' }),
     ];
     vi.mocked(apiFetch).mockImplementation((url) => {
       if (typeof url === 'string' && url.includes('/api/v1/game-items')) {

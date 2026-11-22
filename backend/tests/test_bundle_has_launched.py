@@ -34,7 +34,7 @@ def db():
 def _bundle(db, slug="doom", **overrides):
     from backend.models.game import GameItem, GameItemBundle
 
-    kwargs = dict(title=slug.title(), file_path=f"/library/games/dos/{slug}", era="dos", slug=slug)
+    kwargs = dict(title=slug.title(), file_path=f"/library/games/dos/{slug}", platform="dos", slug=slug)
     kwargs.update(overrides)
     bundle = GameItemBundle(**kwargs)
     db.add(bundle)
@@ -159,13 +159,13 @@ class TestListReadsAddNoPerBundleQuery:
 
         assert not any("launch_history" in s for s in statements)
 
-    def test_bulk_read_still_computes_era_review_and_era_confirmed(self, db):
+    def test_bulk_read_still_computes_platform_review_and_platform_confirmed(self, db):
         from backend.models.game import game_item_bundles_to_read_bulk
 
-        confirmed = _bundle(db, slug="a", era_confirmed=True)
+        confirmed = _bundle(db, slug="a", platform_confirmed=True)
         unconfirmed = _bundle(db, slug="b")
 
         reads = game_item_bundles_to_read_bulk([confirmed, unconfirmed], db, viewer=_OWNER)
 
-        assert [r.era_review for r in reads] == ["confirmed", "unreviewed"]
-        assert [r.era_confirmed for r in reads] == [True, False]
+        assert [r.platform_review for r in reads] == ["confirmed", "unreviewed"]
+        assert [r.platform_confirmed for r in reads] == [True, False]

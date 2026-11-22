@@ -1,6 +1,6 @@
 import { Button, FormField, Input, Modal, Textarea } from '@/ui';
 import LaunchCommandList from '@/components/LaunchCommandList';
-import { DGVOODOO2_SUPPORTED_ERAS } from '@/generated/constants';
+import { DGVOODOO2_SUPPORTED_PLATFORMS } from '@/generated/constants';
 import type { EmulatorCatalogSlug } from '@/generated/constants';
 import type {
   EmulatorEntry,
@@ -18,7 +18,7 @@ interface ProfileFormProps {
   submitError: string | null;
   submitting: boolean;
   emulators: EmulatorEntry[];
-  eraOptions: Array<{ value: string; label: string }>;
+  platformOptions: Array<{ value: string; label: string }>;
   emulatorOptions: Array<{ value: string; label: string }>;
   setField: <K extends keyof ProfileFormData>(key: K, value: ProfileFormData[K]) => void;
   onSubmit: () => void;
@@ -32,7 +32,7 @@ export function ProfileForm({
   submitError,
   submitting,
   emulators,
-  eraOptions,
+  platformOptions,
   emulatorOptions,
   setField,
   onSubmit,
@@ -104,15 +104,15 @@ export function ProfileForm({
         </select>
       </FormField>
 
-      <FormField label="Era" htmlFor="lp-era" required error={formErrors.era}>
+      <FormField label="Platform" htmlFor="lp-platform" required error={formErrors.platform}>
         <select
-          id="lp-era"
-          value={form.era}
-          onChange={(e) => setField('era', e.target.value)}
+          id="lp-platform"
+          value={form.platform}
+          onChange={(e) => setField('platform', e.target.value)}
           className={SELECT_CLASS}
         >
-          <option value="">— Select era —</option>
-          {eraOptions.map((e) => (
+          <option value="">Select platform</option>
+          {platformOptions.map((e) => (
             <option key={e.value} value={e.value}>
               {e.label}
             </option>
@@ -161,7 +161,7 @@ export function ProfileForm({
         </div>
       </FormField>
 
-      {DGVOODOO2_SUPPORTED_ERAS.includes(form.era) && (
+      {DGVOODOO2_SUPPORTED_PLATFORMS.includes(form.platform) && (
         <FormField
           label="dgVoodoo2 (3D compatibility)"
           htmlFor="lp-dgvoodoo2"

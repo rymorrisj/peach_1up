@@ -1,8 +1,13 @@
 import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
-import { ERA_LABEL, ERA_PLACEHOLDER, ERA_PLACEHOLDER_DEFAULT } from '@/types/era';
+import {
+  PLATFORM_SHORT_LABEL,
+  PLATFORM_PLACEHOLDER,
+  PLATFORM_PLACEHOLDER_DEFAULT,
+} from '@/types/platform';
 import type { EntityBundleBase } from '../types';
-import type { EraReview } from './eraReview';
+import type { PlatformReview } from './platformReview';
+import { CoverImage } from './CoverImage';
 
 // Leaf (per-disc) record within a bundle. Renamed from the former
 // LibrarySetItemData; single-disc games are bundles-of-one.
@@ -27,7 +32,7 @@ export interface GameItemData {
 
 export interface GameItemBundleData extends EntityBundleBase {
   sort_title: string | null;
-  era: string;
+  platform: string;
   category: string | null;
   publisher: string | null;
   developer: string | null;
@@ -58,20 +63,20 @@ export interface GameItemBundleData extends EntityBundleBase {
   verification_status: 'verified' | 'caution' | 'not_in_index' | 'mismatch' | 'unchecked';
   // verification_similarity of whichever leaf's status won the rollup above.
   verification_similarity: number | null;
-  // Backend-computed (not stored) trust signal for era, see _compute_era_review
+  // Backend-computed (not stored) trust signal for platform, see _compute_platform_review
   // in backend/models/game.py. Optional so older cached responses and fixtures
   // without it still type-check.
-  era_review?: EraReview;
-  // The stored flag behind era_review's "confirmed".
-  era_confirmed?: boolean;
+  platform_review?: PlatformReview;
+  // The stored flag behind platform_review's "confirmed".
+  platform_confirmed?: boolean;
   // True when any launch history row exists for the bundle, whatever its
   // outcome. Set on the single-bundle read only, null on list reads.
   has_launched?: boolean | null;
   items: GameItemData[];
 }
 
-// Literal hex tints per era key (lowercase) for chip borders/backgrounds
-const ERA_HEX: Record<string, string> = {
+// Literal hex tints per platform key (lowercase) for chip borders/backgrounds
+const PLATFORM_HEX: Record<string, string> = {
   dos: '#d6a64a',
   win95: '#b6d36b',
   win98: '#6ea8d6',
@@ -85,14 +90,15 @@ const ERA_HEX: Record<string, string> = {
   snes: '#d4a0c0',
 };
 
-function eraHex(era: string) {
-  return ERA_HEX[era] ?? '#6aa9d6';
+function platformHex(platform: string) {
+  return PLATFORM_HEX[platform] ?? '#6aa9d6';
 }
 
 // Full placeholder for the front face when no cover art exists
 function ArtPlaceholder({ bundle }: { bundle: GameItemBundleData }) {
-  const style = ERA_PLACEHOLDER[bundle.era] ?? ERA_PLACEHOLDER_DEFAULT;
-  const label = ERA_LABEL[bundle.era] ?? bundle.era?.toUpperCase() ?? '—';
+  const style = PLATFORM_PLACEHOLDER[bundle.platform] ?? PLATFORM_PLACEHOLDER_DEFAULT;
+  const label =
+    PLATFORM_SHORT_LABEL[bundle.platform] ?? bundle.platform?.toUpperCase() ?? 'UNKNOWN';
   return (
     <div
       className="absolute inset-0 flex flex-col overflow-hidden p-3.5"
@@ -140,9 +146,9 @@ function ArtPlaceholder({ bundle }: { bundle: GameItemBundleData }) {
   );
 }
 
-// Compact era-tinted placeholder for background stack layers
-function MiniPlaceholder({ discNumber, era }: { discNumber: number; era: string }) {
-  const style = ERA_PLACEHOLDER[era] ?? ERA_PLACEHOLDER_DEFAULT;
+// Compact platform-tinted placeholder for background stack layers
+function MiniPlaceholder({ discNumber, platform }: { discNumber: number; platform: string }) {
+  const style = PLATFORM_PLACEHOLDER[platform] ?? PLATFORM_PLACEHOLDER_DEFAULT;
   return (
     <div
       className="absolute inset-0 flex items-end overflow-hidden"
@@ -222,7 +228,7 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
 
   const discCount = bundle.items.length;
   const isMultiDisc = discCount > 1;
-  const chipHex = eraHex(bundle.era);
+  const chipHex = platformHex(bundle.platform);
   // The detail route is slug-only (/software/games/:slug -> GET
   // /api/v1/game-item-bundle/by-slug/{slug}), there is no id-based lookup, so
   // a numeric-id fallback here would always resolve to "Game not found."
@@ -249,16 +255,14 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
               <div
                 className={`${LAYER_BASE} z-[1] translate-x-3 -translate-y-3 group-hover:translate-x-4 group-hover:-translate-y-4`}
               >
-                {layerC.cover_art_url ? (
-                  <img
-                    src={layerC.cover_art_url}
-                    alt={`Disc ${layerC.disc_number}`}
-                    loading="lazy"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <MiniPlaceholder discNumber={layerC.disc_number} era={bundle.era} />
-                )}
+                <CoverImage
+                  src={layerC.cover_art_url}
+                  alt={`Disc ${layerC.disc_number}`}
+                  className="h-full w-full object-contain"
+                  fallback={
+                    <MiniPlaceholder discNumber={layerC.disc_number} platform={bundle.platform} />
+                  }
+                />
                 <div className="absolute inset-0 bg-[rgb(8_10_13/0.55)]" />
               </div>
             )}
@@ -268,16 +272,14 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
               <div
                 className={`${LAYER_BASE} z-[2] translate-x-1.5 -translate-y-1.5 group-hover:translate-x-2 group-hover:-translate-y-2`}
               >
-                {layerB.cover_art_url ? (
-                  <img
-                    src={layerB.cover_art_url}
-                    alt={`Disc ${layerB.disc_number}`}
-                    loading="lazy"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <MiniPlaceholder discNumber={layerB.disc_number} era={bundle.era} />
-                )}
+                <CoverImage
+                  src={layerB.cover_art_url}
+                  alt={`Disc ${layerB.disc_number}`}
+                  className="h-full w-full object-contain"
+                  fallback={
+                    <MiniPlaceholder discNumber={layerB.disc_number} platform={bundle.platform} />
+                  }
+                />
                 <div className="absolute inset-0 bg-[rgb(8_10_13/0.34)]" />
               </div>
             )}
@@ -286,16 +288,12 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
             <div
               className={`${LAYER_BASE} z-[3] group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-md)]`}
             >
-              {displayDisc?.cover_art_url ? (
-                <img
-                  src={displayDisc.cover_art_url}
-                  alt={bundle.title}
-                  loading="lazy"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <ArtPlaceholder bundle={bundle} />
-              )}
+              <CoverImage
+                src={displayDisc?.cover_art_url}
+                alt={bundle.title}
+                className="h-full w-full object-contain"
+                fallback={<ArtPlaceholder bundle={bundle} />}
+              />
 
               {/* Stack count badge, bottom right, only for multi-disc bundles */}
               {isMultiDisc && (
@@ -382,12 +380,12 @@ export function CollectionCard({ bundle, onRemove, onSetDisplayDisk }: Collectio
             {bundle.title}
           </span>
           <div className="flex gap-[5px] overflow-hidden">
-            {bundle.era && bundle.era !== 'unknown' && (
+            {bundle.platform && bundle.platform !== 'unknown' && (
               <span
                 className="inline-flex shrink-0 items-center rounded-[4px] border px-[7px] py-1 font-mono text-[0.65625rem] font-medium leading-none tracking-[0.08em]"
                 style={{ color: chipHex, borderColor: `${chipHex}6a`, background: `${chipHex}1a` }}
               >
-                {ERA_LABEL[bundle.era] ?? bundle.era.toUpperCase()}
+                {PLATFORM_SHORT_LABEL[bundle.platform] ?? bundle.platform.toUpperCase()}
               </span>
             )}
             {isMultiDisc && (

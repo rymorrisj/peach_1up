@@ -8,7 +8,7 @@ export interface ProfileForm {
   name: string;
   slug: string;
   emulator_slug: EmulatorCatalogSlug | '';
-  era: string;
+  platform: string;
   extra_args: string;
   enable_networking: boolean;
   enable_dgvoodoo2: boolean;

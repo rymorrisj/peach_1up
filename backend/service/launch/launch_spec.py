@@ -10,7 +10,7 @@ from backend.constants_generated import EmulatorCatalogSlug
 class LaunchSpec:
     # Dispatch key, matches BackendSlug.value (e.g. "dosbox", "flycast")
     slug: str
-    era: str
+    platform: str
 
     # Emulator catalog slug for history records (e.g. "dosbox-x", not "dosbox")
     emulator_slug: EmulatorCatalogSlug | None = None
@@ -53,19 +53,19 @@ class LaunchSpec:
     drive_image_path: Path | None = None
     drive_size_mb: int | None = None
 
-    # Platform plain fields. working_image_path is the shared, persistent
-    # working image for 86Box-style eras (box86/xemu) and, separately, the
+    # Environment plain fields. working_image_path is the shared, persistent
+    # working image for 86Box-style platforms (box86/xemu) and, separately, the
     # environment-launch persistent C: drive for DOS (dosbox reads it
     # only when media_path is None, see dosbox.write_environment_conf()).
     # For a library-item DOS launch, dosbox instead mounts the
     # per-item drive_image_path as C:, and working_image_path is unset/inert.
-    vm_dir: Path | None = None          # resolved from platform.config_path parent
-    config_path: Path | None = None     # resolved from platform.config_path
+    vm_dir: Path | None = None          # resolved from environment.config_path parent
+    config_path: Path | None = None     # resolved from environment.config_path
     working_image_path: Path | None = None
     base_image_path: Path | None = None
     hardware_profile: str = "standard"
-    platform_name: str | None = None
-    platform_slug: str | None = None
+    environment_name: str | None = None
+    environment_slug: str | None = None
 
     # Pre-resolved by provisioning when a launch triggers it (box86 only) —
     # lets box86.launch skip re-resolving the ROM path it already computed.
@@ -79,7 +79,7 @@ class LaunchSpec:
     # to write the pkg install-completion state back onto the matching
     # GameItemBundle row, the one backend-side use of this field today.
     collection_id: int | None = None
-    platform_id: int | None = None
+    environment_id: int | None = None
     launch_review_flagged: bool = False
 
     # Which table collection_id points into, "game" (game_item_bundles)

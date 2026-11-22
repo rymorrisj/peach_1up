@@ -1,5 +1,5 @@
 slug = "xemu"
-era = "xbox"
+sizing_platform = "xbox"
 display_name = "xemu"
 name = "xemu"
 version = "0.8.134"
@@ -40,7 +40,7 @@ name = "xbox-bios"
 acquire_method = "user_supplied"
 required = true
 display_name = "Xbox BIOS"
-platform = "xbox"
+bios_group = "xbox"
 bios_path = "emulators/xemu/data/default"
 required_files = ["mcpx_1.0.bin"]
 required_glob = "*.bin"
@@ -53,7 +53,7 @@ name = "xbox-hdd"
 acquire_method = "user_supplied"
 required = true
 display_name = "Xbox HDD image"
-platform = "xbox"
+bios_group = "xbox"
 bios_path = "emulators/xemu/data/default"
 required_files = ["xbox_hdd.qcow2"]
 guidance_text = "Required before first launch: place xbox_hdd.qcow2 in emulators/xemu/data/default/. A pre-built blank image is available from the xemu project."
@@ -62,7 +62,7 @@ guidance_url = "https://xemu.app/docs/required-files/"
 [[known_limitations]]
 title = "Memory limit must stay above 2048 MB"
 severity = "warning"
-description = "xemu pre-allocates a 1 GB JIT buffer at startup. The Job Object memory cap is enforced (skip_memory_limit = false) using the xbox era limit, which must stay above 2048 MB or xemu exits immediately with a paging file error."
+description = "xemu pre-allocates a 1 GB JIT buffer at startup. The Job Object memory cap is enforced (skip_memory_limit = false) using the xbox platform limit, which must stay above 2048 MB or xemu exits immediately with a paging file error."
 
 [[known_limitations]]
 title = "CPU rate cap is enforced"

@@ -98,24 +98,24 @@ def _make_job():
 def _patch_backend_router(monkeypatch, dispatch_fn, executable_path="/fake/exe"):
     import backend.service.utils.backend_router as router_mod
     monkeypatch.setattr(router_mod, "dispatch", dispatch_fn)
-    monkeypatch.setattr(router_mod, "get_executable_path", lambda era, slug=None: executable_path)
+    monkeypatch.setattr(router_mod, "get_executable_path", lambda platform, slug=None: executable_path)
 
 
-def _make_profile(db, *, name, emulator_slug, user_item_id, era="ps1"):
+def _make_profile(db, *, name, emulator_slug, user_item_id, platform="ps1"):
     from backend.models.profile import ProfileItem
-    profile = ProfileItem(name=name, slug=name.lower(), emulator_slug=emulator_slug, era=era, user_item_id=user_item_id)
+    profile = ProfileItem(name=name, slug=name.lower(), emulator_slug=emulator_slug, platform=platform, user_item_id=user_item_id)
     db.add(profile)
     db.commit()
     db.refresh(profile)
     return profile
 
 
-def _make_item(db, *, profile, era="ps1"):
+def _make_item(db, *, profile, platform="ps1"):
     # Build a collection-of-one (parent + single leaf) and return the collection,
     # the sole game launch target after the set/item consolidation.
     from backend.models.game import GameItemBundle, GameItem
     collection = GameItemBundle(
-        title=f"Game-{profile.id}", era=era, slug=f"game-{profile.id}", profile_item_id=profile.id
+        title=f"Game-{profile.id}", platform=platform, slug=f"game-{profile.id}", profile_item_id=profile.id
     )
     db.add(collection)
     db.flush()
@@ -129,20 +129,20 @@ def _make_item(db, *, profile, era="ps1"):
     return collection
 
 
-def _make_platform(db, *, profile, era="ps1"):
+def _make_environment(db, *, profile, platform="ps1"):
     from backend.models.environment import EnvironmentItem
-    platform = EnvironmentItem(
+    environment = EnvironmentItem(
         name=f"Plat-{profile.id}",
-        era=era,
+        platform=platform,
         emulator_slug=profile.emulator_slug,
         profile_item_id=profile.id,
         working_image_path=f"/tmp/wp-{profile.id}.img",
         config_path=f"/tmp/cfg-{profile.id}.cfg",
     )
-    db.add(platform)
+    db.add(environment)
     db.commit()
-    db.refresh(platform)
-    return platform
+    db.refresh(environment)
+    return environment
 
 
 class TestResolveProfileForItem:
@@ -197,8 +197,8 @@ class TestSameEmulatorUserDifferentProfileRejected:
 
         profile1 = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_item_id=1)
         profile2 = _make_profile(mem_session, name="P2", emulator_slug="duckstation", user_item_id=1)
-        platform1 = _make_platform(mem_session, profile=profile1)
-        platform2 = _make_platform(mem_session, profile=profile2)
+        environment1 = _make_environment(mem_session, profile=profile1)
+        environment2 = _make_environment(mem_session, profile=profile2)
 
         calls = []
 
@@ -208,13 +208,13 @@ class TestSameEmulatorUserDifferentProfileRejected:
 
         _patch_backend_router(monkeypatch, fake_dispatch)
 
-        result = _run(launch_environment(platform1, None, mem_session))
+        result = _run(launch_environment(environment1, None, mem_session))
         assert result.history_id is not None
         assert len(calls) == 1
 
         # Different profile_id, but same (emulator_slug, user_id) pair.
         with pytest.raises(HTTPException) as exc_info:
-            _run(launch_environment(platform2, None, mem_session))
+            _run(launch_environment(environment2, None, mem_session))
         assert exc_info.value.status_code == 409
         assert len(calls) == 1
 
@@ -228,9 +228,9 @@ class TestDifferentKeysSucceed:
         from backend.service.launch.coordinator import launch_environment
 
         profile1 = _make_profile(mem_session, name="P1", emulator_slug="duckstation", user_item_id=1)
-        profile2 = _make_profile(mem_session, name="P2", emulator_slug="flycast", user_item_id=2, era="dreamcast")
-        platform1 = _make_platform(mem_session, profile=profile1)
-        platform2 = _make_platform(mem_session, profile=profile2, era="dreamcast")
+        profile2 = _make_profile(mem_session, name="P2", emulator_slug="flycast", user_item_id=2, platform="dreamcast")
+        environment1 = _make_environment(mem_session, profile=profile1)
+        environment2 = _make_environment(mem_session, profile=profile2, platform="dreamcast")
 
         calls = []
 
@@ -240,11 +240,11 @@ class TestDifferentKeysSucceed:
 
         _patch_backend_router(monkeypatch, fake_dispatch)
 
-        result1 = _run(launch_environment(platform1, None, mem_session))
+        result1 = _run(launch_environment(environment1, None, mem_session))
         assert result1.history_id is not None
 
         # Different profile_id and different (emulator_slug, user_id) -> must succeed.
-        result2 = _run(launch_environment(platform2, None, mem_session))
+        result2 = _run(launch_environment(environment2, None, mem_session))
         assert result2.history_id is not None
         assert len(calls) == 2
 
@@ -308,8 +308,8 @@ class TestCleanExitZeroNotTreatedAsCrash:
         """Non-zero exit within the same window is unchanged: still a 500."""
         from backend.service.launch.coordinator import launch_collection
 
-        profile = _make_profile(mem_session, name="P2", emulator_slug="flycast", user_item_id=2, era="dreamcast")
-        item = _make_item(mem_session, profile=profile, era="dreamcast")
+        profile = _make_profile(mem_session, name="P2", emulator_slug="flycast", user_item_id=2, platform="dreamcast")
+        item = _make_item(mem_session, profile=profile, platform="dreamcast")
 
         def fake_dispatch(spec):
             return (_make_proc(poll_return=1), _make_job())

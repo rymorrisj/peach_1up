@@ -3,12 +3,12 @@ from typing import Optional
 
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, func
 from sqlmodel import Field, SQLModel
-from backend.constants_generated import EmulatorCatalogSlug, EraValue, HardwareProfile
+from backend.constants_generated import EmulatorCatalogSlug, PlatformValue, HardwareProfile
 
 
 class EnvironmentItemBase(SQLModel):
     name: str
-    era: EraValue = Field(sa_column=Column(String, nullable=False))
+    platform: PlatformValue = Field(sa_column=Column(String, nullable=False))
     emulator_slug: EmulatorCatalogSlug = Field(sa_column=Column(String, nullable=False))
     base_image_path: Optional[str] = None
     working_image_path: Optional[str] = None
@@ -16,13 +16,12 @@ class EnvironmentItemBase(SQLModel):
     notes: Optional[str] = None
     is_system: bool = False
     download_url: Optional[str] = None
-    supported_eras: Optional[str] = None
     default_flags: Optional[str] = None
     # Whether the OS itself has been installed into this Environment (distinct
     # from any software-item-level installed flag, e.g. GameItemBundle.installed
     #, different entity). Already existed as a "Mark as Installed" affordance
     # in EnvironmentCard.tsx before this change; now also read as the
-    # environment_is_installed() launch gate (era_defaults.py) instead of a new
+    # environment_is_installed() launch gate (platform_defaults.py) instead of a new
     # duplicate is_installed boolean. Meaningful for Win9x/WinXP under 86Box;
     # DOS/DOSBox-X environments have no install step and are always treated as
     # installed regardless of this value (see environment_is_installed).
@@ -58,7 +57,7 @@ class EnvironmentItemCreate(EnvironmentItemBase):
 
 class EnvironmentItemUpdate(SQLModel):
     name: Optional[str] = None
-    era: Optional[EraValue] = None
+    platform: Optional[PlatformValue] = None
     emulator_slug: Optional[EmulatorCatalogSlug] = None
     profile_item_id: Optional[int] = None
     base_image_path: Optional[str] = None
@@ -67,7 +66,6 @@ class EnvironmentItemUpdate(SQLModel):
     notes: Optional[str] = None
     slug: Optional[str] = None
     download_url: Optional[str] = None
-    supported_eras: Optional[str] = None
     default_flags: Optional[str] = None
     installed_at: Optional[datetime] = None
     hardware_profile: Optional[HardwareProfile] = None
@@ -88,12 +86,12 @@ class EnvironmentItemRead(EnvironmentItemBase):
     # state needed to actually launch through this Environment exist right
     # now. See compute_environment_presence.
     is_present: bool = False
-    # Populated only by GET /api/v1/environment-items?era=<value>, one of
-    # era_defaults.LaunchBlockedReason's string values, or null when this
-    # Environment is a selectable candidate for that era (or when no era
+    # Populated only by GET /api/v1/environment-items?platform=<value>, one of
+    # platform_defaults.LaunchBlockedReason's string values, or null when this
+    # Environment is a selectable candidate for that platform (or when no platform
     # query param was supplied at all). Same plain-str typing as
     # GameItemBundleRead/AppItemBundleRead's own launch_blocked_reason field,
-    # not the era_defaults.LaunchBlockedReason Literal itself, for the same
+    # not the platform_defaults.LaunchBlockedReason Literal itself, for the same
     # reason those use plain str.
     launch_blocked_reason: Optional[str] = None
 

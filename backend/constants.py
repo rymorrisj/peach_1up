@@ -1,28 +1,40 @@
 """Backend-only constants, hand-authored, not generated.
 
-Imports Era and BackendSlug from the generated module.
+Every PC/console and platform-to-backend set derives from the generated
+module, which is built from config/platforms.yaml.
 """
 
-from backend.constants_generated import Era, EraValue
+from backend.constants_generated import PC_PLATFORMS, PLATFORM_BACKENDS, BackendSlug, Platform, PlatformValue
 
-# Eras that are PC platforms (item_type == "pc") rather than console platforms.
-# Shared by the SoftwareCollection.item_type validator (models/software.py) and
-# the environments install-media route (api/routes/media.py).
-PC_ERAS: frozenset[str] = frozenset({"dos", "win95", "win98", "winxp"})
+__all__ = [
+    "BOX86_PLATFORMS",
+    "DOSBOX_PLATFORMS",
+    "PC_PLATFORMS",
+    "PLATFORM_SELECTED_BY_USER_REASON",
+    "platform_to_enum",
+]
+
+# Platforms served by DOSBox-X (per-item FAT16 C: drive, not a shared working image).
+DOSBOX_PLATFORMS: frozenset[str] = frozenset(
+    p for p, backend in PLATFORM_BACKENDS.items() if backend == BackendSlug.DOSBOX_X.value
+)
+
+# Platforms served by 86Box (shared VHD working image per Environment).
+BOX86_PLATFORMS: frozenset[str] = frozenset(
+    p for p, backend in PLATFORM_BACKENDS.items() if backend == BackendSlug.BOX86.value
+)
 
 # Marker stored in GameItem.detection_reason when a user, not formatscout,
-# chose the bundle's era (at import or via PATCH). It is display text only: it
-# tells the era hint where the era came from. Whether the era is trusted is the
-# stored GameItemBundle.era_confirmed flag, never this text, so no read-model
-# rule compares against it. Writers use this constant, never the raw string.
-ERA_SELECTED_BY_USER_REASON: str = "Selected by user during import"
+# chose the bundle's platform (at import or via PATCH). Display text only:
+# whether the platform is trusted is GameItemBundle.platform_confirmed.
+PLATFORM_SELECTED_BY_USER_REASON: str = "Selected by user during import"
 
 
-def era_to_enum(value: EraValue) -> Era:
-    """Construct the Era enum from a boundary value (DB column / API I/O).
+def platform_to_enum(value: PlatformValue) -> Platform:
+    """Construct the Platform enum from a boundary value (DB column / API I/O).
 
     Use at the edge of internal dispatch code that needs named-member
     access (e.g. backend_router.resolve_backend_name); never store or pass
-    the Enum itself across a DB/API boundary, use EraValue there instead.
+    the Enum itself across a DB/API boundary, use PlatformValue there instead.
     """
-    return Era(value)
+    return Platform(value)

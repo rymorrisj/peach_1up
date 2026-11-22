@@ -16,7 +16,7 @@ const IMPORT_TIMEOUT_MS = 120_000;
 export interface ScanPreviewItem {
   title: string;
   file_path: string;
-  detected_era: string | null;
+  detected_platform: string | null;
   is_loose: boolean;
   is_zip: boolean;
 }
@@ -246,13 +246,13 @@ export function useLibraryScan({ open, onImported }: UseLibraryScanOptions) {
     setImporting(true);
     setError(null);
     let result: ImportResult | null = null;
-    // Backend no longer has a preview cache to read titles/era from, the
-    // client submits {path, title, era} per item, sourced from this hook's own
+    // Backend no longer has a preview cache to read titles/platform from, the
+    // client submits {path, title, platform} per item, sourced from this hook's own
     // (already-fetched) preview list.
     const previewByPath = new Map((status?.preview ?? []).map((p) => [p.file_path, p]));
     const selected = selectedPaths.map((path) => {
       const p = previewByPath.get(path);
-      return { path, title: p?.title ?? path, era: p?.detected_era ?? undefined };
+      return { path, title: p?.title ?? path, platform: p?.detected_platform ?? undefined };
     });
     try {
       result = await apiFetch<ImportResult>('/api/v1/game-items/scan/import', {

@@ -4,12 +4,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError, TimeoutError } from '@/api/client';
 import { LAUNCH_TIMEOUT_MS } from '@/hooks/useLaunch';
 import TopBar from '@/components/layout/TopBar';
-import { ERA_LABELS } from '@/generated/constants';
-import { ERA_COLOR } from '@/types/era';
+import { PLATFORM_LABELS } from '@/generated/constants';
+import { PLATFORM_COLOR } from '@/types/platform';
 import { useToast } from '@/ui/ToastProvider';
 import type { components } from '@shared/types';
 
-type Platform = components['schemas']['EnvironmentItemRead'];
+type Environment = components['schemas']['EnvironmentItemRead'];
 
 type Tab = 'overview' | 'notes';
 
@@ -139,7 +139,7 @@ export default function EnvironmentDetail() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
-    era: '',
+    platform: '',
     emulator_slug: '',
     base_image_path: '',
     working_image_path: '',
@@ -148,34 +148,34 @@ export default function EnvironmentDetail() {
   const [editSaving, setEditSaving] = useState(false);
   const [editSaveError, setEditSaveError] = useState<string | null>(null);
 
-  const { data: platform } = useQuery<Platform>({
-    queryKey: ['platform', id],
-    queryFn: () => apiFetch<Platform>(`/api/v1/environment-items/${id}`),
+  const { data: environment } = useQuery<Environment>({
+    queryKey: ['environment', id],
+    queryFn: () => apiFetch<Environment>(`/api/v1/environment-items/${id}`),
     enabled: !!id,
   });
 
-  // Seeds notes once per platform id, not on every background refetch of the
-  // same platform (e.g. after handleSaveNotes's own invalidateQueries), so
+  // Seeds notes once per environment id, not on every background refetch of the
+  // same environment (e.g. after handleSaveNotes's own invalidateQueries), so
   // the textarea isn't clobbered mid-edit. Adjusted during render (tracking
-  // the previous platform id) rather than in a useEffect: a plain local
-  // setState call, matching the old effect's [platform?.id] deps exactly.
-  const [seededPlatformId, setSeededPlatformId] = useState<number | undefined>(undefined);
-  if (platform && platform.id !== seededPlatformId) {
-    setSeededPlatformId(platform.id);
-    setNotes(platform.notes ?? '');
+  // the previous environment id) rather than in a useEffect: a plain local
+  // setState call, matching the old effect's [environment?.id] deps exactly.
+  const [seededEnvironmentId, setSeededEnvironmentId] = useState<number | undefined>(undefined);
+  if (environment && environment.id !== seededEnvironmentId) {
+    setSeededEnvironmentId(environment.id);
+    setNotes(environment.notes ?? '');
   }
 
   async function handleSaveNotes() {
-    if (!platform) return;
+    if (!environment) return;
     setSaving(true);
     setSaveError(null);
     setSaved(false);
     try {
-      await apiFetch(`/api/v1/environment-items/${platform.id}`, {
+      await apiFetch(`/api/v1/environment-items/${environment.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ notes: notes.trim() || null }),
       });
-      await queryClient.invalidateQueries({ queryKey: ['platforms'] });
+      await queryClient.invalidateQueries({ queryKey: ['environments'] });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -186,14 +186,14 @@ export default function EnvironmentDetail() {
   }
 
   function startEditing() {
-    if (!platform) return;
+    if (!environment) return;
     setEditForm({
-      name: platform.name,
-      era: platform.era,
-      emulator_slug: platform.emulator_slug,
-      base_image_path: platform.base_image_path ?? '',
-      working_image_path: platform.working_image_path ?? '',
-      config_path: platform.config_path ?? '',
+      name: environment.name,
+      platform: environment.platform,
+      emulator_slug: environment.emulator_slug,
+      base_image_path: environment.base_image_path ?? '',
+      working_image_path: environment.working_image_path ?? '',
+      config_path: environment.config_path ?? '',
     });
     setEditSaveError(null);
     setTab('overview');
@@ -201,23 +201,23 @@ export default function EnvironmentDetail() {
   }
 
   async function handleEditSave() {
-    if (!platform) return;
+    if (!environment) return;
     setEditSaving(true);
     setEditSaveError(null);
     try {
-      await apiFetch(`/api/v1/environment-items/${platform.id}`, {
+      await apiFetch(`/api/v1/environment-items/${environment.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           name: editForm.name.trim(),
-          era: editForm.era,
+          platform: editForm.platform,
           emulator_slug: editForm.emulator_slug.trim(),
           base_image_path: editForm.base_image_path.trim() || null,
           working_image_path: editForm.working_image_path.trim() || null,
           config_path: editForm.config_path.trim() || null,
         }),
       });
-      await queryClient.invalidateQueries({ queryKey: ['platforms'] });
-      await queryClient.invalidateQueries({ queryKey: ['platform', id] });
+      await queryClient.invalidateQueries({ queryKey: ['environments'] });
+      await queryClient.invalidateQueries({ queryKey: ['environment', id] });
       setEditing(false);
     } catch (err) {
       setEditSaveError(err instanceof ApiError ? err.detail : 'Save failed.');
@@ -231,10 +231,10 @@ export default function EnvironmentDetail() {
   }
 
   async function handleLaunch() {
-    if (!platform) return;
+    if (!environment) return;
     setLaunching(true);
     try {
-      await apiFetch(`/api/v1/environment-items/${platform.id}/launch`, {
+      await apiFetch(`/api/v1/environment-items/${environment.id}/launch`, {
         method: 'POST',
         timeoutMs: LAUNCH_TIMEOUT_MS,
       });
@@ -251,7 +251,7 @@ export default function EnvironmentDetail() {
     }
   }
 
-  if (!platform) {
+  if (!environment) {
     return (
       <div className="p-6" style={{ color: 'rgb(var(--fg-3))' }}>
         Loading…
@@ -259,12 +259,12 @@ export default function EnvironmentDetail() {
     );
   }
 
-  const eraKey = platform.era.toUpperCase();
-  const eraColor = ERA_COLOR[eraKey] ?? 'rgb(var(--fg-3))';
+  const platformKey = environment.platform.toUpperCase();
+  const platformColor = PLATFORM_COLOR[platformKey] ?? 'rgb(var(--fg-3))';
   // Live presence check, computed fresh on every read (is_present), not a
   // persisted status column, see compute_environment_presence.
-  const statusColor = platform.is_present ? 'rgb(var(--success))' : 'rgb(var(--error))';
-  const statusLabel = platform.is_present ? 'Present' : 'Not present';
+  const statusColor = environment.is_present ? 'rgb(var(--success))' : 'rgb(var(--error))';
+  const statusLabel = environment.is_present ? 'Present' : 'Not present';
   const BTN: React.CSSProperties = {
     border: 'none',
     fontFamily: 'var(--font-display)',
@@ -360,7 +360,7 @@ export default function EnvironmentDetail() {
               color: 'rgb(var(--fg-1))',
             }}
           >
-            {platform.name}
+            {environment.name}
           </h1>
           <span
             style={{
@@ -370,11 +370,11 @@ export default function EnvironmentDetail() {
               letterSpacing: '0.08em',
               padding: '4px 6px',
               borderRadius: 'var(--r-1)',
-              border: `1px solid ${eraColor}`,
-              color: eraColor,
+              border: `1px solid ${platformColor}`,
+              color: platformColor,
             }}
           >
-            {eraKey}
+            {platformKey}
           </span>
         </div>
 
@@ -418,13 +418,13 @@ export default function EnvironmentDetail() {
                         style={INPUT}
                       />
                     </EditRow>
-                    <EditRow label="Era">
+                    <EditRow label="Platform">
                       <select
-                        value={editForm.era}
-                        onChange={(e) => setField('era', e.target.value)}
+                        value={editForm.platform}
+                        onChange={(e) => setField('platform', e.target.value)}
                         style={INPUT}
                       >
-                        {Object.entries(ERA_LABELS).map(([k, v]) => (
+                        {Object.entries(PLATFORM_LABELS).map(([k, v]) => (
                           <option key={k} value={k}>
                             {v}
                           </option>
@@ -477,15 +477,18 @@ export default function EnvironmentDetail() {
                   </>
                 ) : (
                   <>
-                    <ReadRow label="Name" value={platform.name} />
-                    <ReadRow label="Era" value={eraKey} />
-                    <ReadRow label="Emulator backend" value={platform.emulator_slug} />
-                    <ReadRow label="Base image path" value={platform.base_image_path ?? '—'} />
+                    <ReadRow label="Name" value={environment.name} />
+                    <ReadRow label="Platform" value={platformKey} />
+                    <ReadRow label="Emulator backend" value={environment.emulator_slug} />
+                    <ReadRow
+                      label="Base image path"
+                      value={environment.base_image_path ?? 'None'}
+                    />
                     <ReadRow
                       label="Working image path"
-                      value={platform.working_image_path ?? '—'}
+                      value={environment.working_image_path ?? 'None'}
                     />
-                    <ReadRow label="Config path" value={platform.config_path ?? '—'} last />
+                    <ReadRow label="Config path" value={environment.config_path ?? 'None'} last />
                   </>
                 )}
               </div>
@@ -586,11 +589,11 @@ export default function EnvironmentDetail() {
                 </span>
               </div>
               {[
-                { label: 'emulator', value: platform.emulator_slug },
+                { label: 'emulator', value: environment.emulator_slug },
                 {
                   label: 'installed',
-                  value: platform.installed_at
-                    ? new Date(platform.installed_at + 'Z').toLocaleDateString()
+                  value: environment.installed_at
+                    ? new Date(environment.installed_at + 'Z').toLocaleDateString()
                     : 'Not yet',
                 },
               ].map(({ label, value }) => (

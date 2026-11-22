@@ -38,10 +38,10 @@ from backend.service.utils.emulator_catalog import (
     get_install_path,
     resolve_container_enabled,
 )
-from backend.service.utils.file_types import supported_extensions_for_era
+from backend.service.utils.file_types import supported_extensions_for_platform
 from backend.service.utils.ini_writer import set_ini_key
 from backend.service.utils.path_utils import resolve_under
-from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
+from backend.service.utils.host_os.windows.process.launcher import launch_under_job_object
 from wincage import SandboxProcess, WindowsJobObject
 
 logger = get_logger(__name__)
@@ -181,7 +181,7 @@ def _title_id_from_pkg_header(pkg_path: Path) -> str:
 def _write_installed_state(spec: "LaunchSpec", installed: bool, *, reraise: bool = False) -> None:
     """Write pkg install completion back onto the matching GameItemBundle.
 
-    era-gated to "ps3" and source_type "game", the install-completion signal
+    platform-gated to "ps3" and source_type "game", the install-completion signal
     only means something for a PS3 title bundle, and this is the one backend
     that ever calls it. Opens its own session rather than reusing any
     request-scoped one, this can run from the background install-poll thread
@@ -195,7 +195,7 @@ def _write_installed_state(spec: "LaunchSpec", installed: bool, *, reraise: bool
     reraise=True, matching monitor._flag_short_lived_item, since that write
     failing is a genuine background job failure with no launch to protect.
     """
-    if spec.era != "ps3" or spec.source_type != "game" or spec.collection_id is None:
+    if spec.platform != "ps3" or spec.source_type != "game" or spec.collection_id is None:
         return
     from backend.core.database import get_engine
     from backend.models import GameItemBundle
@@ -286,7 +286,7 @@ def _start_pkg_install(
     result = launch_under_job_object(
         executable_path=str(install_path),
         args=["--installpkg", str(pkg_path)],
-        era=spec.era,
+        platform=spec.platform,
         job_name_prefix=job_name_prefix,
         slug="rpcs3",
         cwd=str(install_dir),
@@ -307,7 +307,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch RPCS3 under Job Object isolation.
 
     Args:
-        spec: LaunchSpec with era="ps3" and media_path set to one of: a .iso
+        spec: LaunchSpec with platform="ps3" and media_path set to one of: a .iso
             file, a directory (extracted disc, or an already-installed
             dev_hdd0/game/<TITLE_ID>/ folder), or a .pkg file.
 
@@ -326,12 +326,12 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """
     entry = get_emulator("rpcs3")
     display_name = entry.get("display_name", "rpcs3")
-    # eras.yaml is the single enforced source for launch-time format
+    # platforms.yaml is the single enforced source for launch-time format
     # validation (matches dosbox.py/flycast.py/xemu.py's pattern), not the
     # TOML descriptor's own supported_formats field, which stays display-only
-    # (surfaced by GET /emulators) and is now cross-checked against eras.yaml
+    # (surfaced by GET /emulators) and is now cross-checked against platforms.yaml
     # at startup by EmulatorDescriptor's validator instead of trusted here.
-    supported_formats = frozenset(supported_extensions_for_era("ps3"))
+    supported_formats = frozenset(supported_extensions_for_platform("ps3"))
 
     install_path = get_install_path("rpcs3")
     if install_path is None or not install_path.is_file():
@@ -365,7 +365,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
             license_files = _find_license_files(media_path)
             pkg_target = MediaTarget(
                 kind="file", detect_path=media_path, launch_path=media_path,
-                era="ps3", requires_install=False, license_files=license_files,
+                platform="ps3", requires_install=False, license_files=license_files,
             )
             # Placed before either branch below: RPCS3 scans exdata for
             # licenses at its own next launch, which for an uninstalled title
@@ -398,7 +398,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     return launch_under_job_object(
         executable_path=str(install_path),
         args=args,
-        era=spec.era,
+        platform=spec.platform,
         job_name_prefix=job_name_prefix,
         slug="rpcs3",
         cwd=str(install_dir),

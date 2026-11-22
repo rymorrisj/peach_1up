@@ -143,7 +143,7 @@ class TestDriveImagesCategory:
         image = base / "drive.img"
         image.write_bytes(b"x" * 4096)
 
-        collection = GameItemBundle(title="Game", era="win98", slug="game")
+        collection = GameItemBundle(title="Game", platform="win98", slug="game")
         db.add(collection)
         db.commit()
         db.refresh(collection)

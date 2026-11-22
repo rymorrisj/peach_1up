@@ -1,7 +1,7 @@
 """Unit tests for backend/service/utils/vm/provisioner.py.
 
 Covers _resolve_within's traversal guard, _load_default_disk_size_mb against
-the real eras.yaml (the pattern test_sandbox.py uses for _load_era_limits),
+the real platforms.yaml (the pattern test_sandbox.py uses for _load_platform_limits),
 provision_86box_vm's path structure with the image write stubbed out, and
 provision_dosbox_drive's preconditions.
 """
@@ -46,15 +46,15 @@ class TestResolveWithin:
 # ---------------------------------------------------------------------------
 
 class TestLoadDefaultDiskSizeMb:
-    def test_known_era_returns_real_default_from_eras_yaml(self):
-        """Unpatched, against the shipped config/eras.yaml."""
+    def test_known_platform_returns_real_default_from_platforms_yaml(self):
+        """Unpatched, against the shipped config/platforms.yaml."""
         from backend.service.utils.vm.provisioner import _load_default_disk_size_mb
         assert _load_default_disk_size_mb("win95") == 1024
 
-    def test_unknown_era_raises_file_not_found_naming_the_era(self):
+    def test_unknown_platform_raises_file_not_found_naming_the_platform(self):
         from backend.service.utils.vm.provisioner import _load_default_disk_size_mb
-        with pytest.raises(FileNotFoundError, match="nonexistent_era_xyz"):
-            _load_default_disk_size_mb("nonexistent_era_xyz")
+        with pytest.raises(FileNotFoundError, match="nonexistent_platform_xyz"):
+            _load_default_disk_size_mb("nonexistent_platform_xyz")
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +93,7 @@ class TestProvision86BoxVmPathStructure:
 
         monkeypatch.setattr(provisioner_mod, "get_base_path", lambda: tmp_path)
         monkeypatch.setattr(provisioner_mod, "get_86box_profile", lambda _: _FAKE_PROFILE)
-        monkeypatch.setattr(provisioner_mod, "_load_default_disk_size_mb", lambda era: 1)
+        monkeypatch.setattr(provisioner_mod, "_load_default_disk_size_mb", lambda platform: 1)
 
         footer_calls = []
 
@@ -103,8 +103,8 @@ class TestProvision86BoxVmPathStructure:
 
         monkeypatch.setattr(provisioner_mod, "_build_vhd_footer", _fake_build_vhd_footer)
 
-        platform = types.SimpleNamespace(
-            era="win95",
+        environment = types.SimpleNamespace(
+            platform="win95",
             slug="my-test-env",
             id=42,
             base_image_path=None,
@@ -112,7 +112,7 @@ class TestProvision86BoxVmPathStructure:
         )
 
         iso_path, vhd_path_str, cfg_path_str = provisioner_mod.provision_86box_vm(
-            platform, box86_path="unused", rom_path=str(tmp_path / "roms"), hardware_profile="standard",
+            environment, box86_path="unused", rom_path=str(tmp_path / "roms"), hardware_profile="standard",
         )
 
         expected_vm_dir = (tmp_path / "emulators" / "86box" / "vms" / "my-test-env").resolve()
@@ -132,15 +132,15 @@ class TestProvision86BoxVmPathStructure:
         assert cwd not in vhd_path.parents
         assert cwd not in cfg_path.parents
 
-    def test_unsupported_era_raises_before_any_directory_is_created(self, tmp_path, monkeypatch):
+    def test_unsupported_platform_raises_before_any_directory_is_created(self, tmp_path, monkeypatch):
         import backend.service.utils.vm.provisioner as provisioner_mod
 
         monkeypatch.setattr(provisioner_mod, "get_base_path", lambda: tmp_path)
-        platform = types.SimpleNamespace(era="ps2", slug="my-test-env", id=42)
+        environment = types.SimpleNamespace(platform="ps2", slug="my-test-env", id=42)
 
-        with pytest.raises(ValueError, match="unsupported era 'ps2'"):
+        with pytest.raises(ValueError, match="unsupported platform 'ps2'"):
             provisioner_mod.provision_86box_vm(
-                platform, box86_path="unused", rom_path=str(tmp_path / "roms"),
+                environment, box86_path="unused", rom_path=str(tmp_path / "roms"),
             )
 
         assert not (tmp_path / "emulators").exists()
@@ -166,11 +166,11 @@ class TestProvisionDosboxDrive:
             raise AssertionError("format_fat16 must not touch an existing image")
         monkeypatch.setattr(fat_mod, "format_fat16", _format_should_not_be_called)
 
-        platform = types.SimpleNamespace(
-            era="dos", slug="my-dos-env", id=1, working_image_path=str(existing),
+        environment = types.SimpleNamespace(
+            platform="dos", slug="my-dos-env", id=1, working_image_path=str(existing),
         )
 
-        result = provisioner_mod.provision_dosbox_drive(platform)
+        result = provisioner_mod.provision_dosbox_drive(environment)
 
         assert result == (None, str(existing.resolve()), None, None, None)
         assert existing.read_bytes() == b"\xf8" * 1024
@@ -180,22 +180,22 @@ class TestProvisionDosboxDrive:
         one means seeding is broken; fail loudly rather than inventing a path."""
         import backend.service.utils.vm.provisioner as provisioner_mod
 
-        platform = types.SimpleNamespace(
-            era="dos", slug="my-dos-env", id=1, working_image_path=None,
+        environment = types.SimpleNamespace(
+            platform="dos", slug="my-dos-env", id=1, working_image_path=None,
         )
 
         with pytest.raises(RuntimeError, match="no.*working_image_path"):
-            provisioner_mod.provision_dosbox_drive(platform)
+            provisioner_mod.provision_dosbox_drive(environment)
 
-    def test_unsupported_era_raises(self, tmp_path):
+    def test_unsupported_platform_raises(self, tmp_path):
         import backend.service.utils.vm.provisioner as provisioner_mod
 
-        platform = types.SimpleNamespace(
-            era="win95", slug="my-env", id=1, working_image_path=str(tmp_path / "c.img"),
+        environment = types.SimpleNamespace(
+            platform="win95", slug="my-env", id=1, working_image_path=str(tmp_path / "c.img"),
         )
 
-        with pytest.raises(ValueError, match="unsupported era 'win95'"):
-            provisioner_mod.provision_dosbox_drive(platform)
+        with pytest.raises(ValueError, match="unsupported platform 'win95'"):
+            provisioner_mod.provision_dosbox_drive(environment)
 
 
 # INTEGRATION TEST NEEDED: the VHD write itself is stubbed above

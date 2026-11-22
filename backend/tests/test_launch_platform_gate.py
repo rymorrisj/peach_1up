@@ -1,9 +1,9 @@
-"""Tests for the era guards in service/launch/coordinator.py.
+"""Tests for the platform guards in service/launch/coordinator.py.
 
-A game whose era is still "unknown" is refused with a 422 "platform not set"
-before any profile is resolved, and an era with no emulator backend resolves to
-a 422 instead of a bare ValueError (a 500). Apps keep era "unknown"
-legitimately, so the unknown-era gate never applies to them.
+A game whose platform is still "unknown" is refused with a 422 "platform not set"
+before any profile is resolved, and an platform with no emulator backend resolves to
+a 422 instead of a bare ValueError (a 500). Apps keep platform "unknown"
+legitimately, so the unknown-platform gate never applies to them.
 
 Async calls are driven through asyncio.run(), no pytest-asyncio is configured.
 """
@@ -49,19 +49,19 @@ def _patch_settings(monkeypatch):
     monkeypatch.setattr(settings_mod, "get_settings", lambda: _FakeSettings())
 
 
-def _make_unknown_era_game(db, *, with_profile):
+def _make_unknown_platform_game(db, *, with_profile):
     from backend.models.game import GameItem, GameItemBundle
     from backend.models.profile import ProfileItem
 
     profile_id = None
     if with_profile:
-        profile = ProfileItem(name="PS2 Default", slug="ps2-default", emulator_slug="pcsx2", era="ps2")
+        profile = ProfileItem(name="PS2 Default", slug="ps2-default", emulator_slug="pcsx2", platform="ps2")
         db.add(profile)
         db.commit()
         db.refresh(profile)
         profile_id = profile.id
 
-    bundle = GameItemBundle(title="Ico", era="unknown", slug="ico", profile_item_id=profile_id)
+    bundle = GameItemBundle(title="Ico", platform="unknown", slug="ico", profile_item_id=profile_id)
     db.add(bundle)
     db.flush()
     leaf = GameItem(game_item_bundle_id=bundle.id, disc_number=1, file_path="/tmp/ico.chd")
@@ -74,11 +74,11 @@ def _make_unknown_era_game(db, *, with_profile):
     return bundle, profile_id
 
 
-class TestUnknownEraGameLaunch:
-    def test_unknown_era_game_with_profile_is_422_platform_not_set(self, mem_session):
+class TestUnknownPlatformGameLaunch:
+    def test_unknown_platform_game_with_profile_is_422_platform_not_set(self, mem_session):
         from backend.service.launch.coordinator import launch_collection
 
-        bundle, _ = _make_unknown_era_game(mem_session, with_profile=True)
+        bundle, _ = _make_unknown_platform_game(mem_session, with_profile=True)
 
         with pytest.raises(HTTPException) as exc_info:
             _run(launch_collection(bundle.id, None, mem_session))
@@ -86,10 +86,10 @@ class TestUnknownEraGameLaunch:
         assert exc_info.value.status_code == 422
         assert "Platform not set" in exc_info.value.detail
 
-    def test_unknown_era_game_with_client_chosen_profile_is_still_422(self, mem_session):
+    def test_unknown_platform_game_with_client_chosen_profile_is_still_422(self, mem_session):
         from backend.service.launch.coordinator import launch_collection
 
-        bundle, profile_id = _make_unknown_era_game(mem_session, with_profile=True)
+        bundle, profile_id = _make_unknown_platform_game(mem_session, with_profile=True)
 
         with pytest.raises(HTTPException) as exc_info:
             _run(launch_collection(bundle.id, profile_id, mem_session))
@@ -97,10 +97,10 @@ class TestUnknownEraGameLaunch:
         assert exc_info.value.status_code == 422
         assert "Platform not set" in exc_info.value.detail
 
-    def test_unknown_era_game_without_profile_reports_platform_not_set_first(self, mem_session):
+    def test_unknown_platform_game_without_profile_reports_platform_not_set_first(self, mem_session):
         from backend.service.launch.coordinator import launch_collection
 
-        bundle, _ = _make_unknown_era_game(mem_session, with_profile=False)
+        bundle, _ = _make_unknown_platform_game(mem_session, with_profile=False)
 
         with pytest.raises(HTTPException) as exc_info:
             _run(launch_collection(bundle.id, None, mem_session))
@@ -109,36 +109,36 @@ class TestUnknownEraGameLaunch:
         assert "Platform not set" in exc_info.value.detail
 
 
-class TestRequireKnownEra:
-    def test_game_with_unknown_era_is_refused(self):
-        from backend.service.launch.coordinator import _require_known_era
+class TestRequireKnownPlatform:
+    def test_game_with_unknown_platform_is_refused(self):
+        from backend.service.launch.coordinator import _require_known_platform
 
         with pytest.raises(HTTPException) as exc_info:
-            _require_known_era(SimpleNamespace(source_type="game", era="unknown"))
+            _require_known_platform(SimpleNamespace(source_type="game", platform="unknown"))
 
         assert exc_info.value.status_code == 422
 
-    def test_app_with_unknown_era_is_not_gated(self):
-        from backend.service.launch.coordinator import _require_known_era
+    def test_app_with_unknown_platform_is_not_gated(self):
+        from backend.service.launch.coordinator import _require_known_platform
 
-        _require_known_era(SimpleNamespace(source_type="app", era="unknown"))
+        _require_known_platform(SimpleNamespace(source_type="app", platform="unknown"))
 
-    def test_game_with_known_era_passes(self):
-        from backend.service.launch.coordinator import _require_known_era
+    def test_game_with_known_platform_passes(self):
+        from backend.service.launch.coordinator import _require_known_platform
 
-        _require_known_era(SimpleNamespace(source_type="game", era="ps2"))
+        _require_known_platform(SimpleNamespace(source_type="game", platform="ps2"))
 
 
-class TestBackendSlugForEra:
-    def test_era_without_a_backend_is_422_not_value_error(self):
-        from backend.service.launch.coordinator import _backend_slug_for_era
+class TestBackendSlugForPlatform:
+    def test_platform_without_a_backend_is_422_not_value_error(self):
+        from backend.service.launch.coordinator import _backend_slug_for_platform
 
         with pytest.raises(HTTPException) as exc_info:
-            _backend_slug_for_era("unknown")
+            _backend_slug_for_platform("unknown")
 
         assert exc_info.value.status_code == 422
 
-    def test_known_era_resolves_its_backend(self):
-        from backend.service.launch.coordinator import _backend_slug_for_era
+    def test_known_platform_resolves_its_backend(self):
+        from backend.service.launch.coordinator import _backend_slug_for_platform
 
-        assert _backend_slug_for_era("ps2") == "pcsx2"
+        assert _backend_slug_for_platform("ps2") == "pcsx2"

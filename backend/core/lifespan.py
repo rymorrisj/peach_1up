@@ -13,14 +13,13 @@ from backend.core.startup_migrations import _apply_schema_migrations
 from backend.core.startup_seed import (
     _seed_default_profiles,
     _seed_dosbox_environments,
-    _seed_system_environments,
     _seed_system_tags,
 )
 from backend.core.startup_tasks import (
     _cleanup_stale_sessions,
     _ensure_default_paths,
     _ensure_owner_user,
-    _flag_corrupt_platform_working_paths,
+    _flag_corrupt_environment_working_paths,
     _heal_interrupted_rom_pack_clones,
     _scan_installed_emulators,
     _sweep_upload_tmp,
@@ -55,6 +54,8 @@ async def lifespan(app: FastAPI):
     # (dictConfig on the "uvicorn"/"uvicorn.error"/"uvicorn.access" loggers)
     # runs before lifespan startup and would otherwise overwrite this.
     configure_uvicorn_logging()
+    from backend.service.utils.platforms_config import remove_stale_eras_config
+    remove_stale_eras_config()
     _register_upload_domains()
     _ensure_default_paths()
     from backend.service.utils.settings import validate_configured_paths, get_path_warnings
@@ -83,17 +84,16 @@ async def lifespan(app: FastAPI):
     session_factory = sessionmaker(bind=get_engine())
     with session_factory() as db:
         _sync_first_run_from_db(db)
-        _platforms_seeded = _seed_system_environments(db)
         _profiles_seeded = _seed_default_profiles(db)
         # Must follow profile seeding, links to the bundled dos profile.
         _dosbox_envs_seeded = _seed_dosbox_environments(db)
         _tags_seeded = _seed_system_tags(db)
         _cleanup_stale_sessions(db)
-        _flag_corrupt_platform_working_paths(db)
+        _flag_corrupt_environment_working_paths(db)
         db.commit()
 
-    app.state.seed_warnings = not (_platforms_seeded and _profiles_seeded and _dosbox_envs_seeded and _tags_seeded)
-    if not _platforms_seeded or not _profiles_seeded or not _dosbox_envs_seeded or not _tags_seeded:
+    app.state.seed_warnings = not (_profiles_seeded and _dosbox_envs_seeded and _tags_seeded)
+    if not _profiles_seeded or not _dosbox_envs_seeded or not _tags_seeded:
         raise RuntimeError(
             "Startup aborted: required seed data could not be created, see logs above."
         )
@@ -103,15 +103,15 @@ async def lifespan(app: FastAPI):
     _scan_installed_emulators()
     _sync_detected_emulator_paths()
 
-    from backend.service.utils.platform.windows.app_container import validate_descriptor_grant_surface as _validate_grants
+    from backend.service.utils.host_os.windows.app_container import validate_descriptor_grant_surface as _validate_grants
     _validate_grants()
     logger.info("Startup: descriptor grant surface validated, all path_keys resolvable")
 
     try:
-        from backend.service.utils.emulator_catalog import _get_eras_config as _warm_eras
-        _warm_eras()
+        from backend.service.utils.emulator_catalog import _get_platforms_config as _warm_platforms
+        _warm_platforms()
     except Exception as exc:
-        logger.warning("Failed to preload eras.yaml at startup: %s", exc)
+        logger.warning("Failed to preload platforms.yaml at startup: %s", exc)
 
     _tray_stop_fn = None
     try:

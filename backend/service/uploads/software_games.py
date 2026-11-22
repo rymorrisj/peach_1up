@@ -12,7 +12,7 @@ existing on-disk file) only applies to the "file" and auto-detected "folder"
 kinds, not explicit "set" uploads, see the "set" branch.
 
 Unlike software_media, this domain's finalize creates the GameItemBundle row
-directly, Game ingest (era detection, multi-disc handling, dedup) has always
+directly, Game ingest (platform detection, multi-disc handling, dedup) has always
 worked this way and doc 02 does not change that.
 """
 from __future__ import annotations

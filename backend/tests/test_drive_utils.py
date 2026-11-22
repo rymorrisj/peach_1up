@@ -66,7 +66,7 @@ class TestDeleteDriveForCollection:
         from backend.models.drive import Drive
         from backend.service.utils.drive_utils import delete_drive_for_collection
 
-        collection = GameItemBundle(title="Test Game", era="dos", slug="test-game")
+        collection = GameItemBundle(title="Test Game", platform="dos", slug="test-game")
         mem_session.add(collection)
         mem_session.flush()
 
@@ -86,7 +86,7 @@ class TestDeleteDriveForCollection:
         from backend.models.game import GameItemBundle
         from backend.service.utils.drive_utils import delete_drive_for_collection
 
-        collection = GameItemBundle(title="Test Game", era="dos", slug="test-game")
+        collection = GameItemBundle(title="Test Game", platform="dos", slug="test-game")
         mem_session.add(collection)
         mem_session.commit()
 

@@ -62,7 +62,9 @@ describe('useConfirmToken', () => {
     const { result } = renderHook(() => useConfirmToken());
 
     await act(async () => {
-      await result.current.consume('/api/v1/library/1', 'tok-abc123', { confirmRatingChange: true });
+      await result.current.consume('/api/v1/library/1', 'tok-abc123', {
+        confirmRatingChange: true,
+      });
     });
     expect(mockApiFetch).toHaveBeenLastCalledWith(
       '/api/v1/library/1?confirmation_token=tok-abc123&confirm_rating_change=true',
@@ -70,11 +72,16 @@ describe('useConfirmToken', () => {
     );
 
     await act(async () => {
-      await result.current.consume('/api/v1/library/1', 'tok-abc123', { confirmRatingChange: false });
+      await result.current.consume('/api/v1/library/1', 'tok-abc123', {
+        confirmRatingChange: false,
+      });
     });
-    expect(mockApiFetch).toHaveBeenLastCalledWith('/api/v1/library/1?confirmation_token=tok-abc123', {
-      method: 'DELETE',
-    });
+    expect(mockApiFetch).toHaveBeenLastCalledWith(
+      '/api/v1/library/1?confirmation_token=tok-abc123',
+      {
+        method: 'DELETE',
+      },
+    );
   });
 
   it('consume() sends delete_media only when given, as true or false', async () => {
@@ -84,12 +91,18 @@ describe('useConfirmToken', () => {
     await act(async () => {
       await result.current.consume('/api/v1/library/1', 'tok', { deleteMedia: true });
     });
-    expect(mockApiFetch).toHaveBeenLastCalledWith('/api/v1/library/1?confirmation_token=tok&delete_media=true', {
-      method: 'DELETE',
-    });
+    expect(mockApiFetch).toHaveBeenLastCalledWith(
+      '/api/v1/library/1?confirmation_token=tok&delete_media=true',
+      {
+        method: 'DELETE',
+      },
+    );
 
     await act(async () => {
-      await result.current.consume('/api/v1/library/1', 'tok', { deleteMedia: false, confirmRatingChange: true });
+      await result.current.consume('/api/v1/library/1', 'tok', {
+        deleteMedia: false,
+        confirmRatingChange: true,
+      });
     });
     expect(mockApiFetch).toHaveBeenLastCalledWith(
       '/api/v1/library/1?confirmation_token=tok&confirm_rating_change=true&delete_media=false',

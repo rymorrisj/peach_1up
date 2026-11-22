@@ -11,14 +11,17 @@ import { useConfirm } from '@/hooks/useConfirm';
 import { useConfirmToken } from '@/hooks/useConfirmToken';
 import { useRatingChangeConfirm } from '@/hooks/useRatingChangeConfirm';
 import { useToast } from '@/ui/ToastProvider';
-import { ERA_LABELS } from '@/generated/constants';
+import { PLATFORM_LABELS } from '@/generated/constants';
 import { EntityCard } from '../components/EntityCard';
 import { LibraryModal } from '../components/LibraryModal';
 import type { EntityBundleBase, EntityDomainConfig, Page, TagRead } from '../types';
 
 const PAGE_SIZE = 50;
 
-const ERA_OPTIONS = Object.entries(ERA_LABELS).map(([value, label]) => ({ value, label }));
+const PLATFORM_OPTIONS = Object.entries(PLATFORM_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
 
 interface SoftwarePaths {
   library_path: string | null;
@@ -26,10 +29,10 @@ interface SoftwarePaths {
   media_path: string | null;
 }
 
-// Only 'era' is URL-synced (mirrors Games.tsx's Filters.era ↔ ?era= param);
+// Only 'platform' is URL-synced (mirrors Games.tsx's Filters.platform ↔ ?platform= param);
 // profileFilter, tagFilter, and sort are in-memory only, same as Games.tsx.
 interface ListFilters {
-  era: string;
+  platform: string;
   profileFilter: 'all' | 'assigned' | 'unassigned';
   tagFilter: string;
   sort: string;
@@ -39,7 +42,7 @@ interface EntityListPageProps<TBundle extends EntityBundleBase> {
   config: EntityDomainConfig<TBundle>;
 }
 
-// Generic paginated grid page. Add-content, Scan, the era/profile filter bar,
+// Generic paginated grid page. Add-content, Scan, the platform/profile filter bar,
 // sort control, multi-disc display-disk selection, and the delete-media-override/
 // confirm-token delete flow are all opt-in per domain via config
 // (uploadConfig/scanConfig/filters/sortOptions/multiDisc/deleteConfig
@@ -56,7 +59,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
   const [addOpen, setAddOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [filters, setFilters] = useState<ListFilters>({
-    era: config.filters?.era ? (searchParams.get('era') ?? '') : '',
+    platform: config.filters?.platform ? (searchParams.get('platform') ?? '') : '',
     profileFilter: 'all',
     tagFilter: '',
     sort: '',
@@ -73,17 +76,17 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
   const withRatingChangeConfirm = useRatingChangeConfirm(confirm);
   const { showToast } = useToast();
 
-  // Only re-syncs from the URL for domains that opt into the era filter, so
+  // Only re-syncs from the URL for domains that opt into the platform filter, so
   // this is a no-op (never touches state) for every other domain. Adjusted
   // during render (tracking previous searchParams) rather than in a
   // useEffect: plain local setState calls reacting to the router's own
   // searchParams object, matching the old effect's [searchParams,
-  // config.filters?.era] deps, including firing again (harmlessly, same
+  // config.filters?.platform] deps, including firing again (harmlessly, same
   // values) when this page's own Select already updated both together.
   const [prevSearchParams, setPrevSearchParams] = useState(searchParams);
-  if (config.filters?.era && searchParams !== prevSearchParams) {
+  if (config.filters?.platform && searchParams !== prevSearchParams) {
     setPrevSearchParams(searchParams);
-    setFilters((f) => ({ ...f, era: searchParams.get('era') ?? '' }));
+    setFilters((f) => ({ ...f, platform: searchParams.get('platform') ?? '' }));
     setOffset(0);
   }
 
@@ -92,7 +95,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
   // same request it always did (limit/offset only).
   const listParams = (extra: Record<string, string>) => {
     const params = new URLSearchParams(extra);
-    if (config.filters?.era && filters.era) params.set('era', filters.era);
+    if (config.filters?.platform && filters.platform) params.set('platform', filters.platform);
     if (config.filters?.profileAssigned) {
       if (filters.profileFilter === 'assigned') params.set('profile_assigned', 'true');
       else if (filters.profileFilter === 'unassigned') params.set('profile_assigned', 'false');
@@ -107,7 +110,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
       config.domain,
       'list',
       offset,
-      filters.era,
+      filters.platform,
       filters.profileFilter,
       filters.tagFilter,
       filters.sort,
@@ -236,7 +239,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
   const addButtonLabel = `+ Add ${config.entityLabel}`;
   const hasActiveFilters =
     Boolean(config.filters) &&
-    (filters.era !== '' || filters.profileFilter !== 'all' || filters.tagFilter !== '');
+    (filters.platform !== '' || filters.profileFilter !== 'all' || filters.tagFilter !== '');
 
   // MEDIA_PATH and SOFTWARE_PATH are independently configurable backend
   // settings (see backend/api/routes/settings.py), not one derived from the
@@ -282,21 +285,21 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
           <>
             {config.filters || config.sortOptions ? (
               <div className="mb-6 flex flex-wrap items-center gap-3">
-                {config.filters?.era && (
+                {config.filters?.platform && (
                   <Select
-                    value={filters.era || 'all'}
+                    value={filters.platform || 'all'}
                     onValueChange={(v) => {
                       const val = v === 'all' ? '' : v;
-                      setFilters((f) => ({ ...f, era: val }));
+                      setFilters((f) => ({ ...f, platform: val }));
                       setOffset(0);
                       setSearchParams((p) => {
-                        if (val) p.set('era', val);
-                        else p.delete('era');
+                        if (val) p.set('platform', val);
+                        else p.delete('platform');
                         return p;
                       });
                     }}
                     className="w-auto"
-                    options={[{ value: 'all', label: 'All eras' }, ...ERA_OPTIONS]}
+                    options={[{ value: 'all', label: 'All platforms' }, ...PLATFORM_OPTIONS]}
                   />
                 )}
                 {config.filters?.profileAssigned && (
@@ -336,14 +339,14 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
                     type="button"
                     onClick={() => {
                       setFilters((f) => ({
-                        era: '',
+                        platform: '',
                         profileFilter: 'all',
                         tagFilter: '',
                         sort: f.sort,
                       }));
                       setOffset(0);
                       setSearchParams((p) => {
-                        p.delete('era');
+                        p.delete('platform');
                         return p;
                       });
                     }}

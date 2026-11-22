@@ -8,32 +8,32 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Tuple
 
-from backend.constants_generated import Era
+from backend.constants_generated import Platform
 from backend.service.utils.emulator_catalog import (
     resolve_container_enabled,
     build_media_broker_config,
     validate_bios_from_descriptor,
 )
-from backend.service.utils.file_types import supported_extensions_for_era
+from backend.service.utils.file_types import supported_extensions_for_platform
 from backend.service.utils.ini_writer import set_ini_key
-from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
+from backend.service.utils.host_os.windows.process.launcher import launch_under_job_object
 from wincage import SandboxProcess, WindowsJobObject
 
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
 
-SUPPORTED_ERAS = {Era.DREAMCAST.value}
-# eras.yaml is the same source scan/upload/directory-resolution already use
+SUPPORTED_PLATFORMS = {Platform.DREAMCAST.value}
+# platforms.yaml is the same source scan/upload/directory-resolution already use
 # (file_types.py), rather than the separate constants.py dict this backend
 # used to read its own launch-time check from.
-SUPPORTED_MEDIA = frozenset(supported_extensions_for_era(Era.DREAMCAST.value))
+SUPPORTED_MEDIA = frozenset(supported_extensions_for_platform(Platform.DREAMCAST.value))
 
 
 def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch Flycast with the given Dreamcast media under Job Object isolation.
 
     Args:
-        spec: LaunchSpec with slug, era, media_path, executable_path set.
+        spec: LaunchSpec with slug, platform, media_path, executable_path set.
             enable_networking gates Dreamcast/NAOMI netplay: when False the
             emu.cfg [network] Enable and GGPO keys are forced to ``no``; when
             True the emulator default is used.
@@ -43,13 +43,13 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     Raises:
         FileNotFoundError: If the executable or media path does not exist.
-        ValueError: If the era or media format is unsupported.
+        ValueError: If the platform or media format is unsupported.
         FileNotFoundError: If BIOS directory declared in flycast.toml is absent or empty.
     """
-    if spec.era not in SUPPORTED_ERAS:
+    if spec.platform not in SUPPORTED_PLATFORMS:
         raise ValueError(
-            f"Flycast backend does not support era '{spec.era}'. "
-            f"Supported: {', '.join(sorted(SUPPORTED_ERAS))}"
+            f"Flycast backend does not support platform '{spec.platform}'. "
+            f"Supported: {', '.join(sorted(SUPPORTED_PLATFORMS))}"
         )
 
     if not spec.executable_path or not Path(spec.executable_path).exists():
@@ -75,7 +75,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         set_ini_key(emu_cfg, "network", "GGPO", "no")
 
     args: list[str] = [str(spec.media_path.resolve())]
-    job_name_prefix = f"Peach1UP_flycast_{spec.era}_{spec.media_path.stem}"
+    job_name_prefix = f"Peach1UP_flycast_{spec.platform}_{spec.media_path.stem}"
 
     container_enabled = resolve_container_enabled("flycast", spec.container_enabled)
     sandbox_config = build_media_broker_config(
@@ -84,7 +84,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     return launch_under_job_object(
         executable_path=spec.executable_path,
         args=args,
-        era=spec.era,
+        platform=spec.platform,
         job_name_prefix=job_name_prefix,
         slug="flycast",
         cwd=str(Path(spec.executable_path).parent),

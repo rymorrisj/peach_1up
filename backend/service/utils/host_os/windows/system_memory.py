@@ -1,12 +1,12 @@
 """Win32 system memory query.
 
-Single purpose: get_total_physical_memory_mb() backs eras_config.py's
+Single purpose: get_total_physical_memory_mb() backs platforms_config.py's
 hardcoded memory_limit_mb sanity ceiling (75% of real system RAM). Mirrors
 wincage's ctypes interop style (explicit Structure, declared argtypes and
 restype) rather than an undeclared call, since the result feeds a resource
 safety ceiling, not a display value.
 
-Module import is safe on any platform, ctypes and ctypes.wintypes carry no
+Module import is safe on any OS, ctypes and ctypes.wintypes carry no
 Windows-only attributes at import time. Only get_total_physical_memory_mb()
 touches ctypes.windll, which exists on Windows only, so the failure is
 deferred to call time, matching the rest of this project's Windows-only

@@ -8,7 +8,7 @@ from formatscout.result import Method, ScanResult
 
 
 def make_scan(
-    era: str | None,
+    platform: str | None,
     *,
     reason: str = "test reason",
     confidence: float = 0.5,
@@ -19,6 +19,14 @@ def make_scan(
     """Build a real ScanResult. ScanResult itself rejects contradictory
     combinations (for example authoritative=True with era=None)."""
     return ScanResult(
-        title=None, platform=None, era=era, confidence=confidence, reason=reason,
+        title=None, platform=None, era=platform, confidence=confidence, reason=reason,
         requires_install=requires_install, method=method, authoritative=authoritative,
     )
+
+
+def make_detection(platform: str | None, **kwargs):
+    """make_scan() passed through the formatscout boundary adapter, the shape
+    peach_1up's ingest code receives."""
+    from backend.service.utils.detection.formatscout_adapter import from_scan_result
+
+    return from_scan_result(make_scan(platform, **kwargs))

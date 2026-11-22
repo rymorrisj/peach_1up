@@ -1,5 +1,5 @@
 """Generate backend/constants_generated.py and frontend/src/generated/constants.ts
-from config/constants.yaml. Also writes the repo-root VERSION file and syncs the
+from config/constants.yaml and config/platforms.yaml. Also writes the repo-root VERSION file and syncs the
 "version" field of frontend/package.json and docs/package.json to app_version.
 
 Run from the project root:
@@ -16,6 +16,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "config" / "constants.yaml"
+PLATFORMS_CONFIG = ROOT / "config" / "platforms.yaml"
 EMULATORS_DIR = ROOT / "config" / "emulators"
 PY_OUT = ROOT / "backend" / "constants_generated.py"
 TS_OUT = ROOT / "frontend" / "src" / "generated" / "constants.ts"
@@ -23,8 +24,8 @@ VERSION_OUT = ROOT / "VERSION"
 FRONTEND_PKG = ROOT / "frontend" / "package.json"
 DOCS_PKG = ROOT / "docs" / "package.json"
 
-HEADER_PY = "# Auto-generated from config/constants.yaml, do not edit.\n"
-HEADER_TS = "// Auto-generated from config/constants.yaml, do not edit.\n"
+HEADER_PY = "# Auto-generated from config/constants.yaml and config/platforms.yaml, do not edit.\n"
+HEADER_TS = "// Auto-generated from config/constants.yaml and config/platforms.yaml, do not edit.\n"
 
 
 _SLUG_TO_ENUM: dict[str, str] = {
@@ -73,20 +74,46 @@ def discover_catalog_slugs() -> list[str]:
     return slugs
 
 
-def generate_python(data: dict, catalog_slugs: list[str]) -> str:
+def load_platforms(data: dict) -> dict[str, dict]:
+    """Read config/platforms.yaml and validate it against constants.yaml.
+
+    Every labelled platform except "unknown" needs a block with a valid kind
+    and a known backend, and every block needs a label.
+    """
+    with PLATFORMS_CONFIG.open("r", encoding="utf-8") as fh:
+        raw = yaml.safe_load(fh) or {}
+    blocks = {k: v for k, v in raw.items() if isinstance(v, dict)}
+    labels: dict[str, str] = data["platforms"]
+    kinds = set(data["item_types"])
+    backends = set(data["backend_slugs"])
+    expected = [p for p in labels if p != "unknown"]
+    missing = sorted(set(expected) - set(blocks))
+    extra = sorted(set(blocks) - set(expected))
+    if missing or extra:
+        raise RuntimeError(
+            f"platforms.yaml and constants.yaml platforms disagree: missing={missing} extra={extra}"
+        )
+    for platform_id, block in blocks.items():
+        if block.get("kind") not in kinds:
+            raise RuntimeError(f"platforms.yaml: '{platform_id}' kind must be one of {sorted(kinds)}")
+        if block.get("backend") not in backends:
+            raise RuntimeError(f"platforms.yaml: '{platform_id}' backend must be one of {sorted(backends)}")
+    return {p: blocks[p] for p in expected}
+
+
+def generate_python(data: dict, catalog_slugs: list[str], platform_blocks: dict[str, dict]) -> str:
     app_version: str = data["app_version"]
-    eras: dict[str, str] = data["eras"]
+    platforms: dict[str, str] = data["platforms"]
     backends: dict[str, str] = data["backend_slugs"]
     system_labels: dict[str, str] = data["backend_system_labels"]
     ratings: list[dict[str, str]] = data["content_ratings"]
-    dgvoodoo2_eras: list[str] = data.get("dgvoodoo2_supported_eras", [])
     file_types: dict[str, str] = data["file_types"]
     hardware_profiles: dict[str, str] = data["hardware_profiles"]
     tag_colors: list[dict[str, str]] = data["tag_colors"]
     install_types: list[str] = data["install_types"]
     item_types: list[str] = data["item_types"]
     media_kinds: list[str] = data["media_kinds"]
-    era_backends: dict[str, str] = data["era_backends"]
+    dgvoodoo2_platforms = [p for p, b in platform_blocks.items() if b.get("dgvoodoo2_supported")]
 
     lines: list[str] = [HEADER_PY, "from enum import Enum\n", "from typing import Literal\n\n\n"]
 
@@ -94,15 +121,15 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     # frontend/package.json, docs/package.json, and installer/peach1up.nsi (via build.bat).
     lines.append(f'APP_VERSION = "{app_version}"\n\n\n')
 
-    # Era enum
-    lines.append("class Era(Enum):\n")
-    for slug in eras:
+    # Platform enum
+    lines.append("class Platform(Enum):\n")
+    for slug in platforms:
         lines.append(f'    {_enum_name(slug)} = "{slug}"\n')
     lines.append("\n\n")
 
-    # EraValue literal, boundary type (DB columns, API I/O); Era enum above is
-    # for internal named-member dispatch only, see era_to_enum().
-    lines.append(_py_literal_type("EraValue", list(eras)))
+    # PlatformValue literal, boundary type (DB columns, API I/O); Platform enum
+    # above is for internal named-member dispatch only, see platform_to_enum().
+    lines.append(_py_literal_type("PlatformValue", list(platforms)))
     lines.append("\n")
 
     # BackendSlug enum
@@ -111,9 +138,9 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
         lines.append(f'    {_enum_name(slug)} = "{slug}"\n')
     lines.append("\n\n")
 
-    # ERA_LABELS
-    lines.append("ERA_LABELS: dict[str, str] = {\n")
-    for slug, label in eras.items():
+    # PLATFORM_LABELS
+    lines.append("PLATFORM_LABELS: dict[str, str] = {\n")
+    for slug, label in platforms.items():
         lines.append(f'    "{slug}": "{label}",\n')
     lines.append("}\n\n")
 
@@ -137,10 +164,10 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
         )
     lines.append("]\n\n")
 
-    # DGVOODOO2_SUPPORTED_ERAS
-    lines.append("DGVOODOO2_SUPPORTED_ERAS: list[str] = [\n")
-    for era in dgvoodoo2_eras:
-        lines.append(f'    "{era}",\n')
+    # DGVOODOO2_SUPPORTED_PLATFORMS
+    lines.append("DGVOODOO2_SUPPORTED_PLATFORMS: list[str] = [\n")
+    for platform_id in dgvoodoo2_platforms:
+        lines.append(f'    "{platform_id}",\n')
     lines.append("]\n\n")
 
     # FileType literal
@@ -179,29 +206,34 @@ def generate_python(data: dict, catalog_slugs: list[str]) -> str:
     lines.append(_py_literal_type("MediaKind", list(media_kinds)))
     lines.append("\n")
 
-    # ERA_BACKENDS
-    lines.append("ERA_BACKENDS: dict[str, str] = {\n")
-    for era, backend in era_backends.items():
-        lines.append(f'    "{era}": "{backend}",\n')
-    lines.append("}\n")
+    # PLATFORM_BACKENDS, PLATFORM_KINDS, PC_PLATFORMS (from platforms.yaml)
+    lines.append("PLATFORM_BACKENDS: dict[str, str] = {\n")
+    for platform_id, block in platform_blocks.items():
+        lines.append(f'    "{platform_id}": "{block["backend"]}",\n')
+    lines.append("}\n\n")
+    lines.append("PLATFORM_KINDS: dict[str, str] = {\n")
+    for platform_id, block in platform_blocks.items():
+        lines.append(f'    "{platform_id}": "{block["kind"]}",\n')
+    lines.append("}\n\n")
+    pc = ", ".join(f'"{p}"' for p, b in platform_blocks.items() if b["kind"] == "pc")
+    lines.append(f"PC_PLATFORMS: frozenset[str] = frozenset({{{pc}}})\n")
 
     return "".join(lines)
 
 
-def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
+def generate_typescript(data: dict, catalog_slugs: list[str], platform_blocks: dict[str, dict]) -> str:
     app_version: str = data["app_version"]
-    eras: dict[str, str] = data["eras"]
+    platforms: dict[str, str] = data["platforms"]
     backends: dict[str, str] = data["backend_slugs"]
     system_labels: dict[str, str] = data["backend_system_labels"]
     ratings: list[dict[str, str]] = data["content_ratings"]
-    dgvoodoo2_eras: list[str] = data.get("dgvoodoo2_supported_eras", [])
     file_types: dict[str, str] = data["file_types"]
     hardware_profiles: dict[str, str] = data["hardware_profiles"]
     tag_colors: list[dict[str, str]] = data["tag_colors"]
     install_types: list[str] = data["install_types"]
     item_types: list[str] = data["item_types"]
     media_kinds: list[str] = data["media_kinds"]
-    era_backends: dict[str, str] = data["era_backends"]
+    dgvoodoo2_platforms = [p for p, b in platform_blocks.items() if b.get("dgvoodoo2_supported")]
 
     lines: list[str] = [HEADER_TS, "\n"]
 
@@ -209,13 +241,13 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     # frontend/package.json, docs/package.json, and installer/peach1up.nsi (via build.bat).
     lines.append(f'export const APP_VERSION = "{app_version}"\n\n')
 
-    # Era union
-    lines.append(_ts_union_type("Era", list(eras)))
+    # Platform union
+    lines.append(_ts_union_type("Platform", list(platforms)))
     lines.append("\n")
 
-    # ERA_LABELS
-    lines.append("export const ERA_LABELS: Record<string, string> = {\n")
-    for slug, label in eras.items():
+    # PLATFORM_LABELS
+    lines.append("export const PLATFORM_LABELS: Record<string, string> = {\n")
+    for slug, label in platforms.items():
         key = f'"{slug}"' if not slug.isidentifier() else slug
         lines.append(f'  {key}: "{label}",\n')
     lines.append("}\n\n")
@@ -255,9 +287,9 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
         )
     lines.append("]\n\n")
 
-    # DGVOODOO2_SUPPORTED_ERAS
-    eras_ts = ", ".join(f'"{e}"' for e in dgvoodoo2_eras)
-    lines.append(f"export const DGVOODOO2_SUPPORTED_ERAS: string[] = [{eras_ts}]\n\n")
+    # DGVOODOO2_SUPPORTED_PLATFORMS
+    dgvoodoo2_ts = ", ".join(f'"{p}"' for p in dgvoodoo2_platforms)
+    lines.append(f"export const DGVOODOO2_SUPPORTED_PLATFORMS: string[] = [{dgvoodoo2_ts}]\n\n")
 
     # FileType union
     lines.append(_ts_union_type("FileType", list(file_types)))
@@ -301,12 +333,19 @@ def generate_typescript(data: dict, catalog_slugs: list[str]) -> str:
     lines.append(_ts_union_type("MediaKind", list(media_kinds)))
     lines.append("\n")
 
-    # ERA_BACKENDS
-    lines.append("export const ERA_BACKENDS: Record<string, string> = {\n")
-    for era, backend in era_backends.items():
-        key = f'"{era}"' if not era.isidentifier() else era
-        lines.append(f'  {key}: "{backend}",\n')
-    lines.append("}\n")
+    # PLATFORM_BACKENDS, PLATFORM_KINDS, PC_PLATFORMS (from platforms.yaml)
+    lines.append("export const PLATFORM_BACKENDS: Record<string, string> = {\n")
+    for platform_id, block in platform_blocks.items():
+        key = f'"{platform_id}"' if not platform_id.isidentifier() else platform_id
+        lines.append(f'  {key}: "{block["backend"]}",\n')
+    lines.append("}\n\n")
+    lines.append("export const PLATFORM_KINDS: Record<string, ItemType> = {\n")
+    for platform_id, block in platform_blocks.items():
+        key = f'"{platform_id}"' if not platform_id.isidentifier() else platform_id
+        lines.append(f'  {key}: "{block["kind"]}",\n')
+    lines.append("}\n\n")
+    pc_ts = ", ".join(f'"{p}"' for p, b in platform_blocks.items() if b["kind"] == "pc")
+    lines.append(f"export const PC_PLATFORMS: string[] = [{pc_ts}]\n")
 
     return "".join(lines)
 
@@ -331,9 +370,10 @@ def main() -> None:
 
     app_version: str = data["app_version"]
     catalog_slugs = discover_catalog_slugs()
+    platform_blocks = load_platforms(data)
 
-    py_src = generate_python(data, catalog_slugs)
-    ts_src = generate_typescript(data, catalog_slugs)
+    py_src = generate_python(data, catalog_slugs, platform_blocks)
+    ts_src = generate_typescript(data, catalog_slugs, platform_blocks)
 
     PY_OUT.write_text(py_src, encoding="utf-8")
     print(f"wrote {PY_OUT.relative_to(ROOT)}")

@@ -41,8 +41,8 @@ def list_drives(_: UserItem = Depends(require_game_or_environment_editor)):
 
 @router.get("/launch-file-extensions", response_model=SupportedExtensionsResult)
 def launch_file_extensions(_: UserItem = Depends(require_game_or_environment_editor)):
-    """Return every launchable media extension (dot-stripped) across all eras in
-    eras.yaml, the same source of truth used server-side to validate uploaded
+    """Return every launchable media extension (dot-stripped) across all platforms in
+    platforms.yaml, the same source of truth used server-side to validate uploaded
     and scanned launch files, so browse-dialog filtering never drifts from it.
     """
     return {"extensions": sorted(ext.lstrip(".") for ext in all_supported_extensions())}

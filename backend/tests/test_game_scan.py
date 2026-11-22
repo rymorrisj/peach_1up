@@ -58,7 +58,7 @@ class TestSlugCollision:
         from backend.models.game import GameItemBundle
         from backend.service.utils.slug_generator import generate_collection_slug
 
-        existing = GameItemBundle(title="Doom", era="dos", slug="doom")
+        existing = GameItemBundle(title="Doom", platform="dos", slug="doom")
         mem_session.add(existing)
         mem_session.commit()
 
@@ -70,14 +70,14 @@ class TestSlugCollision:
         from backend.models.game import GameItemBundle
         from backend.service.utils.slug_generator import generate_collection_slug
 
-        existing = GameItemBundle(title="Doom", era="dos", slug="doom")
+        existing = GameItemBundle(title="Doom", platform="dos", slug="doom")
         mem_session.add(existing)
         mem_session.commit()
         mem_session.refresh(existing)
         existing_id = existing.id
 
         new_slug = generate_collection_slug("Doom", mem_session)
-        new_item = GameItemBundle(title="Doom", era="dos", slug=new_slug)
+        new_item = GameItemBundle(title="Doom", platform="dos", slug=new_slug)
         mem_session.add(new_item)
         mem_session.commit()
 

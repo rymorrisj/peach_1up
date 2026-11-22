@@ -68,10 +68,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                       <Route path="/system" element={<System />}>
                         {systemTabRoutes}
                       </Route>
-                      <Route
-                        path="/platform-health"
-                        element={<Navigate to="/system/health" replace />}
-                      />
                       <Route path="/tags" element={<Tags />} />
                     </Route>
                   </Route>

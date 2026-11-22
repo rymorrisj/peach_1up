@@ -39,7 +39,7 @@ def resolve_xex_target(folder: Path) -> MediaTarget | None:
         return None
     return MediaTarget(
         kind="xex_folder", detect_path=xex, launch_path=xex,
-        era="xbox360", requires_install=False, license_files=(),
+        platform="xbox360", requires_install=False, license_files=(),
     )
 
 

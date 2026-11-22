@@ -24,10 +24,16 @@ export function useConfirmToken() {
     return confirmation_token;
   }
 
-  async function consume(deleteUrl: string, token: string, options: ConsumeOptions = {}): Promise<void> {
+  async function consume(
+    deleteUrl: string,
+    token: string,
+    options: ConsumeOptions = {},
+  ): Promise<void> {
     const confirmParam = options.confirmRatingChange ? '&confirm_rating_change=true' : '';
     const deleteMediaParam =
-      options.deleteMedia === undefined ? '' : `&delete_media=${options.deleteMedia ? 'true' : 'false'}`;
+      options.deleteMedia === undefined
+        ? ''
+        : `&delete_media=${options.deleteMedia ? 'true' : 'false'}`;
     await apiFetch(
       `${deleteUrl}?confirmation_token=${encodeURIComponent(token)}${confirmParam}${deleteMediaParam}`,
       {

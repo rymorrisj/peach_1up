@@ -79,12 +79,12 @@ def create_drive_for_collection(
     """
     from backend.models.app import AppItemBundle
     from backend.models.drive import Drive
-    from formatscout import detect as _smart_detect
+    from backend.service.utils.detection.formatscout_adapter import detect_media
 
     media_src = Path(launch_leaf.executable_path if launch_leaf.executable_path else launch_leaf.file_path)
 
     if not launch_leaf.file_type:
-        _scan = _smart_detect(media_src)
+        _scan = detect_media(media_src)
         media_type = file_type_from_path(media_src)
         launch_leaf.file_type = media_type
         collection.requires_install = _scan.requires_install

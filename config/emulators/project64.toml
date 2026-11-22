@@ -1,5 +1,5 @@
 slug = "project64"
-era = "n64"
+sizing_platform = "n64"
 display_name = "Project64"
 name = "Project64"
 version = "3.0.1"

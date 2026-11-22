@@ -5,11 +5,11 @@
 - POST /api/v1/game-items/uploads/{init,chunks,complete}, chunked software-media
   upload, chains into upload_finalize._ingest_media_entry et al.
 - POST /api/v1/media-items/upload, generic Media-archive upload (doc 03): stages
-  bytes under MEDIA_PATH only, no era/media_type, creating the MediaItem row
+  bytes under MEDIA_PATH only, no platform/media_type, creating the MediaItem row
   is a separate call.
 - POST /api/v1/environment-items/{slug}/install-media, OS install-media upload
   (doc 04): the old media_type='os' logic, relocated and now slug-scoped with
-  era read from the Environment record instead of trusted form input.
+  platform read from the Environment record instead of trusted form input.
 """
 
 from pathlib import Path
@@ -445,7 +445,7 @@ class TestSoftwareUploadRoute:
 # ---------------------------------------------------------------------------
 # POST /api/v1/media-items/upload, generic Media-archive upload (doc 03).
 #
-# Repurposed from the old OS-image-only route: no era/media_type form fields
+# Repurposed from the old OS-image-only route: no platform/media_type form fields
 # anymore, gated on can_manage_media, and stages bytes under MEDIA_PATH only —
 # it never creates a MediaItem row itself (a separate POST /api/v1/media-items call
 # with the returned path does that; see media.py's module comment).
@@ -571,8 +571,8 @@ class TestMediaArchiveUploadRoute:
 # ---------------------------------------------------------------------------
 # POST /api/v1/environment-items/{slug}/install-media, OS install-media upload
 # (doc 04). This is where the old media_type='os' logic actually moved to:
-# slug-scoped to a real Environment row, era read from that row (not trusted
-# form input), gated on can_manage_environment, PC-era validated.
+# slug-scoped to a real Environment row, platform read from that row (not trusted
+# form input), gated on can_manage_environment, PC-platform validated.
 # ---------------------------------------------------------------------------
 
 class TestEnvironmentInstallMediaRoute:
@@ -605,7 +605,7 @@ class TestEnvironmentInstallMediaRoute:
     @staticmethod
     def _make_environment(db, **overrides):
         from backend.models.environment import EnvironmentItem
-        kwargs = dict(name="Win98 Box", era="win98", emulator_slug="86box", slug="win98-box")
+        kwargs = dict(name="Win98 Box", platform="win98", emulator_slug="86box", slug="win98-box")
         kwargs.update(overrides)
         environment = EnvironmentItem(**kwargs)
         db.add(environment)
@@ -621,15 +621,15 @@ class TestEnvironmentInstallMediaRoute:
         )
         assert resp.status_code == 404
 
-    def test_non_pc_era_environment_rejected(self, client):
+    def test_non_pc_platform_environment_rejected(self, client):
         c, _, db = client
-        self._make_environment(db, era="ps1", emulator_slug="duckstation", slug="ps1-box")
+        self._make_environment(db, platform="ps1", emulator_slug="duckstation", slug="ps1-box")
         resp = c.post(
             "/api/v1/environment-items/ps1-box/install-media",
             files={"file": ("game.iso", b"data", "application/octet-stream")},
         )
         assert resp.status_code == 422
-        assert "PC-era" in resp.json()["detail"]
+        assert "requires a PC environment" in resp.json()["detail"]
 
     def test_missing_filename_is_422(self, client):
         c, _, db = client
@@ -640,7 +640,7 @@ class TestEnvironmentInstallMediaRoute:
         )
         assert resp.status_code == 422
 
-    def test_successful_install_media_upload_is_scoped_under_environment_era(self, client):
+    def test_successful_install_media_upload_is_scoped_under_environment_platform(self, client):
         c, os_path, db = client
         self._make_environment(db)
         resp = c.post(

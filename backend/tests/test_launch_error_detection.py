@@ -229,10 +229,10 @@ class TestItemLaunchScopeNotSlugList:
     def test_coordinator_uses_resolve_backend_name(self):
         """Backend selection is dynamic via resolve_backend_name in the coordinator."""
         import backend.service.launch.coordinator as coord
-        # _build_spec_for_entity goes through _backend_slug_for_era, which wraps
-        # resolve_backend_name so an unresolvable era is a 422, not a 500.
-        assert "_backend_slug_for_era" in inspect.getsource(coord._build_spec_for_entity)
-        assert "resolve_backend_name" in inspect.getsource(coord._backend_slug_for_era)
+        # _build_spec_for_entity goes through _backend_slug_for_platform, which wraps
+        # resolve_backend_name so an unresolvable platform is a 422, not a 500.
+        assert "_backend_slug_for_platform" in inspect.getsource(coord._build_spec_for_entity)
+        assert "resolve_backend_name" in inspect.getsource(coord._backend_slug_for_platform)
 
 
 # ---------------------------------------------------------------------------

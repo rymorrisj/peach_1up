@@ -1,16 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/api/client';
 
-interface UseConfirmEraOptions {
+interface UseConfirmPlatformOptions {
   collectionId: number | undefined;
   detailQueryKey: unknown[];
 }
 
-// The "Confirm platform" action: PATCHes era_confirmed true and nothing else,
+// The "Confirm platform" action: PATCHes platform_confirmed true and nothing else,
 // then refetches the bundle through the same detail query every other field
 // reads. The mutation stays pending until that refetch lands, so the button
-// cannot flicker back before era_review has updated.
-export function useConfirmEra({ collectionId, detailQueryKey }: UseConfirmEraOptions) {
+// cannot flicker back before platform_review has updated.
+export function useConfirmPlatform({ collectionId, detailQueryKey }: UseConfirmPlatformOptions) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation<unknown, Error, void>({
@@ -18,7 +18,7 @@ export function useConfirmEra({ collectionId, detailQueryKey }: UseConfirmEraOpt
       if (collectionId == null) throw new Error('No game selected.');
       return apiFetch(`/api/v1/game-item-bundle/${collectionId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ era_confirmed: true }),
+        body: JSON.stringify({ platform_confirmed: true }),
       });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: detailQueryKey }),
@@ -31,8 +31,8 @@ export function useConfirmEra({ collectionId, detailQueryKey }: UseConfirmEraOpt
     : null;
 
   return {
-    confirmEra: () => mutation.mutate(),
-    confirmingEra: mutation.isPending,
-    confirmEraError: confirmError,
+    confirmPlatform: () => mutation.mutate(),
+    confirmingPlatform: mutation.isPending,
+    confirmPlatformError: confirmError,
   };
 }

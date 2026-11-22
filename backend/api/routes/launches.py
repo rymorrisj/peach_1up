@@ -75,12 +75,12 @@ async def launch_environment(
     db: Session = Depends(get_db),
     _: UserItem = require_permission("can_launch_media"),
 ):
-    platform = db.get(EnvironmentItem, id)
-    if not platform:
+    environment = db.get(EnvironmentItem, id)
+    if not environment:
         raise HTTPException(status_code=404, detail="Environment not found.")
-    logger.info("launch_environment route: id=%d era=%s", id, platform.era)
+    logger.info("launch_environment route: id=%d platform=%s", id, environment.platform)
     try:
-        result = await svc.launch_environment(platform, body.profile_item_id, db)
+        result = await svc.launch_environment(environment, body.profile_item_id, db)
     except HTTPException:
         raise
     except Exception:
@@ -180,7 +180,7 @@ def get_launch(
     profile_override = profile.container_enabled if profile is not None else None
     container_moniker: Optional[str] = None
     if resolve_container_enabled(record.emulator_slug, profile_override):
-        from backend.service.utils.platform.windows.app_container import build_container_moniker
+        from backend.service.utils.host_os.windows.app_container import build_container_moniker
 
         user_item_id = profile.user_item_id if profile is not None else None
         container_moniker = build_container_moniker(record.emulator_slug, user_item_id)

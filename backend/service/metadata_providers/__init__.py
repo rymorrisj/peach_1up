@@ -77,7 +77,7 @@ class GameDetails:
     release_date: Optional[str] = None
     overview: Optional[str] = None
     rating: Optional[str] = None
-    platform_id: Optional[int] = None
+    provider_platform_id: Optional[int] = None
     cover_art_url: Optional[str] = None
     cover_art_thumb_url: Optional[str] = None
     genres: list[str] = field(default_factory=list)

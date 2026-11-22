@@ -3,7 +3,7 @@ import type { LaunchProfile } from '@/types/profiles';
 
 interface ProfileListProps {
   profiles: LaunchProfile[];
-  eraLabel: (era: string) => string;
+  platformLabel: (platform: string) => string;
   formatDate: (iso: string) => string;
   onSelect: (profile: LaunchProfile) => void;
   onEdit: (profile: LaunchProfile) => void;
@@ -12,7 +12,7 @@ interface ProfileListProps {
 
 export function ProfileList({
   profiles,
-  eraLabel,
+  platformLabel,
   formatDate,
   onSelect,
   onEdit,
@@ -45,7 +45,7 @@ export function ProfileList({
                 )}
               </div>
               <p className="mt-0.5 text-xs text-neutral-400 dark:text-neutral-500">
-                {eraLabel(profile.era)} · {profile.emulator_slug}
+                {platformLabel(profile.platform)} · {profile.emulator_slug}
                 {' · '}Created {formatDate(profile.created_at)}
               </p>
             </button>

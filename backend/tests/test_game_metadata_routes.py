@@ -54,7 +54,7 @@ def _make_user(db, **overrides):
 def _make_game_bundle(db, **overrides):
     from backend.models.game import GameItemBundle
 
-    kwargs = dict(title="Doom", file_path="/library/games/dos/doom", era="dos", slug="doom")
+    kwargs = dict(title="Doom", file_path="/library/games/dos/doom", platform="dos", slug="doom")
     kwargs.update(overrides)
     bundle = GameItemBundle(**kwargs)
     db.add(bundle)

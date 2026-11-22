@@ -42,7 +42,7 @@ class TestXeniaLaunchExecutableGuard:
         monkeypatch.setattr(xenia_mod, "get_emulator", lambda slug: {"display_name": "Xenia"})
         monkeypatch.setattr(xenia_mod, "get_install_path", lambda slug: None)
 
-        spec = LaunchSpec(slug="xenia", era="xbox360", media_path=None)
+        spec = LaunchSpec(slug="xenia", platform="xbox360", media_path=None)
 
         with pytest.raises(FileNotFoundError, match="executable not found"):
             xenia_mod.launch(spec)
@@ -58,7 +58,7 @@ class TestXeniaLaunchExecutableGuard:
         monkeypatch.setattr(xenia_mod, "get_emulator", lambda slug: {"display_name": "Xenia"})
         monkeypatch.setattr(xenia_mod, "get_install_path", lambda slug: install_dir)
 
-        spec = LaunchSpec(slug="xenia", era="xbox360", media_path=None)
+        spec = LaunchSpec(slug="xenia", platform="xbox360", media_path=None)
 
         with pytest.raises(FileNotFoundError, match="executable not found"):
             xenia_mod.launch(spec)
@@ -72,7 +72,7 @@ class TestXeniaLaunchMediaGuards:
         install_path = _make_install_path(tmp_path)
         _patch_common(monkeypatch, xenia_mod, install_path)
 
-        spec = LaunchSpec(slug="xenia", era="xbox360", media_path=None)
+        spec = LaunchSpec(slug="xenia", platform="xbox360", media_path=None)
 
         with pytest.raises(FileNotFoundError, match="requires a disc image"):
             xenia_mod.launch(spec)
@@ -85,7 +85,7 @@ class TestXeniaLaunchMediaGuards:
         _patch_common(monkeypatch, xenia_mod, install_path)
 
         missing_media = tmp_path / "does_not_exist.iso"
-        spec = LaunchSpec(slug="xenia", era="xbox360", media_path=missing_media)
+        spec = LaunchSpec(slug="xenia", platform="xbox360", media_path=missing_media)
 
         with pytest.raises(FileNotFoundError, match="Media file not found"):
             xenia_mod.launch(spec)
@@ -96,11 +96,11 @@ class TestXeniaLaunchMediaGuards:
 
         install_path = _make_install_path(tmp_path)
         _patch_common(monkeypatch, xenia_mod, install_path)
-        monkeypatch.setattr(xenia_mod, "supported_extensions_for_era", lambda era: frozenset({".iso"}))
+        monkeypatch.setattr(xenia_mod, "supported_extensions_for_platform", lambda platform: frozenset({".iso"}))
 
         media = tmp_path / "game.bin"
         media.write_bytes(b"\x00")
-        spec = LaunchSpec(slug="xenia", era="xbox360", media_path=media)
+        spec = LaunchSpec(slug="xenia", platform="xbox360", media_path=media)
 
         with pytest.raises(ValueError, match="Unsupported media format"):
             xenia_mod.launch(spec)
@@ -115,7 +115,7 @@ class TestXeniaLaunchMediaGuards:
 
         media_dir = tmp_path / "extracted_game"
         media_dir.mkdir()
-        spec = LaunchSpec(slug="xenia", era="xbox360", media_path=media_dir)
+        spec = LaunchSpec(slug="xenia", platform="xbox360", media_path=media_dir)
 
         with pytest.raises(FileNotFoundError, match="No bootable Xbox 360 title found"):
             xenia_mod.launch(spec)

@@ -179,7 +179,9 @@ describe('api.fetch session/error events', () => {
     }
 
     it('skips the api-error toast for a listed error_type but still throws', async () => {
-      expect(await errorEventsFor(ratingConflict(), ['rating_change_requires_confirmation'])).toBe(0);
+      expect(await errorEventsFor(ratingConflict(), ['rating_change_requires_confirmation'])).toBe(
+        0,
+      );
     });
 
     it('still toasts the same 409 when the caller does not mark it handled', async () => {

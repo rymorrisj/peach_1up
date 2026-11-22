@@ -9,13 +9,12 @@
  * in FirstRunGuard/RequireAuth, which are orthogonal to this doc's routing shape.
  * Instead this file reconstructs the same nesting from the same building blocks
  * main.tsx consumes (`Software`+`softwareTabRoutes`, `Emulators`+`emulatorsTabRoutes`,
- * `System`+`systemTabRoutes`, `CollectionDetail`, `EmulatorDetail`, and the explicit
- * `/platform-health` redirect), verified against main.tsx's actual route
+ * `System`+`systemTabRoutes`, `CollectionDetail` and `EmulatorDetail`), verified against main.tsx's actual route
  * declarations (read directly, not assumed from the doc's prose) before writing
  * this file.
  */
 import { screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { cleanup, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppProvider } from '@/context/AppContext';
@@ -107,7 +106,7 @@ function mockApiGenerically() {
 
     // System/Health.tsx renders these unconditionally once loaded (storageFootprint.categories.map(...),
     // summary.library.total, etc.), the bare-array catch-all below is truthy but shapeless, so without
-    // these explicit branches both queries resolving to [] crashes the /system and /platform-health tests.
+    // these explicit branches both queries resolving to [] crashes the /system tests.
     if (url === '/api/v1/health/storage') {
       return Promise.resolve({
         categories: [],
@@ -156,7 +155,6 @@ function renderAt(initialPath: string) {
               <Route path="/system" element={<System />}>
                 {systemTabRoutes}
               </Route>
-              <Route path="/platform-health" element={<Navigate to="/system/health" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <LocationDisplay />
@@ -174,16 +172,6 @@ async function expectFinalPath(path: string) {
 }
 
 describe('Section redirects (dev_docs/v2/08_emulator_profiles_navigation.md)', () => {
-  it.skip('/platform-health redirects to /system/health (legacy link preserved)', async () => {
-    mockApiGenerically();
-    renderAt('/platform-health');
-    await expectFinalPath('/system/health');
-    // Confirms the target actually mounted System's Health tab, not just a URL change.
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /health check all/i })).toBeInTheDocument();
-    });
-  });
-
   it.skip('/system redirects to /system/health (default-tab convention)', async () => {
     mockApiGenerically();
     renderAt('/system');

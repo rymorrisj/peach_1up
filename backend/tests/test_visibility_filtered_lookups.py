@@ -70,7 +70,7 @@ def client(mem_db_session, tmp_path, monkeypatch, viewer):
 def _game(db, slug, rating):
     from backend.models.game import GameItemBundle
 
-    game = GameItemBundle(title=f"Game {slug}", era="ps1", slug=slug, content_rating=rating)
+    game = GameItemBundle(title=f"Game {slug}", platform="ps1", slug=slug, content_rating=rating)
     db.add(game)
     db.commit()
     db.refresh(game)
@@ -111,7 +111,7 @@ def _item(db, slug, bundle):
 def _app(db, slug):
     from backend.models.app import AppItemBundle
 
-    app = AppItemBundle(title=f"App {slug}", era="ps1", slug=slug)
+    app = AppItemBundle(title=f"App {slug}", platform="ps1", slug=slug)
     db.add(app)
     db.commit()
     db.refresh(app)

@@ -241,7 +241,7 @@ def reset_sandbox_state(
         raise HTTPException(status_code=403, detail="Invalid or expired confirmation token.")
 
     from backend.models.profile import ProfileItem
-    from backend.service.utils.platform.windows.app_container import reset_container as _reset_container
+    from backend.service.utils.host_os.windows.app_container import reset_container as _reset_container
 
     catalog = load_catalog()
     active_scopes = _active_emulator_scopes(db)

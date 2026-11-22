@@ -51,7 +51,7 @@ def _make_user(db, **overrides):
 def _make_game_bundle(db, **overrides):
     from backend.models.game import GameItemBundle
 
-    kwargs = dict(title="Doom", file_path="/library/games/dos/doom", era="dos", slug="doom")
+    kwargs = dict(title="Doom", file_path="/library/games/dos/doom", platform="dos", slug="doom")
     kwargs.update(overrides)
     bundle = GameItemBundle(**kwargs)
     db.add(bundle)
@@ -252,28 +252,28 @@ class TestBundleVerify:
 class TestConvertXiso:
     def test_403_for_non_launcher(self, http_client):
         c, db, app = http_client
-        bundle = _make_game_bundle(db, era="xbox")
+        bundle = _make_game_bundle(db, platform="xbox")
         _set_active_user(app, _make_user(db, can_launch_media=False))
 
         resp = c.post(f"/api/v1/game-item-bundle/{bundle.id}/convert-xiso")
 
         assert resp.status_code == 403, resp.text
 
-    def test_400_for_non_xbox_era(self, http_client):
+    def test_400_for_non_xbox_platform(self, http_client):
         c, db, app = http_client
-        bundle = _make_game_bundle(db, era="dos")
+        bundle = _make_game_bundle(db, platform="dos")
         _set_active_user(app, _make_user(db, can_launch_media=True))
 
         resp = c.post(f"/api/v1/game-item-bundle/{bundle.id}/convert-xiso")
 
         assert resp.status_code == 400, resp.text
 
-    def test_over_rated_bundle_404s_before_era_check(self, http_client):
+    def test_over_rated_bundle_404s_before_platform_check(self, http_client):
         """convert-xiso resolves the collection through
         get_filtered_game_item_bundle, not a raw db.get, a capped user gets
-        the same no-leak 404 as browsing, not a 400 era mismatch."""
+        the same no-leak 404 as browsing, not a 400 platform mismatch."""
         c, db, app = http_client
-        bundle = _make_game_bundle(db, era="dos", content_rating="M")
+        bundle = _make_game_bundle(db, platform="dos", content_rating="M")
         _set_active_user(app, _make_user(db, can_launch_media=True, max_content_rating="E"))
 
         resp = c.post(f"/api/v1/game-item-bundle/{bundle.id}/convert-xiso")

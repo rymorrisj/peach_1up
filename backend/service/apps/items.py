@@ -56,8 +56,8 @@ def _enforce_environment_binding(collection: AppItemBundle) -> None:
 def create_app_item_bundle(body: AppItemBundleCreate, db: Session) -> AppItemBundle:
     """Create an App collection-of-one from a single file or folder path.
 
-    No smart-media era detection runs here (unlike Software ingest), the
-    caller supplies era explicitly. environment_item_id is validated for
+    No smart-media platform detection runs here (unlike Software ingest), the
+    caller supplies platform explicitly. environment_item_id is validated for
     existence only when provided (required for PC apps, forbidden for
     console apps, see _enforce_environment_binding).
     """
@@ -80,7 +80,7 @@ def create_app_item_bundle(body: AppItemBundleCreate, db: Session) -> AppItemBun
     collection = AppItemBundle(
         title=title,
         slug=slug,
-        era=body.era,
+        platform=body.platform,
         environment_item_id=body.environment_item_id,
         profile_item_id=body.profile_item_id,
     )
@@ -129,13 +129,20 @@ def update_app_item_bundle(collection_id: int, body: AppItemBundleUpdate, db: Se
             )
             if fields[disk_field] not in leaf_ids:
                 raise HTTPException(status_code=422, detail="Item does not belong to this collection.")
+    new_platform = fields.get("platform")
+    if new_platform is not None and new_platform != collection.platform:
+        from backend.service.utils.platform_defaults import rebind_for_platform_change
+
+        rebind_for_platform_change(
+            collection.profile_item_id, collection.environment_item_id, fields, new_platform, db
+        )
     for key, value in fields.items():
         setattr(collection, key, value)
-    if "era" in fields:
+    if "platform" in fields:
         # setattr bypasses AppItemBundle._validate_is_pc (no validate_assignment)
-        #, re-derive explicitly whenever era changes, mirrors
+        #, re-derive explicitly whenever platform changes, mirrors
         # update_library_collection's identical re-derivation for GameItemBundle.
-        collection.is_pc = derive_is_pc(collection.era)
+        collection.is_pc = derive_is_pc(collection.platform)
     _enforce_environment_binding(collection)
     db.commit()
     db.refresh(collection)
@@ -257,7 +264,7 @@ def delete_app_item_bundle(
     # deleting the collection, so the image file is never orphaned (the FK
     # cascade only drops the DB row, not the file). Mirrors
     # library/items.py::delete_library_collection. No-op for collections
-    # without a drive (the common case pre-DOS-era Apps).
+    # without a drive (the common case for non-DOS Apps).
     from backend.service.utils.drive_utils import delete_drive_for_collection
     delete_drive_for_collection(collection, db)
 

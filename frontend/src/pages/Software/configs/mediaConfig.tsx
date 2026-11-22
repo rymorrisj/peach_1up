@@ -225,7 +225,7 @@ export const mediaDomainConfig: EntityDomainConfig<MediaItemBundleData> = {
   filterRestrictionUsers: (users) => users.filter((u) => !u.is_owner),
   useRenderExtras: useMediaDetailExtras,
   uploadConfig: mediaUploadModalConfig,
-  // Media has no era/profile concept, but tags are shared across every
+  // Media has no platform/profile concept, but tags are shared across every
   // domain (GET /api/v1/media-item-bundles, media.py:list_media_item_bundles,
   // accepts `tag` the same way Game/App's list endpoints do), so it opts
   // into the tag filter only. This is Media's first `filters` config; it

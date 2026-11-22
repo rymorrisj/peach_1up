@@ -1,25 +1,20 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import JobsBell from './JobsBell';
+import { PLATFORM_LABELS } from '@/generated/constants';
+import { PLATFORM_COLOR, PLATFORM_GROUPS, PLATFORM_SHORT_LABEL } from '@/types/platform';
 
 const DOCS_BASE_URL =
   (import.meta.env.VITE_DOCS_BASE_URL as string | undefined) ?? 'http://localhost:3000';
 
-const ERA_ITEMS = [
-  { label: 'DOS', slug: 'dos', color: 'rgb(var(--era-dos))' },
-  { label: 'WIN95', slug: 'win95', color: 'rgb(var(--era-win95))' },
-  { label: 'WIN98', slug: 'win98', color: 'rgb(var(--era-win98))' },
-  { label: 'WINXP', slug: 'winxp', color: 'rgb(var(--era-winxp))' },
-];
-
-const CONSOLE_ERA_ITEMS = [
-  { label: 'PS1', slug: 'ps1', color: '#a9a0d6' },
-  { label: 'PS2', slug: 'ps2', color: '#6090d0' },
-  { label: 'XBOX', slug: 'xbox', color: '#6db36d' },
-  { label: 'NES', slug: 'nes', color: '#d06060' },
-  { label: 'SNES', slug: 'snes', color: '#d4a0c0' },
-  { label: 'N64', slug: 'n64', color: '#60a0d0' },
-  { label: 'DREAMCAST', slug: 'dreamcast', color: '#d0a060' },
-];
+// Side rail chip for a platform: short code, colour, full label.
+function platformChip(slug: string) {
+  const code = PLATFORM_SHORT_LABEL[slug] ?? slug.toUpperCase();
+  return {
+    code,
+    color: PLATFORM_COLOR[code] ?? 'rgb(var(--fg-3))',
+    label: PLATFORM_LABELS[slug] ?? slug,
+  };
+}
 
 const NAV_ITEMS = [
   { to: '/software', label: 'Software', glyph: '📚' },
@@ -157,7 +152,7 @@ export default function Sidebar() {
           <JobsBell />
         </div>
 
-        {/* Eras jump-list */}
+        {/* Platforms jump-list, PC and Console subgroups */}
         <div
           className="mt-3 px-3.5 pb-1.5 pt-3.5"
           style={{
@@ -169,104 +164,68 @@ export default function Sidebar() {
             color: 'rgb(var(--fg-3))',
           }}
         >
-          Eras
+          Platforms
         </div>
-        <ul role="list" className="flex flex-col gap-0.5">
-          {ERA_ITEMS.map(({ label, slug, color }) => (
-            <li key={slug}>
-              <button
-                type="button"
-                onClick={() => navigate(`/software/games?era=${slug}`)}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-[7px] transition-colors duration-[120ms] hover:text-neutral-200"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                <span
-                  className="inline-block rounded"
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: 600,
-                    fontSize: '0.6875rem',
-                    letterSpacing: '0.08em',
-                    padding: '3px 5px',
-                    border: `1px solid ${color}`,
-                    color,
-                    minWidth: 44,
-                    textAlign: 'center',
-                  }}
-                >
-                  {label}
-                </span>
-                <span style={{ fontSize: '0.75rem', color: 'rgb(var(--fg-3))' }}>
-                  {label === 'DOS' && 'DOS 6.22'}
-                  {label === 'WIN95' && 'Windows 95'}
-                  {label === 'WIN98' && 'Windows 98'}
-                  {label === 'WINXP' && 'Windows XP'}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-
-        {/* Consoles jump-list */}
-        <div
-          className="mt-3 px-3.5 pb-1.5 pt-3.5"
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontWeight: 600,
-            fontSize: '0.6875rem',
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            color: 'rgb(var(--fg-3))',
-          }}
-        >
-          Consoles
-        </div>
-        <ul role="list" className="flex flex-col gap-0.5">
-          {CONSOLE_ERA_ITEMS.map(({ label, slug, color }) => (
-            <li key={slug}>
-              <button
-                type="button"
-                onClick={() => navigate(`/software/games?era=${slug}`)}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-[7px] transition-colors duration-[120ms] hover:text-neutral-200"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                <span
-                  className="inline-block rounded"
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: 600,
-                    fontSize: '0.6875rem',
-                    letterSpacing: '0.08em',
-                    padding: '3px 5px',
-                    border: `1px solid ${color}`,
-                    color,
-                    minWidth: 44,
-                    textAlign: 'center',
-                  }}
-                >
-                  {label}
-                </span>
-                <span style={{ fontSize: '0.75rem', color: 'rgb(var(--fg-3))' }}>
-                  {label === 'PS1' && 'PlayStation 1'}
-                  {label === 'PS2' && 'PlayStation 2'}
-                  {label === 'XBOX' && 'Xbox OG'}
-                  {label === 'NES' && 'Nintendo NES'}
-                  {label === 'SNES' && 'Super Nintendo'}
-                  {label === 'N64' && 'Nintendo 64'}
-                  {label === 'DREAMCAST' && 'Sega Dreamcast'}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        {PLATFORM_GROUPS.map((group) => (
+          <div key={group.kind}>
+            <div
+              id={`sidebar-platforms-${group.kind}`}
+              className="px-3.5 pb-1 pt-2"
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.625rem',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'rgb(var(--fg-3))',
+              }}
+            >
+              {group.label}
+            </div>
+            <ul
+              role="list"
+              aria-labelledby={`sidebar-platforms-${group.kind}`}
+              className="flex flex-col gap-0.5"
+            >
+              {group.platforms.map(({ value: slug }) => {
+                const { code, color, label } = platformChip(slug);
+                return (
+                  <li key={slug}>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/software/games?platform=${slug}`)}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-[7px] transition-colors duration-[120ms] hover:text-neutral-200"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span
+                        className="inline-block rounded"
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontWeight: 600,
+                          fontSize: '0.6875rem',
+                          letterSpacing: '0.08em',
+                          padding: '3px 5px',
+                          border: `1px solid ${color}`,
+                          color,
+                          minWidth: 44,
+                          textAlign: 'center',
+                        }}
+                      >
+                        {code}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'rgb(var(--fg-3))' }}>
+                        {label}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
 
       {/* Sidebar bottom */}

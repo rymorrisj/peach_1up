@@ -54,7 +54,7 @@ def _make_user(db, **overrides):
 def _make_app_bundle(db, **overrides):
     from backend.models.app import AppItemBundle
 
-    kwargs = dict(title="Notepad++", era="winxp")
+    kwargs = dict(title="Notepad++", platform="winxp")
     kwargs.update(overrides)
     bundle = AppItemBundle(**kwargs)
     db.add(bundle)
@@ -114,7 +114,7 @@ class TestCanManageAppGate:
         c, db, app = http_client
         _set_active_user(app, _make_user(db, can_manage_app=False))
 
-        resp = c.post("/api/v1/app-items", json={"title": "New App", "file_path": "/library/apps/x", "era": "winxp"})
+        resp = c.post("/api/v1/app-items", json={"title": "New App", "file_path": "/library/apps/x", "platform": "winxp"})
 
         assert resp.status_code == 403, resp.text
 
@@ -206,6 +206,16 @@ class TestBlocklistFiltering:
         assert resp.status_code == 200, resp.text
         titles = {row["title"] for row in resp.json()["items"]}
         assert titles == {visible.title}
+
+    def test_old_era_filter_param_is_rejected(self, http_client):
+        c, db, app = http_client
+        _make_app_bundle(db, title="Visible App")
+        _set_active_user(app, _make_user(db))
+
+        resp = c.get("/api/v1/app-items", params={"era": "dos"})
+
+        assert resp.status_code == 422
+        assert "platform" in resp.json()["detail"]
 
     def test_restricted_leaf_404s_via_parent_bundle_filter(self, http_client):
         c, db, app = http_client

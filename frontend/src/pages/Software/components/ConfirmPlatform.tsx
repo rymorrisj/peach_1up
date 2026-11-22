@@ -6,8 +6,8 @@ interface ConfirmPlatformProps {
   error: string | null;
 }
 
-// The "Confirm platform" action under the era field. Visibility is decided by
-// canOfferEraConfirm, this only renders it.
+// The "Confirm platform" action under the platform field. Visibility is decided by
+// canOfferPlatformConfirm, this only renders it.
 export function ConfirmPlatform({ onConfirm, pending, error }: ConfirmPlatformProps) {
   return (
     <div className="mt-2 space-y-1">

@@ -47,7 +47,7 @@ class TestEnrichEntity:
         from backend.models.game import GameItemBundle
         from backend.service.games.enrich import enrich_entity
 
-        c = GameItemBundle(title="My Set", era="ps1", slug="my-set")
+        c = GameItemBundle(title="My Set", platform="ps1", slug="my-set")
         mem_session.add(c)
         mem_session.commit()
         mem_session.refresh(c)
@@ -68,7 +68,7 @@ class TestEnrichEntity:
         from backend.models.game import GameItemBundle, GameItem
         from backend.service.games.enrich import enrich_entity
 
-        c = GameItemBundle(title="My Set", era="ps1", slug="my-set")
+        c = GameItemBundle(title="My Set", platform="ps1", slug="my-set")
         mem_session.add(c)
         mem_session.commit()
         mem_session.refresh(c)
@@ -103,7 +103,7 @@ class TestEnrichEntity:
         from backend.models.game import GameItemBundle
         from backend.service.games.enrich import enrich_entity
 
-        c = GameItemBundle(title="My Set", era="ps1", slug="my-set")
+        c = GameItemBundle(title="My Set", platform="ps1", slug="my-set")
         mem_session.add(c)
         mem_session.commit()
         mem_session.refresh(c)
@@ -120,7 +120,7 @@ class TestEnrichEntity:
         from backend.models.game import GameItemBundle, GameItem
         from backend.service.games import enrich as enrich_mod
 
-        c = GameItemBundle(title="My Set", era="ps1", slug="my-set")
+        c = GameItemBundle(title="My Set", platform="ps1", slug="my-set")
         mem_session.add(c)
         mem_session.commit()
         mem_session.refresh(c)

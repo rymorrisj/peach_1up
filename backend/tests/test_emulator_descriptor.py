@@ -7,7 +7,7 @@ Covers EmulatorDescriptor's required-field enforcement, the slug pattern
 ones must be rejected here), the extra="forbid" typo/staleness guard,
 ContainerBrokerFile's exactly-one-of path/path_key validator, and both
 model_validators: _validate_install_dir_write_access and
-_validate_supported_formats_matches_eras.
+_validate_supported_formats_matches_platforms.
 """
 
 import pytest
@@ -48,24 +48,24 @@ class TestValidMinimalDescriptor:
     def test_optional_fields_default_correctly(self):
         descriptor = EmulatorDescriptor(**_valid_kwargs())
         assert descriptor.display_name == ""
-        assert descriptor.era is None
-        assert descriptor.supported_eras == []
+        assert descriptor.sizing_platform is None
+        assert descriptor.supported_platforms == []
         assert descriptor.container_enabled is False
         assert descriptor.install_scope == "portable"
         assert descriptor.container_broker_files == []
         assert descriptor.dependencies == []
         assert descriptor.known_limitations == []
 
-    def test_rom_pack_shape_with_no_era_and_container_fields_still_validates(self):
-        """86box-roms.toml (install_type='rom_pack') has no era, container, or
+    def test_rom_pack_shape_with_no_platform_and_container_fields_still_validates(self):
+        """86box-roms.toml (install_type='rom_pack') has no platform, container, or
         binary-launch fields populated; it's still schema-uniform with a
         launchable descriptor (see class docstring)."""
         descriptor = EmulatorDescriptor(**_valid_kwargs(
             slug="86box-roms", name="86Box ROM Pack", binary="",
             install_type="rom_pack", skip_memory_limit=True, skip_cpu_limit=True,
         ))
-        assert descriptor.era is None
-        assert descriptor.supported_eras == []
+        assert descriptor.sizing_platform is None
+        assert descriptor.supported_platforms == []
 
 
 # ---------------------------------------------------------------------------
@@ -297,11 +297,11 @@ class TestValidateInstallDirWriteAccess:
 
 
 # ---------------------------------------------------------------------------
-# _validate_supported_formats_matches_eras
+# _validate_supported_formats_matches_platforms
 # ---------------------------------------------------------------------------
 
 
-class TestValidateSupportedFormatsMatchesEras:
+class TestValidateSupportedFormatsMatchesPlatforms:
     @pytest.fixture(autouse=True)
     def _patch_supported_extensions(self, monkeypatch):
         import backend.service.utils.file_types as file_types_mod
@@ -312,48 +312,48 @@ class TestValidateSupportedFormatsMatchesEras:
             "snes": [".sfc", ".smc"],
         }
         monkeypatch.setattr(
-            file_types_mod, "supported_extensions_for_era", lambda era: table.get(era, []),
+            file_types_mod, "supported_extensions_for_platform", lambda platform: table.get(platform, []),
         )
 
-    def test_no_era_and_no_supported_eras_skips_validator(self):
-        """rom_pack config: neither era nor supported_eras set, supported_formats
+    def test_no_platform_and_no_supported_platforms_skips_validator(self):
+        """rom_pack config: neither sizing_platform nor supported_platforms set, supported_formats
         is not checked at all regardless of its content."""
         descriptor = EmulatorDescriptor(**_valid_kwargs(
             supported_formats=["totally", "wrong", "values"],
         ))
-        assert descriptor.era is None
-        assert descriptor.supported_eras == []
+        assert descriptor.sizing_platform is None
+        assert descriptor.supported_platforms == []
 
-    def test_matching_supported_formats_for_single_era_passes(self):
+    def test_matching_supported_formats_for_single_platform_passes(self):
         descriptor = EmulatorDescriptor(**_valid_kwargs(
-            era="dos", supported_formats=[".iso", ".img", ".cue"],
+            sizing_platform="dos", supported_formats=[".iso", ".img", ".cue"],
         ))
-        assert descriptor.era == "dos"
+        assert descriptor.sizing_platform == "dos"
 
-    def test_missing_extension_for_single_era_raises(self):
+    def test_missing_extension_for_single_platform_raises(self):
         with pytest.raises(ValidationError, match="Missing"):
             EmulatorDescriptor(**_valid_kwargs(
-                era="dos", supported_formats=[".iso", ".img"],
+                sizing_platform="dos", supported_formats=[".iso", ".img"],
             ))
 
-    def test_extra_unexpected_extension_for_single_era_raises(self):
+    def test_extra_unexpected_extension_for_single_platform_raises(self):
         with pytest.raises(ValidationError, match="unexpected"):
             EmulatorDescriptor(**_valid_kwargs(
-                era="dos", supported_formats=[".iso", ".img", ".cue", ".xyz"],
+                sizing_platform="dos", supported_formats=[".iso", ".img", ".cue", ".xyz"],
             ))
 
-    def test_multi_era_supported_formats_is_the_union(self):
-        """mesen-style multi-era emulator: supported_formats must cover the
-        union of every era in supported_eras, not just the first/primary one."""
+    def test_multi_platform_supported_formats_is_the_union(self):
+        """mesen-style multi-platform emulator: supported_formats must cover the
+        union of every platform in supported_platforms, not just the first/primary one."""
         descriptor = EmulatorDescriptor(**_valid_kwargs(
-            era="nes", supported_eras=["nes", "snes"],
+            sizing_platform="nes", supported_platforms=["nes", "snes"],
             supported_formats=[".nes", ".sfc", ".smc"],
         ))
-        assert descriptor.supported_eras == ["nes", "snes"]
+        assert descriptor.supported_platforms == ["nes", "snes"]
 
-    def test_multi_era_missing_one_eras_extensions_raises(self):
+    def test_multi_platform_missing_one_platforms_extensions_raises(self):
         with pytest.raises(ValidationError, match="Missing"):
             EmulatorDescriptor(**_valid_kwargs(
-                era="nes", supported_eras=["nes", "snes"],
+                sizing_platform="nes", supported_platforms=["nes", "snes"],
                 supported_formats=[".nes"],  # missing snes's .sfc/.smc
             ))

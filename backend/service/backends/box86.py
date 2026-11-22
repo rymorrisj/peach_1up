@@ -1,7 +1,7 @@
 """86Box backend for Peach 1UP.
 
 Handles Win95 and Win98 accuracy mode launches. Accepts a resolved LaunchSpec,
-loads the era hardware template, validates all identifiers, optionally injects
+loads the platform hardware template, validates all identifiers, optionally injects
 game media into the config file, and launches 86Box under Job Objects.
 """
 
@@ -13,7 +13,7 @@ import threading
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
-from backend.constants_generated import Era
+from backend.constants import BOX86_PLATFORMS
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.disk_utils import has_valid_mbr
@@ -25,7 +25,7 @@ from backend.service.utils.emulator_catalog import (
     validate_bios_from_descriptor,
 )
 from backend.service.utils.ini_writer import patch_ini, write_ini
-from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
+from backend.service.utils.host_os.windows.process.launcher import launch_under_job_object
 from wincage import BrokerFile
 from backend.service.utils.emulator_catalog import get_install_path
 
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-SUPPORTED_ERAS = {Era.WIN95.value, Era.WIN98.value, Era.WINXP.value}
+SUPPORTED_PLATFORMS = BOX86_PLATFORMS
 
 
 def _ensure_section(parser: configparser.RawConfigParser, section: str) -> None:
@@ -52,7 +52,7 @@ def _prepare_config(
     config_path: Path,
     rom_path: Path,
     hardware_profile: str,
-    platform_name: str,
+    environment_name: str,
     base_image_path: Optional[Path],
     media_path: Optional[Path] = None,
 ) -> None:
@@ -72,7 +72,7 @@ def _prepare_config(
         config_path: Path to the 86Box config file.
         rom_path: Path to the 86Box ROM pack directory.
         hardware_profile: Profile slug for machine/CPU/GPU selection.
-        platform_name: Human-readable platform name for error messages.
+        environment_name: Human-readable environment name for error messages.
         base_image_path: Optional path to a base ISO used for CD-ROM boot.
             Mounted as cdrom_02 (secondary IDE slave, "0:1"), unrelated to
             and untouched by the media_path handling below.
@@ -100,7 +100,7 @@ def _prepare_config(
         disk_has_mbr = has_valid_mbr(working_image_path)
     except (ValueError, OSError) as exc:
         raise OSError(
-            f"Cannot read disk image for platform '{platform_name}': {working_image_path}"
+            f"Cannot read disk image for environment '{environment_name}': {working_image_path}"
         ) from exc
 
     _ensure_section(parser, "General")
@@ -134,7 +134,7 @@ def _prepare_config(
         image_size_bytes = working_image_path.stat().st_size
     except OSError as exc:
         raise OSError(
-            f"Cannot stat disk image for platform '{platform_name}': {working_image_path}"
+            f"Cannot stat disk image for environment '{environment_name}': {working_image_path}"
         ) from exc
     cylinders = max(1, image_size_bytes // (16 * 63 * 512))
 
@@ -186,9 +186,9 @@ def _prepare_config(
             parser.remove_option(cdrom_section, "cdrom_01_image_path")
         if media_path is not None:
             logger.debug(
-                "Not mounting cdrom_01 for platform '%s': media_path '%s' is not an "
+                "Not mounting cdrom_01 for environment '%s': media_path '%s' is not an "
                 ".iso/.cue file.",
-                platform_name, media_path,
+                environment_name, media_path,
             )
 
     _ensure_section(parser, "Paths")
@@ -252,52 +252,52 @@ def resolve_rom_path(box86_binary: Path) -> Path:
 def launch(spec: "LaunchSpec") -> tuple:
     """Launch 86Box in accuracy mode under Job Objects.
 
-    Validates platform state and environment, patches the 86Box config for
+    Validates the environment, patches the 86Box config for
     this launch, optionally injects game media, then launches 86Box with
     resource limits applied.
 
     Args:
-        spec: LaunchSpec with era, working_image_path, config_path, vm_dir,
-            hardware_profile, platform_name, platform_slug, media_path, and
+        spec: LaunchSpec with platform, working_image_path, config_path, vm_dir,
+            hardware_profile, environment_name, environment_slug, media_path, and
             enable_networking set.
 
     Raises:
-        ValueError: If the era is unsupported or required fields are unset.
+        ValueError: If the platform is unsupported or required fields are unset.
         FileNotFoundError: If working_image_path, config_path, or the 86Box
             binary does not exist on disk, or if a required BIOS/ROM pack
             directory declared in 86box.toml is absent or empty.
         RuntimeError: If BOX86_PATH is not configured.
         OSError: If config injection or Job Object launch fails.
     """
-    if spec.era not in SUPPORTED_ERAS:
+    if spec.platform not in SUPPORTED_PLATFORMS:
         raise ValueError(
-            f"86Box backend does not support era '{spec.era}'. "
-            f"Supported: {', '.join(sorted(SUPPORTED_ERAS))}"
+            f"86Box backend does not support platform '{spec.platform}'. "
+            f"Supported: {', '.join(sorted(SUPPORTED_PLATFORMS))}"
         )
 
     if spec.working_image_path is None:
         raise ValueError(
-            f"Platform '{spec.platform_name}' has no working_image_path set. "
-            "Complete platform registration (including image copy) before launching."
+            f"Environment '{spec.environment_name}' has no working_image_path set. "
+            "Complete environment registration (including image copy) before launching."
         )
 
     if not spec.working_image_path.exists():
         raise ValueError(
-            f"Platform '{spec.platform_name}' working_image_path does not exist on disk: "
+            f"Environment '{spec.environment_name}' working_image_path does not exist on disk: "
             f"{spec.working_image_path}. "
-            "Re-register the platform to provision a new disk image."
+            "Re-register the environment to provision a new disk image."
         )
     if spec.working_image_path.suffix.lower() not in {".img", ".vhd"}:
         raise ValueError(
-            f"Platform '{spec.platform_name}' working_image_path must be a disk image "
+            f"Environment '{spec.environment_name}' working_image_path must be a disk image "
             f"(.img or .vhd), not '{spec.working_image_path.suffix}': {spec.working_image_path}. "
-            "working_image_path is set to a config file, re-register the platform."
+            "working_image_path is set to a config file, re-register the environment."
         )
 
     if spec.config_path is None:
         raise ValueError(
-            f"Platform '{spec.platform_name}' has no config_path set. "
-            "Complete platform registration before launching."
+            f"Environment '{spec.environment_name}' has no config_path set. "
+            "Complete environment registration before launching."
         )
 
     if spec.executable_path:
@@ -334,7 +334,7 @@ def launch(spec: "LaunchSpec") -> tuple:
         config_path=spec.config_path,
         rom_path=effective_rom_path,
         hardware_profile=spec.hardware_profile,
-        platform_name=spec.platform_name or "",
+        environment_name=spec.environment_name or "",
         base_image_path=spec.base_image_path,
         media_path=game_media_path,
     )
@@ -345,10 +345,10 @@ def launch(spec: "LaunchSpec") -> tuple:
             {"Network": {"net_type": "slirp"}},
         )
 
-    # dgVoodoo2 DLL injection, Win9x/XP era only, opt-in via profile flag.
+    # dgVoodoo2 DLL injection, Win9x/XP platform only, opt-in via profile flag.
     # SECURITY: target directory is validated against the library root before any copy.
     copied_dgvoodoo2_dlls: list[Path] = []
-    if spec.enable_dgvoodoo2 and spec.era in {"win95", "win98", "winxp"}:
+    if spec.enable_dgvoodoo2 and spec.platform in {"win95", "win98", "winxp"}:
         if spec.media_path is None:
             raise ValueError(
                 "dgVoodoo2 injection requires a media path but none is set on this spec. "
@@ -392,7 +392,7 @@ def launch(spec: "LaunchSpec") -> tuple:
         "--vmpath", str(vm_dir),
     ]
 
-    job_name_prefix = f"Peach1UP_86box_{spec.era}_{spec.platform_slug}"
+    job_name_prefix = f"Peach1UP_86box_{spec.platform}_{spec.environment_slug}"
 
     container_enabled = resolve_container_enabled("86box", spec.container_enabled)
 
@@ -408,7 +408,7 @@ def launch(spec: "LaunchSpec") -> tuple:
         result = launch_under_job_object(
             executable_path=box86_path,
             args=args,
-            era=spec.era,
+            platform=spec.platform,
             job_name_prefix=job_name_prefix,
             slug="86box",
             cwd=str(vm_dir),

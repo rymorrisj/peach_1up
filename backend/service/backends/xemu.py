@@ -16,15 +16,15 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Tuple
 
-from backend.constants_generated import Era
+from backend.constants_generated import Platform
 from backend.service.utils.emulator_catalog import (
     resolve_container_enabled,
     get_install_path,
     validate_bios_from_descriptor,
 )
-from backend.service.utils.file_types import supported_extensions_for_era
+from backend.service.utils.file_types import supported_extensions_for_platform
 from backend.service.utils.detection.xbox_image import XboxDvdRipDetected, detect_xbox_image_type
-from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
+from backend.service.utils.host_os.windows.process.launcher import launch_under_job_object
 from wincage import BrokerFile, SandboxProcess, WindowsJobObject
 from backend.core.logger import get_logger
 
@@ -33,11 +33,11 @@ logger = get_logger(__name__)
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
 
-SUPPORTED_ERAS = {Era.XBOX.value}
-# eras.yaml is the same source scan/upload/directory-resolution already use
+SUPPORTED_PLATFORMS = {Platform.XBOX.value}
+# platforms.yaml is the same source scan/upload/directory-resolution already use
 # (file_types.py), rather than the separate constants.py dict this backend
 # used to read its own launch-time check from.
-SUPPORTED_MEDIA = frozenset(supported_extensions_for_era(Era.XBOX.value))
+SUPPORTED_MEDIA = frozenset(supported_extensions_for_platform(Platform.XBOX.value))
 
 # Portable-mode data root, next to the binary, matches Flycast's data/ convention.
 DATA_DIR_NAME = "data"
@@ -265,11 +265,11 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     Provisions the xemu.toml portable-mode sentinel beside the binary on
     every launch, sourcing BIOS/HDD assets from the resolved config under
-    emulators/xemu/data/. No Platform record is required, xemu behaves like
+    emulators/xemu/data/. No Environment record is required, xemu behaves like
     all other console backends (DuckStation, PCSX2, Mesen, Project64).
 
     Args:
-        spec: LaunchSpec with era set. media_path is optional, omit to boot
+        spec: LaunchSpec with platform set. media_path is optional, omit to boot
             with no disc. enable_networking gates the Xbox network stack (Xbox
             Live / System Link): when False the xemu.toml [net] enable = false
             key disables it; when True the emulator default is used.
@@ -333,12 +333,12 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     args = ["-dvd_path", dvd_posix] if dvd_posix else []
 
-    job_name_prefix = f"Peach1UP_xemu_{spec.era}"
+    job_name_prefix = f"Peach1UP_xemu_{spec.platform}"
 
     container_enabled = resolve_container_enabled("xemu", spec.container_enabled)
 
     if container_enabled:
-        from backend.service.utils.platform.windows.app_container import (
+        from backend.service.utils.host_os.windows.app_container import (
             get_container_config as _build_sandbox_cfg,
         )
         hdd_path = data_dir / "xbox_hdd.qcow2"
@@ -369,7 +369,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     result = launch_under_job_object(
         executable_path=executable_path,
         args=args,
-        era=spec.era,
+        platform=spec.platform,
         job_name_prefix=job_name_prefix,
         slug="xemu",
         cwd=str(vm_dir),

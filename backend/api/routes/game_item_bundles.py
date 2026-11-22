@@ -6,11 +6,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.constants_generated import EraValue
+from backend.constants_generated import PlatformValue
 from backend.core import install_registry, jobs, rate_limit
 from backend.core.database import get_db
 from backend.core.dependencies import (
-    get_active_user, get_filtered_game_item_bundle, get_filtered_game_item_bundles, require_permission,
+    get_active_user, get_filtered_game_item_bundle, get_filtered_game_item_bundles, reject_old_era_query_param,
+    require_permission,
 )
 from backend.core.logger import get_logger
 from backend.models.game import (
@@ -61,7 +62,7 @@ def _enforce_rate_limit(bucket: str, request: Request, limit: int, window_second
 class ScanImportItem(BaseModel):
     path: str
     title: str
-    era: EraValue | None = None
+    platform: PlatformValue | None = None
 
 
 class ScanImportBody(BaseModel):
@@ -73,9 +74,9 @@ class ScanImportBody(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/game-items", response_model=Page[GameItemBundleRead])
+@router.get("/game-items", response_model=Page[GameItemBundleRead], dependencies=[Depends(reject_old_era_query_param)])
 def list_game_items(
-    era: str | None = None,
+    platform: str | None = None,
     category: str | None = None,
     environment_item_id: int | None = None,
     tag: str | None = None,
@@ -87,8 +88,8 @@ def list_game_items(
     active_user: UserItem = Depends(get_active_user),
 ):
     q = get_filtered_game_item_bundles(active_user, db)
-    if era:
-        q = q.filter(GameItemBundle.era == era)
+    if platform:
+        q = q.filter(GameItemBundle.platform == platform)
     if category:
         q = q.filter(GameItemBundle.category == category)
     if environment_item_id is not None:
@@ -335,7 +336,7 @@ def trigger_scan(
 
 def _run_scan(directory: str, job_id: str | None = None) -> None:
     """
-    Phase 1: walk the media directory, dedup against the DB, run era detection,
+    Phase 1: walk the media directory, dedup against the DB, run platform detection,
     and store a preview list. Does NOT write to the DB. Reports progress into the
     core.jobs registry so a large scan can surface in the nav-bell notification
     centre.
@@ -343,7 +344,7 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
     from backend.core.database import get_engine
     from backend.service.games.items import best_detect_path
     from backend.service.utils.detection import resolve_ps3_target
-    from formatscout import detect as _smart_detect
+    from backend.service.utils.detection.formatscout_adapter import detect_media
     from backend.service.utils.profile_builder import scan_media_folders
     from sqlalchemy.orm import Session as _Session
 
@@ -406,32 +407,32 @@ def _run_scan(directory: str, job_id: str | None = None) -> None:
 
                 try:
                     if is_loose:
-                        era_slug = _smart_detect(scan_path, dir_cache).era
+                        platform_slug = detect_media(scan_path, dir_cache).platform
                     else:
                         # best_detect_path() resolves a PS3 folder structurally
                         # and hands back the folder itself; formatscout has no
                         # PS3 structural check of its own anymore (see
-                        # ps3.py's module docstring), so _smart_detect() on
-                        # that folder always reports era=None. Trust the
+                        # ps3.py's module docstring), so detect_media() on
+                        # that folder always reports platform=None. Trust the
                         # structural resolver directly, same as the ingest
                         # detect stage in items.py._detect_directory_source.
                         ps3_target = resolve_ps3_target(scan_path)
                         if ps3_target is not None:
-                            era_slug = ps3_target.era
+                            platform_slug = ps3_target.platform
                         else:
-                            era_path = best_detect_path(
+                            platform_path = best_detect_path(
                                 scan_path,
                                 str(entry.executable_path) if entry.executable_path else None,
                             )
-                            era_slug = _smart_detect(era_path, dir_cache).era
+                            platform_slug = detect_media(platform_path, dir_cache).platform
                 except Exception as exc:
-                    logger.warning("Scan: era detection failed for '%s': %s", scan_path, exc, exc_info=True)
-                    era_slug = None
+                    logger.warning("Scan: platform detection failed for '%s': %s", scan_path, exc, exc_info=True)
+                    platform_slug = None
 
                 preview.append({
                     "title": entry.name,
                     "file_path": str(scan_path),
-                    "detected_era": era_slug,
+                    "detected_platform": platform_slug,
                     "is_loose": is_loose,
                     "is_zip": is_zip,
                 })
@@ -495,16 +496,16 @@ def import_scan_results(
         collection_fields: dict | None = None
         try:
             with _ingest_transaction(db, undo_ops):
-                # item.era is the era the scan preview auto-detected, echoed
+                # item.platform is the platform the scan preview auto-detected, echoed
                 # back by the client from an earlier request. _prepare_item no
-                # longer trusts it for the persisted era or detection_reason
+                # longer trusts it for the persisted platform or detection_reason
                 # (it always re-detects against the file on disk at import
                 # time instead), it is passed through only as a directory-
                 # file-selection hint for multi-format folders. See
                 # _prepare_item's docstring for why the client echo is not
                 # trusted.
                 collection_fields, leaf_rows = _prepare_item(
-                    path, title, db, used_slugs=used_slugs, detected_era=item.era, _undo_stack=undo_ops,
+                    path, title, db, used_slugs=used_slugs, detected_platform=item.platform, _undo_stack=undo_ops,
                 )
                 _persist_multi_disc_collection(collection_fields, leaf_rows, db)
                 db.commit()
@@ -639,7 +640,7 @@ def start_xiso_conversion(
     from backend.service.launch.launchable_resolver import resolve_launchable
 
     collection = get_filtered_game_item_bundle(collection_id, active_user, db)
-    if collection.era != "xbox":
+    if collection.platform != "xbox":
         raise HTTPException(status_code=400, detail="extract-xiso conversion only applies to Xbox media.")
 
     key = _xiso_convert_key(collection_id)

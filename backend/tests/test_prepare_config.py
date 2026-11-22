@@ -62,7 +62,7 @@ def _run(tmp_path: Path, monkeypatch, *, mbr: bool, iso: bool = False, media_pat
         config_path=cfg,
         rom_path=rom_dir,
         hardware_profile="standard",
-        platform_name="test-platform",
+        environment_name="test-environment",
         base_image_path=iso_path,
         media_path=media_path,
     )
@@ -216,7 +216,7 @@ class TestPrepareConfigGameMedia:
             config_path=cfg,
             rom_path=rom_dir,
             hardware_profile="standard",
-            platform_name="test-platform",
+            environment_name="test-environment",
             base_image_path=None,
             media_path=None,
         )

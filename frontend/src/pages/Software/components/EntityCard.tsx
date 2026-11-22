@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import type { CoverArtResolver, EntityBundleBase, EntityMultiDiscLeaf } from '../types';
+import { CoverImage } from './CoverImage';
 
 // Per-entity multi-disc data, computed by EntityListPage from
 // config.multiDisc for bundles with more than one leaf item. Undefined for
@@ -73,7 +74,7 @@ function MultiDiscStrip({
   );
 }
 
-// Simple, era/disc-agnostic card for domains without Game's multi-disc stack
+// Simple, platform/disc-agnostic card for domains without Game's multi-disc stack
 // visuals (Media, App). Routes by numeric id, not slug, Media/App bundles
 // have no by-slug lookup endpoint on the backend, unlike Game. The `multiDisc`
 // prop is a slot only, no domain populates it today (see EntityMultiDiscConfig
@@ -95,28 +96,26 @@ export function EntityCard<TBundle extends EntityBundleBase>({
         className="flex flex-col gap-2.5 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
       >
         <div className="relative aspect-video overflow-hidden rounded-xl bg-[#1a1f27] shadow-[var(--shadow-sm)]">
-          {art ? (
-            <img
-              src={art}
-              alt={entity.title}
-              loading="lazy"
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="absolute inset-0 flex items-end p-3.5">
-              <p
-                className="font-sans text-[0.9375rem] font-semibold leading-snug tracking-tight text-neutral-100"
-                style={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical' as const,
-                  overflow: 'hidden',
-                }}
-              >
-                {entity.title}
-              </p>
-            </div>
-          )}
+          <CoverImage
+            src={art}
+            alt={entity.title}
+            className="h-full w-full object-contain"
+            fallback={
+              <div className="absolute inset-0 flex items-end p-3.5">
+                <p
+                  className="font-sans text-[0.9375rem] font-semibold leading-snug tracking-tight text-neutral-100"
+                  style={{
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical' as const,
+                    overflow: 'hidden',
+                  }}
+                >
+                  {entity.title}
+                </p>
+              </div>
+            }
+          />
           {multiDisc && <MultiDiscStrip {...multiDisc} />}
         </div>
         <span className="min-w-0 truncate font-sans text-sm font-semibold tracking-tight text-neutral-100">

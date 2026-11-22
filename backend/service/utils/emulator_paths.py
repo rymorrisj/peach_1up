@@ -1,13 +1,13 @@
 """
 Derived emulator path resolution.
 
-Platform-neutral leaf module: it depends only on ``backend.core.settings``
+OS-neutral leaf module: it depends only on ``backend.core.settings``
 (itself a leaf importing nothing from ``backend``), so it can be imported from
 anywhere in the codebase without risking an import cycle.
 
 It exists to break one: ``emulator_descriptor.py`` needs the derived-path map to
 check broker-file path identity, but the map used to live in
-``platform/windows/app_container.py``, which imports ``emulator_catalog.py``,
+``host_os/windows/app_container.py``, which imports ``emulator_catalog.py``,
 which imports ``emulator_descriptor.py``. Holding the map here lets
 ``emulator_descriptor`` import it directly at module level, while
 ``app_container._resolve_path_key`` keeps its settings tier, its

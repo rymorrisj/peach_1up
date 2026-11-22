@@ -35,19 +35,22 @@ function SwatchPicker({ value, onChange }: { value: string; onChange: (id: strin
 
 // System tags carry no explicit category field from the backend (Tag only
 // has id/name/item_count/color/is_system), but the seeder in
-// backend/core/startup_seed.py assigns a distinct color per category (era
+// backend/core/startup_seed.py assigns a distinct color per category (platform
 // tags -> coral, hardware tags -> amber, content-type tags -> sky), so color
 // is the reliable signal for reconstructing the grouping client-side. Any
 // system tag with a color outside that set falls into "Other" rather than
 // being silently dropped, matching the existing "explain, don't hide"
 // pattern used elsewhere in this codebase (e.g. PlatformField.tsx).
 const CATEGORY_BY_COLOR: Record<string, { label: string; hint: string }> = {
-  coral: { label: 'Era', hint: 'Inferred from your launch profile. Always shown first on cards.' },
+  coral: {
+    label: 'Platform',
+    hint: 'Inferred from your launch profile. Always shown first on cards.',
+  },
   amber: {
     label: 'Hardware',
     hint: 'Detected from profile requirements (MT-32, SB16, Voodoo, …).',
   },
-  sky: { label: 'Content type', hint: 'Set by platform metadata. Genre and category.' },
+  sky: { label: 'Content type', hint: 'Set by metadata. Genre and category.' },
 };
 const CATEGORY_ORDER = ['coral', 'amber', 'sky', 'other'];
 

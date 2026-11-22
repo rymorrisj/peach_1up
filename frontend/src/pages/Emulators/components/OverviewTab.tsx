@@ -7,7 +7,7 @@ type BiosItem = components['schemas']['BiosItem'];
 
 interface OverviewTabProps {
   entry: CatalogEntry;
-  eras: string[];
+  platforms: string[];
   isReady: boolean | string | null | undefined;
   emulatorProfilesCount: number;
   emulatorBios: BiosItem[];
@@ -28,7 +28,7 @@ interface OverviewTabProps {
 
 export function OverviewTab({
   entry,
-  eras,
+  platforms,
   isReady,
   emulatorProfilesCount,
   emulatorBios,
@@ -97,7 +97,7 @@ export function OverviewTab({
             rows={[
               { label: 'Version', value: entry.version },
               { label: 'Install type', value: entry.install_type },
-              { label: 'Eras', value: eras.join(' · ') || '—' },
+              { label: 'Platforms', value: platforms.join(' · ') || 'None' },
               { label: 'Status', value: isReady ? 'Ready' : 'Not installed' },
             ]}
           />
@@ -134,7 +134,7 @@ export function OverviewTab({
                   }}
                 >
                   {entry.container_hardcap_note ??
-                    'AppContainer isolation is not supported for this emulator. This is a permanent platform limitation.'}
+                    'AppContainer isolation is not supported for this emulator. This is a permanent compatibility limitation.'}
                   {!entry.container_hardcap_note && (
                     <>
                       {' '}
@@ -373,7 +373,10 @@ export function OverviewTab({
           <div className="grid grid-cols-2 gap-3.5">
             {[
               { value: String(emulatorProfilesCount), label: 'profiles' },
-              { value: eras.length > 0 ? String(eras.length) : '—', label: 'eras' },
+              {
+                value: platforms.length > 0 ? String(platforms.length) : 'None',
+                label: 'platforms',
+              },
               { value: entry.license ?? '—', label: 'license' },
               { value: isReady ? '✓' : '✗', label: 'installed' },
             ].map(({ value, label }) => (

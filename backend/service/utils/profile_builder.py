@@ -31,7 +31,7 @@ def _executable_priority() -> list[str]:
 
     Extensions in ``_EXECUTABLE_PRIORITY_ORDER`` are checked first, in that
     order. Any other extension present in ``all_supported_extensions()`` (e.g.
-    a new era added to eras.yaml without a corresponding edit here) is
+    a new platform added to platforms.yaml without a corresponding edit here) is
     appended afterward, sorted for determinism, so it is still recognized as a
     launch file, just at lowest priority until it earns an explicit position.
     """

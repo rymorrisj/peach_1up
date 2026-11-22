@@ -3,33 +3,33 @@ import { Button, Card, FormField, Input, Textarea, Select } from '@/ui';
 import PathInput from '@/components/common/PathInput';
 import BrowsePanel from '@/components/common/BrowsePanel';
 import { apiFetch } from '@/api/client';
-import { ERA_LABELS, RATING_OPTIONS } from '@/generated/constants';
-import { ERA_TO_EMULATOR, isPcEra } from '@/pages/Environments/environmentForm';
-import { PlatformField } from './PlatformField';
+import { PLATFORM_KINDS, PLATFORM_LABELS, RATING_OPTIONS } from '@/generated/constants';
+import { platformSelectOptions } from '@/types/platform';
+import { PLATFORM_TO_EMULATOR, isPcPlatform } from '@/pages/Environments/environmentForm';
+import { EnvironmentField } from './EnvironmentField';
 import { ConfirmPlatform } from './ConfirmPlatform';
-import { EraReviewHint } from './EraReviewHint';
-import { eraHintText, type EraReview } from './eraReview';
+import { PlatformReviewHint } from './PlatformReviewHint';
+import { platformHintText, type PlatformReview } from './platformReview';
 import type { SoftwareGameForm as EditFormFields } from '../types/gameForm';
 import type { components } from '@shared/types';
 
 type LaunchProfile = components['schemas']['ProfileItemRead'];
-type Platform = components['schemas']['EnvironmentItemRead'];
 
-// Warning ring on the era field while its platform is only a guess (era_review
+// Warning ring on the platform field while its platform is only a guess (platform_review
 // is "unreviewed"). Verified and confirmed get no styling.
-const ERA_UNREVIEWED_RING = 'ring-1 ring-warning/60';
+const PLATFORM_UNREVIEWED_RING = 'ring-1 ring-warning/60';
 
 type EditableItem = {
-  era: string;
-  era_review?: EraReview;
+  platform: string;
+  platform_review?: PlatformReview;
   detection_reason?: string | null;
   file_path?: string | null;
   folder_path?: string | null;
 };
 
 // The "Confirm platform" action. Present only when it should be offered, see
-// canOfferEraConfirm in ./eraReview.
-export interface EraConfirmAction {
+// canOfferPlatformConfirm in ./platformReview.
+export interface PlatformConfirmAction {
   onConfirm: () => void;
   pending: boolean;
   error: string | null;
@@ -48,8 +48,7 @@ interface EditFormProps {
   launchCommands?: string[] | null;
   setLaunchCommands?: (cmds: string[]) => void;
   profiles: LaunchProfile[];
-  platforms: Platform[];
-  eraConfirm?: EraConfirmAction;
+  platformConfirm?: PlatformConfirmAction;
 }
 
 export function EditForm({
@@ -63,36 +62,34 @@ export function EditForm({
   execBrowserOpen,
   setExecBrowserOpen,
   profiles,
-  platforms,
-  eraConfirm,
+  platformConfirm,
 }: EditFormProps) {
   const { data: launchFileExtensions } = useQuery({
     queryKey: ['filesystem', 'launch-file-extensions'],
     queryFn: () => apiFetch<{ extensions: string[] }>('/api/v1/filesystem/launch-file-extensions'),
     staleTime: 5 * 60_000,
   });
-  const ROM_ERAS = new Set(['nes', 'n64', 'ps1', 'ps2', 'xbox', 'dreamcast']);
-  const isRomEra = ROM_ERAS.has(item.era);
+  const isConsolePlatform = PLATFORM_KINDS[item.platform] === 'console';
   const showLaunchFile = item.file_path !== undefined || item.folder_path !== undefined;
-  const eraLabel = ERA_LABELS[item.era] ?? (item.era === 'unknown' ? 'Unknown' : item.era);
+  const platformLabel =
+    PLATFORM_LABELS[item.platform] ?? (item.platform === 'unknown' ? 'Unknown' : item.platform);
   const effectiveProfileId = form.profile_item_id ? parseInt(form.profile_item_id, 10) : null;
-  const eraProfiles = profiles.filter((p) => p.era === item.era);
-  const otherProfiles = profiles.filter((p) => p.era !== item.era);
+  const platformProfiles = profiles.filter((p) => p.platform === item.platform);
+  const otherProfiles = profiles.filter((p) => p.platform !== item.platform);
   const chosenProfile = profiles.find((p) => p.id === effectiveProfileId) ?? null;
-  const expectedEmulator = (ERA_TO_EMULATOR as Record<string, string | undefined>)[item.era];
-  const profileEraMismatch =
+  const expectedEmulator = PLATFORM_TO_EMULATOR[item.platform] as string | undefined;
+  const profilePlatformMismatch =
     chosenProfile && expectedEmulator != null && chosenProfile.emulator_slug !== expectedEmulator;
-  const isPcLaunchable = isPcEra(form.era);
-  const eraUnreviewed = item.era_review === 'unreviewed';
+  const platformUnreviewed = item.platform_review === 'unreviewed';
 
-  // Console items have no per-item Environment (fixed era-to-emulator
-  // mapping), so switching away from a PC era clears any previously
+  // Console items have no per-item Environment (fixed platform-to-emulator
+  // mapping), so switching away from a PC platform clears any previously
   // selected environment_item_id rather than leaving a stale value that
   // would 422 against the console+environment backend rule on save.
-  // Mirrors AppEditForm's handleEraChange for the same reason.
-  function handleEraChange(era: string) {
-    setField('era', era);
-    if (!isPcEra(era)) setField('environment_item_id', '');
+  // Mirrors AppEditForm's handlePlatformChange for the same reason.
+  function handlePlatformChange(platform: string) {
+    setField('platform', platform);
+    if (!isPcPlatform(platform)) setField('environment_item_id', '');
   }
 
   return (
@@ -235,7 +232,7 @@ export function EditForm({
                 </div>
               )}
               <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-                {isRomEra
+                {isConsolePlatform
                   ? 'ROM-based media, auto-resolved from your media folder. Override below if it picked the wrong file.'
                   : 'The file Peach 1UP will launch. Auto-detected from your media folder, override if incorrect.'}
               </p>
@@ -243,51 +240,47 @@ export function EditForm({
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Era" htmlFor="detail-era">
+            <FormField label="Platform" htmlFor="detail-platform">
               <div className="flex items-center gap-2">
                 <div
-                  data-testid="era-select-wrapper"
-                  className={`min-w-0 flex-1 rounded-md ${eraUnreviewed ? ERA_UNREVIEWED_RING : ''}`}
+                  data-testid="platform-select-wrapper"
+                  className={`min-w-0 flex-1 rounded-md ${platformUnreviewed ? PLATFORM_UNREVIEWED_RING : ''}`}
                 >
                   <Select
-                    id="detail-era"
-                    value={form.era || 'none'}
-                    onValueChange={(v) => handleEraChange(v === 'none' ? '' : v)}
-                    options={[
-                      { value: 'none', label: '— No era —' },
-                      ...Object.entries(ERA_LABELS).map(([key, label]) => ({
-                        value: key,
-                        label,
-                      })),
-                    ]}
+                    id="detail-platform"
+                    value={form.platform || 'none'}
+                    onValueChange={(v) => handlePlatformChange(v === 'none' ? '' : v)}
+                    options={platformSelectOptions('No platform selected')}
                   />
                 </div>
-                {item.era_review && (
-                  <EraReviewHint
-                    text={eraHintText(item.era_review, item.era, item.detection_reason)}
+                {item.platform_review && (
+                  <PlatformReviewHint
+                    text={platformHintText(
+                      item.platform_review,
+                      item.platform,
+                      item.detection_reason,
+                    )}
                   />
                 )}
               </div>
-              {eraConfirm && (
+              {platformConfirm && (
                 <ConfirmPlatform
-                  onConfirm={eraConfirm.onConfirm}
-                  pending={eraConfirm.pending}
-                  error={eraConfirm.error}
+                  onConfirm={platformConfirm.onConfirm}
+                  pending={platformConfirm.pending}
+                  error={platformConfirm.error}
                 />
               )}
-              {(item.era === 'unknown' || !item.era) && (
+              {(item.platform === 'unknown' || !item.platform) && (
                 <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                  Era could not be detected automatically. Please select one.
+                  Platform could not be detected automatically. Please select one.
                 </p>
               )}
             </FormField>
 
-            <PlatformField
-              isPcLaunchable={isPcLaunchable}
+            <EnvironmentField
+              platform={form.platform}
               value={form.environment_item_id}
               onChange={(v) => setField('environment_item_id', v)}
-              platforms={platforms}
-              disabledNote="Determined automatically by era, no environment needed."
             />
           </div>
 
@@ -298,11 +291,11 @@ export function EditForm({
               onValueChange={(v) => setField('profile_item_id', v === 'none' ? '' : v)}
               options={[
                 { value: 'none', label: '— No profile —' },
-                ...(eraProfiles.length > 0
+                ...(platformProfiles.length > 0
                   ? [
                       {
-                        groupLabel: `Matching era (${eraLabel})`,
-                        options: eraProfiles.map((p) => ({
+                        groupLabel: `Matching platform (${platformLabel})`,
+                        options: platformProfiles.map((p) => ({
                           value: String(p.id),
                           label: `${p.name}${p.is_bundled ? ' (default)' : ''}`,
                         })),
@@ -312,19 +305,19 @@ export function EditForm({
                 ...(otherProfiles.length > 0
                   ? [
                       {
-                        groupLabel: 'Other eras',
+                        groupLabel: 'Other platforms',
                         options: otherProfiles.map((p) => ({
                           value: String(p.id),
-                          label: `${p.name} (${ERA_LABELS[p.era] ?? p.era})`,
+                          label: `${p.name} (${PLATFORM_LABELS[p.platform] ?? p.platform})`,
                         })),
                       },
                     ]
                   : []),
               ]}
             />
-            {profileEraMismatch && (
+            {profilePlatformMismatch && (
               <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                Selected profile targets a different era, launch may fail.
+                Selected profile targets a different platform, launch may fail.
               </p>
             )}
           </FormField>

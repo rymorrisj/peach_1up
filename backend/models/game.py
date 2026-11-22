@@ -7,8 +7,8 @@ from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Integer, Strin
 from sqlalchemy.orm import validates
 from sqlmodel import Field, Relationship, SQLModel
 
-from backend.constants import PC_ERAS
-from backend.constants_generated import EraValue, FileType, ItemType
+from backend.constants import PC_PLATFORMS
+from backend.constants_generated import PlatformValue, FileType, ItemType
 from backend.models.drive import Drive, DriveRead
 from backend.models.media import LinkedEntityRef
 from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_entity
@@ -183,9 +183,9 @@ class GameItemReorder(SQLModel):
 # ---------------------------------------------------------------------------
 
 
-def derive_item_type(era: EraValue) -> ItemType:
-    """era is the source of truth for item_type: PC eras -> "pc", everything else -> "console"."""
-    return "pc" if era in PC_ERAS else "console"
+def derive_item_type(platform: PlatformValue) -> ItemType:
+    """platform is the source of truth for item_type: PC platforms -> "pc", everything else -> "console"."""
+    return "pc" if platform in PC_PLATFORMS else "console"
 
 
 class GameItemBundle(SQLModel, table=True):
@@ -195,8 +195,8 @@ class GameItemBundle(SQLModel, table=True):
     slug: Optional[str] = Field(default=None, index=True, unique=True)
     title: str
     sort_title: Optional[str] = None
-    era: EraValue = Field(sa_column=Column(String, nullable=False))
-    # Derived-and-validated from era on write (see _derive_item_type_from_era below);
+    platform: PlatformValue = Field(sa_column=Column(String, nullable=False))
+    # Derived-and-validated from platform on write (see _derive_item_type_from_platform below);
     # default=None only so construction can omit it before the validator fills it in,
     # the stored column is NOT NULL.
     item_type: ItemType = Field(default=None, sa_column=Column(String, nullable=False))
@@ -225,13 +225,13 @@ class GameItemBundle(SQLModel, table=True):
     installed: bool = False
     requires_install: bool = False
     launch_review_flagged: bool = Field(default=False)
-    # Whether the platform (era) is proven: formatscout's detection was
+    # Whether the platform is proven: formatscout's detection was
     # authoritative (ScanResult.authoritative, incl. the PS3 folder structure), the user chose
-    # the era at import, the user changed it later, or the user confirmed a
-    # detected era after seeing the game run. Never true while era is
-    # "unknown". Written at ingest, by PATCH (see _apply_era_change and
-    # _validate_era_confirmation in service/games/items.py), never by create.
-    era_confirmed: bool = Field(default=False)
+    # the platform at import, the user changed it later, or the user confirmed a
+    # detected platform after seeing the game run. Never true while platform is
+    # "unknown". Written at ingest, by PATCH (see _apply_platform_change and
+    # _validate_platform_confirmation in service/games/items.py), never by create.
+    platform_confirmed: bool = Field(default=False)
     # None = inherit the global delete_media_on_removal setting. True/False
     # explicitly overrides it for this bundle only.
     delete_media_override: Optional[bool] = None
@@ -283,11 +283,11 @@ class GameItemBundle(SQLModel, table=True):
 
     @validates("item_type")
     def _validate_item_type(self, key: str, value: Optional[ItemType]) -> Optional[ItemType]:
-        derived = derive_item_type(self.era)
+        derived = derive_item_type(self.platform)
         if value is not None and value != derived:
             raise ValueError(
-                f"item_type {value!r} conflicts with era {self.era!r} "
-                f"(era implies {derived!r}). item_type is derived from era, not independently settable."
+                f"item_type {value!r} conflicts with platform {self.platform!r} "
+                f"(platform implies {derived!r}). item_type is derived from platform, not independently settable."
             )
         return value
 
@@ -301,13 +301,13 @@ class GameItemBundle(SQLModel, table=True):
         # whole object is built, not by returning a different value from
         # _validate_item_type above (which exists solely to reject an
         # explicitly-conflicting item_type before construction completes).
-        self.item_type = derive_item_type(self.era)
+        self.item_type = derive_item_type(self.platform)
 
 
 class GameItemBundleCreate(SQLModel):
     title: str
     file_path: str
-    era: EraValue = "unknown"
+    platform: PlatformValue = "unknown"
     profile_item_id: Optional[int] = None
     environment_item_id: Optional[int] = None
 
@@ -315,7 +315,7 @@ class GameItemBundleCreate(SQLModel):
 class GameItemBundleUpdate(SQLModel):
     title: Optional[str] = None
     sort_title: Optional[str] = None
-    era: Optional[EraValue] = None
+    platform: Optional[PlatformValue] = None
     category: Optional[str] = None
     description: Optional[str] = None
     publisher: Optional[str] = None
@@ -330,9 +330,9 @@ class GameItemBundleUpdate(SQLModel):
     requires_install: Optional[bool] = None
     delete_media_override: Optional[bool] = None
     # Only `true` is accepted (the "Confirm platform" action), and only when
-    # the resulting era is known. Enforced by _validate_era_confirmation in
-    # service/games/items.py, which needs the stored era this model cannot see.
-    era_confirmed: Optional[bool] = None
+    # the resulting platform is known. Enforced by _validate_platform_confirmation in
+    # service/games/items.py, which needs the stored platform this model cannot see.
+    platform_confirmed: Optional[bool] = None
     environment_item_id: Optional[int] = None
     profile_item_id: Optional[int] = None
     display_disk_id: Optional[int] = None
@@ -348,13 +348,13 @@ class GameItemBundleUpdate(SQLModel):
         return data
 
 
-# How far the bundle's era can be trusted, computed per read (never stored):
-#   "confirmed"  the stored era_confirmed flag is true (authoritative
-#                detection, a user-chosen or user-changed era, or an explicit
+# How far the bundle's platform can be trusted, computed per read (never stored):
+#   "confirmed"  the stored platform_confirmed flag is true (authoritative
+#                detection, a user-chosen or user-changed platform, or an explicit
 #                Confirm).
 #   "verified"   not confirmed, but every disc hash-verified.
-#   "unreviewed" a guess nothing has proven, including era "unknown".
-EraReview = Literal["confirmed", "verified", "unreviewed"]
+#   "unreviewed" a guess nothing has proven, including platform "unknown".
+PlatformReview = Literal["confirmed", "verified", "unreviewed"]
 
 
 class GameItemBundleRead(SQLModel):
@@ -362,7 +362,7 @@ class GameItemBundleRead(SQLModel):
     slug: Optional[str] = None
     title: str
     sort_title: Optional[str] = None
-    era: str
+    platform: str
     item_type: ItemType
     category: Optional[str] = None
     description: Optional[str] = None
@@ -379,9 +379,9 @@ class GameItemBundleRead(SQLModel):
     installed: bool = False
     requires_install: bool = False
     launch_review_flagged: bool = False
-    # Stored flag, see GameItemBundle.era_confirmed. era_review below is what
+    # Stored flag, see GameItemBundle.platform_confirmed. platform_review below is what
     # the UI reads, this is exposed so a client can tell "confirmed" apart.
-    era_confirmed: bool = False
+    platform_confirmed: bool = False
     delete_media_override: Optional[bool] = None
     environment_item_id: Optional[int] = None
     profile_item_id: Optional[int] = None
@@ -400,12 +400,9 @@ class GameItemBundleRead(SQLModel):
     # game_item_bundle_to_read / game_item_bundles_to_read_bulk via the shared
     # evaluate_launch_readiness (call_site="item"). "no_profile" when the bundle
     # has no launch profile (pc or console); "no_environment" when this is a PC
-    # bundle with no resolvable Environment (neither environment_item_id nor an
-    # era-matched system Environment fallback); "environment_era_mismatch" when
-    # a resolved Environment's era does not match the bundle's era;
-    # "environment_not_provisioned" when a resolved Environment has no working
-    # image and its era can never get one auto-provisioned;
-    # "environment_not_installed" when a resolved, era-matched, provisioned
+    # bundle with no Environment chosen; "environment_not_provisioned" when the
+    # chosen Environment has no working image and its platform can never get
+    # one auto-provisioned; "environment_not_installed" when the chosen
     # Environment has not had its OS installed yet; None when the item clears
     # every gate.
     launch_blocked_reason: Optional[str] = None
@@ -418,9 +415,9 @@ class GameItemBundleRead(SQLModel):
     # above, not an independent computation. None unless that leaf's own
     # status is "mismatch".
     verification_similarity: Optional[float] = None
-    # Computed at read time (not stored) by _compute_era_review below, how much
-    # to trust this bundle's era. Set after verification_status, it reads it.
-    era_review: EraReview = "unreviewed"
+    # Computed at read time (not stored) by _compute_platform_review below, how much
+    # to trust this bundle's platform. Set after verification_status, it reads it.
+    platform_review: PlatformReview = "unreviewed"
     # Computed at read time (not stored) by _bundle_has_launched below: True
     # when any LaunchHistory row exists for this bundle, whatever its outcome.
     # Set on the single-bundle (detail) read only. None on list reads, which
@@ -463,11 +460,11 @@ def _rollup_verification_item(items: list[GameItemRead]) -> GameItemRead | None:
     return max(items, key=lambda item: _VERIFICATION_SEVERITY[item.verification_status])
 
 
-def _compute_era_review(era_confirmed: bool, verification_status: VerificationStatus) -> EraReview:
-    """Three-way era trust signal, see EraReview: "confirmed" when the stored
+def _compute_platform_review(platform_confirmed: bool, verification_status: VerificationStatus) -> PlatformReview:
+    """Three-way platform trust signal, see PlatformReview: "confirmed" when the stored
     flag is set, else "verified" when the rolled-up verification_status is
     verified, else "unreviewed". Reads no detection_reason text."""
-    if era_confirmed:
+    if platform_confirmed:
         return "confirmed"
     if verification_status == "verified":
         return "verified"
@@ -498,7 +495,7 @@ def _bundle_has_launched(bundle_id: int, db: "Session") -> bool:
 class ScanPreviewItem(SQLModel):
     title: str
     file_path: str
-    detected_era: Optional[str] = None
+    detected_platform: Optional[str] = None
     is_loose: bool
     is_zip: bool
 
@@ -582,20 +579,19 @@ def _leaves_for_bundle(bundle_id: int, db: "Session") -> list[GameItem]:
 
 def _launch_blocked_reason(c: "GameItemBundle", environment) -> Optional[str]:
     """Thin adapter over the shared evaluate_launch_readiness (see
-    backend/service/utils/era_defaults.py), call_site="item" since this is the
+    backend/service/utils/platform_defaults.py), call_site="item" since this is the
     read-time signal for a launchable bundle, never a direct Environment
     launch. Returns "no_profile" when the bundle has no profile (pc or
-    console), "no_environment" for a PC bundle with no resolvable Environment,
-    "environment_era_mismatch", "environment_not_provisioned", or
-    "environment_not_installed" for a resolvable-but-unlaunchable Environment,
+    console), "no_environment" for a PC bundle with no Environment chosen,
+    "environment_not_provisioned" or "environment_not_installed" for a chosen
+    but unlaunchable Environment,
     else None. is_pc is derived from item_type. *environment* is the already
     -resolved EnvironmentItem (or None) for this bundle."""
-    from backend.service.utils.era_defaults import evaluate_launch_readiness
+    from backend.service.utils.platform_defaults import evaluate_launch_readiness
 
     return evaluate_launch_readiness(
         call_site="item",
         is_pc=c.item_type == "pc",
-        era=c.era,
         profile_item_id=c.profile_item_id,
         environment=environment,
     )
@@ -607,7 +603,7 @@ def game_item_bundle_to_read(c: "GameItemBundle", db: "Session", *, viewer: "Use
     *viewer* (the active user) is required so linked media and app titles
     are filtered to what that user can see, the reverse of MED-7."""
     from backend.models.metadata_lookup import get_genres_for_game_item_bundle
-    from backend.service.utils.era_defaults import resolve_environment_for_launch_gate
+    from backend.service.utils.platform_defaults import resolve_environment_for_launch_gate
 
     from backend.models.media import _linked_items_for
 
@@ -617,14 +613,14 @@ def game_item_bundle_to_read(c: "GameItemBundle", db: "Session", *, viewer: "Use
     read.genres = get_genres_for_game_item_bundle(c.id, db)
     read.linked_items = _linked_items_for("game_item_bundle", c.id, db, viewer=viewer)
     environment = (
-        resolve_environment_for_launch_gate(c.environment_item_id, c.era, db)
+        resolve_environment_for_launch_gate(c.environment_item_id, db)
         if c.item_type == "pc" else None
     )
     read.launch_blocked_reason = _launch_blocked_reason(c, environment)
     _worst = _rollup_verification_item(read.items)
     read.verification_status = _worst.verification_status if _worst is not None else "unchecked"
     read.verification_similarity = _worst.verification_similarity if _worst is not None else None
-    read.era_review = _compute_era_review(c.era_confirmed, read.verification_status)
+    read.platform_review = _compute_platform_review(c.platform_confirmed, read.verification_status)
     read.has_launched = _bundle_has_launched(c.id, db)
     return read
 
@@ -638,7 +634,7 @@ def game_item_bundles_to_read_bulk(
 
     from backend.models.media import _linked_items_for_many
     from backend.models.metadata_lookup import get_genres_for_game_item_bundles
-    from backend.service.utils.era_defaults import resolve_environments_for_launch_gate_bulk
+    from backend.service.utils.platform_defaults import resolve_environments_for_launch_gate_bulk
 
     if not bundles:
         return []
@@ -661,8 +657,8 @@ def game_item_bundles_to_read_bulk(
     genre_map = get_genres_for_game_item_bundles(bundle_ids, db)
     linked_map = _linked_items_for_many("game_item_bundle", bundle_ids, db, viewer=viewer)
 
-    # Batched Environment resolution (explicit id + era-matched system
-    # fallback) for every PC bundle, instead of a per-bundle lookup (N+1).
+    # Batched Environment resolution for every PC bundle, instead of a
+    # per-bundle lookup (N+1).
     pc_bundles = [c for c in bundles if c.item_type == "pc"]
     environment_by_bundle_id = resolve_environments_for_launch_gate_bulk(pc_bundles, db)
 
@@ -677,6 +673,6 @@ def game_item_bundles_to_read_bulk(
         _worst = _rollup_verification_item(read.items)
         read.verification_status = _worst.verification_status if _worst is not None else "unchecked"
         read.verification_similarity = _worst.verification_similarity if _worst is not None else None
-        read.era_review = _compute_era_review(c.era_confirmed, read.verification_status)
+        read.platform_review = _compute_platform_review(c.platform_confirmed, read.verification_status)
         reads.append(read)
     return reads

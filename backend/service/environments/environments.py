@@ -9,16 +9,9 @@ from sqlalchemy.orm import Session
 
 from backend.models.environment import EnvironmentItem, EnvironmentItemCreate, EnvironmentItemUpdate
 from backend.service.utils.confirmation_tokens import consume as _consume
-from backend.service.utils.era_defaults import DOS_WIN_ERAS, PROVISIONABLE_ERAS as _PROVISIONABLE_ERAS
+from backend.constants import DOSBOX_PLATFORMS, PC_PLATFORMS
+from backend.service.utils.platform_defaults import PROVISIONABLE_PLATFORMS
 from backend.service.utils.slug_generator import unique_slug
-
-_PLATFORM_ERAS = frozenset({"dos", "win95", "win98", "winxp"})
-# _PROVISIONABLE_ERAS: eras that get an auto-provisioned working image at
-# create time (86Box VHD+config via provision_86box_vm, or the DOS FAT16 C:
-# drive via provision_dosbox_drive). Shared definition, see
-# era_defaults.PROVISIONABLE_ERAS; also used by coordinator.py's
-# _ensure_environment_provisioned so create-time and launch-time provisioning
-# agree on exactly the same era set.
 
 
 def _validate_image_path(path_str: str) -> Path:
@@ -61,12 +54,12 @@ def _probe_image_integrity(path: Path) -> bool:
     return True
 
 
-def _environment_files_present(era: str, working: str | None, base: str | None) -> bool:
-    if era in DOS_WIN_ERAS:
+def _environment_files_present(platform: str, working: str | None, base: str | None) -> bool:
+    if platform in DOSBOX_PLATFORMS:
         # DOS launches mount the per-item drive instead of working_image_path
-        # (see _PROVISIONABLE_ERAS comment above), so only base_image_path
-        # (optional, Advanced-only field for these eras) is evaluated here.
-        return bool(base and Path(base).is_file())
+        # (see provision_dosbox_drive). base_image_path is optional for DOS:
+        # only a configured base image that is missing on disk fails here.
+        return not base or Path(base).is_file()
 
     working_ok = bool(working and Path(working).is_file())
     base_ok = bool(base and Path(base).is_file())
@@ -75,31 +68,34 @@ def _environment_files_present(era: str, working: str | None, base: str | None) 
     return _probe_image_integrity(Path(working))
 
 
-def compute_environment_presence(platform: EnvironmentItem) -> bool:
-    """Uncached, boolean presence check for *platform*, safe to call on every
+def compute_environment_presence(environment: EnvironmentItem) -> bool:
+    """Uncached, boolean presence check for *environment*, safe to call on every
     read (list/detail/summary endpoints), nothing is persisted or cached, so
     this can never go stale the way the old persisted status column did.
     Same philosophy as check_bios_presence/validate_bios_from_descriptor:
     a live check of on-disk (or installed-binary) state, not a stored flag."""
-    if platform.is_system:
+    if environment.is_system or environment.platform in DOSBOX_PLATFORMS:
         from backend.service.utils.emulator_catalog import get_install_path as _get_install_path
-        install_path = _get_install_path(platform.emulator_slug) if platform.emulator_slug else None
-        return install_path is not None
-    return _environment_files_present(platform.era, platform.working_image_path, platform.base_image_path)
+        install_path = _get_install_path(environment.emulator_slug) if environment.emulator_slug else None
+        if install_path is None:
+            return False
+        if environment.is_system:
+            return True
+    return _environment_files_present(environment.platform, environment.working_image_path, environment.base_image_path)
 
 
 def create_environment_item(body: EnvironmentItemCreate, db: Session) -> EnvironmentItem:
     from backend.core.logger import get_logger
     logger = get_logger(__name__)
 
-    if body.era not in _PLATFORM_ERAS:
-        raise HTTPException(status_code=422, detail=f"Only PC eras are supported: {', '.join(sorted(_PLATFORM_ERAS))}.")
+    if body.platform not in PC_PLATFORMS:
+        raise HTTPException(status_code=422, detail=f"Only PC platforms are supported: {', '.join(sorted(PC_PLATFORMS))}.")
 
-    platform_data = body.model_dump()
+    environment_data = body.model_dump()
     if body.base_image_path:
-        platform_data["base_image_path"] = str(_validate_image_path(body.base_image_path))
+        environment_data["base_image_path"] = str(_validate_image_path(body.base_image_path))
     if body.working_image_path:
-        platform_data["working_image_path"] = str(_validate_image_path(body.working_image_path))
+        environment_data["working_image_path"] = str(_validate_image_path(body.working_image_path))
         # A working_image_path supplied directly in the create request is the
         # pre-installed-HDD-image path (SCOPE.md P2's primary media path): the
         # OS is already present the moment it's registered, launch-ready
@@ -107,58 +103,58 @@ def create_environment_item(body: EnvironmentItemCreate, db: Session) -> Environ
         # (working_image_path absent here, auto-provisioned as an empty VHD/
         # drive), that one genuinely is not installed until the user runs the
         # installer inside the emulator.
-        platform_data["installed_at"] = datetime.now(timezone.utc)
+        environment_data["installed_at"] = datetime.now(timezone.utc)
 
-    platform = EnvironmentItem(**platform_data)
-    if not platform.slug:
-        platform.slug = unique_slug(
-            platform.name,
+    environment = EnvironmentItem(**environment_data)
+    if not environment.slug:
+        environment.slug = unique_slug(
+            environment.name,
             lambda s: db.query(EnvironmentItem).filter(EnvironmentItem.slug == s).first() is not None,
-            fallback="platform",
+            fallback="environment",
         )
-    db.add(platform)
+    db.add(environment)
     db.commit()
-    db.refresh(platform)
+    db.refresh(environment)
 
-    if not platform.working_image_path and platform.era in _PROVISIONABLE_ERAS:
+    if not environment.working_image_path and environment.platform in PROVISIONABLE_PLATFORMS:
         try:
-            from backend.service.utils.vm import provision_platform
-            _iso, working_path, config_path, _install_path, _rom_path = provision_platform(platform)
-            if _iso and not platform.base_image_path:
-                platform.base_image_path = _iso
+            from backend.service.utils.vm import provision_environment
+            _iso, working_path, config_path, _install_path, _rom_path = provision_environment(environment)
+            if _iso and not environment.base_image_path:
+                environment.base_image_path = _iso
             if working_path:
-                platform.working_image_path = working_path
+                environment.working_image_path = working_path
             if config_path:
-                platform.config_path = config_path
+                environment.config_path = config_path
             db.commit()
-            db.refresh(platform)
+            db.refresh(environment)
         except Exception as exc:
             logger.error(
-                "Auto-provisioning failed for platform %d (%s/%s): %s",
-                platform.id, platform.era, platform.slug, exc,
+                "Auto-provisioning failed for environment %d (%s/%s): %s",
+                environment.id, environment.platform, environment.slug, exc,
             )
             # Provisioning failed after the row was already committed above,
             # so delete it rather than leave a half-provisioned environment
             # (no working_image_path, but a real id) that looks like a normal,
             # healthy row to both the DB and the caller.
-            db.delete(platform)
+            db.delete(environment)
             db.commit()
             raise HTTPException(
                 status_code=500,
                 detail=f"Environment provisioning failed: {exc}",
             ) from exc
 
-    return platform
+    return environment
 
 
-def delete_environment_item(platform_id: int, token: str, db: Session) -> None:
+def delete_environment_item(environment_id: int, token: str, db: Session) -> None:
     from backend.core.logger import get_logger
     logger = get_logger(__name__)
 
-    if not _consume(token, "environment_item", platform_id, "delete"):
+    if not _consume(token, "environment_item", environment_id, "delete"):
         raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
-    platform = db.get(EnvironmentItem, platform_id)
-    if not platform:
+    environment = db.get(EnvironmentItem, environment_id)
+    if not environment:
         raise HTTPException(status_code=404, detail="Environment not found.")
 
     # working_image_path is the app-managed working copy created at
@@ -173,39 +169,39 @@ def delete_environment_item(platform_id: int, token: str, db: Session) -> None:
     # file (e.g. a manually-set override via PATCH). Deleting the file out
     # from under a still-live Environment would be worse than leaving an orphan,
     # so the file is only removed if no other row still points at it.
-    working_path = platform.working_image_path
+    working_path = environment.working_image_path
     if working_path:
         still_referenced = (
             db.query(EnvironmentItem)
-            .filter(EnvironmentItem.id != platform_id, EnvironmentItem.working_image_path == working_path)
+            .filter(EnvironmentItem.id != environment_id, EnvironmentItem.working_image_path == working_path)
             .first()
             is not None
         )
         if still_referenced:
             logger.info(
                 "Environment %d deleted; working_image_path '%s' left on disk, "
-                "still referenced by another platform.",
-                platform_id, working_path,
+                "still referenced by another environment.",
+                environment_id, working_path,
             )
         else:
             try:
                 img = Path(working_path)
                 if img.exists():
                     img.unlink()
-                    logger.info("Deleted working image for platform %d: %s", platform_id, img)
+                    logger.info("Deleted working image for environment %d: %s", environment_id, img)
             except OSError as exc:
                 logger.warning(
-                    "Could not delete working image %s for platform %d: %s",
-                    working_path, platform_id, exc,
+                    "Could not delete working image %s for environment %d: %s",
+                    working_path, environment_id, exc,
                 )
 
-    db.delete(platform)
+    db.delete(environment)
     db.commit()
 
 
-def update_environment_item(platform_id: int, body: EnvironmentItemUpdate, db: Session) -> EnvironmentItem:
-    platform = db.get(EnvironmentItem, platform_id)
-    if not platform:
+def update_environment_item(environment_id: int, body: EnvironmentItemUpdate, db: Session) -> EnvironmentItem:
+    environment = db.get(EnvironmentItem, environment_id)
+    if not environment:
         raise HTTPException(status_code=404, detail="Environment not found.")
     # exclude_unset (not exclude_none): a PATCH must distinguish "field absent
     # from the request" (leave untouched) from "field explicitly sent as null"
@@ -216,8 +212,8 @@ def update_environment_item(platform_id: int, body: EnvironmentItemUpdate, db: S
     # EnvironmentDetail.tsx's edit form, which sends `... || null` for exactly
     # this purpose.
     updates = body.model_dump(exclude_unset=True)
-    if "era" in updates and updates["era"] not in _PLATFORM_ERAS:
-        raise HTTPException(status_code=422, detail=f"Only PC eras are supported: {', '.join(sorted(_PLATFORM_ERAS))}.")
+    if "platform" in updates and updates["platform"] not in PC_PLATFORMS:
+        raise HTTPException(status_code=422, detail=f"Only PC platforms are supported: {', '.join(sorted(PC_PLATFORMS))}.")
     # Validate-and-normalise only when a non-empty path was actually sent; an
     # explicit null/empty value is a real clear and must pass through as None,
     # not be handed to _validate_image_path (which requires a real path and
@@ -227,21 +223,21 @@ def update_environment_item(platform_id: int, body: EnvironmentItemUpdate, db: S
     if updates.get("working_image_path"):
         updates["working_image_path"] = str(_validate_image_path(updates["working_image_path"]))
     for key, value in updates.items():
-        setattr(platform, key, value)
+        setattr(environment, key, value)
     db.commit()
-    db.refresh(platform)
-    return platform
+    db.refresh(environment)
+    return environment
 
 
-def check_environment_item_health(platform: EnvironmentItem, db: Session) -> dict:
+def check_environment_item_health(environment: EnvironmentItem, db: Session) -> dict:
     """Live recompute, nothing persisted (status/last_health_check no longer
     exist on the model), this is now a read, not a write, but the route stays
     for the frontend's per-Environment "Check now" action."""
-    present = compute_environment_presence(platform)
+    present = compute_environment_presence(environment)
 
-    if platform.is_system:
+    if environment.is_system:
         from backend.service.utils.emulator_catalog import get_install_path as _get_install_path
-        install_path = _get_install_path(platform.emulator_slug) if platform.emulator_slug else None
+        install_path = _get_install_path(environment.emulator_slug) if environment.emulator_slug else None
         return {
             "is_present": present,
             "binary_exists": install_path is not None,
@@ -250,15 +246,15 @@ def check_environment_item_health(platform: EnvironmentItem, db: Session) -> dic
 
     return {
         "is_present": present,
-        "working_image_exists": bool(platform.working_image_path and Path(platform.working_image_path).is_file()),
-        "base_image_exists": bool(platform.base_image_path and Path(platform.base_image_path).is_file()),
+        "working_image_exists": bool(environment.working_image_path and Path(environment.working_image_path).is_file()),
+        "base_image_exists": bool(environment.base_image_path and Path(environment.base_image_path).is_file()),
     }
 
 
 def batch_health_check(db: Session) -> dict:
     """Live recompute over all user Environments, nothing persisted."""
-    platforms = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()  # noqa: E712
-    results = [{"id": platform.id, "is_present": compute_environment_presence(platform)} for platform in platforms]
+    environments = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()  # noqa: E712
+    results = [{"id": environment.id, "is_present": compute_environment_presence(environment)} for environment in environments]
     return {"results": results, "checked": len(results)}
 
 
@@ -272,11 +268,11 @@ def get_health_summary(db: Session) -> dict:
         load_catalog,
     )
 
-    user_platforms = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()  # noqa: E712
+    user_environments = db.query(EnvironmentItem).filter(EnvironmentItem.is_system == False).all()  # noqa: E712
     # Computed live (nothing persisted) so this always matches what
     # list_environment_items shows on the same page load, see
     # compute_environment_presence.
-    platform_present = sum(1 for p in user_platforms if compute_environment_presence(p))
+    environments_present = sum(1 for p in user_environments if compute_environment_presence(p))
 
     # "library total" = number of games (collections); a multi-disc set counts once.
     library_count = db.query(GameItemBundle).count()
@@ -320,8 +316,8 @@ def get_health_summary(db: Session) -> dict:
 
     return {
         "environments": {
-            "total": len(user_platforms),
-            "present": platform_present,
+            "total": len(user_environments),
+            "present": environments_present,
         },
         "library": {"total": library_count},
         "drives": {"total": drive_count},

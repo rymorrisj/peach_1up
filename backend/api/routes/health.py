@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from backend.constants_generated import PLATFORM_LABELS
 from backend.core import process_registry
 from backend.core.database import get_db
 from backend.core.dependencies import require_permission
@@ -18,20 +19,6 @@ from backend.service.environments.environments import get_drive_images_bytes
 from backend.service.games.items import _target_size
 
 router = APIRouter(prefix="/api/v1", tags=["health"])
-
-_ERA_LABELS: dict[str, str] = {
-    "dos": "DOS",
-    "win95": "Windows 95",
-    "win98": "Windows 98",
-    "winxp": "Windows XP",
-    "ps1": "PlayStation 1",
-    "ps2": "PlayStation 2",
-    "xbox": "Xbox",
-    "nes": "NES",
-    "snes": "SNES",
-    "n64": "Nintendo 64",
-    "dreamcast": "Dreamcast",
-}
 
 
 def _dir_size(path: Path) -> int:
@@ -140,10 +127,10 @@ def _compute_storage_footprint(db: Session) -> dict:
     log_size = _dir_size(base / "logs")
     drive_size = get_drive_images_bytes(db)
 
-    # era lives on the collection; file sizes on the leaf, join to break down by era.
+    # platform lives on the collection; file sizes on the leaf, join to break down by platform.
     sized_rows = db.execute(
         text(
-            "SELECT c.era, i.file_size_bytes FROM game_items i "
+            "SELECT c.platform, i.file_size_bytes FROM game_items i "
             "JOIN game_item_bundles c ON c.id = i.game_item_bundle_id "
             "WHERE i.file_size_bytes IS NOT NULL"
         )
@@ -152,21 +139,21 @@ def _compute_storage_footprint(db: Session) -> dict:
         text("SELECT COUNT(*) FROM game_items WHERE file_size_bytes IS NULL")
     ).scalar() or 0
 
-    era_map: dict[str, dict] = {}
-    for era, size in sized_rows:
-        key = era or "unknown"
-        if key not in era_map:
-            era_map[key] = {
-                "era": key,
-                "label": _ERA_LABELS.get(key, key.upper()),
+    platform_map: dict[str, dict] = {}
+    for platform, size in sized_rows:
+        key = platform or "unknown"
+        if key not in platform_map:
+            platform_map[key] = {
+                "platform": key,
+                "label": PLATFORM_LABELS.get(key, key.upper()),
                 "size_bytes": 0,
                 "count": 0,
             }
-        era_map[key]["size_bytes"] += size
-        era_map[key]["count"] += 1
+        platform_map[key]["size_bytes"] += size
+        platform_map[key]["count"] += 1
 
-    media_size = sum(e["size_bytes"] for e in era_map.values())
-    breakdown = sorted(era_map.values(), key=lambda x: x["size_bytes"], reverse=True)
+    media_size = sum(e["size_bytes"] for e in platform_map.values())
+    breakdown = sorted(platform_map.values(), key=lambda x: x["size_bytes"], reverse=True)
 
     categories = [
         {"key": "emulators",      "label": "Emulator Binaries",        "size_bytes": emu_size,   "breakdown": []},

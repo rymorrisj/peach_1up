@@ -29,7 +29,7 @@ def _make_drive(image_path: str, size_mb: int = 100) -> MagicMock:
 
 def _make_entity(
     *,
-    era: str = "dos",
+    platform: str = "dos",
     installed: bool = False,
     requires_install: bool = False,
     folder_path: str | None = None,
@@ -44,8 +44,8 @@ def _make_entity(
     return LaunchableEntity(
         collection_id=1,
         profile_item_id=None,
-        era=era,
-        item_type=derive_item_type(era),
+        platform=platform,
+        item_type=derive_item_type(platform),
         environment_item_id=environment_item_id,
         slug=None,
         media_path="/tmp/game.exe",
@@ -168,10 +168,10 @@ class TestCopyLooseFilesToDrive:
 
 
 class TestHydrateDriveForEntity:
-    def test_returns_none_when_no_drive_and_era_not_in_drive_eras(self, tmp_path):
+    def test_returns_none_when_no_drive_and_platform_not_in_drive_platforms(self, tmp_path):
         from backend.service.launch.drive_hydration import hydrate_drive_for_entity
 
-        entity = _make_entity(era="ps1", drive=None)
+        entity = _make_entity(platform="ps1", drive=None)
         result = hydrate_drive_for_entity(entity, db=None)
         assert result is None
 
@@ -180,7 +180,7 @@ class TestHydrateDriveForEntity:
 
         drive = _make_drive(str(tmp_path / "game.img"))
         entity = _make_entity(
-            era="dos",
+            platform="dos",
             installed=True,
             folder_path=str(tmp_path),
             drive=drive,
@@ -193,7 +193,7 @@ class TestHydrateDriveForEntity:
 
         drive = _make_drive(str(tmp_path / "game.img"))
         entity = _make_entity(
-            era="dos",
+            platform="dos",
             requires_install=True,
             folder_path=str(tmp_path),
             drive=drive,
@@ -205,7 +205,7 @@ class TestHydrateDriveForEntity:
         from backend.service.launch.drive_hydration import hydrate_drive_for_entity
 
         drive = _make_drive(str(tmp_path / "game.img"))
-        entity = _make_entity(era="dos", drive=drive, folder_path=None)
+        entity = _make_entity(platform="dos", drive=drive, folder_path=None)
         result = hydrate_drive_for_entity(entity, db=MagicMock())
         assert result is drive
 
@@ -218,7 +218,7 @@ class TestHydrateDriveForEntity:
 
         drive = _make_drive(image_path=None)
         entity = _make_entity(
-            era="dos",
+            platform="dos",
             installed=False,
             requires_install=False,
             folder_path=str(src),
@@ -264,7 +264,7 @@ class TestHydrateDriveForEntity:
         db = MagicMock()
 
         entity = _make_entity(
-            era="dos",
+            platform="dos",
             installed=False,
             requires_install=False,
             folder_path=str(src),
@@ -305,7 +305,7 @@ class TestHydrateDriveForEntity:
         db = MagicMock()
 
         entity = _make_entity(
-            era="dos",
+            platform="dos",
             installed=False,
             requires_install=False,
             folder_path=str(src),

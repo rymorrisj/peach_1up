@@ -35,7 +35,7 @@ function fullCollection(overrides?: Record<string, unknown>) {
     id: 1,
     slug: 'doom',
     title: 'Doom',
-    era: 'dos',
+    platform: 'dos',
     launch_count: 5,
     launch_review_flagged: false,
     installed: true,
@@ -351,12 +351,12 @@ describe('CollectionDetail (mutation path)', () => {
       expect(screen.getByRole('button', { name: 'Mark as not installed' })).toBeInTheDocument();
     });
 
-    it('is hidden entirely for a non-DOS era', async () => {
+    it('is hidden entirely for a non-DOS platform', async () => {
       setupApi(adminUser, [
         {
           match: '/api/v1/game-item-bundle/by-slug/doom',
           method: 'GET',
-          respond: () => fullCollection({ era: 'win95', installed: true }),
+          respond: () => fullCollection({ platform: 'win95', installed: true }),
         },
       ]);
       renderPage();
@@ -512,7 +512,8 @@ describe('CollectionDetail (mutation path)', () => {
           respond: () => ({ confirmation_token: 'tok-expired' }),
         },
         {
-          match: /^\/api\/v1\/game-item-bundle\/1\?confirmation_token=tok-expired&delete_media=false$/,
+          match:
+            /^\/api\/v1\/game-item-bundle\/1\?confirmation_token=tok-expired&delete_media=false$/,
           method: 'DELETE',
           respond: () => Promise.reject(new ApiError(400, 'Confirmation token expired.')),
         },
@@ -625,12 +626,16 @@ describe('CollectionDetail (mutation path)', () => {
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
       // Toggle the media checkbox so a pre-delete PATCH would have had
       // something to write, then confirm the delete itself.
-      await user.click(screen.getByRole('checkbox', { name: /also delete media files from disk/i }));
+      await user.click(
+        screen.getByRole('checkbox', { name: /also delete media files from disk/i }),
+      );
       await user.click(screen.getByRole('button', { name: 'Confirm' }));
 
       // The rating-change prompt appears; cancel it.
       await waitFor(() => {
-        expect(screen.getByText('This changes who can see 2 media items. Continue?')).toBeInTheDocument();
+        expect(
+          screen.getByText('This changes who can see 2 media items. Continue?'),
+        ).toBeInTheDocument();
       });
       await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
@@ -943,6 +948,65 @@ describe('CollectionDetail (mutation path)', () => {
       const launchButton = screen.getByRole('button', { name: 'Assign a profile to launch' });
       expect(launchButton).toBeDisabled();
       expect(screen.getByText('Assign a launch profile to enable launch.')).toBeInTheDocument();
+    });
+
+    it('links to the Environments page when no_environment and no Environments exist', async () => {
+      setupApi(adminUser, [
+        {
+          match: '/api/v1/game-item-bundle/by-slug/doom',
+          method: 'GET',
+          respond: () =>
+            fullCollection({ profile_item_id: 5, launch_blocked_reason: 'no_environment' }),
+        },
+      ]);
+      renderPage();
+      await waitForLoaded();
+
+      expect(
+        await screen.findByRole('button', { name: 'Create an Environment to launch' }),
+      ).toBeDisabled();
+      expect(
+        screen.getByText(
+          /No Environments exist yet\. Create one, then choose it in the Environment field\./,
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Go to Environments' })).toHaveAttribute(
+        'href',
+        '/environments',
+      );
+    });
+
+    it('asks to choose an Environment when no_environment but Environments exist', async () => {
+      setupApi(adminUser, [
+        {
+          match: '/api/v1/game-item-bundle/by-slug/doom',
+          method: 'GET',
+          respond: () =>
+            fullCollection({ profile_item_id: 5, launch_blocked_reason: 'no_environment' }),
+        },
+        {
+          match: /^\/api\/v1\/environment-items/,
+          respond: () => [
+            {
+              id: 7,
+              name: 'My DOS PC',
+              platform: 'dos',
+              emulator_slug: 'dosbox-x',
+              is_system: false,
+            },
+          ],
+        },
+      ]);
+      renderPage();
+      await waitForLoaded();
+
+      expect(
+        await screen.findByRole('button', { name: 'Choose an Environment to launch' }),
+      ).toBeDisabled();
+      expect(
+        screen.getByText('Choose an Environment in the Environment field to enable launch.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Go to Environments' })).not.toBeInTheDocument();
     });
 
     it('launches with the assigned profile when one is set', async () => {

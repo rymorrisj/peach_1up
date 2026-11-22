@@ -5,7 +5,7 @@ import { getCsrfToken } from '@/api/client';
 const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
 
 interface FileUploadProps {
-  /** Slug of the Environment this install media belongs to, era is derived
+  /** Slug of the Environment this install media belongs to, platform is derived
    *  server-side from that Environment record, not supplied by the client.
    *  Undefined when no Environment exists yet (e.g. still in the create-modal
    *  flow, before the record, and its slug, exist); the control renders

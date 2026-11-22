@@ -12,7 +12,7 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.constants import ERA_SELECTED_BY_USER_REASON, PC_ERAS
+from backend.constants import PLATFORM_SELECTED_BY_USER_REASON
 from backend.models.game import (
     GameItemBundle, GameItemBundleCreate, GameItemBundleUpdate,
     GameItem, GameItemReorder, GameItemUpdate, derive_item_type,
@@ -22,8 +22,8 @@ from backend.service.utils.file_types import is_drive_image, file_type_from_path
 from backend.service.utils.path_utils import normalise_path, resolve_under
 from backend.service.utils.slug_generator import generate_collection_slug, slugify, unique_slug
 
-if TYPE_CHECKING:  # type-only, keeps formatscout a call-time import
-    from formatscout.result import ScanResult
+if TYPE_CHECKING:
+    from backend.service.utils.detection.formatscout_adapter import MediaDetection
 
 _MEDIA_SUFFIXES = {".iso", ".cue", ".exe", ".com", ".zip"}
 
@@ -38,11 +38,11 @@ _FOLDER_RENAME_RETRY_DELAYS: tuple[float, ...] = (0.1, 0.25, 0.5, 1.0)
 
 # Keys in the prepared row that belong to the collection (parent) vs the leaf.
 _COLLECTION_COLUMNS = {
-    "title", "era", "slug", "sort_title", "category", "description", "publisher",
+    "title", "platform", "slug", "sort_title", "category", "description", "publisher",
     "year", "external_game_id", "metadata_source", "content_rating",
     "launch_commands", "launch_review_flagged", "installed", "requires_install",
     "environment_item_id", "profile_item_id", "last_launched_at", "launch_count",
-    "era_confirmed",
+    "platform_confirmed",
 }
 _LEAF_COLUMNS = {
     "file_path", "executable_path", "cover_art_path", "file_type",
@@ -269,13 +269,13 @@ class _Detection:
     re-derive any of these by touching the filesystem again.
 
     scan:
-        The *winning* detection pass. For a directory this is the era-narrowed
-        second pass when that pass identified an era, otherwise the broad
-        first pass. era, detection_reason and requires_install are all read
+        The *winning* detection pass. For a directory this is the platform-narrowed
+        second pass when that pass identified a platform, otherwise the broad
+        first pass. platform, detection_reason and requires_install are all read
         from this one record, so they can never come from different passes.
     detect_path:
         The path ``scan`` was produced from, kept for diagnostics and to let
-        the era-narrowed pass decide whether re-detection is needed at all.
+        the platform-narrowed pass decide whether re-detection is needed at all.
     media_path:
         What becomes ``file_path`` on the leaf, and the target classify(),
         detect_rating() and the size probe run against. For a PS3 disc folder
@@ -285,7 +285,7 @@ class _Detection:
         single-file source. None when a folder holds no recognizable launch
         file.
     """
-    scan: ScanResult
+    scan: MediaDetection
     detect_path: Path
     media_path: Path
     executable_path: Path | None
@@ -396,8 +396,8 @@ def _pick_folder_executable(folder: Path) -> Path | None:
 def _detect_directory_source(
     folder: Path,
     *,
-    user_override_era: str | None,
-    era_hint: str | None,
+    user_override_platform: str | None,
+    platform_hint: str | None,
     log,
 ) -> _Detection:
     """Detect stage for a directory source. Performs no filesystem writes.
@@ -407,26 +407,25 @@ def _detect_directory_source(
     1. Broad pass against best_detect_path()'s choice (the discovered launch
        file, else a PS3/XEX structural resolution, else the first supported
        file, else the folder itself).
-    2. Era-narrowed pass. The era used to *select* a file is not the era this
+    2. Platform-narrowed pass. The platform used to *select* a file is not the platform this
        function returns: a user override wins, then the caller's scan-preview
-       hint, then pass 1's own detection. That selection era only ever picks
+       hint, then pass 1's own detection. That selection platform only ever picks
        which file inside a multi-format folder is authoritative;
        resolve_media_file_from_directory() produces it, and its output becomes
-       media_path whether or not the narrowed pass then identifies an era.
+       media_path whether or not the narrowed pass then identifies a platform.
        Re-detection is skipped when the resolver picked the same file pass 1
        already scanned, which avoids hashing a possibly large file twice and
        widening the AV/indexer lock window right before the folder rename.
 
     The narrowed pass replaces ``scan`` only when it actually identified an
-    era. Previously the second pass's ScanResult was bound unconditionally
-    while era/reason were kept from pass 1, so a folder whose era-specific
-    file failed detection persisted pass 1's era alongside pass 2's
-    requires_install (always False when era is None). era, detection_reason
+    platform. Previously the second pass's result was bound unconditionally
+    while platform/reason were kept from pass 1, so a folder whose platform-specific
+    file failed detection persisted pass 1's platform alongside pass 2's
+    requires_install (always False when platform is None). platform, detection_reason
     and requires_install now always come from the same pass.
     """
-    from formatscout import detect as _smart_detect
-    from formatscout.result import Method, ScanResult
     from backend.service.utils.detection import resolve_ps3_target
+    from backend.service.utils.detection.formatscout_adapter import MediaDetection, detect_media
 
     executable = _pick_folder_executable(folder)
     detect_path = best_detect_path(folder, str(executable) if executable is not None else None)
@@ -435,32 +434,31 @@ def _detect_directory_source(
         # best_detect_path() resolves PS3 folders structurally (ps3.py) and
         # returns the folder itself as detect_path. formatscout no longer has
         # its own PS3 structural check (that logic moved out to ps3.py, see
-        # its module docstring), so running _smart_detect() on the folder here
-        # would silently come back with era=None. The resolver's era is
+        # its module docstring), so running detect_media() on the folder here
+        # would silently come back with platform=None. The resolver's platform is
         # authoritative, use it directly instead of re-deriving it generically.
         # USRDIR/EBOOT.BIN structure is proof, so the result is built
-        # authoritative and ingest persists era_confirmed from it.
-        scan = ScanResult(
-            title=None, platform="ps3", era=ps3_target.era, confidence=1.0,
+        # authoritative and ingest persists platform_confirmed from it.
+        scan = MediaDetection(
+            platform=ps3_target.platform,
             reason="PS3 folder structure (USRDIR/EBOOT.BIN)",
+            authoritative=True,
             requires_install=ps3_target.requires_install,
-            method=Method.DIRECTORY_MARKER, authoritative=True,
-            evidence=("dir_ps3_usrdir_eboot",),
         )
     else:
-        scan = _smart_detect(detect_path)
-        if scan.era is None and scan.warnings:
+        scan = detect_media(detect_path)
+        if scan.platform is None and scan.warnings:
             log.warning("Media detection warnings for '%s': %s", detect_path, scan.warnings)
 
     media_path = folder
-    resolve_era = user_override_era or era_hint or scan.era
-    if resolve_era and resolve_era != "unknown":
+    resolve_platform = user_override_platform or platform_hint or scan.platform
+    if resolve_platform and resolve_platform != "unknown":
         try:
-            resolved_media = resolve_media_file_from_directory(folder, resolve_era)
+            resolved_media = resolve_media_file_from_directory(folder, resolve_platform)
             media_path = resolved_media
             if resolved_media != detect_path:
-                narrowed = _smart_detect(resolved_media)
-                if narrowed.era is not None:
+                narrowed = detect_media(resolved_media)
+                if narrowed.platform is not None:
                     scan = narrowed
                     detect_path = resolved_media
                 elif narrowed.warnings:
@@ -468,8 +466,8 @@ def _detect_directory_source(
                         "Media detection warnings for '%s': %s", resolved_media, narrowed.warnings
                     )
         except ValueError as exc:
-            if resolve_era == "ps3":
-                # ps3's supported_media is .iso only (config/eras.yaml), so
+            if resolve_platform == "ps3":
+                # ps3's supported_media is .iso only (config/platforms.yaml), so
                 # this resolver always raises for an extracted disc folder,
                 # that is expected, not a failure: there is no single file
                 # to resolve to, the folder itself is the correct launch
@@ -502,10 +500,10 @@ def _detect_file_source(media_file: Path, log) -> _Detection:
     launchable item. Mirrors the multi-disc path, which does the same for
     every disc.
     """
-    from formatscout import detect as _smart_detect
+    from backend.service.utils.detection.formatscout_adapter import detect_media
 
-    scan = _smart_detect(media_file)
-    if scan.era is None and scan.warnings:
+    scan = detect_media(media_file)
+    if scan.platform is None and scan.warnings:
         log.warning("Media detection warnings for '%s': %s", media_file, scan.warnings)
     return _Detection(
         scan=scan, detect_path=media_file, media_path=media_file, executable_path=media_file,
@@ -835,102 +833,94 @@ def _target_size(path: Path) -> int | None:
         return None
 
 
-def _era_confirmed_at_ingest(scan: ScanResult, user_override_era: str | None) -> bool:
-    """Whether a freshly ingested bundle's era starts out confirmed: true when
+def _platform_confirmed_at_ingest(scan: MediaDetection, user_override_platform: str | None) -> bool:
+    """Whether a freshly ingested bundle's platform starts out confirmed: true when
     the user chose it (override path), or when *scan* (the winning detect pass:
     the narrowed one when it replaced the first, disc 1 for a multi-disc set)
-    is authoritative per formatscout. An unknown era is never confirmed."""
-    if user_override_era is not None:
-        return user_override_era != "unknown"
+    is authoritative per formatscout. An unknown platform is never confirmed."""
+    if user_override_platform is not None:
+        return user_override_platform != "unknown"
     return scan.authoritative
 
 
 def _finalize_row_fields(
     title: str,
     target_paths: list[Path],
-    scan: ScanResult,
+    scan: MediaDetection,
     db: Session,
     *,
-    user_override_era: str | None = None,
+    user_override_platform: str | None = None,
     override_profile_item_id: int | None = None,
 ) -> tuple[dict, list[dict]]:
-    """Resolve era, then everything that depends on it, for one collection and
+    """Resolve platform, then everything that depends on it, for one collection and
     its N leaf targets. Shared by single-item and multi-disc ingest so neither
     computes any of it independently.
 
-    Era resolution has two sources, in precedence order:
-        1. ``user_override_era``, a genuine user selection. Sets
-           ``detection_reason`` to ERA_SELECTED_BY_USER_REASON.
+    Platform resolution has two sources, in precedence order:
+        1. ``user_override_platform``, a genuine user selection. Sets
+           ``detection_reason`` to PLATFORM_SELECTED_BY_USER_REASON.
         2. ``scan``, the detect stage's winning pass against the file on disk.
 
-    The scan-preview era a client echoes back at import time is deliberately
+    The scan-preview platform a client echoes back at import time is deliberately
     not a source here. It is never re-verified against the file, so a file that
     changed between scan and import, or a stale/incorrect client value, would
     persist silently. The detect stage always runs a real pass regardless, so
     trusting that result costs nothing extra. That echoed value still reaches
-    the detect stage as ``era_hint``, where it only ever selects which file
+    the detect stage as ``platform_hint``, where it only ever selects which file
     inside a multi-format folder is authoritative.
 
     ``target_paths`` carries one entry per leaf: exactly one for a
     collection-of-one, one per disc for a multi-disc set. classify() runs once
     per target because Redump gives every disc of a set its own dat entry and
-    therefore its own sha1; era, requires_install and content_rating are
+    therefore its own sha1; platform, requires_install and content_rating are
     collection-level and are resolved once from ``scan`` and target_paths[0].
 
     Returns ``(collection_fields, [leaf_fields per target])``.
     """
-    from backend.service.utils.era_defaults import defaults_for_era, lookup_environment_and_profile
+    from backend.service.utils.platform_defaults import resolve_platform_defaults
     from backend.service.utils.rating_detect import detect_rating
-    from formatscout import classify as _classify
+    from backend.service.utils.detection.formatscout_adapter import classify_media
 
-    if user_override_era is not None:
-        era = user_override_era
-        detection_reason = ERA_SELECTED_BY_USER_REASON
-    elif scan.era is not None:
-        era = scan.era
+    if user_override_platform is not None:
+        platform = user_override_platform
+        detection_reason = PLATFORM_SELECTED_BY_USER_REASON
+    elif scan.platform is not None:
+        platform = scan.platform
         detection_reason = scan.reason
     else:
-        era = "unknown"
+        platform = "unknown"
         detection_reason = None
 
     collection_fields: dict = {
-        "era": era,
-        "era_confirmed": _era_confirmed_at_ingest(scan, user_override_era),
+        "platform": platform,
+        "platform_confirmed": _platform_confirmed_at_ingest(scan, user_override_platform),
         "requires_install": scan.requires_install,
         "content_rating": detect_rating(str(target_paths[0])) or None,
         "environment_item_id": None,
         "profile_item_id": None,
     }
 
-    if era and era != "unknown":
-        _emulator_slug, _profile_era = defaults_for_era(era)
-        if _emulator_slug and _profile_era:
-            _def_environment_item_id, _def_profile_item_id = lookup_environment_and_profile(
-                _emulator_slug, _profile_era, db
-            )
-            if _def_profile_item_id is not None:
-                collection_fields["profile_item_id"] = _def_profile_item_id
-            # Environment is strictly PC (doc 02 A5), a console era must never
-            # get environment_item_id populated, even if a system Environment
-            # happens to exist for its emulator_slug (e.g. a seeded
-            # DuckStation/PS1 row).
-            if _def_environment_item_id is not None and era in PC_ERAS:
-                collection_fields["environment_item_id"] = _def_environment_item_id
+    # Ingest suggests a profile only. environment_item_id stays unset for every
+    # platform: the user creates and chooses a PC Environment themselves.
+    if platform and platform != "unknown":
+        _def_profile_item_id = resolve_platform_defaults(platform, db)
+        if _def_profile_item_id is not None:
+            collection_fields["profile_item_id"] = _def_profile_item_id
 
     if override_profile_item_id is not None:
         collection_fields["profile_item_id"] = override_profile_item_id
 
-    # classify() runs after era resolution, not alongside file_type below,
-    # since its fuzzy title-match tier needs the final resolved era to scope
-    # its search. "unknown" is passed through as None: era is required for
+    # classify() runs after platform resolution, not alongside file_type below,
+    # since its fuzzy title-match tier needs the final resolved platform to scope
+    # its search. "unknown" is passed through as None: platform is required for
     # classify() to ever reach "mismatch", and an unscoped title search across
     # every platform would make an accidental false-positive match more
     # likely, not less.
-    _classify_era = era if era != "unknown" else None
+    _classify_platform = platform if platform != "unknown" else None
 
     leaf_fields: list[dict] = []
     for target in target_paths:
-        _classify_result = _classify(target, title, _classify_era)
+        _classify_result = classify_media(target, title, _classify_platform)
         leaf_fields.append({
             "file_type": file_type_from_path(target),
             "file_size_bytes": _target_size(target),
@@ -950,8 +940,8 @@ def _prepare_item(
     *,
     used_slugs: set[str] | None = None,
     override_profile_item_id: int | None = None,
-    detected_era: str | None = None,
-    user_override_era: str | None = None,
+    detected_platform: str | None = None,
+    user_override_platform: str | None = None,
     _undo_stack: list | None = None,
 ) -> tuple[dict, list[dict]]:
     """
@@ -965,19 +955,19 @@ def _prepare_item(
     the staging stage only, and each one registers an undo callable on
     ``_undo_stack`` so a caller can replay them in reverse on failure.
 
-    Era resolution lives in _finalize_row_fields and has two sources, in
-    precedence order: ``user_override_era``, a genuine user selection, then
+    Platform resolution lives in _finalize_row_fields and has two sources, in
+    precedence order: ``user_override_platform``, a genuine user selection, then
     this call's own fresh detection against the file on disk.
 
-    ``detected_era`` is still accepted, but only as a hint the detect stage
+    ``detected_platform`` is still accepted, but only as a hint the detect stage
     uses when choosing which file inside a multi-format directory to run
-    detection against. It never sets the persisted era or detection_reason.
-    It used to: the scan importer passed its scan-preview era straight through
+    detection against. It never sets the persisted platform or detection_reason.
+    It used to: the scan importer passed its scan-preview platform straight through
     and it won on precedence over this function's own detection. That value is
     echoed back by the client from an earlier request and was never re-checked
     against the file at import time, so a file that changed between scan and
     import, or a client that sent a stale or incorrect value, would silently
-    persist under the wrong era. A real detection pass runs unconditionally on
+    persist under the wrong platform. A real detection pass runs unconditionally on
     every call regardless of what the caller passes in, so trusting that fresh
     result instead of the client echo costs nothing extra.
 
@@ -998,7 +988,7 @@ def _prepare_item(
 
     collection_fields: dict = {
         "title": title,
-        "era": "unknown",
+        "platform": "unknown",
         "slug": None,
         "sort_title": None,
         "category": None,
@@ -1046,8 +1036,8 @@ def _prepare_item(
         _guard_directory_source(media_src, db, games_root_str)
         detection = _detect_directory_source(
             media_src,
-            user_override_era=user_override_era,
-            era_hint=detected_era,
+            user_override_platform=user_override_platform,
+            platform_hint=detected_platform,
             log=log,
         )
         # Stage 3: stage_files.
@@ -1082,7 +1072,7 @@ def _prepare_item(
         [Path(leaf_fields["file_path"])],
         detection.scan,
         db,
-        user_override_era=user_override_era,
+        user_override_platform=user_override_platform,
         override_profile_item_id=override_profile_item_id,
     )
     collection_fields.update(collection_result)
@@ -1250,7 +1240,7 @@ def _prepare_multi_disc(
     file_path and executable_path for its leaf.
 
     Detection runs once, against disc 1 only: every disc of a set shares one
-    era, one requires_install and one content rating. Only the hash and title
+    platform, one requires_install and one content rating. Only the hash and title
     check is genuinely per-disc (Redump gives each disc of a set its own dat
     entry and therefore its own sha1), and _finalize_row_fields handles that by
     running classify() once per target.
@@ -1275,7 +1265,7 @@ def _prepare_multi_disc(
     """
     from backend.core.logger import get_logger
     from backend.service.utils.profile_builder import _find_cover
-    from formatscout import detect as _smart_detect
+    from backend.service.utils.detection.formatscout_adapter import detect_media
 
     log = get_logger(__name__)
 
@@ -1289,8 +1279,8 @@ def _prepare_multi_disc(
         )
 
     # Stage 2: detect. No filesystem writes.
-    scan = _smart_detect(disc_files[0])
-    if scan.era is None and scan.warnings:
+    scan = detect_media(disc_files[0])
+    if scan.platform is None and scan.warnings:
         log.warning("Media detection warnings for '%s': %s", disc_files[0], scan.warnings)
 
     # Stage 3: stage_files.
@@ -1519,73 +1509,52 @@ def delete_library_collection(
     db.commit()
 
 
-def _mark_leaves_era_user_selected(collection: GameItemBundle) -> None:
+def _mark_leaves_platform_user_selected(collection: GameItemBundle) -> None:
     """Stamp every leaf's detection_reason with the user-selected marker, so the
-    era hint can say where the era came from. Display text only, the trust
-    signal is GameItemBundle.era_confirmed."""
+    platform hint can say where the platform came from. Display text only, the trust
+    signal is GameItemBundle.platform_confirmed."""
     for leaf in collection.items:
-        leaf.detection_reason = ERA_SELECTED_BY_USER_REASON
+        leaf.detection_reason = PLATFORM_SELECTED_BY_USER_REASON
 
 
-def _rebind_defaults_for_era(
-    collection: GameItemBundle, fields: dict, new_era: str, db: Session
-) -> None:
-    """Point the PATCH's profile and environment at *new_era*'s defaults.
+def _validate_platform_confirmation(collection: GameItemBundle, fields: dict) -> None:
+    """Reject a platform_confirmed value in a PATCH that is not the Confirm action.
 
-    Mutates *fields* (the PATCH's exclude_unset dump) so the caller's single
-    setattr loop applies it. A value counts as set explicitly only when it is
-    not None and differs from the bundle's stored value. The edit form echoes
-    the stored ids on every save, so an echo of the old era's profile is not a
-    choice and is refilled, which is exactly the stale binding this exists to
-    drop. Unknown and unmapped eras refill to None, environment is PC only (see
-    resolve_era_defaults).
-    """
-    from backend.service.utils.era_defaults import resolve_era_defaults
-
-    environment_item_id, profile_item_id = resolve_era_defaults(new_era, db)
-    for key, default in (
-        ("profile_item_id", profile_item_id),
-        ("environment_item_id", environment_item_id),
-    ):
-        chosen = fields.get(key)
-        if chosen is None or chosen == getattr(collection, key):
-            fields[key] = default
-
-
-def _validate_era_confirmation(collection: GameItemBundle, fields: dict) -> None:
-    """Reject an era_confirmed value in a PATCH that is not the Confirm action.
-
-    Only ``true`` is accepted, so ``false`` and an explicit null are 422: an era
+    Only ``true`` is accepted, so ``false`` and an explicit null are 422: a platform
     is un-confirmed only by changing it, never directly. ``true`` is also 422
-    when the resulting era (the request's, else the stored one) is "unknown",
+    when the resulting platform (the request's, else the stored one) is "unknown",
     since nothing was detected to confirm. A no-op when the key is absent."""
-    if "era_confirmed" not in fields:
+    if "platform_confirmed" not in fields:
         return
-    if fields["era_confirmed"] is not True:
+    if fields["platform_confirmed"] is not True:
         raise HTTPException(
             status_code=422,
-            detail="era_confirmed can only be set to true. Change the era to reset it.",
+            detail="platform_confirmed can only be set to true. Change the platform to reset it.",
         )
-    if fields.get("era", collection.era) == "unknown":
+    if fields.get("platform", collection.platform) == "unknown":
         raise HTTPException(
             status_code=422,
-            detail="Cannot confirm the platform while the era is unknown. Set an era first.",
+            detail="Cannot confirm the platform while the platform is unknown. Set a platform first.",
         )
 
 
-def _apply_era_change(collection: GameItemBundle, fields: dict, db: Session) -> None:
-    """When a PATCH changes the bundle's era (new value differs from the stored
-    one), rebind profile and environment to the new era, mark the era as
-    user-selected on every leaf, and set era_confirmed (a user choosing an era
+def _apply_platform_change(collection: GameItemBundle, fields: dict, db: Session) -> None:
+    """When a PATCH changes the bundle's platform (new value differs from the stored
+    one), re-suggest the profile (see rebind_for_platform_change), mark the platform as
+    user-selected on every leaf, and set platform_confirmed (a user choosing a platform
     is a confirmation, except "unknown", which has nothing to confirm). A no-op
-    otherwise, including when the form resends the unchanged era on an
+    otherwise, including when the form resends the unchanged platform on an
     unrelated save."""
-    new_era = fields.get("era")
-    if new_era is None or new_era == collection.era:
+    new_platform = fields.get("platform")
+    if new_platform is None or new_platform == collection.platform:
         return
-    _rebind_defaults_for_era(collection, fields, new_era, db)
-    _mark_leaves_era_user_selected(collection)
-    fields["era_confirmed"] = new_era != "unknown"
+    from backend.service.utils.platform_defaults import rebind_for_platform_change
+
+    rebind_for_platform_change(
+        collection.profile_item_id, collection.environment_item_id, fields, new_platform, db
+    )
+    _mark_leaves_platform_user_selected(collection)
+    fields["platform_confirmed"] = new_platform != "unknown"
 
 
 def update_library_collection(
@@ -1598,13 +1567,13 @@ def update_library_collection(
         raise HTTPException(status_code=404, detail="Software collection not found.")
 
     fields = body.model_dump(exclude_unset=True)
-    if "era" in fields and fields["era"] is None:
-        # era is a NOT NULL column (see GameItemBundle.era in backend/models/game.py).
-        # A caller that explicitly sends era: null would otherwise reach the
+    if "platform" in fields and fields["platform"] is None:
+        # platform is a NOT NULL column (see GameItemBundle.platform in backend/models/game.py).
+        # A caller that explicitly sends platform: null would otherwise reach the
         # setattr/commit below and fail as a raw NOT NULL constraint violation.
         # Reject it cleanly here instead, this is defense-in-depth against any
-        # caller, the frontend form now omits the key entirely when era is unset.
-        raise HTTPException(status_code=422, detail="era cannot be null. Omit the field to leave it unchanged.")
+        # caller, the frontend form now omits the key entirely when platform is unset.
+        raise HTTPException(status_code=422, detail="platform cannot be null. Omit the field to leave it unchanged.")
     for disk_field in ("display_disk_id", "launch_disk_id"):
         if fields.get(disk_field) is not None:
             leaf_ids = set(
@@ -1636,14 +1605,14 @@ def update_library_collection(
                 collection_id, old_rating, new_rating,
             )
         fields["content_rating"] = new_rating
-    _validate_era_confirmation(collection, fields)
-    _apply_era_change(collection, fields, db)
+    _validate_platform_confirmation(collection, fields)
+    _apply_platform_change(collection, fields, db)
     for key, value in fields.items():
         setattr(collection, key, value)
-    if "era" in fields:
-        # setattr bypasses GameItemBundle._derive_item_type_from_era (no
-        # validate_assignment), re-derive explicitly whenever era changes.
-        collection.item_type = derive_item_type(collection.era)
+    if "platform" in fields:
+        # setattr bypasses GameItemBundle._derive_item_type_from_platform (no
+        # validate_assignment), re-derive explicitly whenever platform changes.
+        collection.item_type = derive_item_type(collection.platform)
     _enforce_environment_binding(collection)
     db.commit()
     db.refresh(collection)
@@ -1720,7 +1689,7 @@ def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
       classified at ingest.
     """
     path = normalise_path(leaf.file_path)
-    era = bundle.era if bundle.era != "unknown" else None
+    platform = bundle.platform if bundle.platform != "unknown" else None
     if path.is_dir():
         # PS3 titles, plus caesar-iii/halflife/rally/sacrifice, legitimately
         # store a directory as file_path (see _stage_directory_source); resolve
@@ -1728,10 +1697,10 @@ def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
         # Same resolve-then-ps3-fallback sequence coordinator.py's launch path
         # and items.py's ingest detect stage already use for this.
         try:
-            path = resolve_media_file_from_directory(path, era)
+            path = resolve_media_file_from_directory(path, platform)
         except ValueError as exc:
             ps3_target = None
-            if era == "ps3":
+            if platform == "ps3":
                 from backend.service.utils.detection import resolve_ps3_target
                 ps3_target = resolve_ps3_target(path)
             if ps3_target is None:
@@ -1743,9 +1712,9 @@ def _reverify_leaf_in_session(leaf: GameItem, bundle: GameItemBundle) -> None:
         raise HTTPException(status_code=400, detail=f"Media file not found on disk: {leaf.file_path}")
 
     if leaf.sha1 is not None:
-        from formatscout import classify as _classify
+        from backend.service.utils.detection.formatscout_adapter import classify_media
 
-        result = _classify(path, bundle.title, era)
+        result = classify_media(path, bundle.title, platform)
         leaf.verification_status = result.status
         leaf.verification_similarity = result.similarity
         leaf.sha1 = result.computed_sha1

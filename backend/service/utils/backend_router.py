@@ -10,7 +10,7 @@ from __future__ import annotations
 import importlib
 from typing import TYPE_CHECKING
 
-from backend.constants_generated import BackendSlug, Era
+from backend.constants_generated import BackendSlug, Platform
 
 if TYPE_CHECKING:
     from backend.service.launch.launch_spec import LaunchSpec
@@ -33,33 +33,22 @@ _BACKEND_MODULES: dict[str, str] = {
 }
 
 
-def resolve_backend_name(era: Era) -> str:
-    """Resolve the backend name string for an era.
-
-    86Box eras (win95, win98, winxp) always route to 86Box. DOS
-    and console eras use the flat 'backend' key from eras.yaml.
+def resolve_backend_name(platform: Platform) -> str:
+    """Resolve the backend name string for a platform from its 'backend' key
+    in platforms.yaml (every platform has one).
 
     Args:
-        era: The gaming era to resolve.
+        platform: The gaming platform to resolve.
 
     Returns:
         A ``BackendSlug`` value string, one of the values in ``BackendSlug``.
 
     Raises:
-        RuntimeError: If eras.yaml cannot be loaded or the era is not configured.
-        ValueError: If the era has no resolvable backend.
+        RuntimeError: If platforms.yaml cannot be loaded or the platform is not configured.
+        ValueError: If the platform has no resolvable backend.
     """
-    from backend.service.utils.emulator_catalog import get_backend_for_era as _get_backend_for_era
-    try:
-        return _get_backend_for_era(era.value)
-    except ValueError:
-        pass
-
-    # win95/win98/winxp have no flat 'backend' key, they always route to 86Box.
-    if era.value in ('win95', 'win98', 'winxp'):
-        return BackendSlug.BOX86.value
-
-    raise ValueError(f"Cannot resolve backend for era '{era.value}'")
+    from backend.service.utils.emulator_catalog import get_backend_for_platform as _get_backend_for_platform
+    return _get_backend_for_platform(platform.value)
 
 
 def dispatch(spec: "LaunchSpec") -> tuple:
@@ -92,29 +81,29 @@ def dispatch(spec: "LaunchSpec") -> tuple:
     return module.launch(spec)
 
 
-def get_executable_path(era: Era, backend_name: str | None = None) -> str:
-    """Return the emulator executable path for the given era.
+def get_executable_path(platform: Platform, backend_name: str | None = None) -> str:
+    """Return the emulator executable path for the given platform.
 
     Args:
-        era: The gaming era to look up.
+        platform: The gaming platform to look up.
         backend_name: Already-resolved backend slug (from ``resolve_backend_name``),
-            if the caller has one. When omitted, it is resolved from ``era``.
+            if the caller has one. When omitted, it is resolved from ``platform``.
 
     Returns:
         Absolute path string, or empty string if the emulator is not installed.
 
     Raises:
-        RuntimeError: If the era cannot be resolved or has no catalog entry.
+        RuntimeError: If the platform cannot be resolved or has no catalog entry.
     """
     from backend.service.utils.emulator_catalog import get_install_path
     if backend_name is None:
-        backend_name = resolve_backend_name(era)
+        backend_name = resolve_backend_name(platform)
     catalog_slug = backend_name
     try:
         path = get_install_path(catalog_slug)
     except ValueError:
         raise RuntimeError(
-            f"No executable mapping for backend '{backend_name}' (era '{era.value}'). "
+            f"No executable mapping for backend '{backend_name}' (platform '{platform.value}'). "
             "Ensure the emulator is registered in config/emulators/."
         )
     return str(path) if path and path.is_file() else ""

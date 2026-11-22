@@ -73,7 +73,7 @@ class TestWriteLaunchConfGameExecutable:
         exe = tmp_path / "dosbox-x.exe"
         spec = LaunchSpec(
             slug="dosbox-x",
-            era="dos",
+            platform="dos",
             media_path=media,
             executable_path=str(exe),
         )

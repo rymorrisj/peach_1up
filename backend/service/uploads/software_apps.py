@@ -7,9 +7,9 @@ module is the first thing that actually writes uploaded bytes into an
 AppItemBundle + AppItem row, mirroring the shape of
 software_games.finalize_reassembled (finalize creates the DB row directly)
 but deliberately simplified: apps.py's own create path already establishes
-that Apps get no era detection ("the caller supplies era explicitly", per
+that Apps get no platform detection ("the caller supplies platform explicitly", per
 service/apps/items.py) and no multi-disc concept, so this finalize does
-not run formatscout or disc-pointer selection either. era is left
+not run formatscout or disc-pointer selection either. platform is left
 "unknown" (AppItemBundleCreate's own default), the user can set it from the
 detail page's edit form after upload, same as any other field a human, not a
 detector, is the source of truth for here.
@@ -56,7 +56,7 @@ def finalize_reassembled(reasm: cu.ReassembledUpload, media_root: Path, db: Sess
         bundle = AppItemBundle(
             title=title,
             slug=_generate_app_slug(title, db),
-            era="unknown",
+            platform="unknown",
         )
         db.add(bundle)
         db.flush()

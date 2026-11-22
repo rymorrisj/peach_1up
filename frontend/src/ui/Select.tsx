@@ -3,7 +3,7 @@
 // existing SELECT_CLASS + <option>.map() pattern used across the app.
 // Also accepts grouped entries ({ groupLabel, options }) mixed into the same
 // array, for call sites that need <optgroup>-style sections (e.g. Launch
-// Profile's "Matching era" / "Other eras"). Flat and grouped entries can be
+// Profile's "Matching platform" / "Other platforms"). Flat and grouped entries can be
 // mixed in one options array, group detection is structural (does the entry
 // have a groupLabel), not a separate prop, so existing flat-only call sites
 // keep working unchanged.
@@ -16,15 +16,15 @@
 //     placeholder="Select a rating"
 //   />
 //
-//   <Select value={era} onValueChange={setEra} options={eraOptions} hasError={!era} disabled={saving} />
+//   <Select value={platform} onValueChange={setPlatform} options={platformOptions} hasError={!platform} disabled={saving} />
 //
 //   <Select
 //     value={profileId}
 //     onValueChange={setProfileId}
 //     options={[
 //       { value: 'none', label: '— No profile —' },
-//       { groupLabel: 'Matching era', options: eraProfileOptions },
-//       { groupLabel: 'Other eras', options: otherProfileOptions },
+//       { groupLabel: 'Matching platform', options: platformProfileOptions },
+//       { groupLabel: 'Other platforms', options: otherProfileOptions },
 //     ]}
 //   />
 //

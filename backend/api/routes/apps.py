@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.dependencies import (
-    get_active_user, get_filtered_app_item, get_filtered_app_items, get_filtered_entity, require_permission,
+    get_active_user, get_filtered_app_item, get_filtered_app_items, get_filtered_entity, reject_old_era_query_param,
+    require_permission,
 )
 from backend.models.app import (
     AppItemBundle, AppItemBundleCreate, AppItemBundleRead, AppItemBundleUpdate,
@@ -24,9 +25,9 @@ router = APIRouter(prefix="/api/v1", tags=["apps"])
 # ---------------------------------------------------------------------------
 
 
-@router.get("/app-items", response_model=Page[AppItemBundleRead])
+@router.get("/app-items", response_model=Page[AppItemBundleRead], dependencies=[Depends(reject_old_era_query_param)])
 def list_apps(
-    era: str | None = None,
+    platform: str | None = None,
     environment_item_id: int | None = None,
     category: str | None = None,
     tag: str | None = None,
@@ -38,8 +39,8 @@ def list_apps(
     active_user: UserItem = Depends(get_active_user),
 ):
     q = get_filtered_app_items(active_user, db)
-    if era:
-        q = q.filter(AppItemBundle.era == era)
+    if platform:
+        q = q.filter(AppItemBundle.platform == platform)
     if environment_item_id is not None:
         q = q.filter(AppItemBundle.environment_item_id == environment_item_id)
     if category:

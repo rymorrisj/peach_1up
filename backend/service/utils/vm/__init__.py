@@ -1,3 +1,3 @@
-from backend.service.utils.vm.provisioner import provision_platform
+from backend.service.utils.vm.provisioner import provision_environment
 
-__all__ = ["provision_platform"]
+__all__ = ["provision_environment"]

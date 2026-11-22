@@ -1,4 +1,4 @@
-"""Tests for evaluate_launch_readiness (backend/service/utils/era_defaults.py),
+"""Tests for evaluate_launch_readiness (backend/service/utils/platform_defaults.py),
 the single source of truth for pre-launch gating on both call sites
 (coordinator.py's real launch enforcement and the read-time
 launch_blocked_reason UI signal on models/game.py and models/app.py).
@@ -6,20 +6,21 @@ launch_blocked_reason UI signal on models/game.py and models/app.py).
 Every branch, for both call_site="item" and call_site="environment".
 
 The Environment argument is a plain SimpleNamespace stand-in: the function
-only reads .era / .working_image_path / .installed_at off it, never a real
+only reads .platform / .working_image_path / .installed_at off it, never a real
 DB row.
 """
 
+from datetime import datetime
 from types import SimpleNamespace
 
-from backend.service.utils.era_defaults import (
+from backend.service.utils.platform_defaults import (
     CANDIDATE_EVAL_PROFILE_SENTINEL,
     evaluate_launch_readiness,
 )
 
 
-def _env(era="win95", working_image_path="/images/win95/working.vhd", installed_at=None):
-    return SimpleNamespace(era=era, working_image_path=working_image_path, installed_at=installed_at)
+def _env(platform="win95", working_image_path="/images/win95/working.vhd", installed_at=None):
+    return SimpleNamespace(platform=platform, working_image_path=working_image_path, installed_at=installed_at)
 
 
 # ---------------------------------------------------------------------------
@@ -34,18 +35,18 @@ class TestEnvironmentCallSite:
         style out-of-context case, structurally cannot be provisioned-checked."""
         assert evaluate_launch_readiness(call_site="environment", environment=None) is None
 
-    def test_working_image_present_passes_regardless_of_era(self):
-        env = _env(era="win98", working_image_path="/images/win98/working.vhd")
+    def test_working_image_present_passes_regardless_of_platform(self):
+        env = _env(platform="win98", working_image_path="/images/win98/working.vhd")
         assert evaluate_launch_readiness(call_site="environment", environment=env) is None
 
-    def test_no_working_image_but_era_is_auto_provisionable_passes(self):
-        """dos is in PROVISIONABLE_ERAS, so a missing working image is not
+    def test_no_working_image_but_platform_is_auto_provisionable_passes(self):
+        """dos is in PROVISIONABLE_PLATFORMS, so a missing working image is not
         blocking, it will be auto-provisioned."""
-        env = _env(era="dos", working_image_path=None)
+        env = _env(platform="dos", working_image_path=None)
         assert evaluate_launch_readiness(call_site="environment", environment=env) is None
 
-    def test_no_working_image_and_era_not_provisionable_blocks(self):
-        env = _env(era="xbox", working_image_path=None)
+    def test_no_working_image_and_platform_not_provisionable_blocks(self):
+        env = _env(platform="xbox", working_image_path=None)
         assert (
             evaluate_launch_readiness(call_site="environment", environment=env)
             == "environment_not_provisioned"
@@ -56,7 +57,7 @@ class TestEnvironmentCallSite:
         would fail environment_is_installed must not surface
         'environment_not_installed' when call_site='environment', that check
         is not reachable on this branch at all."""
-        env = _env(era="win95", working_image_path="/images/win95/working.vhd", installed_at=None)
+        env = _env(platform="win95", working_image_path="/images/win95/working.vhd", installed_at=None)
         result = evaluate_launch_readiness(call_site="environment", environment=env)
         assert result != "environment_not_installed"
         assert result is None
@@ -86,41 +87,46 @@ class TestItemCallSiteFullSequence:
 
     def test_pc_item_with_no_resolvable_environment_blocks(self):
         result = evaluate_launch_readiness(
-            call_site="item", environment=None, is_pc=True, era="dos", profile_item_id=1,
+            call_site="item", environment=None, is_pc=True, profile_item_id=1,
         )
         assert result == "no_environment"
 
-    def test_pc_item_environment_era_mismatch_blocks(self):
-        env = _env(era="win98", working_image_path="/images/win98/working.vhd")
-        result = evaluate_launch_readiness(
-            call_site="item", environment=env, is_pc=True, era="winxp", profile_item_id=1,
+    def test_pc_item_environment_of_another_platform_does_not_block(self):
+        """No compatibility rule: the user's chosen Environment is never
+        rejected for having a different platform from the item."""
+        env = _env(
+            platform="win98", working_image_path="/images/win98/working.vhd",
+            installed_at=datetime(2026, 1, 1),
         )
-        assert result == "environment_era_mismatch"
-
-    def test_pc_item_matching_era_no_working_image_non_provisionable_blocks(self):
-        env = _env(era="xbox", working_image_path=None)
         result = evaluate_launch_readiness(
-            call_site="item", environment=env, is_pc=True, era="xbox", profile_item_id=1,
+            call_site="item", environment=env, is_pc=True, profile_item_id=1,
+        )
+        assert result is None
+
+    def test_pc_item_matching_platform_no_working_image_non_provisionable_blocks(self):
+        env = _env(platform="xbox", working_image_path=None)
+        result = evaluate_launch_readiness(
+            call_site="item", environment=env, is_pc=True, profile_item_id=1,
         )
         assert result == "environment_not_provisioned"
 
-    def test_pc_item_dos_era_always_counts_as_installed(self):
+    def test_pc_item_dos_platform_always_counts_as_installed(self):
         """DOS/DOSBox-X environments have no install step, environment_is_installed
-        treats era in DOS_WIN_ERAS as always installed regardless of
+        treats platform in DOSBOX_PLATFORMS as always installed regardless of
         installed_at, so a fresh DOS environment with no working image yet
         (auto-provisionable) and no installed_at still passes clean."""
-        env = _env(era="dos", working_image_path=None, installed_at=None)
+        env = _env(platform="dos", working_image_path=None, installed_at=None)
         result = evaluate_launch_readiness(
-            call_site="item", environment=env, is_pc=True, era="dos", profile_item_id=1,
+            call_site="item", environment=env, is_pc=True, profile_item_id=1,
         )
         assert result is None
 
     def test_pc_item_win9x_provisioned_but_never_installed_blocks(self):
         """win95 is auto-provisionable (has a working image) but installed_at
         is still null, the OS install step was never completed."""
-        env = _env(era="win95", working_image_path="/images/win95/working.vhd", installed_at=None)
+        env = _env(platform="win95", working_image_path="/images/win95/working.vhd", installed_at=None)
         result = evaluate_launch_readiness(
-            call_site="item", environment=env, is_pc=True, era="win95", profile_item_id=1,
+            call_site="item", environment=env, is_pc=True, profile_item_id=1,
         )
         assert result == "environment_not_installed"
 
@@ -128,12 +134,12 @@ class TestItemCallSiteFullSequence:
         from datetime import datetime, timezone
 
         env = _env(
-            era="win95",
+            platform="win95",
             working_image_path="/images/win95/working.vhd",
             installed_at=datetime.now(timezone.utc),
         )
         result = evaluate_launch_readiness(
-            call_site="item", environment=env, is_pc=True, era="win95", profile_item_id=1,
+            call_site="item", environment=env, is_pc=True, profile_item_id=1,
         )
         assert result is None
 
@@ -141,12 +147,12 @@ class TestItemCallSiteFullSequence:
         from datetime import datetime, timezone
 
         env = _env(
-            era="winxp",
+            platform="winxp",
             working_image_path="/images/winxp/working.vhd",
             installed_at=datetime.now(timezone.utc),
         )
         result = evaluate_launch_readiness(
-            call_site="item", environment=env, is_pc=True, era="winxp", profile_item_id=7,
+            call_site="item", environment=env, is_pc=True, profile_item_id=7,
         )
         assert result is None
 
@@ -154,15 +160,14 @@ class TestItemCallSiteFullSequence:
 class TestCandidateEvalProfileSentinel:
     def test_sentinel_is_not_none_so_no_profile_check_is_skipped(self):
         """The sentinel exists precisely so a per-candidate Environment
-        evaluation (e.g. one row of a platform picker) doesn't report
+        evaluation (e.g. one row of the Environment picker) doesn't report
         no_profile for every candidate. Confirms it's treated as "a profile
         is assigned" (non-None), not resolved against a real ProfileItem."""
-        env = _env(era="dos", working_image_path=None)
+        env = _env(platform="dos", working_image_path=None)
         result = evaluate_launch_readiness(
             call_site="item",
             environment=env,
             is_pc=True,
-            era="dos",
             profile_item_id=CANDIDATE_EVAL_PROFILE_SENTINEL,
         )
         assert result is None

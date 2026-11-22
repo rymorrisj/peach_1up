@@ -22,7 +22,7 @@ class LaunchableEntity:
     collection_id: int
 
     profile_item_id: int | None
-    era: str
+    platform: str
     item_type: str
     environment_item_id: int | None
     slug: str | None
@@ -93,7 +93,7 @@ def resolve_launchable(
     return LaunchableEntity(
         collection_id=c.id,
         profile_item_id=c.profile_item_id,
-        era=c.era,
+        platform=c.platform,
         item_type=c.item_type,
         environment_item_id=c.environment_item_id,
         slug=c.slug,
@@ -117,7 +117,7 @@ def resolve_launchable_app(
 ) -> LaunchableEntity:
     """Resolve an AppItemBundle into a LaunchableEntity via its launch item.
 
-    era and item_type (pc/console, derived from AppItemBundle.is_pc) are read
+    platform and item_type (pc/console, derived from AppItemBundle.is_pc) are read
     directly off the collection row, mirroring resolve_launchable
     (GameItemBundle) exactly, not looked up via the linked Environment.
     Environment existence for PC apps is validated at launch time by
@@ -151,7 +151,7 @@ def resolve_launchable_app(
     return LaunchableEntity(
         collection_id=c.id,
         profile_item_id=c.profile_item_id,
-        era=c.era,
+        platform=c.platform,
         item_type="pc" if c.is_pc else "console",
         environment_item_id=c.environment_item_id,
         slug=c.slug,

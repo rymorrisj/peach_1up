@@ -1,5 +1,5 @@
 import { Button, FormField, Input, Modal, Textarea, Select } from '@/ui';
-import { DGVOODOO2_SUPPORTED_ERAS } from '@/generated/constants';
+import { DGVOODOO2_SUPPORTED_PLATFORMS } from '@/generated/constants';
 import type { EmulatorEntry, ProfileForm, ProfileModalState } from '@/types/profiles';
 import type { EmulatorCatalogSlug } from '@/generated/constants';
 
@@ -10,7 +10,7 @@ interface ProfileFormModalProps {
   submitError: string | null;
   submitting: boolean;
   emulators: EmulatorEntry[];
-  eraOptions: Array<{ value: string; label: string }>;
+  platformOptions: Array<{ value: string; label: string }>;
   setField: <K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) => void;
   onSubmit: () => void;
   onClose: () => void;
@@ -23,7 +23,7 @@ export function ProfileFormModal({
   submitError,
   submitting,
   emulators,
-  eraOptions,
+  platformOptions,
   setField,
   onSubmit,
   onClose,
@@ -84,14 +84,14 @@ export function ProfileFormModal({
         />
       </FormField>
 
-      <FormField label="Era" htmlFor="lp-era" required error={formErrors.era}>
+      <FormField label="Platform" htmlFor="lp-platform" required error={formErrors.platform}>
         <Select
-          id="lp-era"
-          value={form.era}
-          onValueChange={(v) => setField('era', v)}
-          placeholder="— Select era —"
-          hasError={!!formErrors.era}
-          options={eraOptions}
+          id="lp-platform"
+          value={form.platform}
+          onValueChange={(v) => setField('platform', v)}
+          placeholder="Select platform"
+          hasError={!!formErrors.platform}
+          options={platformOptions}
         />
       </FormField>
 
@@ -136,7 +136,7 @@ export function ProfileFormModal({
         </div>
       </FormField>
 
-      {DGVOODOO2_SUPPORTED_ERAS.includes(form.era) && (
+      {DGVOODOO2_SUPPORTED_PLATFORMS.includes(form.platform) && (
         <FormField
           label="dgVoodoo2 (3D compatibility)"
           htmlFor="lp-dgvoodoo2"

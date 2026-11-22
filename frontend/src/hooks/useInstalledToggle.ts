@@ -10,8 +10,8 @@ interface UseInstalledToggleOptions {
    *  Peach 1UP skip the copy step and boot directly. PS3: whether the .pkg
    *  has already been installed into dev_hdd0/game/<TITLE_ID>/, letting
    *  Peach 1UP boot directly instead of running the RPCS3 installer.
-   *  Defaults to 'dos' consequence copy for any other era. */
-  era?: string;
+   *  Defaults to 'dos' consequence copy for any other platform. */
+  platform?: string;
 }
 
 // Manual "installed" flag, shared by DOS (whether game files are already
@@ -22,7 +22,7 @@ interface UseInstalledToggleOptions {
 export function useInstalledToggle({
   collectionId,
   detailQueryKey,
-  era,
+  platform,
 }: UseInstalledToggleOptions) {
   const queryClient = useQueryClient();
   const [localInstalled, setLocalInstalled] = useState(false);
@@ -58,7 +58,7 @@ export function useInstalledToggle({
     if (collectionId == null) return;
     const target = !localInstalled;
     const consequence =
-      era === 'ps3'
+      platform === 'ps3'
         ? target
           ? 'Only confirm if this title is already installed into RPCS3 (dev_hdd0/game/). Peach 1UP will boot it directly instead of running the installer.'
           : 'This will re-run the RPCS3 installer on next launch. Peach 1UP re-detects an existing install from disk automatically, so this only matters if the install was removed outside of Peach 1UP.'

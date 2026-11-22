@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch, ApiError } from '@/api/client';
 import TopBar from '@/components/layout/TopBar';
 import { useAppContext } from '@/context/useAppContext';
-import { EMULATOR_ERA_MAP, ERA_COLOR } from '@/types/era';
+import { EMULATOR_PLATFORM_MAP, PLATFORM_COLOR } from '@/types/platform';
 import { useToast } from '@/ui/ToastProvider';
 import type { components } from '@shared/types';
 type CatalogEntry = components['schemas']['CatalogEntryResponse'];
@@ -24,7 +24,7 @@ function EmulatorCard({
   onClick: () => void;
   onDelete: () => void;
 }) {
-  const eras = EMULATOR_ERA_MAP[entry.slug] ?? [];
+  const platforms = EMULATOR_PLATFORM_MAP[entry.slug] ?? [];
   const isReady = entry.is_installed && entry.install_path;
 
   return (
@@ -143,11 +143,11 @@ function EmulatorCard({
               {entry.description}
             </div>
 
-            {eras.length > 0 && (
+            {platforms.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-3.5">
-                {eras.map((era) => (
+                {platforms.map((platform) => (
                   <span
-                    key={era}
+                    key={platform}
                     style={{
                       fontFamily: 'var(--font-mono)',
                       fontWeight: 600,
@@ -155,12 +155,12 @@ function EmulatorCard({
                       letterSpacing: '0.08em',
                       padding: '4px 6px',
                       borderRadius: 'var(--r-1)',
-                      border: `1px solid ${ERA_COLOR[era] ?? 'rgb(var(--border))'}`,
-                      color: ERA_COLOR[era] ?? 'rgb(var(--fg-3))',
+                      border: `1px solid ${PLATFORM_COLOR[platform] ?? 'rgb(var(--border))'}`,
+                      color: PLATFORM_COLOR[platform] ?? 'rgb(var(--fg-3))',
                       display: 'inline-block',
                     }}
                   >
-                    {era}
+                    {platform}
                   </span>
                 ))}
               </div>

@@ -85,7 +85,7 @@ class TestBox86NetworkIsolation:
             config_path=cfg,
             rom_path=rom_dir,
             hardware_profile="standard",
-            platform_name="test-platform",
+            environment_name="test-environment",
             base_image_path=None,
             media_path=None,
         )

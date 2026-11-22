@@ -1,7 +1,7 @@
 """VM provisioning for Peach 1UP.
 
-Creates 86Box configs for Win95/Win98/WinXP platforms on first launch or
-platform creation. 86Box VM files are placed under emulators/86box/vms/{slug}/.
+Creates 86Box configs for Win95/Win98/WinXP environments on first launch or
+environment creation. 86Box VM files are placed under emulators/86box/vms/{slug}/.
 All output paths are resolved and validated before use. Subprocess args are
 constructed from validated, computed values only, no user input reaches a
 subprocess call directly.
@@ -16,32 +16,30 @@ from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.models.environment import EnvironmentItem
 from backend.service.utils.emulator_catalog import get_86box_profile
-from backend.service.utils.era_defaults import DOS_WIN_ERAS as _DOSBOX_ERAS
-from backend.service.utils.eras_config import get_eras
+from backend.constants import BOX86_PLATFORMS, DOSBOX_PLATFORMS
+from backend.service.utils.platforms_config import get_platforms_config
 from backend.service.utils.ini_writer import patch_ini
 from backend.service.utils.emulator_catalog import get_86box_rom_path, get_install_path
 from backend.service.utils.vm.vhd import _build_vhd_footer
 
 logger = get_logger(__name__)
 
-_86BOX_ERAS = frozenset({"win95", "win98", "winxp"})
 
-
-def _load_default_disk_size_mb(era: str) -> int:
-    """Load default_disk_size_mb for *era* from eras.yaml."""
-    eras_yaml = get_base_path() / "config" / "eras.yaml"
+def _load_default_disk_size_mb(platform: str) -> int:
+    """Load default_disk_size_mb for *platform* from platforms.yaml."""
+    platforms_yaml = get_base_path() / "config" / "platforms.yaml"
     try:
-        eras_config = get_eras()
+        platforms_config = get_platforms_config()
     except FileNotFoundError:
-        raise FileNotFoundError(f"eras.yaml not found at {eras_yaml}")
-    if not isinstance(eras_config, dict) or era not in eras_config:
+        raise FileNotFoundError(f"platforms.yaml not found at {platforms_yaml}")
+    if not isinstance(platforms_config, dict) or platform not in platforms_config:
         raise FileNotFoundError(
-            f"Era '{era}' not found in eras.yaml, cannot determine disk size."
+            f"Platform '{platform}' not found in platforms.yaml, cannot determine disk size."
         )
-    size = eras_config[era].get("default_disk_size_mb")
+    size = platforms_config[platform].get("default_disk_size_mb")
     if size is None:
         raise FileNotFoundError(
-            f"default_disk_size_mb not defined for era '{era}' in eras.yaml."
+            f"default_disk_size_mb not defined for platform '{platform}' in platforms.yaml."
         )
     return int(size)
 
@@ -58,39 +56,39 @@ def _resolve_within(base: Path, *parts: str) -> Path:
     return target
 
 
-def _vm_name(platform: EnvironmentItem) -> str:
-    return platform.slug or f"p{platform.id}"
+def _vm_name(environment: EnvironmentItem) -> str:
+    return environment.slug or f"p{environment.id}"
 
 
 def provision_86box_vm(
-    platform: EnvironmentItem,
+    environment: EnvironmentItem,
     box86_path: str,
     rom_path: str,
     hardware_profile: str = "standard",
 ) -> tuple[str | None, str, str]:
-    """Create a raw fixed-size VHD and 86Box INI config for a Win95/Win98 platform."""
-    era = platform.era
-    if era not in _86BOX_ERAS:
-        raise ValueError(f"provision_86box_vm: unsupported era '{era}'")
+    """Create a raw fixed-size VHD and 86Box INI config for a Win95/Win98 environment."""
+    platform = environment.platform
+    if platform not in BOX86_PLATFORMS:
+        raise ValueError(f"provision_86box_vm: unsupported platform '{platform}'")
 
-    disk_size_mb = _load_default_disk_size_mb(era)
+    disk_size_mb = _load_default_disk_size_mb(platform)
     size_bytes = disk_size_mb * 1024 * 1024
     cylinders = size_bytes // (16 * 63 * 512)
 
     profile = get_86box_profile(hardware_profile)
-    machine = getattr(platform, "machine_override", None) or profile["machine"]
+    machine = getattr(environment, "machine_override", None) or profile["machine"]
 
     vms_base = (get_base_path() / "emulators" / "86box" / "vms").resolve()
-    vm_name = _vm_name(platform)
+    vm_name = _vm_name(environment)
     cfg_dir = _resolve_within(vms_base, vm_name)
     cfg_dir.mkdir(parents=True, exist_ok=True)
     cfg_path = cfg_dir / "86box.cfg"
 
     effective_iso_path = None
-    if platform.base_image_path:
+    if environment.base_image_path:
         from backend.service.utils.path_utils import normalise_path
         from backend.service.utils.disk_utils import has_valid_mbr
-        base_img = normalise_path(platform.base_image_path, allow_unc=True)
+        base_img = normalise_path(environment.base_image_path, allow_unc=True)
         if not base_img.exists():
             raise FileNotFoundError(
                 f"Base image not found: {base_img}. "
@@ -186,13 +184,13 @@ def provision_86box_vm(
 
 
 def provision_dosbox_drive(
-    platform: EnvironmentItem,
+    environment: EnvironmentItem,
 ) -> tuple[str | None, str | None, str | None, str | None, str | None]:
     """Provision the shared FAT16 C: image for a DOS environment.
 
     Unlike the 86Box path, DOSBox-X environments do not need a machine config
     file (a per-launch temp conf is generated at launch time), so config_path
-    stays null. ``working_image_path`` is preset on the seeded platform; this
+    stays null. ``working_image_path`` is preset on the seeded environment; this
     formats a real, correctly-structured FAT16 filesystem at that path via the
     shared ``format_fat16`` service so DOSBox-X mounts a valid C: on first use.
 
@@ -201,24 +199,24 @@ def provision_dosbox_drive(
     a missing preset path, an out-of-range size, or a formatting error, rather
     than degrading into an opaque DOSBox-X console error at launch.
     """
-    era = platform.era
-    if era not in _DOSBOX_ERAS:
-        raise ValueError(f"provision_dosbox_drive: unsupported era '{era}'")
+    platform = environment.platform
+    if platform not in DOSBOX_PLATFORMS:
+        raise ValueError(f"provision_dosbox_drive: unsupported platform '{platform}'")
 
     from backend.service.utils.fat import format_fat16
     from backend.service.utils.path_utils import normalise_path
 
-    if not platform.working_image_path:
+    if not environment.working_image_path:
         raise RuntimeError(
-            f"DOS environment '{platform.slug or platform.id}' has no "
+            f"DOS environment '{environment.slug or environment.id}' has no "
             "working_image_path preset, cannot provision its C: drive."
         )
 
-    target = normalise_path(platform.working_image_path, allow_unc=True)
+    target = normalise_path(environment.working_image_path, allow_unc=True)
     if target.exists():
         return None, str(target), None, None, None
 
-    size_mb = _load_default_disk_size_mb(era)
+    size_mb = _load_default_disk_size_mb(platform)
     target.parent.mkdir(parents=True, exist_ok=True)
 
     required_bytes = size_mb * 1024 * 1024
@@ -238,10 +236,10 @@ def provision_dosbox_drive(
     return None, str(target), None, None, None
 
 
-def provision_platform(
-    platform: EnvironmentItem,
+def provision_environment(
+    environment: EnvironmentItem,
 ) -> tuple[str | None, str | None, str | None, str | None, str | None]:
-    """Provision a working image for a platform, selecting the backend by era.
+    """Provision a working image for an environment, selecting the backend by platform.
 
     Returns (base_image_path, working_image_path, config_path, install_path,
     rom_path) but never persists them, the caller owns the write, since it
@@ -249,12 +247,12 @@ def provision_platform(
     ROM directory already resolved during provisioning, returned so a launch
     that immediately follows can reuse them instead of re-resolving from scratch.
     """
-    era = platform.era
+    platform = environment.platform
 
-    if era in _DOSBOX_ERAS:
-        return provision_dosbox_drive(platform)
+    if platform in DOSBOX_PLATFORMS:
+        return provision_dosbox_drive(environment)
 
-    if era in _86BOX_ERAS:
+    if platform in BOX86_PLATFORMS:
         _box86_install = get_install_path("86box")
         box86_path = str(_box86_install) if _box86_install and _box86_install.is_file() else ""
         if not box86_path:
@@ -263,8 +261,8 @@ def provision_platform(
                 "Install it via the Emulators page."
             )
         rom_dir = get_86box_rom_path(Path(box86_path))
-        hw_profile = getattr(platform, "hardware_profile", None) or "standard"
-        iso_path, img_path, cfg_path = provision_86box_vm(platform, box86_path, str(rom_dir), hw_profile)
+        hw_profile = getattr(environment, "hardware_profile", None) or "standard"
+        iso_path, img_path, cfg_path = provision_86box_vm(environment, box86_path, str(rom_dir), hw_profile)
         return iso_path, img_path, cfg_path, box86_path, str(rom_dir)
 
     return None, None, None, None, None

@@ -1,15 +1,15 @@
 import { Info } from 'lucide-react';
 import { Tooltip } from '@/ui';
 
-interface EraReviewHintProps {
+interface PlatformReviewHintProps {
   // Plain text, rendered as a text node. It can include disc-supplied strings.
   text: string;
 }
 
-// Info icon beside the era field. The trigger is a real button so the tooltip
+// Info icon beside the platform field. The trigger is a real button so the tooltip
 // opens on keyboard focus as well as hover, the width is capped and the text
 // wraps so a long volume label cannot stretch the tooltip.
-export function EraReviewHint({ text }: EraReviewHintProps) {
+export function PlatformReviewHint({ text }: PlatformReviewHintProps) {
   return (
     <Tooltip
       content={<span className="block max-w-xs whitespace-normal break-words">{text}</span>}

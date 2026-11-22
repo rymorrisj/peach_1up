@@ -50,8 +50,8 @@ describe('Software page', () => {
 
   it('renders library item titles after a successful API response', async () => {
     const items = [
-      createMockLibraryItem({ id: 1, title: 'Doom', era: 'dos', slug: 'doom' }),
-      createMockLibraryItem({ id: 2, title: 'Quake', era: 'dos', slug: 'quake' }),
+      createMockLibraryItem({ id: 1, title: 'Doom', platform: 'dos', slug: 'doom' }),
+      createMockLibraryItem({ id: 2, title: 'Quake', platform: 'dos', slug: 'quake' }),
     ];
     vi.mocked(apiFetch).mockImplementation((url) => {
       if (typeof url === 'string' && url.includes('/api/v1/game-items')) {

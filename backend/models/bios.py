@@ -4,7 +4,7 @@ from sqlmodel import SQLModel
 class BiosItem(SQLModel):
     slug: str
     name: str
-    platform: str
+    bios_group: str
     bios_path: str
     guidance_text: str
     guidance_url: str

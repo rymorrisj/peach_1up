@@ -4,23 +4,23 @@ import PathInput from '@/components/common/PathInput';
 import FileUpload from '@/components/common/FileUpload';
 import BrowsePanel from '@/components/common/BrowsePanel';
 import LaunchCommandList from '@/components/LaunchCommandList';
-import type { HardwareProfile } from '@/generated/constants';
-import { ERA_TO_EMULATOR, type EnvironmentForm, type PCEra } from './environmentForm';
+import { PC_PLATFORMS, PLATFORM_LABELS, type HardwareProfile } from '@/generated/constants';
+import {
+  BOX86_PLATFORMS,
+  PLATFORM_TO_EMULATOR,
+  type EnvironmentForm,
+  type PcPlatform,
+} from './environmentForm';
 
-const PC_ERAS: { value: PCEra; label: string }[] = [
-  { value: 'dos', label: 'DOS' },
-  { value: 'win95', label: 'Windows 95' },
-  { value: 'win98', label: 'Windows 98' },
-  { value: 'winxp', label: 'Windows XP' },
-];
+const PC_PLATFORM_OPTIONS: { value: PcPlatform; label: string }[] = PC_PLATFORMS.map((p) => ({
+  value: p as PcPlatform,
+  label: PLATFORM_LABELS[p] ?? p,
+}));
 
 const EMULATOR_LABELS: Record<string, string> = {
   'dosbox-x': 'DOSBox-X',
   '86box': '86Box',
 };
-
-const BOX86_ERAS = new Set<PCEra>(['win95', 'win98', 'winxp']);
-const INSTALL_MEDIA_ERAS = new Set<PCEra>(['win95', 'win98', 'winxp']);
 
 const HARDWARE_PROFILES: { value: HardwareProfile; label: string; description: string }[] = [
   {
@@ -74,10 +74,12 @@ export default function EnvironmentModal({
   onSubmit,
   onFieldChange,
 }: EnvironmentModalProps) {
-  const emulatorLabel = form.era ? (EMULATOR_LABELS[ERA_TO_EMULATOR[form.era]] ?? null) : null;
-  const isBox86Era = form.era !== null && BOX86_ERAS.has(form.era);
+  const emulatorLabel = form.platform
+    ? (EMULATOR_LABELS[PLATFORM_TO_EMULATOR[form.platform]] ?? null)
+    : null;
+  const isBox86Platform = form.platform !== null && BOX86_PLATFORMS.has(form.platform);
   const showInstallMediaAbove =
-    form.era !== null && INSTALL_MEDIA_ERAS.has(form.era) && mode === 'create';
+    form.platform !== null && BOX86_PLATFORMS.has(form.platform) && mode === 'create';
   const hasAdvancedValues = !!(
     (!showInstallMediaAbove && form.base_image_path) ||
     form.working_image_path ||
@@ -126,16 +128,16 @@ export default function EnvironmentModal({
         />
       </FormField>
 
-      <FormField label="Era" required error={formErrors.era}>
+      <FormField label="Platform" required error={formErrors.platform}>
         <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {PC_ERAS.map((era) => {
-            const selected = form.era === era.value;
+          {PC_PLATFORM_OPTIONS.map((platform) => {
+            const selected = form.platform === platform.value;
             return (
               <button
-                key={era.value}
+                key={platform.value}
                 type="button"
                 disabled={submitting}
-                onClick={() => onFieldChange('era', era.value)}
+                onClick={() => onFieldChange('platform', platform.value)}
                 aria-pressed={selected}
                 className={`rounded-md border px-3 py-2 text-left text-sm font-medium transition-colors ${
                   selected
@@ -143,7 +145,7 @@ export default function EnvironmentModal({
                     : 'border-neutral-200 text-neutral-700 hover:border-neutral-400 hover:bg-surface-2 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-neutral-500'
                 } disabled:cursor-not-allowed disabled:opacity-50`}
               >
-                {era.label}
+                {platform.label}
               </button>
             );
           })}
@@ -161,7 +163,7 @@ export default function EnvironmentModal({
         </div>
       )}
 
-      {isBox86Era && (
+      {isBox86Platform && (
         <div className="border-t border-neutral-200 pt-4 dark:border-neutral-700">
           <h4 className="mb-3 text-sm font-semibold text-neutral-700 dark:text-neutral-300">
             Hardware Profile
@@ -218,7 +220,7 @@ export default function EnvironmentModal({
               className="mt-1"
               hasError={!!formErrors.base_image_path}
             />
-            {form.era && (
+            {form.platform && (
               <FileUpload
                 slug={slug}
                 accept=".iso,.img,.vhd,.cue,.chd"
@@ -256,7 +258,7 @@ export default function EnvironmentModal({
                   placeholder="/path/to/images/os/win98/base.img"
                   className="mt-1"
                 />
-                {form.era && (
+                {form.platform && (
                   <FileUpload
                     slug={slug}
                     accept=".img,.iso,.vhd,.cue,.chd,.xiso"
@@ -280,7 +282,7 @@ export default function EnvironmentModal({
                 placeholder="/path/to/images/os/win98/working.img"
                 className="mt-1"
               />
-              {form.era && (
+              {form.platform && (
                 <FileUpload
                   slug={slug}
                   accept=".img,.iso,.vhd,.cue,.chd,.xiso"
@@ -289,7 +291,7 @@ export default function EnvironmentModal({
               )}
             </FormField>
 
-            {isBox86Era && (
+            {isBox86Platform && (
               <FormField
                 label="Machine Override"
                 htmlFor="env-machine"

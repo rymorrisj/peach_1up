@@ -43,7 +43,7 @@ def _make_user(db, **overrides):
 def _make_collection(db, **overrides):
     from backend.models.game import GameItemBundle
 
-    kwargs = dict(title="Doom", file_path="/library/games/dos/doom", era="dos", slug="doom")
+    kwargs = dict(title="Doom", file_path="/library/games/dos/doom", platform="dos", slug="doom")
     kwargs.update(overrides)
     collection = GameItemBundle(**kwargs)
     db.add(collection)

@@ -89,7 +89,7 @@ def _make_software_collection(db, **overrides):
     kwargs = dict(
         title="Doom",
         file_path="/library/games/dos/doom",
-        era="dos",
+        platform="dos",
         slug="doom",
     )
     kwargs.update(overrides)

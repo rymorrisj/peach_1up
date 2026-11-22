@@ -37,7 +37,7 @@ def begin_upload(base_dir: Path, filename: str) -> tuple[Path, Path]:
 
     Args:
         base_dir: Allowlisted root the upload must resolve under (e.g. MEDIA_PATH,
-                   or OS_PATH/{era}).
+                   or OS_PATH/{platform}).
         filename: Raw filename from the multipart upload.
 
     Returns:
@@ -109,7 +109,7 @@ def find_existing_duplicate(media_root: Path, uploaded_path: Path, uploaded_size
     from backend.service.utils import media_dup_index
     from backend.service.utils.file_types import all_supported_extensions
 
-    # .img is deliberately excluded even though some eras list it under
+    # .img is deliberately excluded even though some platforms list it under
     # supported_media: drive images are app-generated containers, never
     # something a browser upload could legitimately match against, and
     # they're rewritten in place on every pre-install launch (see

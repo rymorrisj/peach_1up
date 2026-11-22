@@ -5,7 +5,7 @@ max_content_rating and MediaRestriction filtering on list and detail live in
 test_dependencies_content_rating.py and are not repeated. Covers:
 
     - block_unrated_media exclusion over TestClient
-    - the list route's own filters (era, tag, profile_assigned) chained onto
+    - the list route's own filters (platform, tag, profile_assigned) chained onto
       the parental-control base query: a restricted or over-rated item stays
       excluded even when it matches the additional filter
     - owner bypass on the list route
@@ -52,7 +52,7 @@ def _make_user(db, **overrides):
 def _make_collection(db, **overrides):
     from backend.models.game import GameItemBundle
 
-    kwargs = dict(title="Doom", file_path="/library/games/dos/doom", era="dos", slug="doom")
+    kwargs = dict(title="Doom", file_path="/library/games/dos/doom", platform="dos", slug="doom")
     kwargs.update(overrides)
     collection = GameItemBundle(**kwargs)
     db.add(collection)
@@ -163,27 +163,39 @@ class TestBlockUnratedMediaHttpLevel:
 
 
 # ---------------------------------------------------------------------------
-# List route's own filters (era, tag, profile_assigned) chained on top of
+# List route's own filters (platform, tag, profile_assigned) chained on top of
 # the parental-control base query: a restricted/over-rated item must stay
 # excluded even when it would otherwise match the additional filter.
 # ---------------------------------------------------------------------------
 
 
 class TestListFiltersStayScopedToParentalControlBaseQuery:
-    def test_era_filter_does_not_leak_a_restricted_item_matching_that_era(self, http_client):
+    def test_platform_filter_does_not_leak_a_restricted_item_matching_that_platform(self, http_client):
         c, db, app = http_client
         user = _make_user(db)
-        allowed = _make_collection(db, slug="allowed", era="dos", content_rating="E")
-        restricted = _make_collection(db, slug="restricted", era="dos", content_rating="E")
+        allowed = _make_collection(db, slug="allowed", platform="dos", content_rating="E")
+        restricted = _make_collection(db, slug="restricted", platform="dos", content_rating="E")
         _restrict(db, user, restricted)
         _set_active_user(app, user)
 
-        resp = c.get("/api/v1/game-items", params={"era": "dos"})
+        resp = c.get("/api/v1/game-items", params={"platform": "dos"})
 
         assert resp.status_code == 200, resp.text
         ids = {item["id"] for item in resp.json()["items"]}
         assert allowed.id in ids
         assert restricted.id not in ids
+
+    def test_old_era_filter_param_is_rejected_not_ignored(self, http_client):
+        # An ignored filter would return every visible item instead of none.
+        c, db, app = http_client
+        user = _make_user(db)
+        _make_collection(db, slug="doom", platform="dos", content_rating="E")
+        _set_active_user(app, user)
+
+        resp = c.get("/api/v1/game-items", params={"era": "dos"})
+
+        assert resp.status_code == 422
+        assert "platform" in resp.json()["detail"]
 
     def test_tag_filter_does_not_leak_an_over_rated_item_carrying_that_tag(self, http_client):
         c, db, app = http_client

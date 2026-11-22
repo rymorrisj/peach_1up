@@ -1,17 +1,26 @@
-import type { HardwareProfile } from '@/generated/constants';
+import {
+  PC_PLATFORMS,
+  PLATFORM_BACKENDS,
+  type HardwareProfile,
+  type Platform,
+} from '@/generated/constants';
 
-export type PCEra = 'dos' | 'win95' | 'win98' | 'winxp';
+// A PC platform (kind "pc" in config/platforms.yaml). Membership is enforced
+// at runtime by isPcPlatform and the backend.
+export type PcPlatform = Platform;
 
-export const ERA_TO_EMULATOR: Record<PCEra, string> = {
-  dos: 'dosbox-x',
-  win95: '86box',
-  win98: '86box',
-  winxp: '86box',
-};
+export const PLATFORM_TO_EMULATOR: Record<string, string> = Object.fromEntries(
+  PC_PLATFORMS.map((p) => [p, PLATFORM_BACKENDS[p]]),
+);
+
+// PC platforms whose Environments run on 86Box (installation media, VHD).
+export const BOX86_PLATFORMS: ReadonlySet<string> = new Set(
+  PC_PLATFORMS.filter((p) => PLATFORM_BACKENDS[p] === '86box'),
+);
 
 export interface EnvironmentForm {
   name: string;
-  era: PCEra | null;
+  platform: PcPlatform | null;
   base_image_path: string;
   working_image_path: string;
   hardware_profile: HardwareProfile;
@@ -22,7 +31,7 @@ export interface EnvironmentForm {
 
 export const EMPTY_ENV_FORM: EnvironmentForm = {
   name: '',
-  era: null,
+  platform: null,
   base_image_path: '',
   working_image_path: '',
   hardware_profile: 'standard',
@@ -31,11 +40,8 @@ export const EMPTY_ENV_FORM: EnvironmentForm = {
   launch_commands: [],
 };
 
-// Whether an item's era makes it PC-launchable (Environment-driven) rather
-// than console (fixed era-to-emulator mapping, no per-item Environment
-// picker). Same membership check AppEditForm's handleEraChange already uses
-// to keep is_pc in sync with era, pulled out so Games' Platform-field gating
-// (era-based) can share it without duplicating the check.
-export function isPcEra(era: string): boolean {
-  return era in ERA_TO_EMULATOR;
+// Whether a platform is PC (an Environment is chosen) rather than console
+// (fixed platform-to-emulator mapping, no Environment).
+export function isPcPlatform(platform: string): boolean {
+  return PC_PLATFORMS.includes(platform);
 }

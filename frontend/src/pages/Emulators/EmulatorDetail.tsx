@@ -6,7 +6,7 @@ import TopBar from '@/components/layout/TopBar';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import { useConfirm } from '@/hooks/useConfirm';
 import { useAppContext } from '@/context/useAppContext';
-import { EMULATOR_ERA_MAP, ERA_COLOR } from '@/types/era';
+import { EMULATOR_PLATFORM_MAP, PLATFORM_COLOR } from '@/types/platform';
 import { useToast } from '@/ui/ToastProvider';
 import type { EmulatorStatusData } from '@/pages/FirstRun/types';
 import type { components } from '@shared/types';
@@ -20,7 +20,7 @@ type LaunchProfile = components['schemas']['ProfileItemRead'];
 type BiosItem = components['schemas']['BiosItem'];
 type LaunchHistory = components['schemas']['LaunchHistoryRead'];
 
-const EMULATOR_BIOS_PLATFORM: Record<string, string> = {
+const EMULATOR_BIOS_GROUP: Record<string, string> = {
   duckstation: 'ps1',
   pcsx2: 'ps2',
   xemu: 'xbox',
@@ -59,7 +59,7 @@ export default function EmulatorDetail() {
 
   const entry = catalog.find((e) => e.slug === slug);
   const romPackSlug = entry?.rom_pack_slug ?? undefined;
-  const emulatorBiosPlatform = slug ? EMULATOR_BIOS_PLATFORM[slug] : undefined;
+  const emulatorBiosGroup = slug ? EMULATOR_BIOS_GROUP[slug] : undefined;
 
   // Lookup-only consumer of GET /api/v1/bios (now Page[BiosItem]) —
   // unwraps .items, capped at limit=200 (same pattern as the /api/v1/profile-items
@@ -67,7 +67,7 @@ export default function EmulatorDetail() {
   const { data: allBios = [] } = useQuery<BiosItem[]>({
     queryKey: ['bios-requirements'],
     queryFn: async () => (await apiFetch<{ items: BiosItem[] }>('/api/v1/bios?limit=200')).items,
-    enabled: !!emulatorBiosPlatform,
+    enabled: !!emulatorBiosGroup,
   });
 
   const { data: installStatus } = useQuery<EmulatorStatusData>({
@@ -113,8 +113,8 @@ export default function EmulatorDetail() {
   const containerMoniker = runningLaunchDetail?.container_moniker ?? null;
 
   const romPackEntry = romPackSlug ? catalog.find((e) => e.slug === romPackSlug) : undefined;
-  const emulatorBios = allBios.filter((b) => b.platform === emulatorBiosPlatform);
-  const eras = slug ? (EMULATOR_ERA_MAP[slug] ?? []) : [];
+  const emulatorBios = allBios.filter((b) => b.bios_group === emulatorBiosGroup);
+  const platforms = slug ? (EMULATOR_PLATFORM_MAP[slug] ?? []) : [];
   const emulatorProfiles = profiles.filter((p) => p.emulator_slug === slug);
   const isReady = entry?.is_installed && entry?.install_path;
 
@@ -389,9 +389,9 @@ export default function EmulatorDetail() {
           </div>
           <span style={{ flex: 1 }} />
           <div className="flex gap-1.5">
-            {eras.map((era) => (
+            {platforms.map((platform) => (
               <span
-                key={era}
+                key={platform}
                 style={{
                   fontFamily: 'var(--font-mono)',
                   fontWeight: 600,
@@ -399,12 +399,12 @@ export default function EmulatorDetail() {
                   letterSpacing: '0.08em',
                   padding: '4px 6px',
                   borderRadius: 'var(--r-1)',
-                  border: `1px solid ${ERA_COLOR[era] ?? 'rgb(var(--border))'}`,
-                  color: ERA_COLOR[era] ?? 'rgb(var(--fg-3))',
+                  border: `1px solid ${PLATFORM_COLOR[platform] ?? 'rgb(var(--border))'}`,
+                  color: PLATFORM_COLOR[platform] ?? 'rgb(var(--fg-3))',
                   display: 'inline-block',
                 }}
               >
-                {era}
+                {platform}
               </span>
             ))}
           </div>
@@ -448,7 +448,7 @@ export default function EmulatorDetail() {
         {tab === 'overview' && entry && (
           <OverviewTab
             entry={entry}
-            eras={eras}
+            platforms={platforms}
             isReady={isReady}
             emulatorProfilesCount={emulatorProfiles.length}
             emulatorBios={emulatorBios}

@@ -1,6 +1,6 @@
 slug = "mesen"
-era = "nes"
-supported_eras = ["nes", "snes"]
+sizing_platform = "nes"
+supported_platforms = ["nes", "snes"]
 display_name = "Mesen"
 name = "Mesen"
 version = "2.1.1"
@@ -37,7 +37,7 @@ name = "mesen-fds-bios"
 acquire_method = "user_supplied"
 required = false
 display_name = "Mesen FDS BIOS"
-platform = "mesen"
+bios_group = "mesen"
 bios_path = "emulators/mesen/data"
 guidance_text = "Optional: place disksys.rom in emulators/mesen/data/ to enable Famicom Disk System titles."
 guidance_url = "https://www.mesen.ca/docs/gettingstarted.html"

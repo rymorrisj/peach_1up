@@ -58,7 +58,7 @@ def _make_environment(db, **overrides):
 
     kwargs = dict(
         name="Win98 Box",
-        era="win98",
+        platform="win98",
         emulator_slug="86box",
         slug="win98-box",
         working_image_path=None,
@@ -112,12 +112,11 @@ class TestListAndGetEnvironment:
         assert resp.status_code == 404
 
 
-class TestListWithEraParam:
-    """?era=<value> on GET /api/v1/environment-items computes a per-row
-    launch_blocked_reason for the platform-picker candidate list
-    (PlatformField.tsx). evaluate_launch_readiness supplies the
-    not-provisioned/not-installed checks, a direct era/is_present comparison
-    supplies the other two. Precedence is at the call site in environments.py."""
+class TestListWithPlatformParam:
+    """?platform=<value> on GET /api/v1/environment-items computes a per-row
+    launch_blocked_reason for the Environment picker (EnvironmentField.tsx).
+    There is no platform compatibility rule and the param never filters rows:
+    only presence, provisioning and installed state block a candidate."""
 
     def _present_win98_environment(self, db, tmp_path, **overrides):
         working_image = tmp_path / "working.img"
@@ -131,7 +130,7 @@ class TestListWithEraParam:
         kwargs.update(overrides)
         return _make_environment(db, **kwargs)
 
-    def test_no_era_param_leaves_reason_null(self, client):
+    def test_no_platform_param_leaves_reason_null(self, client):
         c, db = client
         _make_environment(db)
 
@@ -140,25 +139,39 @@ class TestListWithEraParam:
         assert resp.status_code == 200
         assert resp.json()[0]["launch_blocked_reason"] is None
 
-    def test_era_mismatch(self, client, tmp_path):
+    def test_other_platform_environment_is_a_selectable_candidate(self, client, tmp_path):
         c, db = client
-        self._present_win98_environment(db, tmp_path, era="win98")
+        from datetime import datetime, timezone
 
-        resp = c.get("/api/v1/environment-items?era=winxp")
+        self._present_win98_environment(
+            db, tmp_path, platform="win98", installed_at=datetime.now(timezone.utc)
+        )
+
+        resp = c.get("/api/v1/environment-items?platform=winxp")
 
         assert resp.status_code == 200
         body = resp.json()
+        assert len(body) == 1
         assert body[0]["is_present"] is True
-        assert body[0]["launch_blocked_reason"] == "environment_era_mismatch"
+        assert body[0]["launch_blocked_reason"] is None
+
+    def test_old_era_param_is_rejected(self, client):
+        c, db = client
+        _make_environment(db)
+
+        resp = c.get("/api/v1/environment-items?era=win98")
+
+        assert resp.status_code == 422
+        assert "platform" in resp.json()["detail"]
 
     def test_not_present(self, client):
         c, db = client
-        # No working/base image paths on disk: is_present is False, and era
+        # No working/base image paths on disk: is_present is False, and platform
         # matches the query, so the reason must come from the presence check,
         # not evaluate_launch_readiness (which never sees a not-present row).
-        _make_environment(db, era="win98")
+        _make_environment(db, platform="win98")
 
-        resp = c.get("/api/v1/environment-items?era=win98")
+        resp = c.get("/api/v1/environment-items?platform=win98")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -170,9 +183,9 @@ class TestListWithEraParam:
         # Present on disk (both images valid) but installed_at was never set,
         # win98 has a real install step (unlike dos), so this must fall
         # through to evaluate_launch_readiness's environment_not_installed.
-        self._present_win98_environment(db, tmp_path, era="win98", installed_at=None)
+        self._present_win98_environment(db, tmp_path, platform="win98", installed_at=None)
 
-        resp = c.get("/api/v1/environment-items?era=win98")
+        resp = c.get("/api/v1/environment-items?platform=win98")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -184,10 +197,10 @@ class TestListWithEraParam:
         from datetime import datetime, timezone
 
         self._present_win98_environment(
-            db, tmp_path, era="win98", installed_at=datetime.now(timezone.utc)
+            db, tmp_path, platform="win98", installed_at=datetime.now(timezone.utc)
         )
 
-        resp = c.get("/api/v1/environment-items?era=win98")
+        resp = c.get("/api/v1/environment-items?platform=win98")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -196,14 +209,14 @@ class TestListWithEraParam:
 
 
 class TestCreateEnvironment:
-    def test_rejects_non_pc_era(self, client):
+    def test_rejects_non_pc_platform(self, client):
         c, _ = client
         resp = c.post(
             "/api/v1/environment-items",
-            json={"name": "PS1 Box", "era": "ps1", "emulator_slug": "duckstation"},
+            json={"name": "PS1 Box", "platform": "ps1", "emulator_slug": "duckstation"},
         )
         assert resp.status_code == 422
-        assert "PC eras" in resp.json()["detail"]
+        assert "PC platforms" in resp.json()["detail"]
 
     def test_rejects_nonexistent_base_image_path(self, client, tmp_path):
         c, _ = client
@@ -211,7 +224,7 @@ class TestCreateEnvironment:
             "/api/v1/environment-items",
             json={
                 "name": "Win98 Box",
-                "era": "win98",
+                "platform": "win98",
                 "emulator_slug": "86box",
                 "base_image_path": str(tmp_path / "missing.img"),
             },
@@ -226,14 +239,14 @@ class TestCreateEnvironment:
         base_image.write_bytes(b"b" * 1024)
         working_image.write_bytes(b"w" * 1024)
 
-        # Both image paths are provided so create_platform's auto-provisioning
+        # Both image paths are provided so create_environment_item's auto-provisioning
         # branch (triggered only when working_image_path is absent) never
         # fires, keeps this test hermetic instead of touching vm/86box code.
         resp = c.post(
             "/api/v1/environment-items",
             json={
                 "name": "Fresh Win98 Box",
-                "era": "win98",
+                "platform": "win98",
                 "emulator_slug": "86box",
                 "base_image_path": str(base_image),
                 "working_image_path": str(working_image),
@@ -254,7 +267,7 @@ class TestCreateEnvironment:
 
         resp = c.post(
             "/api/v1/environment-items",
-            json={"name": "Win98 Box", "era": "win98", "emulator_slug": "86box"},
+            json={"name": "Win98 Box", "platform": "win98", "emulator_slug": "86box"},
         )
         assert resp.status_code == 403
 
@@ -265,10 +278,10 @@ class TestUpdateEnvironment:
         resp = c.patch("/api/v1/environment-items/999", json={"name": "New Name"})
         assert resp.status_code == 404
 
-    def test_rejects_switching_to_non_pc_era(self, client):
+    def test_rejects_switching_to_non_pc_platform(self, client):
         c, db = client
         environment = _make_environment(db)
-        resp = c.patch(f"/api/v1/environment-items/{environment.id}", json={"era": "ps1"})
+        resp = c.patch(f"/api/v1/environment-items/{environment.id}", json={"platform": "ps1"})
         assert resp.status_code == 422
 
     def test_rejects_nonexistent_working_image_path(self, client, tmp_path):
@@ -337,7 +350,7 @@ class TestDeleteEnvironment:
 class TestComputeEnvironmentPresence:
     def _env(self, **overrides):
         from backend.models.environment import EnvironmentItem
-        kwargs = dict(name="Box", era="win98", emulator_slug="86box")
+        kwargs = dict(name="Box", platform="win98", emulator_slug="86box")
         kwargs.update(overrides)
         return EnvironmentItem(**kwargs)
 
@@ -381,24 +394,46 @@ class TestComputeEnvironmentPresence:
         environment = self._env(working_image_path=str(working), base_image_path=str(base))
         assert compute_environment_presence(environment) is False
 
-    def test_dos_era_not_present_without_base_image(self):
-        # DOS launches mount the per-item drive instead of working_image_path,
-        # so only base_image_path is evaluated for this era.
-        from backend.service.environments.environments import compute_environment_presence
-        environment = self._env(era="dos", emulator_slug="dosbox-x", working_image_path=None, base_image_path=None)
-        assert compute_environment_presence(environment) is False
+    # DOS launches mount the per-item drive, not working_image_path. A DOS
+    # Environment (including the seeded one, which has no base image) is
+    # present when DOSBox-X is installed and any configured base image exists.
 
-    def test_dos_era_present_when_base_image_present(self, tmp_path):
+    def test_dos_platform_present_without_base_image_when_dosbox_installed(self, monkeypatch):
+        from pathlib import Path
         from backend.service.environments.environments import compute_environment_presence
-        base = tmp_path / "base.img"
-        base.write_bytes(b"b" * 512)
-        environment = self._env(era="dos", emulator_slug="dosbox-x", base_image_path=str(base))
+        from backend.service.utils import emulator_catalog
+
+        monkeypatch.setattr(emulator_catalog, "get_install_path", lambda slug: Path("/fake/dosbox-x"))
+        environment = self._env(platform="dos", emulator_slug="dosbox-x", working_image_path=None, base_image_path=None)
         assert compute_environment_presence(environment) is True
 
-    def test_dos_era_not_present_when_base_image_missing_on_disk(self, tmp_path):
+    def test_dos_platform_not_present_when_dosbox_not_installed(self, monkeypatch):
         from backend.service.environments.environments import compute_environment_presence
+        from backend.service.utils import emulator_catalog
+
+        monkeypatch.setattr(emulator_catalog, "get_install_path", lambda slug: None)
+        environment = self._env(platform="dos", emulator_slug="dosbox-x", working_image_path=None, base_image_path=None)
+        assert compute_environment_presence(environment) is False
+
+    def test_dos_platform_present_when_base_image_present(self, tmp_path, monkeypatch):
+        from pathlib import Path
+        from backend.service.environments.environments import compute_environment_presence
+        from backend.service.utils import emulator_catalog
+
+        monkeypatch.setattr(emulator_catalog, "get_install_path", lambda slug: Path("/fake/dosbox-x"))
+        base = tmp_path / "base.img"
+        base.write_bytes(b"b" * 512)
+        environment = self._env(platform="dos", emulator_slug="dosbox-x", base_image_path=str(base))
+        assert compute_environment_presence(environment) is True
+
+    def test_dos_platform_not_present_when_base_image_missing_on_disk(self, tmp_path, monkeypatch):
+        from pathlib import Path
+        from backend.service.environments.environments import compute_environment_presence
+        from backend.service.utils import emulator_catalog
+
+        monkeypatch.setattr(emulator_catalog, "get_install_path", lambda slug: Path("/fake/dosbox-x"))
         environment = self._env(
-            era="dos",
+            platform="dos",
             emulator_slug="dosbox-x",
             base_image_path=str(tmp_path / "missing-base.img"),
         )
@@ -410,7 +445,7 @@ class TestComputeEnvironmentPresence:
         from backend.service.utils import emulator_catalog
 
         monkeypatch.setattr(emulator_catalog, "get_install_path", lambda slug: Path("/fake/duckstation"))
-        environment = self._env(era="ps1", emulator_slug="duckstation", is_system=True)
+        environment = self._env(platform="ps1", emulator_slug="duckstation", is_system=True)
         assert env_svc.compute_environment_presence(environment) is True
 
     def test_system_environment_not_present_when_binary_not_installed(self, monkeypatch):
@@ -418,7 +453,7 @@ class TestComputeEnvironmentPresence:
         from backend.service.utils import emulator_catalog
 
         monkeypatch.setattr(emulator_catalog, "get_install_path", lambda slug: None)
-        environment = self._env(era="ps1", emulator_slug="duckstation", is_system=True)
+        environment = self._env(platform="ps1", emulator_slug="duckstation", is_system=True)
         assert env_svc.compute_environment_presence(environment) is False
 
 

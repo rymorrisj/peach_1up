@@ -517,3 +517,13 @@ def get_filtered_entity_query(entity_type: str, active_user: UserItem, db: Sessi
     cannot see is never named."""
     builder = _FILTERED_BUNDLE_QUERIES.get(entity_type)
     return builder(active_user, db) if builder is not None else None
+
+
+def reject_old_era_query_param(request: Request) -> None:
+    """422 when a client still sends the renamed ?era= list filter, instead of
+    FastAPI silently ignoring it and returning an unfiltered list."""
+    if "era" in request.query_params:
+        raise HTTPException(
+            status_code=422,
+            detail="The 'era' query parameter was renamed to 'platform'.",
+        )

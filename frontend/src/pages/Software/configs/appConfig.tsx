@@ -4,6 +4,8 @@ import { useEditForm } from '@/hooks/useEditForm';
 import { formFromCollection, type SoftwareAppForm } from '../types/appForm';
 import { AppEditForm } from '../components/AppEditForm';
 import { LinkedItemsSection } from '../components/LinkedItemsSection';
+import { LaunchNote } from '../components/LaunchNote';
+import { useUserEnvironmentCount } from '@/hooks/useUserEnvironmentCount';
 import type { LibraryModalConfig } from '../components/LibraryModal';
 import type {
   EntityBundleBase,
@@ -19,7 +21,6 @@ import {
 } from '../types';
 import type { components } from '@shared/types';
 
-type Platform = components['schemas']['EnvironmentItemRead'];
 type LaunchHistory = components['schemas']['LaunchHistoryRead'];
 
 export interface AppItemLeaf {
@@ -32,7 +33,7 @@ export interface AppItemLeaf {
 }
 
 export interface AppItemBundleData extends EntityBundleBase {
-  era: string;
+  platform: string;
   is_pc: boolean;
   category: string | null;
   publisher: string | null;
@@ -56,8 +57,8 @@ export interface AppItemBundleData extends EntityBundleBase {
   items: AppItemLeaf[];
 }
 
-// Minimal edit form: title, description, cover_art_path, era, environment_item_id
-// (is_pc is derived from era, kept in sync by AppEditForm rather than edited
+// Minimal edit form: title, description, cover_art_path, platform, environment_item_id
+// (is_pc is derived from platform, kept in sync by AppEditForm rather than edited
 // directly, see types/appForm.ts). Save is a two-step PATCH mirroring Game's
 // bundle-fields-then-leaf-fields sequence, since App keeps cover_art_path on
 // its (single, collection-of-one) leaf item, not the bundle, confirmed
@@ -68,16 +69,9 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
   const { detailQueryKey, refetchEntity, isLaunching } = ctx;
   const queryClient = useQueryClient();
 
-  // era in the query key so switching bundles (a different era) refetches
-  // with the right per-candidate launch_blocked_reason instead of serving a
-  // stale list computed against the previous bundle's era.
-  const { data: platforms = [] } = useQuery<Platform[]>({
-    queryKey: ['platforms', collection?.era],
-    queryFn: () =>
-      apiFetch<Platform[]>(
-        `/api/v1/environment-items${collection?.era ? `?era=${encodeURIComponent(collection.era)}` : ''}`,
-      ),
-  });
+  const userEnvironmentCount = useUserEnvironmentCount(
+    collection?.launch_blocked_reason === 'no_environment',
+  );
 
   // App has no dedicated collection-launches route like Game's
   // /game-item-bundle/{id}/launches, so this uses the generic scoped launches
@@ -104,7 +98,7 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
         body: JSON.stringify({
           title: f.title.trim() || undefined,
           description: f.description.trim() || null,
-          era: f.era || null,
+          platform: f.platform || null,
           environment_item_id: f.environment_item_id ? parseInt(f.environment_item_id, 10) : null,
         }),
       });
@@ -133,10 +127,14 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
   // Launch gating mirrors Game: driven solely by the backend launch_blocked_reason,
   // no client-side profile/environment check. Apps have no in-form profile picker,
   // so onLaunch launches with the stored profile (default null payload).
-  const launchGate = launchGateFromReason(collection.launch_blocked_reason, isLaunching);
+  const launchGate = launchGateFromReason(
+    collection.launch_blocked_reason,
+    isLaunching,
+    userEnvironmentCount,
+  );
 
   return {
-    era: collection.era,
+    platform: collection.platform,
     year: collection.year,
     publisher: collection.publisher,
     launchCount: collection.launch_count,
@@ -144,11 +142,7 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
     launchHistory,
     launchDisabled: launchGate.launchDisabled,
     launchButtonLabel: launchGate.launchButtonLabel,
-    launchNote: launchGate.launchNote ? (
-      <p className="text-center text-xs text-neutral-400 dark:text-neutral-500">
-        {launchGate.launchNote}
-      </p>
-    ) : undefined,
+    launchNote: <LaunchNote gate={launchGate} />,
     editFormContent: (
       <AppEditForm
         form={form}
@@ -163,7 +157,6 @@ function useAppDetailExtras(ctx: EntityDetailExtrasContext<AppItemBundleData>): 
             : null
         }
         saveSuccess={saveMutation.isSuccess}
-        platforms={platforms}
       />
     ),
     afterContent: <LinkedItemsSection items={collection.linked_items} />,
@@ -179,7 +172,7 @@ export const appUploadModalConfig: LibraryModalConfig = {
   // Resolved: backend/service/uploads/software_apps.py now implements a real
   // chunked upload path (/api/v1/uploads/software-apps/*) whose finalize
   // creates the AppItemBundle + AppItem row directly, same shape as Game.
-  // era is left "unknown" (no detection, matching apps.py's existing
+  // platform is left "unknown" (no detection, matching apps.py's existing
   // create_app_item_bundle), editable from the detail page after upload.
   // The backend also accepts kind="folder" (multi-part installs), but the
   // upload UI here stays single-file-only for now, supportsFolderMode is
@@ -213,11 +206,11 @@ export const appDomainConfig: EntityDomainConfig<AppItemBundleData> = {
   // appear in the Restrictions checkbox list at all, matching gameConfig.
   filterRestrictionUsers: (users) => users.filter((u) => !u.is_owner),
   useRenderExtras: useAppDetailExtras,
-  // Era/profile/tag filter bar (EntityListPage.tsx). Backend support added
+  // Platform/profile/tag filter bar (EntityListPage.tsx). Backend support added
   // alongside this: GET /api/v1/app-items (apps.py:list_apps) now accepts
-  // `era`, `profile_assigned`, and `tag` query params, mirroring Game's
+  // `platform`, `profile_assigned`, and `tag` query params, mirroring Game's
   // list_game_items exactly.
-  filters: { era: true, profileAssigned: true, tag: true },
+  filters: { platform: true, profileAssigned: true, tag: true },
   // Sort control (EntityListPage.tsx). Backend support added alongside this:
   // GET /api/v1/app-items (apps.py:list_apps) now accepts `sort`
   // ("title" | "date_added"), mirroring Game's list_game_items exactly.

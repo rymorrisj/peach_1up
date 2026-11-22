@@ -1,6 +1,6 @@
 app_version: "0.1.0"
 
-eras:
+platforms:
   dos:   "DOS"
   win95: "Windows 95"
   win98: "Windows 98"
@@ -75,11 +75,6 @@ backend_system_labels:
   project64:   "Nintendo 64"
   flycast:     "Dreamcast"
 
-dgvoodoo2_supported_eras:
-  - "win95"
-  - "win98"
-  - "winxp"
-
 file_types:
   directory: "Directory"
   iso:       "ISO Image"
@@ -118,21 +113,6 @@ media_kinds:
   - "text"
   - "image"
   - "video"
-
-era_backends:
-  dos:       dosbox-x
-  win95:     86box
-  win98:     86box
-  winxp:     86box
-  ps1:       duckstation
-  ps2:       pcsx2
-  ps3:       rpcs3
-  xbox:      xemu
-  xbox360:   xenia
-  nes:       mesen
-  snes:      mesen
-  n64:       project64
-  dreamcast: flycast
 
 tag_colors:
   - id: "slate"

@@ -2,7 +2,7 @@
 Emulator launch orchestration for Peach 1UP.
 
 Provides the public entry point ``launch_under_job_object``, which resolves
-per-launch resource limits from eras.yaml and the emulator catalog, then
+per-launch resource limits from platforms.yaml and the emulator catalog, then
 delegates to wincage/process.py for the actual launch and Job Object
 lifecycle:
 
@@ -22,7 +22,7 @@ from pathlib import Path
 
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
-from backend.service.utils.eras_config import get_eras, get_cpu_min_rate
+from backend.service.utils.platforms_config import get_platforms_config, get_cpu_min_rate
 from wincage import (
     SandboxConfig,
     SandboxProcess,
@@ -34,35 +34,35 @@ from backend.service.utils.emulator_catalog import get_skip_memory_limit, get_sk
 
 logger = get_logger(__name__)
 
-_ERAS_YAML: Path = get_base_path() / "config" / "eras.yaml"
+_PLATFORMS_YAML: Path = get_base_path() / "config" / "platforms.yaml"
 
 
-def _load_era_limits(era: str) -> tuple[int, int]:
-    """Load memory_limit_mb and cpu_limit_percent for *era* from eras.yaml."""
+def _load_platform_limits(platform: str) -> tuple[int, int]:
+    """Load memory_limit_mb and cpu_limit_percent for *platform* from platforms.yaml."""
     try:
-        eras_config = get_eras()
+        platforms_config = get_platforms_config()
     except FileNotFoundError:
-        raise FileNotFoundError(f"eras.yaml not found at {_ERAS_YAML}")
+        raise FileNotFoundError(f"platforms.yaml not found at {_PLATFORMS_YAML}")
     except yaml.YAMLError as exc:
-        raise RuntimeError(f"Failed to parse eras.yaml: {exc}")
+        raise RuntimeError(f"Failed to parse platforms.yaml: {exc}")
 
-    if era not in eras_config:
+    if platform not in platforms_config:
         raise RuntimeError(
-            f"Era '{era}' not found in eras.yaml. Available: {list(eras_config.keys())}"
+            f"Platform '{platform}' not found in platforms.yaml. Available: {list(platforms_config.keys())}"
         )
 
-    era_cfg = eras_config[era]
+    platform_cfg = platforms_config[platform]
 
-    memory_limit_mb = era_cfg.get('memory_limit_mb')
+    memory_limit_mb = platform_cfg.get('memory_limit_mb')
     if memory_limit_mb is None:
         raise RuntimeError(
-            f"memory_limit_mb not defined for era '{era}' in eras.yaml"
+            f"memory_limit_mb not defined for platform '{platform}' in platforms.yaml"
         )
 
-    cpu_limit_percent = era_cfg.get('cpu_limit_percent')
+    cpu_limit_percent = platform_cfg.get('cpu_limit_percent')
     if cpu_limit_percent is None:
         raise RuntimeError(
-            f"cpu_limit_percent not defined for era '{era}' in eras.yaml"
+            f"cpu_limit_percent not defined for platform '{platform}' in platforms.yaml"
         )
 
     return int(memory_limit_mb), int(cpu_limit_percent)
@@ -71,7 +71,7 @@ def _load_era_limits(era: str) -> tuple[int, int]:
 def launch_under_job_object(
     executable_path: str,
     args: list[str],
-    era: str,
+    platform: str,
     job_name_prefix: str,
     slug: str = "",
     cwd: str | None = None,
@@ -97,15 +97,15 @@ def launch_under_job_object(
 
     base_flags = subprocess.CREATE_NEW_PROCESS_GROUP
 
-    memory_limit_mb, cpu_limit_percent = _load_era_limits(era)
+    memory_limit_mb, cpu_limit_percent = _load_platform_limits(platform)
     skip_cpu_limit = get_skip_cpu_limit(slug)
     skip_memory_limit = get_skip_memory_limit(slug)
-    cpu_min_rate_percent = get_cpu_min_rate(era)
+    cpu_min_rate_percent = get_cpu_min_rate(platform)
 
     if container_enabled:
         # sandbox_host.exe applies these via its own Job Object
         # (main.cpp/job.cpp) before the emulator ever runs, the resolved
-        # era numbers must reach it through sandbox_config, otherwise it
+        # platform numbers must reach it through sandbox_config, otherwise it
         # silently falls back to SandboxConfig's inert defaults (50% CPU, no
         # memory cap). run_under_job is called below with
         # apply_limits=False for this reason: the Python-side Job Object

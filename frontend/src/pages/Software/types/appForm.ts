@@ -1,22 +1,22 @@
 import type { BaseSoftwareForm } from './softwareForm';
 
-// is_pc stays boolean, not string, unlike era/environment_item_id below,
+// is_pc stays boolean, not string, unlike platform/environment_item_id below,
 // since it's toggle-driven rather than a text/select control value and
 // mirrors AppItemBundleData.is_pc directly. Not independently settable by
-// the user though: the backend derives is_pc from era on every write and
+// the user though: the backend derives is_pc from platform on every write and
 // rejects a conflicting value (AppItemBundle._validate_is_pc), so the form
-// component keeps this in sync with era rather than exposing its own
+// component keeps this in sync with platform rather than exposing its own
 // checkbox for it.
 export interface SoftwareAppForm extends BaseSoftwareForm {
   is_pc: boolean;
-  era: string;
+  platform: string;
   environment_item_id: string;
 }
 
 export interface EditableAppCollection {
   title: string;
   description: string | null;
-  era: string;
+  platform: string;
   is_pc: boolean;
   environment_item_id: number | null;
   display_disk_id: number | null;
@@ -37,7 +37,7 @@ export function formFromCollection(c: EditableAppCollection): SoftwareAppForm {
     description: c.description ?? '',
     cover_art_path: leaf?.cover_art_path ?? '',
     is_pc: c.is_pc,
-    era: c.era && c.era !== 'unknown' ? c.era : '',
+    platform: c.platform && c.platform !== 'unknown' ? c.platform : '',
     environment_item_id: c.environment_item_id?.toString() ?? '',
   };
 }

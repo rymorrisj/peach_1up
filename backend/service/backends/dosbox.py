@@ -1,7 +1,7 @@
 """
 DOSBox-X backend for Peach 1UP.
 
-Handles DOS era games using DOSBox-X natively on the Windows
+Handles DOS platform games using DOSBox-X natively on the Windows
 host. A per-launch conf file is written to a private temp directory, incorporating
 the emulator's bundled dosbox-x.conf with Peach's [autoexec] and SDL overrides
 appended. The temp directory is cleaned up after the process exits.
@@ -18,13 +18,13 @@ from pathlib import Path
 from typing import List, TYPE_CHECKING, Tuple
 
 from backend.service.utils.fat.geometry import _is_bare_fat_superfloppy, _read_geometry
-from backend.service.utils.era_defaults import DOS_WIN_ERAS
-from backend.service.utils.file_types import supported_extensions_for_era
+from backend.constants import DOSBOX_PLATFORMS
+from backend.service.utils.file_types import supported_extensions_for_platform
 from backend.core.logger import get_logger
 from backend.core.settings import get_base_path
 from backend.service.utils.emulator_catalog import resolve_container_enabled
 from backend.service.utils.path_utils import normalise_path
-from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
+from backend.service.utils.host_os.windows.process.launcher import launch_under_job_object
 from wincage import BrokerFile, SandboxProcess, WindowsJobObject
 
 if TYPE_CHECKING:
@@ -32,12 +32,12 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-SUPPORTED_ERAS = DOS_WIN_ERAS
-# eras.yaml is the same source scan/upload/directory-resolution already use
+SUPPORTED_PLATFORMS = DOSBOX_PLATFORMS
+# platforms.yaml is the same source scan/upload/directory-resolution already use
 # (file_types.py), closes a prior drift where this backend's own launch-time
 # check used a separate constants.py dict that lacked ".com", so a DOS folder
 # containing only a .com executable could pass ingestion and then fail here.
-SUPPORTED_MEDIA = frozenset(supported_extensions_for_era("dos"))
+SUPPORTED_MEDIA = frozenset(supported_extensions_for_platform("dos"))
 
 
 def validate_media(media_path: Path) -> None:
@@ -413,7 +413,7 @@ def write_launch_conf(
     Media is then mounted as D:.
 
     Args:
-        spec: LaunchSpec providing media_path, executable_path, era,
+        spec: LaunchSpec providing media_path, executable_path, platform,
             use_drive, profile_launch_commands, launch_commands,
             drive_image_path, and drive_size_mb.
         game_executable: Optional single DOS executable command appended after
@@ -497,7 +497,7 @@ def _validate_environment_drive(working_image_path: Path | None) -> Path:
     """Confirm an environment's persistent C: drive image is ready to mount.
 
     Existence-only check, matching box86.launch()'s treatment of the same
-    LaunchSpec field (backend/service/backends/box86.py), Platform image
+    LaunchSpec field (backend/service/backends/box86.py), Environment image
     paths are intentionally allowed to reside anywhere on the host (see
     DECISIONS.md 2026-05-17), so no library-tree containment check applies
     here, unlike the per-item drive_image_path validated in
@@ -552,7 +552,7 @@ def _build_environment_drive_mount_line(working_image_path: Path) -> str:
 def write_environment_conf(spec: "LaunchSpec") -> Path:
     """Write the DOSBox-X launch conf for an environment launch (no media).
 
-    Environment (Platform) launches for DOS have no attached game
+    Environment launches for DOS have no attached game
     media, spec.media_path is always None for these by design (see
     coordinator._build_spec_for_environment). Mounts the environment's
     persistent C: drive (spec.working_image_path, provisioned by
@@ -599,8 +599,8 @@ def _cleanup_temp_dir_on_exit(proc, tmpdir: Path) -> None:
         logger.warning("Failed to remove DOSBox temp dir %s: %s", tmpdir, exc)
 
 
-def build_args(media_path: Path | None, era: str, enable_networking: bool = False) -> List[str]:
-    """Build DOSBox-X command-line arguments for the given media and era.
+def build_args(media_path: Path | None, platform: str, enable_networking: bool = False) -> List[str]:
+    """Build DOSBox-X command-line arguments for the given media and platform.
 
     Mount commands, sound settings, and SDL/CPU overrides are handled by the
     generated conf file. This function returns only the networking guard, which
@@ -610,7 +610,7 @@ def build_args(media_path: Path | None, era: str, enable_networking: bool = Fals
         media_path: Path to the media file (validated here for early failure).
             ``None`` for an environment launch (no attached media), the
             suffix check is skipped in that case.
-        era: Era name (``'dos'``).
+        platform: Platform name (``'dos'``).
         enable_networking: When ``False`` (default), the NE2000 adapter is
             disabled via ``-set ne2000=false``. When ``True``, the adapter
             config is left at the emulator default.
@@ -620,13 +620,13 @@ def build_args(media_path: Path | None, era: str, enable_networking: bool = Fals
         the ``-conf`` flag (added by ``launch()``).
 
     Raises:
-        ValueError: If the era is unsupported.
+        ValueError: If the platform is unsupported.
         ValueError: If the media suffix is unsupported.
     """
-    if era not in SUPPORTED_ERAS:
+    if platform not in SUPPORTED_PLATFORMS:
         raise ValueError(
-            f"Era '{era}' not supported by DOSBox-X backend. "
-            f"Supported: {', '.join(sorted(SUPPORTED_ERAS))}"
+            f"Platform '{platform}' not supported by DOSBox-X backend. "
+            f"Supported: {', '.join(sorted(SUPPORTED_PLATFORMS))}"
         )
 
     if media_path is not None:
@@ -651,7 +651,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     it to DOSBox-X via auto-load, and registers a cleanup thread.
 
     Args:
-        spec: LaunchSpec with media_path, era, executable_path,
+        spec: LaunchSpec with media_path, platform, executable_path,
             enable_networking, launch_commands, profile_launch_commands,
             use_drive, container_enabled, drive_image_path, drive_size_mb set.
             For an environment launch (no attached game), media_path is
@@ -664,7 +664,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
 
     Raises:
         FileNotFoundError: If ``executable_path`` or ``media_path`` does not exist.
-        ValueError: If the era or media extension is unsupported.
+        ValueError: If the platform or media extension is unsupported.
         RuntimeError: If Job Object creation or process launch fails.
     """
     if not spec.executable_path or not os.path.exists(spec.executable_path):
@@ -679,18 +679,18 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         conf_path = write_launch_conf(spec)
     tmpdir = conf_path.parent
 
-    args = build_args(spec.media_path, spec.era, enable_networking=spec.enable_networking)
+    args = build_args(spec.media_path, spec.platform, enable_networking=spec.enable_networking)
     args += ["-conf", str(conf_path)]
     if is_environment_launch:
-        job_name_prefix = f"Peach1UP_dosbox_{spec.era}_env_{spec.platform_slug or spec.platform_id}"
+        job_name_prefix = f"Peach1UP_dosbox_{spec.platform}_env_{spec.environment_slug or spec.environment_id}"
     else:
-        job_name_prefix = f"Peach1UP_dosbox_{spec.era}_{spec.media_path.stem}"
+        job_name_prefix = f"Peach1UP_dosbox_{spec.platform}_{spec.media_path.stem}"
 
     # Resolve container_enabled: profile field overrides the emulator catalog value.
     container_enabled = resolve_container_enabled("dosbox-x", spec.container_enabled)
 
     if container_enabled:
-        from backend.service.utils.platform.windows.app_container import get_container_config as _build_cfg
+        from backend.service.utils.host_os.windows.app_container import get_container_config as _build_cfg
         sandbox_config = _build_cfg("dosbox-x", spec.executable_path, user_item_id=spec.user_item_id)
         sandbox_config.broker_files.append(
             BrokerFile(path=str(tmpdir), access="r", mode="grant"))
@@ -777,7 +777,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
         cwd=str(Path(spec.executable_path).parent),
         executable_path=spec.executable_path,
         args=args,
-        era=spec.era,
+        platform=spec.platform,
         job_name_prefix=job_name_prefix,
         slug="dosbox-x",
         container_enabled=container_enabled,

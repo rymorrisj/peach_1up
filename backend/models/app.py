@@ -7,8 +7,8 @@ from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, Str
 from sqlalchemy.orm import validates
 from sqlmodel import Field, Relationship, SQLModel
 
-from backend.constants import PC_ERAS
-from backend.constants_generated import EraValue, FileType
+from backend.constants import PC_PLATFORMS
+from backend.constants_generated import PlatformValue, FileType
 from backend.models.media import LinkedEntityRef
 from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_entity
 
@@ -107,8 +107,8 @@ class AppItemUpdate(SQLModel):
 
 # ---------------------------------------------------------------------------
 # Parent entity: AppItemBundle. Mirrors GameItemBundle (see
-# backend/models/game.py): era is the source of truth, is_pc is
-# derived-and-validated from era on every write (same @validates +
+# backend/models/game.py): platform is the source of truth, is_pc is
+# derived-and-validated from platform on every write (same @validates +
 # model_post_init pattern as GameItemBundle.item_type, see
 # derive_is_pc/_validate_is_pc/model_post_init below), and
 # environment_item_id is nullable, required for PC apps, forbidden for
@@ -129,12 +129,12 @@ class AppItemUpdate(SQLModel):
 # ---------------------------------------------------------------------------
 
 
-def derive_is_pc(era: EraValue) -> bool:
-    """era is the source of truth for is_pc: PC eras -> True, everything else -> False.
+def derive_is_pc(platform: PlatformValue) -> bool:
+    """platform is the source of truth for is_pc: PC platforms -> True, everything else -> False.
 
     Mirrors backend/models/game.py's derive_item_type exactly, as a bool.
     """
-    return era in PC_ERAS
+    return platform in PC_PLATFORMS
 
 
 class AppItemBundle(SQLModel, table=True):
@@ -144,8 +144,8 @@ class AppItemBundle(SQLModel, table=True):
     slug: Optional[str] = Field(default=None, index=True, unique=True)
     title: str
     sort_title: Optional[str] = None
-    era: EraValue = Field(sa_column=Column(String, nullable=False))
-    # Derived-and-validated from era on write (see _validate_is_pc below);
+    platform: PlatformValue = Field(sa_column=Column(String, nullable=False))
+    # Derived-and-validated from platform on write (see _validate_is_pc below);
     # default=None only so construction can omit it before the validator
     # fills it in, the stored column is NOT NULL. Mirrors
     # GameItemBundle.item_type exactly, as a bool instead of a "pc"/"console"
@@ -214,11 +214,11 @@ class AppItemBundle(SQLModel, table=True):
 
     @validates("is_pc")
     def _validate_is_pc(self, key: str, value: Optional[bool]) -> Optional[bool]:
-        derived = derive_is_pc(self.era)
+        derived = derive_is_pc(self.platform)
         if value is not None and value != derived:
             raise ValueError(
-                f"is_pc {value!r} conflicts with era {self.era!r} "
-                f"(era implies {derived!r}). is_pc is derived from era, not independently settable."
+                f"is_pc {value!r} conflicts with platform {self.platform!r} "
+                f"(platform implies {derived!r}). is_pc is derived from platform, not independently settable."
             )
         return value
 
@@ -226,13 +226,13 @@ class AppItemBundle(SQLModel, table=True):
         # Same double-write caveat as GameItemBundle.model_post_init (see
         # backend/models/game.py), is_pc can only be reliably derived here,
         # not by returning a different value from _validate_is_pc above.
-        self.is_pc = derive_is_pc(self.era)
+        self.is_pc = derive_is_pc(self.platform)
 
 
 class AppItemBundleCreate(SQLModel):
     title: str
     file_path: str
-    era: EraValue = "unknown"
+    platform: PlatformValue = "unknown"
     environment_item_id: Optional[int] = None
     profile_item_id: Optional[int] = None
 
@@ -240,7 +240,7 @@ class AppItemBundleCreate(SQLModel):
 class AppItemBundleUpdate(SQLModel):
     title: Optional[str] = None
     sort_title: Optional[str] = None
-    era: Optional[EraValue] = None
+    platform: Optional[PlatformValue] = None
     category: Optional[str] = None
     description: Optional[str] = None
     publisher: Optional[str] = None
@@ -261,7 +261,7 @@ class AppItemBundleRead(SQLModel):
     slug: Optional[str] = None
     title: str
     sort_title: Optional[str] = None
-    era: EraValue
+    platform: PlatformValue
     is_pc: bool
     category: Optional[str] = None
     description: Optional[str] = None
@@ -288,10 +288,9 @@ class AppItemBundleRead(SQLModel):
     # GameItemBundleRead.launch_blocked_reason (see backend/models/game.py and
     # the shared evaluate_launch_readiness, call_site="item"). "no_profile"
     # when the bundle has no launch profile (pc or console); "no_environment"
-    # for a PC app with no resolvable Environment; "environment_era_mismatch",
-    # "environment_not_provisioned", or "environment_not_installed" for a
-    # resolvable-but-unlaunchable one; None otherwise. Computed at read time,
-    # not stored.
+    # for a PC app with no Environment chosen; "environment_not_provisioned" or
+    # "environment_not_installed" for a chosen but unlaunchable one; None
+    # otherwise. Computed at read time, not stored.
     launch_blocked_reason: Optional[str] = None
 
 
@@ -340,29 +339,28 @@ def app_item_bundle_to_read(c: "AppItemBundle", db: "Session", *, viewer: "UserI
     """Build an AppItemBundleRead, nesting ordered leaves, tags, and the
     pre-launch gate.
 
-    era/is_pc come straight off the AppItemBundle row via model_validate
-    (see AppItemBundle.era/is_pc). launch_blocked_reason mirrors game.py:
-    Environment is only resolved for a PC app (era match, provisioned, and
-    installed are all checked inside evaluate_launch_readiness once resolved,
+    platform/is_pc come straight off the AppItemBundle row via model_validate
+    (see AppItemBundle.platform/is_pc). launch_blocked_reason mirrors game.py:
+    Environment is only resolved for a PC app (provisioned and installed are
+    checked inside evaluate_launch_readiness once resolved,
     call_site="item" since this is the read-time signal, never a direct
     Environment launch). *viewer* (the active user) is required so linked
     titles are filtered to what that user can see.
     """
     from backend.models.media import _linked_items_for
-    from backend.service.utils.era_defaults import evaluate_launch_readiness, resolve_environment_for_launch_gate
+    from backend.service.utils.platform_defaults import evaluate_launch_readiness, resolve_environment_for_launch_gate
 
     read = AppItemBundleRead.model_validate(c)
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
     read.tags = get_tags_for_entity("app_item_bundle", c.id, db)
     read.linked_items = _linked_items_for("app_item_bundle", c.id, db, viewer=viewer)
     environment = (
-        resolve_environment_for_launch_gate(c.environment_item_id, c.era, db)
+        resolve_environment_for_launch_gate(c.environment_item_id, db)
         if c.is_pc else None
     )
     read.launch_blocked_reason = evaluate_launch_readiness(
         call_site="item",
         is_pc=c.is_pc,
-        era=c.era,
         profile_item_id=c.profile_item_id,
         environment=environment,
     )
@@ -376,7 +374,7 @@ def app_item_bundles_to_read_bulk(
     from sqlalchemy import select as _select
 
     from backend.models.media import _linked_items_for_many
-    from backend.service.utils.era_defaults import evaluate_launch_readiness, resolve_environments_for_launch_gate_bulk
+    from backend.service.utils.platform_defaults import evaluate_launch_readiness, resolve_environments_for_launch_gate_bulk
 
     if not bundles:
         return []
@@ -398,8 +396,8 @@ def app_item_bundles_to_read_bulk(
     tag_map = get_tags_for_entities("app_item_bundle", bundle_ids, db)
     linked_map = _linked_items_for_many("app_item_bundle", bundle_ids, db, viewer=viewer)
 
-    # Batched Environment resolution (explicit id + era-matched system
-    # fallback) for every PC app bundle, mirroring game.py's bulk path.
+    # Batched Environment resolution for every PC app bundle, mirroring
+    # game.py's bulk path.
     pc_bundles = [c for c in bundles if c.is_pc]
     environment_by_bundle_id = resolve_environments_for_launch_gate_bulk(pc_bundles, db)
 
@@ -412,7 +410,6 @@ def app_item_bundles_to_read_bulk(
         read.launch_blocked_reason = evaluate_launch_readiness(
             call_site="item",
             is_pc=c.is_pc,
-            era=c.era,
             profile_item_id=c.profile_item_id,
             environment=environment_by_bundle_id.get(c.id),
         )

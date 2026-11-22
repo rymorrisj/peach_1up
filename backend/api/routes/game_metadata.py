@@ -146,7 +146,7 @@ def get_metadata_details(
         "release_date": details.release_date,
         "overview": details.overview,
         "rating": details.rating,
-        "platform_id": details.platform_id,
+        "provider_platform_id": details.provider_platform_id,
         "cover_art_url": details.cover_art_url,
         "cover_art_thumb_url": details.cover_art_thumb_url,
         "genres": details.genres,

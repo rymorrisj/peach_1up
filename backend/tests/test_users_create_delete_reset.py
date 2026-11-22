@@ -133,7 +133,7 @@ class TestDeleteUserCleanup:
             name="My Profile",
             slug="my-profile",
             emulator_slug="dosbox-x",
-            era="dos",
+            platform="dos",
             user_item_id=sub.id,
         )
         db.add(profile)
@@ -157,7 +157,7 @@ class TestDeleteUserCleanup:
         owner = _make_user(db, name="Owner", is_owner=True)
         sub = _make_user(db, name="Sub")
         collection = GameItemBundle(
-            title="Doom", file_path="/library/games/dos/doom", era="dos", slug="doom",
+            title="Doom", file_path="/library/games/dos/doom", platform="dos", slug="doom",
         )
         db.add(collection)
         db.commit()

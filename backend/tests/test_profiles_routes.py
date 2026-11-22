@@ -47,7 +47,7 @@ def _make_user(db, **overrides):
 def _make_profile(db, **overrides):
     from backend.models.profile import ProfileItem
 
-    kwargs = dict(name="DOS Profile", slug="dos-profile", emulator_slug="dosbox-x", era="dos")
+    kwargs = dict(name="DOS Profile", slug="dos-profile", emulator_slug="dosbox-x", platform="dos")
     kwargs.update(overrides)
     profile = ProfileItem(**kwargs)
     db.add(profile)
@@ -89,7 +89,7 @@ class TestCanManageGameGate:
 
         resp = c.post(
             "/api/v1/profile-items",
-            json={"name": "New Profile", "slug": "new-profile", "emulator_slug": "dosbox-x", "era": "dos"},
+            json={"name": "New Profile", "slug": "new-profile", "emulator_slug": "dosbox-x", "platform": "dos"},
         )
 
         assert resp.status_code == 403, resp.text
@@ -118,7 +118,7 @@ class TestCanManageGameGate:
 
         resp = c.post(
             "/api/v1/profile-items",
-            json={"name": "New Profile", "slug": "new-profile", "emulator_slug": "dosbox-x", "era": "dos"},
+            json={"name": "New Profile", "slug": "new-profile", "emulator_slug": "dosbox-x", "platform": "dos"},
         )
 
         assert resp.status_code == 201, resp.text
@@ -139,6 +139,16 @@ class TestReadRoutes:
 
         assert resp.status_code == 200, resp.text
         assert resp.json()["total"] == 1
+
+    def test_old_era_filter_param_is_rejected(self, http_client):
+        c, db, app = http_client
+        _make_profile(db)
+        _set_active_user(app, _make_user(db))
+
+        resp = c.get("/api/v1/profile-items", params={"era": "dos"})
+
+        assert resp.status_code == 422
+        assert "platform" in resp.json()["detail"]
 
     def test_get_404_for_unknown_slug(self, http_client):
         c, db, app = http_client
@@ -170,7 +180,7 @@ class TestSlugCollision:
 
         resp = c.post(
             "/api/v1/profile-items",
-            json={"name": "Another Name", "slug": "dos-profile", "emulator_slug": "dosbox-x", "era": "dos"},
+            json={"name": "Another Name", "slug": "dos-profile", "emulator_slug": "dosbox-x", "platform": "dos"},
         )
 
         assert resp.status_code == 409, resp.text

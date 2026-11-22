@@ -10,8 +10,10 @@ export const RATING_CHANGE_ERROR_TYPE = 'rating_change_requires_confirmation';
 /** affected_count from a rating-change 409, or null for any other error. */
 export function ratingChangeAffectedCount(err: unknown): number | null {
   if (!(err instanceof ApiError) || err.status !== 409) return null;
-  const raw = err.rawDetail as { error_type?: unknown; affected_count?: unknown } | null | undefined;
-  if (raw == null || typeof raw !== 'object' || raw.error_type !== RATING_CHANGE_ERROR_TYPE) return null;
+  const raw = err.rawDetail as
+    { error_type?: unknown; affected_count?: unknown } | null | undefined;
+  if (raw == null || typeof raw !== 'object' || raw.error_type !== RATING_CHANGE_ERROR_TYPE)
+    return null;
   return typeof raw.affected_count === 'number' ? raw.affected_count : 0;
 }
 

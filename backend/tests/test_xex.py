@@ -106,7 +106,7 @@ class TestResolveXexTarget:
         # unlike PS3's folder-as-launch-target shapes.
         assert target.detect_path == default
         assert target.launch_path == default
-        assert target.era == "xbox360"
+        assert target.platform == "xbox360"
         assert target.requires_install is False
         assert target.license_files == ()
 

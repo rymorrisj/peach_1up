@@ -50,10 +50,10 @@ html {
   --error: 255 106 85;
   --info: 106 169 214;
 
-  --era-dos: 214 166 74;
-  --era-win95: 182 211 107;
-  --era-win98: 110 168 214;
-  --era-winxp: 102 178 122;
+  --platform-dos: 214 166 74;
+  --platform-win95: 182 211 107;
+  --platform-win98: 110 168 214;
+  --platform-winxp: 102 178 122;
 
   /* Tag swatch colours, shared across themes. Sourced from
      generated/constants.ts TAG_COLOR_HEX (config/constants.yaml), do not
@@ -117,18 +117,6 @@ button:active,
 a:active {
   transform: scale(0.98);
   transition: transform 100ms var(--ease-out);
-}
-
-/* Era chip shared base */
-.era-chip {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 4px 6px;
-  border-radius: var(--r-1);
 }
 
 /* Health dot pulse */

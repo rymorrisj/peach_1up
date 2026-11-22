@@ -180,7 +180,7 @@ export default function ScanBody({
                     {item.title}
                   </span>
                   <span className="block truncate text-xs text-neutral-400 dark:text-neutral-500">
-                    {item.detected_era ? item.detected_era.toUpperCase() : '?'}
+                    {item.detected_platform ? item.detected_platform.toUpperCase() : '?'}
                     {item.is_loose && ' · loose'}
                     {item.is_zip && ' · zip'}
                     {' · '}

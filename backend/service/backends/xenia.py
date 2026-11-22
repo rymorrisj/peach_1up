@@ -26,8 +26,8 @@ from backend.service.utils.emulator_catalog import (
     resolve_container_enabled,
     build_media_broker_config,
 )
-from backend.service.utils.file_types import supported_extensions_for_era
-from backend.service.utils.platform.windows.process.launcher import launch_under_job_object
+from backend.service.utils.file_types import supported_extensions_for_platform
+from backend.service.utils.host_os.windows.process.launcher import launch_under_job_object
 from wincage import SandboxProcess, WindowsJobObject
 
 logger = get_logger(__name__)
@@ -70,7 +70,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """Launch Xenia with the given Xbox 360 disc image under Job Object isolation.
 
     Args:
-        spec: LaunchSpec with era="xbox360" and media_path set to the disc
+        spec: LaunchSpec with platform="xbox360" and media_path set to the disc
             image (.iso) to boot.
 
     Returns:
@@ -83,12 +83,12 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     """
     entry = get_emulator("xenia")
     display_name = entry.get("display_name", "xenia")
-    # eras.yaml is the single enforced source for launch-time format
+    # platforms.yaml is the single enforced source for launch-time format
     # validation (matches dosbox.py/flycast.py/xemu.py's pattern), not the
     # TOML descriptor's own supported_formats field, which stays display-only
-    # (surfaced by GET /emulators) and is now cross-checked against eras.yaml
+    # (surfaced by GET /emulators) and is now cross-checked against platforms.yaml
     # at startup by EmulatorDescriptor's validator instead of trusted here.
-    supported_formats = frozenset(supported_extensions_for_era("xbox360"))
+    supported_formats = frozenset(supported_extensions_for_platform("xbox360"))
 
     install_path = get_install_path("xenia")
     if install_path is None or not install_path.is_file():
@@ -141,7 +141,7 @@ def launch(spec: "LaunchSpec") -> Tuple[SandboxProcess, WindowsJobObject]:
     return launch_under_job_object(
         executable_path=str(install_path),
         args=args,
-        era=spec.era,
+        platform=spec.platform,
         job_name_prefix=job_name_prefix,
         slug="xenia",
         cwd=str(install_dir),

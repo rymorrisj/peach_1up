@@ -9,7 +9,7 @@ from backend.constants_generated import InstallType
 from backend.core.settings import get_base_path
 from backend.service.utils import settings as _settings
 from backend.service.utils.emulator_descriptor import EmulatorDescriptor
-from backend.service.utils.eras_config import get_eras as _get_eras
+from backend.service.utils.platforms_config import get_platforms_config as _load_platforms_config
 
 if TYPE_CHECKING:
     from wincage import SandboxConfig
@@ -66,7 +66,7 @@ def _load_raw_catalog() -> dict:
                 bios_requirements.append({
                     "slug": dep["name"],
                     "name": dep.get("display_name", dep["name"]),
-                    "platform": dep.get("platform", ""),
+                    "bios_group": dep.get("bios_group", ""),
                     "bios_path": bios_path,
                     "guidance_text": dep.get("guidance_text", ""),
                     "guidance_url": dep.get("guidance_url", ""),
@@ -83,9 +83,9 @@ def _load_raw_catalog() -> dict:
 
 
 
-def _get_eras_config() -> Dict[str, Any]:
-    """Return the parsed eras.yaml config, delegates to eras_config.get_eras()."""
-    return _get_eras()
+def _get_platforms_config() -> Dict[str, Any]:
+    """Return the parsed platforms.yaml config, delegates to platforms_config.get_platforms_config()."""
+    return _load_platforms_config()
 
 
 def get_settings_key(slug: str) -> str:
@@ -105,21 +105,21 @@ def get_settings_key(slug: str) -> str:
     return slug.upper().replace("-", "") + "_PATH"
 
 
-def get_backend_for_era(era: str) -> str:
-    """Return the backend slug for a given era from eras.yaml.
+def get_backend_for_platform(platform: str) -> str:
+    """Return the backend slug for a given platform from platforms.yaml.
 
-    Reads the ``backend`` field from the era's config block.
+    Reads the ``backend`` field from the platform's config block.
 
     Raises:
-        ValueError: If the era is not in eras.yaml or has no ``backend`` key.
+        ValueError: If the platform is not in platforms.yaml or has no ``backend`` key.
     """
-    config = _get_eras_config()
-    era_config = config.get(era)
-    if not era_config or not isinstance(era_config, dict):
-        raise ValueError(f"Era '{era}' not found in eras.yaml")
-    backend = era_config.get("backend")
+    config = _get_platforms_config()
+    platform_config = config.get(platform)
+    if not platform_config or not isinstance(platform_config, dict):
+        raise ValueError(f"Platform '{platform}' not found in platforms.yaml")
+    backend = platform_config.get("backend")
     if not backend:
-        raise ValueError(f"Era '{era}' has no 'backend' key in eras.yaml")
+        raise ValueError(f"Platform '{platform}' has no 'backend' key in platforms.yaml")
     return str(backend)
 
 
@@ -252,21 +252,21 @@ def detect_and_sync_all() -> None:
                 _logger.warning("detect_and_sync_all: configure_emulator failed for %s: %s", slug, exc)
 
 
-def get_emulator_era(slug: str) -> str:
-    """Return the era key for a given emulator slug from config/emulators/<slug>.toml.
+def get_emulator_sizing_platform(slug: str) -> str:
+    """Return sizing_platform for a given emulator slug from config/emulators/<slug>.toml.
 
-    The era is used to look up CPU and memory limits in eras.yaml.  For
-    emulators that span multiple eras (e.g. 86box), the most-demanding era
+    It is used to look up CPU and memory limits in platforms.yaml. For
+    emulators that span multiple platforms (e.g. 86box), the most-demanding platform
     is recorded so AppContainer limits are never under-resourced.
 
     Raises:
-        ValueError: If the slug is not found or has no ``era`` field.
+        ValueError: If the slug is not found or has no ``sizing_platform`` field.
     """
     entry = get_emulator(slug)
-    era = entry.get("era")
-    if not era:
-        raise ValueError(f"Emulator '{slug}' has no 'era' field in config/emulators/{slug}.toml")
-    return str(era)
+    sizing_platform = entry.get("sizing_platform")
+    if not sizing_platform:
+        raise ValueError(f"Emulator '{slug}' has no 'sizing_platform' field in config/emulators/{slug}.toml")
+    return str(sizing_platform)
 
 
 def _resolve_skip_flag(slug: str, field: str) -> bool:
@@ -340,7 +340,7 @@ def get_container_config(slug: str, exe_path: str, user_item_id: int | None = No
     """
     if not get_container_enabled(slug):
         return None
-    from backend.service.utils.platform.windows.app_container import (
+    from backend.service.utils.host_os.windows.app_container import (
         get_container_config as _build_config,
     )
     return _build_config(slug, exe_path, user_item_id=user_item_id)

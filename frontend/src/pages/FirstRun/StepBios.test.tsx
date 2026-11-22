@@ -40,7 +40,7 @@ describe('StepBios', () => {
         {
           slug: 'ps1',
           name: 'PS1 BIOS',
-          platform: 'ps1',
+          bios_group: 'ps1',
           bios_path: 'scph.bin',
           guidance_text: '',
           guidance_url: '',
@@ -50,7 +50,7 @@ describe('StepBios', () => {
         {
           slug: 'saturn',
           name: 'Saturn BIOS',
-          platform: 'saturn',
+          bios_group: 'saturn',
           bios_path: 'sat.bin',
           guidance_text: '',
           guidance_url: '',

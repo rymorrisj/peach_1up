@@ -24,7 +24,7 @@ function renderAction(bios: BiosItem) {
 const PS1_BIOS: BiosItem = {
   slug: 'ps1-bios',
   name: 'PS1 BIOS',
-  platform: 'ps1',
+  bios_group: 'ps1',
   bios_path: 'emulators/duckstation/bios',
   guidance_text: 'Place your PS1 BIOS file.',
   guidance_url: 'https://example.invalid',

@@ -21,7 +21,7 @@ export interface UsePaginatedListOptions {
   pageSize?: number;
   /**
    * Extra query params to forward alongside limit/offset, e.g. filters like
-   * `{ era: 'dos' }`. The hook has no knowledge of what these mean; it only
+   * `{ platform: 'dos' }`. The hook has no knowledge of what these mean; it only
    * merges them into the request and into the query key so a filter change
    * triggers a refetch (and resets back to the first page, see below).
    */
@@ -99,7 +99,7 @@ export function usePaginatedList<T>({
   // only" while sitting on offset=200 could land on a page past the end of
   // the filtered result set. Reset to the first page whenever the caller's
   // params actually change value, mirroring what Software/index.tsx already
-  // does by hand today for its own era filter.
+  // does by hand today for its own platform filter.
   const paramsKey = serializeParams(params);
   const prevParamsKeyRef = useRef(paramsKey);
   useEffect(() => {

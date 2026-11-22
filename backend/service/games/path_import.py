@@ -81,7 +81,7 @@ def source_size(source: Path) -> int:
 # translates this to errno.EXDEV on OSError, but that mapping table isn't
 # something to take on faith for a Windows-only codebase, so the winerror
 # attribute (only ever set on Windows) is checked directly as a second,
-# platform-native signal alongside errno.EXDEV.
+# OS-native signal alongside errno.EXDEV.
 _ERROR_NOT_SAME_DEVICE = 17
 
 
