@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from sqlmodel import SQLModel
 
 from backend.core.database import get_db
-from backend.core.dependencies import get_active_user
+from backend.core.dependencies import get_active_user, get_filtered_entity
 from backend.models.media import MediaLink, MediaLinkRead, _link_target_model, make_entity_link
 from backend.models.user import UserItem
+from backend.service.media.rating_change_guard import link_change_effects, require_rating_change_confirmation
 
 router = APIRouter(prefix="/api/v1", tags=["entity-links"])
 
@@ -51,7 +52,9 @@ def _resolve_link_entities(
     Order: unknown entity_type on either side -> 422, self-link -> 422,
     permission on BOTH sides -> 403 (checked before any existence check, so
     an unauthorized caller cannot use a 404-vs-200 response difference to
-    learn whether an entity exists), then existence on both sides -> 404.
+    learn whether an entity exists), then existence on both sides -> 404,
+    through the caller's visibility filter (get_filtered_entity), so a
+    hidden entity returns the same 404 as a missing one.
 
     Two-sided authorization is mandatory and deliberately NOT the same shape
     as tags.py's single-sided _resolve_assignment_entity: a tag assignment
@@ -74,12 +77,8 @@ def _resolve_link_entities(
     _require_link_permission(entity_type, active_user)
     _require_link_permission(target_entity_type, active_user)
 
-    entity = db.get(model_a, entity_id)
-    if not entity:
-        raise HTTPException(status_code=404, detail=f"{entity_type} not found.")
-    target = db.get(model_b, target_entity_id)
-    if not target:
-        raise HTTPException(status_code=404, detail=f"{target_entity_type} not found.")
+    entity = get_filtered_entity(entity_type, entity_id, active_user, db)
+    target = get_filtered_entity(target_entity_type, target_entity_id, active_user, db)
 
     return entity, target
 
@@ -89,6 +88,7 @@ def create_entity_link(
     entity_type: str,
     entity_id: int,
     body: EntityLinkCreateBody,
+    confirm_rating_change: bool = Query(False),
     db: Session = Depends(get_db),
     active_user: UserItem = Depends(get_active_user),
 ):
@@ -111,6 +111,13 @@ def create_entity_link(
     )
     if existing:
         return existing
+    require_rating_change_confirmation(
+        link_change_effects(
+            entity_type, entity_id, body.target_entity_type, body.target_entity_id, adding=True, db=db,
+        ),
+        confirm_rating_change=confirm_rating_change,
+        action="link",
+    )
     db.add(link)
     db.commit()
     db.refresh(link)
@@ -123,6 +130,7 @@ def delete_entity_link(
     entity_id: int,
     target_entity_type: str = Query(...),
     target_entity_id: int = Query(...),
+    confirm_rating_change: bool = Query(False),
     db: Session = Depends(get_db),
     active_user: UserItem = Depends(get_active_user),
 ):
@@ -140,5 +148,12 @@ def delete_entity_link(
     )
     if not link:
         raise HTTPException(status_code=404, detail="Link not found.")
+    require_rating_change_confirmation(
+        link_change_effects(
+            entity_type, entity_id, target_entity_type, target_entity_id, adding=False, db=db,
+        ),
+        confirm_rating_change=confirm_rating_change,
+        action="link removal",
+    )
     db.delete(link)
     db.commit()

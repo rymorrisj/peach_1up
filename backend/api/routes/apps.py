@@ -57,17 +57,17 @@ def list_apps(
         q = q.filter(AppItemBundle.id.in_(subq))
     total = q.count()
     rows = apply_bundle_sort(q, AppItemBundle, sort).offset(offset).limit(limit).all()
-    return Page(items=app_item_bundles_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
+    return Page(items=app_item_bundles_to_read_bulk(rows, db, viewer=active_user), total=total, limit=limit, offset=offset)
 
 
 @router.post("/app-items", response_model=AppItemBundleRead, status_code=201)
 def create_app_item_bundle(
     body: AppItemBundleCreate,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_app"),
+    active_user: UserItem = require_permission("can_manage_app"),
 ):
     collection = app_svc.create_app_item_bundle(body, db)
-    return app_item_bundle_to_read(collection, db)
+    return app_item_bundle_to_read(collection, db, viewer=active_user)
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ def get_app_item_bundle(
     db: Session = Depends(get_db),
     active_user: UserItem = Depends(get_active_user),
 ):
-    return app_item_bundle_to_read(get_filtered_app_item(collection_id, active_user, db), db)
+    return app_item_bundle_to_read(get_filtered_app_item(collection_id, active_user, db), db, viewer=active_user)
 
 
 @router.patch("/app-item-bundle/{collection_id}", response_model=AppItemBundleRead)
@@ -89,9 +89,11 @@ def update_app_item_bundle(
     collection_id: int,
     body: AppItemBundleUpdate,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_app"),
+    active_user: UserItem = require_permission("can_manage_app"),
 ):
-    return app_item_bundle_to_read(app_svc.update_app_item_bundle(collection_id, body, db), db)
+    return app_item_bundle_to_read(
+        app_svc.update_app_item_bundle(collection_id, body, db), db, viewer=active_user,
+    )
 
 
 @router.post("/app-item-bundle/{collection_id}/confirm-delete")

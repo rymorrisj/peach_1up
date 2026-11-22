@@ -165,7 +165,7 @@ def enrich_library_entity(
     request: Request,
     body: EnrichBody,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("is_owner"),
+    active_user: UserItem = require_permission("is_owner"),
 ):
     _require_metadata_fetch_enabled()
     _enforce_rate_limit("library-enrich", request, _ENRICH_RATE_LIMIT, _ENRICH_RATE_WINDOW_SECONDS)
@@ -187,7 +187,7 @@ def enrich_library_entity(
         db=db,
     )
     if entity_type == "game_item_bundle":
-        return game_item_bundle_to_read(entity, db)
+        return game_item_bundle_to_read(entity, db, viewer=active_user)
     return GameItemRead.model_validate(entity)
 
 

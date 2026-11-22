@@ -79,6 +79,11 @@ def _compute_media_url(path: Optional[str]) -> Optional[str]:
     of a copy per field."""
     if not path:
         return None
+    from backend.service.utils.path_utils import is_untrusted_remote_path
+
+    # MED-10 read side: no resolve()/exists() on a stored UNC or device path.
+    if is_untrusted_remote_path(path):
+        return None
     try:
         from backend.service.utils import settings as _s
 
@@ -362,17 +367,20 @@ def _linked_items_for(
 
 
 def _counterpart_rows(target_type: str, model: type, ids: set[int], db: "Session", viewer: Optional["UserItem"]):
-    """Counterpart rows for one entity_type. With *viewer*, game counterparts
-    go through get_filtered_game_item_bundles, so a game the viewer cannot
-    see is never named (MED-7). Without one, rows are unfiltered, which is
-    only correct for internal callers that never return the refs to a
-    client (e.g. media_link.py's bundle lookup)."""
+    """Counterpart rows for one entity_type. With *viewer*, every counterpart
+    type goes through its filtered query (get_filtered_entity_query), so a
+    game, app or media entity the viewer cannot see is never named (MED-7,
+    and the reverse direction from game and app reads). Without one, rows
+    are unfiltered, which is only correct for internal callers that never
+    return the refs to a client (e.g. media_link.py's bundle lookup)."""
     from sqlalchemy import select as _select
 
-    if viewer is not None and target_type == "game_item_bundle":
-        from backend.core.dependencies import get_filtered_game_item_bundles
+    if viewer is not None:
+        from backend.core.dependencies import get_filtered_entity_query
 
-        return get_filtered_game_item_bundles(viewer, db).filter(model.id.in_(ids)).all()
+        filtered = get_filtered_entity_query(target_type, viewer, db)
+        if filtered is not None:
+            return filtered.filter(model.id.in_(ids)).all()
     return db.execute(_select(model).where(model.id.in_(ids))).scalars().all()
 
 

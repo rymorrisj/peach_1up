@@ -63,6 +63,16 @@ def client(mem_db_session, tmp_path, monkeypatch):
 
     monkeypatch.setattr(settings_mod, "get", _fake_get)
 
+    # POST /media-items confines file_path to MEDIA_PATH. Every create in
+    # this module posts a /library/media/... path, so root MEDIA_PATH there.
+    # media_env below overrides this with its own tmp media root.
+    from pathlib import Path
+    import backend.core.settings as core_settings
+
+    monkeypatch.setattr(
+        core_settings, "get_settings", lambda: _FakeMediaSettings(str(Path("/library/media").resolve())),
+    )
+
     app = FastAPI()
     app.include_router(media.router)
     app.include_router(entity_links.router)
@@ -564,7 +574,13 @@ def _hostile_cover_paths(media_root, outside) -> list[str]:
 
 class TestMediaCoverArtPathValidation:
     def _create_item(self, c, **overrides):
-        body = {"title": "Doom OST", "media_kind": "audio", "file_path": "/library/media/doom-ost.mp3"}
+        import os
+
+        from backend.core.settings import get_settings
+
+        # Inside whatever MEDIA_PATH the test patched in, so only cover_art_path is under test.
+        file_path = os.path.join(get_settings().get_env_var("MEDIA_PATH"), "doom-ost.mp3")
+        body = {"title": "Doom OST", "media_kind": "audio", "file_path": file_path}
         body.update(overrides)
         return c.post("/api/v1/media-items", json=body)
 
@@ -682,6 +698,76 @@ class TestMediaCoverArtPathValidation:
         resp = self._create_item(c, cover_art_path=str(cover))
 
         assert resp.status_code == 503
+
+
+class TestMediaItemFilePathValidation:
+    """MediaItem.file_path on create: normalise_path plus MEDIA_PATH
+    confinement, the same rule as cover_art_path. MediaItemUpdate has no
+    file_path, so PATCH cannot set it."""
+
+    def _create(self, c, file_path):
+        return c.post("/api/v1/media-items", json={"title": "Track", "media_kind": "audio", "file_path": file_path})
+
+    def test_inside_media_root_stores_canonical_path(self, media_env):
+        c, db, media_root, _, _ = media_env
+
+        resp = self._create(c, str(media_root / "doom" / ".." / "doom" / "track.mp3"))
+
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["file_path"] == str((media_root / "doom" / "track.mp3").resolve())
+
+    def test_hostile_paths_are_400_and_create_nothing(self, media_env):
+        c, db, media_root, _, _ = media_env
+        from backend.models.media import MediaItem, MediaItemBundle
+
+        hostile = [
+            "../outside.mp3",                                     # relative traversal
+            str(media_root.parent / "outside.mp3"),               # absolute, outside MEDIA_PATH
+            str(media_root / ".." / ".." / "outside.mp3"),        # absolute with traversal
+            "\\\\attacker\\share\\track.mp3",                     # UNC
+            "\\\\?\\C:\\Windows\\track.mp3",                      # device path
+            "C:track.mp3",                                        # drive-relative
+            str(media_root / "doom" / "a\x00b.mp3"),              # null byte
+        ]
+        for raw in hostile:
+            resp = self._create(c, raw)
+            assert resp.status_code == 400, (raw, resp.text)
+        assert db.query(MediaItem).count() == 0
+        assert db.query(MediaItemBundle).count() == 0
+
+    def test_unc_detail_names_unc(self, media_env):
+        c, *_ = media_env
+
+        resp = self._create(c, "\\\\attacker\\share\\track.mp3")
+
+        assert resp.status_code == 400
+        assert "UNC" in resp.json()["detail"]
+        assert resp.json()["detail"].startswith("file_path")
+
+    def test_outside_detail_names_media_path(self, media_env):
+        c, _, media_root, _, _ = media_env
+
+        resp = self._create(c, str(media_root.parent / "outside.mp3"))
+
+        assert resp.status_code == 400
+        assert "MEDIA_PATH" in resp.json()["detail"]
+
+    def test_media_path_unset_is_503(self, client, monkeypatch):
+        import backend.core.settings as core_settings
+
+        c, db = client
+        monkeypatch.setattr(core_settings, "get_settings", lambda: _FakeMediaSettings(""))
+
+        assert self._create(c, "/library/media/track.mp3").status_code == 503
+
+    def test_patch_cannot_change_file_path(self, media_env):
+        c, db, media_root, _, _ = media_env
+        created = self._create(c, str(media_root / "doom" / "track.mp3")).json()
+
+        resp = c.patch(f"/api/v1/media-item/{created['id']}", json={"file_path": "\\\\attacker\\share\\x.mp3"})
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["file_path"] == created["file_path"]
 
 
 class TestMediaItemFileKindExtension:

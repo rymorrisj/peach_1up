@@ -103,7 +103,7 @@ def get_profile_items(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _: UserItem = Depends(get_active_user),
+    active_user: UserItem = Depends(get_active_user),
 ):
     profile = db.query(ProfileItem).filter(ProfileItem.slug == slug).first()
     if not profile:
@@ -111,7 +111,7 @@ def get_profile_items(
     q = db.query(GameItemBundle).filter(GameItemBundle.profile_item_id == profile.id)
     total = q.count()
     rows = q.order_by(GameItemBundle.id).offset(offset).limit(limit).all()
-    return Page(items=game_item_bundles_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
+    return Page(items=game_item_bundles_to_read_bulk(rows, db, viewer=active_user), total=total, limit=limit, offset=offset)
 
 
 @router.patch("/{slug}", response_model=ProfileItemRead)

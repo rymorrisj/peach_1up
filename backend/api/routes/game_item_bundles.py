@@ -22,6 +22,9 @@ from backend.models.pagination import Page
 from backend.models.user import UserItem
 from backend.service.games import items as lib_svc
 from backend.service.games import path_import
+from backend.service.media.rating_change_guard import (
+    game_removal_effects, require_rating_change_confirmation,
+)
 from backend.service.utils import confirmation_tokens
 from backend.service.utils.confirmation_tokens import TOKEN_TTL
 from backend.service.utils.path_utils import allowed_browse_roots, is_within_roots, normalise_path
@@ -105,14 +108,14 @@ def list_game_items(
         q = q.filter(GameItemBundle.id.in_(subq))
     total = q.count()
     rows = apply_bundle_sort(q, GameItemBundle, sort).offset(offset).limit(limit).all()
-    return Page(items=game_item_bundles_to_read_bulk(rows, db), total=total, limit=limit, offset=offset)
+    return Page(items=game_item_bundles_to_read_bulk(rows, db, viewer=active_user), total=total, limit=limit, offset=offset)
 
 
 @router.post("/game-items", response_model=GameItemBundleRead, status_code=201)
 def create_game_item_bundle(
     body: GameItemBundleCreate,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_game"),
+    active_user: UserItem = require_permission("can_manage_game"),
 ):
     """Create a collection-of-one from a single media path."""
     try:
@@ -122,7 +125,7 @@ def create_game_item_bundle(
             db,
             override_profile_item_id=body.profile_item_id,
         )
-        return game_item_bundle_to_read(collection, db)
+        return game_item_bundle_to_read(collection, db, viewer=active_user)
     except lib_svc._ItemAlreadyExists:
         raise HTTPException(status_code=409, detail="This media path is already in the library.")
     except lib_svc._SlugCollision as exc:
@@ -538,7 +541,7 @@ def get_game_item_bundle_by_slug(
     db: Session = Depends(get_db),
     active_user: UserItem = Depends(get_active_user),
 ):
-    return game_item_bundle_to_read(get_filtered_game_item_bundle(slug, active_user, db), db)
+    return game_item_bundle_to_read(get_filtered_game_item_bundle(slug, active_user, db), db, viewer=active_user)
 
 
 @router.get("/game-item-bundle/{collection_id}", response_model=GameItemBundleRead)
@@ -547,7 +550,9 @@ def get_game_item_bundle(
     db: Session = Depends(get_db),
     active_user: UserItem = Depends(get_active_user),
 ):
-    return game_item_bundle_to_read(get_filtered_game_item_bundle(collection_id, active_user, db), db)
+    return game_item_bundle_to_read(
+        get_filtered_game_item_bundle(collection_id, active_user, db), db, viewer=active_user,
+    )
 
 
 @router.patch("/game-item-bundle/{collection_id}", response_model=GameItemBundleRead)
@@ -565,6 +570,7 @@ def update_game_item_bundle(
             collection_id, body, db, confirm_rating_change=confirm_rating_change,
         ),
         db,
+        viewer=active_user,
     )
 
 
@@ -572,20 +578,22 @@ def update_game_item_bundle(
 def verify_game_item_bundle(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_game"),
+    active_user: UserItem = require_permission("can_manage_game"),
 ):
     """Re-verify every disc in this collection, distinct from
     POST /api/v1/game-item/{leaf_id}/verify (single disc only). Per-disc
     verification means only this endpoint reflects the whole game's true
     state for a multi-disc collection."""
-    return game_item_bundle_to_read(lib_svc.reverify_library_collection(collection_id, db), db)
+    return game_item_bundle_to_read(
+        lib_svc.reverify_library_collection(collection_id, db), db, viewer=active_user,
+    )
 
 
 @router.post("/game-item-bundle/{collection_id}/flag-launch", response_model=GameItemBundleRead)
 def flag_launch(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_launch_media"),
+    active_user: UserItem = require_permission("can_launch_media"),
 ):
     collection = db.get(GameItemBundle, collection_id)
     if not collection:
@@ -593,7 +601,7 @@ def flag_launch(
     collection.launch_review_flagged = True
     db.commit()
     db.refresh(collection)
-    return game_item_bundle_to_read(collection, db)
+    return game_item_bundle_to_read(collection, db, viewer=active_user)
 
 
 def _xiso_convert_key(collection_id: int) -> str:
@@ -664,11 +672,11 @@ def get_xiso_conversion_status(
 def issue_delete_token(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_game"),
+    active_user: UserItem = require_permission("can_manage_game"),
 ):
-    collection = db.get(GameItemBundle, collection_id)
-    if not collection:
-        raise HTTPException(status_code=404, detail="Software collection not found.")
+    # Same 404 as a missing bundle, so a hidden bundle is neither deletable
+    # nor confirmed to exist.
+    get_filtered_game_item_bundle(collection_id, active_user, db)
     token = confirmation_tokens.issue("game", collection_id)
     return {"confirmation_token": token, "expires_in_seconds": TOKEN_TTL}
 
@@ -677,9 +685,19 @@ def issue_delete_token(
 def delete_game_item_bundle(
     collection_id: int,
     confirmation_token: str = Query(...),
+    confirm_rating_change: bool = Query(False),
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_game"),
+    active_user: UserItem = require_permission("can_manage_game"),
 ):
+    get_filtered_game_item_bundle(collection_id, active_user, db)
+    # Deleting the game drops every link it has, which can loosen the
+    # effective rating of linked media. Checked before the service consumes
+    # the single-use token, so a 409 leaves the token valid for the retry.
+    require_rating_change_confirmation(
+        game_removal_effects(collection_id, db),
+        confirm_rating_change=confirm_rating_change,
+        action="game delete",
+    )
     lib_svc.delete_library_collection(collection_id, confirmation_token, db)
 
 
@@ -688,13 +706,13 @@ def reorder_game_item_bundle_items(
     collection_id: int,
     body: GameItemReorder,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_game"),
+    active_user: UserItem = require_permission("can_manage_game"),
 ):
     # Registered before the "/items/{leaf_id}" route below: {leaf_id} has no
     # type constraint in the path itself, so a literal "reorder" segment
     # would otherwise match that route first and 422 on int conversion.
     collection = lib_svc.reorder_library_items(collection_id, body, db)
-    return game_item_bundle_to_read(collection, db)
+    return game_item_bundle_to_read(collection, db, viewer=active_user)
 
 
 @router.patch("/game-item-bundle/{collection_id}/items/{leaf_id}", response_model=GameItemRead)

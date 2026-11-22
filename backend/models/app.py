@@ -15,6 +15,7 @@ from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_enti
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
     from backend.models.drive import Drive
+    from backend.models.user import UserItem
 
 # ---------------------------------------------------------------------------
 # Leaf entity: AppItem (one file/part within an app bundle). Mirrors
@@ -80,6 +81,11 @@ class AppItemRead(SQLModel):
     def _compute_cover_art_url(self) -> "AppItemRead":
         # Same pattern as GameItemRead._compute_cover_art_url.
         if not self.cover_art_path:
+            return self
+        from backend.service.utils.path_utils import is_untrusted_remote_path
+
+        # MED-10 read side: no resolve()/exists() on a stored UNC or device path.
+        if is_untrusted_remote_path(self.cover_art_path):
             return self
         try:
             from backend.service.utils import settings as _s
@@ -330,7 +336,7 @@ def _leaf_to_read(leaf: AppItem) -> Optional[AppItemRead]:
             return None
 
 
-def app_item_bundle_to_read(c: "AppItemBundle", db: "Session") -> AppItemBundleRead:
+def app_item_bundle_to_read(c: "AppItemBundle", db: "Session", *, viewer: "UserItem") -> AppItemBundleRead:
     """Build an AppItemBundleRead, nesting ordered leaves, tags, and the
     pre-launch gate.
 
@@ -339,7 +345,8 @@ def app_item_bundle_to_read(c: "AppItemBundle", db: "Session") -> AppItemBundleR
     Environment is only resolved for a PC app (era match, provisioned, and
     installed are all checked inside evaluate_launch_readiness once resolved,
     call_site="item" since this is the read-time signal, never a direct
-    Environment launch).
+    Environment launch). *viewer* (the active user) is required so linked
+    titles are filtered to what that user can see.
     """
     from backend.models.media import _linked_items_for
     from backend.service.utils.era_defaults import evaluate_launch_readiness, resolve_environment_for_launch_gate
@@ -347,7 +354,7 @@ def app_item_bundle_to_read(c: "AppItemBundle", db: "Session") -> AppItemBundleR
     read = AppItemBundleRead.model_validate(c)
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
     read.tags = get_tags_for_entity("app_item_bundle", c.id, db)
-    read.linked_items = _linked_items_for("app_item_bundle", c.id, db)
+    read.linked_items = _linked_items_for("app_item_bundle", c.id, db, viewer=viewer)
     environment = (
         resolve_environment_for_launch_gate(c.environment_item_id, c.era, db)
         if c.is_pc else None
@@ -362,7 +369,9 @@ def app_item_bundle_to_read(c: "AppItemBundle", db: "Session") -> AppItemBundleR
     return read
 
 
-def app_item_bundles_to_read_bulk(bundles: list["AppItemBundle"], db: "Session") -> list[AppItemBundleRead]:
+def app_item_bundles_to_read_bulk(
+    bundles: list["AppItemBundle"], db: "Session", *, viewer: "UserItem"
+) -> list[AppItemBundleRead]:
     """app_item_bundle_to_read over a list in bulk queries instead of the per-bundle N+1."""
     from sqlalchemy import select as _select
 
@@ -387,7 +396,7 @@ def app_item_bundles_to_read_bulk(bundles: list["AppItemBundle"], db: "Session")
         leaves_by_bundle.setdefault(leaf.app_item_bundle_id, []).append(leaf_read)
 
     tag_map = get_tags_for_entities("app_item_bundle", bundle_ids, db)
-    linked_map = _linked_items_for_many("app_item_bundle", bundle_ids, db)
+    linked_map = _linked_items_for_many("app_item_bundle", bundle_ids, db, viewer=viewer)
 
     # Batched Environment resolution (explicit id + era-matched system
     # fallback) for every PC app bundle, mirroring game.py's bulk path.

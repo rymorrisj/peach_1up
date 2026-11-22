@@ -56,6 +56,27 @@ describe('useConfirmToken', () => {
     );
   });
 
+  it('consume() adds confirm_rating_change=true only when asked', async () => {
+    mockApiFetch.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useConfirmToken());
+
+    await act(async () => {
+      await result.current.consume('/api/v1/library/1', 'tok-abc123', { confirmRatingChange: true });
+    });
+    expect(mockApiFetch).toHaveBeenLastCalledWith(
+      '/api/v1/library/1?confirmation_token=tok-abc123&confirm_rating_change=true',
+      { method: 'DELETE' },
+    );
+
+    await act(async () => {
+      await result.current.consume('/api/v1/library/1', 'tok-abc123', { confirmRatingChange: false });
+    });
+    expect(mockApiFetch).toHaveBeenLastCalledWith('/api/v1/library/1?confirmation_token=tok-abc123', {
+      method: 'DELETE',
+    });
+  });
+
   it('error from issue() propagates to the caller', async () => {
     mockApiFetch.mockRejectedValueOnce(new ApiError(403, 'Forbidden'));
 

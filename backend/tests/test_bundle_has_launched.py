@@ -9,6 +9,11 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy import event
 
+from backend.models.user import UserItem
+
+# The read builders require a viewer; an owner sees every linked title.
+_OWNER = UserItem(id=1, name="Owner", is_owner=True)
+
 
 @pytest.fixture
 def db():
@@ -77,7 +82,7 @@ class TestHasLaunchedOnDetailRead:
     def test_false_with_no_history(self, db):
         from backend.models.game import game_item_bundle_to_read
 
-        assert game_item_bundle_to_read(_bundle(db), db).has_launched is False
+        assert game_item_bundle_to_read(_bundle(db), db, viewer=_OWNER).has_launched is False
 
     def test_true_with_a_clean_history_row(self, db):
         from backend.models.game import game_item_bundle_to_read
@@ -85,7 +90,7 @@ class TestHasLaunchedOnDetailRead:
         bundle = _bundle(db)
         _launch(db, bundle.id, ended_at=datetime.now(timezone.utc), exit_code=0)
 
-        assert game_item_bundle_to_read(bundle, db).has_launched is True
+        assert game_item_bundle_to_read(bundle, db, viewer=_OWNER).has_launched is True
 
     def test_true_when_the_only_row_has_an_error_message(self, db):
         from backend.models.game import game_item_bundle_to_read
@@ -96,7 +101,7 @@ class TestHasLaunchedOnDetailRead:
             ended_at=datetime.now(timezone.utc),
         )
 
-        assert game_item_bundle_to_read(bundle, db).has_launched is True
+        assert game_item_bundle_to_read(bundle, db, viewer=_OWNER).has_launched is True
 
     def test_true_for_a_row_that_never_ended(self, db):
         from backend.models.game import game_item_bundle_to_read
@@ -104,7 +109,7 @@ class TestHasLaunchedOnDetailRead:
         bundle = _bundle(db)
         _launch(db, bundle.id)
 
-        assert game_item_bundle_to_read(bundle, db).has_launched is True
+        assert game_item_bundle_to_read(bundle, db, viewer=_OWNER).has_launched is True
 
     def test_only_this_bundles_history_counts(self, db):
         from backend.models.game import game_item_bundle_to_read
@@ -113,8 +118,8 @@ class TestHasLaunchedOnDetailRead:
         untouched = _bundle(db, slug="quake")
         _launch(db, launched.id)
 
-        assert game_item_bundle_to_read(launched, db).has_launched is True
-        assert game_item_bundle_to_read(untouched, db).has_launched is False
+        assert game_item_bundle_to_read(launched, db, viewer=_OWNER).has_launched is True
+        assert game_item_bundle_to_read(untouched, db, viewer=_OWNER).has_launched is False
 
     def test_a_history_row_for_no_bundle_does_not_count(self, db):
         from backend.models.game import game_item_bundle_to_read
@@ -122,13 +127,13 @@ class TestHasLaunchedOnDetailRead:
         bundle = _bundle(db)
         _launch(db, None)
 
-        assert game_item_bundle_to_read(bundle, db).has_launched is False
+        assert game_item_bundle_to_read(bundle, db, viewer=_OWNER).has_launched is False
 
     def test_detail_read_costs_one_extra_query(self, db):
         from backend.models.game import game_item_bundle_to_read
 
         bundle = _bundle(db)
-        _, statements = _statements_during(db, lambda: game_item_bundle_to_read(bundle, db))
+        _, statements = _statements_during(db, lambda: game_item_bundle_to_read(bundle, db, viewer=_OWNER))
 
         assert sum("launch_history" in s for s in statements) == 1
 
@@ -140,7 +145,7 @@ class TestListReadsAddNoPerBundleQuery:
         bundles = [_bundle(db, slug=f"game{n}") for n in range(3)]
         _launch(db, bundles[0].id)
 
-        reads = game_item_bundles_to_read_bulk(bundles, db)
+        reads = game_item_bundles_to_read_bulk(bundles, db, viewer=_OWNER)
 
         assert [r.has_launched for r in reads] == [None, None, None]
 
@@ -150,7 +155,7 @@ class TestListReadsAddNoPerBundleQuery:
         bundles = [_bundle(db, slug=f"game{n}") for n in range(5)]
         _launch(db, bundles[0].id)
 
-        _, statements = _statements_during(db, lambda: game_item_bundles_to_read_bulk(bundles, db))
+        _, statements = _statements_during(db, lambda: game_item_bundles_to_read_bulk(bundles, db, viewer=_OWNER))
 
         assert not any("launch_history" in s for s in statements)
 
@@ -160,7 +165,7 @@ class TestListReadsAddNoPerBundleQuery:
         confirmed = _bundle(db, slug="a", era_confirmed=True)
         unconfirmed = _bundle(db, slug="b")
 
-        reads = game_item_bundles_to_read_bulk([confirmed, unconfirmed], db)
+        reads = game_item_bundles_to_read_bulk([confirmed, unconfirmed], db, viewer=_OWNER)
 
         assert [r.era_review for r in reads] == ["confirmed", "unreviewed"]
         assert [r.era_confirmed for r in reads] == [True, False]

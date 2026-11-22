@@ -23,8 +23,9 @@ from backend.models.media import (
 from backend.models.pagination import Page
 from backend.models.user import UserItem
 from backend.service.media.content_rating import checked_media_rating_change
+from backend.service.media.rating_change_guard import item_move_effects, require_rating_change_confirmation
 from backend.service.utils.media_extensions import INLINE_IMAGE_TYPES, check_media_extension
-from backend.service.utils.path_utils import normalise_path
+from backend.service.utils.path_utils import media_root, normalise_path
 from backend.service.utils.sort_utils import apply_bundle_sort
 
 router = APIRouter(prefix="/api/v1", tags=["media"])
@@ -32,14 +33,41 @@ logger = get_logger(__name__)
 
 
 def _media_root() -> Path:
-    from backend.core.settings import get_settings
+    """MEDIA_PATH resolved, or 503 when it is unset or blank (never the
+    working directory)."""
     try:
-        raw = get_settings().get_env_var("MEDIA_PATH")
-    except (KeyError, RuntimeError):
-        raw = ""
-    if not raw:
+        return media_root()
+    except (ValueError, RuntimeError):
         raise HTTPException(status_code=503, detail="MEDIA_PATH is not configured.")
-    return Path(raw).resolve()
+
+
+def _confined_to_media_root(raw: str, field: str) -> Path:
+    """Canonicalise a client-supplied path with normalise_path (no null
+    byte, UNC, device or drive-relative form) and confine it to MEDIA_PATH.
+    The one confinement rule behind cover_art_path and file_path.
+
+    Raises:
+        HTTPException: 400 on any rejection (logged), 503 if MEDIA_PATH is
+            not configured.
+    """
+    root = _media_root()
+    try:
+        resolved = normalise_path(raw)
+    except ValueError as exc:
+        logger.warning("Rejected media %s %r: %s", field, raw, exc)
+        raise HTTPException(status_code=400, detail=f"{field}: {exc}")
+    if not resolved.is_relative_to(root):
+        logger.warning("Rejected media %s %r: resolves outside MEDIA_PATH (%s)", field, raw, resolved)
+        raise HTTPException(status_code=400, detail=f"{field} must be inside the media library (MEDIA_PATH).")
+    return resolved
+
+
+def _validated_media_file_path(raw: str) -> str:
+    """Canonical MediaItem.file_path, confined to MEDIA_PATH. Runs on item
+    create, the only route that writes this column from request input
+    (MediaItemUpdate has no file_path). Existence is not checked: the
+    upload routes stage the file first and return this path."""
+    return str(_confined_to_media_root(raw, "file_path"))
 
 
 def _validated_cover_art_path(raw: Optional[str]) -> Optional[str]:
@@ -58,15 +86,7 @@ def _validated_cover_art_path(raw: Optional[str]) -> Optional[str]:
     """
     if raw is None or not raw.strip():
         return None
-    media_root = _media_root()
-    try:
-        resolved = normalise_path(raw)
-    except ValueError as exc:
-        logger.warning("Rejected media cover_art_path %r: %s", raw, exc)
-        raise HTTPException(status_code=400, detail=f"cover_art_path: {exc}")
-    if not resolved.is_relative_to(media_root):
-        logger.warning("Rejected media cover_art_path %r: resolves outside MEDIA_PATH (%s)", raw, resolved)
-        raise HTTPException(status_code=400, detail="cover_art_path must be inside the media library (MEDIA_PATH).")
+    resolved = _confined_to_media_root(raw, "cover_art_path")
     if resolved.suffix.lower() not in INLINE_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="cover_art_path must be a png, jpg, gif, webp, bmp or avif image.")
     if not resolved.is_file():
@@ -114,6 +134,7 @@ def create_media_item(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     cover_art_path = _validated_cover_art_path(body.cover_art_path)
+    file_path = _validated_media_file_path(body.file_path)
     item_slug = unique_media_slug(body.title, db)
 
     bundle_id = body.media_item_bundle_id
@@ -133,7 +154,8 @@ def create_media_item(
         bundle_id = bundle.id
 
     item = MediaItem(
-        **body.model_dump(exclude={"media_item_bundle_id", "cover_art_path"}),
+        **body.model_dump(exclude={"media_item_bundle_id", "cover_art_path", "file_path"}),
+        file_path=file_path,
         cover_art_path=cover_art_path,
         media_item_bundle_id=bundle_id,
         slug=item_slug,
@@ -160,6 +182,7 @@ def get_media_item(
 def update_media_item(
     item_id: int,
     body: MediaItemUpdate,
+    confirm_rating_change: bool = Query(False),
     db: Session = Depends(get_db),
     active_user: UserItem = require_permission("can_manage_media"),
 ):
@@ -169,6 +192,14 @@ def update_media_item(
     fields = body.model_dump(exclude_unset=True)
     if fields.get("media_item_bundle_id") is not None:
         get_filtered_media_item_bundle(fields["media_item_bundle_id"], active_user, db)
+    if "media_item_bundle_id" in fields:
+        # Moving the item (into another bundle, or out to standalone with
+        # null) switches which rating it is judged by.
+        require_rating_change_confirmation(
+            item_move_effects(item, fields["media_item_bundle_id"], db),
+            confirm_rating_change=confirm_rating_change,
+            action="media item move",
+        )
     if "cover_art_path" in fields:
         fields["cover_art_path"] = _validated_cover_art_path(fields["cover_art_path"])
     for key, value in fields.items():
@@ -183,11 +214,11 @@ def update_media_item(
 def delete_media_item(
     item_id: int,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_media"),
+    active_user: UserItem = require_permission("can_manage_media"),
 ):
-    item = db.get(MediaItem, item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Media item not found.")
+    # Same 404 as a missing item, so a hidden item is neither deletable nor
+    # confirmed to exist.
+    item = get_filtered_media_item(item_id, active_user, db)
     delete_links_for("media_item", item_id, db)
     db.delete(item)
     db.commit()
@@ -336,11 +367,9 @@ def apply_cover_art_to_linked_games(
 def delete_media_item_bundle(
     collection_id: int,
     db: Session = Depends(get_db),
-    _: UserItem = require_permission("can_manage_media"),
+    active_user: UserItem = require_permission("can_manage_media"),
 ):
-    collection = db.get(MediaItemBundle, collection_id)
-    if not collection:
-        raise HTTPException(status_code=404, detail="Media collection not found.")
+    collection = get_filtered_media_item_bundle(collection_id, active_user, db)
     delete_links_for("media_item_bundle", collection_id, db)
     db.delete(collection)
     db.commit()
@@ -382,9 +411,7 @@ async def upload_media_archive(
 
     svc = get_settings()
     max_bytes = int(svc.get("UPLOAD_MAX_BYTES", DEFAULT_MAX_BYTES) or DEFAULT_MAX_BYTES)
-    media_root = Path(svc.get_env_var("MEDIA_PATH")).resolve()
-
-    dest_dir, dest_path = begin_upload(media_root, file.filename)
+    dest_dir, dest_path = begin_upload(_media_root(), file.filename)
 
     try:
         written = await stream_upload_to_disk(file, dest_path, max_bytes)

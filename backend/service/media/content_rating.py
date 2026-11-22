@@ -102,12 +102,12 @@ def has_linked_game(entity_type: str, entity_id: int, db: "Session") -> bool:
     return bool(db.execute(select(stmt)).scalar())
 
 
-def linked_game_ratings(
+def linked_games_by_media(
     entity_type: str, entity_ids: list[int], db: "Session"
-) -> dict[int, list[Optional[str]]]:
-    """Every linked game's content_rating per media id, in one query. Ids
-    with no linked game are absent. Used for display only, never for the
-    visibility decision, which stays in SQL (media_rating_visible)."""
+) -> dict[int, dict[int, Optional[str]]]:
+    """{media id: {linked game id: that game's content_rating}} in one query.
+    Ids with no existing linked game are absent. "" is reported as None,
+    the same unrated value the visibility filter treats it as."""
     if not entity_ids:
         return {}
     id_set = set(entity_ids)
@@ -116,16 +116,29 @@ def linked_game_ratings(
             MediaLink.entity_a_type,
             MediaLink.entity_a_id,
             MediaLink.entity_b_id,
+            GameItemBundle.id,
             GameItemBundle.content_rating,
         )
         .select_from(MediaLink)
         .join(GameItemBundle, _game_link_condition(entity_type, lambda col: col.in_(id_set)))
     ).all()
-    result: dict[int, list[Optional[str]]] = {}
-    for a_type, a_id, b_id, rating in rows:
+    result: dict[int, dict[int, Optional[str]]] = {}
+    for a_type, a_id, b_id, game_id, rating in rows:
         media_id = a_id if a_type == entity_type else b_id
-        result.setdefault(media_id, []).append(rating or None)
+        result.setdefault(media_id, {})[game_id] = rating or None
     return result
+
+
+def linked_game_ratings(
+    entity_type: str, entity_ids: list[int], db: "Session"
+) -> dict[int, list[Optional[str]]]:
+    """Every linked game's content_rating per media id, in one query. Ids
+    with no linked game are absent. Used for display only, never for the
+    visibility decision, which stays in SQL (media_rating_visible)."""
+    return {
+        media_id: list(games.values())
+        for media_id, games in linked_games_by_media(entity_type, entity_ids, db).items()
+    }
 
 
 def effective_content_rating(

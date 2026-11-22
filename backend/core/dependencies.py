@@ -8,8 +8,8 @@ from backend.constants_generated import CONTENT_RATINGS
 from backend.core.database import get_db
 from backend.core.identity import parse_session_cookie, validate_session
 from backend.core.logger import get_logger
-from backend.models.app import AppItemBundle
-from backend.models.game import GameItemBundle
+from backend.models.app import AppItem, AppItemBundle
+from backend.models.game import GameItem, GameItemBundle
 from backend.models.media import MediaItem, MediaItemBundle
 from backend.models.media_restriction import MediaRestriction
 from backend.models.user import UserItem
@@ -440,3 +440,80 @@ def get_filtered_media_item(item_id: int, active_user: UserItem, db: Session) ->
     if item is None:
         raise HTTPException(status_code=404, detail="Media item not found.")
     return item
+
+
+# ---------------------------------------------------------------------------
+# Polymorphic entity_type dispatch over the filtered helpers above, for
+# routes that take an (entity_type, entity_id) pair (entity links, tag
+# assignments) and for linked-title resolution in the read builders.
+# ---------------------------------------------------------------------------
+
+
+def _filtered_game_leaf(leaf_id: int, active_user: UserItem, db: Session) -> GameItem:
+    """A GameItem leaf is visible exactly when its parent bundle is."""
+    leaf = db.get(GameItem, leaf_id)
+    if leaf is None:
+        raise HTTPException(status_code=404, detail="Software item not found.")
+    get_filtered_game_item_bundle(leaf.game_item_bundle_id, active_user, db)
+    return leaf
+
+
+def _filtered_app_leaf(leaf_id: int, active_user: UserItem, db: Session) -> AppItem:
+    """An AppItem leaf is visible exactly when its parent bundle is."""
+    leaf = db.get(AppItem, leaf_id)
+    if leaf is None:
+        raise HTTPException(status_code=404, detail="App item not found.")
+    get_filtered_app_item(leaf.app_item_bundle_id, active_user, db)
+    return leaf
+
+
+_FILTERED_ENTITY_LOOKUPS = {
+    "game_item_bundle": get_filtered_game_item_bundle,
+    "game_item": _filtered_game_leaf,
+    "app_item_bundle": get_filtered_app_item,
+    "app_item": _filtered_app_leaf,
+    "media_item_bundle": get_filtered_media_item_bundle,
+    "media_item": get_filtered_media_item,
+}
+
+# entity_types that carry a visibility rule. Anything else (environments,
+# ROM packs, controller mappings) has no per-user filter.
+VISIBILITY_FILTERED_ENTITY_TYPES: frozenset[str] = frozenset(_FILTERED_ENTITY_LOOKUPS)
+
+
+def get_filtered_entity(entity_type: str, entity_id: int, active_user: UserItem, db: Session):
+    """Return one row of *entity_type* if *active_user* may see it.
+
+    Missing and hidden both raise the same ``404 "{entity_type} not found."``,
+    so the response never distinguishes the two.
+
+    Raises:
+        HTTPException: 404 when missing or filtered out.
+        ValueError: If *entity_type* has no visibility rule (callers check
+            VISIBILITY_FILTERED_ENTITY_TYPES first).
+    """
+    lookup = _FILTERED_ENTITY_LOOKUPS.get(entity_type)
+    if lookup is None:
+        raise ValueError(f"No visibility rule for entity_type {entity_type!r}.")
+    try:
+        return lookup(entity_id, active_user, db)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            raise HTTPException(status_code=404, detail=f"{entity_type} not found.") from None
+        raise
+
+
+_FILTERED_BUNDLE_QUERIES = {
+    "game_item_bundle": get_filtered_game_item_bundles,
+    "app_item_bundle": get_filtered_app_items,
+    "media_item_bundle": get_filtered_media_item_bundles,
+    "media_item": get_filtered_media_items,
+}
+
+
+def get_filtered_entity_query(entity_type: str, active_user: UserItem, db: Session):
+    """The filtered list query for a link target *entity_type*, or None when
+    there is none. Used to resolve linked titles so a counterpart the viewer
+    cannot see is never named."""
+    builder = _FILTERED_BUNDLE_QUERIES.get(entity_type)
+    return builder(active_user, db) if builder is not None else None

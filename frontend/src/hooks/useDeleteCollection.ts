@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/api/client';
 import { useConfirm } from './useConfirm';
 import { useConfirmToken } from './useConfirmToken';
+import { useRatingChangeConfirm } from './useRatingChangeConfirm';
 
 interface UseDeleteCollectionOptions {
   collectionId: number | undefined;
@@ -72,6 +73,7 @@ export function useDeleteCollection({
     getCheckboxValue: getDeleteCheckboxValue,
   } = useConfirm();
   const { issue: issueDeleteToken, consume: consumeDeleteToken } = useConfirmToken();
+  const withRatingChangeConfirm = useRatingChangeConfirm(confirmDelete);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -93,10 +95,20 @@ export function useDeleteCollection({
         method: 'PATCH',
         body: JSON.stringify({ delete_media_override: checkedDeleteMedia }),
       });
-      const token = await issueDeleteToken(
-        `/api/v1/game-item-bundle/${collectionId}/confirm-delete`,
-      );
-      await consumeDeleteToken(`/api/v1/game-item-bundle/${collectionId}`, token);
+      // A fresh token per attempt: the rating-change prompt can outlast the
+      // token's 60s TTL.
+      const completed = await withRatingChangeConfirm(async (confirmRatingChange) => {
+        const token = await issueDeleteToken(
+          `/api/v1/game-item-bundle/${collectionId}/confirm-delete`,
+        );
+        await consumeDeleteToken(`/api/v1/game-item-bundle/${collectionId}`, token, {
+          confirmRatingChange,
+        });
+      });
+      if (!completed) {
+        setDeleting(false);
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ['game', 'list'] });
       onDeleted();
     } catch (err) {

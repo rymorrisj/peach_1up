@@ -16,6 +16,8 @@ from backend.models.tag import TagRead, get_tags_for_entities, get_tags_for_enti
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+    from backend.models.user import UserItem
+
 _YEAR_MIN = 1970
 _YEAR_MAX = 2050
 
@@ -146,6 +148,11 @@ class GameItemRead(SQLModel):
     @model_validator(mode="after")
     def _compute_cover_art_url(self) -> "GameItemRead":
         if not self.cover_art_path:
+            return self
+        from backend.service.utils.path_utils import is_untrusted_remote_path
+
+        # MED-10 read side: no resolve()/exists() on a stored UNC or device path.
+        if is_untrusted_remote_path(self.cover_art_path):
             return self
         try:
             from backend.service.utils import settings as _s
@@ -594,8 +601,11 @@ def _launch_blocked_reason(c: "GameItemBundle", environment) -> Optional[str]:
     )
 
 
-def game_item_bundle_to_read(c: "GameItemBundle", db: "Session") -> GameItemBundleRead:
-    """Build a GameItemBundleRead, nesting ordered leaves, tags, and genres."""
+def game_item_bundle_to_read(c: "GameItemBundle", db: "Session", *, viewer: "UserItem") -> GameItemBundleRead:
+    """Build a GameItemBundleRead, nesting ordered leaves, tags, and genres.
+
+    *viewer* (the active user) is required so linked media and app titles
+    are filtered to what that user can see, the reverse of MED-7."""
     from backend.models.metadata_lookup import get_genres_for_game_item_bundle
     from backend.service.utils.era_defaults import resolve_environment_for_launch_gate
 
@@ -605,7 +615,7 @@ def game_item_bundle_to_read(c: "GameItemBundle", db: "Session") -> GameItemBund
     read.items = [r for i in c.items if (r := _leaf_to_read(i)) is not None]
     read.tags = get_tags_for_entity("game_item_bundle", c.id, db)
     read.genres = get_genres_for_game_item_bundle(c.id, db)
-    read.linked_items = _linked_items_for("game_item_bundle", c.id, db)
+    read.linked_items = _linked_items_for("game_item_bundle", c.id, db, viewer=viewer)
     environment = (
         resolve_environment_for_launch_gate(c.environment_item_id, c.era, db)
         if c.item_type == "pc" else None
@@ -620,7 +630,7 @@ def game_item_bundle_to_read(c: "GameItemBundle", db: "Session") -> GameItemBund
 
 
 def game_item_bundles_to_read_bulk(
-    bundles: list["GameItemBundle"], db: "Session"
+    bundles: list["GameItemBundle"], db: "Session", *, viewer: "UserItem"
 ) -> list[GameItemBundleRead]:
     """game_item_bundle_to_read over a list in bulk queries (all leaves, all
     tags, all genres, all linked items) instead of the per-bundle N+1."""
@@ -649,7 +659,7 @@ def game_item_bundles_to_read_bulk(
 
     tag_map = get_tags_for_entities("game_item_bundle", bundle_ids, db)
     genre_map = get_genres_for_game_item_bundles(bundle_ids, db)
-    linked_map = _linked_items_for_many("game_item_bundle", bundle_ids, db)
+    linked_map = _linked_items_for_many("game_item_bundle", bundle_ids, db, viewer=viewer)
 
     # Batched Environment resolution (explicit id + era-matched system
     # fallback) for every PC bundle, instead of a per-bundle lookup (N+1).

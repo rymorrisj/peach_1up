@@ -62,8 +62,17 @@ def finalize_background(upload_id: str, media_root: str, job_id: str) -> None:
 
 
 def _root() -> Path:
-    from backend.core.settings import get_settings
-    return Path(get_settings().get_env_var("MEDIA_PATH")).resolve()
+    """MEDIA_PATH resolved. Called from POST .../complete before the
+    background finalize is scheduled, so an unset or blank MEDIA_PATH fails
+    that request with 503 instead of reassembling into the working directory.
+    """
+    from fastapi import HTTPException
+
+    from backend.service.utils.path_utils import media_root
+    try:
+        return media_root()
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 def register() -> None:

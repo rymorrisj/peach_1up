@@ -293,6 +293,9 @@ class TestAssetFilenameStem:
             def get_env_var(self, key):
                 return str(tmp_path / "media") if key == "MEDIA_PATH" else ""
 
+            def get(self, key, default=None):
+                return default
+
         monkeypatch.setattr(core_settings, "get_settings", lambda: _S())
         seen: list[str] = []
 

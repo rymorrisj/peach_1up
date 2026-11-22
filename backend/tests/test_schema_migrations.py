@@ -67,3 +67,39 @@ def test_migrations_add_missing_user_columns_to_legacy_db(tmp_path, monkeypatch)
 
     # Re-running against the now-migrated legacy DB must also be a no-op.
     _apply_schema_migrations()
+
+
+def test_migrations_add_media_bundle_content_rating_and_its_index(tmp_path, monkeypatch):
+    from sqlalchemy import create_engine, inspect as sa_inspect, text
+    from sqlmodel import SQLModel
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'pre_rating.db'}")
+    # Current shape minus media_item_bundles.content_rating and its index:
+    # a DB provisioned before the media rating inheritance batch.
+    SQLModel.metadata.create_all(engine)
+    with engine.connect() as conn:
+        conn.execute(text("DROP INDEX ix_media_item_bundles_content_rating"))
+        conn.execute(text("ALTER TABLE media_item_bundles DROP COLUMN content_rating"))
+        conn.commit()
+
+    import backend.core.database as database_mod
+    monkeypatch.setattr(database_mod, "get_engine", lambda: engine)
+
+    from backend.core.startup_migrations import _apply_schema_migrations
+
+    _apply_schema_migrations()
+    _apply_schema_migrations()  # idempotent: second run adds nothing and does not raise
+
+    inspector = sa_inspect(engine)
+    columns = {c["name"]: c for c in inspector.get_columns("media_item_bundles")}
+    assert "content_rating" in columns
+    assert columns["content_rating"]["nullable"] is True
+    index_names = {ix["name"] for ix in inspector.get_indexes("media_item_bundles")}
+    assert "ix_media_item_bundles_content_rating" in index_names
+    with engine.connect() as conn:
+        count = conn.execute(text(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
+            "AND name = 'ix_media_item_bundles_content_rating'"
+        )).scalar()
+    assert count == 1

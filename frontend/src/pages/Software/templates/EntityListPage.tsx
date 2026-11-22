@@ -9,6 +9,7 @@ import EmptyState from '@/components/common/EmptyState';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useConfirm } from '@/hooks/useConfirm';
 import { useConfirmToken } from '@/hooks/useConfirmToken';
+import { useRatingChangeConfirm } from '@/hooks/useRatingChangeConfirm';
 import { useToast } from '@/ui/ToastProvider';
 import { ERA_LABELS } from '@/generated/constants';
 import { EntityCard } from '../components/EntityCard';
@@ -69,6 +70,7 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
     getCheckboxValue,
   } = useConfirm();
   const { issue: issueToken, consume: consumeToken } = useConfirmToken();
+  const withRatingChangeConfirm = useRatingChangeConfirm(confirm);
   const { showToast } = useToast();
 
   // Only re-syncs from the URL for domains that opt into the era filter, so
@@ -218,9 +220,14 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
           body: JSON.stringify({ delete_media_override: checkedDeleteMedia }),
         });
       }
-      const token = await issueToken(`${base}/confirm-delete`);
-      await consumeToken(base, token);
-      invalidate();
+      // A game delete can loosen linked media's effective rating (409 until
+      // confirmed). A fresh token per attempt, since the prompt can outlast
+      // the token's 60s TTL. App deletes never raise it.
+      const completed = await withRatingChangeConfirm(async (confirmRatingChange) => {
+        const token = await issueToken(`${base}/confirm-delete`);
+        await consumeToken(base, token, { confirmRatingChange });
+      });
+      if (completed) invalidate();
     } catch (err) {
       showToast(err instanceof ApiError ? err.detail : 'Remove failed.', 'error');
     }

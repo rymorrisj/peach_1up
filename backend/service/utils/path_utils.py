@@ -126,6 +126,22 @@ def _is_under_configured_root(path: str) -> bool:
     return any(candidate == root or candidate.is_relative_to(root) for root in _configured_unc_roots())
 
 
+def is_untrusted_remote_path(path: str) -> bool:
+    """True if a stored *path* is a device path, or a UNC path that is not
+    lexically under an operator-configured library root (MED-10 read side).
+
+    Lexical only, never touches the filesystem: read builders call this
+    before resolve() or exists(), because resolving an attacker-chosen UNC
+    path is itself the outbound SMB/NTLM leak. Same acceptance rule as
+    normalise_path without allow_unc, so a library on a mapped network
+    drive (stored as UNC) still renders.
+    """
+    unified = path.replace("\\", "/")
+    if unified.startswith(_DEVICE_PREFIXES):
+        return True
+    return unified.startswith("//") and not _is_under_configured_root(path)
+
+
 def normalise_path(path: str, *, allow_unc: bool = False) -> Path:
     """Normalise a user-supplied path to an absolute resolved Path.
 
@@ -233,6 +249,25 @@ def library_root() -> Path:
     """
     from backend.core.settings import get_settings
     return Path(get_settings().get_env_var("LIBRARY_PATH")).resolve()
+
+
+def media_root() -> Path:
+    """Return MEDIA_PATH resolved, the root every Media upload lands under.
+
+    An unset or blank value must never fall through to ``Path("").resolve()``,
+    which is the process working directory.
+
+    Raises:
+        ValueError: If MEDIA_PATH is unset or blank.
+    """
+    from backend.core.settings import get_settings
+    try:
+        raw = get_settings().get_env_var("MEDIA_PATH")
+    except KeyError:
+        raw = ""
+    if not raw or not raw.strip():
+        raise ValueError("MEDIA_PATH is not configured.")
+    return Path(raw).resolve()
 
 
 def library_domain_root(domain: str) -> Path:

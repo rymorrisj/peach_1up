@@ -34,6 +34,7 @@ def _apply_schema_migrations() -> None:
         ("user_items", "can_manage_users", "INTEGER NOT NULL DEFAULT 0"),
         ("game_items", "original_name", "VARCHAR"),
         ("game_items", "folder_owned", "INTEGER"),
+        ("media_item_bundles", "content_rating", "VARCHAR"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)
@@ -89,3 +90,15 @@ def _apply_schema_migrations() -> None:
         ))
         conn.commit()
         logger.info("Schema migration: confirmed ix_game_items_file_path exists")
+
+        # Same backfill for media_item_bundles.content_rating (index=True on
+        # the model). ADD COLUMN above never creates an index, so a DB that
+        # gained the column through it needs this; on a fresh DB create_all()
+        # already made the same-named index and this is a no-op.
+        if "media_item_bundles" in inspector.get_table_names():
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_media_item_bundles_content_rating "
+                "ON media_item_bundles (content_rating)"
+            ))
+            conn.commit()
+            logger.info("Schema migration: confirmed ix_media_item_bundles_content_rating exists")
