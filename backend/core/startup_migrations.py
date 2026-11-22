@@ -230,6 +230,9 @@ def _apply_schema_migrations() -> None:
         ("game_items", "original_name", "VARCHAR"),
         ("game_items", "folder_owned", "INTEGER"),
         ("media_item_bundles", "content_rating", "VARCHAR"),
+        # Existing rows keep NULL for both: not fetch-created.
+        ("media_items", "asset_type", "VARCHAR"),
+        ("media_items", "source_url", "VARCHAR"),
     ]
     with engine.connect() as conn:
         inspector = sa_inspect(engine)

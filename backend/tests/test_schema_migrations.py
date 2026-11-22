@@ -103,3 +103,45 @@ def test_migrations_add_media_bundle_content_rating_and_its_index(tmp_path, monk
             "AND name = 'ix_media_item_bundles_content_rating'"
         )).scalar()
     assert count == 1
+
+
+def test_migrations_add_media_item_asset_columns_and_old_rows_stay_null(tmp_path, monkeypatch):
+    from sqlalchemy import create_engine, inspect as sa_inspect, text
+    from sqlmodel import SQLModel
+    import backend.models  # noqa: F401, registers all table models with SQLModel.metadata
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'pre_assets.db'}")
+    # Current shape minus media_items.asset_type/source_url, with one row
+    # written before the columns existed.
+    SQLModel.metadata.create_all(engine)
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE media_items DROP COLUMN asset_type"))
+        conn.execute(text("ALTER TABLE media_items DROP COLUMN source_url"))
+        conn.execute(text(
+            "INSERT INTO media_items (id, title, media_kind, file_path, sort_index) "
+            "VALUES (1, 'Old', 'image', '/library/media/old.jpg', 0)"
+        ))
+        conn.commit()
+    other_tables_before = {
+        t: [c["name"] for c in sa_inspect(engine).get_columns(t)]
+        for t in ("media_item_bundles", "game_items", "game_item_bundles")
+    }
+
+    import backend.core.database as database_mod
+    monkeypatch.setattr(database_mod, "get_engine", lambda: engine)
+
+    from backend.core.startup_migrations import _apply_schema_migrations
+
+    _apply_schema_migrations()
+    _apply_schema_migrations()  # idempotent: second run adds nothing and does not raise
+
+    inspector = sa_inspect(engine)
+    columns = {c["name"]: c for c in inspector.get_columns("media_items")}
+    assert columns["asset_type"]["nullable"] is True
+    assert columns["source_url"]["nullable"] is True
+    assert [c["name"] for c in inspector.get_columns("media_items")].count("source_url") == 1
+    with engine.connect() as conn:
+        row = conn.execute(text("SELECT asset_type, source_url FROM media_items WHERE id = 1")).one()
+    assert tuple(row) == (None, None)
+    for table, names in other_tables_before.items():
+        assert [c["name"] for c in inspector.get_columns(table)] == names

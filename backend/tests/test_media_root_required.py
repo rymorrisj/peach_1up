@@ -192,7 +192,7 @@ class TestAcceptAllMediaRoot:
         media_settings(value)
         monkeypatch.chdir(tmp_path)
         downloads: list = []
-        monkeypatch.setattr(asset_fetch_mod, "download_remote_image", lambda *a, **kw: downloads.append(a))
+        monkeypatch.setattr(asset_fetch_mod, "fetch_image_to_temp", lambda *a, **kw: downloads.append(a))
         game = self._game(db)
         assets = [MetadataAsset(url="https://cdn.thegamesdb.net/images/original/box.jpg", type="boxart_front")]
 

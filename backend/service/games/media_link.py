@@ -6,23 +6,50 @@ Downloadable images only. Trailer/video links never reach this module: per
 the locked design they are stored directly on GameItemBundle.external_links
 (see backend/service/games/enrich.py), never downloaded, never become a
 Media item.
+
+One apply is all or nothing (META-6): every asset streams into a per-apply
+temp directory under MEDIA_PATH/_asset_staging first, files are moved to
+their final names only once every download succeeded, and any failure
+before the commit removes every file this apply created and rolls the
+session back.
 """
 
 from __future__ import annotations
 
+import shutil
+import tempfile
+import threading
+import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterator, Literal, Optional
 
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 
-from backend.service.utils.path_utils import media_root, safe_basename
+from backend.service.utils.path_utils import asset_staging_root, media_root, safe_basename
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.models.media import MediaItemBundle
     from backend.service.metadata_providers import MetadataAsset
+
+# Per-apply limits (META-5). 30 assets at the 20 MB per-image cap bounds one
+# apply at 600 MB on disk; 90 s stays inside the frontend's 120 s Accept All
+# timeout so the server answers before the client gives up.
+ACCEPT_ALL_MAX_ASSETS = 30
+ACCEPT_ALL_TIME_BUDGET_SECONDS = 90.0
+
+PreviousAssets = Literal["replace", "keep"]
+# error_type of the structured 409 asking the client to choose Replace or Keep.
+PREVIOUS_ASSETS_ERROR_TYPE = "previous_assets_choice_required"
+
+# Asset types preferred for the bundle cover (MED-14), in order.
+_COVER_ASSET_TYPES = ("cover", "boxart_front")
+
+_running_applies: set[tuple[str, int]] = set()
+_running_guard = threading.Lock()
 
 
 def asset_filename_stem(asset_type: str, index: int) -> str:
@@ -31,48 +58,98 @@ def asset_filename_stem(asset_type: str, index: int) -> str:
     The type is reduced to a safe basename (no separators, no ``..``) even
     though the route already allowlists it, and the per-call index makes
     every stem unique, so ten screenshots land as ten files instead of
-    overwriting one ``screenshot.jpg`` (META-1, META-3). download_remote_image
-    additionally creates the file exclusively, so a collision fails loudly.
+    overwriting one ``screenshot.jpg`` (META-1, META-3). commit_temp_image
+    additionally claims the final name exclusively, so a collision fails
+    loudly.
     """
     return f"{safe_basename(asset_type or '', fallback='asset')}-{index}"
+
+
+@contextmanager
+def _single_apply(key: tuple[str, int]) -> Iterator[None]:
+    """One Accept All per game, and per media bundle (several games can
+    share one), at a time in this process, so two concurrent applies cannot
+    both pass the dedupe check or replace the same rows."""
+    with _running_guard:
+        if key in _running_applies:
+            raise HTTPException(
+                status_code=409,
+                detail="An Accept All for this game's media is already running. Wait for it to finish.",
+            )
+        _running_applies.add(key)
+    try:
+        yield
+    finally:
+        with _running_guard:
+            _running_applies.discard(key)
+
+
+def _linked_bundle(game_item_bundle_id: int, db: "Session") -> Optional["MediaItemBundle"]:
+    """The media bundle this game's Accept All joins: the earliest linked
+    one (lowest link_id), per the locked "later additions join the same
+    bundle" decision."""
+    from backend.models.media import MediaItemBundle, _linked_items_for
+
+    refs = [
+        ref for ref in _linked_items_for("game_item_bundle", game_item_bundle_id, db)
+        if ref.entity_type == "media_item_bundle"
+    ]
+    if not refs:
+        return None
+    return db.get(MediaItemBundle, min(refs, key=lambda r: r.link_id).entity_id)
+
+
+def _cover_candidate(items: list) -> Optional[str]:
+    for wanted in _COVER_ASSET_TYPES:
+        hit = next((i for i in items if i.asset_type == wanted), None)
+        if hit is not None:
+            return hit.file_path
+    return items[0].file_path if items else None
 
 
 def create_linked_media_from_metadata(
     game_item_bundle_id: int,
     assets: list["MetadataAsset"],
     db: "Session",
+    *,
+    previous_assets: Optional[PreviousAssets] = None,
 ) -> "MediaItemBundle":
-    """Download every asset in *assets* into MEDIA_PATH and attach it to a
-    Media item bundle linked to this game.
+    """Download *assets* into MEDIA_PATH and attach them to the Media item
+    bundle linked to this game, creating and linking one if none exists.
 
-    If this game already has a linked media_item_bundle (found via the
-    generalized entity-link table, not a bespoke lookup), the new items join
-    that existing bundle instead of a new one being created, per the locked
-    "later additions join the same bundle" decision. If more than one
-    media_item_bundle happens to already be linked (e.g. a user separately,
-    manually linked an unrelated one), the earliest link (lowest link_id)
-    wins, deterministically, this is a real edge case the locked design
-    doesn't explicitly resolve, flagged in this session's report.
+    Items created here store asset_type and source_url; source_url marks an
+    item as fetch-created. Assets are deduplicated by URL within the
+    request. When the bundle already holds fetch-created items the caller
+    must choose *previous_assets*:
 
-    Images always live at the bundle level on both sides of the link (never
-    leaf-to-leaf, never leaf-to-bundle), matching how GameItemBundle links
-    are scoped everywhere else in this codebase.
+    - "replace": remove those items (files only when app-owned and no other
+      row references them, after the commit), clear every cover that
+      pointed at them, then add the new set
+    - "keep": leave them and add only assets whose URL is new
+
+    Items with a null source_url (added by hand) are never touched. A null
+    bundle cover is set to the first new image, preferring cover/box art
+    (MED-14); an existing cover is never overwritten.
 
     Raises:
-        HTTPException: 404 if the game doesn't exist, 422 if assets is empty.
+        HTTPException: 404 if the game doesn't exist, 422 if assets is
+            empty or the time budget runs out, 413 above
+            ACCEPT_ALL_MAX_ASSETS, 409 when a Replace/Keep choice is needed
+            (structured detail) or another apply for this game is running,
+            503 if MEDIA_PATH is not configured.
     """
     from backend.models.game import GameItemBundle
-    from backend.models.media import (
-        MediaItem, MediaItemBundle, _linked_items_for, make_entity_link, unique_media_slug,
-    )
-    from backend.service.utils.asset_fetch import download_remote_image
-    from backend.service.utils.upload_utils import begin_upload
 
     game = db.get(GameItemBundle, game_item_bundle_id)
     if not game:
         raise HTTPException(status_code=404, detail="Game not found.")
     if not assets:
         raise HTTPException(status_code=422, detail="No downloadable assets to accept.")
+    if len(assets) > ACCEPT_ALL_MAX_ASSETS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Too many assets in one Accept All: {len(assets)} (limit {ACCEPT_ALL_MAX_ASSETS}).",
+        )
     # Resolved before any lookup, download or write: an unset or blank
     # MEDIA_PATH is a 503, never Path("").resolve() (the working directory),
     # matching the media upload routes.
@@ -81,85 +158,138 @@ def create_linked_media_from_metadata(
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=503, detail="MEDIA_PATH is not configured.") from exc
 
-    existing_refs = [
-        ref for ref in _linked_items_for("game_item_bundle", game_item_bundle_id, db)
-        if ref.entity_type == "media_item_bundle"
-    ]
-    bundle = None
-    if existing_refs:
-        earliest = min(existing_refs, key=lambda r: r.link_id)
-        bundle = db.get(MediaItemBundle, earliest.entity_id)
+    with _single_apply(("game", game_item_bundle_id)):
+        bundle = _linked_bundle(game_item_bundle_id, db)
+        if bundle is None:
+            return _apply(game, bundle, assets, root, previous_assets, db)
+        with _single_apply(("media_bundle", bundle.id)):
+            return _apply(game, bundle, assets, root, previous_assets, db)
 
-    dest_dir, _ = begin_upload(root, game.title)
 
-    # "First/boxart": the front-boxart asset if present, else whichever
-    # asset happens to be first in the list (IGDB's single "cover" asset,
-    # for instance, has no "boxart_front" type at all).
-    boxart = next((a for a in assets if a.type == "boxart_front"), assets[0])
+def _apply(
+    game,
+    bundle: Optional["MediaItemBundle"],
+    assets: list["MetadataAsset"],
+    root: Path,
+    previous_assets: Optional[PreviousAssets],
+    db: "Session",
+) -> "MediaItemBundle":
+    from backend.models.media import MediaItem, MediaItemBundle, delete_links_for, make_entity_link, unique_media_slug
+    from backend.service.media.file_cleanup import clear_cover_references, remove_files, removable_media_files
+    from backend.service.utils.asset_fetch import commit_temp_image, fetch_image_to_temp, final_image_path
+    from backend.service.utils.upload_utils import begin_upload
 
-    downloaded: list[tuple["MetadataAsset", Path]] = []
-    for i, asset in enumerate(assets):
-        path = download_remote_image(asset.url, dest_dir, filename_stem=asset_filename_stem(asset.type, i))
-        downloaded.append((asset, path))
-
-    is_new_bundle = bundle is None
-    if is_new_bundle:
-        bundle = MediaItemBundle(
-            title=game.title,
-            media_kind="image",
-            slug=unique_media_slug(game.title, db),
+    deadline = time.monotonic() + ACCEPT_ALL_TIME_BUDGET_SECONDS
+    fetched_before = [i for i in bundle.items if i.source_url] if bundle is not None else []
+    if fetched_before and previous_assets is None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error_type": PREVIOUS_ASSETS_ERROR_TYPE,
+                "message": (
+                    f"This game's media already has {len(fetched_before)} fetched image(s). "
+                    "Re-submit with previous_assets set to replace or keep."
+                ),
+                "existing_count": len(fetched_before),
+            },
         )
-        db.add(bundle)
-        try:
-            db.flush()
-        except IntegrityError:
-            # unique_media_slug's check-then-insert isn't atomic, so a second
-            # accept-metadata-assets call for the same game, still running
-            # concurrently with this one (the frontend's client-side abort
-            # timeout can fire before a slow multi-image download finishes,
-            # after which a manual retry races the original request rather
-            # than replacing it), can win the slug and commit first. The
-            # winner already created and linked the bundle we were trying to
-            # create, so roll back and join it instead, per this function's
-            # own "later additions join the same bundle" semantics.
-            db.rollback()
-            existing_refs = [
-                ref for ref in _linked_items_for("game_item_bundle", game_item_bundle_id, db)
-                if ref.entity_type == "media_item_bundle"
-            ]
-            if not existing_refs:
-                # No link exists for this game, so the slug collision is
-                # against an unrelated bundle (e.g. a different game with
-                # the same title), not our own concurrent request. That is a
-                # genuine, unrecoverable conflict for this attempt, not
-                # something safe to silently resolve.
-                raise HTTPException(
-                    status_code=409,
-                    detail="A conflicting media item was created at the same time. Please try again.",
+    replaced = fetched_before if previous_assets == "replace" else []
+    seen_urls = {i.source_url for i in fetched_before} if previous_assets == "keep" else set()
+    to_fetch: list["MetadataAsset"] = []
+    for asset in assets:
+        if asset.url in seen_urls:
+            continue
+        seen_urls.add(asset.url)
+        to_fetch.append(asset)
+    if not to_fetch and not replaced:
+        return bundle
+
+    staging_root = asset_staging_root()
+    staging_root.mkdir(parents=True, exist_ok=True)
+    apply_dir = Path(tempfile.mkdtemp(prefix="apply-", dir=staging_root))
+    created_files: list[Path] = []
+    created_dir: Optional[Path] = None
+    old_files: list[str] = []
+    try:
+        fetched = [
+            (asset, *fetch_image_to_temp(asset.url, apply_dir, deadline=deadline))
+            for asset in to_fetch
+        ]
+
+        if replaced:
+            replaced_ids = {i.id for i in replaced}
+            replaced_paths = [i.file_path for i in replaced]
+            old_files = removable_media_files(replaced_paths, replaced_ids, db)
+            # Covers on files that stay (another row uses them) keep working;
+            # only this bundle's own cover moves to the new set.
+            clear_cover_references(old_files, db)
+            if bundle.cover_art_path in replaced_paths:
+                bundle.cover_art_path = None
+            for item in replaced:
+                delete_links_for("media_item", item.id, db)
+                db.delete(item)
+
+        is_new_bundle = bundle is None
+        if is_new_bundle:
+            bundle = MediaItemBundle(
+                title=game.title,
+                media_kind="image",
+                slug=unique_media_slug(game.title, db),
+            )
+            db.add(bundle)
+            try:
+                db.flush()
+            except IntegrityError:
+                # unique_media_slug's check-then-insert isn't atomic. Join the
+                # bundle another request created and linked for this game, or
+                # fail when the collision is with an unrelated bundle.
+                db.rollback()
+                bundle = _linked_bundle(game.id, db)
+                if bundle is None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="A conflicting media item was created at the same time. Please try again.",
+                    )
+                is_new_bundle = False
+
+        new_items: list = []
+        if fetched:
+            created_dir, _ = begin_upload(root, game.title)
+            for index, (asset, tmp, ext) in enumerate(fetched):
+                dest = final_image_path(created_dir, asset_filename_stem(asset.type, index), ext)
+                commit_temp_image(tmp, dest, overwrite=False)
+                created_files.append(dest)
+                item = MediaItem(
+                    title=f"{game.title} - {asset.type}",
+                    media_kind="image",
+                    file_path=str(dest),
+                    media_item_bundle_id=bundle.id,
+                    asset_type=asset.type,
+                    source_url=asset.url,
                 )
-            earliest = min(existing_refs, key=lambda r: r.link_id)
-            bundle = db.get(MediaItemBundle, earliest.entity_id)
-            is_new_bundle = False
-        else:
-            boxart_path = next((p for a, p in downloaded if a is boxart), downloaded[0][1])
-            bundle.cover_art_path = str(boxart_path)
+                db.add(item)
+                new_items.append(item)
 
-    for asset, path in downloaded:
-        db.add(MediaItem(
-            title=f"{game.title} - {asset.type}",
-            media_kind="image",
-            file_path=str(path),
-            media_item_bundle_id=bundle.id,
-        ))
+        if not bundle.cover_art_path:
+            bundle.cover_art_path = _cover_candidate(new_items)
 
-    db.flush()
+        db.flush()
+        if is_new_bundle:
+            db.add(make_entity_link("game_item_bundle", game.id, "media_item_bundle", bundle.id))
+        db.commit()
+    except BaseException:
+        db.rollback()
+        for path in created_files:
+            path.unlink(missing_ok=True)
+        if created_dir is not None:
+            try:
+                created_dir.rmdir()
+            except OSError:
+                pass
+        raise
+    finally:
+        shutil.rmtree(apply_dir, ignore_errors=True)
 
-    if is_new_bundle:
-        # Reuses the same canonical-ordering helper the generic entity-link
-        # route uses (backend/api/routes/entity_links.py), no bespoke
-        # MediaLink construction here.
-        db.add(make_entity_link("game_item_bundle", game_item_bundle_id, "media_item_bundle", bundle.id))
-
-    db.commit()
+    remove_files(old_files, db)
     db.refresh(bundle)
     return bundle

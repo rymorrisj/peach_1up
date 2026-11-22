@@ -20,6 +20,10 @@ sent (META-4):
 Redirects are never followed automatically; at most _MAX_REDIRECTS hops are
 followed by hand, each validated as above.
 
+Bodies stream to a temp file and reach their final path only through
+os.replace (META-6, META-21), so a failed download never leaves a partial
+file at the destination.
+
 DNS-rebinding residue: the host is resolved here for validation, and then
 resolved again by the HTTP client when it connects. A resolver that answers
 differently between the two lookups can still steer the connection to an
@@ -31,7 +35,10 @@ Closing it fully needs connect-time IP pinning in the transport.
 from __future__ import annotations
 
 import ipaddress
+import os
 import socket
+import tempfile
+import time
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
@@ -163,15 +170,169 @@ def _check_response_url(resp_url) -> None:
         raise _reject("Asset redirect target must be an https non-private host")
 
 
-def _write_exclusive(dest: Path, data: bytes, *, overwrite: bool) -> None:
-    if overwrite:
-        dest.write_bytes(data)
-        return
+_SNIFF_BYTES = 12
+
+
+def _library_root() -> Path:
+    from backend.service.utils import settings as _s
+    return Path(_s.get("LIBRARY_PATH")).resolve()
+
+
+def _require_under_library(path: Path, lib_root: Path, what: str) -> Path:
+    resolved = path.resolve()
+    if not resolved.is_relative_to(lib_root):
+        raise _reject(f"Resolved asset {what} is outside LIBRARY_PATH.")
+    return resolved
+
+
+def _check_deadline(deadline: float | None) -> None:
+    if deadline is not None and time.monotonic() > deadline:
+        raise _reject("Asset download exceeded the time budget for this request.")
+
+
+def _request_timeout(deadline: float | None) -> float:
+    if deadline is None:
+        return _TIMEOUT
+    return max(0.1, min(_TIMEOUT, deadline - time.monotonic()))
+
+
+def _stream_body_to(fh, resp, max_bytes: int, deadline: float | None) -> bytes:
+    """Write the response body to *fh* chunk by chunk, never holding more
+    than one chunk in memory. Returns the first _SNIFF_BYTES for the format
+    sniff."""
+    head = b""
+    total = 0
+    for chunk in resp.iter_bytes():
+        _check_deadline(deadline)
+        total += len(chunk)
+        if total > max_bytes:
+            raise _reject(f"Asset image exceeds the {max_bytes // 1024 ** 2} MB size limit")
+        if len(head) < _SNIFF_BYTES:
+            head += chunk[: _SNIFF_BYTES - len(head)]
+        fh.write(chunk)
+    return head
+
+
+def fetch_image_to_temp(
+    url: str,
+    staging_dir: Path,
+    *,
+    max_bytes: int = DEFAULT_MAX_BYTES,
+    deadline: float | None = None,
+) -> tuple[Path, str]:
+    """Stream *url* into a new temp file inside *staging_dir* and return
+    ``(temp_path, ext)``. Nothing outside *staging_dir* is touched.
+
+    - every request target (original and each redirect hop) passes
+      _validate_request_url before it is sent; at most _MAX_REDIRECTS hops
+    - declared Content-Type is in _ALLOWED_MIME_TYPES and the body's magic
+      bytes match an allowlisted raster format; ext comes from the bytes
+    - the body is written chunk by chunk, capped at max_bytes and aborted
+      mid-stream on overflow or once *deadline* (time.monotonic()) passes
+
+    The temp file is removed on every failure.
+
+    Raises:
+        HTTPException: 422 on any of the above violations, 502 if the fetch
+            itself fails.
+    """
+    lib_root = _library_root()
+    staging = _require_under_library(staging_dir, lib_root, "staging directory")
+
+    current = url
+    _validate_request_url(current)
+    _check_deadline(deadline)
+
+    staging.mkdir(parents=True, exist_ok=True)
+    fd, raw_tmp = tempfile.mkstemp(prefix="dl-", suffix=".part", dir=staging)
+    tmp = Path(raw_tmp)
     try:
-        with dest.open("xb") as fh:
-            fh.write(data)
-    except FileExistsError:
-        raise HTTPException(status_code=409, detail=f"Asset destination already exists: {dest.name}")
+        with os.fdopen(fd, "wb") as fh:
+            head: bytes | None = None
+            content_type = ""
+            with httpx2.Client(timeout=_request_timeout(deadline), follow_redirects=False) as client:
+                for hop in range(_MAX_REDIRECTS + 1):
+                    _check_deadline(deadline)
+                    with client.stream("GET", current) as resp:
+                        if resp.status_code in _REDIRECT_STATUSES:
+                            location = resp.headers.get("location")
+                            if not location:
+                                raise HTTPException(status_code=502, detail="Asset redirect has no Location header")
+                            if hop == _MAX_REDIRECTS:
+                                raise _reject(f"Asset url exceeded {_MAX_REDIRECTS} redirects")
+                            current = urljoin(current, location)
+                            _validate_request_url(current)
+                            continue
+
+                        try:
+                            resp.raise_for_status()
+                        except httpx2.HTTPStatusError as e:
+                            raise HTTPException(status_code=502, detail=f"Asset fetch failed: {e}")
+
+                        _check_response_url(resp.url)
+
+                        content_type = resp.headers.get("content-type", "").split(";")[0].strip().lower()
+                        if content_type not in _ALLOWED_MIME_TYPES:
+                            raise _reject(f"Asset url returned a disallowed content-type: {content_type}")
+
+                        head = _stream_body_to(fh, resp, max_bytes, deadline)
+                        break
+
+        if head is None:  # pragma: no cover, the loop always breaks or raises
+            raise HTTPException(status_code=502, detail="Asset fetch produced no response")
+        ext = _sniff_image_ext(head)
+        if ext is None:
+            raise _reject(f"Asset body is not a recognised raster image (declared {content_type})")
+        return tmp, ext
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def final_image_path(dest_dir: Path, filename_stem: str, ext: str) -> Path:
+    """The containment-checked final path ``dest_dir/{safe stem}{ext}``.
+
+    Raises:
+        HTTPException: 422 if dest_dir or the final path leaves
+            LIBRARY_PATH, or the final path escapes dest_dir.
+    """
+    lib_root = _library_root()
+    dest_dir_resolved = _require_under_library(dest_dir, lib_root, "destination")
+    stem = safe_basename(filename_stem, fallback="asset")
+    try:
+        dest = resolve_under(dest_dir_resolved, f"{stem}{ext}")
+    except ValueError:
+        raise _reject("Resolved asset path escapes its destination directory.")
+    if not dest.is_relative_to(lib_root):
+        raise _reject("Resolved asset path is outside LIBRARY_PATH.")
+    return dest
+
+
+def commit_temp_image(tmp: Path, dest: Path, *, overwrite: bool) -> None:
+    """Move a fetched temp file onto *dest* with os.replace.
+
+    Without *overwrite* the destination is first claimed with an exclusive
+    create, so an existing file is never replaced; the claim is removed
+    again if the move fails.
+
+    Raises:
+        HTTPException: 409 if *dest* exists and overwrite is False.
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    claimed = False
+    if not overwrite:
+        try:
+            with dest.open("xb"):
+                pass
+        except FileExistsError:
+            raise HTTPException(status_code=409, detail=f"Asset destination already exists: {dest.name}")
+        claimed = True
+    try:
+        os.replace(tmp, dest)
+    except BaseException:
+        if claimed:
+            dest.unlink(missing_ok=True)
+        raise
 
 
 def download_remote_image(
@@ -181,86 +342,23 @@ def download_remote_image(
     filename_stem: str = "cover",
     max_bytes: int = DEFAULT_MAX_BYTES,
     overwrite: bool = False,
+    staging_dir: Path | None = None,
+    deadline: float | None = None,
 ) -> Path:
-    """Stream *url* into *dest_dir* as ``{filename_stem}{ext}``, enforcing:
-
-    - every request target (original and each redirect hop) passes
-      _validate_request_url before it is sent; at most _MAX_REDIRECTS hops
-    - dest_dir and the final file path both resolve under LIBRARY_PATH
-      (every legitimate destination, SOFTWARE_PATH's per-item cover art and
-      MEDIA_PATH's Media library, is a subtree of it)
-    - filename_stem is reduced to a safe basename
-    - declared Content-Type is in _ALLOWED_MIME_TYPES and the body's magic
-      bytes match an allowlisted raster format; ext comes from the bytes
-    - response body capped at max_bytes, aborted mid-stream on overflow
-    - the file is created exclusively unless *overwrite* is set (the Keep
-      flow's per-leaf cover re-fetch is the one caller that replaces)
+    """Fetch *url* (fetch_image_to_temp) and move it to
+    ``dest_dir/{filename_stem}{ext}`` (commit_temp_image). The temp file
+    lives in *staging_dir*, or in dest_dir when none is given, and never
+    survives a failure.
 
     Raises:
-        HTTPException: 422 on any of the above violations, 409 if the
-            destination exists and overwrite is False, 502 if the fetch
-            itself fails.
+        HTTPException: as fetch_image_to_temp, final_image_path and
+            commit_temp_image.
     """
-    from backend.service.utils import settings as _s
-    lib_root = Path(_s.get("LIBRARY_PATH")).resolve()
-    dest_dir_resolved = dest_dir.resolve()
-    if not dest_dir_resolved.is_relative_to(lib_root):
-        raise _reject("Resolved asset destination is outside LIBRARY_PATH.")
-
-    current = url
-    _validate_request_url(current)
-
-    data: bytes | None = None
-    content_type = ""
-    with httpx2.Client(timeout=_TIMEOUT, follow_redirects=False) as client:
-        for hop in range(_MAX_REDIRECTS + 1):
-            with client.stream("GET", current) as resp:
-                if resp.status_code in _REDIRECT_STATUSES:
-                    location = resp.headers.get("location")
-                    if not location:
-                        raise HTTPException(status_code=502, detail="Asset redirect has no Location header")
-                    if hop == _MAX_REDIRECTS:
-                        raise _reject(f"Asset url exceeded {_MAX_REDIRECTS} redirects")
-                    current = urljoin(current, location)
-                    _validate_request_url(current)
-                    continue
-
-                try:
-                    resp.raise_for_status()
-                except httpx2.HTTPStatusError as e:
-                    raise HTTPException(status_code=502, detail=f"Asset fetch failed: {e}")
-
-                _check_response_url(resp.url)
-
-                content_type = resp.headers.get("content-type", "").split(";")[0].strip().lower()
-                if content_type not in _ALLOWED_MIME_TYPES:
-                    raise _reject(f"Asset url returned a disallowed content-type: {content_type}")
-
-                # Stream body incrementally, abort before full download if limit is exceeded
-                chunks: list[bytes] = []
-                total = 0
-                for chunk in resp.iter_bytes():
-                    total += len(chunk)
-                    if total > max_bytes:
-                        raise _reject(f"Asset image exceeds the {max_bytes // 1024 ** 2} MB size limit")
-                    chunks.append(chunk)
-                data = b"".join(chunks)
-                break
-
-    if data is None:  # pragma: no cover, the loop always breaks or raises
-        raise HTTPException(status_code=502, detail="Asset fetch produced no response")
-
-    ext = _sniff_image_ext(data)
-    if ext is None:
-        raise _reject(f"Asset body is not a recognised raster image (declared {content_type})")
-
-    stem = safe_basename(filename_stem, fallback="asset")
-    dest_dir_resolved.mkdir(parents=True, exist_ok=True)
+    final_dir = _require_under_library(dest_dir, _library_root(), "destination")
+    tmp, ext = fetch_image_to_temp(url, staging_dir or final_dir, max_bytes=max_bytes, deadline=deadline)
     try:
-        dest = resolve_under(dest_dir_resolved, f"{stem}{ext}")
-    except ValueError:
-        raise _reject("Resolved asset path escapes its destination directory.")
-    if not dest.is_relative_to(lib_root):
-        raise _reject("Resolved asset path is outside LIBRARY_PATH.")
-    _write_exclusive(dest, data, overwrite=overwrite)
+        dest = final_image_path(final_dir, filename_stem, ext)
+        commit_temp_image(tmp, dest, overwrite=overwrite)
+    finally:
+        tmp.unlink(missing_ok=True)
     return dest

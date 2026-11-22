@@ -134,7 +134,8 @@ class TestMediaItemCrud:
         assert patch_resp.status_code == 200
         assert patch_resp.json()["title"] == "Doom OST (Remastered)"
 
-        del_resp = c.delete(f"/api/v1/media-item/{item_id}")
+        path = f"/api/v1/media-item/{item_id}"
+        del_resp = c.delete(f"{path}?confirmation_token={_token(c, path)}")
         assert del_resp.status_code == 204
 
         from backend.models.media import MediaItem
@@ -174,7 +175,8 @@ class TestMediaItemBundleCrud:
         assert patch_resp.status_code == 200
         assert patch_resp.json()["title"] == "Renamed Collection"
 
-        del_resp = c.delete(f"/api/v1/media-item-bundle/{collection_id}")
+        path = f"/api/v1/media-item-bundle/{collection_id}"
+        del_resp = c.delete(f"{path}?confirmation_token={_token(c, path)}")
         assert del_resp.status_code == 204
 
         from backend.models.media import MediaItemBundle
@@ -800,3 +802,284 @@ class TestMediaItemFileKindExtension:
         resp = c.post("/api/v1/media-items", json={"title": f"X {kind} {file_path}", "media_kind": kind, "file_path": file_path})
 
         assert resp.status_code == 201, resp.text
+
+
+# MED-17: delete clears cover references and removes only app-owned,
+# unreferenced files, mirroring game delete's delete_media handling
+
+
+def _file(path, body=b"\xff\xd8\xffdata"):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(body)
+    return path
+
+
+def _media_bundle(db, title, files, cover=None):
+    from backend.models.media import MediaItem, MediaItemBundle
+
+    bundle = MediaItemBundle(title=title, media_kind="image", slug=title.lower().replace(" ", "-"),
+                             cover_art_path=str(cover) if cover else None)
+    db.add(bundle)
+    db.flush()
+    for i, f in enumerate(files):
+        db.add(MediaItem(title=f"{title} {i}", media_kind="image", file_path=str(f), media_item_bundle_id=bundle.id))
+    db.commit()
+    db.refresh(bundle)
+    return bundle
+
+
+def _game_with_disc(db, slug, cover_path):
+    from backend.models.game import GameItem
+
+    game = _make_software_collection(db, slug=slug, title=slug)
+    disc = GameItem(game_item_bundle_id=game.id, file_path=f"/library/games/{slug}.img",
+                    cover_art_path=str(cover_path) if cover_path else None)
+    db.add(disc)
+    db.commit()
+    db.refresh(disc)
+    return game, disc
+
+
+def _token(c, path):
+    resp = c.post(f"{path}/confirm-delete")
+    assert resp.status_code == 200, resp.text
+    return resp.json()["confirmation_token"]
+
+
+class TestMediaDeleteFiles:
+    def test_bundle_delete_removes_owned_files_and_clears_covers(self, media_env):
+        from backend.models.media import MediaItemBundle
+
+        c, db, media_root, _, _ = media_env
+        shot = _file(media_root / "doom-shots" / "screenshot-0.jpg")
+        bundle = _media_bundle(db, "Doom Shots", [shot], cover=shot)
+        other = _media_bundle(db, "Other", [], cover=shot)
+        _, disc = _game_with_disc(db, "doom-game", shot)
+
+        path = f"/api/v1/media-item-bundle/{bundle.id}"
+        resp = c.delete(f"{path}?confirmation_token={_token(c, path)}&delete_media=true")
+
+        assert resp.status_code == 204, resp.text
+        assert not shot.exists()
+        assert not shot.parent.exists()
+        db.expire_all()
+        assert db.get(MediaItemBundle, bundle.id) is None
+        assert db.get(MediaItemBundle, other.id).cover_art_path is None
+        assert db.get(type(disc), disc.id).cover_art_path is None
+
+    def test_file_used_by_another_row_is_kept_and_its_covers_stay(self, media_env):
+        c, db, media_root, _, _ = media_env
+        shared = _file(media_root / "shared" / "box.jpg")
+        bundle = _media_bundle(db, "First", [shared])
+        _media_bundle(db, "Second", [shared])
+        _, disc = _game_with_disc(db, "kept-game", shared)
+
+        path = f"/api/v1/media-item-bundle/{bundle.id}"
+        assert c.delete(f"{path}?confirmation_token={_token(c, path)}&delete_media=true").status_code == 204
+
+        assert shared.exists()
+        db.expire_all()
+        assert db.get(type(disc), disc.id).cover_art_path == str(shared)
+
+    def test_files_outside_media_path_are_never_removed(self, media_env, tmp_path):
+        c, db, _, _, outside = media_env
+        bundle = _media_bundle(db, "Outside", [outside])
+
+        path = f"/api/v1/media-item-bundle/{bundle.id}"
+        assert c.delete(f"{path}?confirmation_token={_token(c, path)}&delete_media=true").status_code == 204
+
+        assert outside.exists()
+
+    def test_app_internal_game_covers_are_never_removed(self, media_env):
+        c, db, media_root, _, _ = media_env
+        disc_cover = _file(media_root / "_game_covers" / "game-item-7.jpg")
+        bundle = _media_bundle(db, "Pointing at a disc cover", [disc_cover])
+
+        path = f"/api/v1/media-item-bundle/{bundle.id}"
+        assert c.delete(f"{path}?confirmation_token={_token(c, path)}&delete_media=true").status_code == 204
+
+        assert disc_cover.exists()
+
+    def test_without_delete_media_files_and_covers_stay(self, media_env):
+        c, db, media_root, _, _ = media_env
+        shot = _file(media_root / "keep" / "shot.jpg")
+        bundle = _media_bundle(db, "Keep Files", [shot])
+        _, disc = _game_with_disc(db, "keep-game", shot)
+
+        path = f"/api/v1/media-item-bundle/{bundle.id}"
+        assert c.delete(f"{path}?confirmation_token={_token(c, path)}").status_code == 204
+
+        assert shot.exists()
+        db.expire_all()
+        assert db.get(type(disc), disc.id).cover_art_path == str(shot)
+
+    def test_delete_media_without_a_token_is_400_and_nothing_changes(self, media_env):
+        from backend.models.media import MediaItemBundle
+
+        c, db, media_root, _, _ = media_env
+        shot = _file(media_root / "guarded" / "shot.jpg")
+        bundle = _media_bundle(db, "Guarded", [shot])
+
+        resp = c.delete(f"/api/v1/media-item-bundle/{bundle.id}?delete_media=true")
+
+        assert resp.status_code == 400
+        assert shot.exists()
+        db.expire_all()
+        assert db.get(MediaItemBundle, bundle.id) is not None
+
+    @pytest.mark.parametrize("route", ["media-item-bundle", "media-item"])
+    def test_any_delete_without_a_token_is_400(self, media_env, route):
+        from backend.models.media import MediaItem, MediaItemBundle
+
+        c, db, media_root, _, _ = media_env
+        bundle = _media_bundle(db, f"Tokenless {route}", [_file(media_root / route / "x.jpg")])
+        target = bundle.id if route == "media-item-bundle" else bundle.items[0].id
+
+        resp = c.delete(f"/api/v1/{route}/{target}?delete_media=false")
+
+        assert resp.status_code == 400
+        db.expire_all()
+        assert db.get(MediaItemBundle, bundle.id) is not None
+        assert db.query(MediaItem).count() == 1
+
+    def test_invalid_token_is_400(self, media_env):
+        c, db, media_root, _, _ = media_env
+        bundle = _media_bundle(db, "Bad Token", [_file(media_root / "bad" / "x.jpg")])
+
+        resp = c.delete(f"/api/v1/media-item-bundle/{bundle.id}?confirmation_token=nope")
+
+        assert resp.status_code == 400
+
+    def test_token_for_another_bundle_is_rejected(self, media_env):
+        c, db, media_root, _, _ = media_env
+        first = _media_bundle(db, "One", [_file(media_root / "one" / "x.jpg")])
+        second = _media_bundle(db, "Two", [_file(media_root / "two" / "x.jpg")])
+
+        token = _token(c, f"/api/v1/media-item-bundle/{first.id}")
+        resp = c.delete(f"/api/v1/media-item-bundle/{second.id}?confirmation_token={token}&delete_media=true")
+
+        assert resp.status_code == 400
+        assert (media_root / "two" / "x.jpg").exists()
+
+    def test_global_setting_applies_when_delete_media_is_omitted(self, media_env, monkeypatch):
+        import backend.core.settings as core_settings
+
+        c, db, media_root, _, _ = media_env
+
+        class _DeleteOn(_FakeMediaSettings):
+            def get(self, key, default=None):
+                return True if key == "delete_media_on_removal" else default
+
+        monkeypatch.setattr(core_settings, "get_settings", lambda: _DeleteOn(str(media_root)))
+        shot = _file(media_root / "global" / "shot.jpg")
+        bundle = _media_bundle(db, "Global", [shot])
+
+        assert c.delete(f"/api/v1/media-item-bundle/{bundle.id}").status_code == 400
+        path = f"/api/v1/media-item-bundle/{bundle.id}"
+        assert c.delete(f"{path}?confirmation_token={_token(c, path)}").status_code == 204
+        assert not shot.exists()
+
+    def test_item_delete_removes_its_file_and_clears_its_bundle_cover(self, media_env):
+        from backend.models.media import MediaItemBundle
+
+        c, db, media_root, _, _ = media_env
+        first = _file(media_root / "pair" / "a.jpg")
+        second = _file(media_root / "pair" / "b.jpg")
+        bundle = _media_bundle(db, "Pair", [first, second], cover=first)
+        item_id = next(i.id for i in bundle.items if i.file_path == str(first))
+
+        path = f"/api/v1/media-item/{item_id}"
+        assert c.delete(f"{path}?confirmation_token={_token(c, path)}&delete_media=true").status_code == 204
+
+        assert not first.exists()
+        assert second.exists()
+        db.expire_all()
+        assert db.get(MediaItemBundle, bundle.id).cover_art_path is None
+
+    def test_bundle_delete_drops_item_links_too(self, media_env):
+        from backend.models.media import MediaLink, make_entity_link
+
+        c, db, media_root, _, _ = media_env
+        bundle = _media_bundle(db, "Linked", [_file(media_root / "linked" / "x.jpg")])
+        game = _make_software_collection(db, slug="linked-game", title="Linked Game")
+        db.add(make_entity_link("media_item", bundle.items[0].id, "game_item_bundle", game.id))
+        db.commit()
+
+        path = f"/api/v1/media-item-bundle/{bundle.id}"
+        assert c.delete(f"{path}?confirmation_token={_token(c, path)}").status_code == 204
+
+        assert db.query(MediaLink).count() == 0
+
+    def test_delete_preview_reports_files_and_covers(self, media_env):
+        c, db, media_root, _, _ = media_env
+        owned = _file(media_root / "preview" / "a.jpg")
+        shared = _file(media_root / "preview" / "b.jpg")
+        bundle = _media_bundle(db, "Preview", [owned, shared])
+        _media_bundle(db, "Holder", [shared], cover=owned)
+        _game_with_disc(db, "preview-game", owned)
+
+        resp = c.get(f"/api/v1/media-item-bundle/{bundle.id}/delete-preview")
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == {
+            "file_count": 2, "removable_file_count": 1, "game_cover_count": 1, "app_cover_count": 0,
+            "media_cover_count": 1,
+        }
+
+
+# MED-18: apply-cover-art-to-linked-games is one transaction
+
+
+class TestApplyCoverArtToGamesTransaction:
+    def _setup(self, db, media_root):
+        from backend.models.media import make_entity_link
+
+        art = _file(media_root / "art" / "box.jpg")
+        bundle = _media_bundle(db, "Art", [art])
+        discs = []
+        for slug in ("game-a", "game-b"):
+            game, disc = _game_with_disc(db, slug, None)
+            db.add(make_entity_link("media_item_bundle", bundle.id, "game_item_bundle", game.id))
+            discs.append(disc)
+        db.commit()
+        return art, bundle, discs
+
+    def test_all_linked_games_are_updated(self, media_env):
+        c, db, media_root, _, _ = media_env
+        art, bundle, discs = self._setup(db, media_root)
+
+        resp = c.post(
+            f"/api/v1/media-item-bundle/{bundle.id}/apply-cover-art-to-linked-games",
+            json={"file_path": str(art)},
+        )
+
+        assert resp.status_code == 200, resp.text
+        assert len(resp.json()) == 2
+        db.expire_all()
+        assert all(db.get(type(d), d.id).cover_art_path == str(art.resolve()) for d in discs)
+
+    def test_failure_on_the_second_game_leaves_the_first_unchanged(self, media_env, monkeypatch):
+        from backend.models.game import GameItemBundle
+
+        c, db, media_root, _, _ = media_env
+        art, bundle, discs = self._setup(db, media_root)
+        real_get = db.get
+        seen: list[int] = []
+
+        def _get(model, ident, *args, **kwargs):
+            if model is GameItemBundle:
+                seen.append(ident)
+                if len(seen) == 2:
+                    raise RuntimeError("database is locked")
+            return real_get(model, ident, *args, **kwargs)
+
+        monkeypatch.setattr(db, "get", _get)
+        with pytest.raises(RuntimeError):
+            c.post(
+                f"/api/v1/media-item-bundle/{bundle.id}/apply-cover-art-to-linked-games",
+                json={"file_path": str(art)},
+            )
+        monkeypatch.setattr(db, "get", real_get)
+
+        db.expire_all()
+        assert all(db.get(type(d), d.id).cover_art_path is None for d in discs)

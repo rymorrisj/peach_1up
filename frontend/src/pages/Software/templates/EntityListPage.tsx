@@ -185,8 +185,6 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
   async function handleRemove(entity: TBundle) {
     const deleteConfig = config.deleteConfig;
     // No deleteConfig: original plain confirm+DELETE behavior, unchanged.
-    // This remains Media's path today, its backend has neither a
-    // confirmation-token contract nor a delete_media_override field.
     if (!deleteConfig) {
       const confirmed = await confirm({
         title: `Remove "${entity.title}"?`,
@@ -206,10 +204,22 @@ export function EntityListPage<TBundle extends EntityBundleBase>({
     // deleteConfig present: Game/App's two-step confirm-token flow, ported
     // from Games.tsx's handleRemove.
     const resolvedDeleteMedia =
-      deleteConfig.resolveDeleteMediaOverride(entity) ?? deleteMediaOnRemoval;
+      deleteConfig.resolveDeleteMediaOverride?.(entity) ?? deleteMediaOnRemoval;
+    let consequence = `This removes the ${config.entityLabel} from your library.`;
+    if (deleteConfig.describeDelete) {
+      try {
+        consequence = `${consequence} ${await deleteConfig.describeDelete(entity.id)}`;
+      } catch (err) {
+        showToast(
+          err instanceof ApiError ? err.detail : 'Could not load what this removal deletes.',
+          'error',
+        );
+        return;
+      }
+    }
     const confirmed = await confirm({
       title: `Remove "${entity.title}"?`,
-      consequence: `This removes the ${config.entityLabel} from your library.`,
+      consequence,
       destructive: true,
       checkbox: { label: 'Also delete media files from disk', defaultChecked: resolvedDeleteMedia },
     });

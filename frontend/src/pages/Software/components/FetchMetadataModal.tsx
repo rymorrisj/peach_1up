@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { Button, Modal, Input, RadioGroup, Radio, Checkbox } from '@/ui';
 import { useToast } from '@/ui/ToastProvider';
 import { apiFetch } from '@/api/client';
+import {
+  PREVIOUS_ASSETS_ERROR_TYPE,
+  previousAssetsCount,
+  type PreviousAssetsChoice,
+} from './previousAssets';
 
 // Accept All downloads every fetched asset (boxart, screenshots, etc.) from
 // the metadata provider server-side before responding, which can take well
@@ -88,6 +93,9 @@ export function FetchMetadataModal({
 
   const [acceptingAll, setAcceptingAll] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
+  // Set from a previous-assets 409: how many fetched images the linked
+  // media already has, while the Replace / Keep choice is shown.
+  const [existingFetchedCount, setExistingFetchedCount] = useState<number | null>(null);
 
   // Handles both open-transitions: on open, pre-fill the search field
   // (editable afterward, not re-applied while it stays open) and restore any
@@ -124,6 +132,7 @@ export function FetchMetadataModal({
       setConfirmRatingChange(false);
       setAcceptingAll(false);
       setAcceptError(null);
+      setExistingFetchedCount(null);
     }
   }
 
@@ -232,16 +241,21 @@ export function FetchMetadataModal({
     }
   }
 
-  async function handleAcceptAll() {
+  async function handleAcceptAll(previousAssets?: PreviousAssetsChoice) {
     if (!details || details.assets.length === 0) return;
     setAcceptingAll(true);
     setAcceptError(null);
     try {
       await apiFetch(`/api/v1/game-items/${entityId}/accept-metadata-assets`, {
         method: 'POST',
-        body: JSON.stringify({ assets: details.assets }),
+        body: JSON.stringify({
+          assets: details.assets,
+          ...(previousAssets ? { previous_assets: previousAssets } : {}),
+        }),
         timeoutMs: ACCEPT_METADATA_TIMEOUT_MS,
+        quietErrorTypes: [PREVIOUS_ASSETS_ERROR_TYPE],
       });
+      setExistingFetchedCount(null);
       showToast(`Linked media created for "${details.title ?? entityTitle}".`, 'success');
       // Same call handleKeep() makes above: the accepted assets can change
       // bundle-level fields (cover art, linked_items), and onSuccess's
@@ -252,7 +266,12 @@ export function FetchMetadataModal({
       onSuccess();
       onClose();
     } catch (err) {
-      setAcceptError(err instanceof Error ? err.message : 'Failed to create linked media.');
+      const existing = previousAssetsCount(err);
+      if (existing !== null && previousAssets === undefined) {
+        setExistingFetchedCount(existing);
+      } else {
+        setAcceptError(err instanceof Error ? err.message : 'Failed to create linked media.');
+      }
     } finally {
       setAcceptingAll(false);
     }
@@ -326,6 +345,32 @@ export function FetchMetadataModal({
               loading={applying}
             >
               Keep
+            </Button>
+          </div>
+        ) : existingFetchedCount !== null ? (
+          <div className="flex items-center gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setExistingFetchedCount(null)}
+              disabled={acceptingAll}
+            >
+              Back
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => void handleAcceptAll('keep')}
+              disabled={acceptingAll}
+              loading={acceptingAll}
+            >
+              Keep and add new
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleAcceptAll('replace')}
+              disabled={acceptingAll}
+              loading={acceptingAll}
+            >
+              Replace
             </Button>
           </div>
         ) : (
@@ -579,6 +624,29 @@ export function FetchMetadataModal({
                 Already saved on the game (applied by Keep), Accept All only affects the images
                 above.
               </p>
+            </div>
+          )}
+
+          {existingFetchedCount !== null && (
+            <div
+              role="alertdialog"
+              aria-label="Previously fetched images"
+              className="rounded-md border border-amber-600/50 bg-amber-950/30 p-3"
+            >
+              <p className="text-sm text-amber-300">
+                This game's linked media already has {existingFetchedCount} fetched image
+                {existingFetchedCount === 1 ? '' : 's'}.
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-200">
+                <li>
+                  Replace removes {existingFetchedCount === 1 ? 'it' : 'them'}, deletes{' '}
+                  {existingFetchedCount === 1 ? 'its file' : 'their files'} when nothing else uses{' '}
+                  {existingFetchedCount === 1 ? 'it' : 'them'}, clears covers that point at{' '}
+                  {existingFetchedCount === 1 ? 'it' : 'them'}, then adds these images.
+                </li>
+                <li>Keep and add new leaves them and adds only images not already saved.</li>
+                <li>Media you added yourself is never touched.</li>
+              </ul>
             </div>
           )}
 

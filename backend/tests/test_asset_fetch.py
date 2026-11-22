@@ -543,3 +543,150 @@ class TestDownloadFinalPath:
         result = _download(monkeypatch, mock_httpx2, tmp_lib, overwrite=True)
         assert result == existing.resolve()
         assert existing.read_bytes() == _JPEG
+
+
+# META-21 / META-6: streamed to a temp file, moved with os.replace
+
+
+def _fetch_to_temp(monkeypatch, mock_httpx2, staging_dir, url=_TGDB_URL, **kwargs):
+    import backend.service.utils.asset_fetch as asset_fetch_mod
+
+    monkeypatch.setattr(asset_fetch_mod, "httpx2", mock_httpx2)
+    return asset_fetch_mod.fetch_image_to_temp(url, staging_dir, **kwargs)
+
+
+class TestStreamedTempFetch:
+    def test_body_lands_in_a_temp_file_inside_staging(self, tmp_lib, monkeypatch):
+        staging = tmp_lib / "staging"
+        mock_httpx2 = _make_mock_httpx2(body_chunks=[_JPEG[:2], _JPEG[2:]])
+
+        tmp, ext = _fetch_to_temp(monkeypatch, mock_httpx2, staging)
+
+        assert tmp.parent == staging.resolve()
+        assert tmp.read_bytes() == _JPEG
+        assert ext == ".jpg"
+
+    def test_sniff_works_across_tiny_chunks(self, tmp_lib, monkeypatch):
+        mock_httpx2 = _make_mock_httpx2(content_type="image/png", body_chunks=[bytes([b]) for b in _PNG])
+
+        tmp, ext = _fetch_to_temp(monkeypatch, mock_httpx2, tmp_lib / "staging")
+
+        assert ext == ".png"
+        assert tmp.read_bytes() == _PNG
+
+    def test_oversized_body_leaves_no_temp_file(self, tmp_lib, monkeypatch):
+        staging = tmp_lib / "staging"
+        chunk = b"x" * (1024 * 1024)
+        mock_httpx2 = _make_mock_httpx2(body_chunks=[_JPEG] + [chunk] * 21)
+
+        _expect_status(422, _fetch_to_temp, monkeypatch, mock_httpx2, staging)
+
+        assert list(staging.iterdir()) == []
+
+    def test_non_image_body_leaves_no_temp_file(self, tmp_lib, monkeypatch):
+        staging = tmp_lib / "staging"
+        mock_httpx2 = _make_mock_httpx2(body_chunks=[b"<svg></svg>"])
+
+        _expect_status(422, _fetch_to_temp, monkeypatch, mock_httpx2, staging)
+
+        assert list(staging.iterdir()) == []
+
+    def test_mid_stream_error_leaves_no_temp_file(self, tmp_lib, monkeypatch):
+        staging = tmp_lib / "staging"
+
+        def _broken_body():
+            yield _JPEG
+            raise ConnectionResetError("peer reset")
+
+        ctx = _response_ctx()
+        ctx.__enter__.return_value.iter_bytes = MagicMock(return_value=_broken_body())
+        mock_httpx2 = _make_mock_httpx2(ctx)
+
+        with pytest.raises(ConnectionResetError):
+            _fetch_to_temp(monkeypatch, mock_httpx2, staging)
+
+        assert list(staging.iterdir()) == []
+
+    def test_expired_deadline_is_422_before_any_request(self, tmp_lib, monkeypatch):
+        import time
+
+        mock_httpx2 = _make_mock_httpx2(body_chunks=[_JPEG])
+
+        exc = _expect_status(
+            422, _fetch_to_temp, monkeypatch, mock_httpx2, tmp_lib / "staging", deadline=time.monotonic() - 1,
+        )
+
+        assert "time budget" in exc.detail
+        assert _requested_urls(mock_httpx2) == []
+
+    def test_deadline_passing_mid_stream_aborts(self, tmp_lib, monkeypatch):
+        import backend.service.utils.asset_fetch as asset_fetch_mod
+
+        staging = tmp_lib / "staging"
+        from types import SimpleNamespace
+
+        # Deadline check, request timeout, hop check and the first chunk
+        # see t=0; the second chunk sees t=100, past the deadline.
+        clock = iter([0.0, 0.0, 0.0, 0.0])
+        monkeypatch.setattr(asset_fetch_mod, "time", SimpleNamespace(monotonic=lambda: next(clock, 100.0)))
+        mock_httpx2 = _make_mock_httpx2(body_chunks=[_JPEG, b"a", b"b", b"c"])
+
+        _expect_status(422, _fetch_to_temp, monkeypatch, mock_httpx2, staging, deadline=50.0)
+
+        assert list(staging.iterdir()) == []
+
+    def test_staging_outside_library_is_rejected(self, tmp_lib, monkeypatch):
+        mock_httpx2 = _make_mock_httpx2(body_chunks=[_JPEG])
+
+        _expect_status(422, _fetch_to_temp, monkeypatch, mock_httpx2, tmp_lib.parent / "elsewhere")
+
+        assert _requested_urls(mock_httpx2) == []
+
+
+class TestCommitTempImage:
+    def test_failed_download_leaves_nothing_at_the_destination(self, tmp_lib, monkeypatch):
+        mock_httpx2 = _make_mock_httpx2(body_chunks=[b"<html></html>"])
+
+        _expect_status(422, _download, monkeypatch, mock_httpx2, tmp_lib / "doom")
+
+        assert list((tmp_lib / "doom").iterdir()) == []
+
+    def test_separate_staging_dir_is_left_empty(self, tmp_lib, monkeypatch):
+        staging = tmp_lib / "staging"
+        mock_httpx2 = _make_mock_httpx2(body_chunks=[_JPEG])
+
+        result = _download(monkeypatch, mock_httpx2, tmp_lib / "doom", staging_dir=staging)
+
+        assert result.read_bytes() == _JPEG
+        assert list(staging.iterdir()) == []
+
+    def test_exclusive_commit_never_replaces_an_existing_file(self, tmp_lib):
+        from backend.service.utils.asset_fetch import commit_temp_image
+
+        tmp = tmp_lib / "dl.part"
+        tmp.write_bytes(_JPEG)
+        dest = tmp_lib / "screenshot-0.jpg"
+        dest.write_bytes(b"original")
+
+        _expect_status(409, commit_temp_image, tmp, dest, overwrite=False)
+
+        assert dest.read_bytes() == b"original"
+
+    def test_failed_move_drops_the_exclusive_claim(self, tmp_lib, monkeypatch):
+        import backend.service.utils.asset_fetch as asset_fetch_mod
+
+        tmp = tmp_lib / "dl.part"
+        tmp.write_bytes(_JPEG)
+        dest = tmp_lib / "screenshot-0.jpg"
+
+        def _fail_replace(src, dst):
+            raise OSError("cross-device link")
+
+        import os
+        from types import SimpleNamespace
+
+        monkeypatch.setattr(asset_fetch_mod, "os", SimpleNamespace(replace=_fail_replace, fdopen=os.fdopen))
+        with pytest.raises(OSError):
+            asset_fetch_mod.commit_temp_image(tmp, dest, overwrite=False)
+
+        assert not dest.exists()

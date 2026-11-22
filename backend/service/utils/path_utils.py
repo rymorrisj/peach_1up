@@ -270,6 +270,34 @@ def media_root() -> Path:
     return Path(raw).resolve()
 
 
+# App-owned subdirectories of MEDIA_PATH. Slugs (slugify) never contain an
+# underscore, so no upload or Accept All directory can take these names.
+GAME_COVERS_DIRNAME = "_game_covers"
+ASSET_STAGING_DIRNAME = "_asset_staging"
+APP_INTERNAL_MEDIA_DIRNAMES: frozenset[str] = frozenset({GAME_COVERS_DIRNAME, ASSET_STAGING_DIRNAME})
+
+
+def game_covers_root() -> Path:
+    """MEDIA_PATH/_game_covers, where per-disc fetched cover art lives
+    (META-2). Not created here.
+
+    Raises:
+        ValueError: If MEDIA_PATH is unset or blank.
+    """
+    return media_root() / GAME_COVERS_DIRNAME
+
+
+def asset_staging_root() -> Path:
+    """MEDIA_PATH/_asset_staging, the temp area downloads stream into before
+    os.replace moves them to their final path (META-6, META-21). On the
+    same volume as every download destination. Not created here.
+
+    Raises:
+        ValueError: If MEDIA_PATH is unset or blank.
+    """
+    return media_root() / ASSET_STAGING_DIRNAME
+
+
 def library_domain_root(domain: str) -> Path:
     """Return the on-disk root for one Software-library domain: "games" or
     "apps". Each is a fixed subdirectory of SOFTWARE_PATH, library/software/games/,

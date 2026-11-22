@@ -17,12 +17,13 @@ from backend.core.logger import get_logger
 from backend.models.media import (
     MediaItemBundle, MediaItemBundleCreate, MediaItemBundleRead, MediaItemBundleUpdate,
     MediaItem, MediaItemCreate, MediaItemRead, MediaItemUpdate,
-    delete_links_for, unique_media_slug, _linked_items_for,
+    unique_media_slug, _linked_items_for,
     media_item_bundle_to_read, media_item_bundle_to_read_bulk, item_to_read, items_to_read_bulk,
 )
 from backend.models.pagination import Page
 from backend.models.user import UserItem
 from backend.service.media.content_rating import checked_media_rating_change
+from backend.service.media.delete import MediaDeletePreview, delete_media_entity, delete_preview, should_delete_media
 from backend.service.media.rating_change_guard import item_move_effects, require_rating_change_confirmation
 from backend.service.utils.media_extensions import INLINE_IMAGE_TYPES, check_media_extension
 from backend.service.utils.path_utils import media_root, normalise_path
@@ -210,18 +211,74 @@ def update_media_item(
     return item_to_read(item, db, viewer=active_user)
 
 
-@router.delete("/media-item/{item_id}", status_code=204)
-def delete_media_item(
+def _check_delete_token(token: Optional[str], resource: str, resource_id: int) -> None:
+    """Every media delete needs a confirmation token from its confirm-delete
+    endpoint, the two-step rule for destructive operations (SECURITY.md).
+
+    Raises:
+        HTTPException: 400 on a missing or invalid token.
+    """
+    from backend.service.utils import confirmation_tokens
+
+    if token is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Deleting media needs a confirmation token from the confirm-delete endpoint.",
+        )
+    if not confirmation_tokens.consume(token, resource, resource_id):
+        raise HTTPException(status_code=400, detail="Invalid or expired confirmation token.")
+
+
+def _log_media_delete(user: UserItem, resource: str, resource_id: int, removed: list[str]) -> None:
+    logger.info(
+        "Destructive operation: user %s deleted %s %s, %d file(s) removed from disk",
+        user.id, resource, resource_id, len(removed),
+    )
+
+
+def _confirm_delete_response(resource: str, resource_id: int) -> dict:
+    from backend.service.utils import confirmation_tokens
+
+    token = confirmation_tokens.issue(resource, resource_id)
+    return {"confirmation_token": token, "expires_in_seconds": confirmation_tokens.TOKEN_TTL}
+
+
+@router.post("/media-item/{item_id}/confirm-delete")
+def confirm_delete_media_item(
     item_id: int,
     db: Session = Depends(get_db),
     active_user: UserItem = require_permission("can_manage_media"),
 ):
+    get_filtered_media_item(item_id, active_user, db)
+    return _confirm_delete_response("media_item", item_id)
+
+
+@router.get("/media-item/{item_id}/delete-preview", response_model=MediaDeletePreview)
+def preview_delete_media_item(
+    item_id: int,
+    db: Session = Depends(get_db),
+    active_user: UserItem = require_permission("can_manage_media"),
+):
+    return delete_preview(db, item=get_filtered_media_item(item_id, active_user, db))
+
+
+@router.delete("/media-item/{item_id}", status_code=204)
+def delete_media_item(
+    item_id: int,
+    confirmation_token: Optional[str] = Query(None),
+    delete_media: Optional[bool] = Query(None),
+    db: Session = Depends(get_db),
+    active_user: UserItem = require_permission("can_manage_media"),
+):
+    """*delete_media*, when given, is the confirm dialog's choice for this
+    delete only; omitted, the global delete_media_on_removal setting applies.
+    *confirmation_token* is required (400 without a valid one)."""
     # Same 404 as a missing item, so a hidden item is neither deletable nor
     # confirmed to exist.
     item = get_filtered_media_item(item_id, active_user, db)
-    delete_links_for("media_item", item_id, db)
-    db.delete(item)
-    db.commit()
+    _check_delete_token(confirmation_token, "media_item", item_id)
+    removed = delete_media_entity(db, item=item, delete_files=should_delete_media(delete_media))
+    _log_media_delete(active_user, "media_item", item_id, removed)
 
 
 # ---------------------------------------------------------------------------
@@ -340,8 +397,7 @@ def apply_cover_art_to_linked_games(
     if not any(item.file_path == body.file_path for item in collection.items):
         raise HTTPException(status_code=422, detail="file_path does not belong to this media item.")
 
-    from backend.models.game import GameItemBundle, GameItemUpdate
-    from backend.service.games.items import update_library_leaf
+    from backend.models.game import GameItemBundle
 
     linked_game_ids = [
         ref.entity_id
@@ -351,28 +407,65 @@ def apply_cover_art_to_linked_games(
     if not linked_game_ids:
         raise HTTPException(status_code=404, detail="This media item has no linked games.")
 
+    # Same normalise and existence check update_library_leaf applies to
+    # cover_art_path, done once; then every game in one commit (MED-18).
+    try:
+        cover_path = normalise_path(body.file_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"cover_art_path: {exc}")
+    if not cover_path.exists():
+        raise HTTPException(status_code=400, detail=f"cover_art_path does not exist: {cover_path}")
+
     updated: list[int] = []
-    for game_id in linked_game_ids:
-        bundle = db.get(GameItemBundle, game_id)
-        if not bundle or not bundle.items:
-            continue
-        target_leaf_id = bundle.display_disk_id or bundle.launch_disk_id
-        leaf = next((i for i in bundle.items if i.id == target_leaf_id), None) or bundle.items[0]
-        update_library_leaf(game_id, leaf.id, GameItemUpdate(cover_art_path=body.file_path), db)
-        updated.append(game_id)
+    try:
+        for game_id in linked_game_ids:
+            bundle = db.get(GameItemBundle, game_id)
+            if not bundle or not bundle.items:
+                continue
+            target_leaf_id = bundle.display_disk_id or bundle.launch_disk_id
+            leaf = next((i for i in bundle.items if i.id == target_leaf_id), None) or bundle.items[0]
+            leaf.cover_art_path = str(cover_path)
+            updated.append(game_id)
+        db.commit()
+    except BaseException:
+        db.rollback()
+        raise
     return updated
+
+
+@router.post("/media-item-bundle/{collection_id}/confirm-delete")
+def confirm_delete_media_item_bundle(
+    collection_id: int,
+    db: Session = Depends(get_db),
+    active_user: UserItem = require_permission("can_manage_media"),
+):
+    get_filtered_media_item_bundle(collection_id, active_user, db)
+    return _confirm_delete_response("media_item_bundle", collection_id)
+
+
+@router.get("/media-item-bundle/{collection_id}/delete-preview", response_model=MediaDeletePreview)
+def preview_delete_media_item_bundle(
+    collection_id: int,
+    db: Session = Depends(get_db),
+    active_user: UserItem = require_permission("can_manage_media"),
+):
+    return delete_preview(db, bundle=get_filtered_media_item_bundle(collection_id, active_user, db))
 
 
 @router.delete("/media-item-bundle/{collection_id}", status_code=204)
 def delete_media_item_bundle(
     collection_id: int,
+    confirmation_token: Optional[str] = Query(None),
+    delete_media: Optional[bool] = Query(None),
     db: Session = Depends(get_db),
     active_user: UserItem = require_permission("can_manage_media"),
 ):
+    """Same delete_media and confirmation_token rules as delete_media_item.
+    Also drops every item's MediaLink rows, not just the bundle's."""
     collection = get_filtered_media_item_bundle(collection_id, active_user, db)
-    delete_links_for("media_item_bundle", collection_id, db)
-    db.delete(collection)
-    db.commit()
+    _check_delete_token(confirmation_token, "media_item_bundle", collection_id)
+    removed = delete_media_entity(db, bundle=collection, delete_files=should_delete_media(delete_media))
+    _log_media_delete(active_user, "media_item_bundle", collection_id, removed)
 
 
 # ---------------------------------------------------------------------------

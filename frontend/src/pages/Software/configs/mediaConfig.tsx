@@ -204,6 +204,46 @@ export const mediaUploadModalConfig: LibraryModalConfig = {
   entityLabelPlural: 'media',
 };
 
+/** GET /api/v1/media-item-bundle/{id}/delete-preview (MediaDeletePreview). */
+export interface MediaDeletePreview {
+  file_count: number;
+  removable_file_count: number;
+  game_cover_count: number;
+  app_cover_count: number;
+  media_cover_count: number;
+}
+
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** The delete dialog's account of what "Also delete media files from disk"
+ *  removes, from the server's preview of this delete. */
+export function describeMediaDelete(p: MediaDeletePreview): string {
+  if (p.file_count === 0) return 'It has no files.';
+  const kept = p.file_count - p.removable_file_count;
+  const parts = [
+    `With "Also delete media files from disk" checked, ${p.removable_file_count} of ${plural(p.file_count, 'file', 'files')} will be deleted from disk.`,
+  ];
+  if (kept > 0) {
+    parts.push(
+      kept === 1
+        ? '1 file stays because another item uses it or it is outside the media library.'
+        : `${kept} files stay because other items use them or they are outside the media library.`,
+    );
+  }
+  if (p.removable_file_count > 0) {
+    const covers = p.game_cover_count + p.app_cover_count + p.media_cover_count;
+    parts.push(
+      covers > 0
+        ? `Cover art that uses the deleted files is cleared on ${plural(p.game_cover_count, 'game disc', 'game discs')}, ${plural(p.app_cover_count, 'app', 'apps')} and ${plural(p.media_cover_count, 'other media item', 'other media items')}.`
+        : 'No game or other media uses these files as cover art.',
+    );
+  }
+  parts.push('Unchecked, the files and every cover stay as they are.');
+  return parts.join(' ');
+}
+
 // Media has no launch capability at all (no launchTargetType), and its cover
 // art lives directly on the bundle rather than a leaf item (see discovery:
 // cover_art_url is bundle-level for Media, leaf-level for Game/App).
@@ -235,4 +275,14 @@ export const mediaDomainConfig: EntityDomainConfig<MediaItemBundleData> = {
   // (media.py:list_media_item_bundles) accepts the same `sort`
   // ("title" | "date_added") param as Game/App.
   sortOptions: SOFTWARE_SORT_OPTIONS,
+  // Same confirm dialog and token flow as Game delete. No per-bundle
+  // override exists, so the global delete_media_on_removal setting seeds the
+  // checkbox.
+  deleteConfig: {
+    bundleByIdApiPath: (id) => `/api/v1/media-item-bundle/${id}`,
+    describeDelete: async (id) =>
+      describeMediaDelete(
+        await apiFetch<MediaDeletePreview>(`/api/v1/media-item-bundle/${id}/delete-preview`),
+      ),
+  },
 };

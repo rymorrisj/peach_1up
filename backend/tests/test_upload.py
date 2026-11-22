@@ -743,7 +743,16 @@ class TestChunkedMediaUploadExtensionAllowlist:
         assert resp.status_code == 422, resp.text
         assert created == []
 
-    @pytest.mark.parametrize("name", ["track.mp3", "cover.PNG", "manual.pdf", "clip.mkv", "pack.zip"])
+    @pytest.mark.parametrize("name", ["pack.zip", "scans.7z"])
+    def test_archive_is_422_because_its_kind_cannot_be_inferred(self, client, name):
+        """Finalize creates the MediaItem row (MED-12) and needs a kind; an
+        archive fits every kind, so it is refused before any bytes move."""
+        c, created = client
+        resp = self._init(c, name)
+        assert resp.status_code == 422, resp.text
+        assert created == []
+
+    @pytest.mark.parametrize("name", ["track.mp3", "cover.PNG", "manual.pdf", "clip.mkv"])
     def test_allowlisted_extension_is_accepted(self, client, name):
         c, created = client
         resp = self._init(c, name)

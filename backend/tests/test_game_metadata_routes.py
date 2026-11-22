@@ -284,8 +284,12 @@ class TestAssetFilenameStem:
     def test_accept_all_passes_distinct_stems(self, mem_db_session, tmp_path, monkeypatch):
         """Ten same-type assets produce ten distinct download stems (no
         overwrite of one screenshot.jpg)."""
+        import tempfile
+        from pathlib import Path
+
         import backend.core.settings as core_settings
         import backend.service.utils.asset_fetch as asset_fetch_mod
+        import backend.service.utils.settings as utils_settings
         from backend.service.games.media_link import create_linked_media_from_metadata
         from backend.service.metadata_providers import MetadataAsset
 
@@ -297,22 +301,27 @@ class TestAssetFilenameStem:
                 return default
 
         monkeypatch.setattr(core_settings, "get_settings", lambda: _S())
-        seen: list[str] = []
+        monkeypatch.setattr(
+            utils_settings, "get", lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
+        )
 
-        def _fake_download(url, dest_dir, *, filename_stem, **kwargs):
-            seen.append(filename_stem)
-            return dest_dir / f"{filename_stem}.jpg"
+        def _fake_fetch(url, staging_dir, **kwargs):
+            fd, raw = tempfile.mkstemp(dir=staging_dir)
+            with open(fd, "wb") as fh:
+                fh.write(b"\xff\xd8\xff" + url.encode())
+            return Path(raw), ".jpg"
 
-        monkeypatch.setattr(asset_fetch_mod, "download_remote_image", _fake_download)
+        monkeypatch.setattr(asset_fetch_mod, "fetch_image_to_temp", _fake_fetch)
         bundle = _make_game_bundle(mem_db_session)
         assets = [
             MetadataAsset(url=f"https://cdn.thegamesdb.net/images/original/s{i}.jpg", type="screenshot")
             for i in range(10)
         ]
 
-        create_linked_media_from_metadata(bundle.id, assets, mem_db_session)
+        media = create_linked_media_from_metadata(bundle.id, assets, mem_db_session)
 
-        assert len(set(seen)) == 10
+        stems = {Path(i.file_path).stem for i in media.items}
+        assert len(stems) == 10
 
 
 class TestTheGamesDBAssetTypeFilter:

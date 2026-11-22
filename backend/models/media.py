@@ -40,6 +40,10 @@ class MediaItem(SQLModel, table=True):
         ),
     )
     sort_index: int = 0
+    # Set only by the Fetch Metadata Accept All flow. A non-null source_url
+    # is what marks an item as fetch-created; manual items keep both null.
+    asset_type: Optional[str] = None
+    source_url: Optional[str] = None
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=False),
@@ -124,6 +128,8 @@ class MediaItemRead(SQLModel):
     description: Optional[str] = None
     media_item_bundle_id: Optional[int] = None
     sort_index: int = 0
+    asset_type: Optional[str] = None
+    source_url: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     tags: list[TagRead] = []

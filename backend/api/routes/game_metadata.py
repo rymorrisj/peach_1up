@@ -75,6 +75,9 @@ class MetadataAssetBody(BaseModel):
 
 class AcceptMetadataAssetsBody(BaseModel):
     assets: list[MetadataAssetBody]
+    # Required once the linked media already holds fetched images (409
+    # otherwise). replace swaps them for this set, keep adds new URLs only.
+    previous_assets: Optional[Literal["replace", "keep"]] = None
 
 
 @router.get("/metadata-search")
@@ -218,5 +221,5 @@ def accept_metadata_assets(
         MetadataAsset(url=a.url, type=a.type, thumb_url=a.thumb_url)
         for a in body.assets
     ]
-    bundle = create_linked_media_from_metadata(id, assets, db)
+    bundle = create_linked_media_from_metadata(id, assets, db, previous_assets=body.previous_assets)
     return media_item_bundle_to_read(bundle, db, viewer=active_user)

@@ -80,3 +80,20 @@ def check_media_extension(filename: str, media_kind: Optional[MediaKind] = None)
         scope = f"'{media_kind}' media" if media_kind is not None else "media"
         raise ValueError(f"File extension '{ext or '(none)'}' is not allowed for {scope}.")
     return ext
+
+
+def media_kind_for_extension(filename: str) -> Optional[MediaKind]:
+    """The one MediaKind whose allowlist holds *filename*'s extension, or
+    None when it is missing, unknown, or shared by several kinds (every
+    archive is)."""
+    ext = media_extension(filename)
+    kinds = [kind for kind, allowed in MEDIA_KIND_EXTENSIONS.items() if ext and ext in allowed]
+    return kinds[0] if len(kinds) == 1 else None
+
+
+# What the chunked Media upload accepts: only extensions whose kind
+# media_kind_for_extension can infer, since its finalize creates the row.
+MEDIA_KIND_INFERABLE_EXTENSIONS: frozenset[str] = frozenset(
+    ext for ext in MEDIA_UPLOAD_EXTENSIONS
+    if sum(ext in allowed for allowed in MEDIA_KIND_EXTENSIONS.values()) == 1
+)

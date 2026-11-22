@@ -199,12 +199,11 @@ export interface EntityMultiDiscConfig<TBundle> {
 // contract (POST .../confirm-delete issues a token, DELETE
 // .../{id}?confirmation_token=... consumes it, plus a delete_media_override
 // field on the bundle's PATCH schema, see game_item_bundles.py/apps.py and
-// GameItemBundleUpdate/AppItemBundleUpdate). Media's backend has neither:
-// delete_media_item_bundle is a plain DELETE with no confirmation_token
-// parameter at all, and MediaItemBundleUpdate has no delete_media_override
-// field. A domain without deleteConfig keeps EntityListPage's original plain
-// confirm+DELETE behavior (Media's correct, unchanged path); a domain that
-// supplies it gets Game's full two-step UX (App opts in, see appConfig.tsx).
+// GameItemBundleUpdate/AppItemBundleUpdate). Media has the confirm-delete
+// and delete_media contract (MED-17) but no delete_media_override field, so
+// it omits resolveDeleteMediaOverride and the global setting seeds the
+// checkbox. A domain without deleteConfig keeps EntityListPage's original
+// plain confirm+DELETE behavior.
 export interface EntityDeleteConfig<TBundle> {
   // Base path for this entity keyed by its numeric id, e.g.
   // id => `/api/v1/app-item-bundle/${id}`. Deliberately independent of
@@ -213,10 +212,11 @@ export interface EntityDeleteConfig<TBundle> {
   bundleByIdApiPath: (id: number) => string;
   // Reads this entity's persisted delete_media_override (null/undefined =
   // inherit the global delete_media_on_removal default from
-  // /api/v1/settings/library-defaults). Domains without such a field on their
-  // model should omit deleteConfig entirely rather than supply a resolver
-  // that always returns null.
-  resolveDeleteMediaOverride: (entity: TBundle) => boolean | null;
+  // /api/v1/settings/library-defaults). Omitted by domains with no such field.
+  resolveDeleteMediaOverride?: (entity: TBundle) => boolean | null;
+  // Extra dialog text naming what the delete removes, fetched just before
+  // the dialog opens. A rejection is shown as an error and no dialog opens.
+  describeDelete?: (id: number) => Promise<string>;
 }
 
 // Per-domain wiring an EntityListPage/EntityDetailPage consumes so the

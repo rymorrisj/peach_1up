@@ -433,12 +433,23 @@ class TestAcceptAllLeavesRatingNull:
                 # visibility filter runs below; None means "use the defaults".
                 return default
 
+        import tempfile
+        from pathlib import Path
+
+        import backend.service.utils.settings as utils_settings
+
         monkeypatch.setattr(core_settings, "get_settings", lambda: _S())
         monkeypatch.setattr(
-            asset_fetch_mod,
-            "download_remote_image",
-            lambda url, dest_dir, *, filename_stem, **kwargs: dest_dir / f"{filename_stem}.jpg",
+            utils_settings, "get", lambda key, default=None: str(tmp_path) if key == "LIBRARY_PATH" else default,
         )
+
+        def _fake_fetch(url, staging_dir, **kwargs):
+            fd, raw = tempfile.mkstemp(dir=staging_dir)
+            with open(fd, "wb") as fh:
+                fh.write(b"\xff\xd8\xff")
+            return Path(raw), ".jpg"
+
+        monkeypatch.setattr(asset_fetch_mod, "fetch_image_to_temp", _fake_fetch)
         game = _game(mem_db_session, "m", "M")
 
         bundle = create_linked_media_from_metadata(
