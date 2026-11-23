@@ -18,6 +18,8 @@ interface SearchResult {
   game_id: number;
   title: string;
   release_date: string | null;
+  /** Absent in results cached by an older build. */
+  platform?: string | null;
 }
 
 interface MetadataAsset {
@@ -35,6 +37,8 @@ interface GameDetails {
   cover_art_url: string | null;
   cover_art_thumb_url: string | null;
   genres: string[] | null;
+  /** TheGamesDB genre ids the provider could not name; they are not applied. */
+  unresolved_genre_ids?: number[];
   developer: string | null;
   publisher: string | null;
   video_urls: string[];
@@ -193,6 +197,7 @@ export function FetchMetadataModal({
       // metadata_source only belongs here: enrich.py rejects any metadata_fields
       // (including metadata_source) for entityType 'game_item'.
       payload.metadata_source = activeProviderLabel;
+      payload.external_game_id = details.game_id;
       if (details.title) payload.title = details.title;
       if (details.overview) payload.description = details.overview;
       if (details.rating) payload.content_rating = details.rating;
@@ -299,6 +304,7 @@ export function FetchMetadataModal({
     // results stay in state (and sessionStorage), no re-search needed
   }
 
+  const unresolvedGenreIds = details?.unresolved_genre_ids ?? [];
   const showCoverArt = entityType === 'game_item';
   const showMetadata = entityType === 'game_item_bundle';
   const busy =
@@ -449,6 +455,14 @@ export function FetchMetadataModal({
                     label={
                       <span className="flex flex-1 items-center gap-3">
                         <span className="flex-1 font-medium text-neutral-100">{r.title}</span>
+                        {r.platform && (
+                          <span
+                            className="max-w-[40%] shrink truncate text-xs text-neutral-400"
+                            title={r.platform}
+                          >
+                            {r.platform}
+                          </span>
+                        )}
                         {r.release_date && (
                           <span className="shrink-0 text-xs text-neutral-400">
                             {r.release_date.split('-')[0]}
@@ -554,6 +568,21 @@ export function FetchMetadataModal({
                   Keep applies title/cover art now, you'll be offered a separate Accept All step
                   afterward to create a linked Media item from the images above.
                 </p>
+              )}
+
+              {showMetadata && unresolvedGenreIds.length > 0 && (
+                <div
+                  role="alert"
+                  className="rounded-md border border-amber-600/50 bg-amber-950/30 p-3"
+                >
+                  <p className="text-sm text-amber-300">
+                    {unresolvedGenreIds.length === 1
+                      ? '1 genre'
+                      : `${unresolvedGenreIds.length} genres`}{' '}
+                    could not be matched and will not be applied. Unmatched provider genre ids:{' '}
+                    <strong>{unresolvedGenreIds.join(', ')}</strong>.
+                  </p>
+                </div>
               )}
 
               {ratingChanged && (

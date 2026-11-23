@@ -413,10 +413,12 @@ def apply_cover_art_to_linked_games(
     try:
         cover_path = normalise_path(body.file_path)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"cover_art_path: {exc}")
+        logger.warning("Rejected cover_art_path %r: %s", body.file_path, exc)
+        raise HTTPException(status_code=400, detail="cover_art_path is not a valid path.") from None
     require_cover_in_library(cover_path, body.file_path)
     if not cover_path.exists():
-        raise HTTPException(status_code=400, detail=f"cover_art_path does not exist: {cover_path}")
+        logger.warning("Rejected cover_art_path %r: does not exist", body.file_path)
+        raise HTTPException(status_code=400, detail="cover_art_path does not exist.")
 
     updated: list[int] = []
     try:

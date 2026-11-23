@@ -62,6 +62,7 @@ class EnrichBody(BaseModel):
     metadata_source: Optional[str] = None
     cover_art_url: Optional[str] = None
     external_links: Optional[list[dict]] = None
+    external_game_id: Optional[int] = None
     confirm_rating_change: bool = False
 
 
@@ -109,7 +110,7 @@ def search_metadata(
 
     return {
         "results": [
-            {"game_id": r.game_id, "title": r.title, "release_date": r.release_date}
+            {"game_id": r.game_id, "title": r.title, "release_date": r.release_date, "platform": r.platform}
             for r in results
         ]
     }
@@ -153,6 +154,7 @@ def get_metadata_details(
         "cover_art_url": details.cover_art_url,
         "cover_art_thumb_url": details.cover_art_thumb_url,
         "genres": details.genres,
+        "unresolved_genre_ids": details.unresolved_genre_ids,
         "developer": details.developer,
         "publisher": details.publisher,
         "video_urls": details.video_urls,
@@ -186,6 +188,7 @@ def enrich_library_entity(
         metadata_source=body.metadata_source,
         cover_art_url=body.cover_art_url,
         external_links=body.external_links,
+        external_game_id=body.external_game_id,
         confirm_rating_change=body.confirm_rating_change,
         db=db,
     )

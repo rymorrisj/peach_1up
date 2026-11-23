@@ -30,7 +30,9 @@ def _api_key() -> str:
 def search_games(name: str) -> dict:
     """Search games by name.
 
-    Calls GET /v1.1/Games/ByGameName and returns the parsed JSON response body.
+    Calls GET /v1.1/Games/ByGameName with include=platform, so the response
+    also carries a platform id -> name table, and returns the parsed JSON
+    response body.
 
     Args:
         name: Game title to search for.
@@ -43,7 +45,7 @@ def search_games(name: str) -> dict:
     key = _api_key()
     response = httpx2.get(
         f"{_BASE_V1_1}/Games/ByGameName",
-        params={"apikey": key, "name": name},
+        params={"apikey": key, "name": name, "include": "platform"},
         timeout=_TIMEOUT,
     )
     response.raise_for_status()
@@ -138,11 +140,9 @@ def get_publishers() -> dict:
 def get_game_details(game_id: int) -> dict:
     """Fetch detailed metadata for a game by its TheGamesDB ID.
 
-    Calls GET /v1/Games/ByGameID with overview, rating, genres, publishers,
-    developers, platform, players, youtube (trailer link), alternates
-    (alternate titles), and the PC-specific system-requirement fields (os,
-    processor, ram, hdd, video, sound), relevant here given this app's
-    DOS/Win9x/XP focus, unlike a console-only library tool.
+    Calls GET /v1/Games/ByGameID with only the fields the provider maps:
+    overview, rating, genres, publishers, developers, platform and youtube
+    (trailer link).
 
     Args:
         game_id: The TheGamesDB numeric game identifier.
@@ -158,10 +158,7 @@ def get_game_details(game_id: int) -> dict:
         params={
             "apikey": key,
             "id": game_id,
-            "fields": (
-                "overview,rating,genres,publishers,developers,platform,players,"
-                "youtube,alternates,os,processor,ram,hdd,video,sound"
-            ),
+            "fields": "overview,rating,genres,publishers,developers,platform,youtube",
         },
         timeout=_TIMEOUT,
     )

@@ -202,13 +202,16 @@ def _resolve_igdb_content_rating(age_ratings: list[dict] | None) -> str | None:
 
 class IGDBProvider:
     def search_games(self, name: str) -> list[SearchResult]:
-        query = f'fields name,first_release_date; search "{_escape_apicalypse_string(name)}"; limit 20;'
+        query = f'fields name,first_release_date,platforms.name; search "{_escape_apicalypse_string(name)}"; limit 20;'
         games = _post("games", query)
         return [
             SearchResult(
                 game_id=g["id"],
                 title=g.get("name"),
                 release_date=_unix_to_date_string(g.get("first_release_date")),
+                platform=", ".join(
+                    p["name"] for p in g.get("platforms") or [] if isinstance(p, dict) and p.get("name")
+                ) or None,
             )
             for g in games
             if g.get("id") is not None

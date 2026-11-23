@@ -334,6 +334,212 @@ class TestTheGamesDBAssetTypeFilter:
         assert _asset_type_label({"type": "../evil", "side": "x"}) not in ASSET_TYPES
 
 
+class _FakeTgdb:
+    """Stands in for thegamesdb_client: records get_genres calls."""
+
+    def __init__(self, monkeypatch, genres, game_genres):
+        import backend.service.thegamesdb_client as client
+
+        self.genre_calls = 0
+        self._genres = genres
+        self.fail_rewarm_after = None
+        details = {"data": {"games": [{"id": 5, "game_title": "Doom", "genres": game_genres}]}}
+        images = {"data": {"base_url": {}, "images": {}}}
+        monkeypatch.setattr(client, "get_game_details", lambda game_id: details)
+        monkeypatch.setattr(client, "get_game_images", lambda game_id: images)
+        monkeypatch.setattr(client, "get_genres", self._get_genres)
+
+    def _get_genres(self):
+        import httpx2
+
+        self.genre_calls += 1
+        if self.fail_rewarm_after is not None and self.genre_calls > self.fail_rewarm_after:
+            raise httpx2.TimeoutException("timed out")
+        return {"data": {"genres": {str(i): {"id": i, "name": n} for i, n in self._genres.items()}}}
+
+
+class TestTheGamesDBGenreResolution:
+    def _seed(self, db, genres):
+        from backend.models.metadata_lookup import get_or_create_genre
+
+        for gid, name in genres.items():
+            get_or_create_genre(db, name, provider="thegamesdb", external_id=gid)
+        db.commit()
+
+    def _details(self, db):
+        from backend.service.metadata_providers.thegamesdb_provider import TheGamesDBProvider
+
+        return TheGamesDBProvider().get_game_details(5, db)
+
+    def test_unknown_id_rewarms_the_cache_once_and_resolves(self, mem_db_session, monkeypatch):
+        self._seed(mem_db_session, {1: "Action"})
+        fake = _FakeTgdb(monkeypatch, {1: "Action", 2: "Puzzle"}, [1, 2])
+
+        result = self._details(mem_db_session)
+
+        assert result.genres == ["Action", "Puzzle"]
+        assert result.unresolved_genre_ids == []
+        assert fake.genre_calls == 1
+
+    def test_id_unknown_after_rewarm_is_reported_not_fatal(self, mem_db_session, monkeypatch):
+        self._seed(mem_db_session, {1: "Action"})
+        fake = _FakeTgdb(monkeypatch, {1: "Action"}, [1, 99])
+
+        result = self._details(mem_db_session)
+
+        assert result.genres == ["Action"]
+        assert result.unresolved_genre_ids == [99]
+        assert fake.genre_calls == 1
+
+    def test_failed_rewarm_leaves_the_fetch_working(self, mem_db_session, monkeypatch):
+        self._seed(mem_db_session, {1: "Action"})
+        fake = _FakeTgdb(monkeypatch, {1: "Action"}, [1, 99])
+        fake.fail_rewarm_after = 0
+
+        result = self._details(mem_db_session)
+
+        assert result.genres == ["Action"]
+        assert result.unresolved_genre_ids == [99]
+
+    def test_name_cached_under_another_provider_still_resolves(self, mem_db_session, monkeypatch):
+        from backend.models.metadata_lookup import get_or_create_genre
+
+        get_or_create_genre(mem_db_session, "Puzzle", provider="igdb", external_id=7)
+        self._seed(mem_db_session, {1: "Action"})
+        _FakeTgdb(monkeypatch, {1: "Action", 2: "Puzzle"}, [2])
+
+        result = self._details(mem_db_session)
+
+        assert result.genres == ["Puzzle"]
+        assert result.unresolved_genre_ids == []
+
+    def test_all_ids_cached_makes_no_api_call(self, mem_db_session, monkeypatch):
+        self._seed(mem_db_session, {1: "Action"})
+        fake = _FakeTgdb(monkeypatch, {1: "Action"}, [1])
+
+        assert self._details(mem_db_session).genres == ["Action"]
+        assert fake.genre_calls == 0
+
+
+class TestTheGamesDBSearchPlatform:
+    def test_platform_name_comes_from_the_include_table(self, monkeypatch):
+        import backend.service.thegamesdb_client as client
+        from backend.service.metadata_providers.thegamesdb_provider import TheGamesDBProvider
+
+        raw = {
+            "data": {"games": [
+                {"id": 1, "game_title": "Doom", "release_date": "1993-12-10", "platform": 1},
+                {"id": 2, "game_title": "Doom", "release_date": "1994-01-01", "platform": 99},
+                {"id": 3, "game_title": "Doom", "release_date": None},
+            ]},
+            "include": {"platform": {"data": {"1": {"id": 1, "name": "PC", "alias": "pc"}}}},
+        }
+        monkeypatch.setattr(client, "search_games", lambda name: raw)
+
+        results = TheGamesDBProvider().search_games("Doom")
+
+        assert [r.platform for r in results] == ["PC", None, None]
+
+    def test_response_without_an_include_table_gives_no_label(self, monkeypatch):
+        import backend.service.thegamesdb_client as client
+        from backend.service.metadata_providers.thegamesdb_provider import TheGamesDBProvider
+
+        raw = {"data": {"games": [{"id": 1, "game_title": "Doom", "platform": 1}]}}
+        monkeypatch.setattr(client, "search_games", lambda name: raw)
+
+        assert TheGamesDBProvider().search_games("Doom")[0].platform is None
+
+
+class TestTheGamesDBClientFields:
+    def test_details_request_asks_only_for_fields_the_provider_maps(self, monkeypatch):
+        import backend.service.thegamesdb_client as client
+
+        seen = {}
+
+        class _Resp:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {}
+
+        def _get(url, params, timeout):
+            seen.update(params)
+            return _Resp()
+
+        monkeypatch.setattr(client, "_api_key", lambda: "k")
+        monkeypatch.setattr(client.httpx2, "get", _get)
+
+        client.get_game_details(5)
+
+        assert seen["fields"].split(",") == [
+            "overview", "rating", "genres", "publishers", "developers", "platform", "youtube",
+        ]
+
+
+@pytest.mark.usefixtures("metadata_fetch_enabled")
+class TestMatchedIdAndPlatformRoutes:
+    def test_search_response_carries_the_platform_label(self, http_client, monkeypatch):
+        import backend.service.metadata_providers as providers_mod
+        from backend.service.metadata_providers import SearchResult
+
+        class _Provider:
+            def search_games(self, name):
+                return [SearchResult(game_id=7, title=name, release_date=None, platform="PC")]
+
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_owner=True))
+        monkeypatch.setattr(providers_mod, "get_active_provider", lambda: _Provider())
+
+        resp = c.get("/api/v1/game-items/metadata-search", params={"name": "Doom"})
+
+        assert resp.json()["results"][0]["platform"] == "PC"
+
+    def test_details_response_lists_unresolved_genre_ids(self, http_client, monkeypatch):
+        import backend.service.metadata_providers as providers_mod
+        from backend.service.metadata_providers import GameDetails
+
+        class _Provider:
+            def get_game_details(self, game_id, db):
+                return GameDetails(game_id=game_id, genres=["Action"], unresolved_genre_ids=[99])
+
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_owner=True))
+        monkeypatch.setattr(providers_mod, "get_active_provider", lambda: _Provider())
+
+        resp = c.get("/api/v1/game-items/metadata-details", params={"game_id": 5})
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["unresolved_genre_ids"] == [99]
+
+    def test_enrich_persists_the_matched_game_id(self, http_client):
+        c, db, app = http_client
+        bundle = _make_game_bundle(db)
+        _set_active_user(app, _make_user(db, is_owner=True))
+
+        resp = c.post(
+            "/api/v1/game-items/enrich",
+            json={"entity_type": "game_item_bundle", "entity_id": bundle.id, "external_game_id": 1234},
+        )
+
+        assert resp.status_code == 200, resp.text
+        db.refresh(bundle)
+        assert bundle.external_game_id == 1234
+
+    def test_enrich_without_a_game_id_leaves_the_stored_one(self, http_client):
+        c, db, app = http_client
+        bundle = _make_game_bundle(db, external_game_id=55)
+        _set_active_user(app, _make_user(db, is_owner=True))
+
+        c.post(
+            "/api/v1/game-items/enrich",
+            json={"entity_type": "game_item_bundle", "entity_id": bundle.id, "title": "New"},
+        )
+
+        db.refresh(bundle)
+        assert bundle.external_game_id == 55
+
+
 # ---------------------------------------------------------------------------
 # metadata_fetch_enabled owner toggle, enforced server-side on all four routes
 # ---------------------------------------------------------------------------

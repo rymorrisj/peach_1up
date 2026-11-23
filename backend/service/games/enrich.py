@@ -66,6 +66,7 @@ def enrich_entity(
     metadata_source: Optional[str] = None,
     cover_art_url: Optional[str] = None,
     external_links: Optional[list[dict]] = None,
+    external_game_id: Optional[int] = None,
     confirm_rating_change: bool = False,
     db: "Session",
 ) -> tuple:
@@ -78,6 +79,7 @@ def enrich_entity(
         title=title, description=description, publisher=publisher, developer=developer,
         genre=genre, year=year, content_rating=content_rating, metadata_source=metadata_source,
         cover_art_url=cover_art_url, external_links=external_links,
+        external_game_id=external_game_id,
         confirm_rating_change=confirm_rating_change, db=db,
     )
     if entity_type == "game_item" and cover_art_url:
@@ -103,6 +105,7 @@ def _enrich_entity(
     metadata_source: Optional[str] = None,
     cover_art_url: Optional[str] = None,
     external_links: Optional[list[dict]] = None,
+    external_game_id: Optional[int] = None,
     confirm_rating_change: bool = False,
     db: "Session",
 ) -> tuple:
@@ -114,6 +117,7 @@ def _enrich_entity(
         "year": year,
         "metadata_source": metadata_source,
         "external_links": external_links,
+        "external_game_id": external_game_id,
     }.items() if v is not None}
 
     if content_rating is not None:

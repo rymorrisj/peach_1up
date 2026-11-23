@@ -1058,6 +1058,24 @@ class TestApplyCoverArtToGamesTransaction:
         db.expire_all()
         assert all(db.get(type(d), d.id).cover_art_path == str(art.resolve()) for d in discs)
 
+    def test_a_missing_file_is_400_and_the_path_is_not_echoed(self, media_env):
+        from backend.models.media import make_entity_link
+
+        c, db, media_root, _, _ = media_env
+        gone = media_root / "art" / "gone.jpg"
+        bundle = _media_bundle(db, "Gone", [gone])
+        game, _disc = _game_with_disc(db, "game-c", None)
+        db.add(make_entity_link("media_item_bundle", bundle.id, "game_item_bundle", game.id))
+        db.commit()
+
+        resp = c.post(
+            f"/api/v1/media-item-bundle/{bundle.id}/apply-cover-art-to-linked-games",
+            json={"file_path": str(gone)},
+        )
+
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["detail"] == "cover_art_path does not exist."
+
     def test_failure_on_the_second_game_leaves_the_first_unchanged(self, media_env, monkeypatch):
         from backend.models.game import GameItemBundle
 

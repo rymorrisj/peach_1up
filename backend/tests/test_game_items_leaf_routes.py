@@ -279,6 +279,23 @@ class TestLeafPatchCover:
         assert a.json()["detail"] == b.json()["detail"]
         assert str(tmp_path) not in a.json()["detail"]
 
+    def test_missing_cover_inside_the_library_is_400_and_names_no_path(self, http_client, library):
+        missing = library / "media" / "missing.png"
+        c, _, leaf = self._owner_and_leaf(http_client)
+
+        resp = c.patch(f"/api/v1/game-item/{leaf.id}", json={"cover_art_path": str(missing)})
+
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["detail"] == "cover_art_path does not exist."
+
+    def test_unparseable_cover_path_is_a_generic_400(self, http_client, library):
+        c, _, leaf = self._owner_and_leaf(http_client)
+
+        resp = c.patch(f"/api/v1/game-item/{leaf.id}", json={"cover_art_path": "bad\x00name.png"})
+
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["detail"] == "cover_art_path is not a valid path."
+
     def test_explicit_null_clears_cover_and_executable_but_keeps_the_file(self, http_client, library):
         cover = library / "media" / "cover.png"
         cover.write_bytes(b"png")
@@ -319,3 +336,77 @@ class TestLeafPatchCover:
         assert resp.status_code == 200, resp.text
         db.refresh(leaf)
         assert leaf.cover_art_path == stored
+
+
+@pytest.fixture
+def games_root(tmp_path, monkeypatch):
+    root = tmp_path / "library" / "software"
+    (root / "games").mkdir(parents=True)
+
+    import backend.core.settings as core_settings
+
+    class _Settings:
+        def get(self, key, default=None):
+            return str(root) if key == "SOFTWARE_PATH" else default
+
+        def get_env_var(self, key):
+            return str(root) if key == "SOFTWARE_PATH" else ""
+
+    monkeypatch.setattr(core_settings, "get_settings", lambda: _Settings())
+    return root / "games"
+
+
+class TestLeafPatchExecutablePath:
+    def _owner_and_leaf(self, http_client):
+        c, db, app = http_client
+        _set_active_user(app, _make_user(db, is_owner=True))
+        return c, db, _make_leaf(db, _make_game_bundle(db))
+
+    def _patch(self, c, leaf, path):
+        return c.patch(f"/api/v1/game-item/{leaf.id}", json={"executable_path": str(path)})
+
+    def test_outside_path_gives_the_same_answer_whether_or_not_it_exists(self, http_client, games_root, tmp_path):
+        existing = tmp_path / "elsewhere" / "evil.exe"
+        existing.parent.mkdir()
+        existing.write_bytes(b"MZ")
+        missing = tmp_path / "elsewhere" / "missing.exe"
+        c, db, leaf = self._owner_and_leaf(http_client)
+
+        a = self._patch(c, leaf, existing)
+        b = self._patch(c, leaf, missing)
+
+        assert a.status_code == b.status_code == 422
+        assert a.json() == b.json()
+        assert str(tmp_path) not in a.text
+        db.refresh(leaf)
+        assert leaf.executable_path is None
+
+    def test_existing_path_inside_the_games_library_is_saved(self, http_client, games_root):
+        exe = games_root / "doom" / "doom.exe"
+        exe.parent.mkdir()
+        exe.write_bytes(b"MZ")
+        c, db, leaf = self._owner_and_leaf(http_client)
+
+        resp = self._patch(c, leaf, exe)
+
+        assert resp.status_code == 200, resp.text
+        db.refresh(leaf)
+        assert leaf.executable_path == str(exe.resolve())
+
+    def test_missing_path_inside_the_games_library_is_400_and_names_no_path(self, http_client, games_root):
+        c, db, leaf = self._owner_and_leaf(http_client)
+
+        resp = self._patch(c, leaf, games_root / "doom" / "missing.exe")
+
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["detail"] == "executable_path does not exist."
+        db.refresh(leaf)
+        assert leaf.executable_path is None
+
+    def test_unparseable_path_is_a_generic_400(self, http_client, games_root):
+        c, _, leaf = self._owner_and_leaf(http_client)
+
+        resp = c.patch(f"/api/v1/game-item/{leaf.id}", json={"executable_path": "bad\x00name.exe"})
+
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["detail"] == "executable_path is not a valid path."

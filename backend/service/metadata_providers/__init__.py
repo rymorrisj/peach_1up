@@ -55,6 +55,7 @@ class SearchResult:
     game_id: int
     title: Optional[str]
     release_date: Optional[str]
+    platform: Optional[str] = None
 
 
 @dataclass
@@ -81,6 +82,7 @@ class GameDetails:
     cover_art_url: Optional[str] = None
     cover_art_thumb_url: Optional[str] = None
     genres: list[str] = field(default_factory=list)
+    unresolved_genre_ids: list[int] = field(default_factory=list)
     developer: Optional[str] = None
     publisher: Optional[str] = None
     video_urls: list[str] = field(default_factory=list)

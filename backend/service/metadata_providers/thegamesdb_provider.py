@@ -6,16 +6,18 @@ Publisher cache tables (backend/models/metadata_lookup.py). TheGamesDB's
 /Genres, /Developers, /Publishers endpoints each return their entire list in
 one call (no by-ID lookup exists), so the cache is warmed once, in full,
 the first time any of these is needed, and every id lookup thereafter is
-local. A genre/developer/publisher id introduced by TheGamesDB after that
-one-time warm-up would not be picked up automatically; this is a deliberate
-tradeoff for staying "never re-fetch a known list" rather than re-checking
-the API on every call.
+local. A genre id missing from the cache triggers one re-warm of the genre
+list per fetch; ids still unknown after that are reported back, never
+dropped silently. Developer and publisher ids are not re-warmed.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
+import httpx2
+
+from backend.core.logger import get_logger
 from backend.models.metadata_lookup import (
     Developer, Genre, Publisher,
     get_or_create_developer, get_or_create_genre, get_or_create_publisher,
@@ -26,6 +28,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 _PROVIDER = "thegamesdb"
+_log = get_logger(__name__)
 
 
 def _youtube_url(value: object) -> Optional[str]:
@@ -78,20 +81,75 @@ def _ids_from_game_field(game: dict, field: str) -> list[int]:
     return ids
 
 
-def _ensure_genres_cached(db: "Session") -> None:
-    if db.query(Genre).filter(Genre.provider == _PROVIDER).first() is not None:
-        return
+def _platform_names(raw: dict) -> dict[int, str]:
+    """Platform id -> name from a search response's include.platform table."""
+    data = ((raw.get("include") or {}).get("platform") or {}).get("data") or {}
+    entries = data.values() if isinstance(data, dict) else data
+    names: dict[int, str] = {}
+    for entry in entries:
+        if not isinstance(entry, dict) or not entry.get("name"):
+            continue
+        try:
+            names[int(entry.get("id"))] = entry["name"]
+        except (TypeError, ValueError):
+            continue
+    return names
+
+
+def _platform_label(game: dict, names: dict[int, str]) -> Optional[str]:
+    try:
+        return names.get(int(game.get("platform")))
+    except (TypeError, ValueError):
+        return None
+
+
+def _warm_genres(db: "Session") -> dict[int, str]:
+    """Fetch TheGamesDB's full genre list into the cache and return it as
+    id -> name. The returned names cover ids whose name was already cached
+    under another provider, which the (provider, id) cache lookup cannot see."""
     from backend.service.thegamesdb_client import get_genres as _fetch_genres
 
     raw = _fetch_genres()
     entries = raw.get("data", {}).get("genres", {})
     values = entries.values() if isinstance(entries, dict) else entries
+    names: dict[int, str] = {}
     for entry in values:
         gid, gname = entry.get("id"), entry.get("name")
         if gid is None or not gname:
             continue
         get_or_create_genre(db, gname, provider=_PROVIDER, external_id=int(gid))
+        names[int(gid)] = gname
     db.commit()
+    return names
+
+
+def _cached_genre_names(db: "Session", ids: list[int]) -> dict[int, str]:
+    rows = db.query(Genre).filter(Genre.provider == _PROVIDER, Genre.external_id.in_(ids)).all()
+    return {r.external_id: r.name for r in rows}
+
+
+def _resolve_genres(db: "Session", ids: list[int]) -> tuple[list[str], list[int]]:
+    """Return (sorted genre names, sorted ids that could not be resolved).
+
+    On a cache miss the genre list is re-warmed once and the lookup retried. A
+    failed re-warm is logged and leaves the misses unresolved rather than
+    failing the fetch."""
+    if db.query(Genre).filter(Genre.provider == _PROVIDER).first() is None:
+        _warm_genres(db)
+    found = _cached_genre_names(db, ids)
+    missing = [i for i in ids if i not in found]
+    if missing:
+        try:
+            fresh = _warm_genres(db)
+        except httpx2.HTTPError as exc:
+            _log.warning("TheGamesDB genre re-warm failed: %s", exc)
+            fresh = {}
+        found.update(_cached_genre_names(db, missing))
+        found.update({i: fresh[i] for i in missing if i not in found and i in fresh})
+    unresolved = sorted({i for i in ids if i not in found})
+    if unresolved:
+        _log.info("TheGamesDB genre ids not resolved: %s", unresolved)
+    return sorted({found[i] for i in ids if i in found}), unresolved
 
 
 def _ensure_developers_cached(db: "Session") -> None:
@@ -131,6 +189,7 @@ class TheGamesDBProvider:
         from backend.service.thegamesdb_client import search_games as _search
 
         raw = _search(name)
+        platform_names = _platform_names(raw)
         games = raw.get("data", {}).get("games", [])
         if not isinstance(games, list):
             games = list(games.values()) if isinstance(games, dict) else []
@@ -139,6 +198,7 @@ class TheGamesDBProvider:
                 game_id=g["id"],
                 title=g.get("game_title"),
                 release_date=g.get("release_date"),
+                platform=_platform_label(g, platform_names),
             )
             for g in games
             if g.get("id") is not None
@@ -178,11 +238,7 @@ class TheGamesDBProvider:
 
             genre_ids = _ids_from_game_field(game, "genres")
             if genre_ids:
-                _ensure_genres_cached(db)
-                rows = db.query(Genre).filter(
-                    Genre.provider == _PROVIDER, Genre.external_id.in_(genre_ids)
-                ).all()
-                result.genres = sorted(r.name for r in rows)
+                result.genres, result.unresolved_genre_ids = _resolve_genres(db, genre_ids)
 
             developer_ids = _ids_from_game_field(game, "developers")
             if developer_ids:

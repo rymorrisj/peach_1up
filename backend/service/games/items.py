@@ -1640,18 +1640,22 @@ def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, 
     if not leaf or leaf.game_item_bundle_id != collection_id:
         raise HTTPException(status_code=404, detail="Software item not found.")
     fields = body.model_dump(exclude_unset=True)
+    from backend.core.logger import get_logger
+    log = get_logger(__name__)
     for key in _PATH_FIELDS & fields.keys():
         if fields[key] is None:
             continue
+        # Containment runs before any existence test, and no message below
+        # names a path, so an outside path answers the same whether or not it
+        # exists. The detail goes to the log only.
         try:
             resolved = normalise_path(fields[key])
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=f"{key}: {e}")
+        except ValueError as exc:
+            log.warning("Rejected %s %r: %s", key, fields[key], exc)
+            raise HTTPException(status_code=400, detail=f"{key} is not a valid path.") from None
         if key == "cover_art_path":
             from backend.service.games.leaf_covers import require_cover_in_library
             require_cover_in_library(resolved, fields[key])
-        if key in _EXISTENCE_FIELDS and not resolved.exists():
-            raise HTTPException(status_code=400, detail=f"{key} does not exist: {resolved}")
         if key in _CONTAINMENT_FIELDS:
             from backend.core.settings import get_settings
             games_root_str = get_settings().get("SOFTWARE_PATH", "") or ""
@@ -1659,10 +1663,14 @@ def update_library_leaf(collection_id: int, leaf_id: int, body: GameItemUpdate, 
                 from backend.service.utils.path_utils import library_domain_root
                 media_root = library_domain_root("games")
                 if not (resolved == media_root or resolved.is_relative_to(media_root)):
+                    log.warning("Rejected %s %r: outside the games library", key, fields[key])
                     raise HTTPException(
                         status_code=422,
                         detail=f"{key} must be inside the games library (library/software/games/).",
                     )
+        if key in _EXISTENCE_FIELDS and not resolved.exists():
+            log.warning("Rejected %s %r: does not exist", key, fields[key])
+            raise HTTPException(status_code=400, detail=f"{key} does not exist.")
         fields[key] = str(resolved)
     for key, value in fields.items():
         setattr(leaf, key, value)

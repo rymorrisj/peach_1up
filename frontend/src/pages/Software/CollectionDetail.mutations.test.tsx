@@ -1152,7 +1152,12 @@ describe('CollectionDetail (mutation path)', () => {
 
   // ── Fetch Metadata (collection-level enrichment wizard) ──
   describe('Fetch metadata', () => {
-    const searchResult = { game_id: 501, title: 'Doom (1993)', release_date: '1993-12-10' };
+    const searchResult = {
+      game_id: 501,
+      title: 'Doom (1993)',
+      release_date: '1993-12-10',
+      platform: 'PC',
+    };
     const details = {
       game_id: 501,
       title: 'Doom (1993)',
@@ -1188,6 +1193,7 @@ describe('CollectionDetail (mutation path)', () => {
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: 'Search' }));
+      expect(await screen.findByText('PC')).toBeInTheDocument();
       await user.click(await screen.findByRole('radio'));
       await user.click(screen.getByRole('button', { name: 'Fetch Now' }));
 
@@ -1205,11 +1211,51 @@ describe('CollectionDetail (mutation path)', () => {
       expect(enrichCalls[0].body).toMatchObject({
         entity_type: 'game_item_bundle',
         entity_id: 1,
+        external_game_id: 501,
         metadata_source: 'TheGamesDB',
         title: 'Doom (1993)',
         developer: 'id Software',
         publisher: 'id Software',
       });
+    });
+
+    it('warns about genre ids that could not be matched and still applies the rest', async () => {
+      const user = userEvent.setup();
+      const calls = setupApi(adminUser, [
+        {
+          match: '/api/v1/game-item-bundle/by-slug/doom',
+          method: 'GET',
+          respond: () => fullCollection({ content_rating: null }),
+        },
+        {
+          match: /^\/api\/v1\/game-items\/metadata-search/,
+          respond: () => ({ results: [searchResult] }),
+        },
+        {
+          match: /^\/api\/v1\/game-items\/metadata-details/,
+          respond: () => ({ ...details, unresolved_genre_ids: [99, 100] }),
+        },
+        { match: '/api/v1/game-items/enrich', method: 'POST', respond: () => ({}) },
+      ]);
+      renderPage();
+      await waitForLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Fetch Metadata' }));
+      await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+      await user.click(screen.getByRole('button', { name: 'Search' }));
+      await user.click(await screen.findByRole('radio'));
+      await user.click(screen.getByRole('button', { name: 'Fetch Now' }));
+
+      const warning = await screen.findByRole('alert');
+      expect(warning).toHaveTextContent(/2 genres could not be matched/);
+      expect(warning).toHaveTextContent('99, 100');
+
+      await user.click(screen.getByRole('button', { name: 'Keep' }));
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
+      const enrichCalls = callsTo(calls, '/api/v1/game-items/enrich', 'POST');
+      expect(enrichCalls[0].body).toMatchObject({ genre: ['Action'] });
     });
 
     it('surfaces an error and keeps the modal open when applying metadata fails', async () => {
